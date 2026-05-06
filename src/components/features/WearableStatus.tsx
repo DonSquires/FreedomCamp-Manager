@@ -34,7 +34,20 @@ import {
   ShieldCheck,
   ShieldAlert,
   Camera,
+  Siren,
 } from 'lucide-react'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
+import { useWearableSOS } from '@/hooks/useWearableSOS'
 
 interface WearableStatusProps {
   /** Size variant */
@@ -52,6 +65,7 @@ export function WearableStatus({
 }: WearableStatusProps) {
   const connectedCount = useConnectedDevicesCount()
   const anySafetyActive = useAnySafetyActive()
+  const { triggerSOS, isLoading: sosLoading, cooldownRemaining } = useWearableSOS()
   
   const {
     blePanicDevice,
@@ -248,6 +262,43 @@ export function WearableStatus({
             </div>
           )}
           
+          {/* SOS button (B-14) */}
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button
+                variant="destructive"
+                size="sm"
+                className="w-full mt-2 gap-1.5"
+                disabled={sosLoading || cooldownRemaining > 0}
+              >
+                <Siren className="h-4 w-4" />
+                {cooldownRemaining > 0
+                  ? `SOS sent — wait ${cooldownRemaining}s`
+                  : sosLoading
+                  ? 'Sending SOS…'
+                  : 'Send SOS Alert'}
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Send Emergency SOS?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will immediately alert all supervisors in your organisation
+                  and log an emergency welfare alert. Only use in a genuine emergency.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  className="bg-red-600 hover:bg-red-700"
+                  onClick={() => triggerSOS('web')}
+                >
+                  Confirm SOS
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+
           {/* Settings link */}
           {onSettingsClick && (
             <Button

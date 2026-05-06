@@ -106,6 +106,9 @@ export interface PublicTranslations {
     statusOnScene: string
     statusResolved: string
     statusNoAction: string
+    placeholderPhone: string
+    placeholderEmail: string
+    jsLocale: string           // BCP-47 locale string for date formatting, e.g. 'en-NZ'
   }
 }
 
@@ -209,6 +212,9 @@ const en: PublicTranslations = {
     statusOnScene: 'Officer On Scene',
     statusResolved: 'Resolved',
     statusNoAction: 'No Action Taken',
+    placeholderPhone: '021 000 0000',
+    placeholderEmail: 'you@example.com',
+    jsLocale: 'en-NZ',
   },
 }
 
@@ -312,6 +318,9 @@ const mi: PublicTranslations = {
     statusOnScene: 'Kei te Wāhi te Āpiha',
     statusResolved: 'Kua Whakatauia',
     statusNoAction: 'Kāore he Mahi i Mahia',
+    placeholderPhone: '021 000 0000',
+    placeholderEmail: 'koe@tauira.com',
+    jsLocale: 'mi',
   },
 }
 
@@ -411,6 +420,9 @@ const zh: PublicTranslations = {
     statusOnScene: '执法人员已到场',
     statusResolved: '已解决',
     statusNoAction: '未采取行动',
+    placeholderPhone: '021 000 0000',
+    placeholderEmail: 'you@example.com',
+    jsLocale: 'zh-NZ',
   },
 }
 
@@ -512,6 +524,9 @@ const hi: PublicTranslations = {
     statusOnScene: 'अधिकारी मौके पर',
     statusResolved: 'हल हो गई',
     statusNoAction: 'कोई कार्रवाई नहीं',
+    placeholderPhone: '021 000 0000',
+    placeholderEmail: 'you@example.com',
+    jsLocale: 'hi',
   },
 }
 

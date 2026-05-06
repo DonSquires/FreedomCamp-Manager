@@ -2034,9 +2034,344 @@ All Sprint 1 VOC backlog items (B-01 through B-09) are now shipped:
 | ID | Item | Status |
 |---|---|---|
 | B-10 | Public freedom camping zone map | ✅ |
-| B-11 | Multi-language public portal | ⬜ (depends on B-10; needs translation strings) |
-| B-12 | Automated DOC / council data sync | ⬜ (needs DOC API key confirmation) |
+| B-11 | Multi-language public portal | ✅ |
+| B-12 | Automated DOC / council data sync | ✅ (scaffold — live sync needs `DOC_API_KEY`) |
 | B-13 | Public noise complaint portal | ✅ |
-| B-14 | Wearable (Apple Watch) integration | ⬜ (needs WatchOS path validation) |
+| B-14 | Wearable (Apple Watch) integration | ✅ |
 
-**Next session:** B-11 (i18n for `/public/zone-map` + `/public/noise-complaint`) or B-12 (nightly DOC sync scaffold).
+**Next session:** B-14 (wearable integration) or Phase 5 Sprint 3 planning.
+
+---
+
+## Phase 5 Sprint 2 Continuation — B-11/B-12 (2026-05-05)
+
+### Changes
+
+| File | Change |
+|---|---|
+| `src/pages/PublicNoiseComplaintPortal.tsx` | B-11: Wired `usePublicLocale` + language switcher (EN/MĀ/中/हि). All hardcoded English strings replaced with `t.nc.*` translation keys. `NOISE_TYPE_LABELS` and status labels are now derived from current locale at render time. Header extended with Globe icon + locale buttons matching the zone-map pattern. |
+| `supabase/migrations/20260505000003_doc_council_sync_log.sql` | B-12: New table `doc_council_sync_log` — stores run_at, source, status, zones_added/updated/removed, error_message, raw_summary, triggered_by, organization_id. RLS: admin/master/grand_master read; service-role write. |
+| `supabase/functions/doc-council-sync/index.ts` | B-12: New edge function. Fetches zones from DOC API (`DOC_API_BASE_URL` + `DOC_API_KEY`), upserts into `public.zones`, writes audit row to `doc_council_sync_log`, broadcasts `zones_updated` event on `doc-sync-updates` Realtime channel. Runs in dry-run/no-op mode when `DOC_API_KEY` is not yet configured. Supports `{ source, org_id, dry_run }` POST body for manual admin triggers. |
+| `src/lib/edgeFunctions.ts` | B-12: Added `triggerDocCouncilSync({ source, org_id, dry_run })` wrapper. |
+| `docs/STAGING.md` | B-11 ✅, B-12 ✅; sprint 2 board updated. |
+
+### B-11 / B-12 Success Criteria
+
+- [x] B-11: `/public/noise-complaint` shows language switcher (EN/MĀ/中/हि) in header
+- [x] B-11: All user-visible strings use `t.nc.*` translation keys (no hardcoded English)
+- [x] B-11: Locale persists in localStorage; auto-detected from browser language
+- [x] B-11: Status labels and noise-type dropdown options update instantly on locale switch
+- [x] B-12: `doc_council_sync_log` table created with RLS (admin read, service-role write)
+- [x] B-12: `doc-council-sync` edge function scaffolded; runs in no-op mode without `DOC_API_KEY`
+- [x] B-12: Realtime broadcast on `doc-sync-updates` when zones change
+- [x] B-12: `edgeFunctions.triggerDocCouncilSync()` wrapper available for admin UI
+- [x] `bun run build` → PASS
+- [x] `bun run lint` → PASS
+
+### Sprint 2 Remaining
+
+| ID | Item | Status |
+|---|---|---|
+| B-10 | Public freedom camping zone map | ✅ |
+| B-11 | Multi-language public portal | ✅ |
+| B-12 | Automated DOC / council data sync | ✅ (scaffold — live sync needs `DOC_API_KEY`) |
+| B-13 | Public noise complaint portal | ✅ |
+| B-14 | Wearable (Apple Watch) integration | ✅ |
+
+**Next session:** B-14 (wearable integration) or Phase 5 Sprint 3 planning.
+
+---
+
+## Phase 5 Sprint 2 — RLS Hotfix (2026-05-05)
+
+### Problem
+`public.zones` had no anon SELECT policy. The public zone map (`/public/zone-map`, B-10) queried `zones` without authentication, so RLS blocked all rows — the page always showed zero zones.
+
+### Changes
+
+| File | Change |
+|---|---|
+| `supabase/migrations/20260505000005_zones_public_read.sql` | Adds `zones_public_read` policy: anon SELECT on `public.zones` restricted to `is_active = true`. Authenticated policies (users_view_zones etc.) are unchanged. |
+| `docs/STAGING.md` | Fixed stale B-11 ⬜ status in old sprint board; added this hotfix session snapshot. |
+
+### Success Criteria
+
+- [x] Anon can SELECT `zones` where `is_active = true`
+- [x] Authenticated write/delete policies are unchanged
+- [x] `/public/zone-map` will now return zone rows without authentication
+- [x] `bun run build` → PASS
+- [x] `bun run lint` → PASS
+
+**Next session:** B-14 (wearable integration) or Phase 5 Sprint 3 planning.
+
+---
+
+## Phase 5 Sprint 2 — B-14 Wearable Integration (2026-05-05)
+
+### Validation
+WatchOS push notification path confirmed: Apple Watch mirrors push notifications from iPhone automatically.
+The Expo companion app already supports `categoryId` for interactive watch actions.
+The web SPA delivers SOS via the existing `officer_welfare_alerts` table + `send-push-notification` fan-out.
+
+### Changes
+
+| File | Change |
+|---|---|
+| `supabase/migrations/20260505000006_wearable_sos_type.sql` | Adds `sos_wearable` to `officer_welfare_alerts_alert_type_check` constraint. |
+| `supabase/functions/wearable-sos/index.ts` | New edge function: accepts `{ user_id, organization_id, location?, device_type? }`, inserts `officer_welfare_alerts` row (type `sos_wearable`, escalation 2), fans push to all admins/admin_officers in org via `send-push-notification` (category `wearable_sos`), broadcasts Realtime event on `officer-welfare` channel. |
+| `src/lib/edgeFunctions.ts` | Added `triggerWearableSOS()` wrapper; added `category_id?` param to `sendPushNotification()` so dispatch alerts can carry `wearable_dispatch` category for Apple Watch interactive actions. |
+| `src/hooks/useWearableSOS.ts` | New hook: captures GPS location, calls `triggerWearableSOS`, enforces 60-second cooldown, exposes `{ triggerSOS, isLoading, lastTriggeredAt, cooldownRemaining }`. |
+| `src/components/features/WearableStatus.tsx` | Added SOS button (with `AlertDialog` confirmation) in the device popover. Disabled during loading and cooldown; shows countdown. |
+| `docs/STAGING.md` | B-14 ✅; session snapshot added. |
+
+### B-14 Success Criteria
+
+- [x] `wearable-sos` edge function: insert `sos_wearable` alert + push to supervisors + Realtime broadcast
+- [x] `sos_wearable` alert_type accepted by DB constraint
+- [x] `edgeFunctions.triggerWearableSOS()` wrapper available
+- [x] `useWearableSOS` hook: GPS capture + 60s cooldown + toast feedback
+- [x] WearableStatus popover: SOS button with confirmation dialog + cooldown counter
+- [x] Dispatch pushes can carry `category_id: 'wearable_dispatch'` for Apple Watch actions
+- [x] `bun run build` → PASS
+- [x] `bun run lint` → PASS
+
+### Sprint 2 Final Board
+
+| ID | Item | Status |
+|---|---|---|
+| B-10 | Public freedom camping zone map | ✅ |
+| B-11 | Multi-language public portal | ✅ |
+| B-12 | Automated DOC / council data sync | ✅ (scaffold — live sync needs `DOC_API_KEY`) |
+| B-13 | Public noise complaint portal | ✅ |
+| B-14 | Wearable (Apple Watch) integration | ✅ |
+
+**Sprint 2 COMPLETE. Next session:** Phase 5 Sprint 3 planning.
+
+---
+
+## Phase 5 Sprint 3 — B-15 / B-16 (2026-05-05)
+
+### Changes
+
+| File | Change |
+|---|---|
+| `supabase/migrations/20260505000007_parking_appeals.sql` | New `parking_appeals` table (anon INSERT, org-scoped SELECT, grand_master read-all). Adds anon SELECT policy on `parking_infringements` for public lookup at `/public/parking-appeal`. |
+| `supabase/functions/submit-parking-appeal/index.ts` | New edge function: validates `infringement_number` + `plate_number`, guards terminal statuses, inserts `parking_appeals` row, marks infringement as `disputed`. |
+| `src/lib/edgeFunctions.ts` | Added `submitParkingAppeal()` wrapper. |
+| `src/pages/PublicParkingAppealPortal.tsx` | New public page at `/public/parking-appeal`. Anon lookup of infringement by number + plate. Evidence photo gallery. Appeal form with contact details + grounds. Confirmation state. |
+| `src/App.tsx` | Added `/public/parking-appeal` route (lazy-loaded). |
+| `src/pages/ParkingEnforcementPortal.tsx` | Added **Occupancy** tab (B-16): per-zone active vehicle count with capacity progress bars, at-capacity/over-time-limit badges, and 4 summary stat cards. Added Realtime subscription on `parking_sessions` for live updates without polling. |
+| `docs/STAGING.md` | Sprint 3 board added; B-15/B-16 ✅. |
+
+### B-15 Success Criteria
+
+- [x] `/public/parking-appeal` accessible without authentication
+- [x] Lookup validates infringement_number + plate_number combination
+- [x] Evidence photos displayed if present
+- [x] Appeal form → edge function → `parking_appeals` INSERT → infringement set to `disputed`
+- [x] Terminal-status notices (paid/written_off/court_referred/withdrawn) show informational message, not form
+- [x] Success state with reference confirmation
+
+### B-16 Success Criteria
+
+- [x] Occupancy tab in ParkingEnforcementPortal shows live per-zone vehicle counts
+- [x] Progress bar per zone with capacity% (when `max_capacity` set)
+- [x] At-capacity and over-time-limit indicators
+- [x] Realtime subscription on `parking_sessions` → `refetchSessions()` on any change
+- [x] 4 summary cards: Total Active, Zones Monitored, Over Time Limit, At Capacity
+
+### Sprint 3 Board
+
+| ID | Item | Status |
+|---|---|---|
+| B-15 | Self-serve parking appeals portal | ✅ |
+| B-16 | Real-time parking occupancy dashboard | ✅ |
+
+- [x] `bun run build` → PASS
+- [x] `bun run lint` → PASS
+
+**Next session:** Sprint 3 continuation or Phase 5 wrap-up.
+
+---
+
+## Phase 5 Sprint 3 Continuation — B-17 / B-18 (2026-05-06)
+
+### Changes
+
+| File | Change |
+|---|---|
+| `supabase/migrations/20260506000002_camper_registration_and_amenities.sql` | B-18: adds `has_toilets`, `has_water`, `has_dump_station`, `has_shower`, `has_rubbish`, `max_vehicles`, `fee_nzd` columns to `zones`. B-17: new `camper_registrations` table (anon INSERT + SELECT RLS, org-staff full access, GM read-all), `generate_camper_confirmation_code()` function. |
+| `supabase/functions/submit-camper-registration/index.ts` | New edge function: validates zone active, checks capacity (if max_vehicles set), generates confirmation code via DB function, inserts registration row. |
+| `src/lib/edgeFunctions.ts` | Added `submitCamperRegistration()` wrapper. |
+| `src/pages/PublicCamperRegistration.tsx` | New public page at `/public/register`. Zone browse/select with search, dates + party size, vehicle/contact form, confirmation code display. Lookup tab for existing registrations by code. |
+| `src/App.tsx` | Added `/public/register` lazy route. |
+| `src/pages/PublicFreedomCampingMap.tsx` | B-18: updated zone SELECT query to include amenity columns; amenity icon row (🚻💧⬇🚿🗑 + fee + capacity) per zone card; "Register your stay" CTA linking to `/public/register?zone=<id>`; Register Stay footer link. Zone type updated to include amenity fields. |
+| `src/pages/ZoneManagement.tsx` | B-18: added amenity fields to `Zone` interface; edit dialog Facilities & Amenities section (checkboxes + max_vehicles + fee_nzd); populate and save in open/save flow. |
+| `docs/STAGING.md` | B-17/B-18 session snapshot added. |
+
+### B-17 Success Criteria
+
+- [x] `/public/register` accessible without authentication
+- [x] Active zones browseable and selectable with search
+- [x] Vehicle/contact/dates form → edge function → `camper_registrations` INSERT
+- [x] Capacity check: blocks if zone at max_vehicles for dates
+- [x] Confirmation code (CR-YYYY-XXXX) displayed prominently after registration
+- [x] Lookup tab: retrieve registration by confirmation code
+- [x] Footer links to other public portals
+
+### B-18 Success Criteria
+
+- [x] Zone amenity columns on `public.zones`: has_toilets, has_water, has_dump_station, has_shower, has_rubbish, max_vehicles, fee_nzd
+- [x] Public zone map shows amenity icon badges per zone card
+- [x] Zone map cards link to `/public/register?zone=<id>`
+- [x] Admin zone edit dialog has Facilities & Amenities section (checkboxes + capacity + fee)
+- [x] Amenity state populates when opening edit dialog and saves on update
+
+### Sprint 3 Board (updated)
+
+| ID | Item | Status |
+|---|---|---|
+| B-15 | Self-serve parking appeals portal | ✅ |
+| B-16 | Real-time parking occupancy dashboard | ✅ |
+| B-17 | Camper self-registration | ✅ |
+| B-18 | Amenity mapping (rich zone facilities) | ✅ |
+
+- [x] `bun run build` → PASS
+- [x] `bun run lint` → PASS
+
+**Next session:** Sprint 3 remaining items or Phase 5 wrap-up.
+
+---
+
+## Phase 5 Sprint 3 Completion — B-19 / B-20 (2026-05-06)
+
+### Changes
+
+| File | Change |
+|---|---|
+| `src/lib/officerLocale.ts` | B-19: EN/Māori/Mandarin/Hindi translations for officer portal (serviceType labels, shift/patrol actions, welfare/SOS, common buttons). `detectOfficerLocale()` reads from user profile `preferred_language`, localStorage, then browser navigator. |
+| `src/hooks/useOfficerLocale.ts` | B-19: Hook that reads/writes officer locale preference; persists to localStorage and Supabase `user_profiles.preferred_language` on change. |
+| `src/components/features/OfficerLanguageSelector.tsx` | B-19: Compact EN/MĀ/中/हि pill switcher component. |
+| `src/pages/OfficerHomePage.tsx` | B-19: Imports `useOfficerLocale` + `OfficerLanguageSelector`; end-shift, team-chat, open-shifts, ad-hoc shift labels and buttons use `t.officer.*`; language selector shown in header. |
+| `src/pages/FieldOfficerPortal.tsx` | B-19: Imports `useOfficerLocale` + `OfficerLanguageSelector`; Start Shift / End Shift labels use `ot.officer.*`; language selector in portal content top-right. |
+| `src/pages/TimesheetReview.tsx` | B-20: Replaces plain "Export CSV" button with "Export" that opens a format-selection dialog (Generic CSV / Xero Payroll NZ / MYOB AccountRight). Xero and MYOB formats use approved-only shifts in payroll-system column layout. `RadioGroup` replaced with button-group to match available components. |
+| `docs/STAGING.md` | B-19/B-20 session snapshot added. |
+
+### B-19 Success Criteria
+
+- [x] `officerLocale.ts`: 4 locales × officer portal strings
+- [x] `useOfficerLocale`: reads `user_profiles.preferred_language`, localStorage fallback, auto-detect
+- [x] `OfficerLanguageSelector`: EN/MĀ/中/हि pill switcher
+- [x] `OfficerHomePage`: language selector in header; End Shift / Team Chat / Open Shifts / Request Ad-hoc wired to locale
+- [x] `FieldOfficerPortal`: language selector in content area; Start Shift / End Shift wired
+
+### B-20 Success Criteria
+
+- [x] Export dialog with 3 format options: Generic CSV, Xero Payroll NZ, MYOB AccountRight/PayGlobal
+- [x] Generic: all shifts, full FieldOps columns
+- [x] Xero: approved shifts only — Employee Code, First/Last Name, Date, Start/End Time, Units, Pay Item, Notes
+- [x] MYOB: approved shifts only — Employee ID, Employee Name, Date, Start/End Time, Hours, Activity, Cost Centre, Notes
+- [x] Filename includes format suffix (fieldops / xero / myob) + date range
+
+### Sprint 3 Board (complete)
+
+| ID | Item | Status |
+|---|---|---|
+| B-15 | Self-serve parking appeals portal | ✅ |
+| B-16 | Real-time parking occupancy dashboard | ✅ |
+| B-17 | Camper self-registration | ✅ |
+| B-18 | Amenity mapping (rich zone facilities) | ✅ |
+| B-19 | Multi-Language Support (officer UI) | ✅ |
+| B-20 | Payroll/HR integration (Xero + MYOB export) | ✅ |
+
+- [x] `bun run build` → PASS
+- [x] `bun run lint` → PASS (0 errors, 0 warnings)
+
+---
+
+## Phase 5 Sprint 4 — B-21 / B-22 / B-23 (2026-05-06)
+
+### Changes
+
+| File | Change |
+|---|---|
+| `src/pages/CohortAnalysis.tsx` | B-21: Admin page with three tabs (All Breaches / Overstayers / Homeless Exempt) driven by existing cohort RPCs. Date range + zone + plate filters; CSV export per tab; summary stat cards; click-through to vehicle detail. |
+| `src/pages/MobilePlateFinder.tsx` | B-22: Partial-plate cross-search across `canonical_vehicles` and last-90-day `observations`. Results merged and deduplicated; shows flags, exemptions, self-contained status, breach count, last zone. Click-through to vehicle detail. |
+| `src/pages/EvidencePackages.tsx` | B-23: Structured evidence package manager. Lists noise assessments and incidents with attached evidence; collapsible inline bundle viewer (reuses NoiseEvidenceBundle + IncidentEvidenceBundle). Date/type/text filters; summary cards. |
+| `src/App.tsx` | Lazy imports + routes: `/cohort-analysis`, `/plate-finder`, `/evidence-packages`. |
+| `src/components/features/AppLayout.tsx` | Sidebar: Plate Finder under Management; Evidence Packages + Cohort Analysis under Records. Icons: ScanSearch, Package, BarChart2. |
+| `docs/STAGING.md` | Sprint 4 session snapshot + gap board statuses updated for B-17–B-23. |
+
+### Sprint 4 Success Criteria
+
+- [x] B-21 CohortAnalysis: All Breaches / Overstayers / Homeless Exempt tabs using existing RPCs
+- [x] B-21: Date + zone + plate filters; per-tab CSV export; summary cards; click-through
+- [x] B-22 MobilePlateFinder: Partial plate cross-search (canonical_vehicles + observations 90d)
+- [x] B-22: Merged + deduped results; flags/exemption/breach status; click-through to vehicle
+- [x] B-23 EvidencePackages: Unified noise + incident bundle manager
+- [x] B-23: Collapsible inline bundle viewer reusing existing NoiseEvidenceBundle + IncidentEvidenceBundle
+- [x] Routes + sidebar nav wired for all three pages
+- [x] `bun run build` → PASS
+- [x] `bun run lint` → PASS (0 errors, 0 warnings)
+
+### Competitive Gap Board — Updated (B-17–B-23 complete)
+
+| ID | Item | Status |
+|---|---|---|
+| B-17 | Camper self-registration | ✅ |
+| B-18 | Amenity mapping (rich) | ✅ |
+| B-19 | Multi-Language Support (officer UI) | ✅ |
+| B-20 | Payroll/HR integration | ✅ |
+| B-21 | Cohort / Pattern Analysis | ✅ |
+| B-22 | Mobile Plate Finder | ✅ |
+| B-23 | Evidence Packages manager | ✅ |
+
+---
+
+## Phase 5 Sprint 5 — B-24 / B-25 / B-26 (2026-05-06)
+
+### Changes
+
+| File | Change |
+|---|---|
+| `supabase/migrations/20260506000003_alarm_events.sql` | B-24: New `public.alarm_events` table — source_system, alarm_type, severity, trigger_time, address, site_reference, zone_id, status (active/acknowledged/dispatched/resolved/false_alarm), linked_incident_id, raw_payload. RLS: org-scoped read + update; service-role INSERT via webhook. |
+| `supabase/functions/alarm-webhook/index.ts` | B-24: New edge function. Accepts signed POST from external alarm systems (shared-secret auth via `ALARM_WEBHOOK_SECRET`). Validates alarm_type allowlist, inserts alarm_events row, broadcasts `alarm_received` to Realtime channel. |
+| `src/types/database.ts` | B-24: Added `alarm_events` Row/Insert/Update types. |
+| `src/pages/AlarmEvents.tsx` | B-24: Admin alarm event dashboard. Live list with severity/status badges; Acknowledge, Dispatch (creates linked incident + navigates), Resolve/False-alarm actions; resolve dialog with notes. Auto-refreshes every 30s. |
+| `src/pages/OccupancyAnalytics.tsx` | B-25: Occupancy analytics with 5 recharts: daily observations (bar), top-10 zones (horizontal bar), breach rate trend (line), parking avg dwell by day-of-week (bar), parking sessions by zone (horizontal bar). Date presets (7/14/30/90d). |
+| `src/pages/PatrolRouteOptimiser.tsx` | B-26: Nearest-neighbour TSP route optimiser over active zones. Zone selector with search + all/clear; configurable start zone; route card with total km, estimated time, numbered stop list with inter-stop distances; clipboard copy. |
+| `src/App.tsx` | Lazy imports + routes: `/alarm-events`, `/occupancy-analytics`, `/patrol-route-optimiser`. |
+| `src/components/features/AppLayout.tsx` | Sidebar: Alarm Events + Route Optimiser under Dispatch; Occupancy Analytics under Records. Icons: Siren, Route. |
+| `docs/competitive-gap-board.md` | 24 gap items updated to ✅ Closed covering B-02–B-26 across all five competitive categories. |
+| `docs/STAGING.md` | Sprint 5 session snapshot added. |
+
+### Sprint 5 Success Criteria
+
+- [x] B-24 alarm_events migration: org-scoped RLS + service-role INSERT
+- [x] B-24 alarm-webhook edge function: shared-secret auth, allowlist validation, Realtime broadcast
+- [x] B-24 AlarmEvents page: acknowledge / dispatch / resolve / false-alarm workflow
+- [x] B-25 OccupancyAnalytics: 5 recharts over observations + parking_sessions, date presets
+- [x] B-26 PatrolRouteOptimiser: nearest-neighbour TSP, haversine distances, estimated total time, copy route
+- [x] Routes + sidebar wired for all three pages
+- [x] competitive-gap-board.md: 24 items marked ✅ Closed
+- [x] `bun run build` → PASS
+- [x] `bun run lint` → PASS
+
+### Competitive Gap Board Summary (post Sprint 5)
+
+| Category | Total Items | Closed | Remaining |
+|---|---|---|---|
+| Officer Safety | 5 | 4 | 1 (24/7 Monitoring Centre) |
+| Dispatch / CAD | 4 | 3 | 1 (CAD-to-CAD — Backlog) |
+| ALPR / Cameras | 4 | 2 | 2 (Fixed Camera, Video Context) |
+| Workforce | 4 | 4 | 0 |
+| Freedom Camping | 6 | 6 | 0 |
+| Noise Enforcement | 3 | 3 | 0 |
+| Parking | 6 | 4 | 2 (Pay-by-Plate, Dynamic Pricing) |
+| PTT / Comms | 4 | 3 | 1 (LMR Radio Bridge) |
+| Navigation | 4 | 2 | 2 (Turn-by-Turn, Traffic Overlay) |
+
+**Next sprint candidates (S3/S4 items):**
+- B-27: Fixed Camera Support (CCTV feed into zone map / incidents)
+- B-28: Real-time Translation in incident notes UI
+- B-29: Pay-by-Plate payment integration (PayByPhone NZ)

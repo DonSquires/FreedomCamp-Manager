@@ -1,16 +1,21 @@
 /**
- * PublicNoiseComplaintPortal (B-13)
+ * PublicNoiseComplaintPortal (B-13 + B-11)
  *
  * Public-facing page — no login required.
  * Residents can:
  *   1. Submit a noise complaint (gets back a reference number).
  *   2. Check the status of an existing complaint by reference number.
  *
+ * B-11: Multi-language support — EN / Māori / Mandarin / Hindi
+ *       Auto-detects from browser; user can override via switcher.
+ *
  * Route: /public/noise-complaint
  */
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
+import { usePublicLocale } from '@/hooks/usePublicLocale'
+import type { Locale } from '@/lib/publicLocale'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -33,6 +38,7 @@ import {
   AlertTriangle,
   Info,
   MapPin,
+  Globe,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -49,28 +55,21 @@ interface StatusResult {
   address: string
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-const STATUS_CONFIG: Record<ComplaintStatus, { label: string; icon: typeof Clock; className: string }> = {
-  received:          { label: 'Received',          icon: Clock,         className: 'bg-blue-100 text-blue-800 border-blue-200'   },
-  acknowledged:      { label: 'Acknowledged',      icon: CheckCircle,   className: 'bg-indigo-100 text-indigo-800 border-indigo-200' },
-  assigned:          { label: 'Officer Assigned',  icon: CheckCircle,   className: 'bg-purple-100 text-purple-800 border-purple-200' },
-  on_scene:          { label: 'Officer On Scene',  icon: CheckCircle,   className: 'bg-cyan-100 text-cyan-800 border-cyan-200'    },
-  resolved:          { label: 'Resolved',          icon: CheckCircle,   className: 'bg-green-100 text-green-800 border-green-200' },
-  no_action_taken:   { label: 'No Action Taken',   icon: AlertTriangle, className: 'bg-gray-100 text-gray-700 border-gray-200'    },
-}
+const LOCALE_LABELS: Record<Locale, string> = { en: 'EN', mi: 'MĀ', zh: '中', hi: 'हि' }
 
-const NOISE_TYPE_LABELS: Record<NoiseType, string> = {
-  music:        'Music / Loud Audio',
-  party:        'Party / Social Gathering',
-  machinery:    'Machinery / Power Tools',
-  animals:      'Animals (dogs, roosters, etc.)',
-  construction: 'Construction / Building Work',
-  vehicle:      'Vehicle (engine revving, exhausts)',
-  other:        'Other',
+const STATUS_CLASSES: Record<ComplaintStatus, { icon: typeof Clock; className: string }> = {
+  received:        { icon: Clock,         className: 'bg-blue-100 text-blue-800 border-blue-200'      },
+  acknowledged:    { icon: CheckCircle,   className: 'bg-indigo-100 text-indigo-800 border-indigo-200' },
+  assigned:        { icon: CheckCircle,   className: 'bg-purple-100 text-purple-800 border-purple-200' },
+  on_scene:        { icon: CheckCircle,   className: 'bg-cyan-100 text-cyan-800 border-cyan-200'       },
+  resolved:        { icon: CheckCircle,   className: 'bg-green-100 text-green-800 border-green-200'    },
+  no_action_taken: { icon: AlertTriangle, className: 'bg-gray-100 text-gray-700 border-gray-200'       },
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function PublicNoiseComplaintPortal() {
+  const { t, locale, setLocale } = usePublicLocale()
+
   // Form state
   const [address, setAddress] = useState('')
   const [suburb, setSuburb] = useState('')
@@ -91,10 +90,31 @@ export default function PublicNoiseComplaintPortal() {
   // Tab state
   const [activeTab, setActiveTab] = useState<'submit' | 'status'>('submit')
 
+  // Translated noise type labels (memoised per locale)
+  const NOISE_TYPE_LABELS = useMemo<Record<NoiseType, string>>(() => ({
+    music:        t.nc.noiseMusic,
+    party:        t.nc.noiseParty,
+    machinery:    t.nc.noiseMachinery,
+    animals:      t.nc.noiseAnimals,
+    construction: t.nc.noiseConstruction,
+    vehicle:      t.nc.noiseVehicle,
+    other:        t.nc.noiseOther,
+  }), [locale]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Translated status labels (memoised per locale)
+  const STATUS_LABELS = useMemo<Record<ComplaintStatus, string>>(() => ({
+    received:        t.nc.statusReceived,
+    acknowledged:    t.nc.statusAcknowledged,
+    assigned:        t.nc.statusAssigned,
+    on_scene:        t.nc.statusOnScene,
+    resolved:        t.nc.statusResolved,
+    no_action_taken: t.nc.statusNoAction,
+  }), [locale]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!address.trim() || !description.trim()) {
-      toast.error('Address and description are required')
+      toast.error(t.nc.errorRequired)
       return
     }
 
@@ -117,9 +137,9 @@ export default function PublicNoiseComplaintPortal() {
       if (error) throw error
 
       setSubmittedRef(data.reference)
-      toast.success('Complaint submitted successfully')
+      toast.success(t.nc.toastSuccess)
     } catch (err: any) {
-      toast.error(err?.message ?? 'Submission failed. Please try again.')
+      toast.error(err?.message ?? t.nc.errorSubmitFailed)
     } finally {
       setSubmitting(false)
     }
@@ -127,7 +147,7 @@ export default function PublicNoiseComplaintPortal() {
 
   const handleLookup = async () => {
     const ref = lookupRef.trim().toUpperCase()
-    if (!ref) { toast.error('Please enter a reference number'); return }
+    if (!ref) { toast.error(t.nc.enterRef); return }
 
     setLookingUp(true)
     setLookupResult(null)
@@ -140,12 +160,12 @@ export default function PublicNoiseComplaintPortal() {
         .single()
 
       if (error || !data) {
-        setLookupError('No complaint found with that reference number.')
+        setLookupError(t.nc.errorNoComplaint)
         return
       }
       setLookupResult(data as StatusResult)
     } catch (err: any) {
-      setLookupError(err?.message ?? 'Lookup failed. Please try again.')
+      setLookupError(err?.message ?? t.nc.errorLookupFailed)
     } finally {
       setLookingUp(false)
     }
@@ -155,11 +175,31 @@ export default function PublicNoiseComplaintPortal() {
     <div className="min-h-screen bg-gradient-to-b from-orange-50 to-white">
       {/* Header */}
       <header className="bg-white border-b border-orange-200 shadow-sm">
-        <div className="max-w-2xl mx-auto px-4 py-4 flex items-center gap-3">
-          <Volume2 className="h-6 w-6 text-orange-700 shrink-0" />
-          <div>
-            <h1 className="text-xl font-bold text-orange-900">Noise Complaint Portal</h1>
-            <p className="text-xs text-orange-700">Report a noise issue in your area • No login required</p>
+        <div className="max-w-2xl mx-auto px-4 py-4 flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-3">
+            <Volume2 className="h-6 w-6 text-orange-700 shrink-0" />
+            <div>
+              <h1 className="text-xl font-bold text-orange-900">{t.nc.title}</h1>
+              <p className="text-xs text-orange-700">{t.nc.subtitle}</p>
+            </div>
+          </div>
+          {/* Language switcher */}
+          <div className="flex items-center gap-1">
+            <Globe className="h-3.5 w-3.5 text-orange-600 mr-0.5" />
+            {(['en', 'mi', 'zh', 'hi'] as Locale[]).map(l => (
+              <button
+                key={l}
+                onClick={() => setLocale(l)}
+                className={[
+                  'px-2 py-0.5 rounded text-xs font-medium transition-colors',
+                  locale === l ? 'bg-orange-700 text-white' : 'text-orange-700 hover:bg-orange-100',
+                ].join(' ')}
+                aria-label={t.lang[l]}
+                title={t.lang[l]}
+              >
+                {LOCALE_LABELS[l]}
+              </button>
+            ))}
           </div>
         </div>
       </header>
@@ -170,9 +210,11 @@ export default function PublicNoiseComplaintPortal() {
         <div className="flex items-start gap-2 rounded-md bg-blue-50 border border-blue-200 p-3 text-xs text-blue-800">
           <Info className="h-4 w-4 shrink-0 mt-0.5" />
           <p>
-            For <strong>emergencies or immediate threats</strong> call <strong>111</strong>.
-            This portal is for non-emergency noise complaints outside business hours.
-            Your contact details are optional and will only be used to follow up on your complaint.
+            {t.nc.emergencyLine1}{' '}
+            <strong>{t.nc.emergencyBold1}</strong>{' '}
+            {t.nc.emergencyLine2}{' '}
+            <strong>{t.nc.emergencyNumber}</strong>.{' '}
+            {t.nc.emergencyLine3}
           </p>
         </div>
 
@@ -185,7 +227,7 @@ export default function PublicNoiseComplaintPortal() {
             className="gap-1.5"
           >
             <Send className="h-3.5 w-3.5" />
-            Submit Complaint
+            {t.nc.tabSubmit}
           </Button>
           <Button
             size="sm"
@@ -194,7 +236,7 @@ export default function PublicNoiseComplaintPortal() {
             className="gap-1.5"
           >
             <Search className="h-3.5 w-3.5" />
-            Check Status
+            {t.nc.tabStatus}
           </Button>
         </div>
 
@@ -204,20 +246,20 @@ export default function PublicNoiseComplaintPortal() {
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
                 <Volume2 className="h-4 w-4 text-orange-600" />
-                Report a Noise Issue
+                {t.nc.formTitle}
               </CardTitle>
-              <CardDescription>Fields marked * are required.</CardDescription>
+              <CardDescription>{t.nc.formRequired}</CardDescription>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="space-y-1.5">
-                  <Label htmlFor="address">Address of noise source *</Label>
+                  <Label htmlFor="address">{t.nc.labelAddress}</Label>
                   <div className="relative">
                     <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
                       id="address"
                       className="pl-9"
-                      placeholder="e.g. 12 Example Street"
+                      placeholder={t.nc.placeholderAddress}
                       value={address}
                       onChange={e => setAddress(e.target.value)}
                       required
@@ -226,20 +268,20 @@ export default function PublicNoiseComplaintPortal() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label htmlFor="suburb">Suburb / Area</Label>
+                  <Label htmlFor="suburb">{t.nc.labelSuburb}</Label>
                   <Input
                     id="suburb"
-                    placeholder="e.g. Napier Hill"
+                    placeholder={t.nc.placeholderSuburb}
                     value={suburb}
                     onChange={e => setSuburb(e.target.value)}
                   />
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label htmlFor="noise-type">Type of noise</Label>
+                  <Label htmlFor="noise-type">{t.nc.labelNoiseType}</Label>
                   <Select value={noiseType} onValueChange={(v) => setNoiseType(v as NoiseType)}>
                     <SelectTrigger id="noise-type">
-                      <SelectValue placeholder="Select type…" />
+                      <SelectValue placeholder={t.nc.placeholderNoiseType} />
                     </SelectTrigger>
                     <SelectContent>
                       {(Object.entries(NOISE_TYPE_LABELS) as [NoiseType, string][]).map(([value, label]) => (
@@ -250,10 +292,10 @@ export default function PublicNoiseComplaintPortal() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label htmlFor="description">Describe the noise issue *</Label>
+                  <Label htmlFor="description">{t.nc.labelDescription}</Label>
                   <Textarea
                     id="description"
-                    placeholder="Please describe what you can hear, when it started, and any other relevant details…"
+                    placeholder={t.nc.placeholderDescription}
                     rows={4}
                     value={description}
                     onChange={e => setDescription(e.target.value)}
@@ -263,27 +305,27 @@ export default function PublicNoiseComplaintPortal() {
                 </div>
 
                 <p className="text-xs text-muted-foreground font-medium pt-1">
-                  Your contact details (optional — only used for follow-up)
+                  {t.nc.contactOptional}
                 </p>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="space-y-1.5">
-                    <Label htmlFor="name">Name</Label>
-                    <Input id="name" placeholder="Your name" value={name} onChange={e => setName(e.target.value)} />
+                    <Label htmlFor="name">{t.nc.labelName}</Label>
+                    <Input id="name" placeholder={t.nc.placeholderName} value={name} onChange={e => setName(e.target.value)} />
                   </div>
                   <div className="space-y-1.5">
-                    <Label htmlFor="phone">Phone</Label>
-                    <Input id="phone" type="tel" placeholder="021 000 0000" value={phone} onChange={e => setPhone(e.target.value)} />
+                    <Label htmlFor="phone">{t.nc.labelPhone}</Label>
+                    <Input id="phone" type="tel" placeholder={t.nc.placeholderPhone} value={phone} onChange={e => setPhone(e.target.value)} />
                   </div>
                   <div className="space-y-1.5 sm:col-span-2">
-                    <Label htmlFor="email">Email</Label>
-                    <Input id="email" type="email" placeholder="you@example.com" value={email} onChange={e => setEmail(e.target.value)} />
+                    <Label htmlFor="email">{t.nc.labelEmail}</Label>
+                    <Input id="email" type="email" placeholder={t.nc.placeholderEmail} value={email} onChange={e => setEmail(e.target.value)} />
                   </div>
                 </div>
 
                 <Button type="submit" disabled={submitting} className="w-full gap-2">
                   <Send className="h-4 w-4" />
-                  {submitting ? 'Submitting…' : 'Submit Complaint'}
+                  {submitting ? t.nc.btnSubmitting : t.nc.btnSubmit}
                 </Button>
               </form>
             </CardContent>
@@ -295,12 +337,10 @@ export default function PublicNoiseComplaintPortal() {
           <Card className="border-green-200 bg-green-50/50">
             <CardContent className="pt-6 text-center space-y-3">
               <CheckCircle className="h-12 w-12 text-green-600 mx-auto" />
-              <h2 className="text-lg font-semibold text-green-900">Complaint Received</h2>
-              <p className="text-sm text-green-800">Your reference number is:</p>
+              <h2 className="text-lg font-semibold text-green-900">{t.nc.successTitle}</h2>
+              <p className="text-sm text-green-800">{t.nc.successRefLabel}</p>
               <p className="text-2xl font-mono font-bold text-green-900 tracking-widest">{submittedRef}</p>
-              <p className="text-xs text-green-700 max-w-sm mx-auto">
-                Save this reference number. You can use it to check the status of your complaint on this page.
-              </p>
+              <p className="text-xs text-green-700 max-w-sm mx-auto">{t.nc.successSave}</p>
               <div className="flex gap-2 justify-center pt-2">
                 <Button
                   variant="outline"
@@ -312,7 +352,7 @@ export default function PublicNoiseComplaintPortal() {
                   className="gap-1.5 border-green-300 text-green-800"
                 >
                   <Search className="h-3.5 w-3.5" />
-                  Check Status
+                  {t.nc.btnCheckStatus}
                 </Button>
                 <Button
                   variant="outline"
@@ -324,7 +364,7 @@ export default function PublicNoiseComplaintPortal() {
                   }}
                   className="gap-1.5 border-green-300 text-green-800"
                 >
-                  Submit Another
+                  {t.nc.btnSubmitAnother}
                 </Button>
               </div>
             </CardContent>
@@ -337,9 +377,9 @@ export default function PublicNoiseComplaintPortal() {
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
                 <Search className="h-4 w-4 text-orange-600" />
-                Check Complaint Status
+                {t.nc.statusTitle}
               </CardTitle>
-              <CardDescription>Enter your reference number (e.g. NCC-2026-000001).</CardDescription>
+              <CardDescription>{t.nc.statusDesc}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex gap-2">
@@ -352,7 +392,7 @@ export default function PublicNoiseComplaintPortal() {
                 />
                 <Button onClick={handleLookup} disabled={lookingUp} className="gap-1.5 shrink-0">
                   <Search className="h-4 w-4" />
-                  {lookingUp ? 'Searching…' : 'Check'}
+                  {lookingUp ? t.nc.btnChecking : t.nc.btnCheck}
                 </Button>
               </div>
 
@@ -364,35 +404,36 @@ export default function PublicNoiseComplaintPortal() {
               )}
 
               {lookupResult && (() => {
-                const sc = STATUS_CONFIG[lookupResult.status]
+                const sc = STATUS_CLASSES[lookupResult.status]
                 const StatusIcon = sc.icon
+                const statusLabel = STATUS_LABELS[lookupResult.status]
                 return (
                   <div className="rounded-md border border-gray-200 bg-white p-4 space-y-3">
                     <div className="flex items-center justify-between gap-3 flex-wrap">
                       <span className="font-mono font-bold text-sm">{lookupResult.reference}</span>
                       <Badge className={`text-xs border ${sc.className} flex items-center gap-1`}>
                         <StatusIcon className="h-3.5 w-3.5" />
-                        {sc.label}
+                        {statusLabel}
                       </Badge>
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      <span className="font-medium">Address:</span> {lookupResult.address}
+                      <span className="font-medium">{t.nc.addrLabel}</span> {lookupResult.address}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      <span className="font-medium">Submitted:</span>{' '}
-                      {new Date(lookupResult.created_at).toLocaleString('en-NZ', {
+                      <span className="font-medium">{t.nc.submittedLabel}</span>{' '}
+                      {new Date(lookupResult.created_at).toLocaleString(t.nc.jsLocale, {
                         timeZone: 'Pacific/Auckland', dateStyle: 'medium', timeStyle: 'short',
                       })}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      <span className="font-medium">Last updated:</span>{' '}
-                      {new Date(lookupResult.updated_at).toLocaleString('en-NZ', {
+                      <span className="font-medium">{t.nc.updatedLabel}</span>{' '}
+                      {new Date(lookupResult.updated_at).toLocaleString(t.nc.jsLocale, {
                         timeZone: 'Pacific/Auckland', dateStyle: 'medium', timeStyle: 'short',
                       })}
                     </p>
                     {lookupResult.status_message && (
                       <div className="rounded bg-gray-50 border border-gray-100 px-3 py-2 text-xs text-gray-700">
-                        <span className="font-medium">Message from officer:</span>{' '}
+                        <span className="font-medium">{t.nc.officerMsgLabel}</span>{' '}
                         {lookupResult.status_message}
                       </div>
                     )}
@@ -405,9 +446,9 @@ export default function PublicNoiseComplaintPortal() {
 
         {/* Footer */}
         <footer className="text-center text-xs text-muted-foreground pt-4 pb-8 border-t">
-          FieldOps Manager · For emergencies call 111 ·
-          {' '}<a href="/public/zone-map" className="text-orange-700 hover:underline">Freedom camping zone map</a>
-          {' '}·{' '}<a href="/dispute" className="text-orange-700 hover:underline">Dispute a notice</a>
+          FieldOps Manager · {t.nc.footerEmergency} ·
+          {' '}<a href="/public/zone-map" className="text-orange-700 hover:underline">{t.nc.footerZoneMap}</a>
+          {' '}·{' '}<a href="/dispute" className="text-orange-700 hover:underline">{t.nc.footerDispute}</a>
         </footer>
       </main>
     </div>

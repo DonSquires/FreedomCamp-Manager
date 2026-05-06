@@ -12,6 +12,8 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { AppLayout } from '@/components/features/AppLayout'
+import { OfficerLanguageSelector } from '@/components/features/OfficerLanguageSelector'
+import { useOfficerLocale } from '@/hooks/useOfficerLocale'
 import { SplitScanCamera } from '@/components/features/SplitScanCamera'
 import { LocationAuthorizationStatus } from '@/components/features/LocationAuthorizationStatus'
 import { QRCheckpointScanner } from '@/components/features/QRCheckpointScanner'
@@ -258,6 +260,7 @@ export default function FieldOfficerPortal() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const queryClient = useQueryClient()
+  const { t: ot } = useOfficerLocale()
   const { themeMode, setThemeMode } = useThemePreferencesStore()
   const isNightPatrol = themeMode === 'night-patrol'
   const employerOrganizationId = user?.employer_organization_id || user?.organization_id || null
@@ -1352,6 +1355,11 @@ export default function FieldOfficerPortal() {
       {/* Geofence violation warning — shown when officer drifts out of assigned zone */}
       {geofenceViolation && <GeofenceWarningBanner zoneName={zoneName} />}
 
+      {/* Language selector — top-right of portal content area */}
+      <div className="flex justify-end mb-2">
+        <OfficerLanguageSelector />
+      </div>
+
       {quickReportStatusText && (
         <div
           className={`mb-4 rounded-lg border px-4 py-3 text-sm font-medium ${
@@ -1522,8 +1530,8 @@ export default function FieldOfficerPortal() {
                         className="shrink-0 bg-green-600 hover:bg-green-700 text-white font-semibold"
                       >
                         {isStartingShift
-                          ? <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded-full border-2 border-white border-t-transparent animate-spin" />Starting…</span>
-                          : <><Clock className="h-4 w-4 mr-1.5" />Start Shift</>}
+                          ? <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded-full border-2 border-white border-t-transparent animate-spin" />{ot.officer.startingShift}</span>
+                          : <><Clock className="h-4 w-4 mr-1.5" />{ot.officer.startShift}</>}
                       </Button>
                     </span>
                   </TooltipTrigger>
@@ -1655,7 +1663,7 @@ export default function FieldOfficerPortal() {
                 disabled={isEndingShift}
                 className="text-xs border-gray-400 text-gray-700 dark:text-gray-300 hover:border-red-400 hover:text-red-600"
               >
-                {isEndingShift ? 'Ending…' : 'End Shift'}
+                {isEndingShift ? ot.officer.endingShift : ot.officer.endShift}
               </Button>
             </div>
           </div>

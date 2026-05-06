@@ -51,6 +51,8 @@ import {
 } from 'lucide-react'
 import { PTTBar } from '@/components/features/PTTBar'
 import { OfficerShell } from '@/components/features/OfficerShell'
+import { OfficerLanguageSelector } from '@/components/features/OfficerLanguageSelector'
+import { useOfficerLocale } from '@/hooks/useOfficerLocale'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
 import { nzNow } from '@/lib/timezone'
@@ -62,6 +64,7 @@ export default function OfficerHomePage() {
   const { geofenceViolation, isRostered, hasActiveShift, activeShiftId } = useShiftGate()
   const { operationalOrganizationId } = useOperationalOrganization()
   const queryClient = useQueryClient()
+  const { t } = useOfficerLocale()
 
   const [showAdhocDialog, setShowAdhocDialog] = useState(false)
   const [adhocDate, setAdhocDate] = useState(format(nzNow(), 'yyyy-MM-dd'))
@@ -144,7 +147,8 @@ export default function OfficerHomePage() {
       description={today}
     >
 
-      <div className="mb-3 flex w-full justify-end">
+      <div className="mb-3 flex w-full items-center justify-between">
+        <OfficerLanguageSelector />
         <Button
           variant="ghost"
           size="sm"
@@ -205,7 +209,7 @@ export default function OfficerHomePage() {
                 className="mt-2 min-h-11 text-xs border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400 dark:border-red-700 dark:text-red-300 dark:hover:bg-red-950/40"
               >
                 <LogOut className="h-3.5 w-3.5 mr-1.5" />
-                {isEndingShift ? 'Ending…' : 'End Shift'}
+                {isEndingShift ? t.officer.endingShift : t.officer.endShift}
               </Button>
             </div>
           </div>
@@ -266,7 +270,7 @@ export default function OfficerHomePage() {
                 <MessageSquare className="h-5 w-5 text-indigo-600 dark:text-indigo-300" />
               </div>
               <div className="text-left">
-                <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">Team Chat</p>
+                <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t.officer.teamChat}</p>
                 <p className="text-xs text-gray-500 dark:text-gray-400">Message your team and supervisors</p>
               </div>
             </div>
@@ -283,7 +287,7 @@ export default function OfficerHomePage() {
                 <CalendarDays className="h-5 w-5 text-green-600 dark:text-green-300" />
               </div>
               <div className="text-left">
-                <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">Browse Open Shifts</p>
+                <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t.officer.viewOpenShifts}</p>
                 <p className="text-xs text-gray-500 dark:text-gray-400">Browse and claim open shifts</p>
               </div>
             </div>
@@ -300,7 +304,7 @@ export default function OfficerHomePage() {
                 <ClipboardPlus className="h-5 w-5 text-amber-600 dark:text-amber-300" />
               </div>
               <div className="text-left">
-                <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">Request Ad-hoc Shift</p>
+                <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t.officer.requestAdHocShift}</p>
                 <p className="text-xs text-gray-500 dark:text-gray-400">Submit an availability request for supervisor review</p>
               </div>
             </div>
@@ -313,7 +317,7 @@ export default function OfficerHomePage() {
       <Dialog open={showAdhocDialog} onOpenChange={setShowAdhocDialog}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>Request Ad-hoc Shift</DialogTitle>
+            <DialogTitle>{t.officer.requestAdHocShift}</DialogTitle>
             <DialogDescription>
               Your supervisor will review and approve or decline this request.
             </DialogDescription>
@@ -387,13 +391,13 @@ export default function OfficerHomePage() {
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowAdhocDialog(false)}>
-              Cancel
+              {t.officer.cancel}
             </Button>
             <Button
               onClick={() => requestAdhocMutation.mutate()}
               disabled={requestAdhocMutation.isPending}
             >
-              {requestAdhocMutation.isPending ? 'Submitting…' : 'Submit Request'}
+              {requestAdhocMutation.isPending ? t.officer.submitting : t.officer.submit}
             </Button>
           </DialogFooter>
         </DialogContent>

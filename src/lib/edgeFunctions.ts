@@ -827,6 +827,8 @@ export const edgeFunctions = {
     data?: any
     type?: string
     priority?: 'low' | 'normal' | 'high' | 'urgent'
+    /** Expo notification category — maps to Apple Watch interactive action buttons */
+    category_id?: string
   }) => {
     return callEdgeFunction('send-push-notification', params)
   },
@@ -838,6 +840,56 @@ export const edgeFunctions = {
     officer_id: string
   }) => {
     return callEdgeFunction('monitor-officer-welfare', params)
+  },
+
+  /**
+   * Trigger wearable SOS (B-14)
+   * Called by the web app or Expo companion app when an officer activates SOS
+   * from an Apple Watch or BLE panic button.
+   */
+  triggerWearableSOS: async (params: {
+    user_id: string
+    organization_id: string
+    location?: { lat: number; lon: number }
+    device_type?: 'apple_watch' | 'ble_button' | 'web'
+  }) => {
+    return callEdgeFunction('wearable-sos', params)
+  },
+
+  /**
+   * Submit a public parking infringement appeal (B-15)
+   * Unauthenticated endpoint — caller validates by infringement_number + plate_number.
+   */
+  submitParkingAppeal: async (params: {
+    infringement_number: string
+    plate_number: string
+    appellant_name?: string
+    appellant_email?: string
+    appellant_phone?: string
+    grounds: string
+    evidence_statement?: string
+  }) => {
+    return callEdgeFunction('submit-parking-appeal', params, { showToast: false })
+  },
+
+  /**
+   * Submit a public camper self-registration (B-17)
+   * Unauthenticated endpoint — validates zone + capacity, returns confirmation code.
+   */
+  submitCamperRegistration: async (params: {
+    zone_id: string
+    plate_number?: string
+    vehicle_type?: 'self_contained' | 'campervan' | 'tent' | 'car' | 'motorhome' | 'other'
+    is_self_contained?: boolean
+    contact_name?: string
+    contact_email?: string
+    contact_phone?: string
+    party_size?: number
+    arrival_date: string
+    departure_date: string
+    notes?: string
+  }) => {
+    return callEdgeFunction('submit-camper-registration', params, { showToast: false })
   },
 
   // ============================================================================
@@ -1658,6 +1710,21 @@ export const edgeFunctions = {
     date_to?: string
   }) => {
     return callEdgeFunction('cleanup-and-recalculate', { action: 'statistics', ...params })
+  },
+
+  /**
+   * Trigger a DOC / council zone data sync (B-12).
+   *
+   * @param source  'doc_api' | 'council_feed' | 'manual'
+   * @param orgId   Optional organisation scope
+   * @param dryRun  When true, logs result without modifying zone records
+   */
+  triggerDocCouncilSync: async (params: {
+    source?: 'doc_api' | 'council_feed' | 'manual'
+    org_id?: string
+    dry_run?: boolean
+  }) => {
+    return callEdgeFunction('doc-council-sync', params)
   },
 
 }

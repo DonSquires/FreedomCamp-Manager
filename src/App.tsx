@@ -77,9 +77,17 @@ const Settings = lazy(() => import('@/pages/Settings'))
 const Profile = lazy(() => import('@/pages/Profile'))
 const VehicleRegistry = lazy(() => import('@/pages/VehicleRegistry'))
 const CanonicalRecordsManager = lazy(() => import('@/pages/CanonicalRecordsManager'))
+const CohortAnalysis = lazy(() => import('@/pages/CohortAnalysis'))
+const MobilePlateFinder = lazy(() => import('@/pages/MobilePlateFinder'))
+const EvidencePackages = lazy(() => import('@/pages/EvidencePackages'))
+const AlarmEvents = lazy(() => import('@/pages/AlarmEvents'))
+const OccupancyAnalytics = lazy(() => import('@/pages/OccupancyAnalytics'))
+const PatrolRouteOptimiser = lazy(() => import('@/pages/PatrolRouteOptimiser'))
 const PublicDisputePortal = lazy(() => import('@/pages/PublicDisputePortal'))
 const PublicFreedomCampingMap = lazy(() => import('@/pages/PublicFreedomCampingMap'))
 const PublicNoiseComplaintPortal = lazy(() => import('@/pages/PublicNoiseComplaintPortal'))
+const PublicParkingAppealPortal = lazy(() => import('@/pages/PublicParkingAppealPortal'))
+const PublicCamperRegistration = lazy(() => import('@/pages/PublicCamperRegistration'))
 const Disputes = lazy(() => import('@/pages/Disputes'))
 const Platform = lazy(() => import('@/pages/Platform'))
 const ComplianceEscalations = lazy(() => import('@/pages/ComplianceEscalations'))
@@ -613,6 +621,8 @@ export default function App() {
           <Route path="/dispute" element={<PublicDisputePortal />} />
           <Route path="/public/zone-map" element={<PublicFreedomCampingMap />} />
           <Route path="/public/noise-complaint" element={<PublicNoiseComplaintPortal />} />
+          <Route path="/public/parking-appeal" element={<PublicParkingAppealPortal />} />
+          <Route path="/public/register" element={<PublicCamperRegistration />} />
           <Route
             path="/portal-selection"
             element={
@@ -838,6 +848,61 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <IncidentManagement />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/evidence-packages"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'officer']}>
+                  <EvidencePackages />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/cohort-analysis"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <CohortAnalysis />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/alarm-events"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <AlarmEvents />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/occupancy-analytics"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <OccupancyAnalytics />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/patrol-route-optimiser"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'officer']}>
+                  <PatrolRouteOptimiser />
+                </RoleRoute>
               </ProtectedRoute>
             }
           />
@@ -1585,6 +1650,17 @@ export default function App() {
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'nzscv_monitor']}>
                   <VehicleRegistry />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/plate-finder"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'officer']}>
+                  <MobilePlateFinder />
                 </RoleRoute>
               </ProtectedRoute>
             }

@@ -46,6 +46,14 @@ interface Zone {
   seasonal_open_month?: number | null
   seasonal_close_month?: number | null
   zone_features?: string[] | null
+  // B-18 amenities
+  has_toilets?: boolean | null
+  has_water?: boolean | null
+  has_dump_station?: boolean | null
+  has_shower?: boolean | null
+  has_rubbish?: boolean | null
+  max_vehicles?: number | null
+  fee_nzd?: number | null
   created_at: string
   organization?: {
     id: string
@@ -92,6 +100,15 @@ export default function ZoneManagement() {
   const [editSeasonalCloseMonth, setEditSeasonalCloseMonth] = useState<number | null>(null)
   const [showGeofenceEditor, setShowGeofenceEditor] = useState(false)
   const [editZoneFeatures, setEditZoneFeatures] = useState<string[]>([])
+
+  // B-18 amenity fields
+  const [editHasToilets,     setEditHasToilets]     = useState(false)
+  const [editHasWater,       setEditHasWater]       = useState(false)
+  const [editHasDumpStation, setEditHasDumpStation] = useState(false)
+  const [editHasShower,      setEditHasShower]      = useState(false)
+  const [editHasRubbish,     setEditHasRubbish]     = useState(false)
+  const [editMaxVehicles,    setEditMaxVehicles]     = useState<string>('')
+  const [editFeeNzd,         setEditFeeNzd]         = useState<string>('')
 
   // zone_legal_config payment & objections fields
   const [editPaymentOnlineUrl, setEditPaymentOnlineUrl] = useState('')
@@ -405,6 +422,14 @@ export default function ZoneManagement() {
     setEditBylawReference(zone.bylaw_reference || '')
     setEditSeasonalOpenMonth(zone.seasonal_open_month ?? null)
     setEditSeasonalCloseMonth(zone.seasonal_close_month ?? null)
+    // B-18
+    setEditHasToilets(zone.has_toilets ?? false)
+    setEditHasWater(zone.has_water ?? false)
+    setEditHasDumpStation(zone.has_dump_station ?? false)
+    setEditHasShower(zone.has_shower ?? false)
+    setEditHasRubbish(zone.has_rubbish ?? false)
+    setEditMaxVehicles(zone.max_vehicles != null ? String(zone.max_vehicles) : '')
+    setEditFeeNzd(zone.fee_nzd != null ? String(zone.fee_nzd) : '')
     setEditZoneFeatures(zone.zone_features ?? [])
     setShowGeofenceEditor(false)
 
@@ -952,6 +977,55 @@ export default function ZoneManagement() {
               </div>
             </div>
 
+            {/* Facilities & Amenities (B-18) */}
+            <div className="border-t pt-4 space-y-3">
+              <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Facilities &amp; Amenities</h4>
+              <p className="text-xs text-muted-foreground">Shown on the public zone map for campers.</p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {[
+                  { id: 'hasToilets',     label: '🚻 Toilets',       checked: editHasToilets,     set: setEditHasToilets },
+                  { id: 'hasWater',       label: '💧 Water',         checked: editHasWater,       set: setEditHasWater },
+                  { id: 'hasDump',        label: '⬇ Dump Station',  checked: editHasDumpStation, set: setEditHasDumpStation },
+                  { id: 'hasShower',      label: '🚿 Showers',       checked: editHasShower,      set: setEditHasShower },
+                  { id: 'hasRubbish',     label: '🗑 Rubbish',       checked: editHasRubbish,     set: setEditHasRubbish },
+                ].map(f => (
+                  <div key={f.id} className="flex items-center gap-2">
+                    <Checkbox
+                      id={`edit-${f.id}`}
+                      checked={f.checked}
+                      onCheckedChange={(v) => f.set(Boolean(v))}
+                    />
+                    <Label htmlFor={`edit-${f.id}`} className="text-sm font-normal cursor-pointer">{f.label}</Label>
+                  </div>
+                ))}
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="editMaxVehicles">Max Vehicles (capacity)</Label>
+                  <Input
+                    id="editMaxVehicles"
+                    type="number"
+                    min={0}
+                    value={editMaxVehicles}
+                    onChange={(e) => setEditMaxVehicles(e.target.value)}
+                    placeholder="Unlimited"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="editFeeNzd">Nightly Fee (NZD)</Label>
+                  <Input
+                    id="editFeeNzd"
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={editFeeNzd}
+                    onChange={(e) => setEditFeeNzd(e.target.value)}
+                    placeholder="Free"
+                  />
+                </div>
+              </div>
+            </div>
+
             {/* Notice Payment & Objections */}
             <div className="border-t pt-4 space-y-3">
               <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Notice Payment &amp; Objections</h4>
@@ -1105,6 +1179,14 @@ export default function ZoneManagement() {
                   seasonal_open_month: editSeasonalOpenMonth,
                   seasonal_close_month: editSeasonalCloseMonth,
                   zone_features: editZoneFeatures,
+                  // B-18 amenities
+                  has_toilets:      editHasToilets,
+                  has_water:        editHasWater,
+                  has_dump_station: editHasDumpStation,
+                  has_shower:       editHasShower,
+                  has_rubbish:      editHasRubbish,
+                  max_vehicles:     editMaxVehicles ? parseInt(editMaxVehicles) : null,
+                  fee_nzd:          editFeeNzd ? parseFloat(editFeeNzd) : null,
                 }
                 
                 // Masters can change organization, zone type, and parent
