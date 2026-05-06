@@ -1,293 +1,250 @@
 /**
  * WelfareCheckinLog — B-65
  *
- * Admin view of officer welfare check-in records from the welfare_checkins table.
- * Cross-linked with officer_welfare_alerts so supervisors can see which check-ins
- * generated alerts or remain overdue.
+ * Tabbed admin view for officer welfare check-ins and welfare alerts.
  *
- * Features:
- *  - KPI cards: Check-ins today, Overdue check-ins, Active welfare alerts, Avg overdue (min)
- *  - Filters: officer name, is_overdue, date range
- *  - Check-ins table: officer, checked_in_at, is_overdue, overdue_minutes, GPS
- *  - Active welfare alerts panel: alert_type, officer_name, escalation_level, status
- *  - Acknowledge alert action
+ * Checkins tab (welfare_checkins):
+ *  - KPIs: Total / Overdue
+ *  - Table: officer_id, checked_in_at, is_overdue, overdue_minutes, GPS
  *
- * Route: /welfare-checkins — admin / admin_officer / master
- * welfare_checkins and officer_welfare_alerts are fully typed in database.ts
+ * Alerts tab (officer_welfare_alerts):
+ *  - KPIs: Open alerts / Acknowledged / Resolved
+ *  - Table: officer_name, alert_type, status, escalation_level, last_activity_at
+ *  - Acknowledge action (updates status + acknowledged_at + acknowledged_by)
+ *
+ * Route: /welfare-checkins — admin/admin_officer/master
  */
 
 import { useState } from 'react'
-import { format, isToday, parseISO } from 'date-fns'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { format, parseISO } from 'date-fns'
 import {
-  Activity, AlertTriangle, CheckCircle2, HeartPulse, Loader2, MapPin, RefreshCw, ShieldAlert,
+  HeartPulse, RefreshCw, AlertCircle, Loader2,
+  CheckCircle2, Clock, Navigation,
 } from 'lucide-react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 
 import { supabase } from '@/lib/supabase'
-import type { Database } from '@/types/database'
 import { useAuthStore } from '@/stores/authStore'
 import { AppLayout } from '@/components/features/AppLayout'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from '@/components/ui/select'
-import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from '@/components/ui/table'
-import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import type { Database } from '@/types/database'
 
-// ─── Types ─────────────────────────────────────────────────────────────────────
+// ─── Types ────────────────────────────────────────────────────────────────────
 
-type Checkin = Database['public']['Tables']['welfare_checkins']['Row']
-type WelfareAlert = Database['public']['Tables']['officer_welfare_alerts']['Row']
+type WelfareCheckin = Database['public']['Tables']['welfare_checkins']['Row']
+type WelfareAlert   = Database['public']['Tables']['officer_welfare_alerts']['Row']
 
-type CheckinWithProfile = Checkin & {
-  user_profiles: { full_name: string | null } | null
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function fmtDate(ts: string | null | undefined) {
+  if (!ts) return '—'
+  try { return format(parseISO(ts), 'dd MMM yyyy HH:mm') } catch { return ts }
 }
 
-// ─── Helpers ───────────────────────────────────────────────────────────────────
-
-function alertStatusColour(s: string | null) {
-  switch (s) {
-    case 'resolved':    return 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
-    case 'acknowledged': return 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'
-    case 'escalated':   return 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300'
-    default:            return 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300'
-  }
+function fmtCoords(lat: number | null, lng: number | null) {
+  if (lat == null || lng == null) return '—'
+  return `${lat.toFixed(5)}, ${lng.toFixed(5)}`
 }
 
-// ─── Component ─────────────────────────────────────────────────────────────────
+const ALERT_STATUS_COLOURS: Record<string, string> = {
+  active:       'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300',
+  acknowledged: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300',
+  resolved:     'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
+}
+
+// ─── Component ───────────────────────────────────────────────────────────────
 
 export default function WelfareCheckinLog() {
   const { user } = useAuthStore()
   const orgId = user?.organization_id
   const qc = useQueryClient()
+  const [tab, setTab] = useState('checkins')
 
-  const [overdueFilter, setOverdueFilter] = useState('all')
-  const [dateFrom, setDateFrom]           = useState('')
-  const [dateTo, setDateTo]               = useState('')
-  const [search, setSearch]               = useState('')
+  // ── Checkins query ────────────────────────────────────────────────────────
 
-  // ── Queries ─────────────────────────────────────────────────────────────────
+  const { data: checkins = [], isLoading: loadingCheckins, refetch: refetchCheckins } = useQuery<WelfareCheckin[]>({
+    queryKey: ['welfare-checkins', orgId],
+    queryFn: async () => {
+      let q = supabase
+        .from('welfare_checkins')
+        .select('*')
+        .order('checked_in_at', { ascending: false })
+        .limit(200)
+      if (orgId) q = q.eq('organization_id', orgId)
+      const { data, error } = await q
+      if (error) throw error
+      return data ?? []
+    },
+    enabled: !!orgId,
+  })
 
-  const { data: checkins = [], isLoading: loadingCheckins, refetch: refetchCheckins } =
-    useQuery<CheckinWithProfile[]>({
-      queryKey: ['welfare_checkins', orgId, overdueFilter, dateFrom, dateTo],
-      enabled: !!orgId,
-      queryFn: async () => {
-        let q = supabase
-          .from('welfare_checkins')
-          .select('*, user_profiles!welfare_checkins_officer_id_fkey(full_name)')
-          .eq('organization_id', orgId as string)
-          .order('checked_in_at', { ascending: false })
-          .limit(400)
+  // ── Alerts query ──────────────────────────────────────────────────────────
 
-        if (overdueFilter === 'overdue')     q = q.eq('is_overdue', true)
-        if (overdueFilter === 'on_time')     q = q.eq('is_overdue', false)
-        if (dateFrom)                        q = q.gte('checked_in_at', dateFrom)
-        if (dateTo)                          q = q.lte('checked_in_at', dateTo + 'T23:59:59')
+  const { data: alerts = [], isLoading: loadingAlerts, refetch: refetchAlerts } = useQuery<WelfareAlert[]>({
+    queryKey: ['welfare-alerts', orgId],
+    queryFn: async () => {
+      let q = supabase
+        .from('officer_welfare_alerts')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(200)
+      if (orgId) q = q.eq('organization_id', orgId)
+      const { data, error } = await q
+      if (error) throw error
+      return data ?? []
+    },
+    enabled: !!orgId,
+  })
 
-        const { data, error } = await q
-        if (error) throw error
-        return (data ?? []) as unknown as CheckinWithProfile[]
-      },
-    })
-
-  const { data: alerts = [], isLoading: loadingAlerts, refetch: refetchAlerts } =
-    useQuery<WelfareAlert[]>({
-      queryKey: ['officer_welfare_alerts', orgId],
-      enabled: !!orgId,
-      queryFn: async () => {
-        const { data, error } = await (supabase as any)
-          .from('officer_welfare_alerts')
-          .select('*')
-          .eq('organization_id', orgId)
-          .order('created_at', { ascending: false })
-          .limit(200)
-        if (error) throw error
-        return data ?? []
-      },
-    })
-
-  // ── Mutation: acknowledge alert ─────────────────────────────────────────────
+  // ── Acknowledge mutation ──────────────────────────────────────────────────
 
   const acknowledge = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await (supabase as any)
+    mutationFn: async (alertId: string) => {
+      const { error } = await supabase
         .from('officer_welfare_alerts')
         .update({
           status: 'acknowledged',
           acknowledged_at: new Date().toISOString(),
           acknowledged_by: user?.id,
+          updated_at: new Date().toISOString(),
         })
-        .eq('id', id)
+        .eq('id', alertId)
       if (error) throw error
     },
     onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['welfare-alerts'] })
       toast.success('Alert acknowledged')
-      qc.invalidateQueries({ queryKey: ['officer_welfare_alerts'] })
     },
-    onError: () => toast.error('Failed to acknowledge alert'),
+    onError: (e: Error) => toast.error(e.message),
   })
 
-  // ── Derived ─────────────────────────────────────────────────────────────────
+  // ── Derived KPIs ─────────────────────────────────────────────────────────
 
-  const filteredCheckins = checkins.filter(c => {
-    if (!search) return true
-    const q = search.toLowerCase()
-    return (c.user_profiles?.full_name ?? '').toLowerCase().includes(q)
-  })
+  const overdueCount        = checkins.filter(c => c.is_overdue).length
+  const activeAlerts        = alerts.filter(a => a.status === 'active').length
+  const acknowledgedAlerts  = alerts.filter(a => a.status === 'acknowledged').length
+  const resolvedAlerts      = alerts.filter(a => a.status === 'resolved').length
 
-  const todayCheckins    = checkins.filter(c => isToday(parseISO(c.checked_in_at))).length
-  const overdueCheckins  = checkins.filter(c => c.is_overdue).length
-  const activeAlerts     = alerts.filter(a => a.status !== 'resolved').length
-  const avgOverdue = overdueCheckins > 0
-    ? Math.round(checkins.filter(c => c.is_overdue && c.overdue_minutes != null)
-        .reduce((s, c) => s + (c.overdue_minutes ?? 0), 0) / overdueCheckins)
-    : 0
-
-  // ── Render ──────────────────────────────────────────────────────────────────
+  // ─────────────────────────────────────────────────────────────────────────
 
   return (
-    <AppLayout
-      title="Welfare Check-in Log"
-      description="Officer welfare check-in records and active welfare alerts"
-    >
-      <div className="space-y-4">
+    <AppLayout>
+      <div className="p-6 space-y-6 max-w-7xl mx-auto">
 
-        {/* ── KPI Cards ──────────────────────────────────────────────────── */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          {[
-            { label: 'Check-ins Today',    value: todayCheckins,   icon: HeartPulse,   colour: 'text-emerald-600' },
-            { label: 'Overdue Check-ins',  value: overdueCheckins, icon: AlertTriangle, colour: 'text-amber-600' },
-            { label: 'Active Alerts',      value: activeAlerts,    icon: ShieldAlert,  colour: 'text-red-600' },
-            { label: 'Avg Overdue (min)',   value: avgOverdue,      icon: Activity,     colour: 'text-violet-600' },
-          ].map(({ label, value, icon: Icon, colour }) => (
-            <Card key={label} className="border border-white/60 dark:border-white/10 bg-white/80 dark:bg-slate-900/70 shadow-sm">
-              <CardHeader className="pb-1 pt-3 px-4">
-                <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
-                  <Icon className={`h-3.5 w-3.5 ${colour}`} />
-                  {label}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="px-4 pb-3">
-                <p className={`text-2xl font-bold ${colour}`}>{value}</p>
-              </CardContent>
-            </Card>
-          ))}
+        {/* Header */}
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <HeartPulse className="h-7 w-7 text-pink-500" />
+            <div>
+              <h1 className="text-2xl font-bold">Welfare Check-in Log</h1>
+              <p className="text-sm text-muted-foreground">Officer check-ins and welfare alerts</p>
+            </div>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => tab === 'checkins' ? refetchCheckins() : refetchAlerts()}
+            disabled={loadingCheckins || loadingAlerts}
+          >
+            <RefreshCw className={`h-4 w-4 mr-1.5 ${(loadingCheckins || loadingAlerts) ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
         </div>
 
-        {/* ── Tabs ───────────────────────────────────────────────────────── */}
-        <Tabs defaultValue="checkins">
+        <Tabs value={tab} onValueChange={setTab}>
           <TabsList>
-            <TabsTrigger value="checkins">Check-in Records</TabsTrigger>
+            <TabsTrigger value="checkins">
+              Check-ins
+              {overdueCount > 0 && (
+                <span className="ml-1.5 rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                  {overdueCount}
+                </span>
+              )}
+            </TabsTrigger>
             <TabsTrigger value="alerts">
-              Welfare Alerts
+              Alerts
               {activeAlerts > 0 && (
-                <span className="ml-1.5 inline-flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold h-4 w-4">
-                  {activeAlerts > 99 ? '99+' : activeAlerts}
+                <span className="ml-1.5 rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                  {activeAlerts}
                 </span>
               )}
             </TabsTrigger>
           </TabsList>
 
-          {/* ── Check-ins Tab ──────────────────────────────────────────────── */}
-          <TabsContent value="checkins" className="space-y-3 mt-3">
-
-            {/* Filters */}
-            <Card className="border border-white/60 dark:border-white/10 bg-white/80 dark:bg-slate-900/70 shadow-sm">
-              <CardContent className="pt-4 pb-3">
-                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3 items-end">
-                  <div className="space-y-1">
-                    <Label className="text-xs">Search Officer</Label>
-                    <Input
-                      placeholder="Officer name…"
-                      value={search}
-                      onChange={e => setSearch(e.target.value)}
-                      className="h-8 text-sm"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Status</Label>
-                    <Select value={overdueFilter} onValueChange={setOverdueFilter}>
-                      <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All</SelectItem>
-                        <SelectItem value="overdue">Overdue only</SelectItem>
-                        <SelectItem value="on_time">On time only</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">From</Label>
-                    <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="h-8 text-sm" />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">To</Label>
-                    <Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="h-8 text-sm" />
-                  </div>
-                  <div className="flex items-end">
-                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => refetchCheckins()} title="Refresh">
-                      <RefreshCw className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+          {/* ── Checkins Tab ────────────────────────────────────────────── */}
+          <TabsContent value="checkins" className="space-y-4 mt-4">
+            {/* KPIs */}
+            <div className="grid grid-cols-2 gap-4">
+              <Card>
+                <CardHeader className="pb-1">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">Total Check-ins</CardTitle>
+                </CardHeader>
+                <CardContent className="flex items-center gap-2">
+                  <CheckCircle2 className="h-5 w-5 text-green-600" />
+                  <span className="text-2xl font-bold">{checkins.length}</span>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-1">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">Overdue</CardTitle>
+                </CardHeader>
+                <CardContent className="flex items-center gap-2">
+                  <Clock className={`h-5 w-5 ${overdueCount > 0 ? 'text-red-600' : 'text-muted-foreground'}`} />
+                  <span className={`text-2xl font-bold ${overdueCount > 0 ? 'text-red-600' : ''}`}>{overdueCount}</span>
+                </CardContent>
+              </Card>
+            </div>
 
             {/* Table */}
-            <Card className="border border-white/60 dark:border-white/10 bg-white/80 dark:bg-slate-900/70 shadow-sm">
+            <Card>
               <CardContent className="p-0">
                 {loadingCheckins ? (
-                  <div className="flex items-center justify-center py-12 gap-2 text-muted-foreground">
-                    <Loader2 className="h-4 w-4 animate-spin" /> Loading…
+                  <div className="flex justify-center py-12">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                   </div>
-                ) : filteredCheckins.length === 0 ? (
-                  <div className="flex items-center justify-center py-12 text-muted-foreground text-sm">
-                    No check-in records match your filters.
-                  </div>
+                ) : checkins.length === 0 ? (
+                  <div className="text-center py-12 text-muted-foreground text-sm">No check-ins recorded.</div>
                 ) : (
                   <Table>
                     <TableHeader>
                       <TableRow>
                         <TableHead>Officer</TableHead>
                         <TableHead>Checked In</TableHead>
-                        <TableHead>Status</TableHead>
+                        <TableHead>Overdue?</TableHead>
                         <TableHead>Overdue (min)</TableHead>
                         <TableHead>GPS</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredCheckins.map(c => (
+                      {checkins.map(c => (
                         <TableRow key={c.id}>
-                          <TableCell className="text-sm font-medium">
-                            {c.user_profiles?.full_name ?? 'Unknown officer'}
-                          </TableCell>
-                          <TableCell className="text-sm whitespace-nowrap">
-                            {format(parseISO(c.checked_in_at), 'dd MMM yyyy HH:mm')}
-                          </TableCell>
+                          <TableCell className="font-mono text-xs">{c.officer_id.slice(0, 8)}…</TableCell>
+                          <TableCell className="text-sm whitespace-nowrap">{fmtDate(c.checked_in_at)}</TableCell>
                           <TableCell>
                             {c.is_overdue ? (
-                              <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900/30 text-xs">Overdue</Badge>
+                              <Badge className="bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300">Overdue</Badge>
                             ) : (
-                              <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 text-xs">On time</Badge>
+                              <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">On Time</Badge>
                             )}
                           </TableCell>
-                          <TableCell className="text-sm">
+                          <TableCell className="text-sm text-muted-foreground">
                             {c.overdue_minutes != null ? `${c.overdue_minutes} min` : '—'}
                           </TableCell>
-                          <TableCell className="text-xs text-muted-foreground">
-                            {c.gps_latitude != null && c.gps_longitude != null ? (
-                              <span className="flex items-center gap-1">
-                                <MapPin className="h-3 w-3" />
-                                {c.gps_latitude.toFixed(5)}, {c.gps_longitude.toFixed(5)}
-                              </span>
-                            ) : '—'}
+                          <TableCell className="text-xs text-muted-foreground flex items-center gap-1">
+                            {c.gps_latitude != null && <Navigation className="h-3 w-3" />}
+                            {fmtCoords(c.gps_latitude, c.gps_longitude)}
                           </TableCell>
                         </TableRow>
                       ))}
@@ -298,54 +255,80 @@ export default function WelfareCheckinLog() {
             </Card>
           </TabsContent>
 
-          {/* ── Alerts Tab ─────────────────────────────────────────────────── */}
-          <TabsContent value="alerts" className="space-y-3 mt-3">
-            <Card className="border border-white/60 dark:border-white/10 bg-white/80 dark:bg-slate-900/70 shadow-sm">
+          {/* ── Alerts Tab ──────────────────────────────────────────────── */}
+          <TabsContent value="alerts" className="space-y-4 mt-4">
+            {/* KPIs */}
+            <div className="grid grid-cols-3 gap-4">
+              {[
+                { label: 'Active',       value: activeAlerts,       colour: 'text-red-600',   Icon: AlertCircle },
+                { label: 'Acknowledged', value: acknowledgedAlerts,  colour: 'text-amber-600', Icon: Clock },
+                { label: 'Resolved',     value: resolvedAlerts,      colour: 'text-green-600', Icon: CheckCircle2 },
+              ].map(({ label, value, colour, Icon }) => (
+                <Card key={label}>
+                  <CardHeader className="pb-1">
+                    <CardTitle className="text-sm font-medium text-muted-foreground">{label}</CardTitle>
+                  </CardHeader>
+                  <CardContent className="flex items-center gap-2">
+                    <Icon className={`h-5 w-5 ${colour}`} />
+                    <span className="text-2xl font-bold">{value}</span>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+
+            {/* Table */}
+            <Card>
               <CardContent className="p-0">
                 {loadingAlerts ? (
-                  <div className="flex items-center justify-center py-12 gap-2 text-muted-foreground">
-                    <Loader2 className="h-4 w-4 animate-spin" /> Loading…
+                  <div className="flex justify-center py-12">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                   </div>
                 ) : alerts.length === 0 ? (
-                  <div className="flex items-center justify-center py-12 text-muted-foreground text-sm">
-                    No welfare alerts found.
-                  </div>
+                  <div className="text-center py-12 text-muted-foreground text-sm">No welfare alerts.</div>
                 ) : (
                   <Table>
                     <TableHeader>
                       <TableRow>
                         <TableHead>Officer</TableHead>
                         <TableHead>Alert Type</TableHead>
-                        <TableHead>Escalation Level</TableHead>
-                        <TableHead>Last Activity</TableHead>
                         <TableHead>Status</TableHead>
-                        <TableHead>Action</TableHead>
+                        <TableHead>Escalation</TableHead>
+                        <TableHead>Last Activity</TableHead>
+                        <TableHead>Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {alerts.map(a => (
                         <TableRow key={a.id}>
-                          <TableCell className="text-sm font-medium">{a.officer_name}</TableCell>
-                          <TableCell className="text-sm capitalize">{a.alert_type.replace(/_/g, ' ')}</TableCell>
-                          <TableCell className="text-sm">{a.escalation_level ?? 1}</TableCell>
-                          <TableCell className="text-sm whitespace-nowrap">
-                            {format(parseISO(a.last_activity_at), 'dd MMM yyyy HH:mm')}
+                          <TableCell>
+                            <div className="font-medium text-sm">{a.officer_name}</div>
+                            {a.officer_phone && (
+                              <div className="text-xs text-muted-foreground">{a.officer_phone}</div>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-sm capitalize">
+                            {a.alert_type.replace(/_/g, ' ')}
                           </TableCell>
                           <TableCell>
-                            <Badge className={`text-xs capitalize ${alertStatusColour(a.status)}`}>
-                              {(a.status ?? 'active').replace('_', ' ')}
+                            <Badge className={`capitalize ${ALERT_STATUS_COLOURS[a.status ?? ''] ?? ''}`}>
+                              {a.status ?? '—'}
                             </Badge>
                           </TableCell>
+                          <TableCell className="text-sm">
+                            {a.escalation_level != null ? `Level ${a.escalation_level}` : '—'}
+                          </TableCell>
+                          <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
+                            {fmtDate(a.last_activity_at)}
+                          </TableCell>
                           <TableCell>
-                            {a.status !== 'resolved' && a.status !== 'acknowledged' && (
+                            {a.status === 'active' && (
                               <Button
                                 size="sm"
                                 variant="outline"
-                                className="h-7 text-xs gap-1"
-                                onClick={() => acknowledge.mutate(a.id)}
                                 disabled={acknowledge.isPending}
+                                onClick={() => acknowledge.mutate(a.id)}
                               >
-                                <CheckCircle2 className="h-3.5 w-3.5" />
+                                <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
                                 Acknowledge
                               </Button>
                             )}
@@ -357,15 +340,8 @@ export default function WelfareCheckinLog() {
                 )}
               </CardContent>
             </Card>
-
-            <div className="flex justify-end">
-              <Button variant="ghost" size="sm" className="gap-1.5 text-xs" onClick={() => refetchAlerts()}>
-                <RefreshCw className="h-3 w-3" /> Refresh
-              </Button>
-            </div>
           </TabsContent>
         </Tabs>
-
       </div>
     </AppLayout>
   )
