@@ -161,6 +161,9 @@ const ZoneAmenities = lazy(() => import('@/pages/ZoneAmenities'))
 const NoiseComplaintsLog = lazy(() => import('@/pages/NoiseComplaintsLog'))
 const PatrolEventLog = lazy(() => import('@/pages/PatrolEventLog'))
 const BreachEscalation = lazy(() => import('@/pages/BreachEscalation'))
+const OfficerPerformanceReport = lazy(() => import('@/pages/OfficerPerformanceReport'))
+const SiteRiskTrends = lazy(() => import('@/pages/SiteRiskTrends'))
+const IncidentHeatmap = lazy(() => import('@/pages/IncidentHeatmap'))
 const MessagingPage = lazy(() => import('@/modules/messaging'))
 const IntelApprovalQueue = lazy(() => import('@/pages/IntelApprovalQueue'))
 const BobIntakeQueue = lazy(() => import('@/pages/BobIntakeQueue'))
@@ -1541,6 +1544,42 @@ export default function App() {
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
                   <BreachEscalation />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* ── Officer Performance Report (B-61) ────────────────────────── */}
+          <Route
+            path="/officer-performance"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <OfficerPerformanceReport />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* ── Site Risk Trends (B-62) ───────────────────────────────────── */}
+          <Route
+            path="/site-risk-trends"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <SiteRiskTrends />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* ── Incident Heatmap (B-63) ───────────────────────────────────── */}
+          <Route
+            path="/incident-heatmap"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <IncidentHeatmap />
                 </RoleRoute>
               </ProtectedRoute>
             }

@@ -2899,3 +2899,45 @@ The web SPA delivers SOS via the existing `officer_welfare_alerts` table + `send
 - B-61: Officer Performance Report (`/officer-performance`) — per-officer KPIs from patrol_session_events + breach_alerts
 - B-62: Site Risk Trends (`/site-risk-trends`) — trend charts from site_risk_assessments over time
 - B-63: Incident Heatmap overlay (`/incident-heatmap`) — map-based density view of incidents/breach_alerts by zone
+
+---
+
+## Phase 5 — Sprint 17 (B-61 / B-62 / B-63)
+
+> All three tables (patrol_session_events, breach_alerts, site_risk_assessments, incidents) are fully typed in database.ts — no (supabase as any) required.
+
+### Changes
+
+| File | Change |
+|---|---|
+| `src/pages/OfficerPerformanceReport.tsx` | New — B-61: per-officer KPIs from patrol_session_events + breach_alerts; officer selector; daily bar chart; league table |
+| `src/pages/SiteRiskTrends.tsx` | New — B-62: trend charts + weekly stacked bar + hazard frequency + risk distribution for site_risk_assessments |
+| `src/pages/IncidentHeatmap.tsx` | New — B-63: incidents aggregated by zone + type + severity; horizontal bar, weekly stacked bar, severity band, zone table |
+| `src/App.tsx` | Lazy imports + routes: `/officer-performance`, `/site-risk-trends`, `/incident-heatmap` |
+| `src/components/features/AppLayout.tsx` | Sidebar: Officer Performance (Patrols), Site Risk Trends (Records), Incident Heatmap (Live Ops); new icons: UserCheck, Flame |
+| `src/pages/AdminPortal.tsx` | New tiles: Officer Performance (Patrol section), Risk Trends (Records section), Incident Map (Specialist Portals); Flame icon |
+| `src/navigation/routeManifest.ts` | 3 new entries: `patrols.officer-performance`, `records.site-risk-trends`, `enforcement.incident-heatmap` |
+| `docs/MODULE_ROADMAP.md` | Route count 132 → 135; Sprint 17 addendum |
+
+### Sprint 17 Board
+
+| ID | Item | Status |
+|---|---|---|
+| B-61 | Officer Performance Report | ✅ |
+| B-62 | Site Risk Trends | ✅ |
+| B-63 | Incident Heatmap | ✅ |
+
+- [x] `bun run build` → PASS
+
+### Competitive Gap Board — Updated (post Sprint 17)
+
+| Category | Newly Closed | Remaining Open |
+|---|---|---|
+| Patrols | B-61 Officer Performance Report | — |
+| Records | B-62 Site Risk Trends | — |
+| Enforcement | B-63 Incident Heatmap | — |
+
+**Next sprint candidates:**
+- B-64: Shift Debrief Form (`/shift-debrief`) — patrol debrief notes (patrol_session_events notes field or new debrief_notes on operational_cases)
+- B-65: Zone Compliance Audit (`/zone-compliance-audit`) — audit trail of zone-level compliance events
+- B-66: Officer Welfare Trends (`/welfare-trends`) — welfare check analytics from officer_welfare_checks over time

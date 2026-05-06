@@ -1,7 +1,7 @@
 # Module Roadmap (Operator Navigation Map)
 
 Date: 2026-05-04 (verified against src App.tsx)
-Source of truth for routes: App router file src App.tsx (132 total routes as of Sprint 16 completion)
+Source of truth for routes: App router file src App.tsx (135 total routes as of Sprint 17 completion)
 
 > **Last Verification**: 2026-05-04 — All 122 routes reviewed and role-gating validated. No changes since baseline a6e39a0f.
 
@@ -198,3 +198,22 @@ New admin routes added in Sprint 16 (B-58, B-59, B-60):
    - Route: /breach-escalation
    - Role gate: admin, admin_officer, master
    - Escalation-focused view of dispatch_jobs (escalation_level >= 1 or sla_breached = true); KPI cards per escalation level
+
+## Sprint 17 Route Addendum (2026-05-06)
+
+New admin routes added in Sprint 17 (B-61, B-62, B-63):
+
+1. Officer Performance Report (B-61)
+   - Route: /officer-performance
+   - Role gate: admin, admin_officer, master
+   - KPI cards + daily checkpoint chart + officer league table; aggregates patrol_session_events + breach_alerts
+
+2. Site Risk Trends (B-62)
+   - Route: /site-risk-trends
+   - Role gate: admin, admin_officer, master
+   - Trend line (daily), stacked weekly bar (by risk level), hazard frequency bars, risk distribution; reads site_risk_assessments
+
+3. Incident Heatmap (B-63)
+   - Route: /incident-heatmap
+   - Role gate: admin, admin_officer, master
+   - Horizontal bar by zone, stacked weekly bar by incident type, severity distribution, zone table; reads incidents
