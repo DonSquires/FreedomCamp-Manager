@@ -972,7 +972,7 @@ export default function AdminPortal() {
       value: activeTrespassCount,
       icon: Ban,
       iconColor: 'text-red-600',
-      config: { to: '/points-of-interest', metric: 'active_trespass', period: periodLabel, label: 'Active Trespass Notices' },
+      config: { to: '/trespass-notices', metric: 'active_trespass', period: periodLabel, label: 'Active Trespass Notices' },
     },
     {
       title: 'Radio TX Today',
@@ -1431,9 +1431,9 @@ export default function AdminPortal() {
                     { path: '/investigations',      label: 'Investigations',    Icon: Search,        color: 'text-indigo-600', bg: 'bg-indigo-50 dark:bg-indigo-900/20', badge: (data as any)?.activeInvestigations > 0 ? (data as any)?.activeInvestigations : undefined },
                     { path: '/observation-records', label: 'Observations',      Icon: Eye,           color: 'text-blue-600',   bg: 'bg-blue-50 dark:bg-blue-900/20' },
                     { path: '/site-risk-assessment',label: 'Risk Assessment',   Icon: ClipboardCheck,color: 'text-amber-600',  bg: 'bg-amber-50 dark:bg-amber-900/20' },
-                    { path: '/points-of-interest',  label: 'Trespass Notices',  Icon: Ban,           color: 'text-red-700',    bg: 'bg-red-50 dark:bg-red-900/20', badge: activeTrespassCount > 0 ? activeTrespassCount : undefined },
-                    { path: '/access-control',      label: 'Access Permissions',Icon: Lock,          color: 'text-teal-700',   bg: 'bg-teal-50 dark:bg-teal-900/20' },
-                    { path: '/admin/canonical-records', label: 'Canonical Persons', Icon: Users,     color: 'text-purple-700', bg: 'bg-purple-50 dark:bg-purple-900/20' },
+                    { path: '/trespass-notices',    label: 'Trespass Notices',  Icon: Ban,           color: 'text-red-700',    bg: 'bg-red-50 dark:bg-red-900/20', badge: activeTrespassCount > 0 ? activeTrespassCount : undefined },
+                    { path: '/access-permissions',  label: 'Access Permissions',Icon: Lock,          color: 'text-teal-700',   bg: 'bg-teal-50 dark:bg-teal-900/20' },
+                    { path: '/canonical-persons',   label: 'Canonical Persons', Icon: Users,         color: 'text-purple-700', bg: 'bg-purple-50 dark:bg-purple-900/20' },
                   ].map(({ path, label, Icon, color, bg, badge }) => (
                     <button key={path} onClick={() => navigate(path)} aria-label={`Open ${label}`} className={`${moduleTileClass} ${bg}`}>
                       {badge !== undefined && (

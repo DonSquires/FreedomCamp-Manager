@@ -148,6 +148,9 @@ const RadioAuditDashboard = lazy(() => import('@/pages/RadioAuditDashboard'))
 const RadioTransmissionsLog = lazy(() => import('@/pages/RadioTransmissionsLog'))
 const VoiceProfilesConsent = lazy(() => import('@/pages/VoiceProfilesConsent'))
 const DispatchLOIBrowser = lazy(() => import('@/pages/DispatchLOIBrowser'))
+const TrespassNotices = lazy(() => import('@/pages/TrespassNotices'))
+const AccessPermissions = lazy(() => import('@/pages/AccessPermissions'))
+const CanonicalPersonViewer = lazy(() => import('@/pages/CanonicalPersonViewer'))
 const MessagingPage = lazy(() => import('@/modules/messaging'))
 const IntelApprovalQueue = lazy(() => import('@/pages/IntelApprovalQueue'))
 const BobIntakeQueue = lazy(() => import('@/pages/BobIntakeQueue'))
@@ -1426,6 +1429,42 @@ export default function App() {
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'grand_master']}>
                   <DispatchLOIBrowser />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Trespass Notices (B-45) */}
+          <Route
+            path="/trespass-notices"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'grand_master']}>
+                  <TrespassNotices />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Access Permissions (B-46) */}
+          <Route
+            path="/access-permissions"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'grand_master']}>
+                  <AccessPermissions />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Canonical Person Viewer (B-47) */}
+          <Route
+            path="/canonical-persons"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'grand_master']}>
+                  <CanonicalPersonViewer />
                 </RoleRoute>
               </ProtectedRoute>
             }
