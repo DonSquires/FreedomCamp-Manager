@@ -30,7 +30,7 @@ import {
 } from '@/components/ui/table'
 import type { Database } from '@/types/database'
 
-type TtsRenderRow = Database['public']['Tables']['radio_tts_renders']['Row']
+type TtsRenderRow = Database['public']['Views']['radio_tts_renders']['Row']
 
 function fmtDate(ts: string | null) {
   if (!ts) return '—'

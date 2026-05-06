@@ -30,7 +30,7 @@ import {
 } from '@/components/ui/table'
 import type { Database } from '@/types/database'
 
-type VoiceConsentRow = Database['public']['Tables']['radio_voice_consents']['Row']
+type VoiceConsentRow = Database['public']['Views']['radio_voice_consents']['Row']
 
 function fmtDate(ts: string | null) {
   if (!ts) return '—'
