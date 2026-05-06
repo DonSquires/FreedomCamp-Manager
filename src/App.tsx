@@ -80,6 +80,9 @@ const CanonicalRecordsManager = lazy(() => import('@/pages/CanonicalRecordsManag
 const CohortAnalysis = lazy(() => import('@/pages/CohortAnalysis'))
 const MobilePlateFinder = lazy(() => import('@/pages/MobilePlateFinder'))
 const EvidencePackages = lazy(() => import('@/pages/EvidencePackages'))
+const AlarmEvents = lazy(() => import('@/pages/AlarmEvents'))
+const OccupancyAnalytics = lazy(() => import('@/pages/OccupancyAnalytics'))
+const PatrolRouteOptimiser = lazy(() => import('@/pages/PatrolRouteOptimiser'))
 const PublicDisputePortal = lazy(() => import('@/pages/PublicDisputePortal'))
 const PublicFreedomCampingMap = lazy(() => import('@/pages/PublicFreedomCampingMap'))
 const PublicNoiseComplaintPortal = lazy(() => import('@/pages/PublicNoiseComplaintPortal'))
@@ -866,6 +869,39 @@ export default function App() {
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
                   <CohortAnalysis />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/alarm-events"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <AlarmEvents />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/occupancy-analytics"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <OccupancyAnalytics />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/patrol-route-optimiser"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'officer']}>
+                  <PatrolRouteOptimiser />
                 </RoleRoute>
               </ProtectedRoute>
             }

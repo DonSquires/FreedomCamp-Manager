@@ -241,6 +241,69 @@ export type Database = {
           },
         ]
       }
+      alarm_events: {
+        Row: {
+          id: string
+          organization_id: string
+          source_system: string
+          alarm_type: string
+          severity: string
+          trigger_time: string
+          address: string | null
+          zone_id: string | null
+          site_reference: string | null
+          status: string
+          acknowledged_at: string | null
+          acknowledged_by: string | null
+          resolved_at: string | null
+          linked_incident_id: string | null
+          notes: string | null
+          raw_payload: Json | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          organization_id: string
+          source_system: string
+          alarm_type: string
+          severity?: string
+          trigger_time?: string
+          address?: string | null
+          zone_id?: string | null
+          site_reference?: string | null
+          status?: string
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
+          resolved_at?: string | null
+          linked_incident_id?: string | null
+          notes?: string | null
+          raw_payload?: Json | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          organization_id?: string
+          source_system?: string
+          alarm_type?: string
+          severity?: string
+          trigger_time?: string
+          address?: string | null
+          zone_id?: string | null
+          site_reference?: string | null
+          status?: string
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
+          resolved_at?: string | null
+          linked_incident_id?: string | null
+          notes?: string | null
+          raw_payload?: Json | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       alert_queue: {
         Row: {
           acknowledged_at: string | null

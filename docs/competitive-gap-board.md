@@ -30,8 +30,8 @@ Centralise all competitive gaps identified across FieldOps Manager modules. Each
 
 | Gap | Competitor Benchmark | Impact | Sprint | Status |
 |---|---|---|---|---|
-| Man-Down / Fall Detection | WorkSafe Guardian, Smartrak | 🔴 Critical | S1 | ⬜ Open |
-| Wearable Integration (Apple Watch) | WorkSafe Guardian, Smartrak | 🟠 High | S2 | ⬜ Open |
+| Man-Down / Fall Detection | WorkSafe Guardian, Smartrak | 🔴 Critical | S1 | ✅ Closed (B-02) |
+| Wearable Integration (Apple Watch) | WorkSafe Guardian, Smartrak | 🟠 High | S2 | ✅ Closed (B-14) |
 | Voice Activation (hands-free check-in) | WorkSafe Guardian | 🟡 Medium | S2 | ⬜ Open |
 | Safety Shake trigger | WorkSafe Guardian | 🟡 Medium | S2 | ⬜ Open |
 | 24/7 Monitoring Centre integration | Optional in many platforms | 🟡 Medium | S3 | ⬜ Open |
@@ -42,8 +42,8 @@ Centralise all competitive gaps identified across FieldOps Manager modules. Each
 
 | Gap | Competitor Benchmark | Impact | Sprint | Status |
 |---|---|---|---|---|
-| AI / Smart Unit Recommendation | Mark43, GDS | 🟠 High | S1 | ⬜ Open |
-| Alarm System Integration | GDS, Mark43 | 🟠 High | S2 | ⬜ Open |
+| AI / Smart Unit Recommendation | Mark43, GDS | 🟠 High | S1 | ✅ Closed (B-03) |
+| Alarm System Integration | GDS, Mark43 | 🟠 High | S2 | ✅ Closed (B-24) |
 | Voice Dispatch Integration | GDS (Pager), Mark43 (Radio) | 🟡 Medium | S3 | ⬜ Open |
 | CAD-to-CAD Sharing | Mark43 | 🟢 Low | Backlog | ⬜ Open |
 
@@ -53,8 +53,8 @@ Centralise all competitive gaps identified across FieldOps Manager modules. Each
 
 | Gap | Competitor Benchmark | Impact | Sprint | Status |
 |---|---|---|---|---|
-| Cohort / Pattern Analysis | Motorola, Genetec | 🟠 High | S1 | ⬜ Open |
-| Mobile Plate Finder (search by partial plate) | Motorola, Genetec | 🟠 High | S1 | ⬜ Open |
+| Cohort / Pattern Analysis | Motorola, Genetec | 🟠 High | S1 | ✅ Closed (B-21) |
+| Mobile Plate Finder (search by partial plate) | Motorola, Genetec | 🟠 High | S1 | ✅ Closed (B-22) |
 | Fixed Camera Support | Motorola, Genetec | 🟡 Medium | S2 | ⬜ Open |
 | Video Context on plate hit | Genetec (new) | 🟡 Medium | S2 | ⬜ Open |
 | National Database link | N/A (NZ regulatory) | 🚫 Out of Scope | — | 🚫 Out of Scope |
@@ -65,11 +65,11 @@ Centralise all competitive gaps identified across FieldOps Manager modules. Each
 
 | Gap | Competitor Benchmark | Impact | Sprint | Status |
 |---|---|---|---|---|
-| AI Incident Report Writing (Voice-to-Text) | TrackTik (ReportPro) | 🟠 High | S1 | 🔄 In Progress (Bob PTT) |
-| Route Optimisation | TrackTik, Silvertrac | 🟡 Medium | S2 | ⬜ Open |
+| AI Incident Report Writing (Voice-to-Text) | TrackTik (ReportPro) | 🟠 High | S1 | ✅ Closed (Bob PTT + B-08) |
+| Route Optimisation | TrackTik, Silvertrac | 🟡 Medium | S2 | ✅ Closed (B-26) |
 | Video Surveillance Integration | TrackTik (Command Center) | 🟡 Medium | S3 | ⬜ Open |
-| Payroll / HR Integration | TrackTik | 🟡 Medium | S3 | ⬜ Open |
-| Multi-Language Support (officer UI) | TrackTik (55+ langs) | 🟡 Medium | S3 | ⬜ Open |
+| Payroll / HR Integration | TrackTik | 🟡 Medium | S3 | ✅ Closed (B-20) |
+| Multi-Language Support (officer UI) | TrackTik (55+ langs) | 🟡 Medium | S3 | ✅ Closed (B-19) |
 
 ---
 
@@ -77,12 +77,12 @@ Centralise all competitive gaps identified across FieldOps Manager modules. Each
 
 | Gap | Competitor Benchmark | Impact | Sprint | Status |
 |---|---|---|---|---|
-| Public-Facing Zone Map (camper self-serve) | Campermate, WikiCamps | 🟠 High | S2 | ⬜ Open |
-| Multi-Language Public Portal (Māori, Mandarin, Hindi) | Campermate (27 langs) | 🟠 High | S2 | ⬜ Open |
-| Offline Map Downloads | Campermate, WikiCamps | 🟠 High | S1 | ⬜ Open |
-| DOC / Council Data Sync (automated) | Campermate (official) | 🟠 High | S2 | ⬜ Open |
-| Camper Self-Registration | Campermate | 🟡 Medium | S3 | ⬜ Open |
-| Amenity Mapping (rich) | Campermate, WikiCamps | 🟡 Medium | S3 | ⬜ Open |
+| Public-Facing Zone Map (camper self-serve) | Campermate, WikiCamps | 🟠 High | S2 | ✅ Closed (B-10) |
+| Multi-Language Public Portal (Māori, Mandarin, Hindi) | Campermate (27 langs) | 🟠 High | S2 | ✅ Closed (B-11) |
+| Offline Map Downloads | Campermate, WikiCamps | 🟠 High | S1 | ✅ Closed (B-05) |
+| DOC / Council Data Sync (automated) | Campermate (official) | 🟠 High | S2 | ✅ Closed (B-12) |
+| Camper Self-Registration | Campermate | 🟡 Medium | S3 | ✅ Closed (B-17) |
+| Amenity Mapping (rich) | Campermate, WikiCamps | �� Medium | S3 | ✅ Closed (B-18) |
 
 ---
 
@@ -90,9 +90,9 @@ Centralise all competitive gaps identified across FieldOps Manager modules. Each
 
 | Gap | Competitor Benchmark | Impact | Sprint | Status |
 |---|---|---|---|---|
-| Public Complaint Portal | The Noise App, Cirrus | 🟠 High | S2 | ⬜ Open |
-| Complainant Portal (self-serve status) | The Noise App | 🟠 High | S2 | ⬜ Open |
-| Evidence Bundles (structured) | The Noise App | 🟡 Medium | S1 | ⬜ Open |
+| Public Complaint Portal | The Noise App, Cirrus | 🟠 High | S2 | ✅ Closed (B-13) |
+| Complainant Portal (self-serve status) | The Noise App | 🟠 High | S2 | ✅ Closed (B-13 status tab) |
+| Evidence Bundles (structured) | The Noise App | 🟡 Medium | S1 | ✅ Closed (B-08 + B-23) |
 
 ---
 
@@ -100,10 +100,10 @@ Centralise all competitive gaps identified across FieldOps Manager modules. Each
 
 | Gap | Competitor Benchmark | Impact | Sprint | Status |
 |---|---|---|---|---|
-| Real-time Occupancy Tracking | T2, ParkMobile | 🟠 High | S2 | ⬜ Open |
-| Enhanced Appeals Portal (self-serve) | T2 Systems | 🟡 Medium | S2 | ⬜ Open |
+| Real-time Occupancy Tracking | T2, ParkMobile | 🟠 High | S2 | ✅ Closed (B-16 + B-25) |
+| Enhanced Appeals Portal (self-serve) | T2 Systems | 🟡 Medium | S2 | ✅ Closed (B-15) |
 | Pay-by-Plate Integration (NZ providers) | T2, PayByPhone | 🟡 Medium | S2 | ⬜ Open |
-| Occupancy Analytics Dashboard | T2, ParkMobile | 🟡 Medium | S2 | ⬜ Open |
+| Occupancy Analytics Dashboard | T2, ParkMobile | 🟡 Medium | S2 | ✅ Closed (B-25) |
 | Dynamic Pricing Engine | T2, ParkMobile | 🟢 Low | S4 | ⬜ Open |
 | Revenue Forecasting | T2, ParkMobile | 🟢 Low | S4 | ⬜ Open |
 
@@ -115,7 +115,7 @@ Centralise all competitive gaps identified across FieldOps Manager modules. Each
 |---|---|---|---|---|
 | Real-time Translation (Māori, Mandarin, Hindi, Korean) | Azure Cognitive / Whisper | 🟠 High | S2 | ⬜ Open |
 | LMR / Radio Bridge | Zello Gateway, Motorola | 🟡 Medium | S3 | ⬜ Open |
-| Voice AI Workflows (intent → action) | Custom enterprise solutions | 🟡 Medium | S3 | 🔄 In Progress (Bob PTT) |
+| Voice AI Workflows (intent → action) | Custom enterprise solutions | 🟡 Medium | S3 | ✅ Closed (Bob PTT integration) |
 
 ---
 
@@ -123,7 +123,7 @@ Centralise all competitive gaps identified across FieldOps Manager modules. Each
 
 | Gap | Competitor Benchmark | Impact | Sprint | Status |
 |---|---|---|---|---|
-| In-App ETA Calculation | Various CAD platforms | 🟡 Medium | S1 | ⬜ Open |
+| In-App ETA Calculation | Various CAD platforms | 🟡 Medium | S1 | ✅ Closed (B-07) |
 | Turn-by-Turn Navigation (in-app) | Various | 🟡 Medium | S2 | ⬜ Open |
 | Route Optimisation | Various | 🟡 Medium | S2 | ⬜ Open |
 | Traffic Overlay | Google Maps / HERE | 🟡 Medium | S2 | ⬜ Open |

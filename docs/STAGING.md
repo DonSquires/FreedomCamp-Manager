@@ -2325,3 +2325,53 @@ The web SPA delivers SOS via the existing `officer_welfare_alerts` table + `send
 | B-21 | Cohort / Pattern Analysis | ✅ |
 | B-22 | Mobile Plate Finder | ✅ |
 | B-23 | Evidence Packages manager | ✅ |
+
+---
+
+## Phase 5 Sprint 5 — B-24 / B-25 / B-26 (2026-05-06)
+
+### Changes
+
+| File | Change |
+|---|---|
+| `supabase/migrations/20260506000003_alarm_events.sql` | B-24: New `public.alarm_events` table — source_system, alarm_type, severity, trigger_time, address, site_reference, zone_id, status (active/acknowledged/dispatched/resolved/false_alarm), linked_incident_id, raw_payload. RLS: org-scoped read + update; service-role INSERT via webhook. |
+| `supabase/functions/alarm-webhook/index.ts` | B-24: New edge function. Accepts signed POST from external alarm systems (shared-secret auth via `ALARM_WEBHOOK_SECRET`). Validates alarm_type allowlist, inserts alarm_events row, broadcasts `alarm_received` to Realtime channel. |
+| `src/types/database.ts` | B-24: Added `alarm_events` Row/Insert/Update types. |
+| `src/pages/AlarmEvents.tsx` | B-24: Admin alarm event dashboard. Live list with severity/status badges; Acknowledge, Dispatch (creates linked incident + navigates), Resolve/False-alarm actions; resolve dialog with notes. Auto-refreshes every 30s. |
+| `src/pages/OccupancyAnalytics.tsx` | B-25: Occupancy analytics with 5 recharts: daily observations (bar), top-10 zones (horizontal bar), breach rate trend (line), parking avg dwell by day-of-week (bar), parking sessions by zone (horizontal bar). Date presets (7/14/30/90d). |
+| `src/pages/PatrolRouteOptimiser.tsx` | B-26: Nearest-neighbour TSP route optimiser over active zones. Zone selector with search + all/clear; configurable start zone; route card with total km, estimated time, numbered stop list with inter-stop distances; clipboard copy. |
+| `src/App.tsx` | Lazy imports + routes: `/alarm-events`, `/occupancy-analytics`, `/patrol-route-optimiser`. |
+| `src/components/features/AppLayout.tsx` | Sidebar: Alarm Events + Route Optimiser under Dispatch; Occupancy Analytics under Records. Icons: Siren, Route. |
+| `docs/competitive-gap-board.md` | 24 gap items updated to ✅ Closed covering B-02–B-26 across all five competitive categories. |
+| `docs/STAGING.md` | Sprint 5 session snapshot added. |
+
+### Sprint 5 Success Criteria
+
+- [x] B-24 alarm_events migration: org-scoped RLS + service-role INSERT
+- [x] B-24 alarm-webhook edge function: shared-secret auth, allowlist validation, Realtime broadcast
+- [x] B-24 AlarmEvents page: acknowledge / dispatch / resolve / false-alarm workflow
+- [x] B-25 OccupancyAnalytics: 5 recharts over observations + parking_sessions, date presets
+- [x] B-26 PatrolRouteOptimiser: nearest-neighbour TSP, haversine distances, estimated total time, copy route
+- [x] Routes + sidebar wired for all three pages
+- [x] competitive-gap-board.md: 24 items marked ✅ Closed
+- [x] `bun run build` → PASS
+- [x] `bun run lint` → PASS
+
+### Competitive Gap Board Summary (post Sprint 5)
+
+| Category | Total Items | Closed | Remaining |
+|---|---|---|---|
+| Officer Safety | 5 | 4 | 1 (24/7 Monitoring Centre) |
+| Dispatch / CAD | 4 | 3 | 1 (CAD-to-CAD — Backlog) |
+| ALPR / Cameras | 4 | 2 | 2 (Fixed Camera, Video Context) |
+| Workforce | 4 | 4 | 0 |
+| Freedom Camping | 6 | 6 | 0 |
+| Noise Enforcement | 3 | 3 | 0 |
+| Parking | 6 | 4 | 2 (Pay-by-Plate, Dynamic Pricing) |
+| PTT / Comms | 4 | 3 | 1 (LMR Radio Bridge) |
+| Navigation | 4 | 2 | 2 (Turn-by-Turn, Traffic Overlay) |
+
+**Next sprint candidates (S3/S4 items):**
+- B-27: Fixed Camera Support (CCTV feed into zone map / incidents)
+- B-28: Real-time Translation in incident notes UI
+- B-29: Pay-by-Plate payment integration (PayByPhone NZ)
