@@ -589,6 +589,7 @@ export default function PTTRadio() {
   const [lastCaptionAtMs, setLastCaptionAtMs] = useState<number | null>(null)
   const [captionsDelayed, setCaptionsDelayed] = useState(false)
   const remoteTransmissionStartedAtRef = useRef<number | null>(null)
+  const translatedCaptionKeysRef = useRef<Set<string>>(new Set())
 
   const { data: captionInferenceHealth } = useQuery({
     queryKey: ['radio-caption-inference-health'],
@@ -613,9 +614,19 @@ export default function PTTRadio() {
         }
         return [...prev, seg].slice(-50)
       })
+
+      if (!radioFeatureFlags.translationEnabled) return
+      if (!interpreterTargetLanguage || !seg.isFinal || !seg.text?.trim()) return
+      if ((seg.language || '').toLowerCase() === interpreterTargetLanguage.toLowerCase()) return
+
+      const key = `${seg.transmissionId}:${seg.sequenceNum}:${interpreterTargetLanguage}`
+      if (translatedCaptionKeysRef.current.has(key)) return
+      translatedCaptionKeysRef.current.add(key)
+
+      void radioTranslationService.translateCaption(seg, interpreterTargetLanguage)
     })
     return unsub
-  }, [])
+  }, [interpreterTargetLanguage])
 
   useEffect(() => {
     if (!radioFeatureFlags.captionsEnabled || typeof window === 'undefined') return

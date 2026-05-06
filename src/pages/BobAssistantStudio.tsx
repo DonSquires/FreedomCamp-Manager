@@ -55,7 +55,7 @@ import {
   persistBobLearningRemote,
   persistConversationTurnRemote,
 } from '@/lib/bobLearningMemory'
-import { classifyBobCommand, evaluateBobCommandPolicy } from '@/lib/bobCommandBus'
+import { classifyBobCommand, evaluateBobCommandPolicy, type BobCommand } from '@/lib/bobCommandBus'
 
 type ChatMessage = {
   id: string
@@ -500,6 +500,10 @@ export default function BobAssistantStudio() {
 
   const [chatInput, setChatInput] = useState('')
   const [chat, setChat] = useState<ChatMessage[]>([])
+  const [pendingCommandConfirmation, setPendingCommandConfirmation] = useState<{
+    command: BobCommand
+    requestedAt: string
+  } | null>(null)
   const [listening, setListening] = useState(false)
   const [thinking, setThinking] = useState(false)
   const [isBobSpeaking, setIsBobSpeaking] = useState(false)
@@ -1160,12 +1164,41 @@ export default function BobAssistantStudio() {
     const message = (override ?? chatInput).trim()
     if (!message || thinking) return
 
-    const command = classifyBobCommand(message)
-    const commandPolicy = evaluateBobCommandPolicy(command, {
+    const normalizedMessage = normalize(message)
+    const isConfirmCommand = normalizedMessage === 'confirm command' || normalizedMessage === 'confirm'
+    const isCancelCommand = normalizedMessage === 'cancel command' || normalizedMessage === 'cancel'
+
+    let command = classifyBobCommand(message)
+    let commandPolicy = evaluateBobCommandPolicy(command, {
       role: String(user?.role ?? 'officer'),
       orgId: user?.organization_id ?? null,
       route: window.location.pathname,
     })
+
+    if (pendingCommandConfirmation) {
+      if (isCancelCommand) {
+        const cancelledMsg: ChatMessage = {
+          id: crypto.randomUUID(),
+          role: 'assistant',
+          text: `Command cancelled: ${pendingCommandConfirmation.command.intent}.`,
+          createdAt: new Date().toISOString(),
+        }
+        setChat((prev) => [...prev, cancelledMsg])
+        setPendingCommandConfirmation(null)
+        setChatInput('')
+        return
+      }
+
+      if (isConfirmCommand) {
+        command = pendingCommandConfirmation.command
+        commandPolicy = evaluateBobCommandPolicy(command, {
+          role: String(user?.role ?? 'officer'),
+          orgId: user?.organization_id ?? null,
+          route: window.location.pathname,
+        })
+        setPendingCommandConfirmation(null)
+      }
+    }
 
     if (!commandPolicy.allowed) {
       const blockedMsg: ChatMessage = {
@@ -1177,6 +1210,22 @@ export default function BobAssistantStudio() {
       setChat((prev) => [...prev, blockedMsg])
       setChatInput('')
       toast.error(commandPolicy.reason)
+      return
+    }
+
+    if (command.intent !== 'unknown' && commandPolicy.requiresApproval && !isConfirmCommand) {
+      const promptMsg: ChatMessage = {
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        text: `Command requires confirmation (${command.intent}). Say or type "confirm command" to continue, or "cancel command" to stop.`,
+        createdAt: new Date().toISOString(),
+      }
+      setChat((prev) => [...prev, promptMsg])
+      setPendingCommandConfirmation({
+        command,
+        requestedAt: new Date().toISOString(),
+      })
+      setChatInput('')
       return
     }
 
@@ -1192,6 +1241,48 @@ export default function BobAssistantStudio() {
     setThinking(true)
     setBobDegraded(false)
     const learningUserId = user?.id ?? 'anonymous'
+
+    const pushAssistantReply = (text: string) => {
+      const assistantMsg: ChatMessage = {
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        text,
+        createdAt: new Date().toISOString(),
+      }
+      setChat((prev) => [...prev, assistantMsg])
+      return assistantMsg
+    }
+
+    if (command.intent === 'navigate' && command.args.route && !commandPolicy.requiresApproval) {
+      const route = String(command.args.route)
+      pushAssistantReply(`Command accepted. Navigating to ${route}.`)
+      setThinking(false)
+      navigate(route)
+      return
+    }
+
+    if (command.intent === 'run_diagnostics' && !commandPolicy.requiresApproval) {
+      try {
+        const { data, error } = await edgeFunctions.grandmasterStudio({ action: 'doctor_health' })
+        if (error) {
+          pushAssistantReply(`Diagnostics command failed: ${error}`)
+        } else {
+          const health = data?.health ?? data
+          const summary = [
+            `Diagnostics complete.`,
+            `Status: ${String(health?.status ?? 'unknown')}.`,
+            `Provider: ${String(health?.provider ?? 'unknown')}.`,
+            `Mode: ${String(health?.mode ?? 'unknown')}.`,
+          ].join(' ')
+          pushAssistantReply(summary)
+        }
+      } catch (diagErr: any) {
+        pushAssistantReply(`Diagnostics command failed: ${String(diagErr?.message ?? diagErr)}`)
+      } finally {
+        setThinking(false)
+      }
+      return
+    }
 
     const buildRequestBody = () => {
       const historyMessages = chat

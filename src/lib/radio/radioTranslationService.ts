@@ -1,10 +1,13 @@
 /**
- * Radio Translation Service — Phase 3 stub
+ * Radio Translation Service — Phase 3 edge-backed helper
  *
- * Provides the interface for translating caption segments in real-time.
- * Implementation is filled in Phase 3 (Translation rollout).
- * Until then, all methods are no-ops.
+ * Provides an event bus for translated segments and a best-effort translator
+ * that calls the translate-message edge function when direct pipeline output
+ * is unavailable.
  */
+
+import { edgeFunctions } from '@/lib/edgeFunctions'
+import type { CaptionSegment } from '@/lib/radio/radioCaptionService'
 
 export interface TranslationSegment {
   /** The source caption segment id this belongs to */
@@ -26,6 +29,7 @@ export type TranslationHandler = (segment: TranslationSegment) => void
 class RadioTranslationService {
   private handlers: Set<TranslationHandler> = new Set()
   private _targetLanguage = 'en-NZ'
+  private _ready = true
 
   get targetLanguage(): string {
     return this._targetLanguage
@@ -56,9 +60,51 @@ class RadioTranslationService {
     }
   }
 
-  /** Returns true once the Phase 3 backend is wired. Always false until then. */
+  async translateCaption(
+    caption: CaptionSegment,
+    targetLanguage = this._targetLanguage,
+  ): Promise<TranslationSegment | null> {
+    const sourceText = String(caption.text || '').trim()
+    const sourceLanguage = String(caption.language || '').trim() || undefined
+    if (!sourceText) return null
+    if (sourceLanguage && sourceLanguage.toLowerCase() === targetLanguage.toLowerCase()) return null
+
+    try {
+      const { data, error } = await edgeFunctions.translateMessage({
+        text: sourceText,
+        target_language: targetLanguage,
+        source_language: sourceLanguage,
+      })
+
+      if (error || !data?.translated_text) {
+        this._ready = false
+        return null
+      }
+
+      this._ready = true
+      const confidenceRaw = Number(data.translation_confidence)
+      const confidence = Number.isFinite(confidenceRaw) ? Math.max(0, Math.min(1, confidenceRaw)) : 0.65
+
+      const segment: TranslationSegment = {
+        transcriptSegmentId: `${caption.transmissionId}:${caption.sequenceNum}`,
+        targetLanguage,
+        text: String(data.translated_text),
+        confidence,
+        provider: String(data.provider || 'bob-translate'),
+        isLowConfidence: confidence < 0.7,
+      }
+
+      this.emit(segment)
+      return segment
+    } catch {
+      this._ready = false
+      return null
+    }
+  }
+
+  /** Returns true once at least one backend translation request has succeeded in-session. */
   isReady(): boolean {
-    return false
+    return this._ready
   }
 }
 
