@@ -2689,3 +2689,44 @@ The web SPA delivers SOS via the existing `officer_welfare_alerts` table + `send
 - B-45: Trespass Notices UI (trespass_notices table)
 - B-46: Access Permissions manager (access_permissions table — grant/revoke per person + zone)
 - B-47: Canonical Person deduplication viewer (canonical_persons table)
+
+---
+
+## Phase 5 — Sprint 12 (B-45 / B-46 / B-47)
+
+### Changes
+
+| File | Change |
+|---|---|
+| `src/pages/TrespassNotices.tsx` | New — B-45 Trespass Notices UI (KPI cards, status/type filters, issue dialog, withdraw action) |
+| `src/pages/AccessPermissions.tsx` | New — B-46 Access Permissions manager (grant/revoke per-person per-zone, type/escort/dates) |
+| `src/pages/CanonicalPersonViewer.tsx` | New — B-47 Canonical Person deduplication viewer (6 KPIs, multi-filter, expandable detail row) |
+| `src/App.tsx` | Lazy imports + routes: `/trespass-notices`, `/access-permissions`, `/canonical-persons` |
+| `src/components/features/AppLayout.tsx` | Sidebar entries under Records + `Ban` / `KeyRound` icon imports |
+
+> `access_permissions` is not in `database.ts` (added via migration 20260509000001_access_control_identity_verification.sql). `AccessPermissions.tsx` uses `(supabase as any).from()`.
+> `trespass_notices` and `canonical_persons` are fully typed in `database.ts`.
+
+### Sprint 12 Board
+
+| ID | Item | Status |
+|---|---|---|
+| B-45 | Trespass Notices UI | ✅ |
+| B-46 | Access Permissions manager | ✅ |
+| B-47 | Canonical Person deduplication viewer | ✅ |
+
+- [x] `bun run build` → PASS
+- [x] `bun run lint` → PASS (0 errors, 0 warnings)
+
+### Competitive Gap Board — Updated (post Sprint 12)
+
+| Category | Newly Closed | Remaining Open |
+|---|---|---|
+| Enforcement | B-45 Trespass Notices | — |
+| Access Control | B-46 Access Permissions | — |
+| Identity / Dedup | B-47 Canonical Person Viewer | — |
+
+**Next sprint candidates:**
+- B-48: Radio Transmissions log viewer (radio_transmissions + radio_transcript_segments tables)
+- B-49: Voice Profiles & Consent manager (radio_voice_profiles_and_consents)
+- B-50: Operational Dashboard refresh — pull live KPIs from new Sprint 10-12 tables into a unified summary

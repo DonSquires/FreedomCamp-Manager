@@ -69,6 +69,9 @@ const InvestigationJobsPage = lazy(() => import('@/pages/InvestigationJobsPage')
 const VehicleDetailPage = lazy(() => import('@/pages/VehicleDetailPage'))
 const PersonRecords = lazy(() => import('@/pages/PersonRecords'))
 const DispatchLOIBrowser = lazy(() => import('@/pages/DispatchLOIBrowser'))
+const TrespassNotices = lazy(() => import('@/pages/TrespassNotices'))
+const AccessPermissions = lazy(() => import('@/pages/AccessPermissions'))
+const CanonicalPersonViewer = lazy(() => import('@/pages/CanonicalPersonViewer'))
 const ImportData = lazy(() => import('@/pages/ImportData'))
 const ImportHistoricalData = lazy(() => import('@/pages/ImportHistoricalData'))
 const BreachNotices = lazy(() => import('@/pages/BreachNotices'))
@@ -1670,6 +1673,39 @@ export default function App() {
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
                   <DispatchLOIBrowser />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/trespass-notices"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <TrespassNotices />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/access-permissions"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <AccessPermissions />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/canonical-persons"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <CanonicalPersonViewer />
                 </RoleRoute>
               </ProtectedRoute>
             }

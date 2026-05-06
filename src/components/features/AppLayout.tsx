@@ -105,6 +105,8 @@ import {
   FileBadge2,
   Users2,
   ScanFace as ScanFaceAudit,
+  Ban,
+  KeyRound,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { supabase } from '@/lib/supabase'
@@ -260,6 +262,9 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/incident-reports', icon: ClipboardList, label: 'Incident Reports', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/investigations', icon: BrainCircuit, label: 'Investigations', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/person-records', icon: PersonStanding, label: 'Person Records', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/canonical-persons', icon: Users, label: 'Canonical Persons', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/trespass-notices', icon: Ban, label: 'Trespass Notices', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/access-permissions', icon: KeyRound, label: 'Access Permissions', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/site-risk-assessment', icon: ClipboardCheck, label: 'Site Risk Assessments', roles: ['admin', 'admin_officer', 'master', 'officer'] },
       { path: '/loi-browser', icon: MapPin, label: 'Dispatch LOI Browser', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/reports', icon: FileText, label: 'Reports', roles: ['admin', 'admin_officer', 'master'] },
