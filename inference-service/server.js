@@ -660,13 +660,18 @@ function ollamaFetch(url, options = {}) {
 //   Falls back to RUNPOD_ENDPOINT_API_KEY if set (serverless reuse).
 // RUNPOD_IDLE_TIMEOUT_MS — inactivity window before auto-stop (default 15 min).
 //   Set to 0 to disable auto-stop entirely.
+// ALLOW_LEGACY_RUNPOD_POD_CONTROL — explicit opt-in for legacy pod lifecycle logic.
+//   Default false: pod control is disabled in serverless-first mode.
 if (process.env.RAILWAY_SIMPLE_OLLAMA_URL && !process.env.SIMPLE_OLLAMA_URL) {
   console.warn('[Bob] RAILWAY_SIMPLE_OLLAMA_URL is deprecated — rename to SIMPLE_OLLAMA_URL');
 }
 const SIMPLE_OLLAMA_URL = (process.env.SIMPLE_OLLAMA_URL || OLLAMA_BASE_URL).replace(/\/+$/, '');
 const COMPLEX_CHAT_MIN_LEN = Number(process.env.COMPLEX_CHAT_MIN_LEN ?? 300);
-const RUNPOD_POD_ID = process.env.RUNPOD_POD_ID || '';
-const RUNPOD_API_KEY_LIFECYCLE = process.env.RUNPOD_API_KEY || process.env.RUNPOD_ENDPOINT_API_KEY || '';
+const ALLOW_LEGACY_RUNPOD_POD_CONTROL = envFlag(process.env.ALLOW_LEGACY_RUNPOD_POD_CONTROL, false);
+const RUNPOD_POD_ID_RAW = process.env.RUNPOD_POD_ID || '';
+const RUNPOD_API_KEY_LIFECYCLE_RAW = process.env.RUNPOD_API_KEY || process.env.RUNPOD_ENDPOINT_API_KEY || '';
+const RUNPOD_POD_ID = ALLOW_LEGACY_RUNPOD_POD_CONTROL ? RUNPOD_POD_ID_RAW : '';
+const RUNPOD_API_KEY_LIFECYCLE = ALLOW_LEGACY_RUNPOD_POD_CONTROL ? RUNPOD_API_KEY_LIFECYCLE_RAW : '';
 const RUNPOD_IDLE_TIMEOUT_MS = Number(process.env.RUNPOD_IDLE_TIMEOUT_MS ?? 15 * 60_000);
 const RUNPOD_ENDPOINT_ID = String(process.env.RUNPOD_ENDPOINT_ID || '').trim();
 const RUNPOD_ENDPOINT_URL = String(process.env.RUNPOD_ENDPOINT_URL || '').trim();
@@ -694,6 +699,10 @@ const RUNPOD_SERVERLESS_ACTION_ALLOWLIST = (() => {
     .filter(Boolean);
 })();
 const RUNPOD_SERVERLESS_CAPABILITY_GATE_ENABLED = envFlag(process.env.RUNPOD_SERVERLESS_CAPABILITY_GATE_ENABLED, true);
+
+if (!ALLOW_LEGACY_RUNPOD_POD_CONTROL && RUNPOD_POD_ID_RAW) {
+  console.warn('[Bob] RUNPOD_POD_ID is configured but ignored because ALLOW_LEGACY_RUNPOD_POD_CONTROL is false');
+}
 
 function deriveRunpodRequestedAction(body = {}) {
   const candidates = [

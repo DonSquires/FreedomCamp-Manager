@@ -140,7 +140,7 @@ See [docs/BOB_SYSTEM_REVIEW.md](BOB_SYSTEM_REVIEW.md) for the current consolidat
 **Cause**: `INFERENCE_SERVICE_URL` is missing the protocol (for example `https://`).
 
 **Fix**:
-1. Set a full URL value such as `https://<your-runpod-pod-id>-3000.proxy.runpod.net`.
+1. Set a full URL value such as `https://api.runpod.ai/v2/<RUNPOD_ENDPOINT_ID>/runsync`.
 2. Redeploy affected edge functions after secret changes.
 
 ### Auto bug analysis returns 401 Invalid JWT

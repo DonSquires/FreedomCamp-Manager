@@ -68,6 +68,7 @@ Optional action hooks:
 - `BOB_RUNPOD_RECOVER_CMD`
 - `BOB_RUNPOD_SCALE_UP_CMD`
 - `BOB_RUNPOD_SCALE_DOWN_CMD`
+- `ALLOW_LEGACY_RUNPOD_POD_CONTROL` (default `false`; must be `true` for legacy pod lifecycle commands)
 - `RUNPOD_POD_ID` is deprecated for Bob automation; built-in recovery now assumes RunPod serverless and uses endpoint warm/ping behavior instead
 
 ## Supervisor Hook Server Controls
@@ -99,11 +100,11 @@ Used by `runpod-gateway`.
 
 For this repository to operate Bob via RunPod serverless and UI:
 
-- `INFERENCE_SERVICE_URL=https://api.runpod.ai/v2/<endpoint-id>`
+- `INFERENCE_SERVICE_URL=https://api.runpod.ai/v2/<endpoint-id>/runsync`
 - `INFERENCE_API_KEY=rpa_...`
 - `RUNPOD_ENDPOINT_API_KEY=rpa_...` (same as above)
 - `RUNPOD_API_KEY=rpa_...` (same as above)
-- `VITE_INFERENCE_SERVICE_URL=https://api.runpod.ai/v2/<endpoint-id>`
+- `VITE_INFERENCE_SERVICE_URL=https://api.runpod.ai/v2/<endpoint-id>/runsync`
 - `VITE_INFERENCE_API_KEY=rpa_...`
 
 ## Validation Checklist

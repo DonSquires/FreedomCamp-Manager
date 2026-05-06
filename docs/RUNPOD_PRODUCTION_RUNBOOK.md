@@ -74,8 +74,8 @@ Tier 5 — original enterprise preference (last-resort fallback):
 Use this mode unless there is an explicit incident override:
 
 1. Serverless is primary for all production traffic.
-2. Maintain only one pod when pod mode is required.
-3. Pod startup behavior must be controlled via template or schema-supported dockerStartCmd fields (not unsupported ad hoc patch fields).
+2. Route all production AI requests to serverless `/runsync`.
+3. Treat pod runtime workflows as deprecated for Bob production traffic.
 4. Use image digests (not mutable latest tags) for promoted runtime paths.
 5. Keep durable data off ephemeral container disk.
 
@@ -90,23 +90,10 @@ Use this mode unless there is an explicit incident override:
   - HTTP 200
   - output.message indicates online status
 
-### 4.2 Pod quick checks
-
-- Proxy health:
-  - GET https://<pod-id>-3000.proxy.runpod.net/health
-- Pod API ping (if helper API enabled):
-  - POST https://<pod-id>-3000.proxy.runpod.net/run
-  - Body: {"input":{"action":"ping"}}
-- Success criteria:
-  - HTTP 200 from health
-  - run endpoint returns action output
-
-### 4.3 Control-plane checks
+### 4.2 Control-plane checks
 
 - REST endpoint state:
   - GET /v1/endpoints/{endpointId}
-- Pod state:
-  - GET /v1/pods/{podId}
 - Template image alignment:
   - GET /v1/templates
 
@@ -129,6 +116,8 @@ Use this mode unless there is an explicit incident override:
 - Re-run runsync ping and one representative workload request.
 
 ### 5.4 Pod rollout
+
+Pod rollout is deprecated for Bob production serving. Keep this section only for legacy forensics.
 
 - Start or recreate a single pod from the worker template.
 - Verify health endpoint and startup readiness before any pod traffic.

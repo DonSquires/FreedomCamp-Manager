@@ -28,6 +28,11 @@ name: Ops – RunPod Pod Lifecycle (Legacy)
 on:
   workflow_dispatch:
     inputs:
+      allow_legacy_pod_ops:
+        description: 'Required: set true to allow legacy pod lifecycle actions'
+        required: true
+        type: boolean
+        default: false
       action:
         description: 'Action to perform'
         required: true
@@ -50,8 +55,21 @@ jobs:
       contents: read
 
     steps:
+      - name: Require explicit legacy opt-in
+        id: legacy-gate
+        env:
+          ALLOW_LEGACY_POD_OPS: ${{ github.event.inputs.allow_legacy_pod_ops }}
+        run: |
+          if [ "${ALLOW_LEGACY_POD_OPS:-false}" != "true" ]; then
+            echo "::warning::Legacy pod lifecycle workflow is disabled by default. Re-run with allow_legacy_pod_ops=true if you intentionally need emergency pod operations."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+
       - name: Check required secrets
         id: check-secrets
+        if: steps.legacy-gate.outputs.skip != 'true'
         env:
           RUNPOD_API_KEY: ${{ secrets.RUNPOD_API_KEY }}
           RUNPOD_POD_ID: ${{ secrets.RUNPOD_POD_ID }}
@@ -70,11 +88,11 @@ jobs:
           echo "✅ Required secrets present"
 
       - name: Checkout repository
-        if: steps.check-secrets.outputs.skip != 'true'
+        if: steps.legacy-gate.outputs.skip != 'true' && steps.check-secrets.outputs.skip != 'true'
         uses: actions/checkout@v5
 
       - name: Resolve pod ID and action
-        if: steps.check-secrets.outputs.skip != 'true'
+        if: steps.legacy-gate.outputs.skip != 'true' && steps.check-secrets.outputs.skip != 'true'
         id: resolve
         env:
           RUNPOD_POD_ID: ${{ secrets.RUNPOD_POD_ID }}

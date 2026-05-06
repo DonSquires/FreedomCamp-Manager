@@ -67,9 +67,9 @@ All CI/CD secrets live in **GitHub → Settings → Secrets and variables → Ac
 |--------|---------|-------|
 | `RAILWAY_TOKEN` | Various | Fallback Railway token |
 | `RAILWAY_PROXY_SERVICE_ID` | proxy deploy | Railway service ID for proxy-server |
-| `BOB_SERVICE_URL` | Smoke tests, ops workflows | Live URL for inference-service on RunPod (e.g. `https://xxx.proxy.runpod.net`) |
+| `BOB_SERVICE_URL` | Smoke tests, ops workflows | RunPod serverless runsync URL (e.g. `https://api.runpod.ai/v2/<endpoint-id>/runsync`) |
 | `BOB_GATEWAY_KEY` | Bob model workflows | Bearer token for RunPod Ollama gateway |
-| `RUNPOD_GATEWAY_URL` | ops-upgrade-bob-model | Public URL for RunPod gate e.g. `https://xxx-8080.proxy.runpod.net` |
+| `RUNPOD_GATEWAY_URL` | ops-upgrade-bob-model | Legacy pod gateway URL (deprecated; prefer `RUNPOD_ENDPOINT_URL` serverless) |
 | `RUNPOD_ALLOW_DIRECT_OLLAMA` | Bob ops workflows | Optional safety flag (`true` only during incident bypass to direct `11434` URL). Default is gateway-only. |
 | `RUNPOD_API_KEY` | RunPod SSH / API calls | RunPod API key |
 | `RUNPOD_POD_SSH_KEY` | ops-upgrade-bob-model (SSH step) | Private key for SSH into RunPod pod |
@@ -100,7 +100,7 @@ Set via Supabase/hosted runtime environment and RunPod endpoint configuration:
 | `OPERATING_MODE` | `self-contained` — Bob manages its own inference connection |
 | `CHAT_PROVIDER` | `ollama` |
 | `INFERENCE_API_URL` | RunPod Serverless endpoint URL for Bob/Ollama inference |
-| `OLLAMA_HOST` | URL to the runpod-gateway, e.g. `https://xxx-8080.proxy.runpod.net` |
+| `OLLAMA_HOST` | External Ollama host URL, e.g. Railway-hosted Ollama endpoint |
 | `OLLAMA_GATEWAY_KEY` | Bearer token for runpod-gateway |
 | `OLLAMA_MODEL` | Active chat model, e.g. `qwen2.5:7b`, `llama3.3:70b` |
 | `OLLAMA_VISION_MODEL` | Vision model, e.g. `llava:7b`, `llava:13b` |

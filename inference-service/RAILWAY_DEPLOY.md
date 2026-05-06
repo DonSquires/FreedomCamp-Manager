@@ -45,7 +45,7 @@ In Railway dashboard, click the **Variables** tab and add:
 | `CHAT_PROVIDER` | `ollama` | Local LLM chat via Ollama with heuristic fallback enabled |
 | `CHAT_HEURISTIC_ENABLED` | `true` | Falls back to trained heuristic replies when Ollama is slow or unavailable |
 | `CHAT_TIMEOUT_MS` | `120000` | Gives RunPod-backed Ollama time to warm and answer |
-| `OLLAMA_BASE_URL` | `https://<runpod-gateway>.proxy.runpod.net` | RunPod gateway URL, or Railway internal Ollama URL if using the internal service |
+| `OLLAMA_BASE_URL` | `https://<external-ollama-host>` | External Ollama URL (Railway preferred), or Railway internal Ollama URL if co-located |
 | `OLLAMA_MODEL` | `qwen2.5:7b` | LLM model served by Ollama |
 | `SELF_HEALING_ENABLED` | `true` | Enables self-heal endpoints through Bob |
 

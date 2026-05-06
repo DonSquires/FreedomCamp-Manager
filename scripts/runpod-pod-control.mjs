@@ -5,6 +5,10 @@
  * Serverless-first operations should use endpoint autoscaling and health checks.
  * Keep this script for manual emergency fallback only.
  *
+ * Safety gate:
+ *   Set ALLOW_LEGACY_RUNPOD_POD_CONTROL=true to use this script.
+ *   Without that flag, execution is blocked to prevent accidental pod-mode use.
+ *
  * Usage:
  *   node scripts/runpod-pod-control.mjs start  --pod <podId>
  *   node scripts/runpod-pod-control.mjs stop   --pod <podId>
@@ -54,6 +58,12 @@ function extractGraphqlError(result) {
 }
 
 async function main() {
+  const allowLegacy = String(process.env.ALLOW_LEGACY_RUNPOD_POD_CONTROL || '').trim().toLowerCase() === 'true';
+  if (!allowLegacy) {
+    console.error('Legacy pod control is disabled by default. Set ALLOW_LEGACY_RUNPOD_POD_CONTROL=true to proceed.');
+    process.exit(2);
+  }
+
   const action = String(process.argv[2] || '').toLowerCase().trim();
   if (!['start', 'stop', 'status'].includes(action)) {
     console.error(`Usage: runpod-pod-control.mjs <start|stop|status> [--pod <podId>]`);

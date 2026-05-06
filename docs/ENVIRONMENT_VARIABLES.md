@@ -30,7 +30,7 @@ All frontend variables must be prefixed with `VITE_` to be exposed to the browse
 |----------|-------------|---------|--------|
 | `VITE_GOOGLE_MAPS_API_KEY` | Google Maps JavaScript API key | None | Alphanumeric string |
 | `VITE_PROXY_SERVER_URL` | Railway proxy server URL | None | `https://<service>.railway.app` |
-| `VITE_INFERENCE_SERVICE_URL` | Bob inference service URL (RunPod) | None | `https://<pod>.proxy.runpod.net` |
+| `VITE_INFERENCE_SERVICE_URL` | Bob inference service URL (RunPod serverless) | None | `https://api.runpod.ai/v2/<RUNPOD_ENDPOINT_ID>/runsync` |
 | `VITE_APP_VERSION` | Application version for display | `1.0.0` | Semver string |
 | `VITE_ENVIRONMENT` | Environment name | `development` | `development`, `staging`, `production` |
 
@@ -73,9 +73,9 @@ VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 # Optional - Google Maps
 VITE_GOOGLE_MAPS_API_KEY=AIza...
 
-# Optional - Bob inference service (RunPod)
+# Optional - Bob inference service (RunPod serverless)
 VITE_PROXY_SERVER_URL=https://proxy-server-production.railway.app
-VITE_INFERENCE_SERVICE_URL=https://<runpod-pod-id>-3000.proxy.runpod.net
+VITE_INFERENCE_SERVICE_URL=https://api.runpod.ai/v2/<RUNPOD_ENDPOINT_ID>/runsync
 
 # Environment
 VITE_ENVIRONMENT=development
