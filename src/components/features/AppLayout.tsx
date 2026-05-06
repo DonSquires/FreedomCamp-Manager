@@ -204,6 +204,7 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/patrol-kpis', icon: TrendingUp, label: 'Patrol KPIs', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/noise-notices', icon: Volume2, label: 'Noise Notices', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/site-incidents', icon: Building2, label: 'Site Incidents', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/person-interactions', icon: Users, label: 'Person Interactions', roles: ['admin', 'admin_officer', 'master'] },
     ],
   },
   {
@@ -218,6 +219,7 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/dispatch-monitor', icon: LayoutList, label: 'Dispatch Monitor', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/dispatch-wizard', icon: Wand2, label: 'Dispatch Wizard', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/dispatched-jobs', icon: ListChecks, label: 'Dispatched Jobs', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/dispatch-events', icon: Radio, label: 'Dispatch Events', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/alarm-events', icon: Siren, label: 'Alarm Events', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/patrol-route-optimiser', icon: Route, label: 'Route Optimiser', roles: ['admin', 'admin_officer', 'master', 'officer'] },
       { path: '/patrol-navigation', icon: Navigation2, label: 'Patrol Navigation', roles: ['admin', 'admin_officer', 'master', 'officer'] },
@@ -237,6 +239,7 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/vehicles', icon: Car, label: 'Vehicles', roles: ['admin', 'admin_officer', 'master', 'officer'] },
       { path: '/vehicle-registry', icon: Car, label: 'Vehicle Registry', roles: ['admin', 'admin_officer', 'master', 'nzscv_monitor'] },
       { path: '/plate-finder', icon: ScanSearch, label: 'Plate Finder', roles: ['admin', 'admin_officer', 'master', 'officer'] },
+      { path: '/plate-scans-log', icon: ScanSearch, label: 'Plate Scan Log', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/admin/nzscv', icon: Car, label: 'NZSCV Monitor', roles: ['admin', 'master', 'nzscv_monitor'] },
       { path: '/admin/canonical-records', icon: Database, label: 'Canonical Records', roles: ['admin', 'master'] },
       { path: '/zones', icon: MapPin, label: 'Zones', roles: ['admin', 'admin_officer', 'master'] },

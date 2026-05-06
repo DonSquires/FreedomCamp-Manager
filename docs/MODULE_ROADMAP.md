@@ -176,3 +176,11 @@ New routes added:
 - `/roster-shifts` — Roster Shift Log (B-67); role gate: admin, admin_officer, master; nav group: Roster & Workforce; table: roster_shifts
 - `/noise-notices` — Noise Notice Log (B-68); role gate: admin, admin_officer, master; nav group: Operations; tables: noise_notices + noise_seizures (tabbed)
 - `/site-incidents` — Site Incident Log (B-69); role gate: admin, admin_officer, master; nav group: Operations; table: site_incidents
+
+## Sprint 20 Addendum (2026-05-06) — B-70/B-71/B-72
+
+New routes added:
+
+- `/person-interactions` — Person Interaction Log (B-70); role gate: admin, admin_officer, master; nav group: Operations; table: person_interactions
+- `/plate-scans-log` — Plate Scan Log (B-71); role gate: admin, admin_officer, master; nav group: Management; table: plate_scans
+- `/dispatch-events` — Dispatch Event Log (B-72); role gate: admin, admin_officer, master; nav group: Live Ops; table: dispatch_events

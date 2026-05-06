@@ -157,6 +157,9 @@ const ParkingPermitManager = lazy(() => import('@/pages/ParkingPermitManager'))
 const RosterShiftLog = lazy(() => import('@/pages/RosterShiftLog'))
 const NoiseNoticeLog = lazy(() => import('@/pages/NoiseNoticeLog'))
 const SiteIncidentLog = lazy(() => import('@/pages/SiteIncidentLog'))
+const PersonInteractionLog = lazy(() => import('@/pages/PersonInteractionLog'))
+const PlateScanLog = lazy(() => import('@/pages/PlateScanLog'))
+const DispatchEventLog = lazy(() => import('@/pages/DispatchEventLog'))
 const MessagingPage = lazy(() => import('@/modules/messaging'))
 const IntelApprovalQueue = lazy(() => import('@/pages/IntelApprovalQueue'))
 const BobIntakeQueue = lazy(() => import('@/pages/BobIntakeQueue'))
@@ -2233,6 +2236,42 @@ export default function App() {
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
                   <SiteIncidentLog />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Person Interaction Log — B-70 */}
+          <Route
+            path="/person-interactions"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <PersonInteractionLog />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Plate Scan Log — B-71 */}
+          <Route
+            path="/plate-scans-log"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <PlateScanLog />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Dispatch Event Log — B-72 */}
+          <Route
+            path="/dispatch-events"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <DispatchEventLog />
                 </RoleRoute>
               </ProtectedRoute>
             }

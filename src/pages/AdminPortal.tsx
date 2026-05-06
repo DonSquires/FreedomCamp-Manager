@@ -56,6 +56,7 @@ import {
   Radio,
   Receipt,
   ScanLine,
+  ScanSearch,
   ScrollText,
   Search,
   Shield,
@@ -454,6 +455,24 @@ export default function AdminPortal() {
       const { count: activeNoiseNotices, error: noiseNoticeErr } = await activeNoiseNoticesQ
       if (noiseNoticeErr) diagnostics.push(`active_noise_notices: ${noiseNoticeErr.message || 'unknown error'}`)
 
+      // Unreviewed plate scans (B-71)
+      let unreviewedPlateScansQ = supabase
+        .from('plate_scans')
+        .select('id', { count: 'exact', head: true })
+        .eq('reviewed', false)
+      if (effectiveOrganizationId) unreviewedPlateScansQ = unreviewedPlateScansQ.eq('organization_id', effectiveOrganizationId)
+      const { count: unreviewedPlateScans, error: plateScansErr } = await unreviewedPlateScansQ
+      if (plateScansErr) diagnostics.push(`unreviewed_plate_scans: ${plateScansErr.message || 'unknown error'}`)
+
+      // Follow-up required person interactions (B-70)
+      let followUpInteractionsQ = supabase
+        .from('person_interactions')
+        .select('id', { count: 'exact', head: true })
+        .eq('requires_follow_up', true)
+      if (effectiveOrganizationId) followUpInteractionsQ = followUpInteractionsQ.eq('organization_id', effectiveOrganizationId)
+      const { count: followUpInteractions, error: followUpErr } = await followUpInteractionsQ
+      if (followUpErr) diagnostics.push(`follow_up_interactions: ${followUpErr.message || 'unknown error'}`)
+
       // Count non-compliant observations where the plate belongs to a homeless vehicle.
       // This is the exact number of "breaches" that are actually FC Act exempt.
       let homelessExemptBreachCount = 0
@@ -493,6 +512,8 @@ export default function AdminPortal() {
         activePermitsCount:        activePermitsCount         ?? 0,
         openSiteIncidents:         openSiteIncidents          ?? 0,
         activeNoiseNotices:        activeNoiseNotices         ?? 0,
+        unreviewedPlateScans:      unreviewedPlateScans       ?? 0,
+        followUpInteractions:      followUpInteractions       ?? 0,
         diagnostics,
       }
     },
@@ -1429,6 +1450,7 @@ export default function AdminPortal() {
                     { path: '/vehicles',               label: 'Vehicles',          Icon: Car,           color: 'text-slate-600',  bg: 'bg-slate-50 dark:bg-slate-900/30' },
                     { path: '/asset-management',       label: 'Assets',            Icon: Package,       color: 'text-amber-700',  bg: 'bg-amber-50 dark:bg-amber-900/20' },
                     { path: '/vehicle-registry',       label: 'Registry',          Icon: Database,      color: 'text-gray-600',   bg: 'bg-gray-100 dark:bg-gray-800/30' },
+                    { path: '/plate-scans-log',        label: 'Plate Scan Log',    Icon: ScanSearch,    color: 'text-cyan-600',   bg: 'bg-cyan-50 dark:bg-cyan-900/20', badge: (data as any)?.unreviewedPlateScans > 0 ? (data as any)?.unreviewedPlateScans : undefined },
                     { path: '/zones',                  label: 'Zones',             Icon: MapPin,        color: 'text-green-600',  bg: 'bg-green-50 dark:bg-green-900/20' },
                     { path: '/hotspots',               label: 'Hotspots',          Icon: Map,           color: 'text-red-600',    bg: 'bg-red-50 dark:bg-red-900/20' },
                     { path: '/admin/nzscv',            label: 'NZSCV Monitor',     Icon: Shield,        color: 'text-blue-600',   bg: 'bg-blue-50 dark:bg-blue-900/20', badge: (data as any)?.scvExpiringSoon > 0 ? (data as any)?.scvExpiringSoon : undefined },
@@ -1489,6 +1511,8 @@ export default function AdminPortal() {
                     { path: '/noise-officer', label: 'Noise Control', Icon: Volume2,       color: 'text-yellow-700', bg: 'bg-yellow-50 dark:bg-yellow-900/20', scopeHint: 'Jurisdiction' },
                     { path: '/noise-notices', label: 'Noise Notices', Icon: Volume2,       color: 'text-yellow-600', bg: 'bg-yellow-50 dark:bg-yellow-900/20', badge: (data as any)?.activeNoiseNotices > 0 ? (data as any)?.activeNoiseNotices : undefined },
                     { path: '/site-incidents',label: 'Site Incidents',Icon: Building2,     color: 'text-indigo-600', bg: 'bg-indigo-50 dark:bg-indigo-900/20', badge: (data as any)?.openSiteIncidents > 0 ? (data as any)?.openSiteIncidents : undefined },
+                    { path: '/person-interactions', label: 'Person Interactions', Icon: Users, color: 'text-teal-600', bg: 'bg-teal-50 dark:bg-teal-900/20', badge: (data as any)?.followUpInteractions > 0 ? (data as any)?.followUpInteractions : undefined },
+                    { path: '/dispatch-events', label: 'Dispatch Events', Icon: Radio,    color: 'text-purple-600', bg: 'bg-purple-50 dark:bg-purple-900/20' },
                     { path: '/biosecurity-officer', label: 'Biosecurity', Icon: Search,    color: 'text-emerald-700', bg: 'bg-emerald-50 dark:bg-emerald-900/20', scopeHint: 'Jurisdiction' },
                     { path: '/smoke-officer', label: 'Smoke (OOH)', Icon: AlertTriangle, color: 'text-amber-700', bg: 'bg-amber-50 dark:bg-amber-900/20', scopeHint: 'Jurisdiction' },
                     { path: '/ems',          label: 'EMS',           Icon: Zap,           color: 'text-red-700',    bg: 'bg-red-50 dark:bg-red-900/20' },
