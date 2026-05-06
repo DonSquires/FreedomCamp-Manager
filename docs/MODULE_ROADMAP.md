@@ -1,9 +1,9 @@
 # Module Roadmap (Operator Navigation Map)
 
-Date: 2026-05-04 (verified against src App.tsx)
-Source of truth for routes: App router file src App.tsx (122 total routes as of Phase 4 completion)
+Date: 2026-05-06 (verified against src App.tsx)
+Source of truth for routes: App router file src App.tsx (136 total routes as of Sprint 13 completion)
 
-> **Last Verification**: 2026-05-04 — All 122 routes reviewed and role-gating validated. No changes since baseline a6e39a0f.
+> **Last Verification**: 2026-05-06 — Sprint 13 routes added (B-48 Radio Transmissions Log, B-49 Voice Profiles & Consent; B-45 Trespass Notices, B-46 Access Permissions, B-47 Canonical Person Viewer, B-44 Dispatch LOI Browser). Previous baseline: a6e39a0f (2026-05-04, 122 routes).
 
 ## How To Use
 
@@ -22,8 +22,8 @@ Source of truth for routes: App router file src App.tsx (122 total routes as of 
 2. Compliance and enforcement
    - Primary: /compliance
    - Role gate: admin, admin_officer, master
-   - Related: /breaches, /infringements, /notice-to-vacate, /enforcement-actions, /enforcement-command-center, /compliance-recalculation
-   - Related route gates: /breaches = authenticated users (protected route); /infringements = admin, admin_officer, master, officer; /notice-to-vacate = admin, admin_officer, master; /enforcement-actions = admin, admin_officer, master, officer; /enforcement-command-center = admin, admin_officer, master; /compliance-recalculation = admin, admin_officer, master, grand_master
+   - Related: /breaches, /infringements, /notice-to-vacate, /enforcement-actions, /enforcement-command-center, /compliance-recalculation, /trespass-notices, /access-permissions, /loi-browser
+   - Related route gates: /breaches = authenticated users (protected route); /infringements = admin, admin_officer, master, officer; /notice-to-vacate = admin, admin_officer, master; /enforcement-actions = admin, admin_officer, master, officer; /enforcement-command-center = admin, admin_officer, master; /compliance-recalculation = admin, admin_officer, master, grand_master; /trespass-notices = admin, admin_officer, master; /access-permissions = admin, admin_officer, master; /loi-browser = admin, admin_officer, master
 
 3. Patrol and dispatch
    - Primary: /live-patrol
@@ -108,8 +108,8 @@ Source of truth for routes: App router file src App.tsx (122 total routes as of 
 1. Identity and records
    - Primary: /identity-verification
    - Role gate: admin, admin_officer, master
-   - Related: /face-recognition, /person-records, /vehicles, /vehicles/:id
-   - Related route gates: /face-recognition = admin, admin_officer, master, officer; /person-records = admin, admin_officer, master; /vehicles and /vehicles/:id = authenticated users (protected route)
+   - Related: /face-recognition, /person-records, /canonical-persons, /vehicles, /vehicles/:id
+   - Related route gates: /face-recognition = admin, admin_officer, master, officer; /person-records = admin, admin_officer, master; /canonical-persons = admin, admin_officer, master; /vehicles and /vehicles/:id = authenticated users (protected route)
 
 2. Access governance
    - Primary: /access-control
@@ -120,8 +120,8 @@ Source of truth for routes: App router file src App.tsx (122 total routes as of 
 3. Comms and PTT
    - Primary: /radio
    - Role gate: authenticated users (protected route)
-   - Related: /radio/log, /radio/audit, /messages, /team-chat
-   - Related route gates: /radio/log, /messages, /team-chat = authenticated users (protected route); /radio/audit = admin, admin_officer, master, grand_master
+   - Related: /radio/log, /radio/audit, /radio-transmissions, /voice-profiles, /messages, /team-chat
+   - Related route gates: /radio/log, /messages, /team-chat = authenticated users (protected route); /radio/audit = admin, admin_officer, master, grand_master; /radio-transmissions = admin, admin_officer, master; /voice-profiles = admin, admin_officer, master
 
 ## Executive and Governance Views
 
