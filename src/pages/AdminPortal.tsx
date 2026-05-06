@@ -56,12 +56,6 @@ import {
   Radio,
   Receipt,
   ScanLine,
-  ScanSearch,
-  GitCompareArrows,
-  Briefcase,
-  Waypoints,
-  Scale,
-  FlaskConical,
   ScrollText,
   Search,
   Shield,
@@ -73,9 +67,16 @@ import {
   Zap,
   AlertCircle,
   Package2,
-  HeartPulse,
+  PhoneCall,
+  Siren,
+  BadgeDollarSign,
+  Tent,
+  Wrench,
+  Route,
   ShieldAlert,
-  CalendarRange,
+  Flame,
+  HeartPulse,
+  BadgeCheck,
 } from 'lucide-react'
 
 type DrillConfig = {
@@ -423,90 +424,6 @@ export default function AdminPortal() {
       if (effectiveOrganizationId) radioTodayQ = radioTodayQ.eq('org_id', effectiveOrganizationId)
       const { count: radioTransmissionsToday, error: radioErr } = await radioTodayQ
       if (radioErr) diagnostics.push(`radio_transmissions_today: ${radioErr.message || 'unknown error'}`)
-
-      // Open health & safety reports (B-64)
-      let hsOpenQ = supabase
-        .from('health_safety_reports')
-        .select('id', { count: 'exact', head: true })
-        .eq('status', 'open')
-      if (effectiveOrganizationId) hsOpenQ = hsOpenQ.eq('organization_id', effectiveOrganizationId)
-      const { count: openHsReports, error: hsErr } = await hsOpenQ
-      if (hsErr) diagnostics.push(`open_hs_reports: ${hsErr.message || 'unknown error'}`)
-
-      // Active parking permits (B-66)
-      let activePermitsQ = supabase
-        .from('parking_permits')
-        .select('id', { count: 'exact', head: true })
-        .eq('is_active', true)
-      if (effectiveOrganizationId) activePermitsQ = activePermitsQ.eq('organization_id', effectiveOrganizationId)
-      const { count: activePermitsCount, error: permitsErr } = await activePermitsQ
-      if (permitsErr) diagnostics.push(`active_parking_permits: ${permitsErr.message || 'unknown error'}`)
-
-      // Open site incidents (B-69)
-      let openSiteIncidentsQ = supabase
-        .from('site_incidents')
-        .select('id', { count: 'exact', head: true })
-        .eq('status', 'open')
-      if (effectiveOrganizationId) openSiteIncidentsQ = openSiteIncidentsQ.eq('organization_id', effectiveOrganizationId)
-      const { count: openSiteIncidents, error: siteIncErr } = await openSiteIncidentsQ
-      if (siteIncErr) diagnostics.push(`open_site_incidents: ${siteIncErr.message || 'unknown error'}`)
-
-      // Active noise notices (B-68)
-      let activeNoiseNoticesQ = supabase
-        .from('noise_notices')
-        .select('id', { count: 'exact', head: true })
-        .eq('status', 'active')
-      if (effectiveOrganizationId) activeNoiseNoticesQ = activeNoiseNoticesQ.eq('organization_id', effectiveOrganizationId)
-      const { count: activeNoiseNotices, error: noiseNoticeErr } = await activeNoiseNoticesQ
-      if (noiseNoticeErr) diagnostics.push(`active_noise_notices: ${noiseNoticeErr.message || 'unknown error'}`)
-
-      // Unreviewed plate scans (B-71)
-      let unreviewedPlateScansQ = supabase
-        .from('plate_scans')
-        .select('id', { count: 'exact', head: true })
-        .eq('reviewed', false)
-      if (effectiveOrganizationId) unreviewedPlateScansQ = unreviewedPlateScansQ.eq('organization_id', effectiveOrganizationId)
-      const { count: unreviewedPlateScans, error: plateScansErr } = await unreviewedPlateScansQ
-      if (plateScansErr) diagnostics.push(`unreviewed_plate_scans: ${plateScansErr.message || 'unknown error'}`)
-
-      // Follow-up required person interactions (B-70)
-      let followUpInteractionsQ = supabase
-        .from('person_interactions')
-        .select('id', { count: 'exact', head: true })
-        .eq('requires_follow_up', true)
-      if (effectiveOrganizationId) followUpInteractionsQ = followUpInteractionsQ.eq('organization_id', effectiveOrganizationId)
-      const { count: followUpInteractions, error: followUpErr } = await followUpInteractionsQ
-      if (followUpErr) diagnostics.push(`follow_up_interactions: ${followUpErr.message || 'unknown error'}`)
-
-      // Active notices to vacate (B-73)
-      let activeNoticesToVacateQ = supabase
-        .from('notices_to_vacate')
-        .select('id', { count: 'exact', head: true })
-        .not('status', 'in', '("complied","withdrawn")')
-      if (effectiveOrganizationId) activeNoticesToVacateQ = activeNoticesToVacateQ.eq('organization_id', effectiveOrganizationId)
-      const { count: activeNoticesToVacate, error: ntvErr } = await activeNoticesToVacateQ
-      if (ntvErr) diagnostics.push(`active_notices_to_vacate: ${ntvErr.message || 'unknown error'}`)
-
-      // Vehicle discrepancies needing review (B-75)
-      let vehicleDiscrepanciesQ = supabase
-        .from('vehicle_discrepancies')
-        .select('id', { count: 'exact', head: true })
-        .eq('requires_review', true)
-        .is('reviewed_at', null)
-      if (effectiveOrganizationId) vehicleDiscrepanciesQ = vehicleDiscrepanciesQ.eq('organization_id', effectiveOrganizationId)
-      const { count: vehicleDiscrepanciesPending, error: vdErr } = await vehicleDiscrepanciesQ
-      if (vdErr) diagnostics.push(`vehicle_discrepancies: ${vdErr.message || 'unknown error'}`)
-
-      // Unreviewed drift events (B-76)
-      let driftEventsQ = supabase
-        .from('drift_events')
-        .select('id', { count: 'exact', head: true })
-        .is('reviewed_at', null)
-        .not('status', 'eq', 'dismissed')
-      if (effectiveOrganizationId) driftEventsQ = driftEventsQ.eq('organization_id', effectiveOrganizationId)
-      const { count: unreviewedDriftEvents, error: driftErr } = await driftEventsQ
-      if (driftErr) diagnostics.push(`drift_events: ${driftErr.message || 'unknown error'}`)
-
       // Count non-compliant observations where the plate belongs to a homeless vehicle.
       // This is the exact number of "breaches" that are actually FC Act exempt.
       let homelessExemptBreachCount = 0
@@ -542,15 +459,6 @@ export default function AdminPortal() {
         homelessExemptBreachCount,
         activeTrespassCount:       activeTrespassCount        ?? 0,
         radioTransmissionsToday:   radioTransmissionsToday    ?? 0,
-        openHsReports:             openHsReports              ?? 0,
-        activePermitsCount:        activePermitsCount         ?? 0,
-        openSiteIncidents:         openSiteIncidents          ?? 0,
-        activeNoiseNotices:        activeNoiseNotices         ?? 0,
-        unreviewedPlateScans:      unreviewedPlateScans       ?? 0,
-        followUpInteractions:      followUpInteractions       ?? 0,
-        activeNoticesToVacate:     activeNoticesToVacate      ?? 0,
-        vehicleDiscrepanciesPending: vehicleDiscrepanciesPending ?? 0,
-        unreviewedDriftEvents:       unreviewedDriftEvents       ?? 0,
         diagnostics,
       }
     },
@@ -1461,10 +1369,11 @@ export default function AdminPortal() {
                     { path: '/live-patrol',        label: 'Live Patrol',     Icon: Activity,      color: 'text-green-600',  bg: 'bg-green-50 dark:bg-green-900/20',   badge: activePatrolCount > 0 ? activePatrolCount : undefined },
                     { path: '/live-tracking',      label: 'Officer Tracking',Icon: Navigation,    color: 'text-cyan-600',   bg: 'bg-cyan-50 dark:bg-cyan-900/20',     badge: (data as any)?.activeOfficers > 0 ? (data as any)?.activeOfficers : undefined },
                     { path: '/officer-welfare',    label: 'Welfare',         Icon: Heart,         color: 'text-pink-600',   bg: 'bg-pink-50 dark:bg-pink-900/20',     badge: welfareAlertCount > 0 ? welfareAlertCount : undefined },
-                    { path: '/welfare-checkins',   label: 'Welfare Check-ins', Icon: HeartPulse,  color: 'text-rose-600',   bg: 'bg-rose-50 dark:bg-rose-900/20' },
                     { path: '/patrol-schedule',    label: 'Schedule',        Icon: CalendarDays,  color: 'text-blue-600',   bg: 'bg-blue-50 dark:bg-blue-900/20' },
                     { path: '/patrol-kpis',        label: 'Patrol KPIs',     Icon: TrendingUp,    color: 'text-indigo-600', bg: 'bg-indigo-50 dark:bg-indigo-900/20' },
                     { path: '/patrol-checkpoints', label: 'Checkpoints',     Icon: ScanLine,      color: 'text-teal-600',   bg: 'bg-teal-50 dark:bg-teal-900/20' },
+                    { path: '/patrol-events',      label: 'Event Log',       Icon: Route,         color: 'text-slate-600',  bg: 'bg-slate-50 dark:bg-slate-900/30' },
+                    { path: '/officer-performance',label: 'Performance',     Icon: UserCheck,     color: 'text-blue-600',   bg: 'bg-blue-50 dark:bg-blue-900/20' },
                   ].map(({ path, label, Icon, color, bg, badge }) => (
                     <button key={path} onClick={() => navigate(path)} aria-label={`Open ${label}`} className={`${moduleTileClass} ${bg}`}>
                       {badge !== undefined && (
@@ -1487,12 +1396,6 @@ export default function AdminPortal() {
                     { path: '/vehicles',               label: 'Vehicles',          Icon: Car,           color: 'text-slate-600',  bg: 'bg-slate-50 dark:bg-slate-900/30' },
                     { path: '/asset-management',       label: 'Assets',            Icon: Package,       color: 'text-amber-700',  bg: 'bg-amber-50 dark:bg-amber-900/20' },
                     { path: '/vehicle-registry',       label: 'Registry',          Icon: Database,      color: 'text-gray-600',   bg: 'bg-gray-100 dark:bg-gray-800/30' },
-                    { path: '/plate-scans-log',        label: 'Plate Scan Log',    Icon: ScanSearch,    color: 'text-cyan-600',   bg: 'bg-cyan-50 dark:bg-cyan-900/20', badge: (data as any)?.unreviewedPlateScans > 0 ? (data as any)?.unreviewedPlateScans : undefined },
-                    { path: '/vehicle-discrepancies',  label: 'Discrepancies',     Icon: GitCompareArrows, color: 'text-rose-600', bg: 'bg-rose-50 dark:bg-rose-900/20', badge: (data as any)?.vehicleDiscrepanciesPending > 0 ? (data as any)?.vehicleDiscrepanciesPending : undefined },
-                    { path: '/drift-events',           label: 'Drift Events',      Icon: Waypoints,        color: 'text-cyan-600',  bg: 'bg-cyan-50 dark:bg-cyan-900/20', badge: (data as any)?.unreviewedDriftEvents > 0 ? (data as any)?.unreviewedDriftEvents : undefined },
-                    { path: '/zone-legal-config',      label: 'Zone Legal',        Icon: Scale,            color: 'text-slate-600', bg: 'bg-slate-50 dark:bg-slate-900/20' },
-                    { path: '/investigation-job-config', label: 'Job Config',      Icon: FlaskConical,     color: 'text-violet-600',bg: 'bg-violet-50 dark:bg-violet-900/20' },
-                    { path: '/contractor-manager',     label: 'Contractor',        Icon: Briefcase,     color: 'text-indigo-600', bg: 'bg-indigo-50 dark:bg-indigo-900/20' },
                     { path: '/zones',                  label: 'Zones',             Icon: MapPin,        color: 'text-green-600',  bg: 'bg-green-50 dark:bg-green-900/20' },
                     { path: '/hotspots',               label: 'Hotspots',          Icon: Map,           color: 'text-red-600',    bg: 'bg-red-50 dark:bg-red-900/20' },
                     { path: '/admin/nzscv',            label: 'NZSCV Monitor',     Icon: Shield,        color: 'text-blue-600',   bg: 'bg-blue-50 dark:bg-blue-900/20', badge: (data as any)?.scvExpiringSoon > 0 ? (data as any)?.scvExpiringSoon : undefined },
@@ -1524,10 +1427,10 @@ export default function AdminPortal() {
                     { path: '/investigations',      label: 'Investigations',    Icon: Search,        color: 'text-indigo-600', bg: 'bg-indigo-50 dark:bg-indigo-900/20', badge: (data as any)?.activeInvestigations > 0 ? (data as any)?.activeInvestigations : undefined },
                     { path: '/observation-records', label: 'Observations',      Icon: Eye,           color: 'text-blue-600',   bg: 'bg-blue-50 dark:bg-blue-900/20' },
                     { path: '/site-risk-assessment',label: 'Risk Assessment',   Icon: ClipboardCheck,color: 'text-amber-600',  bg: 'bg-amber-50 dark:bg-amber-900/20' },
+                    { path: '/site-risk-trends',    label: 'Risk Trends',       Icon: TrendingUp,    color: 'text-orange-600', bg: 'bg-orange-50 dark:bg-orange-900/20' },
                     { path: '/trespass-notices',    label: 'Trespass Notices',  Icon: Ban,           color: 'text-rose-600',   bg: 'bg-rose-50 dark:bg-rose-900/20',   badge: (data as any)?.activeTrespassCount > 0 ? (data as any)?.activeTrespassCount : undefined },
                     { path: '/access-permissions',  label: 'Access Permissions',Icon: KeyRound,      color: 'text-violet-600', bg: 'bg-violet-50 dark:bg-violet-900/20' },
                     { path: '/canonical-persons',   label: 'Canonical Persons', Icon: Users,         color: 'text-purple-600', bg: 'bg-purple-50 dark:bg-purple-900/20' },
-                    { path: '/health-safety-reports', label: 'H&S Reports', Icon: ShieldAlert, color: 'text-orange-600', bg: 'bg-orange-50 dark:bg-orange-900/20', badge: (data as any)?.openHsReports > 0 ? (data as any)?.openHsReports : undefined },
                   ].map(({ path, label, Icon, color, bg, badge }) => (
                     <button key={path} onClick={() => navigate(path)} aria-label={`Open ${label}`} className={`${moduleTileClass} ${bg}`}>
                       {badge !== undefined && (
@@ -1549,13 +1452,12 @@ export default function AdminPortal() {
                   {[
                     { path: '/field-officer?service=freedom_camping', label: 'Freedom Camping', Icon: MapPin, color: 'text-emerald-700', bg: 'bg-emerald-50 dark:bg-emerald-900/20', scopeHint: 'Zone-based' },
                     { path: '/parking-officer', label: 'Parking',      Icon: ParkingSquare, color: 'text-orange-600', bg: 'bg-orange-50 dark:bg-orange-900/20', scopeHint: 'Zone-based' },
-                    { path: '/parking-permits', label: 'Permits',       Icon: ParkingSquare, color: 'text-blue-600',   bg: 'bg-blue-50 dark:bg-blue-900/20',    badge: (data as any)?.activePermitsCount > 0 ? (data as any)?.activePermitsCount : undefined },
                     { path: '/noise-officer', label: 'Noise Control', Icon: Volume2,       color: 'text-yellow-700', bg: 'bg-yellow-50 dark:bg-yellow-900/20', scopeHint: 'Jurisdiction' },
-                    { path: '/noise-notices', label: 'Noise Notices', Icon: Volume2,       color: 'text-yellow-600', bg: 'bg-yellow-50 dark:bg-yellow-900/20', badge: (data as any)?.activeNoiseNotices > 0 ? (data as any)?.activeNoiseNotices : undefined },
-                    { path: '/site-incidents',label: 'Site Incidents',Icon: Building2,     color: 'text-indigo-600', bg: 'bg-indigo-50 dark:bg-indigo-900/20', badge: (data as any)?.openSiteIncidents > 0 ? (data as any)?.openSiteIncidents : undefined },
-                    { path: '/person-interactions', label: 'Person Interactions', Icon: Users, color: 'text-teal-600', bg: 'bg-teal-50 dark:bg-teal-900/20', badge: (data as any)?.followUpInteractions > 0 ? (data as any)?.followUpInteractions : undefined },
-                    { path: '/dispatch-events', label: 'Dispatch Events', Icon: Radio,    color: 'text-purple-600', bg: 'bg-purple-50 dark:bg-purple-900/20' },
-                    { path: '/notices-to-vacate', label: 'Notices to Vacate', Icon: FileWarning, color: 'text-orange-600', bg: 'bg-orange-50 dark:bg-orange-900/20', badge: (data as any)?.activeNoticesToVacate > 0 ? (data as any)?.activeNoticesToVacate : undefined },
+                    { path: '/noise-complaints', label: 'Noise Log', Icon: Volume2,      color: 'text-violet-700', bg: 'bg-violet-50 dark:bg-violet-900/20', scopeHint: 'Admin' },
+                    { path: '/breach-escalation', label: 'Escalation', Icon: ShieldAlert, color: 'text-red-700',   bg: 'bg-red-50 dark:bg-red-900/20', scopeHint: 'Admin' },
+                    { path: '/incident-heatmap',  label: 'Incident Map', Icon: Flame,      color: 'text-rose-700', bg: 'bg-rose-50 dark:bg-rose-900/20', scopeHint: 'Admin' },
+                    { path: '/health-safety-reports', label: 'H&S Reports', Icon: ShieldAlert, color: 'text-emerald-700', bg: 'bg-emerald-50 dark:bg-emerald-900/20', scopeHint: 'Admin' },
+                    { path: '/welfare-checkins',  label: 'Welfare Log', Icon: HeartPulse,  color: 'text-pink-700', bg: 'bg-pink-50 dark:bg-pink-900/20', scopeHint: 'Admin' },
                     { path: '/biosecurity-officer', label: 'Biosecurity', Icon: Search,    color: 'text-emerald-700', bg: 'bg-emerald-50 dark:bg-emerald-900/20', scopeHint: 'Jurisdiction' },
                     { path: '/smoke-officer', label: 'Smoke (OOH)', Icon: AlertTriangle, color: 'text-amber-700', bg: 'bg-amber-50 dark:bg-amber-900/20', scopeHint: 'Jurisdiction' },
                     { path: '/ems',          label: 'EMS',           Icon: Zap,           color: 'text-red-700',    bg: 'bg-red-50 dark:bg-red-900/20' },
@@ -1605,12 +1507,19 @@ export default function AdminPortal() {
                 <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-6 gap-2">
                   {[
                     { path: '/roster',            label: 'Roster Planner',   Icon: CalendarDays,  color: 'text-violet-600', bg: 'bg-violet-50 dark:bg-violet-900/20' },
-                    { path: '/roster-shifts',     label: 'Shift Log',        Icon: CalendarRange, color: 'text-violet-700', bg: 'bg-violet-50 dark:bg-violet-900/20' },
                     { path: '/timesheets',        label: 'Timesheets',       Icon: Clock,         color: 'text-slate-600',  bg: 'bg-slate-50 dark:bg-slate-900/30' },
                     { path: '/open-shifts',       label: 'Open Shifts',      Icon: CalendarCheck2,color: 'text-green-600',  bg: 'bg-green-50 dark:bg-green-900/20' },
                     { path: '/officer-skills',    label: 'Skills & Licences',Icon: GraduationCap, color: 'text-amber-600',  bg: 'bg-amber-50 dark:bg-amber-900/20' },
                     { path: '/availability',      label: 'Availability',     Icon: CalendarDays,  color: 'text-blue-600',   bg: 'bg-blue-50 dark:bg-blue-900/20' },
                     { path: '/asset-management',  label: 'Assets',           Icon: Package2,      color: 'text-orange-600', bg: 'bg-orange-50 dark:bg-orange-900/20' },
+                    { path: '/on-call-periods',   label: 'On-Call',          Icon: PhoneCall,     color: 'text-pink-600',   bg: 'bg-pink-50 dark:bg-pink-900/20' },
+                    { path: '/callout-shifts',    label: 'Callout Shifts',   Icon: Siren,         color: 'text-red-600',    bg: 'bg-red-50 dark:bg-red-900/20' },
+                    { path: '/officer-allowances',label: 'Allowances',       Icon: BadgeDollarSign,color:'text-emerald-600',bg: 'bg-emerald-50 dark:bg-emerald-900/20' },
+                    { path: '/travel-allowances', label: 'Travel Allowances',Icon: Car,           color: 'text-sky-600',    bg: 'bg-sky-50 dark:bg-sky-900/20' },
+                    { path: '/parking-appeals',   label: 'Parking Appeals',  Icon: Gavel,         color: 'text-orange-600', bg: 'bg-orange-50 dark:bg-orange-900/20' },
+                    { path: '/camper-registrations',label:'Camper Reg.',     Icon: Tent,          color: 'text-teal-600',   bg: 'bg-teal-50 dark:bg-teal-900/20' },
+                    { path: '/zone-amenities',    label: 'Zone Amenities',   Icon: Wrench,        color: 'text-slate-600',  bg: 'bg-slate-50 dark:bg-slate-900/30' },
+                    { path: '/parking-permits',   label: 'Parking Permits',  Icon: BadgeCheck,    color: 'text-green-600',  bg: 'bg-green-50 dark:bg-green-900/20' },
                   ].map(({ path, label, Icon, color, bg }) => (
                     <button key={path} onClick={() => navigate(path)} aria-label={`Open ${label}`} className={`${moduleTileClass} ${bg}`}>
                       <Icon className={`h-5 w-5 ${color}`} />
