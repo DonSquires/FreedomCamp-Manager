@@ -229,6 +229,13 @@ const NoiseAssessmentLog   = lazy(() => import('@/pages/NoiseAssessmentLog'))
 const TrespassNoticeLog    = lazy(() => import('@/pages/TrespassNoticeLog'))
 const ParkingInfringementLog = lazy(() => import('@/pages/ParkingInfringementLog'))
 const PersonObservationLog = lazy(() => import('@/pages/PersonObservationLog'))
+// Sprint 32–33: B-106–B-111
+const RadioCommsEventLog    = lazy(() => import('@/pages/RadioCommsEventLog'))
+const CaseCommentLog        = lazy(() => import('@/pages/CaseCommentLog'))
+const LmrBridgeSessionLog   = lazy(() => import('@/pages/LmrBridgeSessionLog'))
+const PatrolSessionEventLog = lazy(() => import('@/pages/PatrolSessionEventLog'))
+const RadioTranscriptLog    = lazy(() => import('@/pages/RadioTranscriptLog'))
+const DisputeIntakeLog      = lazy(() => import('@/pages/DisputeIntakeLog'))
 // Sprint 34–35: B-112–B-117
 const RadioTtsRenderLog = lazy(() => import('@/pages/RadioTtsRenderLog'))
 const HealthSafetyReportLog = lazy(() => import('@/pages/HealthSafetyReportLog'))
@@ -2370,6 +2377,13 @@ export default function App() {
           <Route path="/trespass-notices-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><TrespassNoticeLog /></RoleRoute></ProtectedRoute>} />
           <Route path="/parking-infringements-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><ParkingInfringementLog /></RoleRoute></ProtectedRoute>} />
           <Route path="/person-observations-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><PersonObservationLog /></RoleRoute></ProtectedRoute>} />
+          {/* Sprint 32–33: B-106–B-111 */}
+          <Route path="/radio-comms-events-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><RadioCommsEventLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/case-comments-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><CaseCommentLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/lmr-bridge-sessions-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><LmrBridgeSessionLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/patrol-session-events-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><PatrolSessionEventLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/radio-transcript-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'officer']}><RadioTranscriptLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/dispute-intake-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><DisputeIntakeLog /></RoleRoute></ProtectedRoute>} />
           {/* Sprint 34–35: B-112–B-117 */}
           <Route path="/radio-tts-render-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><RadioTtsRenderLog /></RoleRoute></ProtectedRoute>} />
           <Route path="/health-safety-report-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><HealthSafetyReportLog /></RoleRoute></ProtectedRoute>} />

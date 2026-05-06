@@ -117,6 +117,8 @@ import {
   CalendarClock,
   Eye,
   TicketX,
+  Subtitles,
+  Scale,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { supabase } from '@/lib/supabase'
@@ -331,6 +333,13 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/dispatch-ack-log', icon: Radio, label: 'Dispatch Acknowledgements', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/noise-jobs-log', icon: Volume2, label: 'Noise Job Log', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/noise-assessments-log', icon: Volume2, label: 'Noise Assessment Log', roles: ['admin', 'admin_officer', 'master'] },
+      // Sprint 32-33 (B-106-B-111) logs
+      { path: '/radio-comms-events-log', icon: Radio, label: 'Radio Comms Event Log', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/case-comments-log', icon: MessageSquare, label: 'Case Comment Log', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/lmr-bridge-sessions-log', icon: Radio, label: 'LMR Bridge Session Log', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/patrol-session-events-log', icon: Activity, label: 'Patrol Session Events', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/radio-transcript-log', icon: Subtitles, label: 'Radio Transcript Log', roles: ['admin', 'admin_officer', 'master', 'officer'] },
+      { path: '/dispute-intake-log', icon: Scale, label: 'Dispute Intake Log', roles: ['admin', 'admin_officer', 'master'] },
       // Sprint 34-35 (B-112-B-117) logs
       { path: '/radio-tts-render-log', icon: Radio, label: 'Radio TTS Render Log', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/health-safety-report-log', icon: ShieldAlert, label: 'Health & Safety Report Log', roles: ['admin', 'admin_officer', 'master'] },
