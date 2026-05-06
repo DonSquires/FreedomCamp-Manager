@@ -128,5 +128,8 @@ def handler(event: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-if __name__ == "__main__":
-    runpod.serverless.start({"handler": handler})
+# ---------------------------------------------------------------------------
+# Entrypoint — must be at module level so RunPod can start the handler loop
+# whether the container runs this file directly (CMD) or imports it.
+# ---------------------------------------------------------------------------
+runpod.serverless.start({"handler": handler})

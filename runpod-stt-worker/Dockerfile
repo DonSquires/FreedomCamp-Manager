@@ -19,13 +19,19 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Pre-download model during build so first request is fast
+# Pre-download model during build so first cold start is fast.
+# device=cpu + int8 is used here only for the cache download step;
+# WHISPER_DEVICE / WHISPER_COMPUTE env vars govern runtime behaviour.
 ARG WHISPER_MODEL=distil-large-v3
-ENV WHISPER_MODEL=${WHISPER_MODEL}
+ENV WHISPER_MODEL=${WHISPER_MODEL} \
+    WHISPER_DEVICE=cuda \
+    WHISPER_COMPUTE=float16 \
+    MAX_AUDIO_SECONDS=120 \
+    MAX_AUDIO_B64_MB=25
 RUN python3 -c "\
 from faster_whisper import WhisperModel; \
 WhisperModel('${WHISPER_MODEL}', device='cpu', compute_type='int8'); \
-print('Model cached.')"
+print('Model pre-cached for', '${WHISPER_MODEL}');"
 
 COPY handler.py .
 
