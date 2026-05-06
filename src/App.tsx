@@ -186,13 +186,24 @@ const DataIntegrityDashboard = lazy(() => import('@/pages/DataIntegrityDashboard
 const CleanDashboard = lazy(() => import('@/pages/CleanDashboard'))
 const TestDashboard = lazy(() => import('@/pages/TestDashboard'))
 
+// Sprint 19–21: B-67–B-75
+const RosterShiftLog = lazy(() => import('@/pages/RosterShiftLog'))
+const NoiseNoticeLog = lazy(() => import('@/pages/NoiseNoticeLog'))
+const SiteIncidentLog = lazy(() => import('@/pages/SiteIncidentLog'))
+const PersonInteractionLog = lazy(() => import('@/pages/PersonInteractionLog'))
+const PlateScanLog = lazy(() => import('@/pages/PlateScanLog'))
+const DispatchEventLog = lazy(() => import('@/pages/DispatchEventLog'))
+const NoticeToVacateLog = lazy(() => import('@/pages/NoticeToVacateLog'))
+const ContractorManager = lazy(() => import('@/pages/ContractorManager'))
+const VehicleDiscrepancyLog = lazy(() => import('@/pages/VehicleDiscrepancyLog'))
+
 // Sprint 22–26: B-76–B-90
 const DriftEventLog = lazy(() => import('@/pages/DriftEventLog'))
 const InvestigationJobConfig = lazy(() => import('@/pages/InvestigationJobConfig'))
 const ZoneLegalConfigViewer = lazy(() => import('@/pages/ZoneLegalConfigViewer'))
 const InvestigationJobLog = lazy(() => import('@/pages/InvestigationJobLog'))
 const OperationalCaseLog = lazy(() => import('@/pages/OperationalCaseLog'))
-const PatrolEventLog = lazy(() => import('@/pages/PatrolEventLog'))
+// PatrolEventLog already imported above (B-59)
 const CheckpointVisitLog = lazy(() => import('@/pages/CheckpointVisitLog'))
 const EmsAttendanceLog = lazy(() => import('@/pages/EmsAttendanceLog'))
 const ParkingSessionLog = lazy(() => import('@/pages/ParkingSessionLog'))
@@ -202,6 +213,22 @@ const ZoneSignageEvidence = lazy(() => import('@/pages/ZoneSignageEvidence'))
 const OfficerActivityLog = lazy(() => import('@/pages/OfficerActivityLog'))
 const CredentialProcessingLog = lazy(() => import('@/pages/CredentialProcessingLog'))
 const DispatchAcknowledgementLog = lazy(() => import('@/pages/DispatchAcknowledgementLog'))
+// Sprint 27: B-91–B-93
+const ComplianceAuditLog   = lazy(() => import('@/pages/ComplianceAuditLog'))
+const EnforcementEventLog  = lazy(() => import('@/pages/EnforcementEventLog'))
+const NoiseJobLog          = lazy(() => import('@/pages/NoiseJobLog'))
+// Sprint 28: B-94–B-96
+const PatrolRouteLog       = lazy(() => import('@/pages/PatrolRouteLog'))
+const AlarmEventLog        = lazy(() => import('@/pages/AlarmEventLog'))
+const BugReportLog         = lazy(() => import('@/pages/BugReportLog'))
+// Sprint 29: B-97–B-99
+const RadioTransmissionLog = lazy(() => import('@/pages/RadioTransmissionLog'))
+const OpenShiftManager     = lazy(() => import('@/pages/OpenShiftManager'))
+const NoiseAssessmentLog   = lazy(() => import('@/pages/NoiseAssessmentLog'))
+// Sprint 30: B-100–B-102
+const TrespassNoticeLog    = lazy(() => import('@/pages/TrespassNoticeLog'))
+const ParkingInfringementLog = lazy(() => import('@/pages/ParkingInfringementLog'))
+const PersonObservationLog = lazy(() => import('@/pages/PersonObservationLog'))
 
 const NetworkStatusBar = lazy(() => import('@/components/features/NetworkStatusBar').then((m) => ({ default: m.NetworkStatusBar })))
 const PWAInstallPrompt = lazy(() => import('@/components/features/PWAInstallPrompt').then((m) => ({ default: m.PWAInstallPrompt })))
@@ -2293,6 +2320,17 @@ export default function App() {
             }
           />
 
+          {/* Sprint 19–21: B-67–B-75 */}
+          <Route path="/roster-shifts" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><RosterShiftLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/noise-notices" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><NoiseNoticeLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/site-incidents" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><SiteIncidentLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/person-interactions" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><PersonInteractionLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/plate-scans-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><PlateScanLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/dispatch-events" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><DispatchEventLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/notices-to-vacate" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><NoticeToVacateLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/contractor-manager" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><ContractorManager /></RoleRoute></ProtectedRoute>} />
+          <Route path="/vehicle-discrepancies" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><VehicleDiscrepancyLog /></RoleRoute></ProtectedRoute>} />
+
           {/* Sprint 22–26: B-76–B-90 */}
           <Route path="/drift-events" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><DriftEventLog /></RoleRoute></ProtectedRoute>} />
           <Route path="/investigation-job-config" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><InvestigationJobConfig /></RoleRoute></ProtectedRoute>} />
@@ -2309,6 +2347,22 @@ export default function App() {
           <Route path="/officer-activity-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><OfficerActivityLog /></RoleRoute></ProtectedRoute>} />
           <Route path="/credential-processing-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><CredentialProcessingLog /></RoleRoute></ProtectedRoute>} />
           <Route path="/dispatch-ack-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><DispatchAcknowledgementLog /></RoleRoute></ProtectedRoute>} />
+          {/* Sprint 27: B-91–B-93 */}
+          <Route path="/compliance-audit-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><ComplianceAuditLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/enforcement-events-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><EnforcementEventLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/noise-jobs-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><NoiseJobLog /></RoleRoute></ProtectedRoute>} />
+          {/* Sprint 28: B-94–B-96 */}
+          <Route path="/patrol-route-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><PatrolRouteLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/alarm-events-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><AlarmEventLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/bug-reports-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'master']}><BugReportLog /></RoleRoute></ProtectedRoute>} />
+          {/* Sprint 29: B-97–B-99 */}
+          <Route path="/radio-transmissions-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'officer']}><RadioTransmissionLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/open-shifts" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'officer']}><OpenShiftManager /></RoleRoute></ProtectedRoute>} />
+          <Route path="/noise-assessments-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><NoiseAssessmentLog /></RoleRoute></ProtectedRoute>} />
+          {/* Sprint 30: B-100–B-102 */}
+          <Route path="/trespass-notices-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><TrespassNoticeLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/parking-infringements-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><ParkingInfringementLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/person-observations-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><PersonObservationLog /></RoleRoute></ProtectedRoute>} />
 
           {/* CRM – Accounts (Clients + Contractors) */}
           <Route

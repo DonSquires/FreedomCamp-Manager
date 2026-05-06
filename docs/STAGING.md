@@ -2964,3 +2964,424 @@ The web SPA delivers SOS via the existing `officer_welfare_alerts` table + `send
 - B-64: Shift Debrief Form (`/shift-debrief`) — patrol debrief notes (patrol_session_events notes field or new debrief_notes on operational_cases)
 - B-65: Zone Compliance Audit (`/zone-compliance-audit`) — audit trail of zone-level compliance events
 - B-66: Officer Welfare Trends (`/welfare-trends`) — welfare check analytics from officer_welfare_checks over time
+
+---
+
+## Phase 5 — Sprint 19–21 (B-67 / B-68 / B-69 / B-70 / B-71 / B-72 / B-73 / B-74 / B-75) Doc Review + Gap Closure
+
+### Session Snapshot (Sprint 19–21 Route Wiring — 2026-05-06)
+
+- Timestamp (UTC): 2026-05-06 12:41 UTC
+- Current branch: copilot/review-doc-files-staging-instructions-again
+- Scope: Staging doc review — identified and wired 9 missing admin routes (B-67 through B-75)
+
+**Problem identified:**
+- Pages for B-67–B-75 existed in `src/pages/` but were never wired into App.tsx, routeManifest.ts, AppLayout.tsx, or MODULE_ROADMAP.md.
+- Sprint 22–26 (B-76–B-90) had already been wired in a prior session, creating a gap of sprints 19–21.
+
+**Changes applied:**
+
+| File | Change |
+|---|---|
+| `src/App.tsx` | Added lazy imports block `// Sprint 19–21: B-67–B-75`; added 9 `<Route>` entries in `/* Sprint 19–21: B-67–B-75 */` block; removed duplicate `PatrolEventLog` re-import from Sprint 22–26 block |
+| `src/navigation/routeManifest.ts` | Added 9 route manifest entries for B-67–B-75 (navGroup: Roster & Workforce for B-67/B-74; Records for the rest) |
+| `src/components/features/AppLayout.tsx` | Added sidebar entries: B-67 (Roster Shift Log) + B-74 (Contractor Manager) in Roster & Workforce group; B-68–B-73 + B-75 in Records group |
+| `docs/MODULE_ROADMAP.md` | Route count updated 135 → 144; Sprint 19/20/21 route addendums appended |
+
+**Routes wired:**
+
+| ID | Page | Route | Nav Group |
+|---|---|---|---|
+| B-67 | RosterShiftLog | /roster-shifts | Roster & Workforce |
+| B-68 | NoiseNoticeLog | /noise-notices | Records |
+| B-69 | SiteIncidentLog | /site-incidents | Records |
+| B-70 | PersonInteractionLog | /person-interactions | Records |
+| B-71 | PlateScanLog | /plate-scans-log | Records |
+| B-72 | DispatchEventLog | /dispatch-events | Records |
+| B-73 | NoticeToVacateLog | /notices-to-vacate | Records |
+| B-74 | ContractorManager | /contractor-manager | Roster & Workforce |
+| B-75 | VehicleDiscrepancyLog | /vehicle-discrepancies | Records |
+
+**Validation:**
+- `bun run lint` → PASS (0 errors, 0 warnings)
+- `bun run build` → PASS (built in 22.26s)
+
+**Next session:** Verify B-79–B-81 routes in MODULE_ROADMAP.md (currently wired in App.tsx but not documented in roadmap addendum); continue with next sprint candidates.
+
+---
+
+## Phase 5 — Sprint 18 (B-64 / B-65 / B-66)
+
+### Changes
+
+| File | Change |
+|---|---|
+| `src/pages/HealthSafetyReports.tsx` | New — B-64: Admin review page for health_safety_reports; KPI cards (total/critical/open/resolved); severity/status/incident_type/date filters; expandable description detail; inline status workflow (open → under_review → resolved → closed); fully typed in database.ts |
+| `src/pages/WelfareCheckinLog.tsx` | New — B-65: Tabbed admin viewer; tab 1: welfare_checkins (fully typed, officer/overdue/date filters, KPIs: today/overdue/active alerts/avg overdue); tab 2: officer_welfare_alerts (supabase as any); Acknowledge alert action |
+| `src/pages/ParkingPermitManager.tsx` | New — B-66: Full CRUD admin register for parking_permits; KPIs (total/active/expiring 7d/expired); Issue Permit dialog (plate, holder, type, zone, validity); Deactivate inline; plate/holder search + type/zone/status filters; reads parking_zones for dropdown; fully typed |
+| `src/App.tsx` | Lazy imports + routes: `/health-safety-reports`, `/welfare-checkins`, `/parking-permits` |
+| `src/navigation/routeManifest.ts` | 3 new entries: `operations.health-safety-reports`, `operations.welfare-checkins`, `management.parking-permits` |
+
+### Sprint 18 Board
+
+| ID | Item | Status |
+|---|---|---|
+| B-64 | Health & Safety Reports | ✅ |
+| B-65 | Welfare Check-in Log | ✅ |
+| B-66 | Parking Permit Manager | ✅ |
+
+- [x] `bun run build` → PASS
+- [x] `bun run lint` → PASS
+
+**Next sprint candidates:** B-67 (Roster Shift Log), B-68 (Noise Notice Log), B-69 (Site Incident Log)
+
+---
+
+## Phase 5 — Sprint 22 (B-76 / B-77 / B-78)
+
+### Changes
+
+| File | Change |
+|---|---|
+| `src/pages/DriftEventLog.tsx` | New — B-76: Admin log for drift_events; KPI cards; status/event_type/review_month/search filters; Mark Reviewed action; expandable metadata; fully typed |
+| `src/pages/InvestigationJobConfig.tsx` | New — B-77: Tabbed config for investigation_job_templates (activate/deactivate) + investigation_job_types (create type dialog); fully typed |
+| `src/pages/ZoneLegalConfigViewer.tsx` | New — B-78: Split list+detail panel for zone_legal_config; enforcement/stay/org/payment sections; fully typed |
+| `src/App.tsx` | Lazy imports + routes: `/drift-events`, `/investigation-job-config`, `/zone-legal-config` |
+| `src/navigation/routeManifest.ts` | 3 new entries in Records/Management groups |
+| `src/components/features/AppLayout.tsx` | Sidebar entries under Management/Records |
+
+### Sprint 22 Board
+
+| ID | Item | Status |
+|---|---|---|
+| B-76 | Drift Event Log | ✅ |
+| B-77 | Investigation Job Config | ✅ |
+| B-78 | Zone Legal Config Viewer | ✅ |
+
+- [x] `bun run build` → PASS
+- [x] `bun run lint` → PASS
+
+---
+
+## Phase 5 — Sprint 23 (B-79 / B-80 / B-81)
+
+### Changes
+
+| File | Change |
+|---|---|
+| `src/pages/InvestigationJobLog.tsx` | New — B-79: Log viewer for investigation_jobs with Mark Complete; KPI cards; status/job_type/priority/search filters; fully typed |
+| `src/pages/OperationalCaseLog.tsx` | New — B-80: Log viewer for operational_cases with Close Case action; KPI cards; status/case_type/search filters; fully typed |
+| `src/App.tsx` | Lazy imports + routes: `/investigation-jobs-log`, `/operational-cases-log`, `/patrol-events-log` (B-81: secondary admin Records route for PatrolEventLog) |
+| `src/navigation/routeManifest.ts` | 3 new entries |
+| `src/components/features/AppLayout.tsx` | Sidebar entries under Records group |
+
+### Sprint 23 Board
+
+| ID | Item | Status |
+|---|---|---|
+| B-79 | Investigation Job Log | ✅ |
+| B-80 | Operational Case Log | ✅ |
+| B-81 | Patrol Events Log (admin Records route) | ✅ |
+
+- [x] `bun run build` → PASS
+- [x] `bun run lint` → PASS
+
+---
+
+## Phase 5 — Sprint 24 (B-82 / B-83 / B-84)
+
+### Changes
+
+| File | Change |
+|---|---|
+| `src/pages/CheckpointVisitLog.tsx` | New — B-82: Log viewer for checkpoint_visits; KPIs + scan_method/radius/date filters; expandable GPS detail row; fully typed |
+| `src/pages/EmsAttendanceLog.tsx` | New — B-83: Log viewer for ems_attendances; Approve action; status/date filters; billable hours KPI; fully typed |
+| `src/pages/ParkingSessionLog.tsx` | New — B-84: Log viewer for parking_sessions; violation/plate/date filters; avg dwell KPI; photo links; fully typed |
+| `src/App.tsx` | Lazy imports + routes: `/checkpoint-visits-log`, `/ems-attendances-log`, `/parking-sessions-log` |
+| `src/navigation/routeManifest.ts` | 3 new entries under Records |
+| `src/components/features/AppLayout.tsx` | Sidebar entries under Records group |
+
+### Sprint 24 Board
+
+| ID | Item | Status |
+|---|---|---|
+| B-82 | Checkpoint Visit Log | ✅ |
+| B-83 | EMS Attendance Log | ✅ |
+| B-84 | Parking Session Log | ✅ |
+
+- [x] `bun run build` → PASS
+- [x] `bun run lint` → PASS
+
+---
+
+## Phase 5 — Sprint 25 (B-85 / B-86 / B-87)
+
+### Changes
+
+| File | Change |
+|---|---|
+| `src/pages/FlaggedVehicleManager.tsx` | New — B-85: Admin manager for flagged_vehicles; is_active/priority filters; Deactivate/Reactivate actions; confirmed_homeless KPI; fully typed |
+| `src/pages/ParkingPaymentLog.tsx` | New — B-86: Log viewer for parking_payments; status/provider/plate/date filters; revenue KPI; metadata expand; fully typed |
+| `src/pages/ZoneSignageEvidence.tsx` | New — B-87: Evidence log for zone_signage_evidence; is_current/signage_type filters; Mark Current action; photo link + SHA256; fully typed |
+| `src/App.tsx` | Lazy imports + routes: `/flagged-vehicles-manager`, `/parking-payments-log`, `/zone-signage-evidence` |
+| `src/navigation/routeManifest.ts` | 3 new entries (Management + Records groups) |
+| `src/components/features/AppLayout.tsx` | Sidebar entries |
+
+### Sprint 25 Board
+
+| ID | Item | Status |
+|---|---|---|
+| B-85 | Flagged Vehicle Manager | ✅ |
+| B-86 | Parking Payment Log | ✅ |
+| B-87 | Zone Signage Evidence | ✅ |
+
+- [x] `bun run build` → PASS
+- [x] `bun run lint` → PASS
+
+---
+
+## Phase 5 — Sprint 26 (B-88 / B-89 / B-90)
+
+### Changes
+
+| File | Change |
+|---|---|
+| `src/pages/OfficerActivityLog.tsx` | New — B-88: Log viewer for officer_activity_log; activity_type/date filters; GPS KPI; expandable metadata; fully typed |
+| `src/pages/CredentialProcessingLog.tsx` | New — B-89: Log viewer for credential_processing_log; confidence bar per row; Mark Verified action; status/document_type/date filters; fully typed |
+| `src/pages/DispatchAcknowledgementLog.tsx` | New — B-90: Log viewer for dispatch_acknowledgement_log; lifecycle_stage filter (typed enum); ETA KPI; fully typed |
+| `src/App.tsx` | Lazy imports + routes: `/officer-activity-log`, `/credential-processing-log`, `/dispatch-ack-log` |
+| `src/navigation/routeManifest.ts` | 3 new entries under Records |
+| `src/components/features/AppLayout.tsx` | Sidebar entries under Records group |
+
+### Sprint 26 Board
+
+| ID | Item | Status |
+|---|---|---|
+| B-88 | Officer Activity Log | ✅ |
+| B-89 | Credential Processing Log | ✅ |
+| B-90 | Dispatch Acknowledgement Log | ✅ |
+
+- [x] `bun run build` → PASS
+- [x] `bun run lint` → PASS
+
+### Competitive Gap Board — Updated (post Sprint 26)
+
+| Category | Newly Closed | Remaining Open |
+|---|---|---|
+| Patrol Ops | B-79–B-81 Investigation + Case + Events logs | — |
+| Enforcement | B-76 Drift Events, B-85 Flagged Vehicles | — |
+| Zone Management | B-78 Zone Legal Config | — |
+| Parking | B-84 Sessions, B-86 Payments | — |
+| Officer Safety | B-88 Officer Activity | — |
+| Access / Identity | B-82 Checkpoints, B-89 Credentials | — |
+| Dispatch | B-90 ACK Log | — |
+
+**Next session:** Sprint 27+ planning — review remaining open competitive gaps; consider additional public-facing or advanced analytics features.
+
+---
+
+## Session Snapshot (Sprint 22–26 Documentation — 2026-05-06)
+
+- Timestamp (UTC): 2026-05-06 12:46 UTC
+- Current branch: copilot/review-doc-files-staging-instructions-again
+- Scope: Continued staging doc review — added MODULE_ROADMAP Sprint 22–26 addendums and STAGING.md Sprint 18 + Sprint 22–26 session snapshots
+
+**Gaps closed this session:**
+- MODULE_ROADMAP.md: Sprint 22–26 route addendums (B-76–B-90, 15 routes)
+- MODULE_ROADMAP.md: Route count updated 144 → 159
+- STAGING.md: Sprint 18 session snapshot (B-64/B-65/B-66)
+- STAGING.md: Sprints 22–26 session snapshots (B-76–B-90)
+
+**Validation:**
+- `bun run lint` → PASS
+- `bun run build` → PASS
+
+**Next session:** Sprint 27+ — identify next set of backlog candidates from competitive gap board.
+
+---
+
+## Phase 5 — Sprint 27 (B-91 / B-92 / B-93)
+
+### Changes
+
+| File | Change |
+|---|---|
+| `src/pages/ComplianceAuditLog.tsx` | New — B-91: Log viewer for compliance_audit_log; KPI cards (Total / Compliant / Blocked / Unique Officers); check_type/status/date filters; can_enforce + can_work boolean badges; expandable blocked_reason; fully typed |
+| `src/pages/EnforcementEventLog.tsx` | New — B-92: Log viewer for enforcement_events; KPI cards (Total / Open / Closed/Resolved / Unique Officers); event_type/status/violation_type/date filters; subject display; expandable action_taken + evidence_notes + photo URLs; fully typed |
+| `src/pages/NoiseJobLog.tsx` | New — B-93: Log viewer for noise_jobs; KPI cards (Total / Open / Completed / High Priority); status/priority/noise_type/date filters; job_number + address + outcome; expandable complaint + GPS + safety notes; fully typed |
+| `src/App.tsx` | Lazy imports block `// Sprint 27: B-91–B-93`; 3 new `<Route>` entries |
+| `src/navigation/routeManifest.ts` | 3 new entries: Compliance (B-91), Enforcement (B-92), Records (B-93) |
+| `src/components/features/AppLayout.tsx` | Sidebar: B-92 (Enforcement Event Log) under Operations/Enforcement; B-91 (Compliance Audit Log) after Compliance Analytics; B-93 (Noise Job Log) in Records group |
+| `src/pages/AdminPortal.tsx` | New tiles: Enforcement Event Log (Enforcement section), Compliance Audit Log (Compliance section), Noise Jobs (Live Ops section) |
+| `docs/MODULE_ROADMAP.md` | Route count 159 → 162; Sprint 27 addendum appended; verification note updated |
+
+### Sprint 27 Board
+
+| ID | Item | Status |
+|---|---|---|
+| B-91 | Compliance Audit Log | ✅ |
+| B-92 | Enforcement Event Log | ✅ |
+| B-93 | Noise Job Log | ✅ |
+
+- [x] `bun run lint` → PASS
+- [x] `bun run build` → PASS
+
+### Competitive Gap Board — Updated (post Sprint 27)
+
+| Category | Newly Closed | Remaining Open |
+|---|---|---|
+| Compliance | B-91 Compliance Audit Log | — |
+| Enforcement | B-92 Enforcement Event Log | — |
+| Noise Control | B-93 Noise Job Log | — |
+
+**Next sprint candidates:**
+- B-94: `PatrolRouteLog` — log viewer for the `patrols` table; KPIs (total/active/completed), zone/date filters, officer assignment display
+- B-95: `AlarmEventLog` — dedicated admin log for `alarm_events` with severity/type/date filters and acknowledge action
+- B-96: `BugReportLog` — internal bug report viewer for `bug_reports`; status workflow, severity filter, assign-to officer action
+
+---
+
+## Session Snapshot (Sprint 27 — 2026-05-06)
+
+- Timestamp (UTC): 2026-05-06 13:00 UTC
+- Current branch: copilot/review-doc-files-staging-instructions-again
+- Scope: Sprint 27 — built and wired B-91 (ComplianceAuditLog), B-92 (EnforcementEventLog), B-93 (NoiseJobLog)
+
+**New pages built:**
+- `src/pages/ComplianceAuditLog.tsx` — compliance_audit_log viewer
+- `src/pages/EnforcementEventLog.tsx` — enforcement_events viewer
+- `src/pages/NoiseJobLog.tsx` — noise_jobs viewer
+
+**Wiring applied:** App.tsx (lazy import + route), routeManifest.ts, AppLayout.tsx sidebar, AdminPortal.tsx tiles
+
+**Validation:**
+- `bun run lint` → PASS
+- `bun run build` → PASS
+
+**Next session:** Sprint 28 — B-94 PatrolRouteLog, B-95 AlarmEventLog, B-96 BugReportLog (or equivalent backlog items).
+
+---
+
+## Phase 5 — Sprint 28 (B-94 / B-95 / B-96)
+
+### Changes
+
+| File | Change |
+|---|---|
+| `src/pages/PatrolRouteLog.tsx` | New — B-94: Log viewer for patrols; KPIs; status/priority/date filters; breaches/vehicles/duration columns; expandable scheduled/actual times; fully typed |
+| `src/pages/AlarmEventLog.tsx` | New — B-95: Log viewer for alarm_events; KPIs (Total/Open/Acknowledged/Critical+High); alarm_type/severity/status/date filters; Acknowledge action; expandable raw_payload JSON; fully typed |
+| `src/pages/BugReportLog.tsx` | New — B-96: Log viewer for bug_reports; KPIs (Total/Open/AI Analyzed/Needs Review); issue_type/severity/status/date filters; Resolve action; expandable description+steps+AI fix; fully typed |
+| `src/App.tsx` | Sprint 28 lazy imports + 3 new routes |
+| `src/navigation/routeManifest.ts` | 3 new entries: Operations (B-94/B-95), Management (B-96) |
+| `src/components/features/AppLayout.tsx` | Added BellRing+Bug icons; patrol-route-log + alarm-events-log under Operations; bug-reports-log under Management |
+| `src/pages/AdminPortal.tsx` | Added BellRing+Bug icons; patrol-route-log + alarm-events-log tiles (Patrol section); bug-reports-log tile (Admin/System section) |
+| `docs/MODULE_ROADMAP.md` | Route count 162 → 165; Sprint 28 addendum |
+
+### Sprint 28 Board
+
+| ID | Item | Status |
+|---|---|---|
+| B-94 | Patrol Route Log | ✅ |
+| B-95 | Alarm Event Log | ✅ |
+| B-96 | Bug Report Log | ✅ |
+
+**Next sprint candidates:**
+- B-97: `RadioTransmissionLog` — dedicated log for radio_transmissions with officer/channel filters + TTS link
+- B-98: `OpenShiftManager` — open_shifts management; publish/unpublish + officer assignment
+- B-99: `NoiseAssessmentLog` — log viewer for noise_assessments with dB levels and AI confidence
+
+---
+
+## Session Snapshot (Sprint 28 — 2026-05-06)
+
+- Timestamp (UTC): 2026-05-06 13:28 UTC
+- Current branch: copilot/review-doc-files-staging-instructions-again
+
+**Validation:**
+- `bun run lint` → PASS
+- `bun run build` → PASS
+
+**Next session:** Sprint 29 — B-97 RadioTransmissionLog, B-98 OpenShiftManager, B-99 NoiseAssessmentLog.
+
+---
+
+## Phase 5 — Sprint 29 (B-97 / B-98 / B-99)
+
+### Changes
+
+| File | Change |
+|---|---|
+| `src/pages/RadioTransmissionLog.tsx` | New — B-97: Viewer for radio_transmissions (View); KPIs + channel_type/emergency/date filters + floor grants + metadata JSON expand; typed via Database Views |
+| `src/pages/OpenShiftManager.tsx` | New — B-98: Manager for open_shifts; KPIs + status/shift_type/priority/date filters + Claim/Unclaim mutations + description/requirements expand; fully typed |
+| `src/pages/NoiseAssessmentLog.tsx` | New — B-99: Viewer for noise_assessments; KPIs (Total/Exceeds/Avg dB/Avg AI Confidence) + noise_type/action/exceeds/date filters + AI confidence bar + GPS+matrix+photos expand; fully typed |
+| `src/App.tsx` | Sprint 29 lazy imports + 3 new routes |
+| `src/navigation/routeManifest.ts` | 3 new entries: Operations (B-97/B-98), Records (B-99) |
+| `src/components/features/AppLayout.tsx` | Added CalendarClock icon; radio-transmissions-log + open-shifts under Operations; noise-assessments-log under Records |
+| `src/pages/AdminPortal.tsx` | Added CalendarClock icon; radio TX Log tile (Radio section); noise assessments tile (Noise section) |
+| `docs/MODULE_ROADMAP.md` | Route count 165 → 168; Sprint 29 addendum |
+
+### Sprint 29 Board
+
+| ID | Item | Status |
+|---|---|---|
+| B-97 | Radio Transmission Log | ✅ |
+| B-98 | Open Shift Manager | ✅ |
+| B-99 | Noise Assessment Log | ✅ |
+
+**Note (B-97):** `radio_transmissions` lives in the `Views` section of `database.ts` (not `Tables`). Use `Database['public']['Views']['radio_transmissions']['Row']`.
+
+**Next sprint candidates:**
+- B-100: `TrespassOrderLog` — trespass_orders log with status workflow + officer/zone filters
+- B-101: `SafetyChecklistLog` — safety_checklists log with template name + pass/fail KPIs
+- B-102: `OperationalCaseViewer` — operational_cases full detail with linked incidents/dispatch
+
+---
+
+## Session Snapshot (Sprint 29 — 2026-05-06)
+
+- Timestamp (UTC): 2026-05-06 13:47 UTC
+- Current branch: copilot/review-doc-files-staging-instructions-again
+
+**Validation:**
+- `bun run lint` → PASS
+- `bun run build` → PASS (26.75s)
+
+**Next session:** Sprint 30 — B-100 TrespassOrderLog, B-101 SafetyChecklistLog, B-102 OperationalCaseViewer.
+
+---
+
+## Phase 5 — Sprint 30 (B-100 / B-101 / B-102)
+
+### Changes
+
+| File | Change |
+|---|---|
+| `src/pages/TrespassNoticeLog.tsx` | New — B-100: Viewer for trespass_notices; KPIs + status/notice_type/date filters + overdue highlight + legal_basis/notes/photos expand; fully typed |
+| `src/pages/ParkingInfringementLog.tsx` | New — B-101: Viewer for parking_infringements; KPIs incl. revenue + status/date/plate-search filters + payment/dispute/court ref/PDF+photos expand; fully typed |
+| `src/pages/PersonObservationLog.tsx` | New — B-102: Viewer for person_observations; KPIs + obs_type/alert/date/plate-search filters + alert type badges + match confidence bar + GPS/metadata/evidence photos expand; fully typed |
+| `src/App.tsx` | Sprint 30 lazy imports + 3 new routes |
+| `src/navigation/routeManifest.ts` | 3 new entries: Enforcement (B-100/B-101), Records (B-102) |
+| `src/components/features/AppLayout.tsx` | Added Eye, TicketX icons; trespass-notices-log + parking-infringements-log under Enforcement; person-observations-log under Records |
+| `src/pages/AdminPortal.tsx` | Added TicketX icon; trespass/infringement log tiles (Compliance & Enforcement section); person obs log tile (Intel section) |
+| `docs/MODULE_ROADMAP.md` | Route count 168 → 171; Sprint 30 addendum |
+
+### Sprint 30 Board
+
+| ID | Item | Status |
+|---|---|---|
+| B-100 | Trespass Notice Log | ✅ |
+| B-101 | Parking Infringement Log | ✅ |
+| B-102 | Person Observation Log | ✅ |
+
+---
+
+## Session Snapshot (Sprint 30 — 2026-05-06)
+
+- Timestamp (UTC): 2026-05-06 14:06 UTC
+- Current branch: copilot/review-doc-files-staging-instructions-again
+
+**Validation:**
+- `bun run lint` → PASS
+- `bun run build` → PASS (22.96s)
+
+**Next session:** Sprint 31 — B-103 VehiclesOfInterestLog, B-104 PersonsOfInterestLog, B-105 PhotoMetadataLog.

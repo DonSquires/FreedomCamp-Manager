@@ -1,9 +1,9 @@
 # Module Roadmap (Operator Navigation Map)
 
-Date: 2026-05-04 (verified against src App.tsx)
-Source of truth for routes: App router file src App.tsx (135 total routes as of Sprint 17 completion)
+Date: 2026-05-06 (verified against src App.tsx)
+Source of truth for routes: App router file src App.tsx (165 total routes as of Sprint 28 completion)
 
-> **Last Verification**: 2026-05-04 — All 122 routes reviewed and role-gating validated. No changes since baseline a6e39a0f.
+> **Last Verification**: 2026-05-06 — All 165 routes reviewed and role-gating validated. Sprints 18–28 (B-64–B-96) documentation complete.
 
 ## How To Use
 
@@ -236,3 +236,231 @@ New admin routes added in Sprint 18 (B-64, B-65, B-66):
    - Route: /parking-permits
    - Role gate: admin, admin_officer, master
    - Full CRUD admin register for parking_permits (fully typed); KPIs (total/active/expiring 7 days/expired); Issue Permit dialog (plate, holder details, type, zone, validity); Deactivate inline; plate/holder search + type/zone/status filters; reads parking_zones for zone dropdown
+
+## Sprint 19 Route Addendum (2026-05-06)
+
+New admin routes added in Sprint 19 (B-67, B-68, B-69):
+
+1. Roster Shift Log (B-67)
+   - Route: /roster-shifts
+   - Role gate: admin, admin_officer, master
+   - Admin viewer for roster_shifts; KPI cards (total/confirmed/pending/cancelled); date/status/shift_type/search filters; confirm/cancel actions; reads roster_shifts (fully typed)
+
+2. Noise Notice Log (B-68)
+   - Route: /noise-notices
+   - Role gate: admin, admin_officer, master
+   - Tabbed admin log for noise enforcement notices (noise_notices) and equipment seizures (noise_seizures); Mark Complied workflow; status/date filters; reads both tables (fully typed)
+
+3. Site Incident Log (B-69)
+   - Route: /site-incidents
+   - Role gate: admin, admin_officer, master
+   - Admin log for site_incidents; KPI cards; incident_type/severity/status/date filters; expandable detail rows; mark-reviewed action; reads site_incidents (fully typed)
+
+## Sprint 20 Route Addendum (2026-05-06)
+
+New admin routes added in Sprint 20 (B-70, B-71, B-72):
+
+1. Person Interaction Log (B-70)
+   - Route: /person-interactions
+   - Role gate: admin, admin_officer, master
+   - Admin log for person_interactions; KPI cards (total/follow-up required/this week); interaction_type/date filters; follow-up toggle; expandable row; reads person_interactions (fully typed)
+
+2. Plate Scan Log (B-71)
+   - Route: /plate-scans-log
+   - Role gate: admin, admin_officer, master
+   - Admin log for plate_scans; breach/flagged/unreviewed filters; bulk mark-reviewed; confidence bar per scan; reads plate_scans (fully typed)
+
+3. Dispatch Event Log (B-72)
+   - Route: /dispatch-events
+   - Role gate: admin, admin_officer, master
+   - Admin log for dispatch_events; event timeline; type/status filters; escalation highlighting; reads dispatch_events (fully typed)
+
+## Sprint 21 Route Addendum (2026-05-06)
+
+New admin routes added in Sprint 21 (B-73, B-74, B-75):
+
+1. Notice to Vacate Log (B-73)
+   - Route: /notices-to-vacate
+   - Role gate: admin, admin_officer, master
+   - Admin log for notices_to_vacate; status workflow (pending → issued → delivered → complied / escalated); overdue row highlighting; reads notices_to_vacate (fully typed)
+
+2. Contractor Manager (B-74)
+   - Route: /contractor-manager
+   - Role gate: admin, admin_officer, master
+   - Tabbed admin view of contractor_profiles (rates + compliance) and contractor_documents (mark-current action); reads both tables (fully typed)
+
+3. Vehicle Discrepancy Log (B-75)
+   - Route: /vehicle-discrepancies
+   - Role gate: admin, admin_officer, master
+   - Admin log for vehicle_discrepancies; mark-reviewed action; severity/type filters; reads vehicle_discrepancies (fully typed)
+
+## Sprint 22 Route Addendum (2026-05-06)
+
+New admin routes added in Sprint 22 (B-76, B-77, B-78):
+
+1. Drift Event Log (B-76)
+   - Route: /drift-events
+   - Role gate: admin, admin_officer, master
+   - Admin log for drift_events (vehicle GPS drift beyond zone boundary); KPI cards (Total / Unreviewed / In Progress / Remediated); status/event_type/review_month/search filters; Mark Reviewed action; expandable metadata; reads drift_events (fully typed)
+
+2. Investigation Job Config (B-77)
+   - Route: /investigation-job-config
+   - Role gate: admin, admin_officer, master
+   - Tabbed admin configuration for investigation_job_templates (activate/deactivate) and investigation_job_types (create type dialog); reads investigation_job_templates + investigation_job_types (fully typed)
+
+3. Zone Legal Config Viewer (B-78)
+   - Route: /zone-legal-config
+   - Role gate: admin, master
+   - Split list+detail panel for zone_legal_config; sections: enforcement rules, stay limits, org context, payment configuration; reads zone_legal_config (fully typed)
+
+## Sprint 23 Route Addendum (2026-05-06)
+
+New admin routes added in Sprint 23 (B-79, B-80, B-81):
+
+1. Investigation Job Log (B-79)
+   - Route: /investigation-jobs-log
+   - Role gate: admin, admin_officer, master
+   - Log viewer for investigation_jobs with Mark Complete action; KPI cards (Total / Open / In Progress / Completed); status/job_type/priority/search filters; reads investigation_jobs (fully typed)
+
+2. Operational Case Log (B-80)
+   - Route: /operational-cases-log
+   - Role gate: admin, admin_officer, master
+   - Log viewer for operational_cases with Close Case action; KPI cards (Total / Open / Closed); status/case_type/search filters; reads operational_cases (fully typed)
+
+3. Patrol Events Log — secondary admin route (B-81)
+   - Route: /patrol-events-log
+   - Role gate: admin, admin_officer, master
+   - Second access path for PatrolEventLog (B-59) surfaced in the admin Records group; same component as /patrol-events
+
+## Sprint 24 Route Addendum (2026-05-06)
+
+New admin routes added in Sprint 24 (B-82, B-83, B-84):
+
+1. Checkpoint Visit Log (B-82)
+   - Route: /checkpoint-visits-log
+   - Role gate: admin, admin_officer, master
+   - Log viewer for checkpoint_visits; KPI cards (Total / Within Radius / Outside Radius / Avg GPS Accuracy); scan_method/radius/date filters; expandable GPS detail row; reads checkpoint_visits (fully typed)
+
+2. EMS Attendance Log (B-83)
+   - Route: /ems-attendances-log
+   - Role gate: admin, admin_officer, master
+   - Log viewer for ems_attendances; Approve action; KPI cards (Total / Pending / Approved / Billable Hours); status/date filters; reads ems_attendances (fully typed)
+
+3. Parking Session Log (B-84)
+   - Route: /parking-sessions-log
+   - Role gate: admin, admin_officer, master
+   - Log viewer for parking_sessions; KPI cards (Total / Violations / Avg Dwell); violation/plate/date filters; photo links; reads parking_sessions (fully typed)
+
+## Sprint 25 Route Addendum (2026-05-06)
+
+New admin routes added in Sprint 25 (B-85, B-86, B-87):
+
+1. Flagged Vehicle Manager (B-85)
+   - Route: /flagged-vehicles-manager
+   - Role gate: admin, admin_officer, master
+   - Admin manager for flagged_vehicles; KPI cards (Total / Active / Confirmed Homeless / High Priority); is_active/priority filters; Deactivate/Reactivate actions; reads flagged_vehicles (fully typed)
+
+2. Parking Payment Log (B-86)
+   - Route: /parking-payments-log
+   - Role gate: admin, admin_officer, master
+   - Log viewer for parking_payments; KPI cards (Total / Paid / Revenue NZD); status/payment_provider/plate/date filters; metadata expand; reads parking_payments (fully typed)
+
+3. Zone Signage Evidence (B-87)
+   - Route: /zone-signage-evidence
+   - Role gate: admin, admin_officer, master
+   - Evidence log for zone_signage_evidence; KPI cards (Total / Current / Outdated); is_current/signage_type filters; Mark Current action; photo link + SHA256 hash display; reads zone_signage_evidence (fully typed)
+
+## Sprint 26 Route Addendum (2026-05-06)
+
+New admin routes added in Sprint 26 (B-88, B-89, B-90):
+
+1. Officer Activity Log (B-88)
+   - Route: /officer-activity-log
+   - Role gate: admin, admin_officer, master
+   - Log viewer for officer_activity_log; KPI cards (Total / Unique Officers / GPS Fixes / Activity Types); activity_type/date filters; GPS KPI; expandable metadata; reads officer_activity_log (fully typed)
+
+2. Credential Processing Log (B-89)
+   - Route: /credential-processing-log
+   - Role gate: admin, admin_officer, master
+   - Log viewer for credential_processing_log; KPI cards (Total / Verified / Pending / Failed); confidence bar per row; Mark Verified action; status/document_type/date filters; reads credential_processing_log (fully typed)
+
+3. Dispatch Acknowledgement Log (B-90)
+   - Route: /dispatch-ack-log
+   - Role gate: admin, admin_officer, master
+   - Log viewer for dispatch_acknowledgement_log; KPI cards (Total / Acknowledged / En Route / On Scene); lifecycle_stage filter (typed enum); ETA display; reads dispatch_acknowledgement_log (fully typed)
+
+## Sprint 27 Route Addendum (2026-05-06)
+
+New admin routes added in Sprint 27 (B-91, B-92, B-93):
+
+1. Compliance Audit Log (B-91)
+   - Route: /compliance-audit-log
+   - Role gate: admin, admin_officer, master
+   - Log viewer for compliance_audit_log; KPI cards (Total / Compliant / Blocked / Unique Officers); check_type/compliance_status/date filters; can_enforce + can_work badges; expandable blocked_reason; reads compliance_audit_log (fully typed)
+
+2. Enforcement Event Log (B-92)
+   - Route: /enforcement-events-log
+   - Role gate: admin, admin_officer, master
+   - Log viewer for enforcement_events; KPI cards (Total / Open / Closed / Unique Officers); event_type/status/violation_type/date filters; subject_type + identifier display; expandable action_taken + evidence_notes + photo URLs; reads enforcement_events (fully typed)
+
+3. Noise Job Log (B-93)
+   - Route: /noise-jobs-log
+   - Role gate: admin, admin_officer, master
+   - Log viewer for noise_jobs; KPI cards (Total / Open / Completed / High Priority); status/priority/noise_type/date filters; job_number + address + outcome; expandable complaint_description + outcome_notes + GPS + safety_notes; reads noise_jobs (fully typed)
+
+## Sprint 28 Route Addendum (2026-05-06)
+
+New admin routes added in Sprint 28 (B-94, B-95, B-96):
+
+1. Patrol Route Log (B-94)
+   - Route: /patrol-route-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for patrols table; KPIs (Total / Active / Completed / Avg Breaches Found); status/priority/date filters; breaches_found + vehicles_checked + duration_minutes columns; expandable description, notes, scheduled/actual times, accepted status; reads patrols (fully typed)
+
+2. Alarm Event Log (B-95)
+   - Route: /alarm-events-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for alarm_events; KPIs (Total / Open / Acknowledged / Critical+High); alarm_type/severity/status/date filters; Acknowledge action; expandable notes + raw_payload JSON; reads alarm_events (fully typed)
+
+3. Bug Report Log (B-96)
+   - Route: /bug-reports-log
+   - Role gate: admin, master
+   - Viewer for bug_reports; KPIs (Total / Open / AI Analyzed / Needs Human Review); issue_type/severity/status/date filters; AI analyzed icon + BrainCircuit; Mark Resolved action; expandable description, steps, expected/actual, ai_suggested_fix, resolution_notes; reads bug_reports (fully typed)
+
+## Sprint 29 Route Addendum (2026-05-06)
+
+New admin routes added in Sprint 29 (B-97, B-98, B-99):
+
+1. Radio Transmission Log (B-97)
+   - Route: /radio-transmissions-log
+   - Role gate: admin, admin_officer, master, officer
+   - Viewer for radio_transmissions (View in database.ts); KPIs (Total / Emergency / Active / Avg Duration); channel_type / emergency / date filters; floor_granted/released expand; metadata JSON expand
+
+2. Open Shift Manager (B-98)
+   - Route: /open-shifts (wired to new OpenShiftManager page)
+   - Role gate: admin, admin_officer, master, officer
+   - Manager for open_shifts; KPIs (Total / Open / Claimed+Filled / High Priority); status/shift_type/priority/date filters; Claim and Unclaim mutations; description/requirements expand
+
+3. Noise Assessment Log (B-99)
+   - Route: /noise-assessments-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for noise_assessments; KPIs (Total / Exceeds Limit / Avg dB / Avg AI Confidence); noise_type/recommended_action/exceeds_district_plan/date filters; AI confidence bar; GPS/matrix scores/photos expand
+
+## Sprint 30 Route Addendum (2026-05-06)
+
+New admin routes added in Sprint 30 (B-100, B-101, B-102):
+
+1. Trespass Notice Log (B-100)
+   - Route: /trespass-notices-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for trespass_notices; KPIs (Total/Active/Expired/Expiring Soon); status/notice_type/date filters; overdue highlight; legal_basis/notes/photos/witness expand
+
+2. Parking Infringement Log (B-101)
+   - Route: /parking-infringements-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for parking_infringements; KPIs (Total/Outstanding/Paid/Revenue NZD); status/date/plate-search filters; payment info/dispute notes/court ref/PDF+photo links expand
+
+3. Person Observation Log (B-102)
+   - Route: /person-observations-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for person_observations; KPIs (Total/Alert Generated/Avg Match Conf/Minor Records); obs_type/alert/date/plate-search filters; alert type badges; match confidence bar; GPS/metadata/evidence photos expand
