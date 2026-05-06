@@ -57,6 +57,8 @@ import {
   Receipt,
   ScanLine,
   ScanSearch,
+  GitCompareArrows,
+  Briefcase,
   ScrollText,
   Search,
   Shield,
@@ -473,6 +475,25 @@ export default function AdminPortal() {
       const { count: followUpInteractions, error: followUpErr } = await followUpInteractionsQ
       if (followUpErr) diagnostics.push(`follow_up_interactions: ${followUpErr.message || 'unknown error'}`)
 
+      // Active notices to vacate (B-73)
+      let activeNoticesToVacateQ = supabase
+        .from('notices_to_vacate')
+        .select('id', { count: 'exact', head: true })
+        .not('status', 'in', '("complied","withdrawn")')
+      if (effectiveOrganizationId) activeNoticesToVacateQ = activeNoticesToVacateQ.eq('organization_id', effectiveOrganizationId)
+      const { count: activeNoticesToVacate, error: ntvErr } = await activeNoticesToVacateQ
+      if (ntvErr) diagnostics.push(`active_notices_to_vacate: ${ntvErr.message || 'unknown error'}`)
+
+      // Vehicle discrepancies needing review (B-75)
+      let vehicleDiscrepanciesQ = supabase
+        .from('vehicle_discrepancies')
+        .select('id', { count: 'exact', head: true })
+        .eq('requires_review', true)
+        .is('reviewed_at', null)
+      if (effectiveOrganizationId) vehicleDiscrepanciesQ = vehicleDiscrepanciesQ.eq('organization_id', effectiveOrganizationId)
+      const { count: vehicleDiscrepanciesPending, error: vdErr } = await vehicleDiscrepanciesQ
+      if (vdErr) diagnostics.push(`vehicle_discrepancies: ${vdErr.message || 'unknown error'}`)
+
       // Count non-compliant observations where the plate belongs to a homeless vehicle.
       // This is the exact number of "breaches" that are actually FC Act exempt.
       let homelessExemptBreachCount = 0
@@ -514,6 +535,8 @@ export default function AdminPortal() {
         activeNoiseNotices:        activeNoiseNotices         ?? 0,
         unreviewedPlateScans:      unreviewedPlateScans       ?? 0,
         followUpInteractions:      followUpInteractions       ?? 0,
+        activeNoticesToVacate:     activeNoticesToVacate      ?? 0,
+        vehicleDiscrepanciesPending: vehicleDiscrepanciesPending ?? 0,
         diagnostics,
       }
     },
@@ -1451,6 +1474,8 @@ export default function AdminPortal() {
                     { path: '/asset-management',       label: 'Assets',            Icon: Package,       color: 'text-amber-700',  bg: 'bg-amber-50 dark:bg-amber-900/20' },
                     { path: '/vehicle-registry',       label: 'Registry',          Icon: Database,      color: 'text-gray-600',   bg: 'bg-gray-100 dark:bg-gray-800/30' },
                     { path: '/plate-scans-log',        label: 'Plate Scan Log',    Icon: ScanSearch,    color: 'text-cyan-600',   bg: 'bg-cyan-50 dark:bg-cyan-900/20', badge: (data as any)?.unreviewedPlateScans > 0 ? (data as any)?.unreviewedPlateScans : undefined },
+                    { path: '/vehicle-discrepancies',  label: 'Discrepancies',     Icon: GitCompareArrows, color: 'text-rose-600', bg: 'bg-rose-50 dark:bg-rose-900/20', badge: (data as any)?.vehicleDiscrepanciesPending > 0 ? (data as any)?.vehicleDiscrepanciesPending : undefined },
+                    { path: '/contractor-manager',     label: 'Contractor',        Icon: Briefcase,     color: 'text-indigo-600', bg: 'bg-indigo-50 dark:bg-indigo-900/20' },
                     { path: '/zones',                  label: 'Zones',             Icon: MapPin,        color: 'text-green-600',  bg: 'bg-green-50 dark:bg-green-900/20' },
                     { path: '/hotspots',               label: 'Hotspots',          Icon: Map,           color: 'text-red-600',    bg: 'bg-red-50 dark:bg-red-900/20' },
                     { path: '/admin/nzscv',            label: 'NZSCV Monitor',     Icon: Shield,        color: 'text-blue-600',   bg: 'bg-blue-50 dark:bg-blue-900/20', badge: (data as any)?.scvExpiringSoon > 0 ? (data as any)?.scvExpiringSoon : undefined },
@@ -1513,6 +1538,7 @@ export default function AdminPortal() {
                     { path: '/site-incidents',label: 'Site Incidents',Icon: Building2,     color: 'text-indigo-600', bg: 'bg-indigo-50 dark:bg-indigo-900/20', badge: (data as any)?.openSiteIncidents > 0 ? (data as any)?.openSiteIncidents : undefined },
                     { path: '/person-interactions', label: 'Person Interactions', Icon: Users, color: 'text-teal-600', bg: 'bg-teal-50 dark:bg-teal-900/20', badge: (data as any)?.followUpInteractions > 0 ? (data as any)?.followUpInteractions : undefined },
                     { path: '/dispatch-events', label: 'Dispatch Events', Icon: Radio,    color: 'text-purple-600', bg: 'bg-purple-50 dark:bg-purple-900/20' },
+                    { path: '/notices-to-vacate', label: 'Notices to Vacate', Icon: FileWarning, color: 'text-orange-600', bg: 'bg-orange-50 dark:bg-orange-900/20', badge: (data as any)?.activeNoticesToVacate > 0 ? (data as any)?.activeNoticesToVacate : undefined },
                     { path: '/biosecurity-officer', label: 'Biosecurity', Icon: Search,    color: 'text-emerald-700', bg: 'bg-emerald-50 dark:bg-emerald-900/20', scopeHint: 'Jurisdiction' },
                     { path: '/smoke-officer', label: 'Smoke (OOH)', Icon: AlertTriangle, color: 'text-amber-700', bg: 'bg-amber-50 dark:bg-amber-900/20', scopeHint: 'Jurisdiction' },
                     { path: '/ems',          label: 'EMS',           Icon: Zap,           color: 'text-red-700',    bg: 'bg-red-50 dark:bg-red-900/20' },

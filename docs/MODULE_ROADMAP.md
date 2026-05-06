@@ -184,3 +184,11 @@ New routes added:
 - `/person-interactions` — Person Interaction Log (B-70); role gate: admin, admin_officer, master; nav group: Operations; table: person_interactions
 - `/plate-scans-log` — Plate Scan Log (B-71); role gate: admin, admin_officer, master; nav group: Management; table: plate_scans
 - `/dispatch-events` — Dispatch Event Log (B-72); role gate: admin, admin_officer, master; nav group: Live Ops; table: dispatch_events
+
+## Sprint 21 Addendum (2026-05-06) — B-73/B-74/B-75
+
+New routes added:
+
+- `/notices-to-vacate` — Notice to Vacate Log (B-73); role gate: admin, admin_officer, master; nav group: Operations; table: notices_to_vacate; status workflow: pending→issued→delivered→complied/escalated
+- `/contractor-manager` — Contractor Manager (B-74); role gate: admin, admin_officer, master; nav group: Admin; tables: contractor_profiles + contractor_documents (tabbed)
+- `/vehicle-discrepancies` — Vehicle Discrepancy Log (B-75); role gate: admin, admin_officer, master; nav group: Management; table: vehicle_discrepancies; mark-reviewed action

@@ -160,6 +160,9 @@ const SiteIncidentLog = lazy(() => import('@/pages/SiteIncidentLog'))
 const PersonInteractionLog = lazy(() => import('@/pages/PersonInteractionLog'))
 const PlateScanLog = lazy(() => import('@/pages/PlateScanLog'))
 const DispatchEventLog = lazy(() => import('@/pages/DispatchEventLog'))
+const NoticeToVacateLog = lazy(() => import('@/pages/NoticeToVacateLog'))
+const ContractorManager = lazy(() => import('@/pages/ContractorManager'))
+const VehicleDiscrepancyLog = lazy(() => import('@/pages/VehicleDiscrepancyLog'))
 const MessagingPage = lazy(() => import('@/modules/messaging'))
 const IntelApprovalQueue = lazy(() => import('@/pages/IntelApprovalQueue'))
 const BobIntakeQueue = lazy(() => import('@/pages/BobIntakeQueue'))
@@ -2272,6 +2275,42 @@ export default function App() {
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
                   <DispatchEventLog />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Notice to Vacate Log — B-73 */}
+          <Route
+            path="/notices-to-vacate"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <NoticeToVacateLog />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Contractor Manager — B-74 */}
+          <Route
+            path="/contractor-manager"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <ContractorManager />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Vehicle Discrepancy Log — B-75 */}
+          <Route
+            path="/vehicle-discrepancies"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <VehicleDiscrepancyLog />
                 </RoleRoute>
               </ProtectedRoute>
             }

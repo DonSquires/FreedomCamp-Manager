@@ -107,6 +107,9 @@ import {
   ScanFace as ScanFaceAudit,
   Ban,
   KeyRound,
+  FileWarning,
+  GitCompareArrows,
+  Briefcase,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { supabase } from '@/lib/supabase'
@@ -205,6 +208,7 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/noise-notices', icon: Volume2, label: 'Noise Notices', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/site-incidents', icon: Building2, label: 'Site Incidents', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/person-interactions', icon: Users, label: 'Person Interactions', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/notices-to-vacate', icon: FileWarning, label: 'Notices to Vacate', roles: ['admin', 'admin_officer', 'master'] },
     ],
   },
   {
@@ -240,6 +244,7 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/vehicle-registry', icon: Car, label: 'Vehicle Registry', roles: ['admin', 'admin_officer', 'master', 'nzscv_monitor'] },
       { path: '/plate-finder', icon: ScanSearch, label: 'Plate Finder', roles: ['admin', 'admin_officer', 'master', 'officer'] },
       { path: '/plate-scans-log', icon: ScanSearch, label: 'Plate Scan Log', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/vehicle-discrepancies', icon: GitCompareArrows, label: 'Vehicle Discrepancies', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/admin/nzscv', icon: Car, label: 'NZSCV Monitor', roles: ['admin', 'master', 'nzscv_monitor'] },
       { path: '/admin/canonical-records', icon: Database, label: 'Canonical Records', roles: ['admin', 'master'] },
       { path: '/zones', icon: MapPin, label: 'Zones', roles: ['admin', 'admin_officer', 'master'] },
@@ -310,6 +315,7 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/asset-management', icon: Package2, label: 'Asset Management', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/case-bridge', icon: FolderKanban, label: 'Case Bridge', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/service-agreements', icon: FileBadge2, label: 'Service Agreements', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/contractor-manager', icon: Briefcase, label: 'Contractor Manager', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/poi-voi-dashboard', icon: Users2, label: 'POI/VOI Watch-list', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/access-audit', icon: ScanFaceAudit, label: 'Access Audit Log', roles: ['admin', 'admin_officer', 'master'] },
     ],
