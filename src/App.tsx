@@ -147,6 +147,7 @@ const PTTTransmissionLog = lazy(() => import('@/pages/PTTTransmissionLog').then(
 const RadioAuditDashboard = lazy(() => import('@/pages/RadioAuditDashboard'))
 const RadioTransmissionsLog = lazy(() => import('@/pages/RadioTransmissionsLog'))
 const VoiceProfilesConsent = lazy(() => import('@/pages/VoiceProfilesConsent'))
+const DispatchLOIBrowser = lazy(() => import('@/pages/DispatchLOIBrowser'))
 const MessagingPage = lazy(() => import('@/modules/messaging'))
 const IntelApprovalQueue = lazy(() => import('@/pages/IntelApprovalQueue'))
 const BobIntakeQueue = lazy(() => import('@/pages/BobIntakeQueue'))
@@ -1413,6 +1414,18 @@ export default function App() {
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'grand_master']}>
                   <VoiceProfilesConsent />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Dispatch LOI Browser (B-44) */}
+          <Route
+            path="/loi-browser"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'grand_master']}>
+                  <DispatchLOIBrowser />
                 </RoleRoute>
               </ProtectedRoute>
             }

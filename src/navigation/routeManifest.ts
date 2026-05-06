@@ -754,6 +754,18 @@ export const routeManifest: RouteManifestEntry[] = [
     preloadPolicy: 'none',
   },
   {
+    routeId: 'admin.loi-browser',
+    path: '/loi-browser',
+    shell: 'admin',
+    rolesAllowed: ['admin', 'admin_officer', 'master', 'grand_master'],
+    navGroup: 'Live Ops',
+    navLabel: 'LOI Browser',
+    visibilityMode: 'production',
+    featureFlag: null,
+    mobilePriority: 3,
+    preloadPolicy: 'none',
+  },
+  {
     routeId: 'admin.radio-log',
     path: '/radio/log',
     shell: 'admin',
