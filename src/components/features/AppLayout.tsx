@@ -115,6 +115,8 @@ import {
   BellRing,
   Bug,
   CalendarClock,
+  Eye,
+  TicketX,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { supabase } from '@/lib/supabase'
@@ -204,6 +206,8 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/enforcement-review', icon: ClipboardCheck, label: 'Enforcement Review', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/enforcement-command-center', icon: MonitorPlay, label: 'Enforcement Console', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/enforcement-events-log', icon: Siren, label: 'Enforcement Event Log', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/trespass-notices-log', icon: Ban, label: 'Trespass Notice Log', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/parking-infringements-log', icon: TicketX, label: 'Parking Infringement Log', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/disputes', icon: AlertTriangle, label: 'Disputes', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/admin/discrepancies', icon: AlertTriangle, label: 'Discrepancies', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/infringements', icon: Receipt, label: 'Infringements', roles: ['admin', 'admin_officer', 'master', 'officer'] },
@@ -307,6 +311,7 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/noise-notices', icon: Volume2, label: 'Noise Notices', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/site-incidents', icon: Shield, label: 'Site Incidents', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/person-interactions', icon: Users, label: 'Person Interactions', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/person-observations-log', icon: Eye, label: 'Person Observation Log', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/plate-scans-log', icon: ScanSearch, label: 'Plate Scans', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/dispatch-events', icon: Radio, label: 'Dispatch Events', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/notices-to-vacate', icon: ScrollText, label: 'Notices to Vacate', roles: ['admin', 'admin_officer', 'master'] },

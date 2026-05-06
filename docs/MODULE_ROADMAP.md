@@ -445,3 +445,22 @@ New admin routes added in Sprint 29 (B-97, B-98, B-99):
    - Route: /noise-assessments-log
    - Role gate: admin, admin_officer, master
    - Viewer for noise_assessments; KPIs (Total / Exceeds Limit / Avg dB / Avg AI Confidence); noise_type/recommended_action/exceeds_district_plan/date filters; AI confidence bar; GPS/matrix scores/photos expand
+
+## Sprint 30 Route Addendum (2026-05-06)
+
+New admin routes added in Sprint 30 (B-100, B-101, B-102):
+
+1. Trespass Notice Log (B-100)
+   - Route: /trespass-notices-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for trespass_notices; KPIs (Total/Active/Expired/Expiring Soon); status/notice_type/date filters; overdue highlight; legal_basis/notes/photos/witness expand
+
+2. Parking Infringement Log (B-101)
+   - Route: /parking-infringements-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for parking_infringements; KPIs (Total/Outstanding/Paid/Revenue NZD); status/date/plate-search filters; payment info/dispute notes/court ref/PDF+photo links expand
+
+3. Person Observation Log (B-102)
+   - Route: /person-observations-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for person_observations; KPIs (Total/Alert Generated/Avg Match Conf/Minor Records); obs_type/alert/date/plate-search filters; alert type badges; match confidence bar; GPS/metadata/evidence photos expand

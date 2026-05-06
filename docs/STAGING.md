@@ -3347,3 +3347,41 @@ The web SPA delivers SOS via the existing `officer_welfare_alerts` table + `send
 - `bun run build` → PASS (26.75s)
 
 **Next session:** Sprint 30 — B-100 TrespassOrderLog, B-101 SafetyChecklistLog, B-102 OperationalCaseViewer.
+
+---
+
+## Phase 5 — Sprint 30 (B-100 / B-101 / B-102)
+
+### Changes
+
+| File | Change |
+|---|---|
+| `src/pages/TrespassNoticeLog.tsx` | New — B-100: Viewer for trespass_notices; KPIs + status/notice_type/date filters + overdue highlight + legal_basis/notes/photos expand; fully typed |
+| `src/pages/ParkingInfringementLog.tsx` | New — B-101: Viewer for parking_infringements; KPIs incl. revenue + status/date/plate-search filters + payment/dispute/court ref/PDF+photos expand; fully typed |
+| `src/pages/PersonObservationLog.tsx` | New — B-102: Viewer for person_observations; KPIs + obs_type/alert/date/plate-search filters + alert type badges + match confidence bar + GPS/metadata/evidence photos expand; fully typed |
+| `src/App.tsx` | Sprint 30 lazy imports + 3 new routes |
+| `src/navigation/routeManifest.ts` | 3 new entries: Enforcement (B-100/B-101), Records (B-102) |
+| `src/components/features/AppLayout.tsx` | Added Eye, TicketX icons; trespass-notices-log + parking-infringements-log under Enforcement; person-observations-log under Records |
+| `src/pages/AdminPortal.tsx` | Added TicketX icon; trespass/infringement log tiles (Compliance & Enforcement section); person obs log tile (Intel section) |
+| `docs/MODULE_ROADMAP.md` | Route count 168 → 171; Sprint 30 addendum |
+
+### Sprint 30 Board
+
+| ID | Item | Status |
+|---|---|---|
+| B-100 | Trespass Notice Log | ✅ |
+| B-101 | Parking Infringement Log | ✅ |
+| B-102 | Person Observation Log | ✅ |
+
+---
+
+## Session Snapshot (Sprint 30 — 2026-05-06)
+
+- Timestamp (UTC): 2026-05-06 14:06 UTC
+- Current branch: copilot/review-doc-files-staging-instructions-again
+
+**Validation:**
+- `bun run lint` → PASS
+- `bun run build` → PASS (22.96s)
+
+**Next session:** Sprint 31 — B-103 VehiclesOfInterestLog, B-104 PersonsOfInterestLog, B-105 PhotoMetadataLog.

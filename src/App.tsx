@@ -225,6 +225,10 @@ const BugReportLog         = lazy(() => import('@/pages/BugReportLog'))
 const RadioTransmissionLog = lazy(() => import('@/pages/RadioTransmissionLog'))
 const OpenShiftManager     = lazy(() => import('@/pages/OpenShiftManager'))
 const NoiseAssessmentLog   = lazy(() => import('@/pages/NoiseAssessmentLog'))
+// Sprint 30: B-100–B-102
+const TrespassNoticeLog    = lazy(() => import('@/pages/TrespassNoticeLog'))
+const ParkingInfringementLog = lazy(() => import('@/pages/ParkingInfringementLog'))
+const PersonObservationLog = lazy(() => import('@/pages/PersonObservationLog'))
 
 const NetworkStatusBar = lazy(() => import('@/components/features/NetworkStatusBar').then((m) => ({ default: m.NetworkStatusBar })))
 const PWAInstallPrompt = lazy(() => import('@/components/features/PWAInstallPrompt').then((m) => ({ default: m.PWAInstallPrompt })))
@@ -2355,6 +2359,10 @@ export default function App() {
           <Route path="/radio-transmissions-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'officer']}><RadioTransmissionLog /></RoleRoute></ProtectedRoute>} />
           <Route path="/open-shifts" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'officer']}><OpenShiftManager /></RoleRoute></ProtectedRoute>} />
           <Route path="/noise-assessments-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><NoiseAssessmentLog /></RoleRoute></ProtectedRoute>} />
+          {/* Sprint 30: B-100–B-102 */}
+          <Route path="/trespass-notices-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><TrespassNoticeLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/parking-infringements-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><ParkingInfringementLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/person-observations-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><PersonObservationLog /></RoleRoute></ProtectedRoute>} />
 
           {/* CRM – Accounts (Clients + Contractors) */}
           <Route
