@@ -111,6 +111,7 @@ import {
   KeyRound,
   PhoneCall,
   BadgeDollarSign,
+  BadgeCheck,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { supabase } from '@/lib/supabase'
@@ -208,6 +209,8 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/patrol-kpis', icon: TrendingUp, label: 'Patrol KPIs', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/patrol-events', icon: Route, label: 'Patrol Event Log', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/officer-performance', icon: UserCheck, label: 'Officer Performance', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/health-safety-reports', icon: ShieldAlert, label: 'Health & Safety Reports', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/welfare-checkins', icon: HeartPulse, label: 'Welfare Check-ins', roles: ['admin', 'admin_officer', 'master'] },
     ],
   },
   {
@@ -258,6 +261,7 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/dynamic-pricing', icon: Gauge, label: 'Dynamic Pricing', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/revenue-forecasting', icon: TrendingUp, label: 'Revenue Forecasting', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/invoicing', icon: Receipt, label: 'Invoicing', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/parking-permits', icon: BadgeCheck, label: 'Parking Permits', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/admin/dashboard', icon: MonitorPlay, label: 'Ops Dashboard', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/users', icon: Users, label: 'Users', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/organization-profile', icon: Building2, label: 'Organisation', roles: ['admin', 'admin_officer', 'master'] },

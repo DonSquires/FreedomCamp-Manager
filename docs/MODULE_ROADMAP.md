@@ -217,3 +217,22 @@ New admin routes added in Sprint 17 (B-61, B-62, B-63):
    - Route: /incident-heatmap
    - Role gate: admin, admin_officer, master
    - Horizontal bar by zone, stacked weekly bar by incident type, severity distribution, zone table; reads incidents
+
+## Sprint 18 Route Addendum (2026-05-06)
+
+New admin routes added in Sprint 18 (B-64, B-65, B-66):
+
+1. Health & Safety Reports (B-64)
+   - Route: /health-safety-reports
+   - Role gate: admin, admin_officer, master
+   - Admin review of H&S incident reports submitted by field officers; KPI cards (total/critical/open/resolved), severity + status + incident_type + date filters, expandable description, inline status workflow (open → under_review → resolved → closed); reads health_safety_reports (fully typed)
+
+2. Welfare Check-in Log (B-65)
+   - Route: /welfare-checkins
+   - Role gate: admin, admin_officer, master
+   - Tabbed view: Check-in Records (welfare_checkins fully typed) + Welfare Alerts (officer_welfare_alerts, supabase as any); KPIs (today check-ins, overdue, active alerts, avg overdue minutes); officer/overdue/date filters; acknowledge alert action
+
+3. Parking Permit Manager (B-66)
+   - Route: /parking-permits
+   - Role gate: admin, admin_officer, master
+   - Full CRUD admin register for parking_permits (fully typed); KPIs (total/active/expiring 7 days/expired); Issue Permit dialog (plate, holder details, type, zone, validity); Deactivate inline; plate/holder search + type/zone/status filters; reads parking_zones for zone dropdown
