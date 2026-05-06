@@ -229,6 +229,13 @@ const NoiseAssessmentLog   = lazy(() => import('@/pages/NoiseAssessmentLog'))
 const TrespassNoticeLog    = lazy(() => import('@/pages/TrespassNoticeLog'))
 const ParkingInfringementLog = lazy(() => import('@/pages/ParkingInfringementLog'))
 const PersonObservationLog = lazy(() => import('@/pages/PersonObservationLog'))
+// Sprint 34–35: B-112–B-117
+const RadioTtsRenderLog = lazy(() => import('@/pages/RadioTtsRenderLog'))
+const HealthSafetyReportLog = lazy(() => import('@/pages/HealthSafetyReportLog'))
+const NoiseSeizureLog = lazy(() => import('@/pages/NoiseSeizureLog'))
+const LocationsOfInterestLog = lazy(() => import('@/pages/LocationsOfInterestLog'))
+const VehicleMonthlyStayLog = lazy(() => import('@/pages/VehicleMonthlyStayLog'))
+const RadioVoiceConsentLog = lazy(() => import('@/pages/RadioVoiceConsentLog'))
 
 const NetworkStatusBar = lazy(() => import('@/components/features/NetworkStatusBar').then((m) => ({ default: m.NetworkStatusBar })))
 const PWAInstallPrompt = lazy(() => import('@/components/features/PWAInstallPrompt').then((m) => ({ default: m.PWAInstallPrompt })))
@@ -2363,6 +2370,13 @@ export default function App() {
           <Route path="/trespass-notices-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><TrespassNoticeLog /></RoleRoute></ProtectedRoute>} />
           <Route path="/parking-infringements-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><ParkingInfringementLog /></RoleRoute></ProtectedRoute>} />
           <Route path="/person-observations-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><PersonObservationLog /></RoleRoute></ProtectedRoute>} />
+          {/* Sprint 34–35: B-112–B-117 */}
+          <Route path="/radio-tts-render-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><RadioTtsRenderLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/health-safety-report-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><HealthSafetyReportLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/noise-seizures-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><NoiseSeizureLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/locations-of-interest-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><LocationsOfInterestLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/vehicle-monthly-stays-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><VehicleMonthlyStayLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/radio-voice-consent-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><RadioVoiceConsentLog /></RoleRoute></ProtectedRoute>} />
 
           {/* CRM – Accounts (Clients + Contractors) */}
           <Route
@@ -2463,4 +2477,3 @@ export default function App() {
     </QueryClientProvider>
   )
 }
-

@@ -331,6 +331,13 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/dispatch-ack-log', icon: Radio, label: 'Dispatch Acknowledgements', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/noise-jobs-log', icon: Volume2, label: 'Noise Job Log', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/noise-assessments-log', icon: Volume2, label: 'Noise Assessment Log', roles: ['admin', 'admin_officer', 'master'] },
+      // Sprint 34–35 (B-112–B-117) logs
+      { path: '/radio-tts-render-log', icon: Radio, label: 'Radio TTS Render Log', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/health-safety-report-log', icon: ShieldAlert, label: 'Health & Safety Report Log', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/noise-seizures-log', icon: Siren, label: 'Noise Seizure Log', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/locations-of-interest-log', icon: MapPin, label: 'Locations of Interest Log', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/vehicle-monthly-stays-log', icon: Car, label: 'Vehicle Monthly Stay Log', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/radio-voice-consent-log', icon: Mic, label: 'Radio Voice Consent Log', roles: ['admin', 'admin_officer', 'master'] },
     ],
   },
   {
