@@ -1,9 +1,9 @@
 # Module Roadmap (Operator Navigation Map)
 
-Date: 2026-05-04 (verified against src App.tsx)
-Source of truth for routes: App router file src App.tsx (122 total routes as of Phase 4 completion)
+Date: 2026-05-06 (verified against src App.tsx)
+Source of truth for routes: App router file src App.tsx (includes Sprint 15 and Sprint 16 workforce routes)
 
-> **Last Verification**: 2026-05-04 — All 122 routes reviewed and role-gating validated. No changes since baseline a6e39a0f.
+> **Last Verification**: 2026-05-06 — Workforce route topology reviewed after Sprint 15/16 additions including on-call, callout, officer allowances, and travel allowances.
 
 ## How To Use
 
@@ -30,6 +30,12 @@ Source of truth for routes: App router file src App.tsx (122 total routes as of 
    - Role gate: admin, admin_officer, master
    - Related: /dispatch, /dispatch-wizard, /dispatch-monitor, /dispatched-jobs, /job-map, /roster
    - Related route gates: /dispatch, /dispatch-wizard, /dispatch-monitor, /dispatched-jobs, /roster = admin, admin_officer, master; /job-map = admin, admin_officer, master, officer
+
+4. Workforce pay and callout operations
+   - Primary: /on-call-periods
+   - Role gate: admin, admin_officer, master
+   - Related: /callout-shifts, /officer-allowances, /travel-allowances, /timesheets
+   - Related route gates: /callout-shifts, /officer-allowances, /travel-allowances, /timesheets = admin, admin_officer, master
 
 4. Field officer workflows
    - Primary: /field and /field-officer
@@ -122,6 +128,12 @@ Source of truth for routes: App router file src App.tsx (122 total routes as of 
    - Role gate: authenticated users (protected route)
    - Related: /radio/log, /radio/audit, /messages, /team-chat
    - Related route gates: /radio/log, /messages, /team-chat = authenticated users (protected route); /radio/audit = admin, admin_officer, master, grand_master
+
+4. Workforce allowance review drill-down
+   - Primary: /callout-shifts
+   - Role gate: admin, admin_officer, master
+   - Related: /travel-allowances?callout_shift_id=:id, /officer-allowances
+   - Related route gates: /travel-allowances and /officer-allowances = admin, admin_officer, master
 
 ## Executive and Governance Views
 

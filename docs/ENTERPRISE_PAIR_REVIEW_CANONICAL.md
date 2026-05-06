@@ -65,6 +65,44 @@ Primary manuals and standards reviewed:
 
 ## Current Cycle Snapshot (2026-05-06)
 
+Material changes since commit `59810a5c` (Sprint 13 radio surfaces merge on main) for PR #518 Sprint 16 workforce pay rollout:
+
+### Route and Module Topology Changes
+
+1. **Officer allowances administration surface added**
+   - New route: `/officer-allowances`
+   - Role gate: `admin`, `admin_officer`, `master`
+   - Purpose: allowance type CRUD plus officer allowance approval workflow
+2. **Travel allowances administration surface added**
+   - New route: `/travel-allowances`
+   - Role gate: `admin`, `admin_officer`, `master`
+   - Purpose: travel claim review, approval workflow, and manual claim entry
+3. **Callout-to-travel drill-down added**
+   - `CalloutShifts` now deep-links to `/travel-allowances?callout_shift_id=<id>`
+   - This is a route-topology and workflow-path change and is therefore recorded here and in `docs/MODULE_ROADMAP.md`
+4. **Admin navigation topology updated**
+   - Sidebar and Admin Portal gained Roster & Workforce entries for Officer Allowances and Travel Allowances
+   - Route manifest extended for the two new admin surfaces
+
+### Build and Governance Gate Impact
+
+1. **Doc-authority update required**
+   - Because `src/App.tsx` gained new admin routes and route-linked workflow behavior, canonical docs required refresh.
+2. **Build budget recalibrated**
+   - Total JS budget baseline increased from `7000` kB to `7100` kB.
+   - Rationale: Sprint 16 introduces two new lazy-loaded workforce administration surfaces and associated route wiring.
+   - Per-chunk budget remains unchanged at `550` kB, so the gate still constrains individual regressions.
+
+### Validation Evidence
+
+1. `bun run test:bob:governance`: pass
+2. `bun run lint`: pass
+3. `bun run build`: pass
+4. `DOC_AUTHORITY_STRICT=true bun run lint:doc-authority`: targeted rerun required after this doc update
+5. `node scripts/check-build-budgets.mjs`: targeted rerun required after budget recalibration
+
+---
+
 Material changes since commit `d3459ff5` (fix: resolve duplicate migration versions and workflow loop bug — PR #514):
 
 ### Schema / Migration Contract Changes
