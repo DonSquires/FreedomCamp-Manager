@@ -160,3 +160,43 @@ Operational impact:
 2. nzscv_monitor remains constrained to monitoring and account areas.
 3. client persona roles remain constrained to client portal and account areas.
 4. grand_master default landing remains /platform.
+
+## Sprint 18 Addendum (2026-05-06) — B-64/B-65/B-66
+
+New routes added:
+
+- `/health-safety-reports` — Health & Safety Reports (B-64); role gate: admin, admin_officer, master; nav group: Records
+- `/welfare-checkins` — Welfare Check-in Log (B-65); role gate: admin, admin_officer, master; nav group: Specialist Portals
+- `/parking-permits` — Parking Permit Manager (B-66); role gate: admin, admin_officer, master; nav group: Specialist Portals
+
+## Sprint 19 Addendum (2026-05-06) — B-67/B-68/B-69
+
+New routes added:
+
+- `/roster-shifts` — Roster Shift Log (B-67); role gate: admin, admin_officer, master; nav group: Roster & Workforce; table: roster_shifts
+- `/noise-notices` — Noise Notice Log (B-68); role gate: admin, admin_officer, master; nav group: Operations; tables: noise_notices + noise_seizures (tabbed)
+- `/site-incidents` — Site Incident Log (B-69); role gate: admin, admin_officer, master; nav group: Operations; table: site_incidents
+
+## Sprint 20 Addendum (2026-05-06) — B-70/B-71/B-72
+
+New routes added:
+
+- `/person-interactions` — Person Interaction Log (B-70); role gate: admin, admin_officer, master; nav group: Operations; table: person_interactions
+- `/plate-scans-log` — Plate Scan Log (B-71); role gate: admin, admin_officer, master; nav group: Management; table: plate_scans
+- `/dispatch-events` — Dispatch Event Log (B-72); role gate: admin, admin_officer, master; nav group: Live Ops; table: dispatch_events
+
+## Sprint 21 Addendum (2026-05-06) — B-73/B-74/B-75
+
+New routes added:
+
+- `/notices-to-vacate` — Notice to Vacate Log (B-73); role gate: admin, admin_officer, master; nav group: Operations; table: notices_to_vacate; status workflow: pending→issued→delivered→complied/escalated
+- `/contractor-manager` — Contractor Manager (B-74); role gate: admin, admin_officer, master; nav group: Admin; tables: contractor_profiles + contractor_documents (tabbed)
+- `/vehicle-discrepancies` — Vehicle Discrepancy Log (B-75); role gate: admin, admin_officer, master; nav group: Management; table: vehicle_discrepancies; mark-reviewed action
+
+## Sprint 22 Addendum (2026-05-06) — B-76/B-77/B-78
+
+New routes added:
+
+- `/drift-events` — Drift Event Log (B-76); role gate: admin, admin_officer, master; nav group: Management; table: drift_events; status/event_type/month filters; mark-reviewed
+- `/investigation-job-config` — Investigation Job Config (B-77); role gate: admin, master; nav group: Records; tables: investigation_job_templates + investigation_job_types (tabbed); activate/deactivate; create job type dialog
+- `/zone-legal-config` — Zone Legal Config (B-78); role gate: admin, master; nav group: Management; table: zone_legal_config; split list + detail panel; enforcement / stay limits / org address / payment info
