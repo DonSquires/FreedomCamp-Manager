@@ -46,6 +46,7 @@ import {
   Lock,
   Map,
   MapPin,
+  Mic,
   Navigation,
   ParkingSquare,
   Package,
@@ -1412,6 +1413,28 @@ export default function AdminPortal() {
                       <Icon className={`h-5 w-5 ${color}`} />
                       <span className={moduleTileLabelClass}>{label}</span>
                       {scopeHint && <span className="text-[10px] text-muted-foreground leading-tight">{scopeHint}</span>}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Radio & Communications */}
+              <div className="rounded-xl border border-sky-100 dark:border-sky-900/40 bg-sky-50/40 dark:bg-sky-950/10 p-3">
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
+                  <Radio className="h-3 w-3 text-sky-500" /> Radio & Communications
+                </p>
+                <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-6 gap-2">
+                  {[
+                    { path: '/radio',               label: 'Radio',               Icon: Radio,  color: 'text-sky-600',    bg: 'bg-sky-50 dark:bg-sky-900/20' },
+                    { path: '/radio-transmissions', label: 'Transmissions Log',   Icon: Mic,    color: 'text-indigo-600', bg: 'bg-indigo-50 dark:bg-indigo-900/20' },
+                    { path: '/voice-profiles',      label: 'Voice Profiles',      Icon: Mic,    color: 'text-violet-600', bg: 'bg-violet-50 dark:bg-violet-900/20' },
+                    { path: '/radio/audit',         label: 'Radio Audit',         Icon: Shield, color: 'text-teal-600',   bg: 'bg-teal-50 dark:bg-teal-900/20' },
+                    { path: '/lmr-bridge',          label: 'LMR Bridge',          Icon: Radio,  color: 'text-cyan-600',   bg: 'bg-cyan-50 dark:bg-cyan-900/20' },
+                    { path: '/radio/log',           label: 'PTT Log',             Icon: Radio,  color: 'text-blue-600',   bg: 'bg-blue-50 dark:bg-blue-900/20' },
+                  ].map(({ path, label, Icon, color, bg }) => (
+                    <button key={path} onClick={() => navigate(path)} aria-label={`Open ${label}`} className={`${moduleTileClass} ${bg}`}>
+                      <Icon className={`h-5 w-5 ${color}`} />
+                      <span className={moduleTileLabelClass}>{label}</span>
                     </button>
                   ))}
                 </div>
