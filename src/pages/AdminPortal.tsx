@@ -1235,7 +1235,7 @@ export default function AdminPortal() {
         </section>
 
         {/* ── SECONDARY KPIs — attention items ─────────────────────────────────────── */}
-        <section aria-label="Secondary operational KPIs" className="grid gap-2.5 grid-cols-2 sm:grid-cols-4 xl:grid-cols-9">
+        <section aria-label="Secondary operational KPIs" className="grid gap-2.5 grid-cols-2 sm:grid-cols-4 xl:grid-cols-7 2xl:grid-cols-9">
           {secondaryKPIs.map((kpi) => {
             const Icon = kpi.icon
             return (

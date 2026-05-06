@@ -227,9 +227,11 @@ export default function RadioTransmissionsLog() {
 
   // Client-side filters
   const filtered = useMemo(() => {
+    const dateFromBoundary = dateFrom ? new Date(dateFrom + 'T00:00:00Z') : null
+    const dateToBoundary   = dateTo   ? new Date(dateTo   + 'T23:59:59Z') : null
     return transmissions.filter((t) => {
-      if (dateFrom && new Date(t.started_at) < new Date(dateFrom + 'T00:00:00Z')) return false
-      if (dateTo && new Date(t.started_at) > new Date(dateTo + 'T23:59:59Z')) return false
+      if (dateFromBoundary && new Date(t.started_at) < dateFromBoundary) return false
+      if (dateToBoundary   && new Date(t.started_at) > dateToBoundary)   return false
       if (channelTypeFilter !== 'all' && t.channel_type !== channelTypeFilter) return false
       if (emergencyFilter === 'yes' && !t.is_emergency) return false
       if (emergencyFilter === 'no' && t.is_emergency) return false
