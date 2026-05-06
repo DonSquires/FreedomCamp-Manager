@@ -168,3 +168,11 @@ New routes added:
 - `/health-safety-reports` — Health & Safety Reports (B-64); role gate: admin, admin_officer, master; nav group: Records
 - `/welfare-checkins` — Welfare Check-in Log (B-65); role gate: admin, admin_officer, master; nav group: Specialist Portals
 - `/parking-permits` — Parking Permit Manager (B-66); role gate: admin, admin_officer, master; nav group: Specialist Portals
+
+## Sprint 19 Addendum (2026-05-06) — B-67/B-68/B-69
+
+New routes added:
+
+- `/roster-shifts` — Roster Shift Log (B-67); role gate: admin, admin_officer, master; nav group: Roster & Workforce; table: roster_shifts
+- `/noise-notices` — Noise Notice Log (B-68); role gate: admin, admin_officer, master; nav group: Operations; tables: noise_notices + noise_seizures (tabbed)
+- `/site-incidents` — Site Incident Log (B-69); role gate: admin, admin_officer, master; nav group: Operations; table: site_incidents

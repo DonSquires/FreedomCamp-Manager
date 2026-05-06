@@ -69,6 +69,7 @@ import {
   Package2,
   HeartPulse,
   ShieldAlert,
+  CalendarRange,
 } from 'lucide-react'
 
 type DrillConfig = {
@@ -433,7 +434,27 @@ export default function AdminPortal() {
         .eq('is_active', true)
       if (effectiveOrganizationId) activePermitsQ = activePermitsQ.eq('organization_id', effectiveOrganizationId)
       const { count: activePermitsCount, error: permitsErr } = await activePermitsQ
-      if (permitsErr) diagnostics.push(`active_parking_permits: ${permitsErr.message || 'unknown error'}`)      // Count non-compliant observations where the plate belongs to a homeless vehicle.
+      if (permitsErr) diagnostics.push(`active_parking_permits: ${permitsErr.message || 'unknown error'}`)
+
+      // Open site incidents (B-69)
+      let openSiteIncidentsQ = supabase
+        .from('site_incidents')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'open')
+      if (effectiveOrganizationId) openSiteIncidentsQ = openSiteIncidentsQ.eq('organization_id', effectiveOrganizationId)
+      const { count: openSiteIncidents, error: siteIncErr } = await openSiteIncidentsQ
+      if (siteIncErr) diagnostics.push(`open_site_incidents: ${siteIncErr.message || 'unknown error'}`)
+
+      // Active noise notices (B-68)
+      let activeNoiseNoticesQ = supabase
+        .from('noise_notices')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'active')
+      if (effectiveOrganizationId) activeNoiseNoticesQ = activeNoiseNoticesQ.eq('organization_id', effectiveOrganizationId)
+      const { count: activeNoiseNotices, error: noiseNoticeErr } = await activeNoiseNoticesQ
+      if (noiseNoticeErr) diagnostics.push(`active_noise_notices: ${noiseNoticeErr.message || 'unknown error'}`)
+
+      // Count non-compliant observations where the plate belongs to a homeless vehicle.
       // This is the exact number of "breaches" that are actually FC Act exempt.
       let homelessExemptBreachCount = 0
       const homelessPlateList = Array.from(homelessExemptPlates)
@@ -470,6 +491,8 @@ export default function AdminPortal() {
         radioTransmissionsToday:   radioTransmissionsToday    ?? 0,
         openHsReports:             openHsReports              ?? 0,
         activePermitsCount:        activePermitsCount         ?? 0,
+        openSiteIncidents:         openSiteIncidents          ?? 0,
+        activeNoiseNotices:        activeNoiseNotices         ?? 0,
         diagnostics,
       }
     },
@@ -1464,6 +1487,8 @@ export default function AdminPortal() {
                     { path: '/parking-officer', label: 'Parking',      Icon: ParkingSquare, color: 'text-orange-600', bg: 'bg-orange-50 dark:bg-orange-900/20', scopeHint: 'Zone-based' },
                     { path: '/parking-permits', label: 'Permits',       Icon: ParkingSquare, color: 'text-blue-600',   bg: 'bg-blue-50 dark:bg-blue-900/20',    badge: (data as any)?.activePermitsCount > 0 ? (data as any)?.activePermitsCount : undefined },
                     { path: '/noise-officer', label: 'Noise Control', Icon: Volume2,       color: 'text-yellow-700', bg: 'bg-yellow-50 dark:bg-yellow-900/20', scopeHint: 'Jurisdiction' },
+                    { path: '/noise-notices', label: 'Noise Notices', Icon: Volume2,       color: 'text-yellow-600', bg: 'bg-yellow-50 dark:bg-yellow-900/20', badge: (data as any)?.activeNoiseNotices > 0 ? (data as any)?.activeNoiseNotices : undefined },
+                    { path: '/site-incidents',label: 'Site Incidents',Icon: Building2,     color: 'text-indigo-600', bg: 'bg-indigo-50 dark:bg-indigo-900/20', badge: (data as any)?.openSiteIncidents > 0 ? (data as any)?.openSiteIncidents : undefined },
                     { path: '/biosecurity-officer', label: 'Biosecurity', Icon: Search,    color: 'text-emerald-700', bg: 'bg-emerald-50 dark:bg-emerald-900/20', scopeHint: 'Jurisdiction' },
                     { path: '/smoke-officer', label: 'Smoke (OOH)', Icon: AlertTriangle, color: 'text-amber-700', bg: 'bg-amber-50 dark:bg-amber-900/20', scopeHint: 'Jurisdiction' },
                     { path: '/ems',          label: 'EMS',           Icon: Zap,           color: 'text-red-700',    bg: 'bg-red-50 dark:bg-red-900/20' },
@@ -1513,6 +1538,7 @@ export default function AdminPortal() {
                 <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-6 gap-2">
                   {[
                     { path: '/roster',            label: 'Roster Planner',   Icon: CalendarDays,  color: 'text-violet-600', bg: 'bg-violet-50 dark:bg-violet-900/20' },
+                    { path: '/roster-shifts',     label: 'Shift Log',        Icon: CalendarRange, color: 'text-violet-700', bg: 'bg-violet-50 dark:bg-violet-900/20' },
                     { path: '/timesheets',        label: 'Timesheets',       Icon: Clock,         color: 'text-slate-600',  bg: 'bg-slate-50 dark:bg-slate-900/30' },
                     { path: '/open-shifts',       label: 'Open Shifts',      Icon: CalendarCheck2,color: 'text-green-600',  bg: 'bg-green-50 dark:bg-green-900/20' },
                     { path: '/officer-skills',    label: 'Skills & Licences',Icon: GraduationCap, color: 'text-amber-600',  bg: 'bg-amber-50 dark:bg-amber-900/20' },

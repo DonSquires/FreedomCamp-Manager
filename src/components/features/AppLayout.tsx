@@ -202,6 +202,8 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/patrol-checkpoints', icon: ScanLine, label: 'Checkpoints', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/patrol-schedule', icon: CalendarDays, label: 'Patrol Schedule', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/patrol-kpis', icon: TrendingUp, label: 'Patrol KPIs', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/noise-notices', icon: Volume2, label: 'Noise Notices', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/site-incidents', icon: Building2, label: 'Site Incidents', roles: ['admin', 'admin_officer', 'master'] },
     ],
   },
   {
@@ -297,6 +299,7 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
     icon: CalendarRange,
     items: [
       { path: '/roster', icon: CalendarRange, label: 'Roster Planner', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/roster-shifts', icon: CalendarRange, label: 'Roster Shift Log', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/open-shifts', icon: CalendarCheck2, label: 'Open Shifts', roles: ['admin', 'admin_officer', 'master', 'officer'] },
       { path: '/availability', icon: CalendarDays, label: 'My Availability', roles: ['admin', 'admin_officer', 'master', 'officer'] },
       { path: '/officer-skills', icon: GraduationCap, label: 'Skills & Licences', roles: ['admin', 'admin_officer', 'master'] },
