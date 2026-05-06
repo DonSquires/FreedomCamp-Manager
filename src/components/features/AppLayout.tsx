@@ -112,6 +112,8 @@ import {
   PhoneCall,
   BadgeDollarSign,
   BadgeCheck,
+  BellRing,
+  Bug,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { supabase } from '@/lib/supabase'
@@ -213,6 +215,8 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/officer-performance', icon: UserCheck, label: 'Officer Performance', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/health-safety-reports', icon: ShieldAlert, label: 'Health & Safety Reports', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/welfare-checkins', icon: HeartPulse, label: 'Welfare Check-ins', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/patrol-route-log', icon: Navigation2, label: 'Patrol Route Log', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/alarm-events-log', icon: BellRing, label: 'Alarm Event Log', roles: ['admin', 'admin_officer', 'master'] },
     ],
   },
   {
@@ -272,6 +276,7 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/investigation-job-config', icon: Settings, label: 'Investigation Job Config', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/zone-legal-config', icon: FileText, label: 'Zone Legal Config', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/flagged-vehicles-manager', icon: AlertTriangle, label: 'Flagged Vehicles', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/bug-reports-log', icon: Bug, label: 'Bug Report Log', roles: ['admin', 'master'] },
     ],
   },
   {

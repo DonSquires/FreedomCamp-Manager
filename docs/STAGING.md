@@ -3259,3 +3259,46 @@ The web SPA delivers SOS via the existing `officer_welfare_alerts` table + `send
 - `bun run build` → PASS
 
 **Next session:** Sprint 28 — B-94 PatrolRouteLog, B-95 AlarmEventLog, B-96 BugReportLog (or equivalent backlog items).
+
+---
+
+## Phase 5 — Sprint 28 (B-94 / B-95 / B-96)
+
+### Changes
+
+| File | Change |
+|---|---|
+| `src/pages/PatrolRouteLog.tsx` | New — B-94: Log viewer for patrols; KPIs; status/priority/date filters; breaches/vehicles/duration columns; expandable scheduled/actual times; fully typed |
+| `src/pages/AlarmEventLog.tsx` | New — B-95: Log viewer for alarm_events; KPIs (Total/Open/Acknowledged/Critical+High); alarm_type/severity/status/date filters; Acknowledge action; expandable raw_payload JSON; fully typed |
+| `src/pages/BugReportLog.tsx` | New — B-96: Log viewer for bug_reports; KPIs (Total/Open/AI Analyzed/Needs Review); issue_type/severity/status/date filters; Resolve action; expandable description+steps+AI fix; fully typed |
+| `src/App.tsx` | Sprint 28 lazy imports + 3 new routes |
+| `src/navigation/routeManifest.ts` | 3 new entries: Operations (B-94/B-95), Management (B-96) |
+| `src/components/features/AppLayout.tsx` | Added BellRing+Bug icons; patrol-route-log + alarm-events-log under Operations; bug-reports-log under Management |
+| `src/pages/AdminPortal.tsx` | Added BellRing+Bug icons; patrol-route-log + alarm-events-log tiles (Patrol section); bug-reports-log tile (Admin/System section) |
+| `docs/MODULE_ROADMAP.md` | Route count 162 → 165; Sprint 28 addendum |
+
+### Sprint 28 Board
+
+| ID | Item | Status |
+|---|---|---|
+| B-94 | Patrol Route Log | ✅ |
+| B-95 | Alarm Event Log | ✅ |
+| B-96 | Bug Report Log | ✅ |
+
+**Next sprint candidates:**
+- B-97: `RadioTransmissionLog` — dedicated log for radio_transmissions with officer/channel filters + TTS link
+- B-98: `OpenShiftManager` — open_shifts management; publish/unpublish + officer assignment
+- B-99: `NoiseAssessmentLog` — log viewer for noise_assessments with dB levels and AI confidence
+
+---
+
+## Session Snapshot (Sprint 28 — 2026-05-06)
+
+- Timestamp (UTC): 2026-05-06 13:28 UTC
+- Current branch: copilot/review-doc-files-staging-instructions-again
+
+**Validation:**
+- `bun run lint` → PASS
+- `bun run build` → PASS
+
+**Next session:** Sprint 29 — B-97 RadioTransmissionLog, B-98 OpenShiftManager, B-99 NoiseAssessmentLog.

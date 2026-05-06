@@ -77,6 +77,8 @@ import {
   Flame,
   HeartPulse,
   BadgeCheck,
+  BellRing,
+  Bug,
 } from 'lucide-react'
 
 type DrillConfig = {
@@ -1375,6 +1377,8 @@ export default function AdminPortal() {
                     { path: '/patrol-kpis',        label: 'Patrol KPIs',     Icon: TrendingUp,    color: 'text-indigo-600', bg: 'bg-indigo-50 dark:bg-indigo-900/20' },
                     { path: '/patrol-checkpoints', label: 'Checkpoints',     Icon: ScanLine,      color: 'text-teal-600',   bg: 'bg-teal-50 dark:bg-teal-900/20' },
                     { path: '/patrol-events',      label: 'Event Log',       Icon: Route,         color: 'text-slate-600',  bg: 'bg-slate-50 dark:bg-slate-900/30' },
+                    { path: '/patrol-route-log',   label: 'Route Log',       Icon: Navigation,    color: 'text-teal-600',   bg: 'bg-teal-50 dark:bg-teal-900/20' },
+                    { path: '/alarm-events-log',   label: 'Alarm Events',    Icon: BellRing,      color: 'text-red-600',    bg: 'bg-red-50 dark:bg-red-900/20' },
                     { path: '/officer-performance',label: 'Performance',     Icon: UserCheck,     color: 'text-blue-600',   bg: 'bg-blue-50 dark:bg-blue-900/20' },
                   ].map(({ path, label, Icon, color, bg, badge }) => (
                     <button key={path} onClick={() => navigate(path)} aria-label={`Open ${label}`} className={`${moduleTileClass} ${bg}`}>
@@ -1544,6 +1548,7 @@ export default function AdminPortal() {
                     { path: '/compliance-analytics', label: 'Compliance Analytics',Icon: PieChart,      color: 'text-blue-600',   bg: 'bg-blue-50 dark:bg-blue-900/20' },
                     { path: '/observations-report',  label: 'Obs. Report',         Icon: LayoutGrid,    color: 'text-indigo-600', bg: 'bg-indigo-50 dark:bg-indigo-900/20' },
                     { path: '/audit-log',            label: 'Audit Log',           Icon: ScrollText,    color: 'text-gray-600',   bg: 'bg-gray-100 dark:bg-gray-800/30' },
+                    { path: '/bug-reports-log',      label: 'Bug Reports',          Icon: Bug,           color: 'text-orange-600', bg: 'bg-orange-50 dark:bg-orange-900/20' },
                     { path: '/users',                label: 'Users',               Icon: Users,         color: 'text-slate-600',  bg: 'bg-slate-50 dark:bg-slate-900/30' },
                   ].map(({ path, label, Icon, color, bg }) => (
                     <button key={path} onClick={() => navigate(path)} aria-label={`Open ${label}`} className={`${moduleTileClass} ${bg}`}>

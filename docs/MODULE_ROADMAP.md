@@ -1,9 +1,9 @@
 # Module Roadmap (Operator Navigation Map)
 
 Date: 2026-05-06 (verified against src App.tsx)
-Source of truth for routes: App router file src App.tsx (162 total routes as of Sprint 27 completion)
+Source of truth for routes: App router file src App.tsx (165 total routes as of Sprint 28 completion)
 
-> **Last Verification**: 2026-05-06 — All 162 routes reviewed and role-gating validated. Sprints 18–27 (B-64–B-93) documentation complete.
+> **Last Verification**: 2026-05-06 — All 165 routes reviewed and role-gating validated. Sprints 18–28 (B-64–B-96) documentation complete.
 
 ## How To Use
 
@@ -407,3 +407,22 @@ New admin routes added in Sprint 27 (B-91, B-92, B-93):
    - Route: /noise-jobs-log
    - Role gate: admin, admin_officer, master
    - Log viewer for noise_jobs; KPI cards (Total / Open / Completed / High Priority); status/priority/noise_type/date filters; job_number + address + outcome; expandable complaint_description + outcome_notes + GPS + safety_notes; reads noise_jobs (fully typed)
+
+## Sprint 28 Route Addendum (2026-05-06)
+
+New admin routes added in Sprint 28 (B-94, B-95, B-96):
+
+1. Patrol Route Log (B-94)
+   - Route: /patrol-route-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for patrols table; KPIs (Total / Active / Completed / Avg Breaches Found); status/priority/date filters; breaches_found + vehicles_checked + duration_minutes columns; expandable description, notes, scheduled/actual times, accepted status; reads patrols (fully typed)
+
+2. Alarm Event Log (B-95)
+   - Route: /alarm-events-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for alarm_events; KPIs (Total / Open / Acknowledged / Critical+High); alarm_type/severity/status/date filters; Acknowledge action; expandable notes + raw_payload JSON; reads alarm_events (fully typed)
+
+3. Bug Report Log (B-96)
+   - Route: /bug-reports-log
+   - Role gate: admin, master
+   - Viewer for bug_reports; KPIs (Total / Open / AI Analyzed / Needs Human Review); issue_type/severity/status/date filters; AI analyzed icon + BrainCircuit; Mark Resolved action; expandable description, steps, expected/actual, ai_suggested_fix, resolution_notes; reads bug_reports (fully typed)
