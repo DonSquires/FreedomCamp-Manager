@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import base64
+import hashlib
 import json
 import logging
 import os
+import re
 import time
 from collections import defaultdict
 from typing import Any
@@ -21,7 +23,14 @@ REQUEST_TIMEOUT_SECONDS = float(os.getenv("SPEECH_ROUTER_TIMEOUT_SECONDS", "45")
 MAX_AUDIO_BYTES = int(os.getenv("SPEECH_ROUTER_MAX_AUDIO_BYTES", str(10 * 1024 * 1024)))  # 10 MB
 MAX_TTS_CHARS = int(os.getenv("SPEECH_ROUTER_MAX_TTS_CHARS", "2000"))
 INTENT_MODEL = os.getenv("INTENT_MODEL", "llama3.1:8b-instruct-q4_K_M")
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 ALLOW_OPENAI_RUNTIME = os.getenv("ALLOW_OPENAI_RUNTIME", "false").strip().lower() == "true"
+OPENAI_REDACTION_REQUIRED = os.getenv("OPENAI_REDACTION_REQUIRED", "true").strip().lower() == "true"
+OPENAI_ALLOWED_PURPOSES = {
+    p.strip().lower()
+    for p in os.getenv("OPENAI_ALLOWED_PURPOSES", "research,training").split(",")
+    if p.strip()
+}
 BLOCKED_OPENAI_HOSTS = ("api.openai.com", "openai.com")
 
 # ---------------------------------------------------------------------------
@@ -132,6 +141,87 @@ def _assert_runtime_url_policy(name: str, url: str) -> None:
         )
 
 
+def _is_openai_url(url: str) -> bool:
+    return any(host in url.lower() for host in BLOCKED_OPENAI_HOSTS)
+
+
+def _pseudonymize(value: str | None) -> str:
+    if not value:
+        return ""
+    digest = hashlib.sha256(value.encode("utf-8")).hexdigest()[:12]
+    return f"id_{digest}"
+
+
+def _redact_text(value: str) -> str:
+    redacted = value
+    redacted = re.sub(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}", "[REDACTED_EMAIL]", redacted)
+    redacted = re.sub(r"(?:(?:\+?64|0)[\s-]?(?:2\d|[34679]))[\d\s-]{5,}", "[REDACTED_PHONE]", redacted)
+    redacted = re.sub(r"\b(?:\d{1,2}[/-]\d{1,2}[/-]\d{2,4}|\d{4}-\d{2}-\d{2})\b", "[REDACTED_DATE]", redacted)
+    redacted = re.sub(r"\b\d{7,}\b", "[REDACTED_ID]", redacted)
+    redacted = re.sub(
+        r"\b\d{1,4}\s+[A-Za-z0-9\s]+\s(?:Street|St|Road|Rd|Avenue|Ave|Drive|Dr|Lane|Ln|Way)\b",
+        "[REDACTED_ADDRESS]",
+        redacted,
+        flags=re.IGNORECASE,
+    )
+    return redacted
+
+
+def _redact_obj(value: Any) -> Any:
+    if isinstance(value, str):
+        return _redact_text(value)
+    if isinstance(value, list):
+        return [_redact_obj(v) for v in value]
+    if isinstance(value, dict):
+        redacted: dict[str, Any] = {}
+        for k, v in value.items():
+            lk = str(k).lower()
+            if lk in {"name", "full_name", "email", "phone", "address", "dob", "date_of_birth", "document_number"}:
+                redacted[k] = f"[REDACTED_{lk.upper()}]"
+            else:
+                redacted[k] = _redact_obj(v)
+        return redacted
+    return value
+
+
+def _enforce_openai_purpose(payload: SpeechToIntentRequest) -> str:
+    purpose = str((payload.context or {}).get("openai_purpose") or "").strip().lower()
+    if purpose not in OPENAI_ALLOWED_PURPOSES:
+        raise HTTPException(
+            status_code=403,
+            detail="OpenAI runtime requires context.openai_purpose with approved value: research or training",
+        )
+    return purpose
+
+
+def _openai_messages(transcript: str, payload: SpeechToIntentRequest, purpose: str) -> list[dict[str, str]]:
+    return [
+        {
+            "role": "system",
+            "content": (
+                "You are a research/training-only intent classifier for patrol voice commands. "
+                "Return strict JSON with keys: intent, confidence, needs_confirmation, summary, entities."
+            ),
+        },
+        {
+            "role": "user",
+            "content": json.dumps(
+                {
+                    "purpose": purpose,
+                    "language": payload.language,
+                    "wake_phrase": _redact_text(payload.wake_phrase or ""),
+                    "org_ref": _pseudonymize(payload.org_id),
+                    "user_ref": _pseudonymize(payload.user_id),
+                    "context": _redact_obj(payload.context or {}),
+                    "transcript": transcript,
+                },
+                ensure_ascii=True,
+                separators=(",", ":"),
+            ),
+        },
+    ]
+
+
 def _intent_prompt(transcript: str, payload: SpeechToIntentRequest) -> str:
     # Keep the schema minimal and deterministic for easier downstream policy checks.
     return (
@@ -154,6 +244,11 @@ def _extract_intent(intent_result: dict[str, Any]) -> dict[str, Any]:
 
     # Ollama /api/generate format commonly returns {"response": "..."}
     response_text = str(intent_result.get("response") or "").strip()
+    if not response_text and isinstance(intent_result.get("choices"), list) and intent_result["choices"]:
+        choice = intent_result["choices"][0] or {}
+        message = choice.get("message") if isinstance(choice, dict) else None
+        if isinstance(message, dict):
+            response_text = str(message.get("content") or "").strip()
     if not response_text and isinstance(intent_result.get("message"), dict):
         response_text = str(intent_result["message"].get("content") or "").strip()
 
@@ -223,7 +318,10 @@ async def health() -> dict[str, Any]:
         "auth": "enabled" if _ROUTER_API_KEY else "disabled",
         "egress_policy": {
             "openai_runtime": "allowed" if ALLOW_OPENAI_RUNTIME else "blocked",
+            "openai_redaction_required": OPENAI_REDACTION_REQUIRED,
+            "openai_allowed_purposes": sorted(OPENAI_ALLOWED_PURPOSES),
             "intent_model": INTENT_MODEL,
+            "openai_model": OPENAI_MODEL,
         },
         "stack": {
             "wakeword": os.getenv("WAKEWORD_PROVIDER", "sherpa-onnx/openwakeword"),
@@ -266,15 +364,28 @@ async def speech_to_intent(
     if not transcript:
         raise HTTPException(status_code=502, detail="STT provider returned empty transcript")
 
-    intent_result = await _post_json(
-        intent_url,
-        {
+    openai_intent = _is_openai_url(intent_url)
+    if openai_intent:
+        purpose = _enforce_openai_purpose(payload)
+        openai_transcript = _redact_text(transcript) if OPENAI_REDACTION_REQUIRED else transcript
+        intent_payload: dict[str, Any] = {
+            "model": OPENAI_MODEL,
+            "messages": _openai_messages(openai_transcript, payload, purpose),
+            "temperature": 0.1,
+            "response_format": {"type": "json_object"},
+        }
+    else:
+        intent_payload = {
             "model": INTENT_MODEL,
             "prompt": _intent_prompt(transcript, payload),
             "stream": False,
             "format": "json",
-        },
-        headers=intent_headers,
+        }
+
+    intent_result = await _post_json(
+        intent_url,
+        intent_payload,
+        headers=({**intent_headers, "X-Data-Redacted": "true"} if openai_intent and OPENAI_REDACTION_REQUIRED else intent_headers),
     )
     intent = _extract_intent(intent_result)
 

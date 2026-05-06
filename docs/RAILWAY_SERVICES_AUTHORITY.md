@@ -11,14 +11,14 @@ Railway hosts two active production services: the Proxy and the Ollama inference
 
 > Manages vehicle registration lookups.
 
-### Active Service: Ollama (`ollama-production-a142.up.railway.app`)
+### Active Service: Ollama (`ollama-production-3ab0.up.railway.app`)
 
 | Property | Value |
 |---|---|
 | **Owns** | LLM inference for Bob chat and speech intent |
 | **Runtime** | Ollama v0.20.2, CPU, 22 GiB RAM, us-west2 |
 | **Used by** | `runpod-worker/handler.py` via `OLLAMA_EXTERNAL_URL`; speech-router `INTENT_URL` |
-| **Public URL** | `https://ollama-production-a142.up.railway.app` |
+| **Public URL** | `https://ollama-production-3ab0.up.railway.app` |
 
 > This is a live production service. Do not retire without a validated replacement.
 

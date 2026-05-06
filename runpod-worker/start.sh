@@ -19,7 +19,7 @@ ALLOW_LOCAL_OLLAMA="${RUNPOD_ALLOW_LOCAL_OLLAMA:-false}"
 # Determine if we're using external or local Ollama.
 # Serverless production is external-Ollama-first. Local Ollama must be
 # explicitly re-enabled with RUNPOD_ALLOW_LOCAL_OLLAMA=true.
-# Known external Ollama: https://ollama-production-a142.up.railway.app (Railway, us-west2)
+# Known external Ollama: https://ollama-production-3ab0.up.railway.app (Railway, us-west2)
 # Set OLLAMA_EXTERNAL_URL to this value on the RunPod endpoint env.
 OLLAMA_EXTERNAL_URL="${OLLAMA_EXTERNAL_URL:-}"
 OLLAMA_BASE_URL="${OLLAMA_BASE_URL:-}"

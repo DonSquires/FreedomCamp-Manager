@@ -9,7 +9,7 @@ name: Ops – RunPod Set Endpoint Env Vars
 #   RUNPOD_API_KEY         — RunPod personal API key with endpoint admin access
 #   RUNPOD_ENDPOINT_ID     — Serverless endpoint ID (e.g. n0bp1ifmq01cx2)
 #   OLLAMA_EXTERNAL_URL    — Full HTTPS URL for the external Ollama service
-#                            (e.g. https://ollama-production-a142.up.railway.app)
+#                            (e.g. https://ollama-production-3ab0.up.railway.app)
 #
 # The workflow sets OLLAMA_EXTERNAL_URL on the endpoint so workers immediately
 # resolve the correct Ollama instance without a new image build.
