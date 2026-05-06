@@ -33,6 +33,7 @@ import {
   Timer,
   TrendingUp,
   X,
+  Car,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -152,7 +153,7 @@ function officerName(c: CalloutShift) {
 
 // ─── Expandable Detail Panel ────────────────────────────────────────────────────
 
-function DetailPanel({ callout }: { callout: CalloutShift }) {
+function DetailPanel({ callout, onViewTravel }: { callout: CalloutShift; onViewTravel: (id: string) => void }) {
   const steps = [
     { label: 'Call Received', ts: callout.callout_received_at },
     { label: 'Departed',      ts: callout.departed_at },
@@ -255,6 +256,13 @@ function DetailPanel({ callout }: { callout: CalloutShift }) {
             <p>{callout.admin_notes}</p>
           </div>
         )}
+        <div className="mt-4">
+          <Button variant="outline" size="sm" className="h-7 gap-1.5 text-xs"
+            onClick={() => onViewTravel(callout.id)}>
+            <Car className="h-3.5 w-3.5 text-violet-500" />
+            View Travel Claims
+          </Button>
+        </div>
       </div>
     </div>
   )
@@ -594,7 +602,7 @@ export default function CalloutShifts() {
                       {isExpanded && (
                         <TableRow key={`${callout.id}-detail`}>
                           <TableCell colSpan={8} className="p-0">
-                            <DetailPanel callout={callout} />
+                            <DetailPanel callout={callout} onViewTravel={(id) => navigate(`/travel-allowances?callout_shift_id=${id}`)} />
                           </TableCell>
                         </TableRow>
                       )}

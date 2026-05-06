@@ -70,6 +70,7 @@ import {
   Package2,
   CalendarClock,
   Phone,
+  BadgeDollarSign,
 } from 'lucide-react'
 
 type DrillConfig = {
@@ -1511,6 +1512,8 @@ export default function AdminPortal() {
                     { path: '/open-shifts',       label: 'Open Shifts',      Icon: CalendarCheck2,color: 'text-green-600',  bg: 'bg-green-50 dark:bg-green-900/20' },
                     { path: '/on-call-periods',   label: 'On-Call Periods',  Icon: CalendarClock, color: 'text-sky-600',    bg: 'bg-sky-50 dark:bg-sky-900/20' },
                     { path: '/callout-shifts',    label: 'Callout Shifts',   Icon: Phone,         color: 'text-amber-700',  bg: 'bg-amber-50 dark:bg-amber-900/20' },
+                    { path: '/officer-allowances',label: 'Allowances',       Icon: BadgeDollarSign,color: 'text-emerald-600',bg: 'bg-emerald-50 dark:bg-emerald-900/20' },
+                    { path: '/travel-allowances', label: 'Travel Claims',    Icon: Car,           color: 'text-violet-600', bg: 'bg-violet-50 dark:bg-violet-900/20' },
                     { path: '/officer-skills',    label: 'Skills & Licences',Icon: GraduationCap, color: 'text-amber-600',  bg: 'bg-amber-50 dark:bg-amber-900/20' },
                     { path: '/availability',      label: 'Availability',     Icon: CalendarDays,  color: 'text-blue-600',   bg: 'bg-blue-50 dark:bg-blue-900/20' },
                     { path: '/asset-management',  label: 'Assets',           Icon: Package2,      color: 'text-orange-600', bg: 'bg-orange-50 dark:bg-orange-900/20' },

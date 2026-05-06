@@ -153,6 +153,8 @@ const AccessPermissions = lazy(() => import('@/pages/AccessPermissions'))
 const CanonicalPersonViewer = lazy(() => import('@/pages/CanonicalPersonViewer'))
 const OnCallPeriods = lazy(() => import('@/pages/OnCallPeriods'))
 const CalloutShifts = lazy(() => import('@/pages/CalloutShifts'))
+const OfficerAllowances = lazy(() => import('@/pages/OfficerAllowances'))
+const TravelAllowances = lazy(() => import('@/pages/TravelAllowances'))
 const MessagingPage = lazy(() => import('@/modules/messaging'))
 const IntelApprovalQueue = lazy(() => import('@/pages/IntelApprovalQueue'))
 const BobIntakeQueue = lazy(() => import('@/pages/BobIntakeQueue'))
@@ -2095,6 +2097,26 @@ export default function App() {
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
                   <CalloutShifts />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/officer-allowances"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <OfficerAllowances />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/travel-allowances"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <TravelAllowances />
                 </RoleRoute>
               </ProtectedRoute>
             }
