@@ -163,6 +163,9 @@ const DispatchEventLog = lazy(() => import('@/pages/DispatchEventLog'))
 const NoticeToVacateLog = lazy(() => import('@/pages/NoticeToVacateLog'))
 const ContractorManager = lazy(() => import('@/pages/ContractorManager'))
 const VehicleDiscrepancyLog = lazy(() => import('@/pages/VehicleDiscrepancyLog'))
+const DriftEventLog = lazy(() => import('@/pages/DriftEventLog'))
+const InvestigationJobConfig = lazy(() => import('@/pages/InvestigationJobConfig'))
+const ZoneLegalConfigViewer = lazy(() => import('@/pages/ZoneLegalConfigViewer'))
 const MessagingPage = lazy(() => import('@/modules/messaging'))
 const IntelApprovalQueue = lazy(() => import('@/pages/IntelApprovalQueue'))
 const BobIntakeQueue = lazy(() => import('@/pages/BobIntakeQueue'))
@@ -2311,6 +2314,42 @@ export default function App() {
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
                   <VehicleDiscrepancyLog />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Drift Event Log — B-76 */}
+          <Route
+            path="/drift-events"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <DriftEventLog />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Investigation Job Config — B-77 */}
+          <Route
+            path="/investigation-job-config"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'master']}>
+                  <InvestigationJobConfig />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Zone Legal Config — B-78 */}
+          <Route
+            path="/zone-legal-config"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'master']}>
+                  <ZoneLegalConfigViewer />
                 </RoleRoute>
               </ProtectedRoute>
             }

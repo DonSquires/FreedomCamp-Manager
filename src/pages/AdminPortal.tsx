@@ -59,6 +59,9 @@ import {
   ScanSearch,
   GitCompareArrows,
   Briefcase,
+  Waypoints,
+  Scale,
+  FlaskConical,
   ScrollText,
   Search,
   Shield,
@@ -494,6 +497,16 @@ export default function AdminPortal() {
       const { count: vehicleDiscrepanciesPending, error: vdErr } = await vehicleDiscrepanciesQ
       if (vdErr) diagnostics.push(`vehicle_discrepancies: ${vdErr.message || 'unknown error'}`)
 
+      // Unreviewed drift events (B-76)
+      let driftEventsQ = supabase
+        .from('drift_events')
+        .select('id', { count: 'exact', head: true })
+        .is('reviewed_at', null)
+        .not('status', 'eq', 'dismissed')
+      if (effectiveOrganizationId) driftEventsQ = driftEventsQ.eq('organization_id', effectiveOrganizationId)
+      const { count: unreviewedDriftEvents, error: driftErr } = await driftEventsQ
+      if (driftErr) diagnostics.push(`drift_events: ${driftErr.message || 'unknown error'}`)
+
       // Count non-compliant observations where the plate belongs to a homeless vehicle.
       // This is the exact number of "breaches" that are actually FC Act exempt.
       let homelessExemptBreachCount = 0
@@ -537,6 +550,7 @@ export default function AdminPortal() {
         followUpInteractions:      followUpInteractions       ?? 0,
         activeNoticesToVacate:     activeNoticesToVacate      ?? 0,
         vehicleDiscrepanciesPending: vehicleDiscrepanciesPending ?? 0,
+        unreviewedDriftEvents:       unreviewedDriftEvents       ?? 0,
         diagnostics,
       }
     },
@@ -1475,6 +1489,9 @@ export default function AdminPortal() {
                     { path: '/vehicle-registry',       label: 'Registry',          Icon: Database,      color: 'text-gray-600',   bg: 'bg-gray-100 dark:bg-gray-800/30' },
                     { path: '/plate-scans-log',        label: 'Plate Scan Log',    Icon: ScanSearch,    color: 'text-cyan-600',   bg: 'bg-cyan-50 dark:bg-cyan-900/20', badge: (data as any)?.unreviewedPlateScans > 0 ? (data as any)?.unreviewedPlateScans : undefined },
                     { path: '/vehicle-discrepancies',  label: 'Discrepancies',     Icon: GitCompareArrows, color: 'text-rose-600', bg: 'bg-rose-50 dark:bg-rose-900/20', badge: (data as any)?.vehicleDiscrepanciesPending > 0 ? (data as any)?.vehicleDiscrepanciesPending : undefined },
+                    { path: '/drift-events',           label: 'Drift Events',      Icon: Waypoints,        color: 'text-cyan-600',  bg: 'bg-cyan-50 dark:bg-cyan-900/20', badge: (data as any)?.unreviewedDriftEvents > 0 ? (data as any)?.unreviewedDriftEvents : undefined },
+                    { path: '/zone-legal-config',      label: 'Zone Legal',        Icon: Scale,            color: 'text-slate-600', bg: 'bg-slate-50 dark:bg-slate-900/20' },
+                    { path: '/investigation-job-config', label: 'Job Config',      Icon: FlaskConical,     color: 'text-violet-600',bg: 'bg-violet-50 dark:bg-violet-900/20' },
                     { path: '/contractor-manager',     label: 'Contractor',        Icon: Briefcase,     color: 'text-indigo-600', bg: 'bg-indigo-50 dark:bg-indigo-900/20' },
                     { path: '/zones',                  label: 'Zones',             Icon: MapPin,        color: 'text-green-600',  bg: 'bg-green-50 dark:bg-green-900/20' },
                     { path: '/hotspots',               label: 'Hotspots',          Icon: Map,           color: 'text-red-600',    bg: 'bg-red-50 dark:bg-red-900/20' },

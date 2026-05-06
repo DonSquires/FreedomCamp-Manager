@@ -192,3 +192,11 @@ New routes added:
 - `/notices-to-vacate` — Notice to Vacate Log (B-73); role gate: admin, admin_officer, master; nav group: Operations; table: notices_to_vacate; status workflow: pending→issued→delivered→complied/escalated
 - `/contractor-manager` — Contractor Manager (B-74); role gate: admin, admin_officer, master; nav group: Admin; tables: contractor_profiles + contractor_documents (tabbed)
 - `/vehicle-discrepancies` — Vehicle Discrepancy Log (B-75); role gate: admin, admin_officer, master; nav group: Management; table: vehicle_discrepancies; mark-reviewed action
+
+## Sprint 22 Addendum (2026-05-06) — B-76/B-77/B-78
+
+New routes added:
+
+- `/drift-events` — Drift Event Log (B-76); role gate: admin, admin_officer, master; nav group: Management; table: drift_events; status/event_type/month filters; mark-reviewed
+- `/investigation-job-config` — Investigation Job Config (B-77); role gate: admin, master; nav group: Records; tables: investigation_job_templates + investigation_job_types (tabbed); activate/deactivate; create job type dialog
+- `/zone-legal-config` — Zone Legal Config (B-78); role gate: admin, master; nav group: Management; table: zone_legal_config; split list + detail panel; enforcement / stay limits / org address / payment info

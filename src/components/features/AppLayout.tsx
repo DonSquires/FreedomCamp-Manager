@@ -110,6 +110,9 @@ import {
   FileWarning,
   GitCompareArrows,
   Briefcase,
+  Waypoints,
+  FlaskConical,
+  Scale,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { supabase } from '@/lib/supabase'
@@ -245,9 +248,11 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/plate-finder', icon: ScanSearch, label: 'Plate Finder', roles: ['admin', 'admin_officer', 'master', 'officer'] },
       { path: '/plate-scans-log', icon: ScanSearch, label: 'Plate Scan Log', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/vehicle-discrepancies', icon: GitCompareArrows, label: 'Vehicle Discrepancies', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/drift-events', icon: Waypoints, label: 'Drift Events', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/admin/nzscv', icon: Car, label: 'NZSCV Monitor', roles: ['admin', 'master', 'nzscv_monitor'] },
       { path: '/admin/canonical-records', icon: Database, label: 'Canonical Records', roles: ['admin', 'master'] },
       { path: '/zones', icon: MapPin, label: 'Zones', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/zone-legal-config', icon: Scale, label: 'Zone Legal Config', roles: ['admin', 'master'] },
       { path: '/client-master-list', icon: ListChecks, label: 'Client Master List', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/client-sites', icon: Building2, label: 'Client Sites', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/site-permissions', icon: ShieldCheck, label: 'Site Permissions', roles: ['admin', 'master'] },
@@ -274,6 +279,7 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/occupancy-analytics', icon: TrendingUp, label: 'Occupancy Analytics', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/incident-reports', icon: ClipboardList, label: 'Incident Reports', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/investigations', icon: BrainCircuit, label: 'Investigations', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/investigation-job-config', icon: FlaskConical, label: 'Job Config', roles: ['admin', 'master'] },
       { path: '/person-records', icon: PersonStanding, label: 'Person Records', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/canonical-persons', icon: Users, label: 'Canonical Persons', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/trespass-notices', icon: Ban, label: 'Trespass Notices', roles: ['admin', 'admin_officer', 'master'] },
