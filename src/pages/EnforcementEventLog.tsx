@@ -226,7 +226,7 @@ export default function EnforcementEventLog() {
                             : <ChevronRight className="h-4 w-4" />}
                         </TableCell>
                         <TableCell className="font-mono text-xs text-muted-foreground">
-                          {row.case_id.slice(0, 8)}…
+                          {row.case_id ? `${row.case_id.slice(0, 8)}…` : '—'}
                         </TableCell>
                         <TableCell>
                           <Badge className={eventTypeBadge(row.event_type)}>{row.event_type}</Badge>
@@ -279,7 +279,7 @@ export default function EnforcementEventLog() {
                               </div>
                             )}
                             <p className="text-xs text-muted-foreground">
-                              Officer: <span className="font-mono">{row.officer_id.slice(0, 8)}…</span>
+                              Officer: <span className="font-mono">{row.officer_id ? `${row.officer_id.slice(0, 8)}…` : '—'}</span>
                               {' · '}Created: {fmtDate(row.created_at)}
                               {' · '}Updated: {fmtDate(row.updated_at)}
                             </p>

@@ -84,6 +84,7 @@ export default function ComplianceAuditLog() {
   const { data: rows = [], isLoading, refetch } = useQuery<AuditRow[]>({
     queryKey: ['compliance-audit-log', typeFilter, statusFilter, dateFrom],
     queryFn: async () => {
+      // compliance_audit_log has no organization_id column — query is global (admin-only route)
       let q = supabase
         .from('compliance_audit_log')
         .select('*')
