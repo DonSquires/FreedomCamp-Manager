@@ -63,6 +63,44 @@ Primary manuals and standards reviewed:
 3. CRM + Bob-assisted routing baseline: previously validated in mainline suite
 4. Current architecture baseline: as documented in docs/SYSTEM_GUIDE.md and enforced by current repository topology
 
+## Current Cycle Snapshot (2026-05-06)
+
+Material changes since commit `d3459ff5` (fix: resolve duplicate migration versions and workflow loop bug — PR #514):
+
+### Schema / Migration Contract Changes
+
+1. **Duplicate migration version prefix resolution** — six migration files were renamed to eliminate version collisions that were causing `supabase db push` to fail with SQLSTATE 23505 (schema_migrations_pkey conflict):
+   - `20260505000003_public_noise_complaints.sql` → `20260505000008_public_noise_complaints.sql`
+   - `20260505000004_zones_external_columns.sql` → `20260505000009_zones_external_columns.sql`
+   - `20260505000005_public_noise_complaints_security.sql` → `20260505000010_public_noise_complaints_security.sql`
+   - `20260505000005_zones_public_read.sql` → `20260505000011_zones_public_read.sql`
+   - `20260506000002_phase_b2_dispatch_case_bridge.sql` → `20260506000009_phase_b2_dispatch_case_bridge.sql`
+   - `20260506000003_phase_b4_enforcement_case_bridge.sql` → `20260506000010_phase_b4_enforcement_case_bridge.sql`
+2. No DDL changes to table schemas, indexes, RLS policies, or row data — renames are version-number-only corrections. Schema contracts are unaffected.
+
+### Operational Runbook / CI Workflow Changes
+
+1. **`db-push.yml` infinite-retry loop fix** — the duplicate-PK repair path previously retried `supabase db push` after marking a duplicate version applied, which immediately re-hit the same PK constraint. The workflow now exits `0` immediately after a successful repair, eliminating the infinite-retry loop.
+2. **`20260505000005` orphan revert** — `db-push.yml` now calls `supabase migration repair --status reverted 20260505000005` in the legacy-repair block before applying migrations, preventing stale remote entries from blocking the renamed files.
+3. **CI path filters updated** — `ci-org-isolation-api.yml`, `ci-phase-b2-dispatch-gate.yml`, and `ci-phase-b4-enforcement-gate.yml` updated to reference the new migration filenames so path-filtered gates continue to trigger correctly.
+
+### Risk / Operational Impact
+
+1. Migration renames are backward-compatible: the DDL already applied to the remote database is unchanged; only the version-number metadata is corrected.
+2. Operators running `supabase db push` manually will no longer encounter an infinite repair-retry loop.
+3. No route, role-gate, tenancy, or edge-function behavior changes in this cycle.
+
+### Validation Evidence
+
+1. Lint: pass (`bun run lint`)
+2. Build: pass (`bun run build`)
+3. Doc-authority gate: pass (this canonical record updated; no `src/App.tsx` change so `MODULE_ROADMAP.md` update is not required)
+4. CI path-filter gates: updated to track renamed migration files
+
+### Commit Trace
+
+1. `d3459ff5` — fix: resolve duplicate migration versions and db-push infinite retry loop (PR #514)
+
 ## Current Cycle Snapshot (2026-05-05)
 
 Material changes since commit `f0f381e2` (Phase B E2E stabilization and shard migration):

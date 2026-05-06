@@ -11,7 +11,7 @@ import { Progress } from '@/components/ui/progress'
 import { Separator } from '@/components/ui/separator'
 import { toast } from 'sonner'
 import { BrainCircuit, Camera, CheckCircle2, Code2, Eye, Loader2, Upload, XCircle, AlertTriangle, Lightbulb, Smartphone, Accessibility, Layers } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
+import { edgeFunctions } from '@/lib/edgeFunctions'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -187,23 +187,22 @@ export default function BobUIReview() {
     setVisionLoading(true)
     setVisionResult(null)
     try {
-      // Call the RunPod worker via the onspace-ai-chat Edge Function
-      // (which proxies to the inference service / RunPod)
-      const { data: { session } } = await supabase.auth.getSession()
-      const token = session?.access_token
-      if (!token) throw new Error('Not authenticated')
-
-      const resp = await supabase.functions.invoke('onspace-ai-chat', {
-        body: {
-          action: 'ui_vision',
-          image_b64: visionImageB64,
-          focus: visionFocus,
-          context: 'FieldOps Manager — a NZ freedom camping enforcement admin tool used by field officers on mobile and desktop. Prioritise usability for officers using the app in the field on a phone at night.',
-        },
+      const { data, error } = await edgeFunctions.bobGateway({
+        messages: [
+          {
+            role: 'user',
+            content: [
+              `Run a UI review with focus area: ${visionFocus}.`,
+              'FieldOps Manager is a NZ freedom camping enforcement admin tool used by field officers on mobile and desktop.',
+              'Prioritize field usability on mobile at night.',
+              'Screenshot payload (base64) is attached below:',
+              visionImageB64,
+            ].join('\n\n'),
+          },
+        ],
+        provider: 'auto',
       })
-      if (resp.error) throw resp.error
-      const data = resp.data
-      if (!data?.success) throw new Error(data?.error || 'Vision analysis failed')
+      if (error) throw new Error(error)
 
       const analysis = typeof data.analysis === 'object' ? data.analysis : null
       if (analysis) {

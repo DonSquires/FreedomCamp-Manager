@@ -1,22 +1,28 @@
 /**
- * VoiceProfilesConsent — Sprint 13 / B-49
+ * VoiceProfilesConsent — B-49
  *
- * Admin-gated management of radio_voice_profiles and radio_voice_consents.
- * Two tabs: "Voice Profiles" (enrollment/revocation) and "Consent Records" (audit trail).
- * Revocation opens a confirmation dialog requiring a reason.
+ * Tabbed manager for radio voice profiles and consent records.
  *
- * Route: /voice-profiles
- * Roles: admin, admin_officer, master, grand_master
+ * Profiles tab (radio_voice_profiles):
+ *  - KPI: Active / Revoked
+ *  - Table: officer_id, provider, model_ref, enrolled_at, revoked_at, active badge
+ *  - Revoke action (sets revoked_at = now())
  *
- * Note: radio_* tables are not yet in the generated database.ts snapshot;
- * all Supabase calls use (supabase as any) until types are regenerated.
+ * Consents tab (radio_voice_consents):
+ *  - KPI: Active / Revoked
+ *  - Table: officer_id, purpose, provider, retention_days, consented_at, revoked_at, revocation_reason
+ *  - Revoke action with reason
+ *
+ * Route: /voice-profiles — admin/admin_officer/master
  */
 
-import { useCallback, useMemo, useState } from 'react'
+import { useState } from 'react'
+import { format, parseISO } from 'date-fns'
+import {
+  Mic, RefreshCw, AlertCircle, Loader2,
+  CheckCircle2, XCircle, ShieldCheck,
+} from 'lucide-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useNavigate } from 'react-router-dom'
-import { formatInTimeZone } from 'date-fns-tz'
-import { AlertTriangle, ArrowLeft, CheckCircle2, Mic, Shield, XCircle } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { supabase } from '@/lib/supabase'
@@ -24,34 +30,32 @@ import { useAuthStore } from '@/stores/authStore'
 import { AppLayout } from '@/components/features/AppLayout'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Skeleton } from '@/components/ui/skeleton'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Textarea } from '@/components/ui/textarea'
 
-// ─── Constants ─────────────────────────────────────────────────────────────────
-
-const NZ_TZ = 'Pacific/Auckland'
-const ADMIN_ROLES = ['admin', 'admin_officer', 'master', 'grand_master']
-
-// ─── Types ──────────────────────────────────────────────────────────────────────
+// ─── Types ─────────────────────────────────────────────────────────────────────
 
 interface VoiceProfile {
   id: string
   org_id: string
   officer_id: string
-  officer_name?: string | null
   provider: string
   model_ref: string
   enrolled_at: string
@@ -60,11 +64,10 @@ interface VoiceProfile {
   created_at: string
 }
 
-interface ConsentRecord {
+interface VoiceConsent {
   id: string
   org_id: string
   officer_id: string
-  officer_name?: string | null
   voice_profile_id: string | null
   purpose: string
   retention_days: number
@@ -72,581 +75,373 @@ interface ConsentRecord {
   consented_at: string
   revoked_at: string | null
   revocation_reason: string | null
+  created_at: string
 }
 
-// ─── Helpers ────────────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function fmtTs(iso: string | null) {
-  if (!iso) return '—'
-  try {
-    return formatInTimeZone(new Date(iso), NZ_TZ, 'dd MMM yyyy HH:mm')
-  } catch {
-    return iso
-  }
+function fmtDate(ts: string | null) {
+  if (!ts) return '—'
+  try { return format(parseISO(ts), 'dd MMM yyyy HH:mm') } catch { return ts }
 }
 
-function fmtOfficer(name: string | null | undefined, id: string) {
-  if (name && name.trim()) return name.trim()
-  return id.slice(0, 8) + '…'
-}
-
-function statusBadge(isActive: boolean) {
-  return isActive ? (
-    <span className="inline-flex items-center gap-1 rounded-md bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300 px-2 py-0.5 text-xs font-medium">
-      <CheckCircle2 className="h-3 w-3" /> Active
-    </span>
-  ) : (
-    <span className="inline-flex items-center gap-1 rounded-md bg-gray-100 text-gray-600 dark:bg-gray-800/60 dark:text-gray-400 px-2 py-0.5 text-xs font-medium">
-      <XCircle className="h-3 w-3" /> Revoked
-    </span>
-  )
-}
-
-// ─── Revoke Profile Dialog ───────────────────────────────────────────────────────
-
-interface RevokeProfileDialogProps {
-  profile: VoiceProfile | null
-  onClose: () => void
-  onRevoked: () => void
-  orgId: string
-}
-
-function RevokeProfileDialog({ profile, onClose, onRevoked, orgId }: RevokeProfileDialogProps) {
-  const [reason, setReason] = useState('')
-  const queryClient = useQueryClient()
-
-  const revokeMutation = useMutation({
-    mutationFn: async () => {
-      if (!profile) throw new Error('No profile selected')
-      if (!reason.trim()) throw new Error('Revocation reason is required')
-
-      const now = new Date().toISOString()
-
-      // Revoke the voice profile
-      const { error: profileErr } = await (supabase as any)
-        .from('radio_voice_profiles')
-        .update({ revoked_at: now })
-        .eq('id', profile.id)
-        .eq('org_id', orgId)
-
-      if (profileErr) throw profileErr
-
-      // Update any active consents tied to this profile
-      const { error: consentErr } = await (supabase as any)
-        .from('radio_voice_consents')
-        .update({ revoked_at: now, revocation_reason: reason.trim() })
-        .eq('voice_profile_id', profile.id)
-        .eq('org_id', orgId)
-        .is('revoked_at', null)
-
-      if (consentErr) throw consentErr
-    },
-    onSuccess: () => {
-      toast.success('Voice profile revoked', {
-        description: 'Synthesis is blocked immediately. Consent records updated.',
-      })
-      queryClient.invalidateQueries({ queryKey: ['voice-profiles'] })
-      queryClient.invalidateQueries({ queryKey: ['voice-consents'] })
-      setReason('')
-      onRevoked()
-      onClose()
-    },
-    onError: (err: any) => {
-      toast.error('Revocation failed', {
-        description: err?.message ?? 'Unknown error. Try again.',
-      })
-    },
-  })
-
-  return (
-    <Dialog open={!!profile} onOpenChange={(open) => { if (!open) onClose() }}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-destructive">
-            <AlertTriangle className="h-5 w-5" />
-            Revoke Voice Profile
-          </DialogTitle>
-          <DialogDescription>
-            Revoking this profile immediately blocks voice-twin synthesis for{' '}
-            <strong>{profile?.officer_name ?? profile?.officer_id}</strong>.{' '}
-            This action cannot be undone — re-enrollment requires a new consent.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-3 py-2">
-          <div>
-            <Label htmlFor="revoke-reason" className="text-sm">
-              Revocation reason <span className="text-destructive">*</span>
-            </Label>
-            <Textarea
-              id="revoke-reason"
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              placeholder="Officer request, contract end, data deletion requirement…"
-              className="mt-1.5 text-sm"
-              rows={3}
-            />
-          </div>
-          <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50/60 dark:bg-amber-950/20 px-3 py-2 text-xs text-amber-800 dark:text-amber-300">
-            <strong>Note:</strong> Any active consents linked to this profile will also be revoked.
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={revokeMutation.isPending}>
-            Cancel
-          </Button>
-          <Button
-            variant="destructive"
-            onClick={() => void revokeMutation.mutateAsync()}
-            disabled={!reason.trim() || revokeMutation.isPending}
-          >
-            {revokeMutation.isPending ? 'Revoking…' : 'Revoke Profile'}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
-// ─── Revoke Consent Dialog ───────────────────────────────────────────────────────
-
-interface RevokeConsentDialogProps {
-  consent: ConsentRecord | null
-  onClose: () => void
-  orgId: string
-}
-
-function RevokeConsentDialog({ consent, onClose, orgId }: RevokeConsentDialogProps) {
-  const [reason, setReason] = useState('')
-  const queryClient = useQueryClient()
-
-  const revokeMutation = useMutation({
-    mutationFn: async () => {
-      if (!consent) throw new Error('No consent selected')
-      if (!reason.trim()) throw new Error('Revocation reason is required')
-      const { error } = await (supabase as any)
-        .from('radio_voice_consents')
-        .update({ revoked_at: new Date().toISOString(), revocation_reason: reason.trim() })
-        .eq('id', consent.id)
-        .eq('org_id', orgId)
-      if (error) throw error
-    },
-    onSuccess: () => {
-      toast.success('Consent revoked')
-      queryClient.invalidateQueries({ queryKey: ['voice-consents'] })
-      setReason('')
-      onClose()
-    },
-    onError: (err: any) => {
-      toast.error('Revocation failed', { description: err?.message ?? 'Unknown error' })
-    },
-  })
-
-  return (
-    <Dialog open={!!consent} onOpenChange={(open) => { if (!open) onClose() }}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-destructive">
-            <AlertTriangle className="h-5 w-5" />
-            Revoke Consent Record
-          </DialogTitle>
-          <DialogDescription>
-            Revoking this consent record for{' '}
-            <strong>{consent?.officer_name ?? consent?.officer_id}</strong> will mark
-            it as revoked in the audit trail.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-3 py-2">
-          <div>
-            <Label htmlFor="revoke-consent-reason" className="text-sm">
-              Reason <span className="text-destructive">*</span>
-            </Label>
-            <Textarea
-              id="revoke-consent-reason"
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              placeholder="Officer withdrew consent, GDPR request, policy change…"
-              className="mt-1.5 text-sm"
-              rows={3}
-            />
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={revokeMutation.isPending}>Cancel</Button>
-          <Button
-            variant="destructive"
-            onClick={() => void revokeMutation.mutateAsync()}
-            disabled={!reason.trim() || revokeMutation.isPending}
-          >
-            {revokeMutation.isPending ? 'Revoking…' : 'Revoke Consent'}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
-// ─── Page ───────────────────────────────────────────────────────────────────────
+// ─── Component ────────────────────────────────────────────────────────────────
 
 export default function VoiceProfilesConsent() {
-  const navigate = useNavigate()
   const { user } = useAuthStore()
-  const orgId = user?.organization_id ?? ''
-  const isAdmin = ADMIN_ROLES.includes(user?.role ?? '')
+  const orgId = user?.organization_id
+  const isAdmin = user?.role === 'admin' || user?.role === 'admin_officer' || user?.role === 'master'
+  const qc = useQueryClient()
 
   const [activeTab, setActiveTab] = useState('profiles')
-  const [profileSearch, setProfileSearch] = useState('')
-  const [consentSearch, setConsentSearch] = useState('')
-  const [revokeTarget, setRevokeTarget] = useState<VoiceProfile | null>(null)
-  const [revokeConsentTarget, setRevokeConsentTarget] = useState<ConsentRecord | null>(null)
+  const [revokeDialogOpen, setRevokeDialogOpen] = useState(false)
+  const [revokeTarget, setRevokeTarget] = useState<{ type: 'profile' | 'consent'; id: string } | null>(null)
+  const [revokeReason, setRevokeReason] = useState('')
+  const [revoking, setRevoking] = useState(false)
 
-  // ── Voice Profiles query ────────────────────────────────────────────────────
-  const { data: profiles = [], isLoading: profilesLoading, refetch: refetchProfiles } = useQuery<VoiceProfile[]>({
-    queryKey: ['voice-profiles', orgId],
+  // ── Profiles query ─────────────────────────────────────────────────────────
+
+  const { data: profiles = [], isLoading: profilesLoading, refetch: refetchProfiles } = useQuery({
+    queryKey: ['radio-voice-profiles', orgId],
+    enabled: !!orgId,
     queryFn: async () => {
-      if (!orgId) return []
       const { data, error } = await (supabase as any)
         .from('radio_voice_profiles')
-        .select('id, org_id, officer_id, provider, model_ref, enrolled_at, revoked_at, is_active, created_at')
-        .eq('org_id', orgId)
+        .select('*')
+        .eq('org_id', orgId!)
         .order('enrolled_at', { ascending: false })
-        .limit(200)
-      if (error) {
-        if (error.code === 'PGRST205' || error.code === '42P01') return []
-        throw error
-      }
+      if (error) throw error
       return (data ?? []) as VoiceProfile[]
     },
-    enabled: !!orgId && isAdmin,
-    staleTime: 30_000,
-    retry: false,
   })
 
   // ── Consents query ─────────────────────────────────────────────────────────
-  const { data: consents = [], isLoading: consentsLoading, refetch: refetchConsents } = useQuery<ConsentRecord[]>({
-    queryKey: ['voice-consents', orgId],
+
+  const { data: consents = [], isLoading: consentsLoading, refetch: refetchConsents } = useQuery({
+    queryKey: ['radio-voice-consents', orgId],
+    enabled: !!orgId,
     queryFn: async () => {
-      if (!orgId) return []
       const { data, error } = await (supabase as any)
         .from('radio_voice_consents')
-        .select('id, org_id, officer_id, voice_profile_id, purpose, retention_days, provider, consented_at, revoked_at, revocation_reason')
-        .eq('org_id', orgId)
+        .select('*')
+        .eq('org_id', orgId!)
         .order('consented_at', { ascending: false })
-        .limit(200)
-      if (error) {
-        if (error.code === 'PGRST205' || error.code === '42P01') return []
-        throw error
-      }
-      return (data ?? []) as ConsentRecord[]
+      if (error) throw error
+      return (data ?? []) as VoiceConsent[]
     },
-    enabled: !!orgId && isAdmin,
-    staleTime: 30_000,
-    retry: false,
   })
 
-  // ── Derived / filtered ─────────────────────────────────────────────────────
-  const filteredProfiles = useMemo(() => {
-    if (!profileSearch.trim()) return profiles
-    const q = profileSearch.toLowerCase()
-    return profiles.filter(
-      (p) =>
-        p.officer_id.toLowerCase().includes(q) ||
-        (p.officer_name ?? '').toLowerCase().includes(q) ||
-        p.provider.toLowerCase().includes(q)
-    )
-  }, [profiles, profileSearch])
+  // ── Revoke mutations ───────────────────────────────────────────────────────
 
-  const filteredConsents = useMemo(() => {
-    if (!consentSearch.trim()) return consents
-    const q = consentSearch.toLowerCase()
-    return consents.filter(
-      (c) =>
-        c.officer_id.toLowerCase().includes(q) ||
-        (c.officer_name ?? '').toLowerCase().includes(q) ||
-        c.purpose.toLowerCase().includes(q) ||
-        c.provider.toLowerCase().includes(q)
-    )
-  }, [consents, consentSearch])
+  const revokeProfile = useMutation({
+    mutationFn: async ({ id }: { id: string }) => {
+      const { error } = await (supabase as any)
+        .from('radio_voice_profiles')
+        .update({ revoked_at: new Date().toISOString() })
+        .eq('id', id)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['radio-voice-profiles'] })
+      toast.success('Voice profile revoked')
+    },
+    onError: (e: any) => toast.error(e.message || 'Failed to revoke profile'),
+  })
 
-  const profileKpis = useMemo(() => ({
-    total:   profiles.length,
-    active:  profiles.filter((p) => p.is_active).length,
-    revoked: profiles.filter((p) => !p.is_active).length,
-  }), [profiles])
+  const revokeConsent = useMutation({
+    mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
+      const { error } = await (supabase as any)
+        .from('radio_voice_consents')
+        .update({ revoked_at: new Date().toISOString(), revocation_reason: reason || null })
+        .eq('id', id)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['radio-voice-consents'] })
+      toast.success('Consent revoked')
+    },
+    onError: (e: any) => toast.error(e.message || 'Failed to revoke consent'),
+  })
 
-  const consentKpis = useMemo(() => ({
-    total:   consents.length,
-    active:  consents.filter((c) => !c.revoked_at).length,
-    revoked: consents.filter((c) => !!c.revoked_at).length,
-  }), [consents])
-
-  const handleProfileRevoked = useCallback(() => {
-    void refetchProfiles()
-    void refetchConsents()
-  }, [refetchProfiles, refetchConsents])
-
-  if (!isAdmin) {
-    return (
-      <AppLayout title="Voice Profiles & Consent" description="Access restricted">
-        <Card className="mt-8 max-w-md mx-auto border-destructive">
-          <CardHeader>
-            <CardTitle className="text-destructive flex items-center gap-2">
-              <Shield className="h-5 w-5" /> Access Restricted
-            </CardTitle>
-            <CardDescription>
-              This page is only accessible to admin and master roles.
-            </CardDescription>
-          </CardHeader>
-        </Card>
-      </AppLayout>
-    )
+  function openRevoke(type: 'profile' | 'consent', id: string) {
+    setRevokeTarget({ type, id })
+    setRevokeReason('')
+    setRevokeDialogOpen(true)
   }
 
-  return (
-    <AppLayout
-      title="Voice Profiles & Consent"
-      description="Manage consented voice-twin profiles and the auditable consent trail"
-    >
-      <div className="mb-4">
-        <Button variant="ghost" size="sm" onClick={() => navigate('/radio')} className="gap-1.5 text-muted-foreground hover:text-foreground">
-          <ArrowLeft className="h-3.5 w-3.5" />
-          Back to Radio
-        </Button>
-      </div>
+  async function handleRevoke() {
+    if (!revokeTarget) return
+    setRevoking(true)
+    try {
+      if (revokeTarget.type === 'profile') {
+        await revokeProfile.mutateAsync({ id: revokeTarget.id })
+      } else {
+        await revokeConsent.mutateAsync({ id: revokeTarget.id, reason: revokeReason })
+      }
+      setRevokeDialogOpen(false)
+    } finally {
+      setRevoking(false)
+    }
+  }
 
-      {/* ADR 006 notice */}
-      <div className="mb-5 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50/70 dark:bg-amber-950/20 px-4 py-3 text-sm text-amber-900 dark:text-amber-200">
-        <strong>ADR 006 — Voice-Twin Governance:</strong> No voice-twin synthesis is permitted without an active
-        consent record and an active voice profile. Revocation blocks synthesis within 60 seconds.
+  // ── KPIs ───────────────────────────────────────────────────────────────────
+
+  const profileKPIs = {
+    active:  profiles.filter(p => p.is_active && !p.revoked_at).length,
+    revoked: profiles.filter(p => !!p.revoked_at).length,
+  }
+
+  const consentKPIs = {
+    active:  consents.filter(c => !c.revoked_at).length,
+    revoked: consents.filter(c => !!c.revoked_at).length,
+  }
+
+  // ── Render ─────────────────────────────────────────────────────────────────
+
+  return (
+    <AppLayout title="Voice Profiles & Consent" description="Manage officer voice twin profiles and biometric consent records">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-2">
+          <Mic className="h-5 w-5 text-violet-600" />
+          <span className="font-semibold text-lg">Voice Profiles & Consent</span>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => { refetchProfiles(); refetchConsents() }}
+        >
+          <RefreshCw className="h-4 w-4" />
+        </Button>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="mb-4">
-          <TabsTrigger value="profiles" className="gap-2">
-            <Mic className="h-3.5 w-3.5" />
+          <TabsTrigger value="profiles">
             Voice Profiles
-            {profileKpis.active > 0 && (
-              <Badge variant="secondary" className="ml-1 text-[10px] px-1.5 py-0">{profileKpis.active} active</Badge>
+            {profileKPIs.active > 0 && (
+              <Badge variant="secondary" className="ml-1.5 text-xs">{profileKPIs.active}</Badge>
             )}
           </TabsTrigger>
-          <TabsTrigger value="consents" className="gap-2">
-            <Shield className="h-3.5 w-3.5" />
+          <TabsTrigger value="consents">
             Consent Records
-            {consentKpis.active > 0 && (
-              <Badge variant="secondary" className="ml-1 text-[10px] px-1.5 py-0">{consentKpis.active} active</Badge>
+            {consentKPIs.active > 0 && (
+              <Badge variant="secondary" className="ml-1.5 text-xs">{consentKPIs.active}</Badge>
             )}
           </TabsTrigger>
         </TabsList>
 
-        {/* ─── Voice Profiles Tab ────────────────────────────────────────── */}
+        {/* ── Voice Profiles tab ──────────────────────────────────────────────── */}
         <TabsContent value="profiles">
           {/* Profile KPIs */}
-          <div className="grid grid-cols-3 gap-3 mb-4">
+          <div className="grid grid-cols-2 gap-4 mb-6">
             {[
-              { label: 'Total Profiles', value: profileKpis.total, color: 'text-blue-600' },
-              { label: 'Active', value: profileKpis.active, color: 'text-emerald-600' },
-              { label: 'Revoked', value: profileKpis.revoked, color: 'text-gray-500' },
-            ].map(({ label, value, color }) => (
-              <Card key={label} className="border shadow-sm">
-                <CardContent className="pt-4 pb-3">
-                  <p className={`text-2xl font-bold ${color}`}>{profilesLoading ? '—' : value}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">{label}</p>
+              { label: 'Active Profiles', value: profileKPIs.active,  icon: <CheckCircle2 className="h-4 w-4" />, color: 'text-green-600' },
+              { label: 'Revoked',         value: profileKPIs.revoked, icon: <XCircle className="h-4 w-4" />,      color: 'text-red-600' },
+            ].map(k => (
+              <Card key={k.label}>
+                <CardHeader className="pb-1 pt-4 px-4">
+                  <CardTitle className="text-xs text-muted-foreground font-medium flex items-center gap-1">
+                    {k.icon}{k.label}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="px-4 pb-4">
+                  <p className={`text-2xl font-bold ${k.color}`}>{k.value}</p>
                 </CardContent>
               </Card>
             ))}
           </div>
 
-          {/* Profile filter + table */}
-          <div className="flex gap-3 mb-3">
-            <Input
-              value={profileSearch}
-              onChange={(e) => setProfileSearch(e.target.value)}
-              placeholder="Search officer / provider…"
-              className="w-56 h-8 text-xs"
-            />
-            <Button size="sm" variant="ghost" className="h-8" onClick={() => void refetchProfiles()}>
-              Refresh
-            </Button>
-          </div>
+          {!profilesLoading && profiles.length === 0 && (
+            <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-md px-4 py-3 mb-4 text-sm text-blue-800">
+              <AlertCircle className="h-4 w-4 flex-shrink-0" />
+              <span>No voice profiles found. Profiles are created during officer voice enrolment.</span>
+            </div>
+          )}
 
           <Card>
-            <div className="rounded-xl overflow-hidden border">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-muted/50">
-                    <TableHead className="text-xs">Officer ID</TableHead>
-                    <TableHead className="text-xs">Provider</TableHead>
-                    <TableHead className="text-xs">Model Ref</TableHead>
-                    <TableHead className="text-xs">Enrolled (NZ)</TableHead>
-                    <TableHead className="text-xs">Revoked (NZ)</TableHead>
-                    <TableHead className="text-xs">Status</TableHead>
-                    <TableHead className="text-xs text-right">Action</TableHead>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Officer ID</TableHead>
+                  <TableHead>Provider</TableHead>
+                  <TableHead>Model Ref</TableHead>
+                  <TableHead>Enrolled</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Revoked At</TableHead>
+                  {isAdmin && <TableHead />}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {profilesLoading && (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin inline mr-2" />Loading…
+                    </TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {profilesLoading ? (
-                    Array.from({ length: 4 }).map((_, i) => (
-                      <TableRow key={i}>
-                        <TableCell colSpan={7}><Skeleton className="h-4 w-full" /></TableCell>
-                      </TableRow>
-                    ))
-                  ) : filteredProfiles.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={7} className="text-center text-sm text-muted-foreground py-8">
-                        No voice profiles found.
+                )}
+                {profiles.map(p => (
+                  <TableRow key={p.id}>
+                    <TableCell className="font-mono text-xs">{p.officer_id.slice(0, 8)}…</TableCell>
+                    <TableCell className="text-sm">{p.provider}</TableCell>
+                    <TableCell className="font-mono text-xs max-w-36 truncate">{p.model_ref}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground whitespace-nowrap">{fmtDate(p.enrolled_at)}</TableCell>
+                    <TableCell>
+                      {p.revoked_at
+                        ? <Badge variant="destructive" className="text-xs">Revoked</Badge>
+                        : p.is_active
+                          ? <Badge variant="secondary" className="text-xs text-green-700">Active</Badge>
+                          : <Badge variant="outline" className="text-xs">Inactive</Badge>}
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground whitespace-nowrap">{fmtDate(p.revoked_at)}</TableCell>
+                    {isAdmin && (
+                      <TableCell>
+                        {!p.revoked_at && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-red-600 hover:text-red-700 h-7 text-xs"
+                            onClick={() => openRevoke('profile', p.id)}
+                          >
+                            Revoke
+                          </Button>
+                        )}
                       </TableCell>
-                    </TableRow>
-                  ) : (
-                    filteredProfiles.map((p) => (
-                      <TableRow key={p.id} className={!p.is_active ? 'opacity-60' : ''}>
-                        <TableCell className="text-xs font-mono truncate max-w-[140px]">{fmtOfficer(p.officer_name, p.officer_id)}</TableCell>
-                        <TableCell className="text-xs">{p.provider}</TableCell>
-                        <TableCell className="text-xs font-mono truncate max-w-[100px] text-muted-foreground">{p.model_ref}</TableCell>
-                        <TableCell className="text-xs">{fmtTs(p.enrolled_at)}</TableCell>
-                        <TableCell className="text-xs">{fmtTs(p.revoked_at)}</TableCell>
-                        <TableCell>{statusBadge(p.is_active)}</TableCell>
-                        <TableCell className="text-right">
-                          {p.is_active && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-7 text-xs text-destructive border-destructive/50 hover:bg-destructive/10"
-                              onClick={() => setRevokeTarget(p)}
-                            >
-                              Revoke
-                            </Button>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </div>
-            {!profilesLoading && filteredProfiles.length > 0 && (
-              <div className="px-4 py-2 text-xs text-muted-foreground border-t">
-                {filteredProfiles.length} profile{filteredProfiles.length !== 1 ? 's' : ''}
-                {profiles.length >= 200 && ' (capped at 200)'}
-              </div>
-            )}
+                    )}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </Card>
+          {!profilesLoading && profiles.length > 0 && (
+            <p className="text-xs text-muted-foreground mt-2 text-right">{profiles.length} profile{profiles.length !== 1 ? 's' : ''}</p>
+          )}
         </TabsContent>
 
-        {/* ─── Consent Records Tab ──────────────────────────────────────────── */}
+        {/* ── Consent Records tab ─────────────────────────────────────────────── */}
         <TabsContent value="consents">
           {/* Consent KPIs */}
-          <div className="grid grid-cols-3 gap-3 mb-4">
+          <div className="grid grid-cols-2 gap-4 mb-6">
             {[
-              { label: 'Total Consents', value: consentKpis.total, color: 'text-blue-600' },
-              { label: 'Active', value: consentKpis.active, color: 'text-emerald-600' },
-              { label: 'Revoked', value: consentKpis.revoked, color: 'text-gray-500' },
-            ].map(({ label, value, color }) => (
-              <Card key={label} className="border shadow-sm">
-                <CardContent className="pt-4 pb-3">
-                  <p className={`text-2xl font-bold ${color}`}>{consentsLoading ? '—' : value}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">{label}</p>
+              { label: 'Active Consents', value: consentKPIs.active,  icon: <ShieldCheck className="h-4 w-4" />, color: 'text-green-600' },
+              { label: 'Revoked',         value: consentKPIs.revoked, icon: <XCircle className="h-4 w-4" />,     color: 'text-red-600' },
+            ].map(k => (
+              <Card key={k.label}>
+                <CardHeader className="pb-1 pt-4 px-4">
+                  <CardTitle className="text-xs text-muted-foreground font-medium flex items-center gap-1">
+                    {k.icon}{k.label}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="px-4 pb-4">
+                  <p className={`text-2xl font-bold ${k.color}`}>{k.value}</p>
                 </CardContent>
               </Card>
             ))}
           </div>
 
-          {/* Consent filter + table */}
-          <div className="flex gap-3 mb-3">
-            <Input
-              value={consentSearch}
-              onChange={(e) => setConsentSearch(e.target.value)}
-              placeholder="Search officer / purpose…"
-              className="w-56 h-8 text-xs"
-            />
-            <Button size="sm" variant="ghost" className="h-8" onClick={() => void refetchConsents()}>
-              Refresh
-            </Button>
-          </div>
+          {!consentsLoading && consents.length === 0 && (
+            <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-md px-4 py-3 mb-4 text-sm text-blue-800">
+              <AlertCircle className="h-4 w-4 flex-shrink-0" />
+              <span>No consent records found for this organisation.</span>
+            </div>
+          )}
 
           <Card>
-            <div className="rounded-xl overflow-hidden border">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-muted/50">
-                    <TableHead className="text-xs">Officer</TableHead>
-                    <TableHead className="text-xs">Purpose</TableHead>
-                    <TableHead className="text-xs">Provider</TableHead>
-                    <TableHead className="text-xs">Retention</TableHead>
-                    <TableHead className="text-xs">Consented (NZ)</TableHead>
-                    <TableHead className="text-xs">Revoked (NZ)</TableHead>
-                    <TableHead className="text-xs">Status</TableHead>
-                    <TableHead className="text-xs text-right">Action</TableHead>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Officer ID</TableHead>
+                  <TableHead>Purpose</TableHead>
+                  <TableHead>Provider</TableHead>
+                  <TableHead>Retention (days)</TableHead>
+                  <TableHead>Consented At</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Revoked At</TableHead>
+                  <TableHead>Revocation Reason</TableHead>
+                  {isAdmin && <TableHead />}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {consentsLoading && (
+                  <TableRow>
+                    <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin inline mr-2" />Loading…
+                    </TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {consentsLoading ? (
-                    Array.from({ length: 4 }).map((_, i) => (
-                      <TableRow key={i}>
-                        <TableCell colSpan={8}><Skeleton className="h-4 w-full" /></TableCell>
-                      </TableRow>
-                    ))
-                  ) : filteredConsents.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={8} className="text-center text-sm text-muted-foreground py-8">
-                        No consent records found.
+                )}
+                {consents.map(c => (
+                  <TableRow key={c.id}>
+                    <TableCell className="font-mono text-xs">{c.officer_id.slice(0, 8)}…</TableCell>
+                    <TableCell className="text-sm max-w-40 truncate">{c.purpose}</TableCell>
+                    <TableCell className="text-sm">{c.provider}</TableCell>
+                    <TableCell className="text-sm text-center">{c.retention_days}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground whitespace-nowrap">{fmtDate(c.consented_at)}</TableCell>
+                    <TableCell>
+                      {c.revoked_at
+                        ? <Badge variant="destructive" className="text-xs">Revoked</Badge>
+                        : <Badge variant="secondary" className="text-xs text-green-700">Active</Badge>}
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground whitespace-nowrap">{fmtDate(c.revoked_at)}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground max-w-36 truncate">{c.revocation_reason ?? '—'}</TableCell>
+                    {isAdmin && (
+                      <TableCell>
+                        {!c.revoked_at && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-red-600 hover:text-red-700 h-7 text-xs"
+                            onClick={() => openRevoke('consent', c.id)}
+                          >
+                            Revoke
+                          </Button>
+                        )}
                       </TableCell>
-                    </TableRow>
-                  ) : (
-                    filteredConsents.map((c) => {
-                      const isActive = !c.revoked_at
-                      return (
-                        <TableRow key={c.id} className={!isActive ? 'opacity-60' : ''}>
-                          <TableCell className="text-xs font-mono truncate max-w-[130px]">{fmtOfficer(c.officer_name, c.officer_id)}</TableCell>
-                          <TableCell className="text-xs max-w-[140px] truncate">{c.purpose}</TableCell>
-                          <TableCell className="text-xs">{c.provider}</TableCell>
-                          <TableCell className="text-xs">{c.retention_days}d</TableCell>
-                          <TableCell className="text-xs">{fmtTs(c.consented_at)}</TableCell>
-                          <TableCell className="text-xs">
-                            {c.revoked_at ? (
-                              <span title={c.revocation_reason ?? undefined}>{fmtTs(c.revoked_at)}</span>
-                            ) : '—'}
-                          </TableCell>
-                          <TableCell>{statusBadge(isActive)}</TableCell>
-                          <TableCell className="text-right">
-                            {isActive && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-7 text-xs text-destructive border-destructive/50 hover:bg-destructive/10"
-                                onClick={() => setRevokeConsentTarget(c)}
-                              >
-                                Revoke
-                              </Button>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      )
-                    })
-                  )}
-                </TableBody>
-              </Table>
-            </div>
-            {!consentsLoading && filteredConsents.length > 0 && (
-              <div className="px-4 py-2 text-xs text-muted-foreground border-t">
-                {filteredConsents.length} consent record{filteredConsents.length !== 1 ? 's' : ''}
-                {consents.length >= 200 && ' (capped at 200)'}
-              </div>
-            )}
+                    )}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </Card>
+          {!consentsLoading && consents.length > 0 && (
+            <p className="text-xs text-muted-foreground mt-2 text-right">{consents.length} consent record{consents.length !== 1 ? 's' : ''}</p>
+          )}
         </TabsContent>
       </Tabs>
 
-      {/* Revoke dialogs */}
-      <RevokeProfileDialog
-        profile={revokeTarget}
-        onClose={() => setRevokeTarget(null)}
-        onRevoked={handleProfileRevoked}
-        orgId={orgId}
-      />
-      <RevokeConsentDialog
-        consent={revokeConsentTarget}
-        onClose={() => setRevokeConsentTarget(null)}
-        orgId={orgId}
-      />
+      {/* Revoke Confirmation Dialog */}
+      <Dialog open={revokeDialogOpen} onOpenChange={setRevokeDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              Revoke {revokeTarget?.type === 'profile' ? 'Voice Profile' : 'Consent'}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              This action will set the <code className="text-xs bg-muted px-1 py-0.5 rounded">revoked_at</code> timestamp immediately. It cannot be undone.
+            </p>
+            {revokeTarget?.type === 'consent' && (
+              <div>
+                <Label htmlFor="revoke-reason">Revocation Reason (optional)</Label>
+                <Textarea
+                  id="revoke-reason"
+                  rows={2}
+                  placeholder="Reason for revoking this consent…"
+                  value={revokeReason}
+                  onChange={e => setRevokeReason(e.target.value)}
+                />
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRevokeDialogOpen(false)}>Cancel</Button>
+            <Button variant="destructive" onClick={handleRevoke} disabled={revoking}>
+              {revoking && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
+              Confirm Revoke
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   )
 }

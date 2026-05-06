@@ -138,14 +138,21 @@ jobs:
           SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
         run: |
           set -euo pipefail
-          # Known legacy migration versions that exist on remote as short-form entries
-          # (date-only, no timestamp) but map to full timestamped local files.
+          # Known legacy migration versions that exist on remote as short-form
+          # (YYYYMMDD date-only) entries with no matching full-timestamp local file.
           # Repair is safe and idempotent; each call is a no-op if the version is absent.
           # Keep this list aligned with scripts/migration-utils.sh and
           # docs/MIGRATION_TROUBLESHOOTING.md.
           for version in 20250127 20260309 20260312 20260313 20260315 20260316 20260317 20260318 20260319 20260320 20260321 20260323 20260326 20260329 20260330; do
             supabase migration repair --linked -p "$SUPABASE_DB_PASSWORD" --status reverted "$version" || true
           done
+
+          # Version 20260505000005 previously had two files sharing the same
+          # version prefix (public_noise_complaints_security + zones_public_read).
+          # Those files have been renamed to 20260505000010 and 20260505000011.
+          # If the remote already recorded version 20260505000005 (from a prior
+          # repair run), revert it so db push can apply the renamed files cleanly.
+          supabase migration repair --linked -p "$SUPABASE_DB_PASSWORD" --status reverted "20260505000005" || true
 
       - name: Apply migrations
         env:
@@ -376,9 +383,10 @@ jobs:
             fi
 
             # Case 3: duplicate insert in migration history table.
-            # Some CLI versions format this differently; match broadly and
-            # recover using either the explicit key or the currently applying
-            # migration filename.
+            # The migration's DDL already ran but the history-table INSERT
+            # failed with a PK conflict (SQLSTATE 23505 / schema_migrations_pkey).
+            # Retrying db push will hit the same conflict again, so we repair
+            # the history entry and exit successfully — the schema is up to date.
             if grep -Eaq 'schema_migrations_pkey|Key \(version\)=\([0-9]+\) already exists|SQLSTATE 23505' "$LOG_FILE"; then
               DUP_VERSION=$(grep -Eo 'Key \(version\)=\([0-9]+\)' "$LOG_FILE" | sed -E 's/.*\(([0-9]+)\).*/\1/' | head -n1)
 
@@ -390,9 +398,14 @@ jobs:
 
               if [ -n "${DUP_VERSION:-}" ]; then
                 echo "Detected duplicate schema_migrations version: $DUP_VERSION"
-                echo "Repairing duplicate by marking version applied, then retrying..."
-                supabase migration repair --linked -p "$SUPABASE_DB_PASSWORD" --status applied "$DUP_VERSION" || true
-                handled=true
+                echo "Marking duplicate version as applied and treating migration as already reconciled..."
+                if supabase migration repair --linked -p "$SUPABASE_DB_PASSWORD" --status applied "$DUP_VERSION"; then
+                  echo "Duplicate migration version repaired successfully."
+                  supabase migration list || true
+                  exit 0
+                fi
+                echo "::error::Duplicate migration version detected, but repair failed for version $DUP_VERSION."
+                exit 1
               fi
             fi
 

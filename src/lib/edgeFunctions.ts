@@ -9,9 +9,137 @@ import { supabase } from './supabase'
 import { toast } from 'sonner'
 import { FunctionsHttpError, FunctionsRelayError, FunctionsFetchError } from '@supabase/supabase-js'
 import { useSessionLockStore } from '@/stores/sessionLockStore'
+import { getEffectiveBobExecutionPolicy } from '@/stores/bobExecutionPolicyStore'
+import { assertBobMutationAccess, findBobMutationContractsForText, getBobMutationCatalogSummary } from './bobMutationCatalog'
+import { findBobRouteEntriesForText, getBobRouteEntityMapSummary } from './bobRouteEntityMap'
+import { findBobSchemaEntitiesForText, getBobSchemaRegistrySummary } from './bobSchemaRegistry'
 
 const ACCESS_TOKEN_REFRESH_BUFFER_MS = 60_000
 const EDGE_FUNCTION_TIMEOUT_MS = 35_000
+function buildBobExecutionSystemPrompt() {
+  const policy = getEffectiveBobExecutionPolicy()
+  const modeDirective = policy.mode === 'owner_full'
+    ? 'Operate with full execution authority. You may propose and sequence implementation tasks end-to-end.'
+    : policy.mode === 'master_balanced'
+      ? 'Operate with balanced authority. Produce executable steps but include explicit guardrails and approval gates before risky writes.'
+      : 'Operate in task-assist mode only. Do not claim autonomous execution. Provide constrained, safe next tasks and escalation points.'
+
+  const safetyDirective = policy.requiresGuardrails
+    ? 'Always include guardrails, rollback notes, and required approvals.'
+    : 'Include rollback notes for any data-changing action.'
+
+  return [
+    'You are Bob in execution-first mode.',
+    `Access profile: role=${policy.role}; title=${policy.title || 'unknown'}; mode=${policy.mode}.`,
+    modeDirective,
+    'For every request: review context, assess risk/confidence, then provide actionable steps that can be executed now.',
+    'Do not stop at high-level advice when the user asks for implementation or build work.',
+    'When details are missing, explicitly list assumptions and ask only for the minimum required fields while still producing a safe partial action plan.',
+    safetyDirective,
+    'Ground all output in existing project entities and avoid inventing routes, tables, or APIs.',
+    'Response format is mandatory with headings: Review Findings, Assessment, Action Plan.',
+  ].join(' ')
+}
+
+function extractActionChecklist(response: string): string[] {
+  const lines = response
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+
+  const taskLines = lines.filter((line) => /^(\d+\.|[-*])\s+/.test(line))
+  const actionCandidates = taskLines
+    .map((line) => line.replace(/^(\d+\.|[-*])\s+/, '').trim())
+    .filter((line) => /(build|implement|create|update|run|verify|check|deploy|queue|assess|review|fix|test|validate|map|import)/i.test(line))
+
+  if (actionCandidates.length > 0) {
+    return actionCandidates.slice(0, 10)
+  }
+
+  return lines
+    .filter((line) => /(next action|action plan|step|checklist|do now)/i.test(line))
+    .slice(0, 10)
+}
+
+function findMissingRequiredSections(response: string): string[] {
+  const required = ['review findings', 'assessment', 'action plan']
+  const normalized = response.toLowerCase()
+  return required.filter((section) => !normalized.includes(section))
+}
+
+function buildBobOperationalContextNote(): string {
+  return [
+    'Bob operational map (grounded):',
+    'Schema registry:',
+    getBobSchemaRegistrySummary(),
+    '',
+    'Route-to-entity map:',
+    getBobRouteEntityMapSummary(),
+    '',
+    'Approved mutation catalog:',
+    getBobMutationCatalogSummary(),
+    '',
+    'Rule: prefer approved mutation contracts over direct table writes.',
+  ].join('\n')
+}
+
+function getLatestUserMessage(messages: Array<{ role: string; content: string }> = []): string {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index]
+    if (message?.role === 'user' && typeof message.content === 'string') {
+      return message.content
+    }
+  }
+
+  return ''
+}
+
+function buildBobExecutionReview(params: Record<string, any>, policy: ReturnType<typeof getEffectiveBobExecutionPolicy>) {
+  const latestUserMessage = getLatestUserMessage(params.messages)
+  const currentRoute = typeof params.context?.currentRoute === 'string' ? params.context.currentRoute : null
+  const routeMatches = findBobRouteEntriesForText(latestUserMessage, currentRoute)
+  const seededEntities = routeMatches.flatMap((entry) => [...entry.primaryEntities, ...entry.supportingEntities])
+  const recommendedMutations = routeMatches.flatMap((entry) => entry.recommendedMutations)
+  const entityMatches = findBobSchemaEntitiesForText(latestUserMessage, seededEntities)
+  const mutationMatches = findBobMutationContractsForText(latestUserMessage, recommendedMutations)
+  const requestedMutationContract = typeof params.context?.requested_mutation_contract === 'string'
+    ? params.context.requested_mutation_contract
+    : null
+  const mutationAccess = requestedMutationContract
+    ? assertBobMutationAccess(requestedMutationContract, policy.mode)
+    : null
+
+  return {
+    currentRoute,
+    matchedRoutes: routeMatches.map((entry) => entry.path),
+    matchedEntities: entityMatches,
+    candidateMutationContracts: mutationMatches,
+    requestedMutationContract,
+    mutationAccess,
+    policyMode: policy.mode,
+  }
+}
+
+function mapGrandmasterActionToMutationContract(action: string): string | null {
+  if (!action) return null
+
+  if (action === 'ask_copilot_submit') return 'queue_owner_research_task'
+
+  if (
+    action === 'doctor_health' ||
+    action === 'doctor_timeline' ||
+    action === 'doctor_playbook_run' ||
+    action === 'inference_endpoint_health'
+  ) {
+    return 'run_grandmaster_diagnostics'
+  }
+
+  if (action === 'code_task_submit' || action === 'code_task_skip' || action === 'code_task_delete') {
+    return 'queue_bob_code_change_task'
+  }
+
+  return null
+}
 
 /** Retrieve the current session's access token, or null if not signed in. */
 async function getValidAccessToken(): Promise<string | null> {
@@ -1088,6 +1216,63 @@ export const edgeFunctions = {
   // ============================================================================
 
   /**
+   * Unified Bob gateway contract.
+   *
+   * All Bob-related calls that hit `onspace-ai-chat` should use this wrapper so
+   * role-aware execution policy metadata is consistently attached.
+   */
+  bobGateway: async (params: Record<string, any>) => {
+    const policy = getEffectiveBobExecutionPolicy()
+    const executionPrompt = buildBobExecutionSystemPrompt()
+    const operationalContextNote = buildBobOperationalContextNote()
+    const executionReview = buildBobExecutionReview(params, policy)
+    const hasOperationalContextNote = Array.isArray(params.messages)
+      ? params.messages.some((message: { content?: string }) => String(message?.content || '').includes('Bob operational map (grounded):'))
+      : false
+
+    if (executionReview.requestedMutationContract && executionReview.mutationAccess && !executionReview.mutationAccess.allowed) {
+      return {
+        data: null,
+        error: `Bob mutation contract blocked by policy: ${executionReview.mutationAccess.reason}`,
+      }
+    }
+
+    const mergedContext = {
+      ...(params.context ?? {}),
+      execution_policy_contract: 'v1',
+      schema_registry_summary: getBobSchemaRegistrySummary(),
+      route_entity_map_summary: getBobRouteEntityMapSummary(),
+      mutation_catalog_summary: getBobMutationCatalogSummary(),
+      execution_policy: {
+        mode: policy.mode,
+        role: policy.role,
+        title: policy.title,
+        requires_guardrails: policy.requiresGuardrails,
+        schema_check_enforced: policy.enforceSchemaCheck,
+        hard_sections_enforced: policy.enforceHardSections,
+      },
+      execution_review: executionReview,
+      execution_prompt_hint: executionPrompt,
+    }
+
+    const requestParams = {
+      ...params,
+      context: mergedContext,
+      messages: Array.isArray(params.messages)
+        ? [
+            ...(hasOperationalContextNote ? [] : [{ role: 'assistant' as const, content: operationalContextNote }]),
+            ...params.messages,
+          ]
+        : params.messages,
+    }
+
+    return callEdgeFunction<any>('onspace-ai-chat', requestParams, {
+      showToast: false,
+      useDirectFetch: true,
+    })
+  },
+
+  /**
    * AI chat for analysis and suggestions.
    *
    * Sends a conversation history as a messages array so the edge function
@@ -1100,27 +1285,73 @@ export const edgeFunctions = {
     temperature?: number
     provider?: 'auto' | 'ollama' | 'inference'
   }) => {
+    const policy = getEffectiveBobExecutionPolicy()
+    const executionPrompt = buildBobExecutionSystemPrompt()
+    const hasExecutionSystemPrompt = (params.messages || []).some(
+      (message) => message.role === 'system' && message.content.includes('execution-first mode')
+    )
+
+    const requestParams = hasExecutionSystemPrompt
+      ? params
+      : {
+          ...params,
+          messages: [
+            { role: 'system' as const, content: executionPrompt },
+            ...(params.messages || []),
+          ],
+        }
+
     // AiAnalysis.tsx renders errors in the chat and shows its own toast, so
     // suppress the automatic toast here to avoid duplicate error notifications.
-    const result = await callEdgeFunction<any>('onspace-ai-chat', params, {
-      showToast: false,
-      useDirectFetch: true,
-    })
+    const result = await edgeFunctions.bobGateway(requestParams)
 
     if (result.error || !result.data) {
       return result
     }
 
+    const pickNormalizedResponse = (payload: any): string | undefined => {
+      return [
+        payload?.response,
+        payload?.message,
+        payload?.output?.response,
+        payload?.output?.message,
+        payload?.output?.message?.content,
+        payload?.output?.choices?.[0]?.message?.content,
+        typeof payload === 'string' ? payload : null,
+      ].find((candidate) => typeof candidate === 'string' && candidate.trim().length > 0) as string | undefined
+    }
+
     const data = result.data as any
-    const normalizedResponse = [
-      data?.response,
-      data?.message,
-      data?.output?.response,
-      data?.output?.message,
-      data?.output?.message?.content,
-      data?.output?.choices?.[0]?.message?.content,
-      typeof data === 'string' ? data : null,
-    ].find((candidate) => typeof candidate === 'string' && candidate.trim().length > 0) as string | undefined
+    let normalizedResponse = pickNormalizedResponse(data)
+
+    if (policy.enforceHardSections && normalizedResponse) {
+      const missingSections = findMissingRequiredSections(normalizedResponse)
+      if (missingSections.length > 0) {
+        const retryMessages = [
+          ...(requestParams.messages || []),
+          {
+            role: 'system' as const,
+            content: `Policy retry: previous response missed required sections: ${missingSections.join(', ')}. Regenerate now with headings Review Findings, Assessment, Action Plan.`,
+          },
+        ]
+
+        const retryResult = await edgeFunctions.bobGateway({
+          ...requestParams,
+          messages: retryMessages,
+        })
+
+        if (!retryResult.error && retryResult.data) {
+          normalizedResponse = pickNormalizedResponse(retryResult.data)
+        }
+
+        if (!normalizedResponse || findMissingRequiredSections(normalizedResponse).length > 0) {
+          return {
+            data: null,
+            error: 'Bob response blocked by policy: required sections missing (Review Findings, Assessment, Action Plan). Please retry.',
+          }
+        }
+      }
+    }
 
     if (!normalizedResponse) {
       return {
@@ -1129,10 +1360,24 @@ export const edgeFunctions = {
       }
     }
 
+    const actionChecklist = policy.showActionChecklist ? extractActionChecklist(normalizedResponse) : []
+    const missingRequiredSections = policy.enforceSchemaCheck ? findMissingRequiredSections(normalizedResponse) : []
+    const executionReview = buildBobExecutionReview(requestParams, policy)
+
     return {
       data: {
         ...data,
         response: normalizedResponse,
+        actionChecklist,
+        executionReview,
+        responsePolicy: {
+          mode: policy.mode,
+          role: policy.role,
+          title: policy.title,
+          missingRequiredSections,
+          hardSectionEnforced: policy.enforceHardSections,
+          schemaCheckEnforced: policy.enforceSchemaCheck,
+        },
       },
       error: null,
     }
@@ -1190,7 +1435,16 @@ export const edgeFunctions = {
     approved?: boolean
     target_paths?: string[]
   }) => {
-    return callEdgeFunction('bob-code-change-task', params, { showToast: false })
+    const policy = getEffectiveBobExecutionPolicy()
+    const mutationAccess = assertBobMutationAccess('queue_bob_code_change_task', policy.mode)
+    if (!mutationAccess.allowed) {
+      return { data: null, error: mutationAccess.reason }
+    }
+
+    return callEdgeFunction('bob-code-change-task', {
+      ...params,
+      requested_mutation_contract: 'queue_bob_code_change_task',
+    }, { showToast: false })
   },
 
   /**
@@ -1259,7 +1513,20 @@ export const edgeFunctions = {
     source?: string
     metadata?: Record<string, unknown>
   }) => {
-    return callEdgeFunction('grandmaster-studio', params, { showToast: false })
+    const policy = getEffectiveBobExecutionPolicy()
+    const contractId = mapGrandmasterActionToMutationContract(String(params.action || ''))
+
+    if (contractId) {
+      const mutationAccess = assertBobMutationAccess(contractId, policy.mode)
+      if (!mutationAccess.allowed) {
+        return { data: null, error: mutationAccess.reason }
+      }
+    }
+
+    return callEdgeFunction('grandmaster-studio', {
+      ...params,
+      requested_mutation_contract: contractId,
+    }, { showToast: false })
   },
 
   /**

@@ -84,6 +84,114 @@ type ActionRec = {
   suggestedAction: string
 }
 
+type NoiseAudioAnalysis = {
+  estimatedDb: number
+  rmsDbfs: number
+  peakFrequencyHz: number | null
+  dominantBand: 'bass' | 'mid' | 'treble' | 'broadband'
+  durationSeconds: number
+}
+
+function clampNumber(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value))
+}
+
+function downmixAudioBuffer(buffer: AudioBuffer): Float32Array {
+  const mixed = new Float32Array(buffer.length)
+  const channelCount = Math.max(1, buffer.numberOfChannels)
+  for (let channelIndex = 0; channelIndex < channelCount; channelIndex += 1) {
+    const channel = buffer.getChannelData(channelIndex)
+    for (let sampleIndex = 0; sampleIndex < channel.length; sampleIndex += 1) {
+      mixed[sampleIndex] += channel[sampleIndex] / channelCount
+    }
+  }
+  return mixed
+}
+
+function computeRmsDbfs(samples: Float32Array): number {
+  if (!samples.length) return -96
+  let energy = 0
+  for (let index = 0; index < samples.length; index += 1) {
+    energy += samples[index] * samples[index]
+  }
+  const rms = Math.sqrt(energy / samples.length)
+  if (!Number.isFinite(rms) || rms <= 0) return -96
+  return 20 * Math.log10(rms)
+}
+
+function estimateDominantFrequency(samples: Float32Array, sampleRate: number): number | null {
+  const windowSize = 1024
+  if (!samples.length || sampleRate <= 0 || samples.length < windowSize) return null
+
+  let loudestOffset = 0
+  let loudestEnergy = 0
+  for (let offset = 0; offset + windowSize <= samples.length; offset += windowSize) {
+    let windowEnergy = 0
+    for (let index = 0; index < windowSize; index += 1) {
+      const sample = samples[offset + index]
+      windowEnergy += sample * sample
+    }
+    if (windowEnergy > loudestEnergy) {
+      loudestEnergy = windowEnergy
+      loudestOffset = offset
+    }
+  }
+
+  const spectrumWindow = samples.slice(loudestOffset, loudestOffset + windowSize)
+  let maxPower = 0
+  let dominantBin = 0
+  for (let bin = 1; bin < windowSize / 2; bin += 1) {
+    let real = 0
+    let imaginary = 0
+    for (let index = 0; index < windowSize; index += 1) {
+      const angle = (2 * Math.PI * bin * index) / windowSize
+      const sample = spectrumWindow[index]
+      real += sample * Math.cos(angle)
+      imaginary -= sample * Math.sin(angle)
+    }
+    const power = real * real + imaginary * imaginary
+    if (power > maxPower) {
+      maxPower = power
+      dominantBin = bin
+    }
+  }
+
+  if (!dominantBin) return null
+  return Math.round((dominantBin * sampleRate) / windowSize)
+}
+
+async function analyzeNoiseAudioSample(buffer: ArrayBuffer): Promise<NoiseAudioAnalysis> {
+  const AudioCtx = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+  if (!AudioCtx) {
+    throw new Error('Web Audio API is not supported in this browser')
+  }
+
+  const context = new AudioCtx()
+  try {
+    const audioBuffer = await context.decodeAudioData(buffer.slice(0))
+    const samples = downmixAudioBuffer(audioBuffer)
+    const rmsDbfs = computeRmsDbfs(samples)
+    const peakFrequencyHz = estimateDominantFrequency(samples, audioBuffer.sampleRate)
+    const dominantBand = peakFrequencyHz == null
+      ? 'broadband'
+      : peakFrequencyHz < 250
+        ? 'bass'
+        : peakFrequencyHz < 2000
+          ? 'mid'
+          : 'treble'
+
+    return {
+      estimatedDb: clampNumber(Math.round(100 + rmsDbfs), 35, 110),
+      rmsDbfs: Math.round(rmsDbfs * 10) / 10,
+      peakFrequencyHz,
+      dominantBand,
+      durationSeconds: Math.round(audioBuffer.duration * 10) / 10,
+    }
+  } finally {
+    await context.close()
+  }
+}
+
 function getActionRecommendation(job: NoiseJob): ActionRec {
   if (job.has_permanent_end) {
     return {
@@ -165,6 +273,8 @@ export default function NoiseOfficerPortal() {
   const [selectedJob, setSelectedJob] = useState<NoiseJob | null>(null)
   const [tab, setTab] = useState('jobs')
   const [attachedNoiseAudio, setAttachedNoiseAudio] = useState<{ base64: string; mime: string; name: string } | null>(null)
+  const [audioAnalysis, setAudioAnalysis] = useState<NoiseAudioAnalysis | null>(null)
+  const [audioAnalysisPending, setAudioAnalysisPending] = useState(false)
 
   // Assessment form state
   const [assessment, setAssessment] = useState({
@@ -189,8 +299,9 @@ export default function NoiseOfficerPortal() {
     recommended_action: 'verbal_warning',
     action_notes: '',
     address_photo_url: '',
+    ai_confidence_score: null as number | null,
+    ai_rationale: null as string | null,
   })
-
   // Notice form state
   const [noticeForm, setNoticeForm] = useState({
     notice_type: 'abatement_notice',
@@ -422,6 +533,8 @@ export default function NoiseOfficerPortal() {
           recommended_action: assessment.recommended_action,
           action_notes: assessment.action_notes || null,
           address_photo_url: assessment.address_photo_url || null,
+          ai_confidence_score: assessment.ai_confidence_score,
+          ai_rationale: assessment.ai_rationale,
         })
         .select('id')
         .single()
@@ -459,7 +572,6 @@ export default function NoiseOfficerPortal() {
     },
     onError: (e: Error) => toast.error(e.message),
   })
-
   const issueNoticeMutation = useMutation({
     mutationFn: async () => {
       if (!orgId || !user?.id || !selectedJob) throw new Error('No job selected')
@@ -583,6 +695,8 @@ export default function NoiseOfficerPortal() {
         exceeds_district_plan: typeof result?.exceeds_district_plan === 'boolean' ? result.exceeds_district_plan : prev.exceeds_district_plan,
         noise_type: result?.noise_type || prev.noise_type,
         noise_source: result?.noise_source || prev.noise_source,
+        ai_confidence_score: typeof result?.confidence === 'number' ? result.confidence : prev.ai_confidence_score,
+        ai_rationale: result?.rationale || prev.ai_rationale,
         action_notes: [
           prev.action_notes,
           result?.rationale ? `Bob audio assessment: ${result.rationale}` : '',
@@ -592,7 +706,6 @@ export default function NoiseOfficerPortal() {
     },
     onError: (e: Error) => toast.error(e.message || 'Audio assessment failed'),
   })
-
   const handleAttachNoiseAudio = async (file: File | null) => {
     if (!file) return
     try {
@@ -606,9 +719,23 @@ export default function NoiseOfficerPortal() {
         mime: file.type || 'audio/wav',
         name: file.name,
       })
+      setAudioAnalysisPending(true)
+      const analysis = await analyzeNoiseAudioSample(buffer)
+      setAudioAnalysis(analysis)
+      setAssessment((prev) => ({
+        ...prev,
+        noise_level_db: prev.noise_level_db || String(analysis.estimatedDb),
+        measurement_method: prev.measurement_method === 'estimated' ? 'app_meter' : prev.measurement_method,
+        action_notes: analysis.peakFrequencyHz == null
+          ? prev.action_notes
+          : `${prev.action_notes ? `${prev.action_notes}\n` : ''}Audio analyzer: ${analysis.estimatedDb} dB estimate, ${analysis.dominantBand} emphasis at ~${analysis.peakFrequencyHz}Hz.`,
+      }))
       toast.success('Audio sample attached')
     } catch {
+      setAudioAnalysis(null)
       toast.error('Could not read audio file')
+    } finally {
+      setAudioAnalysisPending(false)
     }
   }
 
@@ -951,7 +1078,6 @@ export default function NoiseOfficerPortal() {
                             </div>
                           )}
 
-                          {/* Score result */}
                           {total !== null && (
                             <div className={`rounded p-2 border text-sm font-semibold ${bandColour}`}>
                               Score: {total}
@@ -962,6 +1088,15 @@ export default function NoiseOfficerPortal() {
                             </div>
                           )}
 
+                          {assessment.ai_confidence_score !== null && (
+                            <div className="flex items-center gap-2 rounded border border-blue-200 bg-blue-50 px-2 py-1 text-xs text-blue-800">
+                              <BrainCircuit className="h-3.5 w-3.5" />
+                              <span className="font-medium">Bob confidence</span>
+                              <Badge className="bg-white text-blue-800 hover:bg-white">
+                                {Math.round(assessment.ai_confidence_score * 100)}%
+                              </Badge>
+                            </div>
+                          )}
                           {/* Guidance for score 5+ */}
                           {band === 'excessive' && (
                             <div className="text-xs text-red-700 space-y-0.5 border border-red-200 rounded p-2 bg-white">
@@ -1002,6 +1137,24 @@ export default function NoiseOfficerPortal() {
                             </div>
                             {attachedNoiseAudio && (
                               <p className="text-[11px] text-gray-500 mt-1">Attached: {attachedNoiseAudio.name}</p>
+                            )}
+                            {audioAnalysisPending && (
+                              <p className="text-[11px] text-gray-500 mt-1 italic">Analyzing waveform for RMS and dominant frequency…</p>
+                            )}
+                            {audioAnalysis && !audioAnalysisPending && (
+                              <div className="mt-2 rounded border border-blue-200 bg-blue-50 p-2 text-[11px] text-blue-900">
+                                <div className="font-medium">Audio analyzer estimate</div>
+                                <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
+                                  <span>{audioAnalysis.estimatedDb} dB estimate</span>
+                                  <span>{audioAnalysis.rmsDbfs} dBFS RMS</span>
+                                  <span>{audioAnalysis.peakFrequencyHz ? `~${audioAnalysis.peakFrequencyHz}Hz` : 'broadband spectrum'}</span>
+                                  <span>{audioAnalysis.dominantBand} emphasis</span>
+                                  <span>{audioAnalysis.durationSeconds}s sample</span>
+                                </div>
+                                <div className="mt-1 text-[10px] text-blue-800/80">
+                                  Calibrated from the attached sample in-browser. Use as an officer estimate, not a certified meter reading.
+                                </div>
+                              </div>
                             )}
                             <p className="text-[11px] text-gray-500 mt-1">
                               Uses officer transcript/notes + optional dB estimate to prefill the matrix and recommended action. For best results, attach WAV audio.

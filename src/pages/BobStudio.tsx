@@ -594,32 +594,42 @@ function BobVoiceTab({ recording, onToggleRecording }: BobVoiceTabProps) {
     if (!text.trim() || lang === 'off') return
     setStatusMsg('Translating...')
     try {
+      const languageMap: Record<string, string> = {
+        'en-NZ': 'New Zealand English',
+        'en-AU': 'Australian English',
+        'en-GB': 'British English',
+        'en-US': 'American English',
+        'hi-IN': 'Hindi',
+        'zh-CN': 'Simplified Chinese',
+        'zh-TW': 'Traditional Chinese',
+        'tl-PH': 'Filipino',
+        'mi-NZ': 'Te Reo Maori',
+      }
+      const targetLanguage = languageMap[lang] || lang
+
+      const { data: transResult, error: transError } = await edgeFunctions.bobGateway({
+        messages: [
+          {
+            role: 'user',
+            content: [
+              `Translate the following text to ${targetLanguage}.`,
+              'Return only the translated text with no commentary.',
+              '',
+              text,
+            ].join('\n'),
+          },
+        ],
+        provider: 'auto',
+      })
+      if (transError) throw new Error(transError)
+
+      const translated = String((transResult as any)?.response || '').trim()
+      if (!translated) { setStatusMsg('Translation failed'); return }
+      setTranslatedText(translated)
+
       const { data: { session } } = await supabase.auth.getSession()
       const token = session?.access_token
       if (!token) { setStatusMsg('Not authenticated'); return }
-
-      // Translate via Bob
-      const transResp = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/onspace-ai-chat`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-            apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
-          },
-          body: JSON.stringify({
-            action: 'translate',
-            text,
-            target_language: lang,
-            provider: 'inference',
-          }),
-        }
-      )
-      const transResult = await transResp.json()
-      const translated = transResult.translation || transResult.translated_text || ''
-      if (!translated) { setStatusMsg('Translation failed'); return }
-      setTranslatedText(translated)
 
       // Synthesize speech with voice profile matching
       setStatusMsg('Synthesizing speech...')

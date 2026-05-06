@@ -1,20 +1,24 @@
 /**
- * DispatchLOIBrowser — Sprint 13 / B-44
+ * DispatchLOIBrowser — B-44
  *
- * Org-scoped browser of `locations_of_interest` records.
- * Filterable by loi_kind; searchable by name/address.
- * Displays address, GPS coordinates, hazard and access summaries.
+ * Browse and search the Locations of Interest (LOI) table used by the
+ * dispatch system to resolve addresses, parks, reserves, freedom camping
+ * spots, and other geographic points of interest for each organisation.
  *
- * Route: /loi-browser
- * Roles: admin, admin_officer, master, grand_master
- *
- * locations_of_interest is fully typed in database.ts — no `as any` required.
+ * Features:
+ *   - KPI cards: Total LOIs, Active, Freedom Camp sites, Parks & Reserves
+ *   - Filters: loi_kind dropdown, active/inactive toggle, keyword search
+ *   - Sortable table: name/address, kind badge, GPS co-ordinates, hazard and
+ *     access summaries, canonical indicator
  */
 
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
+import { format, parseISO } from 'date-fns'
+import {
+  MapPin, Search, RefreshCw, Globe, Tent, TreePine, Navigation,
+  Loader2, CheckCircle2, AlertCircle,
+} from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
-import { useNavigate } from 'react-router-dom'
-import { AlertTriangle, ArrowLeft, CheckCircle2, Globe, MapPin, Search } from 'lucide-react'
 
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
@@ -23,272 +27,298 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Skeleton } from '@/components/ui/skeleton'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 import type { Database } from '@/types/database'
 
-// ─── Types ──────────────────────────────────────────────────────────────────────
+// ─── Types ────────────────────────────────────────────────────────────────────
 
-type LOIRow = Database['public']['Tables']['locations_of_interest']['Row']
+type LOI = Database['public']['Tables']['locations_of_interest']['Row']
 
-// ─── Constants ─────────────────────────────────────────────────────────────────
+// ─── Constants ────────────────────────────────────────────────────────────────
 
-const LOI_KINDS = ['address', 'zone', 'hazard', 'client_site', 'patrol_point', 'checkpoint', 'dispatch_base'] as const
+const LOI_KINDS = [
+  { value: 'address',       label: 'Address',          icon: <MapPin className="h-3 w-3" /> },
+  { value: 'park_reserve',  label: 'Park / Reserve',   icon: <TreePine className="h-3 w-3" /> },
+  { value: 'freedom_camp',  label: 'Freedom Camp',     icon: <Tent className="h-3 w-3" /> },
+  { value: 'poi',           label: 'Point of Interest',icon: <Globe className="h-3 w-3" /> },
+  { value: 'intersection',  label: 'Intersection',     icon: <Navigation className="h-3 w-3" /> },
+  { value: 'ad_hoc',        label: 'Ad-hoc (GPS)',     icon: <Navigation className="h-3 w-3" /> },
+  { value: 'unknown',       label: 'Unknown',          icon: null },
+]
 
-// ─── Helpers ────────────────────────────────────────────────────────────────────
-
-function loiKindBadge(kind: string) {
-  const styles: Record<string, string> = {
-    address:        'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300',
-    zone:           'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300',
-    hazard:         'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300',
-    client_site:    'bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300',
-    patrol_point:   'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300',
-    checkpoint:     'bg-teal-100 text-teal-800 dark:bg-teal-900/40 dark:text-teal-300',
-    dispatch_base:  'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-300',
-  }
-  return (
-    <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium ${styles[kind] ?? 'bg-gray-100 text-gray-700'}`}>
-      {kind.replace(/_/g, ' ')}
-    </span>
-  )
+const KIND_COLOURS: Record<string, string> = {
+  address:      'bg-blue-100 text-blue-800',
+  park_reserve: 'bg-green-100 text-green-800',
+  freedom_camp: 'bg-emerald-100 text-emerald-800',
+  poi:          'bg-purple-100 text-purple-800',
+  intersection: 'bg-orange-100 text-orange-800',
+  ad_hoc:       'bg-yellow-100 text-yellow-800',
+  unknown:      'bg-gray-100 text-gray-600',
 }
 
-function formatAddress(row: LOIRow): string {
-  if (row.display_address) return row.display_address
-  const parts = [row.address_line1, row.suburb, row.city, row.region].filter(Boolean)
-  return parts.length > 0 ? parts.join(', ') : '—'
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function formatGps(lat: number | null, lng: number | null) {
+  if (lat === null || lng === null) return null
+  return `${lat.toFixed(5)}, ${lng.toFixed(5)}`
 }
 
-function formatGPS(row: LOIRow): string {
-  if (row.gps_lat == null || row.gps_lng == null) return '—'
-  return `${row.gps_lat.toFixed(5)}, ${row.gps_lng.toFixed(5)}`
+function kindLabel(kind: string) {
+  return LOI_KINDS.find(k => k.value === kind)?.label ?? kind
 }
 
-// ─── Page ───────────────────────────────────────────────────────────────────────
+function formatTs(ts: string | null) {
+  if (!ts) return '—'
+  try { return format(parseISO(ts), 'dd MMM yyyy') } catch { return ts }
+}
+
+function getDisplayAddress(l: LOI): string | null {
+  if (l.display_address) return l.display_address
+  if (l.address_full) return l.address_full
+  const parts = [l.address_line1, l.suburb, l.city].filter(Boolean)
+  return parts.length > 0 ? parts.join(', ') : null
+}
+
+// ─── Component ────────────────────────────────────────────────────────────────
 
 export default function DispatchLOIBrowser() {
-  const navigate = useNavigate()
   const { user } = useAuthStore()
   const orgId = user?.organization_id ?? ''
 
-  const [loiKindFilter, setLoiKindFilter] = useState<string>('all')
-  const [search, setSearch] = useState('')
-  const [activeOnly, setActiveOnly] = useState(true)
+  const [search, setSearch]       = useState('')
+  const [kindFilter, setKindFilter] = useState('all')
+  const [activeFilter, setActiveFilter] = useState('all')
 
-  // Fetch locations of interest
-  const { data: lois = [], isLoading, error, refetch } = useQuery<LOIRow[]>({
-    queryKey: ['loi-browser', orgId],
+  // ── Query ─────────────────────────────────────────────────────────────────
+
+  const { data: lois = [], isLoading, refetch } = useQuery({
+    queryKey: ['locations_of_interest', orgId],
+    enabled: !!orgId,
     queryFn: async () => {
-      if (!orgId) return []
       const { data, error } = await supabase
         .from('locations_of_interest')
         .select('*')
         .eq('organization_id', orgId)
-        .order('name', { ascending: true })
-        .limit(500)
+        .order('name', { ascending: true, nullsFirst: false })
       if (error) throw error
-      return data ?? []
+      return (data ?? []) as LOI[]
     },
-    enabled: !!orgId,
-    staleTime: 60_000,
-    retry: false,
   })
 
-  // Client-side filters
-  const filtered = useMemo(() => {
-    return lois.filter((loc) => {
-      if (activeOnly && !loc.is_active) return false
-      if (loiKindFilter !== 'all' && loc.loi_kind !== loiKindFilter) return false
-      if (search.trim()) {
-        const q = search.toLowerCase()
-        const name = (loc.name ?? '').toLowerCase()
-        const addr = formatAddress(loc).toLowerCase()
-        const hazard = (loc.hazard_summary ?? '').toLowerCase()
-        if (!name.includes(q) && !addr.includes(q) && !hazard.includes(q)) return false
-      }
-      return true
-    })
-  }, [lois, loiKindFilter, search, activeOnly])
+  // ── KPIs ───────────────────────────────────────────────────────────────────
 
-  // KPI counts
-  const kpis = useMemo(() => {
-    const active = lois.filter((l) => l.is_active)
-    const hazards = active.filter((l) => l.loi_kind === 'hazard').length
-    const canonical = active.filter((l) => l.is_canonical).length
-    return { total: active.length, hazards, canonical }
-  }, [lois])
+  const kpis = {
+    total:        lois.length,
+    active:       lois.filter(l => l.is_active).length,
+    freedomCamp:  lois.filter(l => l.loi_kind === 'freedom_camp').length,
+    parkReserve:  lois.filter(l => l.loi_kind === 'park_reserve').length,
+  }
+
+  // ── Filtered ──────────────────────────────────────────────────────────────
+
+  const filtered = lois.filter(l => {
+    if (kindFilter !== 'all' && l.loi_kind !== kindFilter) return false
+    if (activeFilter === 'active' && !l.is_active) return false
+    if (activeFilter === 'inactive' && l.is_active) return false
+    if (search) {
+      const q = search.toLowerCase()
+      const name    = (l.name ?? '').toLowerCase()
+      const address = (l.display_address ?? l.address_full ?? '').toLowerCase()
+      const suburb  = (l.suburb ?? '').toLowerCase()
+      const city    = (l.city ?? '').toLowerCase()
+      if (!name.includes(q) && !address.includes(q) && !suburb.includes(q) && !city.includes(q)) return false
+    }
+    return true
+  })
+
+  // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
-    <AppLayout
-      title="LOI Browser"
-      description="Browse and search all Locations of Interest for dispatch, patrol planning, and hazard awareness"
-    >
-      <div className="mb-4">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => navigate('/admin-portal')}
-          className="gap-1.5 text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="h-3.5 w-3.5" />
-          Back to Dashboard
+    <AppLayout title="Dispatch LOI Browser" description="Browse and search dispatch locations of interest">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-2">
+          <MapPin className="h-5 w-5 text-primary" />
+          <span className="font-semibold text-lg">Dispatch LOI Browser</span>
+        </div>
+        <Button variant="outline" size="sm" onClick={() => refetch()}>
+          <RefreshCw className="h-4 w-4" />
         </Button>
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-3 gap-3 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         {[
-          { label: 'Active LOIs', value: isLoading ? '—' : kpis.total, Icon: MapPin, color: 'text-blue-600' },
-          { label: 'Hazard Sites', value: isLoading ? '—' : kpis.hazards, Icon: AlertTriangle, color: 'text-red-600' },
-          { label: 'Canonical', value: isLoading ? '—' : kpis.canonical, Icon: CheckCircle2, color: 'text-emerald-600' },
-        ].map(({ label, value, Icon, color }) => (
-          <Card key={label} className="border shadow-sm">
-            <CardContent className="pt-4 pb-3 flex items-center gap-3">
-              <Icon className={`h-5 w-5 shrink-0 ${color}`} />
-              <div>
-                <p className="text-2xl font-bold leading-tight">{value}</p>
-                <p className="text-xs text-muted-foreground mt-0.5">{label}</p>
-              </div>
+          { label: 'Total LOIs',      value: kpis.total,       color: 'text-foreground',  icon: <Globe className="h-4 w-4" /> },
+          { label: 'Active',          value: kpis.active,      color: 'text-green-600',   icon: <CheckCircle2 className="h-4 w-4" /> },
+          { label: 'Freedom Camps',   value: kpis.freedomCamp, color: 'text-emerald-600', icon: <Tent className="h-4 w-4" /> },
+          { label: 'Parks & Reserves',value: kpis.parkReserve, color: 'text-teal-600',    icon: <TreePine className="h-4 w-4" /> },
+        ].map(k => (
+          <Card key={k.label}>
+            <CardHeader className="pb-1 pt-4 px-4">
+              <CardTitle className="text-xs text-muted-foreground font-medium flex items-center gap-1">
+                {k.icon}
+                {k.label}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="px-4 pb-4">
+              <p className={`text-2xl font-bold ${k.color}`}>{k.value}</p>
             </CardContent>
           </Card>
         ))}
       </div>
 
       {/* Filters */}
-      <Card className="mb-4">
-        <CardHeader className="pb-2 pt-4">
-          <CardTitle className="text-sm">Filters</CardTitle>
-        </CardHeader>
-        <CardContent className="pt-0">
-          <div className="flex flex-wrap gap-3 items-center">
-            <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-              <Input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search name / address / hazard…"
-                className="pl-8 w-60 h-8 text-xs"
-              />
-            </div>
-            <Select value={loiKindFilter} onValueChange={setLoiKindFilter}>
-              <SelectTrigger className="w-40 h-8 text-xs">
-                <SelectValue placeholder="LOI kind" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All kinds</SelectItem>
-                {LOI_KINDS.map((k) => (
-                  <SelectItem key={k} value={k}>{k.replace(/_/g, ' ')}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <label className="flex items-center gap-1.5 text-xs cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={activeOnly}
-                onChange={(e) => setActiveOnly(e.target.checked)}
-                className="rounded"
-              />
-              Active only
-            </label>
-            <Button size="sm" variant="ghost" className="h-8" onClick={() => void refetch()}>
-              Refresh
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="flex flex-wrap gap-3 mb-4">
+        <div className="relative flex-1 min-w-48">
+          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search name, address, suburb, city…"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="pl-8"
+          />
+        </div>
+        <Select value={kindFilter} onValueChange={setKindFilter}>
+          <SelectTrigger className="w-44">
+            <SelectValue placeholder="LOI kind" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All kinds</SelectItem>
+            {LOI_KINDS.map(k => (
+              <SelectItem key={k.value} value={k.value}>{k.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={activeFilter} onValueChange={setActiveFilter}>
+          <SelectTrigger className="w-36">
+            <SelectValue placeholder="Status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All statuses</SelectItem>
+            <SelectItem value="active">Active</SelectItem>
+            <SelectItem value="inactive">Inactive</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* No-data state */}
+      {!isLoading && lois.length === 0 && (
+        <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-md px-4 py-3 mb-4 text-sm text-blue-800">
+          <AlertCircle className="h-4 w-4 flex-shrink-0" />
+          <span>No locations of interest found for this organisation. Records are created automatically when patrol data or NCC import data is processed.</span>
+        </div>
+      )}
 
       {/* Table */}
-      {error ? (
-        <Card className="border-red-300 bg-red-50 dark:bg-red-950/20">
-          <CardContent className="pt-4">
-            <p className="text-sm text-red-700 dark:text-red-300">
-              Failed to load locations: {(error as any)?.message ?? 'Unknown error'}
-            </p>
-          </CardContent>
-        </Card>
-      ) : (
-        <Card>
-          <div className="rounded-xl overflow-hidden border">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-muted/50">
-                  <TableHead className="text-xs">Name</TableHead>
-                  <TableHead className="text-xs">Kind</TableHead>
-                  <TableHead className="text-xs">Address</TableHead>
-                  <TableHead className="text-xs">GPS</TableHead>
-                  <TableHead className="text-xs">Hazard Note</TableHead>
-                  <TableHead className="text-xs">Access Note</TableHead>
-                  <TableHead className="text-xs">Canonical</TableHead>
-                  <TableHead className="text-xs">Active</TableHead>
+      <Card>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Name / Label</TableHead>
+              <TableHead>Kind</TableHead>
+              <TableHead>Address</TableHead>
+              <TableHead>GPS</TableHead>
+              <TableHead>Hazard</TableHead>
+              <TableHead>Access</TableHead>
+              <TableHead>Canonical</TableHead>
+              <TableHead>Created</TableHead>
+              <TableHead>Status</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {isLoading && (
+              <TableRow>
+                <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin inline mr-2" /> Loading…
+                </TableCell>
+              </TableRow>
+            )}
+            {!isLoading && filtered.length === 0 && lois.length > 0 && (
+              <TableRow>
+                <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                  No locations match the current filters.
+                </TableCell>
+              </TableRow>
+            )}
+            {filtered.map(l => {
+              const gps     = formatGps(l.gps_lat, l.gps_lng)
+              const address = getDisplayAddress(l)
+              return (
+                <TableRow key={l.id} className={!l.is_active ? 'opacity-50' : ''}>
+                  <TableCell className="font-medium max-w-40">
+                    {l.name
+                      ? <span className="truncate block">{l.name}</span>
+                      : <span className="italic text-muted-foreground">Unnamed</span>}
+                    {l.description && (
+                      <span className="text-xs text-muted-foreground truncate block max-w-36">{l.description}</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${KIND_COLOURS[l.loi_kind] ?? KIND_COLOURS.unknown}`}>
+                      {kindLabel(l.loi_kind)}
+                    </span>
+                  </TableCell>
+                  <TableCell className="text-sm max-w-48">
+                    <span className="truncate block">
+                      {address ?? <span className="text-muted-foreground italic">No address</span>}
+                    </span>
+                    {l.city && l.region && (
+                      <span className="text-xs text-muted-foreground">{l.city}, {l.region}</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-xs font-mono whitespace-nowrap text-muted-foreground">
+                    {gps ?? <span className="italic">—</span>}
+                  </TableCell>
+                  <TableCell className="text-xs max-w-32">
+                    {l.hazard_summary
+                      ? <span className="truncate block text-orange-700">{l.hazard_summary}</span>
+                      : <span className="text-muted-foreground">—</span>}
+                  </TableCell>
+                  <TableCell className="text-xs max-w-32">
+                    {l.access_summary
+                      ? <span className="truncate block">{l.access_summary}</span>
+                      : <span className="text-muted-foreground">—</span>}
+                  </TableCell>
+                  <TableCell>
+                    {l.is_canonical
+                      ? <Badge variant="outline" className="text-xs text-blue-700 border-blue-300">Canonical</Badge>
+                      : <span className="text-xs text-muted-foreground">—</span>}
+                  </TableCell>
+                  <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                    {formatTs(l.created_at)}
+                  </TableCell>
+                  <TableCell>
+                    {l.is_active
+                      ? <Badge variant="secondary" className="text-xs text-green-700">Active</Badge>
+                      : <Badge variant="outline" className="text-xs text-muted-foreground">Inactive</Badge>}
+                  </TableCell>
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                {isLoading ? (
-                  Array.from({ length: 5 }).map((_, i) => (
-                    <TableRow key={i}>
-                      <TableCell colSpan={8}><Skeleton className="h-4 w-full" /></TableCell>
-                    </TableRow>
-                  ))
-                ) : filtered.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={8} className="text-center text-sm text-muted-foreground py-8">
-                      No locations match the current filters.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  filtered.map((loc) => (
-                    <TableRow key={loc.id} className={loc.loi_kind === 'hazard' ? 'bg-red-50/40 dark:bg-red-950/10' : ''}>
-                      <TableCell className="py-2 text-sm font-medium max-w-[140px] truncate">{loc.name ?? '—'}</TableCell>
-                      <TableCell className="py-2">{loiKindBadge(loc.loi_kind)}</TableCell>
-                      <TableCell className="py-2 text-xs text-muted-foreground max-w-[200px] truncate">{formatAddress(loc)}</TableCell>
-                      <TableCell className="py-2 text-xs font-mono text-muted-foreground">
-                        {loc.gps_lat != null && loc.gps_lng != null ? (
-                          <a
-                            href={`https://www.google.com/maps?q=${loc.gps_lat},${loc.gps_lng}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-1 text-blue-600 hover:underline"
-                          >
-                            <Globe className="h-3 w-3" />
-                            {formatGPS(loc)}
-                          </a>
-                        ) : '—'}
-                      </TableCell>
-                      <TableCell className="py-2 text-xs max-w-[140px] truncate" title={loc.hazard_summary ?? undefined}>
-                        {loc.hazard_summary
-                          ? <span className="text-red-700 dark:text-red-300">{loc.hazard_summary}</span>
-                          : <span className="text-muted-foreground">—</span>
-                        }
-                      </TableCell>
-                      <TableCell className="py-2 text-xs max-w-[140px] truncate" title={loc.access_summary ?? undefined}>
-                        {loc.access_summary ?? <span className="text-muted-foreground">—</span>}
-                      </TableCell>
-                      <TableCell className="py-2 text-xs">
-                        {loc.is_canonical
-                          ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" aria-label="Canonical" />
-                          : <span className="text-muted-foreground">—</span>
-                        }
-                      </TableCell>
-                      <TableCell className="py-2">
-                        <Badge variant={loc.is_active ? 'default' : 'secondary'} className="text-[10px] px-1.5 py-0">
-                          {loc.is_active ? 'Active' : 'Inactive'}
-                        </Badge>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
-          {!isLoading && filtered.length > 0 && (
-            <div className="px-4 py-2 text-xs text-muted-foreground border-t">
-              Showing {filtered.length} of {lois.length} location{lois.length !== 1 ? 's' : ''}
-              {lois.length >= 500 && ' (capped at 500 — refine filters)'}
-            </div>
-          )}
-        </Card>
+              )
+            })}
+          </TableBody>
+        </Table>
+      </Card>
+
+      {/* Row count footer */}
+      {!isLoading && filtered.length > 0 && (
+        <p className="text-xs text-muted-foreground mt-2 text-right">
+          Showing {filtered.length} of {lois.length} locations
+        </p>
       )}
     </AppLayout>
   )

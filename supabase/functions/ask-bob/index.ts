@@ -9,6 +9,13 @@ type AskBobRequest = {
   organization_id?: string | null
 }
 
+function extractBearerToken(req: Request): string | null {
+  const authHeader = req.headers.get('Authorization') || req.headers.get('authorization')
+  if (!authHeader) return null
+  const match = authHeader.match(/^Bearer\s+(.+)$/i)
+  return match?.[1]?.trim() ?? null
+}
+
 function buildSystemPrompt(context: Record<string, unknown> | null): string {
   if (!context) {
     return [
@@ -110,10 +117,15 @@ Deno.serve(withCors(async (req: Request) => {
 
   const systemPrompt = buildSystemPrompt(context)
 
+  const userJwt = extractBearerToken(req)
+  if (!userJwt) {
+    return errorResponse('Missing authorization token', req, 401)
+  }
+
   const inferenceResponse = await fetch(`${supabaseUrl}/functions/v1/onspace-ai-chat`, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${serviceRoleKey}`,
+      Authorization: `Bearer ${userJwt}`,
       apikey: serviceRoleKey,
       'Content-Type': 'application/json',
       'x-client-info': 'ask-bob-edge-function',
@@ -122,6 +134,10 @@ Deno.serve(withCors(async (req: Request) => {
       provider: 'inference',
       model: 'qwen2.5:7b',
       temperature: 0.2,
+      context: {
+        execution_policy_contract: 'v1',
+        source: 'ask-bob',
+      },
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: prompt },

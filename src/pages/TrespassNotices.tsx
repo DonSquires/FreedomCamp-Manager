@@ -1,370 +1,499 @@
 /**
- * TrespassNotices — Sprint 14 / B-45
+ * TrespassNotices — B-45
  *
- * Dedicated standalone view for trespass notice management.
- * Reuses `useTrespassNotices` from usePointsOfInterest.ts.
+ * Issue, search, and manage trespass notices under the Trespass Act 1980.
+ * Reuses the useTrespassNotices hook from usePointsOfInterest.
  *
  * Features:
- * - KPI cards: Total / Active / Expired / Withdrawn
- * - Table with status filter, notice type filter, free-text search
- * - Issue new notice inline dialog
- * - Update status (withdraw / expire) action
- *
- * Route: /trespass-notices
- * Roles: admin, admin_officer, master
+ *  - KPI cards: Total / Active / Expired / Withdrawn
+ *  - Filters: status dropdown, notice_type dropdown, keyword search
+ *  - Table: reference, person/vehicle, type, status, zone, issuer, issued date, expiry
+ *  - Issue dialog: reason, type, duration, served method, zone, person/vehicle refs,
+ *    witness, privacy notice checkbox
+ *  - Withdraw action for active notices
  */
 
-import { useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { format, parseISO } from 'date-fns'
-import { AlertTriangle, ArrowLeft, Ban, CheckCircle2, Clock, FileText, Search, X } from 'lucide-react'
+import { useState } from 'react'
+import { format, parseISO, isPast } from 'date-fns'
+import {
+  Ban, Plus, Search, RefreshCw, CheckCircle2, AlertCircle,
+  Clock, XCircle, Loader2, User, Car, MapPin,
+} from 'lucide-react'
 
-import { useTrespassNotices } from '@/hooks/usePointsOfInterest'
+import {
+  useTrespassNotices,
+  type TrespassNotice,
+} from '@/hooks/usePointsOfInterest'
+import { useAuthStore } from '@/stores/authStore'
 import { AppLayout } from '@/components/features/AppLayout'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Skeleton } from '@/components/ui/skeleton'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
-import type { TrespassNotice } from '@/hooks/usePointsOfInterest'
+import { Checkbox } from '@/components/ui/checkbox'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 
-// ─── Types ──────────────────────────────────────────────────────────────────────
+// ─── Styling maps ──────────────────────────────────────────────────────────────
 
-type NoticeStatus = 'active' | 'expired' | 'withdrawn' | 'appealed'
-
-// ─── Constants ─────────────────────────────────────────────────────────────────
-
-const STATUS_CONFIG: Record<NoticeStatus, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline'; icon: React.FC<{ className?: string }> }> = {
-  active:    { label: 'Active',    variant: 'default',     icon: CheckCircle2 },
-  expired:   { label: 'Expired',   variant: 'secondary',   icon: Clock },
-  withdrawn: { label: 'Withdrawn', variant: 'outline',     icon: X },
-  appealed:  { label: 'Appealed',  variant: 'destructive', icon: AlertTriangle },
+const STATUS_STYLES: Record<string, { label: string; className: string }> = {
+  active:    { label: 'Active',    className: 'bg-green-100 text-green-800' },
+  expired:   { label: 'Expired',   className: 'bg-gray-100 text-gray-600' },
+  withdrawn: { label: 'Withdrawn', className: 'bg-orange-100 text-orange-700' },
+  appealed:  { label: 'Appealed',  className: 'bg-yellow-100 text-yellow-800' },
 }
 
-const NOTICE_TYPES: Record<string, string> = {
-  verbal:    'Verbal',
-  written:   'Written',
-  permanent: 'Permanent',
+const TYPE_STYLES: Record<string, { label: string; className: string }> = {
+  verbal:    { label: 'Verbal',    className: 'bg-blue-100 text-blue-700' },
+  written:   { label: 'Written',   className: 'bg-purple-100 text-purple-700' },
+  permanent: { label: 'Permanent', className: 'bg-red-100 text-red-700' },
 }
 
-// ─── Helpers ────────────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function fmtDate(s: string | null) {
-  if (!s) return '—'
-  try { return format(parseISO(s), 'd MMM yyyy') } catch { return s }
+function fmtDate(ts: string | null) {
+  if (!ts) return '—'
+  try { return format(parseISO(ts), 'dd MMM yyyy') } catch { return ts }
 }
 
-function subjectLabel(n: TrespassNotice) {
-  if (n.person?.full_name) return n.person.full_name
-  if (n.vehicle?.plate_number) return n.vehicle.plate_number
-  return '—'
+function issuedByName(n: { first_name: string; last_name: string } | null | undefined) {
+  if (!n) return '—'
+  return `${n.first_name ?? ''} ${n.last_name ?? ''}`.trim() || '—'
 }
 
-// ─── Issue Notice Dialog (minimal — full form lives in PointsOfInterest) ───────
-
-interface IssueDialogProps {
-  open: boolean
-  onClose: () => void
-  onSubmit: (values: Partial<TrespassNotice>) => void
-  isSaving: boolean
+function isExpired(n: TrespassNotice): boolean {
+  if (n.status === 'expired') return true
+  return n.status === 'active' && !!n.expires_at && isPast(parseISO(n.expires_at))
 }
 
-function IssueNoticeDialog({ open, onClose, onSubmit, isSaving }: IssueDialogProps) {
-  const [form, setForm] = useState({
-    notice_type: 'written' as 'verbal' | 'written' | 'permanent',
+function blankNotice(): Partial<TrespassNotice> {
+  return {
     trespass_reason: '',
+    notice_type: 'written',
+    duration_days: 365,
+    status: 'active',
+    trespass_from: '',
     legal_basis: 'Trespass Act 1980, Section 3 & 4',
-    duration_days: 90,
+    served_method: 'in_person',
+    witness_present: false,
+    witness_name: '',
+    privacy_notice_given: false,
     notes: '',
+    person_id: null,
+    vehicle_id: null,
+    zone_id: null,
+  }
+}
+
+// ─── Component ────────────────────────────────────────────────────────────────
+
+export default function TrespassNoticesPage() {
+  const { user } = useAuthStore()
+  const isAdmin = user?.role === 'admin' || user?.role === 'admin_officer' || user?.role === 'master'
+
+  const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState('all')
+  const [typeFilter, setTypeFilter] = useState('all')
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const [form, setForm] = useState<Partial<TrespassNotice>>(blankNotice())
+  const [saving, setSaving] = useState(false)
+
+  const { notices, isLoading, refetch, createNotice, updateNotice } = useTrespassNotices(
+    statusFilter !== 'all' ? { status: statusFilter } : {}
+  )
+
+  // ── KPIs ───────────────────────────────────────────────────────────────────
+
+  const kpis = {
+    total:     notices.length,
+    active:    notices.filter(n => n.status === 'active').length,
+    expired:   notices.filter(isExpired).length,
+    withdrawn: notices.filter(n => n.status === 'withdrawn').length,
+  }
+
+  // ── Filtered ──────────────────────────────────────────────────────────────
+
+  const filtered = notices.filter(n => {
+    if (typeFilter !== 'all' && n.notice_type !== typeFilter) return false
+    if (search) {
+      const q = search.toLowerCase()
+      if (
+        !(n.trespass_reason ?? '').toLowerCase().includes(q) &&
+        !(n.reference_number ?? '').toLowerCase().includes(q) &&
+        !(n.person?.full_name ?? '').toLowerCase().includes(q) &&
+        !(n.vehicle?.plate_number ?? '').toLowerCase().includes(q) &&
+        !(n.zone?.name ?? '').toLowerCase().includes(q)
+      ) return false
+    }
+    return true
   })
 
-  const handleSubmit = () => {
-    if (!form.trespass_reason.trim()) return
-    onSubmit(form)
+  // ── Actions ───────────────────────────────────────────────────────────────
+
+  async function handleIssue() {
+    if (!form.trespass_reason?.trim()) return
+    setSaving(true)
+    try {
+      await createNotice.mutateAsync(form)
+      setDialogOpen(false)
+      setForm(blankNotice())
+    } finally {
+      setSaving(false)
+    }
   }
 
+  async function handleWithdraw(n: TrespassNotice) {
+    await updateNotice.mutateAsync({ id: n.id, status: 'withdrawn' })
+  }
+
+  // ── Render ─────────────────────────────────────────────────────────────────
+
   return (
-    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose() }}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Ban className="h-4 w-4 text-red-500" />
-            Issue Trespass Notice
-          </DialogTitle>
-        </DialogHeader>
-        <div className="grid gap-4 py-2">
-          <div className="grid gap-1.5">
-            <Label>Notice Type</Label>
-            <Select value={form.notice_type} onValueChange={(v) => setForm({ ...form, notice_type: v as any })}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {Object.entries(NOTICE_TYPES).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="grid gap-1.5">
-            <Label>Reason <span className="text-red-500">*</span></Label>
-            <Textarea
-              value={form.trespass_reason}
-              onChange={(e) => setForm({ ...form, trespass_reason: e.target.value })}
-              rows={3}
-              placeholder="Describe the trespass reason…"
-            />
-          </div>
-          <div className="grid gap-1.5">
-            <Label>Legal Basis</Label>
-            <Input
-              value={form.legal_basis}
-              onChange={(e) => setForm({ ...form, legal_basis: e.target.value })}
-            />
-          </div>
-          <div className="grid gap-1.5">
-            <Label>Duration (days)</Label>
-            <Input
-              type="number"
-              min={1}
-              value={form.duration_days}
-              onChange={(e) => setForm({ ...form, duration_days: Number(e.target.value) })}
-            />
-          </div>
-          <div className="grid gap-1.5">
-            <Label>Notes</Label>
-            <Textarea
-              value={form.notes}
-              onChange={(e) => setForm({ ...form, notes: e.target.value })}
-              rows={2}
-              placeholder="Optional internal notes…"
-            />
-          </div>
+    <AppLayout title="Trespass Notices" description="Manage trespass notices under the Trespass Act 1980">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-2">
+          <Ban className="h-5 w-5 text-destructive" />
+          <span className="font-semibold text-lg">Trespass Notices</span>
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={isSaving}>Cancel</Button>
-          <Button onClick={handleSubmit} disabled={isSaving || !form.trespass_reason.trim()}>
-            {isSaving ? 'Saving…' : 'Issue Notice'}
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={() => refetch()}>
+            <RefreshCw className="h-4 w-4" />
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
-// ─── Main Page ──────────────────────────────────────────────────────────────────
-
-export default function TrespassNotices() {
-  const navigate = useNavigate()
-
-  // State
-  const [statusFilter, setStatusFilter] = useState<string>('all')
-  const [typeFilter, setTypeFilter] = useState<string>('all')
-  const [search, setSearch] = useState('')
-  const [issueOpen, setIssueOpen] = useState(false)
-
-  // Data — pass no status filter to load all statuses; filter client-side for KPIs
-  const { notices, isLoading, createNotice, updateNotice } = useTrespassNotices()
-
-  // KPIs
-  const kpis = useMemo(() => ({
-    total:     notices.length,
-    active:    notices.filter((n) => n.status === 'active').length,
-    expired:   notices.filter((n) => n.status === 'expired').length,
-    withdrawn: notices.filter((n) => n.status === 'withdrawn').length,
-  }), [notices])
-
-  // Filtered rows
-  const filtered = useMemo(() => {
-    return notices.filter((n) => {
-      if (statusFilter !== 'all' && n.status !== statusFilter) return false
-      if (typeFilter !== 'all' && n.notice_type !== typeFilter) return false
-      if (search.trim()) {
-        const q = search.toLowerCase()
-        const subject = subjectLabel(n).toLowerCase()
-        const zone = (n.zone?.name ?? '').toLowerCase()
-        const reason = (n.trespass_reason ?? '').toLowerCase()
-        const ref = (n.reference_number ?? '').toLowerCase()
-        if (!subject.includes(q) && !zone.includes(q) && !reason.includes(q) && !ref.includes(q)) return false
-      }
-      return true
-    })
-  }, [notices, statusFilter, typeFilter, search])
-
-  const handleIssue = (values: Partial<TrespassNotice>) => {
-    createNotice.mutate(values, { onSuccess: () => setIssueOpen(false) })
-  }
-
-  const handleWithdraw = (notice: TrespassNotice) => {
-    updateNotice.mutate({ id: notice.id, status: 'withdrawn' })
-  }
-
-  return (
-    <AppLayout
-      title="Trespass Notices"
-      description="Manage active and historical trespass notices issued under the NZ Trespass Act 1980"
-    >
-      <div className="mb-4">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => navigate('/admin')}
-          className="gap-1.5 text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="h-3.5 w-3.5" />
-          Back to Dashboard
-        </Button>
+          {isAdmin && (
+            <Button size="sm" onClick={() => { setForm(blankNotice()); setDialogOpen(true) }}>
+              <Plus className="h-4 w-4 mr-1" /> Issue Notice
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         {[
-          { label: 'Total', value: kpis.total,     Icon: FileText,     color: 'text-blue-600' },
-          { label: 'Active', value: kpis.active,    Icon: CheckCircle2, color: 'text-emerald-600' },
-          { label: 'Expired', value: kpis.expired,   Icon: Clock,        color: 'text-gray-500' },
-          { label: 'Withdrawn', value: kpis.withdrawn, Icon: X,            color: 'text-amber-600' },
-        ].map(({ label, value, Icon, color }) => (
-          <Card key={label}>
-            <CardContent className="pt-4 pb-3 flex items-center gap-3">
-              <Icon className={`h-5 w-5 shrink-0 ${color}`} />
-              <div>
-                <p className="text-2xl font-bold leading-tight">{isLoading ? '—' : value}</p>
-                <p className="text-xs text-muted-foreground mt-0.5">{label}</p>
-              </div>
+          { label: 'Total',     value: kpis.total,     icon: <Ban className="h-4 w-4" />,          color: 'text-foreground' },
+          { label: 'Active',    value: kpis.active,    icon: <CheckCircle2 className="h-4 w-4" />, color: 'text-green-600' },
+          { label: 'Expired',   value: kpis.expired,   icon: <Clock className="h-4 w-4" />,        color: 'text-gray-500' },
+          { label: 'Withdrawn', value: kpis.withdrawn, icon: <XCircle className="h-4 w-4" />,      color: 'text-orange-600' },
+        ].map(k => (
+          <Card key={k.label}>
+            <CardHeader className="pb-1 pt-4 px-4">
+              <CardTitle className="text-xs text-muted-foreground font-medium flex items-center gap-1">
+                {k.icon}{k.label}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="px-4 pb-4">
+              <p className={`text-2xl font-bold ${k.color}`}>{k.value}</p>
             </CardContent>
           </Card>
         ))}
       </div>
 
-      {/* Toolbar */}
-      <div className="flex flex-wrap items-center gap-3 mb-4">
-        <div className="relative">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+      {/* Filters */}
+      <div className="flex flex-wrap gap-3 mb-4">
+        <div className="relative flex-1 min-w-48">
+          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
+            placeholder="Search reason, reference, person, plate, zone…"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search person, plate, zone, ref…"
-            className="pl-8 w-60 h-8 text-xs"
+            onChange={e => setSearch(e.target.value)}
+            className="pl-8"
           />
         </div>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-36 h-8 text-xs"><SelectValue placeholder="Status" /></SelectTrigger>
+          <SelectTrigger className="w-36">
+            <SelectValue placeholder="Status" />
+          </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All statuses</SelectItem>
-            <SelectItem value="active">Active</SelectItem>
-            <SelectItem value="expired">Expired</SelectItem>
-            <SelectItem value="withdrawn">Withdrawn</SelectItem>
-            <SelectItem value="appealed">Appealed</SelectItem>
+            {Object.entries(STATUS_STYLES).map(([v, s]) => (
+              <SelectItem key={v} value={v}>{s.label}</SelectItem>
+            ))}
           </SelectContent>
         </Select>
         <Select value={typeFilter} onValueChange={setTypeFilter}>
-          <SelectTrigger className="w-36 h-8 text-xs"><SelectValue placeholder="Type" /></SelectTrigger>
+          <SelectTrigger className="w-36">
+            <SelectValue placeholder="Type" />
+          </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All types</SelectItem>
-            {Object.entries(NOTICE_TYPES).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
+            {Object.entries(TYPE_STYLES).map(([v, s]) => (
+              <SelectItem key={v} value={v}>{s.label}</SelectItem>
+            ))}
           </SelectContent>
         </Select>
-        <div className="ml-auto">
-          <Button size="sm" className="h-8 gap-1.5" onClick={() => setIssueOpen(true)}>
-            <Ban className="h-3.5 w-3.5" />
-            Issue Notice
-          </Button>
-        </div>
       </div>
+
+      {/* Empty-state */}
+      {!isLoading && notices.length === 0 && (
+        <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-md px-4 py-3 mb-4 text-sm text-blue-800">
+          <AlertCircle className="h-4 w-4 flex-shrink-0" />
+          <span>No trespass notices found for this organisation.</span>
+        </div>
+      )}
 
       {/* Table */}
       <Card>
-        <div className="rounded-xl overflow-hidden border">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-muted/50">
-                <TableHead className="text-xs">Reference</TableHead>
-                <TableHead className="text-xs">Subject</TableHead>
-                <TableHead className="text-xs">Zone</TableHead>
-                <TableHead className="text-xs">Type</TableHead>
-                <TableHead className="text-xs">Status</TableHead>
-                <TableHead className="text-xs">Issued</TableHead>
-                <TableHead className="text-xs">Expires</TableHead>
-                <TableHead className="text-xs">Actions</TableHead>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Reference</TableHead>
+              <TableHead>Person / Vehicle</TableHead>
+              <TableHead>Type</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Zone</TableHead>
+              <TableHead>Issued</TableHead>
+              <TableHead>Expires</TableHead>
+              <TableHead>Issued By</TableHead>
+              {isAdmin && <TableHead />}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {isLoading && (
+              <TableRow>
+                <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin inline mr-2" />Loading…
+                </TableCell>
               </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                Array.from({ length: 5 }).map((_, i) => (
-                  <TableRow key={i}>
-                    <TableCell colSpan={8}><Skeleton className="h-4 w-full" /></TableCell>
-                  </TableRow>
-                ))
-              ) : filtered.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={8} className="text-center text-sm text-muted-foreground py-10">
-                    No trespass notices match the current filters.
+            )}
+            {!isLoading && filtered.length === 0 && notices.length > 0 && (
+              <TableRow>
+                <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                  No notices match the current filters.
+                </TableCell>
+              </TableRow>
+            )}
+            {filtered.map(n => (
+              <TableRow key={n.id}>
+                <TableCell className="font-mono text-xs">
+                  {n.reference_number ?? <span className="text-muted-foreground italic">—</span>}
+                </TableCell>
+                <TableCell className="text-sm">
+                  {n.person?.full_name && (
+                    <div className="flex items-center gap-1">
+                      <User className="h-3 w-3 text-muted-foreground" />
+                      <span>{n.person.full_name}</span>
+                    </div>
+                  )}
+                  {n.vehicle?.plate_number && (
+                    <div className="flex items-center gap-1">
+                      <Car className="h-3 w-3 text-muted-foreground" />
+                      <span>{n.vehicle.plate_number}</span>
+                    </div>
+                  )}
+                  {!n.person?.full_name && !n.vehicle?.plate_number && (
+                    <span className="text-muted-foreground italic">—</span>
+                  )}
+                </TableCell>
+                <TableCell>
+                  <span className={`inline-flex text-xs font-medium px-2 py-0.5 rounded-full ${TYPE_STYLES[n.notice_type]?.className ?? ''}`}>
+                    {TYPE_STYLES[n.notice_type]?.label ?? n.notice_type}
+                  </span>
+                </TableCell>
+                <TableCell>
+                  <span className={`inline-flex text-xs font-medium px-2 py-0.5 rounded-full ${STATUS_STYLES[n.status]?.className ?? ''}`}>
+                    {STATUS_STYLES[n.status]?.label ?? n.status}
+                  </span>
+                </TableCell>
+                <TableCell className="text-sm">
+                  {n.zone?.name
+                    ? <span className="flex items-center gap-1"><MapPin className="h-3 w-3 text-muted-foreground" />{n.zone.name}</span>
+                    : <span className="text-muted-foreground">—</span>}
+                </TableCell>
+                <TableCell className="text-xs text-muted-foreground whitespace-nowrap">{fmtDate(n.issued_at)}</TableCell>
+                <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                  {n.expires_at
+                    ? <span className={isPast(parseISO(n.expires_at)) ? 'text-red-600' : ''}>{fmtDate(n.expires_at)}</span>
+                    : <span className="text-red-600 font-medium">Permanent</span>}
+                </TableCell>
+                <TableCell className="text-xs text-muted-foreground">{issuedByName(n.issuer)}</TableCell>
+                {isAdmin && (
+                  <TableCell>
+                    {n.status === 'active' && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-orange-600 hover:text-orange-700 h-7 text-xs"
+                        onClick={() => handleWithdraw(n)}
+                      >
+                        Withdraw
+                      </Button>
+                    )}
                   </TableCell>
-                </TableRow>
-              ) : (
-                filtered.map((notice) => {
-                  const statusCfg = STATUS_CONFIG[notice.status as NoticeStatus] ?? STATUS_CONFIG.active
-                  const StatusIcon = statusCfg.icon
-                  return (
-                    <TableRow key={notice.id}>
-                      <TableCell className="py-2 text-xs font-mono text-muted-foreground">
-                        {notice.reference_number ?? '—'}
-                      </TableCell>
-                      <TableCell className="py-2 text-sm font-medium">{subjectLabel(notice)}</TableCell>
-                      <TableCell className="py-2 text-xs text-muted-foreground">{notice.zone?.name ?? '—'}</TableCell>
-                      <TableCell className="py-2">
-                        <Badge variant="outline" className="text-[10px] px-1.5 py-0">
-                          {NOTICE_TYPES[notice.notice_type] ?? notice.notice_type}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="py-2">
-                        <Badge variant={statusCfg.variant} className="text-[10px] px-1.5 py-0 gap-1">
-                          <StatusIcon className="h-3 w-3" />
-                          {statusCfg.label}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="py-2 text-xs text-muted-foreground">{fmtDate(notice.issued_at)}</TableCell>
-                      <TableCell className="py-2 text-xs text-muted-foreground">
-                        {notice.expires_at
-                          ? <span className={new Date(notice.expires_at) < new Date() ? 'text-red-500' : ''}>{fmtDate(notice.expires_at)}</span>
-                          : '—'
-                        }
-                      </TableCell>
-                      <TableCell className="py-2">
-                        {notice.status === 'active' && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 px-2 text-[10px] text-amber-700 hover:text-amber-900"
-                            onClick={() => handleWithdraw(notice)}
-                            disabled={updateNotice.isPending}
-                          >
-                            Withdraw
-                          </Button>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  )
-                })
-              )}
-            </TableBody>
-          </Table>
-        </div>
-        {!isLoading && filtered.length > 0 && (
-          <div className="px-4 py-2 text-xs text-muted-foreground border-t">
-            {filtered.length} of {notices.length} notice{notices.length !== 1 ? 's' : ''}
-          </div>
-        )}
+                )}
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
       </Card>
 
-      {/* Issue dialog */}
-      <IssueNoticeDialog
-        open={issueOpen}
-        onClose={() => setIssueOpen(false)}
-        onSubmit={handleIssue}
-        isSaving={createNotice.isPending}
-      />
+      {!isLoading && filtered.length > 0 && (
+        <p className="text-xs text-muted-foreground mt-2 text-right">
+          Showing {filtered.length} of {notices.length} notices
+        </p>
+      )}
+
+      {/* Issue Notice Dialog */}
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Issue Trespass Notice</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="trespass_reason">Reason *</Label>
+              <Textarea
+                id="trespass_reason"
+                placeholder="Describe the reason for trespass…"
+                rows={3}
+                value={form.trespass_reason ?? ''}
+                onChange={e => setForm(f => ({ ...f, trespass_reason: e.target.value }))}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="notice_type">Notice Type</Label>
+                <Select
+                  value={form.notice_type ?? 'written'}
+                  onValueChange={v => setForm(f => ({ ...f, notice_type: v as TrespassNotice['notice_type'] }))}
+                >
+                  <SelectTrigger id="notice_type">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="verbal">Verbal</SelectItem>
+                    <SelectItem value="written">Written</SelectItem>
+                    <SelectItem value="permanent">Permanent</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label htmlFor="served_method">Served Method</Label>
+                <Select
+                  value={form.served_method ?? 'in_person'}
+                  onValueChange={v => setForm(f => ({ ...f, served_method: v }))}
+                >
+                  <SelectTrigger id="served_method">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="in_person">In Person</SelectItem>
+                    <SelectItem value="posted">Posted</SelectItem>
+                    <SelectItem value="email">Email</SelectItem>
+                    <SelectItem value="left_on_vehicle">Left on Vehicle</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="duration_days">Duration (days)</Label>
+                <Input
+                  id="duration_days"
+                  type="number"
+                  min={1}
+                  value={form.duration_days ?? 365}
+                  onChange={e => setForm(f => ({ ...f, duration_days: Number(e.target.value) }))}
+                />
+                <p className="text-xs text-muted-foreground mt-1">Leave blank / 0 for permanent</p>
+              </div>
+              <div>
+                <Label htmlFor="trespass_from">Trespass From (location)</Label>
+                <Input
+                  id="trespass_from"
+                  placeholder="e.g. Riverside Reserve"
+                  value={form.trespass_from ?? ''}
+                  onChange={e => setForm(f => ({ ...f, trespass_from: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            <div>
+              <Label htmlFor="legal_basis">Legal Basis</Label>
+              <Input
+                id="legal_basis"
+                value={form.legal_basis ?? 'Trespass Act 1980, Section 3 & 4'}
+                onChange={e => setForm(f => ({ ...f, legal_basis: e.target.value }))}
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="witness_name">Witness Name</Label>
+              <Input
+                id="witness_name"
+                placeholder="Name of witness if present"
+                value={form.witness_name ?? ''}
+                onChange={e => setForm(f => ({ ...f, witness_name: e.target.value }))}
+              />
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="witness_present"
+                  checked={!!form.witness_present}
+                  onCheckedChange={v => setForm(f => ({ ...f, witness_present: !!v }))}
+                />
+                <Label htmlFor="witness_present">Witness present</Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="privacy_notice_given"
+                  checked={!!form.privacy_notice_given}
+                  onCheckedChange={v => setForm(f => ({ ...f, privacy_notice_given: !!v }))}
+                />
+                <Label htmlFor="privacy_notice_given">Privacy notice given</Label>
+              </div>
+            </div>
+
+            <div>
+              <Label htmlFor="notes">Notes</Label>
+              <Textarea
+                id="notes"
+                rows={2}
+                placeholder="Internal notes…"
+                value={form.notes ?? ''}
+                onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
+            <Button
+              onClick={handleIssue}
+              disabled={saving || !form.trespass_reason?.trim()}
+            >
+              {saving && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
+              Issue Notice
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   )
 }

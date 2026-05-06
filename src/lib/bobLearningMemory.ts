@@ -174,6 +174,15 @@ interface PersistConversationTurnRemoteInput {
   assistantReply: string
   currentRoute?: string
   destinationHint?: string
+  executionReview?: {
+    currentRoute?: string | null
+    matchedRoutes?: string[]
+    matchedEntities?: string[]
+    candidateMutationContracts?: string[]
+    requestedMutationContract?: string | null
+    mutationAccess?: { allowed: boolean; reason: string } | null
+    policyMode?: string
+  } | null
 }
 
 export interface BobMemorySnapshot {
@@ -263,6 +272,7 @@ export async function persistConversationTurnRemote(input: PersistConversationTu
     const context = {
       app_route: input.currentRoute ?? route,
       destination_hint: input.destinationHint ?? null,
+      execution_review: input.executionReview ?? null,
     }
 
     const rows = [

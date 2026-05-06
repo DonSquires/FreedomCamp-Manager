@@ -15,69 +15,9 @@
  *   INFERENCE_API_KEY       Optional bearer key
  */
 
-import { fetchWithRetry } from '../_shared/fetchWithRetry.ts'
+import { bobTranslate } from '../_shared/bobInfer.ts'
 import { withCors, jsonResponse, errorResponse } from '../_shared/withCors.ts'
 import { requireAuth } from '../_shared/requireAuth.ts'
-
-const LANGUAGE_NAMES: Record<string, string> = {
-  'en-NZ': 'New Zealand English',
-  'en-AU': 'Australian English',
-  'en-GB': 'British English',
-  'en-US': 'American English',
-  'hi-IN': 'Hindi',
-  'zh-CN': 'Simplified Chinese (Mandarin)',
-  'zh-TW': 'Traditional Chinese',
-  'pa-IN': 'Punjabi',
-  'tl-PH': 'Filipino (Tagalog)',
-  'mi-NZ': 'Te Reo Māori',
-  'ko-KR': 'Korean',
-  'ja-JP': 'Japanese',
-  'es-ES': 'Spanish',
-  'fr-FR': 'French',
-  'de-DE': 'German',
-  'ar-SA': 'Arabic',
-  'pt-BR': 'Brazilian Portuguese',
-  'ru-RU': 'Russian',
-  'th-TH': 'Thai',
-  'vi-VN': 'Vietnamese',
-  'ms-MY': 'Malay',
-  'id-ID': 'Indonesian',
-  'ur-PK': 'Urdu',
-  'bn-BD': 'Bengali',
-  'sw-KE': 'Swahili',
-  'tl': 'Filipino (Tagalog)',
-  'mi': 'Te Reo Māori',
-}
-
-function resolveLangName(code: string): string {
-  return LANGUAGE_NAMES[code] ?? code
-}
-
-function isRunpodServerless(url: string): boolean {
-  return /api\.runpod\.ai\/v2\/[^/]+(?:\/(?:run|runsync))?\/?$/i.test(url)
-}
-
-function normalizeRunpodBase(url: string): string {
-  return url.replace(/\/(run|runsync)\/?$/i, '')
-}
-
-function normalizeBaseUrl(raw?: string | null): string {
-  const trimmed = String(raw ?? '').trim().replace(/\/+$/, '')
-  if (!trimmed) return ''
-  const withScheme = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`
-  return isRunpodServerless(withScheme) ? normalizeRunpodBase(withScheme) : withScheme
-}
-
-function resolveInferenceUrl(): string {
-  const runpodEndpointId = String(Deno.env.get('RUNPOD_ENDPOINT_ID') ?? '').trim()
-  const derivedRunpodUrl = runpodEndpointId ? `https://api.runpod.ai/v2/${runpodEndpointId}` : ''
-  return normalizeBaseUrl(
-    Deno.env.get('INFERENCE_SERVICE_URL') ??
-    Deno.env.get('RUNPOD_ENDPOINT_URL') ??
-    Deno.env.get('INFERENCE_SERVICE_URL_RUNPOD') ??
-    derivedRunpodUrl,
-  )
-}
 
 Deno.serve(withCors(async (req: Request) => {
   const authResult = await requireAuth(req)
@@ -103,209 +43,41 @@ Deno.serve(withCors(async (req: Request) => {
     return errorResponse('target_language is required (e.g. "en-NZ")', req, 400)
   }
 
-  const inferenceUrl = resolveInferenceUrl()
-  const inferenceKey =
-    Deno.env.get('INFERENCE_API_KEY') ??
-    Deno.env.get('RUNPOD_ENDPOINT_API_KEY') ??
-    Deno.env.get('RUNPOD_API_KEY') ??
-    Deno.env.get('BOB_INFERENCE_API_KEY') ??
-    ''
-
-  if (!inferenceUrl) {
-    return errorResponse('Inference service not configured (INFERENCE_SERVICE_URL missing)', req, 503)
-  }
-
-  const targetName = resolveLangName(target_language)
-  const sourceName = source_language ? resolveLangName(source_language) : null
-
-  const systemPrompt =
-    `You are a professional real-time translator for a field operations security platform. ` +
-    `Your task is to translate the provided text into ${targetName}. ` +
-    `Output ONLY the translated text with no explanations, commentary, or labels. ` +
-    `Preserve the original tone and meaning as closely as possible. ` +
-    `If the text is already in ${targetName}, return it unchanged.`
-
-  const userPrompt = sourceName
-    ? `Translate from ${sourceName} to ${targetName}:\n\n${text}`
-    : `Translate to ${targetName}:\n\n${text}`
-
-  let response: Response
   try {
-    response = await fetchWithRetry(`${inferenceUrl}/translate`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(inferenceKey
-          ? {
-              Authorization: `Bearer ${inferenceKey}`,
-              'x-inference-api-key': inferenceKey,
-            }
-          : {}),
-      },
-      body: JSON.stringify({
-        text,
-        target_language,
-        source_language: source_language ?? null,
-      }),
-    }, {
-      retries: 2,
-      timeoutMs: 15_000,
-      backoffMs: 500,
+    const result = await bobTranslate({
+      text,
+      targetLanguage: target_language,
+      sourceLanguage: source_language,
+      timeoutMs: 30_000,
     })
-  } catch (fetchErr: any) {
-    console.error('translate-message: inference fetch failed', fetchErr)
-    return errorResponse('Translation service unreachable', req, 502)
-  }
 
-  if (!response.ok && response.status !== 404) {
-    const errText = await response.text().catch(() => '')
-    console.error('translate-message: inference service error', response.status, errText)
-    return errorResponse(`Translation service returned ${response.status}`, req, 502)
-  }
-
-  if (response.status === 404) {
-    try {
-      response = await fetchWithRetry(`${inferenceUrl}/chat`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(inferenceKey
-            ? {
-                Authorization: `Bearer ${inferenceKey}`,
-                'x-inference-api-key': inferenceKey,
-              }
-            : {}),
-        },
-        body: JSON.stringify({
-          message: userPrompt,
-          system_prompt: systemPrompt,
-        }),
-      }, {
-        retries: 1,
-        timeoutMs: 15_000,
-        backoffMs: 500,
-      })
-    } catch (fallbackErr: any) {
-      console.error('translate-message: fallback chat fetch failed', fallbackErr)
-      return errorResponse('Translation service unreachable', req, 502)
+    const translated = String(result.translation ?? '').trim()
+    if (!translated) {
+      return errorResponse('Empty translation response from inference service', req, 502)
     }
 
-    // If /chat also returns 404 (e.g. RunPod endpoint), try RunPod /runsync format
-    if (response.status === 404 && isRunpodServerless(inferenceUrl)) {
-      try {
-        response = await fetchWithRetry(`${normalizeRunpodBase(inferenceUrl)}/runsync`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(inferenceKey
-              ? {
-                  Authorization: `Bearer ${inferenceKey}`,
-                  'x-inference-api-key': inferenceKey,
-                }
-              : {}),
-          },
-          body: JSON.stringify({
-            input: {
-              action: 'translate',
-              text,
-              target_language,
-              source_language: source_language ?? null,
-            },
-          }),
-        }, {
-          retries: 1,
-          timeoutMs: 30_000,
-          backoffMs: 1_000,
-        })
-      } catch (runpodErr: any) {
-        console.error('translate-message: RunPod runsync fallback failed', runpodErr)
-        return errorResponse('Translation service unreachable', req, 502)
-      }
-
-      if (!response.ok) {
-        const errText = await response.text().catch(() => '')
-        console.error('translate-message: RunPod fallback error', response.status, errText)
-        return errorResponse(`Translation service returned ${response.status}`, req, 502)
-      }
-
-      // RunPod wraps output: { output: { response: "..." } }
-      let runpodData: any
-      try {
-        runpodData = await response.json()
-      } catch {
-        return errorResponse('Translation service returned invalid JSON', req, 502)
-      }
-      // Job failure or worker error → treat as upstream inference offline (INFRA)
-      if (runpodData.status === 'FAILED' || runpodData.output?.success === false) {
-        const workerErr = runpodData.output?.error ?? runpodData.error ?? 'RunPod worker error'
-        return errorResponse(`upstream inference provider offline: ${workerErr}`, req, 502)
-      }
-      const translated: string =
-        runpodData?.output?.translation ||
-        runpodData?.output?.response ||
-        runpodData?.output?.translated_text ||
-        runpodData?.output?.message?.content ||
-        runpodData?.output?.choices?.[0]?.message?.content ||
-        ''
-      if (!translated.trim()) {
-        return errorResponse('upstream inference provider offline (empty RunPod response)', req, 502)
-      }
-      return jsonResponse({
-        translated_text: translated.trim(),
+    return jsonResponse(
+      {
+        translated_text: translated,
         target_language,
         detected_source: source_language ?? null,
-        translation_confidence: 0.65,
-        confidence_reason: 'RunPod inference translate action path used.',
-        provider: 'runpod-translate',
-        fallback: true,
-        warning: 'Translation fallback warning: primary translate route unavailable, RunPod translate action fallback path used.',
-      }, req)
-    }
-
-    if (!response.ok) {
-      const errText = await response.text().catch(() => '')
-      console.error('translate-message: fallback chat error', response.status, errText)
-      return errorResponse(`Translation service returned ${response.status}`, req, 502)
-    }
+        translation_confidence: 0.8,
+        confidence_reason: 'Shared Bob translate helper path used.',
+        provider: 'ollama',
+        model: result.model,
+        fallback: false,
+        warning: null,
+      },
+      req,
+    )
+  } catch (err: any) {
+    console.error('translate-message: shared translate helper failed', err)
+    const message = String(err?.message ?? err)
+    const unavailable =
+      message.includes('not configured') ||
+      message.includes('failed for all configured endpoints') ||
+      message.includes('HTTP 5') ||
+      message.includes('OUTBOUND_HOST_NOT_ALLOWED')
+    return errorResponse(unavailable ? 'Translation service unreachable' : message, req, unavailable ? 502 : 500)
   }
-
-  let data: any
-  try {
-    data = await response.json()
-  } catch {
-    return errorResponse('Translation service returned invalid JSON', req, 502)
-  }
-
-  // Normalise response from multiple inference backends
-  const translated: string =
-    data?.translated_text ||
-    data?.response ||
-    data?.message?.content ||
-    data?.choices?.[0]?.message?.content ||
-    ''
-
-  if (!translated.trim()) {
-    return errorResponse('Empty translation response from inference service', req, 502)
-  }
-
-  const fallbackUsed = data?.fallback === true || response.url.endsWith('/chat')
-  return jsonResponse(
-    {
-      translated_text: translated.trim(),
-      target_language,
-      detected_source: source_language ?? null,
-      translation_confidence: typeof data?.translation_confidence === 'number' ? data.translation_confidence : 0.65,
-      confidence_reason: typeof data?.confidence_reason === 'string'
-        ? data.confidence_reason
-        : response.url.endsWith('/chat')
-          ? 'Legacy chat translation path used.'
-          : 'Translation metadata unavailable.',
-      provider: data?.provider || (response.url.endsWith('/chat') ? 'chat-fallback' : 'unknown'),
-      fallback: fallbackUsed,
-      warning: fallbackUsed
-        ? 'Translation fallback warning: response came from a degraded/fallback path.'
-        : null,
-    },
-    req,
-  )
 }))

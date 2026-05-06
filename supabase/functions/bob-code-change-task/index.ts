@@ -14,6 +14,44 @@ const PROTECTED_PATH_PREFIXES = [
   'src/lib/supabase',
 ]
 
+type BobExecutionMode = 'owner_full' | 'master_balanced' | 'officer_assist'
+const REQUIRED_MUTATION_CONTRACT = 'queue_bob_code_change_task'
+
+function resolveExecutionModeFromRole(role: string): BobExecutionMode {
+  const normalized = String(role || '').toLowerCase()
+  if (normalized === 'grand_master') return 'owner_full'
+  if (normalized === 'master' || normalized === 'admin' || normalized === 'client_admin') return 'master_balanced'
+  return 'officer_assist'
+}
+
+function validateRequestedMutationContract(contract: string | null, mode: BobExecutionMode): { allowed: boolean; reason: string } {
+  if (!contract) {
+    return {
+      allowed: false,
+      reason: `Missing required mutation contract ${REQUIRED_MUTATION_CONTRACT}.`,
+    }
+  }
+
+  if (contract !== REQUIRED_MUTATION_CONTRACT) {
+    return {
+      allowed: false,
+      reason: `Requested mutation contract ${contract} does not match required contract ${REQUIRED_MUTATION_CONTRACT}.`,
+    }
+  }
+
+  if (mode !== 'owner_full') {
+    return {
+      allowed: false,
+      reason: `Requested mutation contract ${contract} is blocked for mode ${mode}.`,
+    }
+  }
+
+  return {
+    allowed: true,
+    reason: `Requested mutation contract ${contract} is allowed.`,
+  }
+}
+
 const ARCHITECTURAL_CONTEXT_INJECTION = {
   training_packs: {
     stack_schema_fidelity: 'docs/BOB_TRAINING_STACK_SCHEMA_FIDELITY.md',
@@ -170,6 +208,18 @@ Deno.serve(async (req: Request) => {
     }
 
     const body = await req.json()
+    const executionMode = resolveExecutionModeFromRole(role)
+    const requestedContract = typeof body?.requested_mutation_contract === 'string'
+      ? String(body.requested_mutation_contract).trim()
+      : null
+    const contractAccess = validateRequestedMutationContract(requestedContract, executionMode)
+    if (!contractAccess.allowed) {
+      return new Response(
+        JSON.stringify({ error: `Mutation contract blocked by server policy: ${contractAccess.reason}` }),
+        { status: 403, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } },
+      )
+    }
+
     const summary = String(body?.summary ?? '').trim()
     const details = String(body?.details ?? '').trim()
     const stackTrace = String(body?.stack_trace ?? '').trim()

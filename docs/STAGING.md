@@ -48,6 +48,7 @@ node scripts/auto-ingest.mjs
 ```bash
 bun run lint
 bun run build
+bun run test:bob:governance
 node --test ptt-server/test/radio-health-schema.test.js
 ```
 
@@ -121,6 +122,7 @@ redis-server --version
 4. Treat local Playwright credential failures as environment blockers unless CI reproduces code failure.
 5. After each material change: lint, build, relevant tests, then CI status pull for current SHA.
 6. If conflicts appear across plans, update canonical doc first, then align downstream docs.
+7. For Bob-related changes, validate the shared gateway contract before merge: the client must route through `src/lib/edgeFunctions.ts`, named mutation contracts must be enforced client-side and server-side, and any persisted execution review must stay inside existing Bob memory JSONB context unless a new migration is explicitly introduced.
 
 ### Throughput Requirement (Mandatory)
 
@@ -176,6 +178,13 @@ Current finding: org-scoping static audit now reports `missing_org_filter=0` aft
 
 - [x] Ensure each release gate run ends with GO, CONDITIONAL_GO, or NO_GO and all blockers have owners.
 - [x] Keep CI run IDs and outcomes logged in Section 7 before ending a session.
+
+### F. Bob Governance And Staging Integrity
+
+- [ ] Run `bun run test:bob:governance` before promoting Bob-related changes.
+- [ ] Verify `onspace-ai-chat`, `grandmaster-studio`, and `bob-code-change-task` are redeployed together when Bob mutation-contract logic changes.
+- [ ] Confirm Bob execution-review persistence remains in `bob_conversation_memory.context` JSONB and does not require an untracked schema change.
+- [ ] Verify the deployment notes mention the current Bob contract artifacts: schema registry, route/entity map, mutation catalog, and execution review output.
 
 ## 7. Session Handoff Log (Update Before Exit)
 
@@ -1629,11 +1638,11 @@ Latest Session Snapshot (Phase A Org-Isolation Gate — Explicit Deployment Bloc
 - Scope completed:
   - Reviewed Phase A gate evidence and confirmed all 5 prerequisites green per STAGING.md session log.
   - Implemented Phase B2 (Dispatch and Command) delivery slice:
-    - `supabase/migrations/20260506000002_phase_b2_dispatch_case_bridge.sql` — adds `dispatch_jobs.case_id` back-reference and `dispatch_acknowledgement_log` table (callsign + ETA + lifecycle stage capture).
+    - `supabase/migrations/20260506000009_phase_b2_dispatch_case_bridge.sql` — adds `dispatch_jobs.case_id` back-reference and `dispatch_acknowledgement_log` table (callsign + ETA + lifecycle stage capture).
     - `src/hooks/useDispatchB2.ts` — `useCreateCaseFromDispatch`, `useDispatchJobCase`, `useAcknowledgeDispatch`, `useDispatchAcknowledgementLog`, `useRecordDispatchLifecycle`.
     - `tests/e2e/phase-b2-dispatch-command.spec.ts` — Phase B2 gate suite: case creation, acknowledgement log, full lifecycle to on_scene, org isolation.
   - Implemented Phase B4 (Freedom Camping Enforcement) delivery slice:
-    - `supabase/migrations/20260506000003_phase_b4_enforcement_case_bridge.sql` — adds `breach_alerts.case_id` back-reference and `create_case_from_breach_alert()` RPC helper.
+    - `supabase/migrations/20260506000010_phase_b4_enforcement_case_bridge.sql` — adds `breach_alerts.case_id` back-reference and `create_case_from_breach_alert()` RPC helper.
     - `src/hooks/useEnforcementB4.ts` — `useCreateCaseFromBreach`, `useBreachAlertCase`, `useLinkBreachToCase`, `useEnforcementTimeline`, `useRecordEnforcementEvent`, `useCloseEnforcementCase`.
     - `tests/e2e/phase-b4-enforcement-timeline.spec.ts` — Phase B4 gate suite: case creation from breach, timeline events (initiated → warning → ticket → completed), case close, org isolation.
 - Latest lint result: pass (`bun run lint`)
@@ -1643,9 +1652,9 @@ Latest Session Snapshot (Phase A Org-Isolation Gate — Explicit Deployment Bloc
   |---|---|---|
   | Phase A gate (all 5 prerequisites) | ✅ PASS | CI run 25348224169; STAGING session log 2026-05-04 |
   | B1: Patrol on shared timeline | ✅ PASS | `usePatrolB1.ts`, `20260504000005_phase_b1_bridge_to_case_model.sql`, `phase-b1-patrol-and-respond.spec.ts` |
-  | B2: Dispatch on shared timeline | ✅ IMPL | `useDispatchB2.ts`, `20260506000002_phase_b2_dispatch_case_bridge.sql`, `phase-b2-dispatch-command.spec.ts` |
+  | B2: Dispatch on shared timeline | ✅ IMPL | `useDispatchB2.ts`, `20260506000009_phase_b2_dispatch_case_bridge.sql`, `phase-b2-dispatch-command.spec.ts` |
   | B2: Callsign binding + ACK flow | ✅ IMPL | `dispatch_acknowledgement_log` table + `useAcknowledgeDispatch` hook |
-  | B4: Enforcement surface on case backbone | ✅ IMPL | `useEnforcementB4.ts`, `20260506000003_phase_b4_enforcement_case_bridge.sql`, `phase-b4-enforcement-timeline.spec.ts` |
+  | B4: Enforcement surface on case backbone | ✅ IMPL | `useEnforcementB4.ts`, `20260506000010_phase_b4_enforcement_case_bridge.sql`, `phase-b4-enforcement-timeline.spec.ts` |
   | Ownership assigned (external) | ⏳ EXTERNAL | `docs/PHASE_A_OWNERSHIP_STATUS.md` |
 - Open blockers with owner:
   - B2/B4 migrations need `supabase db push` against live environment before E2E tests can execute (owner: platform/database migration pipeline).
@@ -1661,7 +1670,7 @@ Latest Session Snapshot (Phase A Org-Isolation Gate — Explicit Deployment Bloc
 - Timestamp (NZ): 2026-05-05 11:28 NZST
 - Current branch: copilot/complete-phase-b-doc-review
 - Scope completed:
-  - **Fixed `COMMENT ON FUNCTION` bug** in `20260506000003_phase_b4_enforcement_case_bridge.sql`: signature was `(UUID)` but the function takes `(UUID, UUID DEFAULT NULL)` — fixed to `(UUID, UUID)` to prevent PostgreSQL migration error.
+  - **Fixed `COMMENT ON FUNCTION` bug** in `20260506000010_phase_b4_enforcement_case_bridge.sql`: signature was `(UUID)` but the function takes `(UUID, UUID DEFAULT NULL)` — fixed to `(UUID, UUID)` to prevent PostgreSQL migration error.
   - **Created `scripts/advance-canary-stage.sh`**: forward-progression companion to `rollback-feature-flag.sh`. Advances a feature flag through the defined canary stages (0%→5%→25%→50%→100%), auto-detects the next stage when `target_pct` is omitted, records each transition in `feature_flag_rollout_history`, and prints threshold reminders and the next advance/rollback commands.
   - **Fixed `scripts/rollback-feature-flag.sh`** "Next steps" help text: removed non-existent `--enable` flag reference, replaced with the correct `advance-canary-stage.sh` command.
   - **Created `ci-phase-b4-enforcement-gate.yml`**: path-filtered CI gate that runs the B4 enforcement timeline Playwright suite on PR/push whenever the spec, migration, hook, or workflow file changes. Uses the same pattern as `ci-org-isolation-api.yml`.
@@ -1718,7 +1727,7 @@ Latest Session Snapshot (Phase A Org-Isolation Gate — Explicit Deployment Bloc
 | `.github/workflows/ci-phase-b-canary-gate.yml` | Canary path-filtered CI gate with script executability check |
 
 **Previous session fixes carried forward:**
-- `supabase/migrations/20260506000003_phase_b4_enforcement_case_bridge.sql` — `COMMENT ON FUNCTION` signature corrected `(UUID)` → `(UUID, UUID)`
+- `supabase/migrations/20260506000010_phase_b4_enforcement_case_bridge.sql` — `COMMENT ON FUNCTION` signature corrected `(UUID)` → `(UUID, UUID)`
 - `scripts/advance-canary-stage.sh` — created (forward canary progression 0→5→25→50→100%)
 - `scripts/rollback-feature-flag.sh` — fixed dangling `--enable` help text
 - `.github/workflows/ci-phase-b4-enforcement-gate.yml` — `permissions: contents: read` added
@@ -2091,7 +2100,7 @@ All Sprint 1 VOC backlog items (B-01 through B-09) are now shipped:
 
 | File | Change |
 |---|---|
-| `supabase/migrations/20260505000005_zones_public_read.sql` | Adds `zones_public_read` policy: anon SELECT on `public.zones` restricted to `is_active = true`. Authenticated policies (users_view_zones etc.) are unchanged. |
+| `supabase/migrations/20260505000011_zones_public_read.sql` | Adds `zones_public_read` policy: anon SELECT on `public.zones` restricted to `is_active = true`. Authenticated policies (users_view_zones etc.) are unchanged. |
 | `docs/STAGING.md` | Fixed stale B-11 ⬜ status in old sprint board; added this hotfix session snapshot. |
 
 ### Success Criteria
@@ -2650,3 +2659,112 @@ The web SPA delivers SOS via the existing `officer_welfare_alerts` table + `send
 - B-42: Site Risk Assessment viewer/editor (site_risk_assessments table)
 - B-43: Person Records management (person_records + person_id_documents linkage)
 - B-44: Dispatch LOI browser (locations_of_interest table)
+
+---
+
+## Phase 5 — Sprint 11 (B-42 / B-43 / B-44)
+
+### Changes
+
+| File | Change |
+|---|---|
+| `src/components/features/AppLayout.tsx` | B-42 sidebar entry added — `/site-risk-assessment` under Records (`ClipboardCheck` icon) |
+| `src/components/features/AppLayout.tsx` | B-44 sidebar entry added — `/loi-browser` under Records (`MapPin` icon) |
+| `src/pages/DispatchLOIBrowser.tsx` | New — B-44 Dispatch LOI Browser (KPI cards, loi_kind filter, active filter, keyword search, full table with GPS/hazard/access summaries, canonical badge) |
+| `src/App.tsx` | Lazy import + route `/loi-browser` for DispatchLOIBrowser |
+
+> B-43 (PersonRecords.tsx + /person-records) was already fully implemented in a prior sprint (page, route, and sidebar entry all present).
+> B-42 (SiteRiskAssessment.tsx + useSiteRiskAssessment.ts + /site-risk-assessment) was fully implemented but lacked a sidebar entry — fixed in this sprint.
+
+### Sprint 11 Board
+
+| ID | Item | Status |
+|---|---|---|
+| B-42 | Site Risk Assessment viewer/editor | ✅ |
+| B-43 | Person Records management | ✅ (prior sprint) |
+| B-44 | Dispatch LOI Browser | ✅ |
+
+- [x] `bun run build` → PASS
+- [x] `bun run lint` → PASS (0 errors, 0 warnings)
+
+### Competitive Gap Board — Updated (post Sprint 11)
+
+| Category | Newly Closed | Remaining Open |
+|---|---|---|
+| H&S / WorkSafe | B-42 Site Risk Assessments sidebar | — |
+| Intelligence | B-44 Dispatch LOI Browser | — |
+
+**Next sprint candidates:**
+- B-45: Trespass Notices UI (trespass_notices table)
+- B-46: Access Permissions manager (access_permissions table — grant/revoke per person + zone)
+- B-47: Canonical Person deduplication viewer (canonical_persons table)
+
+---
+
+## Phase 5 — Sprint 12 (B-45 / B-46 / B-47)
+
+### Changes
+
+| File | Change |
+|---|---|
+| `src/pages/TrespassNotices.tsx` | New — B-45 Trespass Notices UI (KPI cards, status/type filters, issue dialog, withdraw action) |
+| `src/pages/AccessPermissions.tsx` | New — B-46 Access Permissions manager (grant/revoke per-person per-zone, type/escort/dates) |
+| `src/pages/CanonicalPersonViewer.tsx` | New — B-47 Canonical Person deduplication viewer (6 KPIs, multi-filter, expandable detail row) |
+| `src/App.tsx` | Lazy imports + routes: `/trespass-notices`, `/access-permissions`, `/canonical-persons` |
+| `src/components/features/AppLayout.tsx` | Sidebar entries under Records + `Ban` / `KeyRound` icon imports |
+
+> `access_permissions` is not in `database.ts` (added via migration 20260509000001_access_control_identity_verification.sql). `AccessPermissions.tsx` uses `(supabase as any).from()`.
+> `trespass_notices` and `canonical_persons` are fully typed in `database.ts`.
+
+### Sprint 12 Board
+
+| ID | Item | Status |
+|---|---|---|
+| B-45 | Trespass Notices UI | ✅ |
+| B-46 | Access Permissions manager | ✅ |
+| B-47 | Canonical Person deduplication viewer | ✅ |
+
+- [x] `bun run build` → PASS
+- [x] `bun run lint` → PASS (0 errors, 0 warnings)
+
+### Competitive Gap Board — Updated (post Sprint 12)
+
+| Category | Newly Closed | Remaining Open |
+|---|---|---|
+| Enforcement | B-45 Trespass Notices | — |
+| Access Control | B-46 Access Permissions | — |
+| Identity / Dedup | B-47 Canonical Person Viewer | — |
+
+**Next sprint candidates:**
+- B-48: Radio Transmissions log viewer (radio_transmissions + radio_transcript_segments tables)
+- B-49: Voice Profiles & Consent manager (radio_voice_profiles_and_consents)
+- B-50: Operational Dashboard refresh — pull live KPIs from new Sprint 10-12 tables into a unified summary
+
+---
+
+## Phase 5 — Sprint 13 (B-48 / B-49 / B-50)
+
+> All radio tables (radio_transmissions, radio_transcript_segments, radio_voice_profiles, radio_voice_consents) are typed in database.ts but require `(supabase as any).from()` due to typed client snapshot lag.
+
+### Sprint 13 Board
+
+| ID | Item | Status |
+|---|---|---|
+| B-48 | Radio Transmissions Log viewer | ✅ |
+| B-49 | Voice Profiles & Consent manager | ✅ |
+| B-50 | AdminPortal dashboard refresh (new tiles + KPI tiles) | ✅ |
+
+- [x] `bun run build` → PASS
+- [x] `bun run lint` → PASS (0 errors, 0 warnings)
+
+### Competitive Gap Board — Updated (post Sprint 13)
+
+| Category | Newly Closed | Remaining Open |
+|---|---|---|
+| Radio / Voice | B-48 Radio Transmissions Log, B-49 Voice Profiles & Consent | — |
+| Dashboard | B-50 AdminPortal refresh (Intel & Radio group, 2 new KPI tiles) | — |
+
+**Next sprint candidates:**
+- B-51: Camper Self-Registration public portal refresh (leverage camper_registrations table + confirmation code display)
+- B-52: Zone Amenities editor (surfacing has_toilets/has_water/has_dump_station etc. from zones table)
+- B-53: Parking Appeals admin view (parking_appeals table already exists from migration 20260505000007)

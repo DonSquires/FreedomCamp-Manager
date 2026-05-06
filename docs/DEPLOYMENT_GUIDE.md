@@ -31,6 +31,7 @@ Before deploying, ensure all requirements are met:
 - [ ] All TypeScript errors resolved (`bun run build` succeeds)
 - [ ] No console errors in development mode
 - [ ] ESLint passes with no warnings
+- [ ] Bob governance regression passes (`bun run test:bob:governance`)
 - [ ] All unused imports removed
 - [ ] Phase 8 smoke tests pass
 
@@ -38,6 +39,7 @@ Before deploying, ensure all requirements are met:
 - [ ] Production Supabase project created/configured
 - [ ] All current database migrations applied (check `supabase/migrations/`)
 - [ ] All current Edge Functions deployed (check `supabase/functions/`)
+- [ ] Bob contract endpoints deployed together when changed: `onspace-ai-chat`, `grandmaster-studio`, `bob-code-change-task`
 - [ ] Storage buckets created (evidence, incident-evidence)
 - [ ] RLS policies enabled on all tables
 - [ ] Test user accounts created (admin, officer, master)
@@ -47,6 +49,12 @@ Before deploying, ensure all requirements are met:
 - [ ] Bob inference service (RunPod) deployed and healthy
 - [ ] ParkPow ALPR credentials configured
 - [ ] OnSpace AI credentials configured (if used)
+
+### 4. Bob Governance Integrity
+- [ ] Shared gateway path still flows through `src/lib/edgeFunctions.ts`
+- [ ] Mutation contract enforcement is active on both client wrappers and receiving edge functions
+- [ ] Execution review renders in Bob chat surfaces and persists to Bob conversation memory
+- [ ] No new migration is required for execution review persistence; it uses `public.bob_conversation_memory.context` JSONB from migration `20260604000006_bob_conversation_memory.sql`
 
 ---
 
@@ -114,6 +122,7 @@ Then run smoke tests for:
 1. Scan ingest and observation writes
 2. Breach alert generation
 3. Photo recovery views and functions (if enabled)
+4. Bob governance regression (`bun run test:bob:governance`) after deploying Bob edge functions
 
 ---
 
@@ -168,6 +177,7 @@ Then run smoke tests for:
    - Run smoke tests in browser console: `runSmokeTests()`
    - Test login flow
    - Test data loading
+   - Validate Bob governance path by checking a Bob surface returns `Review Findings`, `Assessment`, and `Action Plan`, and that disallowed named mutation contracts are blocked
 
 ---
 
@@ -286,6 +296,13 @@ See `docs/RAILWAY_DEPLOYMENT_GUIDE.md` for full instructions (including GitHub d
 ---
 
 ## 🔧 Post-Deployment Configuration
+
+### Bob Governance Notes
+
+- Bob structural awareness is supplied by three client-side artifacts in `src/lib/`: `bobSchemaRegistry.ts`, `bobRouteEntityMap.ts`, and `bobMutationCatalog.ts`.
+- The shared gateway in `src/lib/edgeFunctions.ts` injects compact summaries from those files into Bob requests and produces execution-review metadata for the UI.
+- Execution-review persistence does not require a new schema migration because it is stored inside `public.bob_conversation_memory.context` JSONB.
+- When Bob mutation rules change, redeploy these edge functions together: `onspace-ai-chat`, `grandmaster-studio`, `bob-code-change-task`, and any caller endpoint that forwards Bob requests such as `ask-bob`.
 
 ### 1. Supabase Edge Function Secrets
 

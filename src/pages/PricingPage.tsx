@@ -11,9 +11,11 @@
  * Uses a card-per-client layout with expandable service rows.
  */
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useMemo, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
+import { estimateEtaMinutes, haversineKm } from '@/lib/geo'
 import { useAuthStore } from '@/stores/authStore'
 import { AppLayout } from '@/components/features/AppLayout'
 import { Button } from '@/components/ui/button'
@@ -156,6 +158,117 @@ function fmtRate(n: number | null | undefined, suffix = '/hr'): string | null {
   return `$${n.toFixed(2)}${suffix}`
 }
 
+function formatCurrency(n: number): string {
+  if (!isFinite(n)) return '$0.00'
+  return `$${n.toFixed(2)}`
+}
+
+interface PatrolCostFormState {
+  selectedPricingId: string
+  guardsOnShift: string
+  shiftHours: string
+  billableHours: string
+  chargeRatePerHour: string
+  wagePerHour: string
+  checksCompleted: string
+  timeOnSiteMinsPerCheck: string
+  travelMinsBetweenChecks: string
+  overheadTravelMins: string
+  travelKmTotal: string
+  fuelLitresPer100Km: string
+  fuelCostPerLitre: string
+  vehicleCostPerKm: string
+  overheadCostPerHour: string
+  perCheckCharge: string
+  fixedShiftCharge: string
+  billedTravelPerKm: string
+  billedTravelCallOutFee: string
+  targetProfitMarginPct: string
+}
+
+interface QuoteSiteLine {
+  id: string
+  clientSiteId: string
+  siteName: string
+  patrolsPerMonth: string
+  checksPerPatrol: string
+  onSiteMinsPerPatrol: string
+  travelMinsPerPatrol: string
+  travelKmPerPatrol: string
+  quotedRatePerPatrol: string
+}
+
+interface ClientDiscountFormState {
+  enabled: boolean
+  type: 'percent' | 'fixed'
+  value: string
+  notes: string
+}
+
+interface ClientSiteOption {
+  id: string
+  name: string | null
+  address: string | null
+  gps_lat: number | null
+  gps_lng: number | null
+}
+
+interface SavedQuoteTemplate {
+  id: string
+  name: string
+  selectedPricingId: string
+  patrolCostForm: PatrolCostFormState
+  quoteSites: QuoteSiteLine[]
+  clientDiscount: ClientDiscountFormState
+  updatedAt: string
+}
+
+const EMPTY_PATROL_COST_FORM: PatrolCostFormState = {
+  selectedPricingId: '__none__',
+  guardsOnShift: '1',
+  shiftHours: '8',
+  billableHours: '8',
+  chargeRatePerHour: '85',
+  wagePerHour: '35',
+  checksCompleted: '24',
+  timeOnSiteMinsPerCheck: '10',
+  travelMinsBetweenChecks: '8',
+  overheadTravelMins: '30',
+  travelKmTotal: '90',
+  fuelLitresPer100Km: '10',
+  fuelCostPerLitre: '2.90',
+  vehicleCostPerKm: '0.42',
+  overheadCostPerHour: '18',
+  perCheckCharge: '0',
+  fixedShiftCharge: '0',
+  billedTravelPerKm: '0',
+  billedTravelCallOutFee: '0',
+  targetProfitMarginPct: '39',
+}
+
+const createEmptyQuoteSiteLine = (): QuoteSiteLine => ({
+  id: crypto.randomUUID(),
+  clientSiteId: '__manual__',
+  siteName: '',
+  patrolsPerMonth: '30',
+  checksPerPatrol: '1',
+  onSiteMinsPerPatrol: '10',
+  travelMinsPerPatrol: '8',
+  travelKmPerPatrol: '6',
+  quotedRatePerPatrol: '',
+})
+
+const EMPTY_CLIENT_DISCOUNT: ClientDiscountFormState = {
+  enabled: false,
+  type: 'percent',
+  value: '',
+  notes: '',
+}
+
+function buildTemplateStorageKey(providerOrgId: string): string {
+  return `pricing-quote-templates:${providerOrgId || 'unknown'}`
+}
+
 // ─── Client pricing card ──────────────────────────────────────────────────────
 
 function ClientPricingCard({
@@ -274,13 +387,34 @@ function ClientPricingCard({
 
 export default function PricingPage() {
   const { user } = useAuthStore()
+  const navigate = useNavigate()
   const qc = useQueryClient()
   const [showDialog, setShowDialog] = useState(false)
   const [editRow, setEditRow] = useState<PricingRow | null>(null)
   const [activeClientId, setActiveClientId] = useState<string | null>(null)
   const [form, setForm] = useState<PricingFormState>(EMPTY_FORM)
+  const [patrolCostForm, setPatrolCostForm] = useState<PatrolCostFormState>(EMPTY_PATROL_COST_FORM)
+  const [quoteSites, setQuoteSites] = useState<QuoteSiteLine[]>([createEmptyQuoteSiteLine()])
+  const [clientDiscount, setClientDiscount] = useState<ClientDiscountFormState>(EMPTY_CLIENT_DISCOUNT)
+  const [templateName, setTemplateName] = useState('')
+  const [savedTemplates, setSavedTemplates] = useState<SavedQuoteTemplate[]>([])
 
   const providerOrgId = user?.organization_id ?? ''
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !providerOrgId) {
+      setSavedTemplates([])
+      return
+    }
+
+    try {
+      const raw = window.localStorage.getItem(buildTemplateStorageKey(providerOrgId))
+      const parsedTemplates = raw ? JSON.parse(raw) as SavedQuoteTemplate[] : []
+      setSavedTemplates(Array.isArray(parsedTemplates) ? parsedTemplates : [])
+    } catch {
+      setSavedTemplates([])
+    }
+  }, [providerOrgId])
 
   // Load client orgs
   const { data: clients = [] } = useQuery({
@@ -408,6 +542,330 @@ export default function PricingPage() {
 
   const activeClientName = clients.find((c: any) => c.id === activeClientId)?.name ?? ''
 
+  const pricingOptions = useMemo(() => {
+    const rows = (allRows as PricingRow[])
+      .filter((r) => r.is_active)
+      .map((r) => {
+        const clientName = clients.find((c: any) => c.id === r.client_organization_id)?.name ?? 'Unknown client'
+        return {
+          id: r.id,
+          label: `${clientName} - ${SERVICE_LABELS[r.service_type] ?? r.service_type}`,
+          row: r,
+        }
+      })
+      .sort((a, b) => a.label.localeCompare(b.label))
+    return rows
+  }, [allRows, clients])
+
+  const selectedPricing = useMemo(
+    () => pricingOptions.find((o) => o.id === patrolCostForm.selectedPricingId)?.row ?? null,
+    [patrolCostForm.selectedPricingId, pricingOptions]
+  )
+
+  const quoteClientOrgId = selectedPricing?.client_organization_id ?? ''
+
+  const { data: clientSites = [] } = useQuery<ClientSiteOption[]>({
+    queryKey: ['pricing-quote-client-sites', quoteClientOrgId],
+    queryFn: async () => {
+      if (!quoteClientOrgId) return []
+      const { data, error } = await (supabase as any)
+        .from('client_sites')
+        .select('id, name, address, gps_lat, gps_lng')
+        .eq('organization_id', quoteClientOrgId)
+        .eq('is_active', true)
+        .order('name')
+      if (error) throw error
+      return (data ?? []) as ClientSiteOption[]
+    },
+    enabled: !!quoteClientOrgId,
+  })
+
+  const saveTemplateToStorage = useCallback((nextTemplates: SavedQuoteTemplate[]) => {
+    setSavedTemplates(nextTemplates)
+    if (typeof window === 'undefined' || !providerOrgId) return
+    window.localStorage.setItem(buildTemplateStorageKey(providerOrgId), JSON.stringify(nextTemplates))
+  }, [providerOrgId])
+
+  const createTenderProposalMutation = useMutation({
+    mutationFn: async () => {
+      if (!user?.id || !user.organization_id) throw new Error('User session unavailable')
+      if (!selectedPricing) throw new Error('Select a pricing row first')
+
+      const clientName = clients.find((c: any) => c.id === selectedPricing.client_organization_id)?.name ?? 'Client'
+      const serviceLabel = SERVICE_LABELS[selectedPricing.service_type] ?? selectedPricing.service_type
+
+      const { data, error } = await ((supabase as any).from('tender_documents') as any)
+        .insert({
+          organization_id: user.organization_id,
+          owner_id: user.id,
+          title: `${clientName} ${serviceLabel} Quote`,
+          document_type: 'proposal',
+          issuing_body: clientName,
+          description: `Generated from pricing model for ${clientName}`,
+          status: 'staged',
+          extracted_text: quoteDraft,
+        })
+        .select('id')
+        .single()
+
+      if (error) throw error
+      return data as { id: string }
+    },
+    onSuccess: (data) => {
+      toast.success('Proposal created in Tender Workspace')
+      navigate(`/tender-workspace/${data.id}`)
+    },
+    onError: (err: any) => toast.error(err?.message || 'Failed to create proposal'),
+  })
+
+  const parsed = useMemo(() => {
+    const toNum = (v: string, fallback = 0) => {
+      const n = Number(v)
+      return Number.isFinite(n) ? n : fallback
+    }
+
+    return {
+      guardsOnShift: Math.max(1, toNum(patrolCostForm.guardsOnShift, 1)),
+      shiftHours: Math.max(0.1, toNum(patrolCostForm.shiftHours, 0.1)),
+      billableHours: Math.max(0.1, toNum(patrolCostForm.billableHours, 0.1)),
+      chargeRatePerHour: Math.max(0, toNum(patrolCostForm.chargeRatePerHour)),
+      wagePerHour: Math.max(0, toNum(patrolCostForm.wagePerHour)),
+      checksCompleted: Math.max(0, toNum(patrolCostForm.checksCompleted)),
+      timeOnSiteMinsPerCheck: Math.max(0, toNum(patrolCostForm.timeOnSiteMinsPerCheck)),
+      travelMinsBetweenChecks: Math.max(0, toNum(patrolCostForm.travelMinsBetweenChecks)),
+      overheadTravelMins: Math.max(0, toNum(patrolCostForm.overheadTravelMins)),
+      travelKmTotal: Math.max(0, toNum(patrolCostForm.travelKmTotal)),
+      fuelLitresPer100Km: Math.max(0, toNum(patrolCostForm.fuelLitresPer100Km)),
+      fuelCostPerLitre: Math.max(0, toNum(patrolCostForm.fuelCostPerLitre)),
+      vehicleCostPerKm: Math.max(0, toNum(patrolCostForm.vehicleCostPerKm)),
+      overheadCostPerHour: Math.max(0, toNum(patrolCostForm.overheadCostPerHour)),
+      perCheckCharge: Math.max(0, toNum(patrolCostForm.perCheckCharge)),
+      fixedShiftCharge: Math.max(0, toNum(patrolCostForm.fixedShiftCharge)),
+      billedTravelPerKm: Math.max(0, toNum(patrolCostForm.billedTravelPerKm)),
+      billedTravelCallOutFee: Math.max(0, toNum(patrolCostForm.billedTravelCallOutFee)),
+      targetProfitMarginPct: Math.min(95, Math.max(1, toNum(patrolCostForm.targetProfitMarginPct, 39))),
+    }
+  }, [patrolCostForm])
+
+  const economics = useMemo(() => {
+    const wagesCost = parsed.guardsOnShift * parsed.wagePerHour * parsed.shiftHours
+    const fuelCost = (parsed.travelKmTotal / 100) * parsed.fuelLitresPer100Km * parsed.fuelCostPerLitre
+    const vehicleRunningCost = parsed.travelKmTotal * parsed.vehicleCostPerKm
+    const overheadCost = parsed.shiftHours * parsed.overheadCostPerHour
+    const totalCost = wagesCost + fuelCost + vehicleRunningCost + overheadCost
+
+    const hourlyRevenue = parsed.billableHours * parsed.chargeRatePerHour
+    const checksRevenue = parsed.checksCompleted * parsed.perCheckCharge
+    const travelRevenue = parsed.travelKmTotal * parsed.billedTravelPerKm + parsed.billedTravelCallOutFee
+    const totalRevenue = hourlyRevenue + checksRevenue + travelRevenue + parsed.fixedShiftCharge
+
+    const grossProfit = totalRevenue - totalCost
+    const grossMarginPct = totalRevenue > 0 ? (grossProfit / totalRevenue) * 100 : 0
+
+    const breakEvenHourlyRate = totalCost / parsed.billableHours
+    const targetMarginRatio = parsed.targetProfitMarginPct / 100
+    const targetRevenueAtMargin = totalCost / (1 - targetMarginRatio)
+    const targetHourlyRateAtMargin = targetRevenueAtMargin / parsed.billableHours
+    const revenueGapToTarget = targetRevenueAtMargin - totalRevenue
+
+    const totalOnSiteMins = parsed.checksCompleted * parsed.timeOnSiteMinsPerCheck
+    const totalTravelBetweenMins = Math.max(0, parsed.checksCompleted - 1) * parsed.travelMinsBetweenChecks
+    const totalTravelMins = totalTravelBetweenMins + parsed.overheadTravelMins
+    const totalOperationalMins = totalOnSiteMins + totalTravelMins
+    const onSiteRatioPct = totalOperationalMins > 0 ? (totalOnSiteMins / totalOperationalMins) * 100 : 0
+    const travelRatioPct = totalOperationalMins > 0 ? (totalTravelMins / totalOperationalMins) * 100 : 0
+
+    const costPerCheck = parsed.checksCompleted > 0 ? totalCost / parsed.checksCompleted : 0
+    const revenuePerCheck = parsed.checksCompleted > 0 ? totalRevenue / parsed.checksCompleted : 0
+
+    return {
+      wagesCost,
+      fuelCost,
+      vehicleRunningCost,
+      overheadCost,
+      totalCost,
+      totalRevenue,
+      grossProfit,
+      grossMarginPct,
+      breakEvenHourlyRate,
+      targetRevenueAtMargin,
+      targetHourlyRateAtMargin,
+      revenueGapToTarget,
+      totalOnSiteMins,
+      totalTravelMins,
+      totalOperationalMins,
+      onSiteRatioPct,
+      travelRatioPct,
+      costPerCheck,
+      revenuePerCheck,
+    }
+  }, [parsed])
+
+  const siteQuoteLines = useMemo(() => {
+    const labourAndOverheadPerHour = parsed.guardsOnShift * parsed.wagePerHour + parsed.overheadCostPerHour
+    const labourAndOverheadPerMinute = labourAndOverheadPerHour / 60
+    const fuelCostPerKm = (parsed.fuelLitresPer100Km / 100) * parsed.fuelCostPerLitre
+    const runningCostPerKm = fuelCostPerKm + parsed.vehicleCostPerKm
+    const targetMarginRatio = parsed.targetProfitMarginPct / 100
+
+    return quoteSites.map((site) => {
+      const patrolsPerMonth = Math.max(0, Number(site.patrolsPerMonth) || 0)
+      const checksPerPatrol = Math.max(0, Number(site.checksPerPatrol) || 0)
+      const onSiteMinsPerPatrol = Math.max(0, Number(site.onSiteMinsPerPatrol) || 0)
+      const travelMinsPerPatrol = Math.max(0, Number(site.travelMinsPerPatrol) || 0)
+      const travelKmPerPatrol = Math.max(0, Number(site.travelKmPerPatrol) || 0)
+      const directCostPerPatrol = ((onSiteMinsPerPatrol + travelMinsPerPatrol) * labourAndOverheadPerMinute) + (travelKmPerPatrol * runningCostPerKm)
+      const expectedRatePerPatrol = targetMarginRatio < 1 ? directCostPerPatrol / (1 - targetMarginRatio) : directCostPerPatrol
+      const quotedRatePerPatrol = site.quotedRatePerPatrol === '' ? expectedRatePerPatrol : Math.max(0, Number(site.quotedRatePerPatrol) || 0)
+      const expectedMonthlyRevenue = expectedRatePerPatrol * patrolsPerMonth
+      const quotedMonthlyRevenue = quotedRatePerPatrol * patrolsPerMonth
+      const monthlyCost = directCostPerPatrol * patrolsPerMonth
+      const monthlyProfit = quotedMonthlyRevenue - monthlyCost
+      const monthlyMarginPct = quotedMonthlyRevenue > 0 ? (monthlyProfit / quotedMonthlyRevenue) * 100 : 0
+
+      return {
+        ...site,
+        patrolsPerMonth,
+        checksPerPatrol,
+        onSiteMinsPerPatrol,
+        travelMinsPerPatrol,
+        travelKmPerPatrol,
+        directCostPerPatrol,
+        expectedRatePerPatrol,
+        quotedRatePerPatrol,
+        expectedMonthlyRevenue,
+        quotedMonthlyRevenue,
+        monthlyCost,
+        monthlyProfit,
+        monthlyMarginPct,
+      }
+    })
+  }, [parsed, quoteSites])
+
+  const quoteSummary = useMemo(() => {
+    const subtotalExpected = siteQuoteLines.reduce((sum, line) => sum + line.expectedMonthlyRevenue, 0)
+    const subtotalQuoted = siteQuoteLines.reduce((sum, line) => sum + line.quotedMonthlyRevenue, 0)
+    const totalMonthlyCost = siteQuoteLines.reduce((sum, line) => sum + line.monthlyCost, 0)
+    const discountRaw = Math.max(0, Number(clientDiscount.value) || 0)
+    const discountAmount = !clientDiscount.enabled
+      ? 0
+      : clientDiscount.type === 'percent'
+        ? subtotalQuoted * (discountRaw / 100)
+        : Math.min(discountRaw, subtotalQuoted)
+    const discountedRevenue = Math.max(0, subtotalQuoted - discountAmount)
+    const discountedProfit = discountedRevenue - totalMonthlyCost
+    const discountedMarginPct = discountedRevenue > 0 ? (discountedProfit / discountedRevenue) * 100 : 0
+    const totalAllocatedChecks = siteQuoteLines.reduce((sum, line) => sum + (line.checksPerPatrol * line.patrolsPerMonth), 0)
+    const totalAllocatedMinutes = siteQuoteLines.reduce((sum, line) => sum + ((line.onSiteMinsPerPatrol + line.travelMinsPerPatrol) * line.patrolsPerMonth), 0)
+    const totalAllocatedKm = siteQuoteLines.reduce((sum, line) => sum + (line.travelKmPerPatrol * line.patrolsPerMonth), 0)
+
+    return {
+      subtotalExpected,
+      subtotalQuoted,
+      totalMonthlyCost,
+      discountAmount,
+      discountedRevenue,
+      discountedProfit,
+      discountedMarginPct,
+      totalAllocatedChecks,
+      totalAllocatedMinutes,
+      totalAllocatedKm,
+    }
+  }, [clientDiscount, siteQuoteLines])
+
+  const quoteDraft = useMemo(() => {
+    const clientName = selectedPricing
+      ? clients.find((c: any) => c.id === selectedPricing.client_organization_id)?.name ?? 'Unknown client'
+      : 'Unassigned client'
+    const serviceLabel = selectedPricing ? (SERVICE_LABELS[selectedPricing.service_type] ?? selectedPricing.service_type) : 'Patrol service'
+    const discountLabel = clientDiscount.enabled
+      ? clientDiscount.type === 'percent'
+        ? `${clientDiscount.value || '0'}% discount`
+        : `${formatCurrency(Number(clientDiscount.value) || 0)} discount`
+      : 'No discount'
+
+    const siteLines = siteQuoteLines.map((line) => {
+      const siteLabel = line.siteName || 'Unnamed site'
+      return `- ${siteLabel}: ${line.patrolsPerMonth} patrols/month, expected ${formatCurrency(line.expectedRatePerPatrol)}/patrol, quoted ${formatCurrency(line.quotedRatePerPatrol)}/patrol, monthly quote ${formatCurrency(line.quotedMonthlyRevenue)}`
+    }).join('\n')
+
+    return [
+      `Quote Draft: ${clientName} - ${serviceLabel}`,
+      `Target margin: ${parsed.targetProfitMarginPct.toFixed(1)}%`,
+      `Shift model: ${parsed.guardsOnShift} guard(s), ${parsed.shiftHours.toFixed(2)}h shift, ${parsed.billableHours.toFixed(2)} billable hours`,
+      `Cost assumptions: wage ${formatCurrency(parsed.wagePerHour)}/hr, overhead ${formatCurrency(parsed.overheadCostPerHour)}/hr, fuel ${formatCurrency(parsed.fuelCostPerLitre)}/L, vehicle ${formatCurrency(parsed.vehicleCostPerKm)}/km`,
+      'Site pricing:',
+      siteLines || '- No sites added',
+      `Subtotal expected monthly revenue: ${formatCurrency(quoteSummary.subtotalExpected)}`,
+      `Subtotal quoted monthly revenue: ${formatCurrency(quoteSummary.subtotalQuoted)}`,
+      `Client discount: ${discountLabel}`,
+      `Discounted monthly revenue: ${formatCurrency(quoteSummary.discountedRevenue)}`,
+      `Monthly operating cost: ${formatCurrency(quoteSummary.totalMonthlyCost)}`,
+      `Monthly profit: ${formatCurrency(quoteSummary.discountedProfit)}`,
+      `Margin after discount: ${quoteSummary.discountedMarginPct.toFixed(1)}%`,
+      `Allocated service volume: ${quoteSummary.totalAllocatedChecks} checks/month, ${(quoteSummary.totalAllocatedMinutes / 60).toFixed(1)} operational hours/month, ${quoteSummary.totalAllocatedKm.toFixed(1)} km/month`,
+      'Bob instruction: Use this pricing basis to generate a reality-based patrol quote and explain any gap between expected rate and quoted rate per site.',
+    ].join('\n')
+  }, [clientDiscount, clients, parsed, quoteSummary, selectedPricing, siteQuoteLines])
+
+  const handleSaveTemplate = useCallback(() => {
+    if (!templateName.trim()) {
+      toast.error('Enter a template name')
+      return
+    }
+
+    const nextTemplate: SavedQuoteTemplate = {
+      id: crypto.randomUUID(),
+      name: templateName.trim(),
+      selectedPricingId: patrolCostForm.selectedPricingId,
+      patrolCostForm,
+      quoteSites,
+      clientDiscount,
+      updatedAt: new Date().toISOString(),
+    }
+
+    saveTemplateToStorage([
+      nextTemplate,
+      ...savedTemplates.filter((template) => template.name.toLowerCase() !== nextTemplate.name.toLowerCase()),
+    ])
+    setTemplateName('')
+    toast.success('Quote template saved')
+  }, [clientDiscount, patrolCostForm, quoteSites, saveTemplateToStorage, savedTemplates, templateName])
+
+  const handleLoadTemplate = useCallback((template: SavedQuoteTemplate) => {
+    setPatrolCostForm(template.patrolCostForm)
+    setQuoteSites(template.quoteSites.length > 0 ? template.quoteSites : [createEmptyQuoteSiteLine()])
+    setClientDiscount(template.clientDiscount)
+    toast.success('Quote template loaded')
+  }, [])
+
+  const handleDeleteTemplate = useCallback((templateId: string) => {
+    saveTemplateToStorage(savedTemplates.filter((template) => template.id !== templateId))
+    toast.success('Quote template deleted')
+  }, [saveTemplateToStorage, savedTemplates])
+
+  const autofillSiteTravel = useCallback((siteLineId: string, siteId: string) => {
+    const selectedSite = clientSites.find((item) => item.id === siteId)
+    if (!selectedSite) return
+
+    const baseLat = selectedPricing?.base_office_lat
+    const baseLng = selectedPricing?.base_office_lng
+    if (baseLat == null || baseLng == null || selectedSite.gps_lat == null || selectedSite.gps_lng == null) {
+      return
+    }
+
+    const oneWayKm = haversineKm(baseLat, baseLng, selectedSite.gps_lat, selectedSite.gps_lng)
+    const roundTripKm = oneWayKm * 2
+    const roundTripMins = estimateEtaMinutes(oneWayKm) * 2
+
+    setQuoteSites((prev) => prev.map((row) => row.id === siteLineId ? {
+      ...row,
+      travelKmPerPatrol: roundTripKm.toFixed(1),
+      travelMinsPerPatrol: String(roundTripMins),
+      siteName: selectedSite.name ?? row.siteName,
+    } : row))
+  }, [clientSites, selectedPricing?.base_office_lat, selectedPricing?.base_office_lng])
+
   return (
     <AppLayout title="Service Pricing" description="Per-client per-service rate configuration">
       <div className="space-y-5">
@@ -430,6 +888,454 @@ export default function PricingPage() {
             {(allRows as PricingRow[]).length} rate{(allRows as PricingRow[]).length !== 1 ? 's' : ''} configured
           </Badge>
         </div>
+
+        <Card className="border-slate-200 dark:border-slate-800">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Patrol Cost and Margin Planner</CardTitle>
+            <CardDescription>
+              Model cost per site/check, full shift operating cost, break-even charge rate, and your target margin against actual pricing.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              <div className="space-y-1.5 lg:col-span-2">
+                <Label className="text-xs">Prefill from configured pricing (optional)</Label>
+                <Select
+                  value={patrolCostForm.selectedPricingId}
+                  onValueChange={(value) => {
+                    const matched = pricingOptions.find((p) => p.id === value)
+                    if (!matched) {
+                      setPatrolCostForm((prev) => ({ ...prev, selectedPricingId: '__none__' }))
+                      setQuoteSites([createEmptyQuoteSiteLine()])
+                      return
+                    }
+                    const row = matched.row
+                    setPatrolCostForm((prev) => ({
+                      ...prev,
+                      selectedPricingId: value,
+                      chargeRatePerHour: row.hourly_charge_rate != null ? String(row.hourly_charge_rate) : prev.chargeRatePerHour,
+                      wagePerHour: row.hourly_pay_rate != null ? String(row.hourly_pay_rate) : prev.wagePerHour,
+                      fixedShiftCharge: row.per_service_charge != null ? String(row.per_service_charge) : prev.fixedShiftCharge,
+                      billedTravelPerKm: row.travel_charge_per_km != null ? String(row.travel_charge_per_km) : prev.billedTravelPerKm,
+                      billedTravelCallOutFee: row.travel_call_out_fee != null ? String(row.travel_call_out_fee) : prev.billedTravelCallOutFee,
+                    }))
+                    setQuoteSites([createEmptyQuoteSiteLine()])
+                  }}
+                >
+                  <SelectTrigger className="h-9">
+                    <SelectValue placeholder="Select client + service" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">No prefill</SelectItem>
+                    {pricingOptions.map((option) => (
+                      <SelectItem key={option.id} value={option.id}>{option.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Target Profit Margin %</Label>
+                <Input
+                  type="number"
+                  min="1"
+                  max="95"
+                  step="0.5"
+                  className="h-9"
+                  value={patrolCostForm.targetProfitMarginPct}
+                  onChange={(e) => setPatrolCostForm((prev) => ({ ...prev, targetProfitMarginPct: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Guards on Shift</Label>
+                <Input type="number" min="1" step="1" value={patrolCostForm.guardsOnShift} onChange={(e) => setPatrolCostForm((prev) => ({ ...prev, guardsOnShift: e.target.value }))} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Shift Hours</Label>
+                <Input type="number" min="0" step="0.25" value={patrolCostForm.shiftHours} onChange={(e) => setPatrolCostForm((prev) => ({ ...prev, shiftHours: e.target.value }))} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Billable Hours</Label>
+                <Input type="number" min="0" step="0.25" value={patrolCostForm.billableHours} onChange={(e) => setPatrolCostForm((prev) => ({ ...prev, billableHours: e.target.value }))} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Checks / Sites Visited</Label>
+                <Input type="number" min="0" step="1" value={patrolCostForm.checksCompleted} onChange={(e) => setPatrolCostForm((prev) => ({ ...prev, checksCompleted: e.target.value }))} />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Charge Rate $/hr</Label>
+                <Input type="number" min="0" step="0.01" value={patrolCostForm.chargeRatePerHour} onChange={(e) => setPatrolCostForm((prev) => ({ ...prev, chargeRatePerHour: e.target.value }))} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Guard Wage $/hr</Label>
+                <Input type="number" min="0" step="0.01" value={patrolCostForm.wagePerHour} onChange={(e) => setPatrolCostForm((prev) => ({ ...prev, wagePerHour: e.target.value }))} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Overhead $/hr</Label>
+                <Input type="number" min="0" step="0.01" value={patrolCostForm.overheadCostPerHour} onChange={(e) => setPatrolCostForm((prev) => ({ ...prev, overheadCostPerHour: e.target.value }))} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Fixed Shift Charge $</Label>
+                <Input type="number" min="0" step="0.01" value={patrolCostForm.fixedShiftCharge} onChange={(e) => setPatrolCostForm((prev) => ({ ...prev, fixedShiftCharge: e.target.value }))} />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Travel KM (Total)</Label>
+                <Input type="number" min="0" step="0.1" value={patrolCostForm.travelKmTotal} onChange={(e) => setPatrolCostForm((prev) => ({ ...prev, travelKmTotal: e.target.value }))} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Fuel L / 100km</Label>
+                <Input type="number" min="0" step="0.1" value={patrolCostForm.fuelLitresPer100Km} onChange={(e) => setPatrolCostForm((prev) => ({ ...prev, fuelLitresPer100Km: e.target.value }))} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Fuel $ / Litre</Label>
+                <Input type="number" min="0" step="0.01" value={patrolCostForm.fuelCostPerLitre} onChange={(e) => setPatrolCostForm((prev) => ({ ...prev, fuelCostPerLitre: e.target.value }))} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Vehicle Running $ / KM</Label>
+                <Input type="number" min="0" step="0.01" value={patrolCostForm.vehicleCostPerKm} onChange={(e) => setPatrolCostForm((prev) => ({ ...prev, vehicleCostPerKm: e.target.value }))} />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">On-site Mins per Check</Label>
+                <Input type="number" min="0" step="1" value={patrolCostForm.timeOnSiteMinsPerCheck} onChange={(e) => setPatrolCostForm((prev) => ({ ...prev, timeOnSiteMinsPerCheck: e.target.value }))} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Travel Mins between Checks</Label>
+                <Input type="number" min="0" step="1" value={patrolCostForm.travelMinsBetweenChecks} onChange={(e) => setPatrolCostForm((prev) => ({ ...prev, travelMinsBetweenChecks: e.target.value }))} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Overhead Travel Mins</Label>
+                <Input type="number" min="0" step="1" value={patrolCostForm.overheadTravelMins} onChange={(e) => setPatrolCostForm((prev) => ({ ...prev, overheadTravelMins: e.target.value }))} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Per Check Charge $</Label>
+                <Input type="number" min="0" step="0.01" value={patrolCostForm.perCheckCharge} onChange={(e) => setPatrolCostForm((prev) => ({ ...prev, perCheckCharge: e.target.value }))} />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Billed Travel $ / KM</Label>
+                <Input type="number" min="0" step="0.01" value={patrolCostForm.billedTravelPerKm} onChange={(e) => setPatrolCostForm((prev) => ({ ...prev, billedTravelPerKm: e.target.value }))} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Billed Travel Call-out $</Label>
+                <Input type="number" min="0" step="0.01" value={patrolCostForm.billedTravelCallOutFee} onChange={(e) => setPatrolCostForm((prev) => ({ ...prev, billedTravelCallOutFee: e.target.value }))} />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 pt-1">
+              <div className="rounded-lg border p-3">
+                <p className="text-xs text-muted-foreground">Total Shift Cost</p>
+                <p className="text-lg font-semibold">{formatCurrency(economics.totalCost)}</p>
+              </div>
+              <div className="rounded-lg border p-3">
+                <p className="text-xs text-muted-foreground">Cost per Check/Site</p>
+                <p className="text-lg font-semibold">{formatCurrency(economics.costPerCheck)}</p>
+              </div>
+              <div className="rounded-lg border p-3">
+                <p className="text-xs text-muted-foreground">Break-even Rate ($/hr)</p>
+                <p className="text-lg font-semibold">{formatCurrency(economics.breakEvenHourlyRate)}</p>
+              </div>
+              <div className="rounded-lg border p-3">
+                <p className="text-xs text-muted-foreground">Actual Margin</p>
+                <p className={`text-lg font-semibold ${economics.grossMarginPct >= parsed.targetProfitMarginPct ? 'text-green-600' : 'text-amber-600'}`}>
+                  {economics.grossMarginPct.toFixed(1)}%
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+              <div className="rounded-lg border p-3 space-y-1">
+                <p className="text-xs text-muted-foreground">Cost Stack</p>
+                <p className="text-sm">Wages: <span className="font-medium">{formatCurrency(economics.wagesCost)}</span></p>
+                <p className="text-sm">Fuel: <span className="font-medium">{formatCurrency(economics.fuelCost)}</span></p>
+                <p className="text-sm">Vehicle: <span className="font-medium">{formatCurrency(economics.vehicleRunningCost)}</span></p>
+                <p className="text-sm">Overheads: <span className="font-medium">{formatCurrency(economics.overheadCost)}</span></p>
+              </div>
+              <div className="rounded-lg border p-3 space-y-1">
+                <p className="text-xs text-muted-foreground">Revenue and Profitability</p>
+                <p className="text-sm">Total revenue: <span className="font-medium">{formatCurrency(economics.totalRevenue)}</span></p>
+                <p className="text-sm">Gross profit: <span className={`font-medium ${economics.grossProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>{formatCurrency(economics.grossProfit)}</span></p>
+                <p className="text-sm">Revenue/check: <span className="font-medium">{formatCurrency(economics.revenuePerCheck)}</span></p>
+              </div>
+              <div className="rounded-lg border p-3 space-y-1">
+                <p className="text-xs text-muted-foreground">Time Split and Throughput</p>
+                <p className="text-sm">On-site: <span className="font-medium">{(economics.totalOnSiteMins / 60).toFixed(2)} h ({economics.onSiteRatioPct.toFixed(1)}%)</span></p>
+                <p className="text-sm">Travel: <span className="font-medium">{(economics.totalTravelMins / 60).toFixed(2)} h ({economics.travelRatioPct.toFixed(1)}%)</span></p>
+                <p className="text-sm">Total tracked ops time: <span className="font-medium">{(economics.totalOperationalMins / 60).toFixed(2)} h</span></p>
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-dashed p-3 space-y-1">
+              <p className="text-xs text-muted-foreground">Target Margin Check</p>
+              <p className="text-sm">
+                To hit <span className="font-medium">{parsed.targetProfitMarginPct.toFixed(1)}%</span> margin, required shift revenue is{' '}
+                <span className="font-medium">{formatCurrency(economics.targetRevenueAtMargin)}</span> and required hourly charge is{' '}
+                <span className="font-medium">{formatCurrency(economics.targetHourlyRateAtMargin)}</span>.
+              </p>
+              <p className={`text-sm font-medium ${economics.revenueGapToTarget <= 0 ? 'text-green-600' : 'text-amber-700'}`}>
+                {economics.revenueGapToTarget <= 0
+                  ? `${formatCurrency(Math.abs(economics.revenueGapToTarget))} above target revenue`
+                  : `${formatCurrency(economics.revenueGapToTarget)} below target revenue`}
+              </p>
+            </div>
+
+            {selectedPricing && (
+              <p className="text-xs text-muted-foreground">
+                Prefill source: {SERVICE_LABELS[selectedPricing.service_type] ?? selectedPricing.service_type} pricing row.
+              </p>
+            )}
+
+            <div className="space-y-3 border-t pt-4">
+              <div>
+                <p className="text-sm font-semibold text-slate-900 dark:text-white">Site Quote Builder</p>
+                <p className="text-xs text-muted-foreground">Add each site, compare expected rate against quoted rate, then apply an optional client discount to see the real margin.</p>
+              </div>
+
+              <div className="rounded-lg border border-dashed p-3 space-y-3">
+                <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_auto] gap-3 items-end">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Template Name</Label>
+                    <Input value={templateName} placeholder="e.g. Nelson City Council standard patrol" onChange={(e) => setTemplateName(e.target.value)} />
+                  </div>
+                  <Button type="button" size="sm" onClick={handleSaveTemplate}>Save Template</Button>
+                </div>
+                {savedTemplates.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-xs text-muted-foreground">Saved templates</p>
+                    {savedTemplates.slice(0, 5).map((template) => (
+                      <div key={template.id} className="flex items-center justify-between gap-3 rounded-md border p-2 text-sm">
+                        <div className="min-w-0">
+                          <p className="font-medium truncate">{template.name}</p>
+                          <p className="text-xs text-muted-foreground">Updated {new Date(template.updatedAt).toLocaleString()}</p>
+                        </div>
+                        <div className="flex gap-2 shrink-0">
+                          <Button type="button" size="sm" variant="outline" onClick={() => handleLoadTemplate(template)}>Load</Button>
+                          <Button type="button" size="sm" variant="outline" onClick={() => handleDeleteTemplate(template.id)}>Delete</Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-3">
+                {quoteSites.map((site) => {
+                  const calculated = siteQuoteLines.find((line) => line.id === site.id)
+                  return (
+                    <div key={site.id} className="rounded-lg border p-3 space-y-3">
+                      <div className="grid grid-cols-1 lg:grid-cols-4 gap-3">
+                        <div className="space-y-1.5 lg:col-span-2">
+                          <Label className="text-xs">Client Site</Label>
+                          <Select
+                            value={site.clientSiteId}
+                            onValueChange={(value) => {
+                              const matchedSite = clientSites.find((item) => item.id === value)
+                              setQuoteSites((prev) => prev.map((row) => row.id === site.id ? {
+                                ...row,
+                                clientSiteId: value,
+                                siteName: matchedSite?.name ?? row.siteName,
+                              } : row))
+                              autofillSiteTravel(site.id, value)
+                            }}
+                          >
+                            <SelectTrigger className="h-9">
+                              <SelectValue placeholder="Select a client site" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="__manual__">Manual site entry</SelectItem>
+                              {clientSites.map((option) => (
+                                <SelectItem key={option.id} value={option.id}>{option.name ?? option.address ?? 'Unnamed site'}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-1.5 lg:col-span-2">
+                          <Label className="text-xs">Site Name / Quote Label</Label>
+                          <Input
+                            value={site.siteName}
+                            placeholder="e.g. Civic Centre"
+                            onChange={(e) => setQuoteSites((prev) => prev.map((row) => row.id === site.id ? { ...row, siteName: e.target.value } : row))}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-3">
+                        <div className="space-y-1">
+                          <Label className="text-xs">Patrols / Month</Label>
+                          <Input type="number" min="0" step="1" value={site.patrolsPerMonth} onChange={(e) => setQuoteSites((prev) => prev.map((row) => row.id === site.id ? { ...row, patrolsPerMonth: e.target.value } : row))} />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Checks / Patrol</Label>
+                          <Input type="number" min="0" step="1" value={site.checksPerPatrol} onChange={(e) => setQuoteSites((prev) => prev.map((row) => row.id === site.id ? { ...row, checksPerPatrol: e.target.value } : row))} />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">On-site Mins</Label>
+                          <Input type="number" min="0" step="1" value={site.onSiteMinsPerPatrol} onChange={(e) => setQuoteSites((prev) => prev.map((row) => row.id === site.id ? { ...row, onSiteMinsPerPatrol: e.target.value } : row))} />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Travel Mins</Label>
+                          <Input type="number" min="0" step="1" value={site.travelMinsPerPatrol} onChange={(e) => setQuoteSites((prev) => prev.map((row) => row.id === site.id ? { ...row, travelMinsPerPatrol: e.target.value } : row))} />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Travel KM</Label>
+                          <Input type="number" min="0" step="0.1" value={site.travelKmPerPatrol} onChange={(e) => setQuoteSites((prev) => prev.map((row) => row.id === site.id ? { ...row, travelKmPerPatrol: e.target.value } : row))} />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 items-end">
+                        <div className="space-y-1">
+                          <Label className="text-xs">Expected Rate / Patrol</Label>
+                          <div className="h-10 rounded-md border bg-muted/30 px-3 flex items-center text-sm font-medium">
+                            {formatCurrency(calculated?.expectedRatePerPatrol ?? 0)}
+                          </div>
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Quoted Rate / Patrol</Label>
+                          <Input type="number" min="0" step="0.01" placeholder={(calculated?.expectedRatePerPatrol ?? 0).toFixed(2)} value={site.quotedRatePerPatrol} onChange={(e) => setQuoteSites((prev) => prev.map((row) => row.id === site.id ? { ...row, quotedRatePerPatrol: e.target.value } : row))} />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Quoted Monthly</Label>
+                          <div className="h-10 rounded-md border bg-muted/30 px-3 flex items-center text-sm font-medium">
+                            {formatCurrency(calculated?.quotedMonthlyRevenue ?? 0)}
+                          </div>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setQuoteSites((prev) => prev.length === 1 ? [createEmptyQuoteSiteLine()] : prev.filter((row) => row.id !== site.id))}
+                        >
+                          Remove Site
+                        </Button>
+                      </div>
+
+                      <div className="text-xs text-muted-foreground flex flex-wrap gap-x-4 gap-y-1">
+                        <span>Monthly cost: {formatCurrency(calculated?.monthlyCost ?? 0)}</span>
+                        <span>Monthly profit: {formatCurrency(calculated?.monthlyProfit ?? 0)}</span>
+                        <span>Margin: {(calculated?.monthlyMarginPct ?? 0).toFixed(1)}%</span>
+                        {selectedPricing?.base_office_lat != null && selectedPricing?.base_office_lng != null && site.clientSiteId !== '__manual__' && (
+                          <span>GPS travel auto-filled from base office when coordinates are available</span>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="gap-1"
+                  onClick={() => setQuoteSites((prev) => [...prev, createEmptyQuoteSiteLine()])}
+                >
+                  <Plus className="h-3 w-3" />
+                  Add Site Rate
+                </Button>
+              </div>
+
+              <div className="rounded-lg border border-dashed p-3 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium">Optional Client Discount</p>
+                    <p className="text-xs text-muted-foreground">Apply a negotiated discount and recalculate the true margin.</p>
+                  </div>
+                  <Switch checked={clientDiscount.enabled} onCheckedChange={(enabled) => setClientDiscount((prev) => ({ ...prev, enabled }))} />
+                </div>
+
+                {clientDiscount.enabled && (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Discount Type</Label>
+                      <Select value={clientDiscount.type} onValueChange={(value: 'percent' | 'fixed') => setClientDiscount((prev) => ({ ...prev, type: value }))}>
+                        <SelectTrigger className="h-9">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="percent">Percent</SelectItem>
+                          <SelectItem value="fixed">Fixed amount</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Discount Value</Label>
+                      <Input type="number" min="0" step="0.01" value={clientDiscount.value} onChange={(e) => setClientDiscount((prev) => ({ ...prev, value: e.target.value }))} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Discount Notes</Label>
+                      <Input value={clientDiscount.notes} placeholder="e.g. multi-site volume discount" onChange={(e) => setClientDiscount((prev) => ({ ...prev, notes: e.target.value }))} />
+                    </div>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-3 text-sm">
+                  <div className="rounded-md border p-3">
+                    <p className="text-xs text-muted-foreground">Expected Subtotal</p>
+                    <p className="font-semibold">{formatCurrency(quoteSummary.subtotalExpected)}</p>
+                  </div>
+                  <div className="rounded-md border p-3">
+                    <p className="text-xs text-muted-foreground">Quoted Subtotal</p>
+                    <p className="font-semibold">{formatCurrency(quoteSummary.subtotalQuoted)}</p>
+                  </div>
+                  <div className="rounded-md border p-3">
+                    <p className="text-xs text-muted-foreground">Discount</p>
+                    <p className="font-semibold">{formatCurrency(quoteSummary.discountAmount)}</p>
+                  </div>
+                  <div className="rounded-md border p-3">
+                    <p className="text-xs text-muted-foreground">Final Monthly Quote</p>
+                    <p className="font-semibold">{formatCurrency(quoteSummary.discountedRevenue)}</p>
+                  </div>
+                  <div className="rounded-md border p-3">
+                    <p className="text-xs text-muted-foreground">Margin After Discount</p>
+                    <p className={`font-semibold ${quoteSummary.discountedMarginPct >= parsed.targetProfitMarginPct ? 'text-green-600' : 'text-amber-700'}`}>{quoteSummary.discountedMarginPct.toFixed(1)}%</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-lg border p-3 space-y-2">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium">Quote Draft for Bob or Client Proposal</p>
+                    <p className="text-xs text-muted-foreground">Copy this into Bob or the tender workspace to generate a service quote from real operating assumptions.</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={async () => {
+                        await navigator.clipboard.writeText(quoteDraft)
+                        toast.success('Quote draft copied')
+                      }}
+                    >
+                      Copy Draft
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => createTenderProposalMutation.mutate()}
+                      disabled={createTenderProposalMutation.isPending || !selectedPricing}
+                    >
+                      {createTenderProposalMutation.isPending ? 'Creating…' : 'Create Proposal'}
+                    </Button>
+                  </div>
+                </div>
+                <Textarea value={quoteDraft} readOnly rows={12} className="text-xs font-mono" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* ── Per-client cards ─────────────────────────────────────────────── */}
         {isLoading ? (

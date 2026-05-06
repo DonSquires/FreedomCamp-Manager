@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation } from '@tanstack/react-query'
+import bobFailureSummaryRaw from '../../data/bob-failure-summary.json?raw'
+import bobResponseScoresRaw from '../../data/bob-response-scores.jsonl?raw'
 import { supabase } from '@/lib/supabase'
 import { edgeFunctions } from '@/lib/edgeFunctions'
 import { useAuthStore } from '@/stores/authStore'
@@ -25,6 +27,94 @@ interface IntegrityResults {
     action_taken?: string
   }>
 }
+
+type BobFailureSummarySnapshot = {
+  generatedAt?: string
+  windowHours?: number
+  totalEntries?: number
+  lowScoreCount?: number
+  topFailureReasons?: Array<{ key?: string; count?: number }>
+  recommendations?: string[]
+}
+
+type BobScoreEntry = {
+  timestamp?: string
+  target?: string
+  channel?: string
+  score?: number
+  failureReasons?: string[]
+  positiveSignals?: string[]
+}
+
+function parseFailureSummarySnapshot(raw: string): BobFailureSummarySnapshot | null {
+  try {
+    return JSON.parse(raw) as BobFailureSummarySnapshot
+  } catch {
+    return null
+  }
+}
+
+function parseScoreEntries(raw: string): BobScoreEntry[] {
+  return raw
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .slice(-300)
+    .map((line) => {
+      try {
+        return JSON.parse(line) as BobScoreEntry
+      } catch {
+        return null
+      }
+    })
+    .filter((entry): entry is BobScoreEntry => Boolean(entry))
+}
+
+const bobFailureSummarySnapshot = parseFailureSummarySnapshot(bobFailureSummaryRaw)
+const bobScoreEntriesSnapshot = parseScoreEntries(bobResponseScoresRaw)
+
+const bobScoreSnapshot = (() => {
+  const entries = bobScoreEntriesSnapshot
+  const scoredEntries = entries.filter((entry) => typeof entry.score === 'number')
+  const avgScore = scoredEntries.length
+    ? Math.round((scoredEntries.reduce((sum, entry) => sum + Number(entry.score || 0), 0) / scoredEntries.length) * 10) / 10
+    : null
+  const lowScoreEntries = scoredEntries.filter((entry) => Number(entry.score || 0) <= 4)
+  const rewardedEntries = entries.filter((entry) => Number(entry.score || 0) >= 8).length
+  const failureCounts = new Map<string, number>()
+  const channelCounts = new Map<string, { count: number; avg: number }>()
+
+  for (const entry of entries) {
+    for (const failure of entry.failureReasons || []) {
+      failureCounts.set(failure, (failureCounts.get(failure) || 0) + 1)
+    }
+    if (entry.channel) {
+      const prev = channelCounts.get(entry.channel) || { count: 0, avg: 0 }
+      const nextCount = prev.count + 1
+      const nextAvg = typeof entry.score === 'number'
+        ? ((prev.avg * prev.count) + entry.score) / nextCount
+        : prev.avg
+      channelCounts.set(entry.channel, { count: nextCount, avg: nextAvg })
+    }
+  }
+
+  const topFailures = Array.from(failureCounts.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 4)
+  const topChannels = Array.from(channelCounts.entries())
+    .sort((a, b) => b[1].count - a[1].count)
+    .slice(0, 4)
+
+  return {
+    totalEntries: entries.length,
+    avgScore,
+    lowScoreCount: lowScoreEntries.length,
+    rewardedEntries,
+    topFailures,
+    topChannels,
+    latestTimestamp: entries[entries.length - 1]?.timestamp || bobFailureSummarySnapshot?.generatedAt || null,
+  }
+})()
 
 function IntegrityResultsDisplay({ results }: { results: IntegrityResults }) {
   return (
@@ -79,6 +169,22 @@ function IntegrityResultsDisplay({ results }: { results: IntegrityResults }) {
   )
 }
 
+function EndpointHealthSummary({ endpointHealth }: { endpointHealth: any }) {
+  if (!endpointHealth?.endpoints?.length) return null
+
+  return (
+    <div className="pt-1">
+      <div className="text-[10px] uppercase tracking-wide text-gray-500 mb-1">Endpoint failover</div>
+      <div>{Number(endpointHealth.healthyCount || 0)}/{Number(endpointHealth.totalEndpoints || 0)} healthy</div>
+      {endpointHealth.endpoints.slice(0, 3).map((endpoint: any, index: number) => (
+        <div key={`${endpoint.url}-${index}`} className="text-[11px] text-gray-600 leading-snug">
+          {endpoint.status === 'healthy' ? 'OK' : endpoint.status === 'degraded' ? 'WARN' : 'DOWN'} · {endpoint.latencyMs ?? '--'}ms · {String(endpoint.url || '').replace(/^https?:\/\//, '')}
+        </div>
+      ))}
+    </div>
+  )
+}
+
 export default function SystemDiagnostics() {
   const { user } = useAuthStore()
   const [testResults, setTestResults] = useState<any>(null)
@@ -113,6 +219,7 @@ export default function SystemDiagnostics() {
     refetchPtt()
     void refetchDoctorHealth()
     void refetchDoctorTimeline()
+    void refetchEndpointHealth()
   }
 
   const {
@@ -139,6 +246,16 @@ export default function SystemDiagnostics() {
       const { data, error } = await edgeFunctions.grandmasterStudio({ action: 'doctor_timeline', limit: 8 })
       if (error) throw new Error(String(error))
       return (data as any)?.entries || []
+    },
+    refetchInterval: 45_000,
+  })
+
+  const { data: endpointHealth, refetch: refetchEndpointHealth } = useQuery({
+    queryKey: ['inference-endpoint-health-diagnostics'],
+    queryFn: async () => {
+      const { data, error } = await edgeFunctions.grandmasterStudio({ action: 'inference_endpoint_health' })
+      if (error) throw new Error(String(error))
+      return data as any
     },
     refetchInterval: 45_000,
   })
@@ -388,6 +505,7 @@ export default function SystemDiagnostics() {
                       ))}
                     </div>
                   )}
+                  <EndpointHealthSummary endpointHealth={endpointHealth} />
                 </div>
               </>
             ) : inferenceHealth?.status === 'degraded' ? (
@@ -417,6 +535,7 @@ export default function SystemDiagnostics() {
                       ))}
                     </div>
                   )}
+                  <EndpointHealthSummary endpointHealth={endpointHealth} />
                 </div>
               </>
             ) : (
@@ -448,6 +567,7 @@ export default function SystemDiagnostics() {
                       ))}
                     </div>
                   )}
+                  <EndpointHealthSummary endpointHealth={endpointHealth} />
                 </div>
               </>
             )}
@@ -641,6 +761,82 @@ export default function SystemDiagnostics() {
               <div className="text-xs text-muted-foreground">No doctor runs recorded yet.</div>
             )}
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Bob Quality Snapshot</CardTitle>
+          <CardDescription>
+            Build-time snapshot from local Bob scoring artifacts for recent quality and failure patterns.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+            <div className="rounded border p-3">
+              <div className="text-xs text-muted-foreground">Entries Parsed</div>
+              <div className="text-2xl font-semibold">{bobScoreSnapshot.totalEntries}</div>
+            </div>
+            <div className="rounded border p-3">
+              <div className="text-xs text-muted-foreground">Average Score</div>
+              <div className="text-2xl font-semibold">{bobScoreSnapshot.avgScore ?? '--'}</div>
+            </div>
+            <div className="rounded border p-3">
+              <div className="text-xs text-muted-foreground">Low Scores</div>
+              <div className="text-2xl font-semibold">{bobScoreSnapshot.lowScoreCount}</div>
+            </div>
+            <div className="rounded border p-3">
+              <div className="text-xs text-muted-foreground">High-Confidence Runs</div>
+              <div className="text-2xl font-semibold">{bobScoreSnapshot.rewardedEntries}</div>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+            {bobScoreSnapshot.latestTimestamp && (
+              <span>Latest entry: {new Date(String(bobScoreSnapshot.latestTimestamp)).toLocaleString('en-NZ')}</span>
+            )}
+            {bobFailureSummarySnapshot?.windowHours ? <span>Window: {bobFailureSummarySnapshot.windowHours}h</span> : null}
+            {bobFailureSummarySnapshot?.generatedAt ? <span>Summary generated: {new Date(bobFailureSummarySnapshot.generatedAt).toLocaleString('en-NZ')}</span> : null}
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="rounded border p-3 space-y-2">
+              <div className="text-xs font-medium text-muted-foreground">Top Failure Reasons</div>
+              {bobScoreSnapshot.topFailures.length > 0 ? (
+                bobScoreSnapshot.topFailures.map(([reason, count]) => (
+                  <div key={reason} className="flex items-center justify-between text-sm">
+                    <span>{reason}</span>
+                    <Badge variant="secondary">{count}</Badge>
+                  </div>
+                ))
+              ) : (
+                <div className="text-sm text-green-700 dark:text-green-400">No repeated failure reasons in the parsed snapshot.</div>
+              )}
+            </div>
+
+            <div className="rounded border p-3 space-y-2">
+              <div className="text-xs font-medium text-muted-foreground">Most Active Channels</div>
+              {bobScoreSnapshot.topChannels.length > 0 ? (
+                bobScoreSnapshot.topChannels.map(([channel, stats]) => (
+                  <div key={channel} className="flex items-center justify-between text-sm gap-3">
+                    <span>{channel}</span>
+                    <span className="text-muted-foreground">{stats.count} runs · avg {Math.round(stats.avg * 10) / 10}</span>
+                  </div>
+                ))
+              ) : (
+                <div className="text-sm text-muted-foreground">No channel activity recorded.</div>
+              )}
+            </div>
+          </div>
+
+          {Array.isArray(bobFailureSummarySnapshot?.recommendations) && bobFailureSummarySnapshot!.recommendations!.length > 0 && (
+            <div className="rounded border p-3 space-y-2">
+              <div className="text-xs font-medium text-muted-foreground">Current Recommendations</div>
+              {bobFailureSummarySnapshot!.recommendations!.slice(0, 3).map((recommendation) => (
+                <div key={recommendation} className="text-sm">{recommendation}</div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
 

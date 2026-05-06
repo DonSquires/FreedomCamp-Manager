@@ -49,6 +49,37 @@ need_env() {
   [ -n "${!key:-}" ] || die "Missing required environment variable: $key"
 }
 
+is_runpod_serverless_url() {
+  local url="$1"
+  printf '%s' "$url" | grep -Eqi 'api\.runpod\.ai/v2/[^/]+(/(run|runsync))?/?$'
+}
+
+normalize_runpod_base() {
+  local url="$1"
+  printf '%s' "$url" | sed -E 's#/(run|runsync)/?$##'
+}
+
+probe_inference_url() {
+  local url="$1"
+
+  if is_runpod_serverless_url "$url"; then
+    local base
+    base="$(normalize_runpod_base "$url")"
+    local auth_args=()
+    if [ -n "${INFERENCE_API_KEY:-}" ]; then
+      auth_args=(-H "Authorization: Bearer ${INFERENCE_API_KEY}")
+    fi
+
+    curl -fsS "${auth_args[@]}" \
+      -H 'Content-Type: application/json' \
+      -X POST "${base}/runsync" \
+      -d '{"input":{"action":"ping"}}' >/dev/null || die "INFERENCE_SERVICE_URL RunPod probe failed"
+    return 0
+  fi
+
+  curl -fsS "${url%/}/health" >/dev/null || die "INFERENCE_SERVICE_URL health check failed"
+}
+
 set_gh_secret() {
   local key="$1"
   local val="$2"
@@ -97,7 +128,7 @@ if [ -z "${INFERENCE_API_KEY:-}" ]; then
 fi
 
 # Quick URL sanity checks (non-fatal for optional URLs).
-curl -fsS "${INFERENCE_SERVICE_URL%/}/health" >/dev/null || die "INFERENCE_SERVICE_URL health check failed"
+probe_inference_url "$INFERENCE_SERVICE_URL"
 [ -z "${PROXY_SERVER_URL:-}" ] || curl -fsS "${PROXY_SERVER_URL%/}/health" >/dev/null || warn "PROXY_SERVER_URL health check failed"
 [ -z "${PTT_SERVER_URL:-}" ] || curl -fsS "${PTT_SERVER_URL%/}/health" >/dev/null || warn "PTT_SERVER_URL health check failed"
 

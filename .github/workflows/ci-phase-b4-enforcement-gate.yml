@@ -9,10 +9,10 @@ on:
     branches: [main]
     paths:
       - 'tests/e2e/phase-b4-enforcement-timeline.spec.ts'
-      - 'supabase/migrations/20260506000003_phase_b4_enforcement_case_bridge.sql'
+      - 'supabase/migrations/20260506000010_phase_b4_enforcement_case_bridge.sql'
       - 'src/hooks/useEnforcementB4.ts'
       - 'tests/e2e/setup.ts'
-      - 'playwright.api.config.ts'
+      - 'playwright.b4-enforcement.config.ts'
       - 'package.json'
       - 'bun.lock'
       - '.github/workflows/ci-phase-b4-enforcement-gate.yml'
@@ -20,10 +20,10 @@ on:
     branches: [main]
     paths:
       - 'tests/e2e/phase-b4-enforcement-timeline.spec.ts'
-      - 'supabase/migrations/20260506000003_phase_b4_enforcement_case_bridge.sql'
+      - 'supabase/migrations/20260506000010_phase_b4_enforcement_case_bridge.sql'
       - 'src/hooks/useEnforcementB4.ts'
       - 'tests/e2e/setup.ts'
-      - 'playwright.api.config.ts'
+      - 'playwright.b4-enforcement.config.ts'
       - 'package.json'
       - 'bun.lock'
       - '.github/workflows/ci-phase-b4-enforcement-gate.yml'
@@ -61,7 +61,7 @@ jobs:
         run: |
           bunx playwright test \
             tests/e2e/phase-b4-enforcement-timeline.spec.ts \
-            --config=playwright.api.config.ts \
+            --config=playwright.b4-enforcement.config.ts \
             --reporter=list
 
       - name: Upload Playwright artifacts

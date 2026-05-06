@@ -1,22 +1,25 @@
 /**
- * RadioTransmissionsLog — Sprint 13 / B-48
+ * RadioTransmissionsLog — B-48
  *
- * Org-scoped log of radio_transmissions rows with inline-expandable
- * radio_transcript_segments. Supports date, channel-type, and emergency
- * filters plus CSV export.
+ * Log viewer for radio_transmissions + inline radio_transcript_segments.
  *
- * Route: /radio-transmissions
- * Roles: admin, admin_officer, master, grand_master
+ * Features:
+ *  - KPI cards: Total / Emergency / With Transcripts / Avg Duration
+ *  - Filters: is_emergency toggle, channel_type select, date-range pickers, keyword search
+ *  - Table: speaker, channel, started_at, duration, emergency badge, segment count
+ *  - Expandable row: full transcript text stitched from segments
  *
- * Note: radio_* tables are not yet in the generated database.ts snapshot;
- * all Supabase calls use (supabase as any) until types are regenerated.
+ * Route: /radio-transmissions  — admin/admin_officer/master
  */
 
-import { useCallback, useMemo, useState } from 'react'
+import { useState } from 'react'
+import { format, parseISO } from 'date-fns'
+import {
+  Radio, Search, RefreshCw, AlertCircle, Loader2,
+  ChevronDown, ChevronRight, Zap, MessageSquare,
+  Clock, Mic,
+} from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
-import { useNavigate } from 'react-router-dom'
-import { formatInTimeZone } from 'date-fns-tz'
-import { ArrowLeft, ChevronDown, ChevronRight, Download, Mic, Radio, Shield } from 'lucide-react'
 
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
@@ -25,18 +28,27 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Skeleton } from '@/components/ui/skeleton'
+import { Label } from '@/components/ui/label'
+import { Checkbox } from '@/components/ui/checkbox'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 
-// ─── Constants ─────────────────────────────────────────────────────────────────
+// ─── Types ─────────────────────────────────────────────────────────────────────
 
-const NZ_TZ = 'Pacific/Auckland'
-const CHANNEL_TYPES = ['org', 'incident', 'direct', 'emergency'] as const
-
-// ─── Types ──────────────────────────────────────────────────────────────────────
-
-interface TransmissionRow {
+interface Transmission {
   id: string
   org_id: string
   channel_id: string
@@ -50,10 +62,14 @@ interface TransmissionRow {
   is_emergency: boolean
   floor_granted_at: string | null
   floor_released_at: string | null
+  metadata: Record<string, any>
+  created_at: string
 }
 
 interface TranscriptSegment {
   id: string
+  org_id: string
+  transmission_id: string
   sequence_num: number
   segment_start_ms: number
   segment_end_ms: number
@@ -61,409 +77,308 @@ interface TranscriptSegment {
   language: string
   confidence: number | null
   is_final: boolean
+  created_at: string
 }
 
-// ─── Helpers ────────────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function fmtTs(iso: string | null) {
-  if (!iso) return '—'
-  try {
-    return formatInTimeZone(new Date(iso), NZ_TZ, 'dd MMM yyyy HH:mm:ss')
-  } catch {
-    return iso
-  }
+function fmtDate(ts: string | null) {
+  if (!ts) return '—'
+  try { return format(parseISO(ts), 'dd MMM yyyy HH:mm') } catch { return ts }
 }
 
 function fmtDuration(ms: number | null) {
-  if (ms == null || ms < 0) return '—'
-  const totalSeconds = Math.round(ms / 1000)
-  if (totalSeconds < 60) return `${totalSeconds}s`
-  const m = Math.floor(totalSeconds / 60)
-  const s = totalSeconds % 60
-  return `${m}m ${s}s`
+  if (ms == null) return '—'
+  const s = Math.round(ms / 1000)
+  if (s < 60) return `${s}s`
+  return `${Math.floor(s / 60)}m ${s % 60}s`
 }
 
-function channelTypeBadge(type: string) {
-  const styles: Record<string, string> = {
-    org:       'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300',
-    incident:  'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300',
-    direct:    'bg-gray-100 text-gray-700 dark:bg-gray-800/60 dark:text-gray-300',
-    emergency: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300',
-  }
-  return (
-    <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium ${styles[type] ?? styles['org']}`}>
-      {type}
-    </span>
-  )
+function avgDuration(transmissions: Transmission[]): string {
+  const withDuration = transmissions.filter(t => t.duration_ms != null)
+  if (!withDuration.length) return '—'
+  const avg = withDuration.reduce((sum, t) => sum + (t.duration_ms ?? 0), 0) / withDuration.length
+  return fmtDuration(Math.round(avg))
 }
 
-function confidenceBadge(confidence: number | null) {
-  if (confidence == null) return <span className="text-muted-foreground text-xs">—</span>
-  const pct = Math.round(confidence * 100)
-  const style = confidence >= 0.8
-    ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300'
-    : confidence >= 0.5
-      ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300'
-      : 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300'
-  return (
-    <span className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-medium ${style}`}>
-      {pct}%
-    </span>
-  )
-}
-
-// ─── Expandable transcript row ───────────────────────────────────────────────────
-
-function TranscriptPanel({ transmissionId, orgId }: { transmissionId: string; orgId: string }) {
-  const { data: segments = [], isLoading } = useQuery<TranscriptSegment[]>({
-    queryKey: ['radio-transcript-segments', transmissionId],
-    queryFn: async () => {
-      const { data, error } = await (supabase as any)
-        .from('radio_transcript_segments')
-        .select('id, sequence_num, segment_start_ms, segment_end_ms, text, language, confidence, is_final')
-        .eq('transmission_id', transmissionId)
-        .eq('org_id', orgId)
-        .order('sequence_num', { ascending: true })
-      if (error) {
-        if (error.code === 'PGRST205' || error.code === '42P01') return []
-        throw error
-      }
-      return (data ?? []) as TranscriptSegment[]
-    },
-    staleTime: 60_000,
-    retry: false,
-  })
-
-  if (isLoading) {
-    return (
-      <div className="px-6 py-3 space-y-1.5">
-        <Skeleton className="h-3 w-full" />
-        <Skeleton className="h-3 w-4/5" />
-      </div>
-    )
-  }
-
-  if (segments.length === 0) {
-    return (
-      <div className="px-6 py-3 text-xs text-muted-foreground italic">
-        No transcript segments available for this transmission.
-      </div>
-    )
-  }
-
-  return (
-    <div className="px-6 py-3 space-y-1.5 bg-slate-50/70 dark:bg-slate-800/30">
-      <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-2">
-        Transcript — {segments.length} segment{segments.length !== 1 ? 's' : ''}
-      </p>
-      {segments.map((seg) => (
-        <div key={seg.id} className="flex items-start gap-3 text-xs">
-          <span className="shrink-0 font-mono text-muted-foreground w-12 text-right">
-            {(seg.segment_start_ms / 1000).toFixed(1)}s
-          </span>
-          <span className={`flex-1 leading-snug ${!seg.is_final ? 'italic text-muted-foreground' : 'text-foreground'}`}>
-            {seg.text}
-            {!seg.is_final && <span className="ml-1 text-[10px] text-amber-500">(interim)</span>}
-          </span>
-          <span className="shrink-0">{confidenceBadge(seg.confidence)}</span>
-          <span className="shrink-0 text-muted-foreground text-[10px] uppercase">{seg.language}</span>
-        </div>
-      ))}
-    </div>
-  )
-}
-
-// ─── Page ───────────────────────────────────────────────────────────────────────
+// ─── Component ────────────────────────────────────────────────────────────────
 
 export default function RadioTransmissionsLog() {
-  const navigate = useNavigate()
   const { user } = useAuthStore()
-  const orgId = user?.organization_id ?? ''
+  const orgId = user?.organization_id
 
-  // Filters
+  const [search, setSearch] = useState('')
+  const [channelType, setChannelType] = useState('all')
+  const [emergencyOnly, setEmergencyOnly] = useState(false)
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
-  const [channelTypeFilter, setChannelTypeFilter] = useState<string>('all')
-  const [emergencyFilter, setEmergencyFilter] = useState<string>('all')
-  const [speakerSearch, setSpeakerSearch] = useState('')
+  const [expandedId, setExpandedId] = useState<string | null>(null)
 
-  // Expanded row set
-  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
+  // ── Main query: transmissions ──────────────────────────────────────────────
 
-  const toggleExpand = useCallback((id: string) => {
-    setExpandedIds((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
-  }, [])
-
-  // Fetch transmissions
-  const { data: transmissions = [], isLoading, error, refetch } = useQuery<TransmissionRow[]>({
-    queryKey: ['radio-transmissions-log', orgId],
+  const { data: transmissions = [], isLoading, refetch } = useQuery({
+    queryKey: ['radio-transmissions', orgId, channelType, emergencyOnly, dateFrom, dateTo],
+    enabled: !!orgId,
     queryFn: async () => {
-      if (!orgId) return []
-      const { data, error } = await (supabase as any)
+      let q = (supabase as any)
         .from('radio_transmissions')
-        .select(
-          'id, org_id, channel_id, channel_type, speaker_id, speaker_name, started_at, ended_at, duration_ms, recording_enabled, is_emergency, floor_granted_at, floor_released_at'
-        )
-        .eq('org_id', orgId)
+        .select('*')
+        .eq('org_id', orgId!)
         .order('started_at', { ascending: false })
         .limit(500)
 
-      if (error) {
-        if (error.code === 'PGRST205' || error.code === '42P01') return []
-        throw error
-      }
-      return (data ?? []) as TransmissionRow[]
+      if (channelType !== 'all') q = q.eq('channel_type', channelType)
+      if (emergencyOnly) q = q.eq('is_emergency', true)
+      if (dateFrom) q = q.gte('started_at', dateFrom)
+      if (dateTo) q = q.lte('started_at', `${dateTo}T23:59:59`)
+
+      const { data, error } = await q
+      if (error) throw error
+      return (data ?? []) as Transmission[]
     },
-    enabled: !!orgId,
-    staleTime: 30_000,
-    refetchInterval: 60_000,
-    retry: false,
   })
 
-  // Client-side filters
-  const filtered = useMemo(() => {
-    const dateFromBoundary = dateFrom ? new Date(dateFrom + 'T00:00:00Z') : null
-    const dateToBoundary   = dateTo   ? new Date(dateTo   + 'T23:59:59Z') : null
-    return transmissions.filter((t) => {
-      if (dateFromBoundary && new Date(t.started_at) < dateFromBoundary) return false
-      if (dateToBoundary   && new Date(t.started_at) > dateToBoundary)   return false
-      if (channelTypeFilter !== 'all' && t.channel_type !== channelTypeFilter) return false
-      if (emergencyFilter === 'yes' && !t.is_emergency) return false
-      if (emergencyFilter === 'no' && t.is_emergency) return false
-      if (speakerSearch.trim()) {
-        const q = speakerSearch.toLowerCase()
-        if (!(t.speaker_name ?? '').toLowerCase().includes(q) && !t.channel_id.toLowerCase().includes(q)) return false
-      }
-      return true
+  // ── Segments query for expanded row ─────────────────────────────────────────
+
+  const { data: segments = [] } = useQuery({
+    queryKey: ['radio-transcript-segments', expandedId],
+    enabled: !!expandedId,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from('radio_transcript_segments')
+        .select('*')
+        .eq('transmission_id', expandedId!)
+        .eq('is_final', true)
+        .order('sequence_num', { ascending: true })
+      if (error) throw error
+      return (data ?? []) as TranscriptSegment[]
+    },
+  })
+
+  // ── KPIs ───────────────────────────────────────────────────────────────────
+
+  const withTranscripts = new Set(
+    transmissions.filter(t => {
+      // We can only know from the segments query if one is loaded; estimate from metadata
+      const meta = t.metadata as any
+      return meta?.transcript_count > 0 || meta?.has_transcript
     })
-  }, [transmissions, dateFrom, dateTo, channelTypeFilter, emergencyFilter, speakerSearch])
+  ).size
 
-  // KPI metrics
-  const kpis = useMemo(() => {
-    const total = filtered.length
-    const emergency = filtered.filter((t) => t.is_emergency).length
-    const durations = filtered.filter((t) => t.duration_ms != null).map((t) => t.duration_ms as number)
-    const avgDuration = durations.length > 0 ? Math.round(durations.reduce((a, b) => a + b, 0) / durations.length) : null
-    const recorded = filtered.filter((t) => t.recording_enabled).length
-    return { total, emergency, avgDuration, recorded }
-  }, [filtered])
+  const kpis = {
+    total:     transmissions.length,
+    emergency: transmissions.filter(t => t.is_emergency).length,
+    withTrans: withTranscripts,
+    avgDur:    avgDuration(transmissions),
+  }
 
-  // CSV export
-  const exportCSV = useCallback(() => {
-    const headers = ['Transmission ID', 'Speaker', 'Channel ID', 'Channel Type', 'Emergency', 'Started At (NZ)', 'Duration', 'Recorded']
-    const rows = filtered.map((t) => [
-      t.id,
-      t.speaker_name,
-      t.channel_id,
-      t.channel_type,
-      t.is_emergency ? 'Yes' : 'No',
-      fmtTs(t.started_at),
-      fmtDuration(t.duration_ms),
-      t.recording_enabled ? 'Yes' : 'No',
-    ])
-    const csv = [headers, ...rows].map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n')
-    const blob = new Blob([csv], { type: 'text/csv' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `radio-transmissions-${new Date().toISOString().split('T')[0]}.csv`
-    a.click()
-    URL.revokeObjectURL(url)
-  }, [filtered])
+  // ── Channel types for filter ───────────────────────────────────────────────
+
+  const channelTypes = Array.from(new Set(transmissions.map(t => t.channel_type))).sort()
+
+  // ── Filtered ──────────────────────────────────────────────────────────────
+
+  const filtered = transmissions.filter(t => {
+    if (search) {
+      const q = search.toLowerCase()
+      if (
+        !t.speaker_name.toLowerCase().includes(q) &&
+        !t.channel_id.toLowerCase().includes(q) &&
+        !t.channel_type.toLowerCase().includes(q)
+      ) return false
+    }
+    return true
+  })
+
+  // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
-    <AppLayout
-      title="Radio Transmissions Log"
-      description="Org-scoped audit log of all PTT transmission sessions with inline transcript viewer"
-    >
-      <div className="mb-4">
-        <Button variant="ghost" size="sm" onClick={() => navigate('/radio')} className="gap-1.5 text-muted-foreground hover:text-foreground">
-          <ArrowLeft className="h-3.5 w-3.5" />
-          Back to Radio
+    <AppLayout title="Radio Transmissions Log" description="Audit log of all PTT radio transmissions">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-2">
+          <Radio className="h-5 w-5 text-cyan-600" />
+          <span className="font-semibold text-lg">Radio Transmissions Log</span>
+        </div>
+        <Button variant="outline" size="sm" onClick={() => refetch()}>
+          <RefreshCw className="h-4 w-4" />
         </Button>
       </div>
 
-      {/* KPI cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+      {/* KPIs */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         {[
-          { label: 'Total Transmissions', value: isLoading ? '—' : kpis.total, icon: Radio, color: 'text-blue-600' },
-          { label: 'Emergency Calls', value: isLoading ? '—' : kpis.emergency, icon: Shield, color: 'text-red-600' },
-          { label: 'Avg Duration', value: isLoading ? '—' : fmtDuration(kpis.avgDuration), icon: Mic, color: 'text-green-600' },
-          { label: 'With Recording', value: isLoading ? '—' : kpis.recorded, icon: Radio, color: 'text-violet-600' },
-        ].map(({ label, value, icon: Icon, color }) => (
-          <Card key={label} className="border shadow-sm">
-            <CardContent className="pt-4 pb-3 flex items-center gap-3">
-              <Icon className={`h-5 w-5 shrink-0 ${color}`} />
-              <div>
-                <p className="text-2xl font-bold leading-tight">{value}</p>
-                <p className="text-xs text-muted-foreground mt-0.5">{label}</p>
-              </div>
+          { label: 'Total',           value: kpis.total,     icon: <Radio className="h-4 w-4" />,          color: 'text-foreground' },
+          { label: 'Emergency',       value: kpis.emergency, icon: <Zap className="h-4 w-4" />,            color: 'text-red-600' },
+          { label: 'With Transcripts',value: kpis.withTrans, icon: <MessageSquare className="h-4 w-4" />, color: 'text-blue-600' },
+          { label: 'Avg Duration',    value: kpis.avgDur,    icon: <Clock className="h-4 w-4" />,          color: 'text-muted-foreground' },
+        ].map(k => (
+          <Card key={k.label}>
+            <CardHeader className="pb-1 pt-4 px-4">
+              <CardTitle className="text-xs text-muted-foreground font-medium flex items-center gap-1">
+                {k.icon}{k.label}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="px-4 pb-4">
+              <p className={`text-2xl font-bold ${k.color}`}>{k.value}</p>
             </CardContent>
           </Card>
         ))}
       </div>
 
       {/* Filters */}
-      <Card className="mb-4">
-        <CardHeader className="pb-2 pt-4">
-          <CardTitle className="text-sm">Filters</CardTitle>
-        </CardHeader>
-        <CardContent className="pt-0">
-          <div className="flex flex-wrap gap-3">
-            <Input
-              type="date"
-              value={dateFrom}
-              onChange={(e) => setDateFrom(e.target.value)}
-              className="w-36 h-8 text-xs"
-              placeholder="From"
-              aria-label="From date"
-            />
-            <Input
-              type="date"
-              value={dateTo}
-              onChange={(e) => setDateTo(e.target.value)}
-              className="w-36 h-8 text-xs"
-              placeholder="To"
-              aria-label="To date"
-            />
-            <Select value={channelTypeFilter} onValueChange={setChannelTypeFilter}>
-              <SelectTrigger className="w-36 h-8 text-xs">
-                <SelectValue placeholder="Channel type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All types</SelectItem>
-                {CHANNEL_TYPES.map((t) => (
-                  <SelectItem key={t} value={t}>{t}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={emergencyFilter} onValueChange={setEmergencyFilter}>
-              <SelectTrigger className="w-36 h-8 text-xs">
-                <SelectValue placeholder="Emergency?" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All</SelectItem>
-                <SelectItem value="yes">Emergency only</SelectItem>
-                <SelectItem value="no">Non-emergency</SelectItem>
-              </SelectContent>
-            </Select>
-            <Input
-              value={speakerSearch}
-              onChange={(e) => setSpeakerSearch(e.target.value)}
-              placeholder="Search speaker / channel…"
-              className="w-48 h-8 text-xs"
-            />
-            <Button size="sm" variant="outline" className="h-8 gap-1.5" onClick={exportCSV} disabled={filtered.length === 0}>
-              <Download className="h-3.5 w-3.5" />
-              Export CSV
-            </Button>
-            <Button size="sm" variant="ghost" className="h-8" onClick={() => void refetch()}>
-              Refresh
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="flex flex-wrap gap-3 mb-4">
+        <div className="relative flex-1 min-w-48">
+          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search speaker, channel…"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="pl-8"
+          />
+        </div>
+        <Select value={channelType} onValueChange={setChannelType}>
+          <SelectTrigger className="w-40">
+            <SelectValue placeholder="Channel type" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All channels</SelectItem>
+            {channelTypes.map(ct => (
+              <SelectItem key={ct} value={ct}>{ct}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <div className="flex items-center gap-2 px-1">
+          <Checkbox
+            id="emergency-only"
+            checked={emergencyOnly}
+            onCheckedChange={v => setEmergencyOnly(!!v)}
+          />
+          <Label htmlFor="emergency-only" className="text-sm cursor-pointer">Emergency only</Label>
+        </div>
+        <div className="flex items-center gap-2">
+          <Label className="text-xs text-muted-foreground whitespace-nowrap">From</Label>
+          <Input
+            type="date"
+            value={dateFrom}
+            onChange={e => setDateFrom(e.target.value)}
+            className="w-36 h-9 text-sm"
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <Label className="text-xs text-muted-foreground whitespace-nowrap">To</Label>
+          <Input
+            type="date"
+            value={dateTo}
+            onChange={e => setDateTo(e.target.value)}
+            className="w-36 h-9 text-sm"
+          />
+        </div>
+      </div>
+
+      {/* Empty-state */}
+      {!isLoading && transmissions.length === 0 && (
+        <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-md px-4 py-3 mb-4 text-sm text-blue-800">
+          <AlertCircle className="h-4 w-4 flex-shrink-0" />
+          <span>No radio transmissions found for this organisation.</span>
+        </div>
+      )}
 
       {/* Table */}
-      {error ? (
-        <Card className="border-red-300 bg-red-50 dark:bg-red-950/20">
-          <CardContent className="pt-4">
-            <p className="text-sm text-red-700 dark:text-red-300">
-              Failed to load transmissions: {(error as any)?.message ?? 'Unknown error'}
-            </p>
-          </CardContent>
-        </Card>
-      ) : (
-        <Card>
-          <div className="rounded-xl overflow-hidden border">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-muted/50">
-                  <TableHead className="w-8" />
-                  <TableHead className="text-xs">Speaker</TableHead>
-                  <TableHead className="text-xs">Channel</TableHead>
-                  <TableHead className="text-xs">Type</TableHead>
-                  <TableHead className="text-xs">Started (NZ)</TableHead>
-                  <TableHead className="text-xs">Duration</TableHead>
-                  <TableHead className="text-xs">Emergency</TableHead>
-                  <TableHead className="text-xs">Recorded</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {isLoading ? (
-                  Array.from({ length: 6 }).map((_, i) => (
-                    <TableRow key={i}>
-                      <TableCell colSpan={8}>
-                        <Skeleton className="h-4 w-full" />
-                      </TableCell>
-                    </TableRow>
-                  ))
-                ) : filtered.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={8} className="text-center text-sm text-muted-foreground py-8">
-                      No transmissions match the current filters.
+      <Card>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-6" />
+              <TableHead>Speaker</TableHead>
+              <TableHead>Channel</TableHead>
+              <TableHead>Type</TableHead>
+              <TableHead>Started</TableHead>
+              <TableHead>Duration</TableHead>
+              <TableHead>Emergency</TableHead>
+              <TableHead>Recording</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {isLoading && (
+              <TableRow>
+                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin inline mr-2" />Loading…
+                </TableCell>
+              </TableRow>
+            )}
+            {!isLoading && filtered.length === 0 && transmissions.length > 0 && (
+              <TableRow>
+                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                  No transmissions match the current filters.
+                </TableCell>
+              </TableRow>
+            )}
+            {filtered.map(t => {
+              const expanded = expandedId === t.id
+              const segmentsForRow = expanded ? segments : []
+              const transcript = segmentsForRow.map(s => s.text).join(' ')
+
+              return [
+                <TableRow
+                  key={t.id}
+                  className="cursor-pointer hover:bg-muted/40"
+                  onClick={() => setExpandedId(expanded ? null : t.id)}
+                >
+                  <TableCell>
+                    {expanded
+                      ? <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                      : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+                  </TableCell>
+                  <TableCell className="font-medium text-sm">
+                    <div className="flex items-center gap-1.5">
+                      <Mic className="h-3 w-3 text-muted-foreground" />
+                      {t.speaker_name}
+                    </div>
+                  </TableCell>
+                  <TableCell className="font-mono text-xs">{t.channel_id}</TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className="text-xs">{t.channel_type}</Badge>
+                  </TableCell>
+                  <TableCell className="text-xs text-muted-foreground whitespace-nowrap">{fmtDate(t.started_at)}</TableCell>
+                  <TableCell className="text-xs text-muted-foreground">{fmtDuration(t.duration_ms)}</TableCell>
+                  <TableCell>
+                    {t.is_emergency
+                      ? <Badge variant="destructive" className="text-xs">Emergency</Badge>
+                      : <span className="text-xs text-muted-foreground">—</span>}
+                  </TableCell>
+                  <TableCell>
+                    {t.recording_enabled
+                      ? <Badge variant="secondary" className="text-xs text-green-700">On</Badge>
+                      : <span className="text-xs text-muted-foreground">Off</span>}
+                  </TableCell>
+                </TableRow>,
+
+                expanded && (
+                  <TableRow key={`${t.id}-segments`} className="bg-muted/20">
+                    <TableCell />
+                    <TableCell colSpan={7} className="py-3">
+                      {segmentsForRow.length === 0 ? (
+                        <p className="text-xs text-muted-foreground italic">No transcript segments available.</p>
+                      ) : (
+                        <div className="space-y-1">
+                          <p className="text-xs font-medium text-muted-foreground mb-1">Transcript ({segmentsForRow.length} segment{segmentsForRow.length !== 1 ? 's' : ''})</p>
+                          <p className="text-sm leading-relaxed">{transcript}</p>
+                        </div>
+                      )}
                     </TableCell>
                   </TableRow>
-                ) : (
-                  filtered.map((t) => {
-                    const isExpanded = expandedIds.has(t.id)
-                    return (
-                      <>
-                        <TableRow
-                          key={t.id}
-                          className={`cursor-pointer hover:bg-muted/40 ${t.is_emergency ? 'bg-red-50/50 dark:bg-red-950/10' : ''}`}
-                          onClick={() => toggleExpand(t.id)}
-                        >
-                          <TableCell className="py-2 pr-0">
-                            {isExpanded
-                              ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-                              : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
-                            }
-                          </TableCell>
-                          <TableCell className="py-2 text-sm font-medium">{t.speaker_name}</TableCell>
-                          <TableCell className="py-2 text-xs font-mono text-muted-foreground truncate max-w-[120px]">{t.channel_id}</TableCell>
-                          <TableCell className="py-2">{channelTypeBadge(t.channel_type)}</TableCell>
-                          <TableCell className="py-2 text-xs">{fmtTs(t.started_at)}</TableCell>
-                          <TableCell className="py-2 text-xs">{fmtDuration(t.duration_ms)}</TableCell>
-                          <TableCell className="py-2">
-                            {t.is_emergency
-                              ? <Badge className="bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300 text-[10px] px-1.5 py-0">Emergency</Badge>
-                              : <span className="text-xs text-muted-foreground">—</span>
-                            }
-                          </TableCell>
-                          <TableCell className="py-2 text-xs">
-                            {t.recording_enabled
-                              ? <span className="text-emerald-600 dark:text-emerald-400">Yes</span>
-                              : <span className="text-muted-foreground">No</span>
-                            }
-                          </TableCell>
-                        </TableRow>
-                        {isExpanded && (
-                          <TableRow key={`${t.id}-transcript`} className="hover:bg-transparent">
-                            <TableCell colSpan={8} className="p-0">
-                              <TranscriptPanel transmissionId={t.id} orgId={orgId} />
-                            </TableCell>
-                          </TableRow>
-                        )}
-                      </>
-                    )
-                  })
-                )}
-              </TableBody>
-            </Table>
-          </div>
-          {!isLoading && filtered.length > 0 && (
-            <div className="px-4 py-2 text-xs text-muted-foreground border-t">
-              Showing {filtered.length} of {transmissions.length} transmission{transmissions.length !== 1 ? 's' : ''}
-              {transmissions.length >= 500 && ' (capped at 500 — refine filters to see more)'}
-            </div>
-          )}
-        </Card>
+                ),
+              ]
+            })}
+          </TableBody>
+        </Table>
+      </Card>
+
+      {!isLoading && filtered.length > 0 && (
+        <p className="text-xs text-muted-foreground mt-2 text-right">
+          Showing {filtered.length} of {transmissions.length} transmissions
+        </p>
       )}
     </AppLayout>
   )
