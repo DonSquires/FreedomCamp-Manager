@@ -30,11 +30,11 @@ create policy "Org admin can read speech audit events"
   on public.speech_audit_events for select
   using (
     org_id is not null
+    and org_id = get_user_organization_id(auth.uid())
     and exists (
-      select 1 from public.organization_members om
-      where om.organization_id = speech_audit_events.org_id
-        and om.user_id = auth.uid()
-        and om.role in ('admin', 'master', 'admin_officer')
+      select 1 from public.user_profiles
+      where id = auth.uid()
+        and role in ('admin', 'master', 'admin_officer', 'grand_master')
     )
   );
 
