@@ -3811,6 +3811,265 @@ export type Database = {
           { foreignKeyName: "feature_flag_rollout_history_changed_by_fkey"; columns: ["changed_by"]; isOneToOne: false; referencedRelation: "user_profiles"; referencedColumns: ["id"] },
         ]
       }
+      fixed_cameras: {
+        Row: {
+          id: string
+          organization_id: string
+          name: string
+          camera_type: string
+          status: string
+          latitude: number | null
+          longitude: number | null
+          address: string | null
+          zone_id: string | null
+          stream_url: string | null
+          snapshot_url: string | null
+          last_seen_at: string | null
+          notes: string | null
+          metadata: Json | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          organization_id: string
+          name: string
+          camera_type: string
+          status?: string
+          latitude?: number | null
+          longitude?: number | null
+          address?: string | null
+          zone_id?: string | null
+          stream_url?: string | null
+          snapshot_url?: string | null
+          last_seen_at?: string | null
+          notes?: string | null
+          metadata?: Json | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          organization_id?: string
+          name?: string
+          camera_type?: string
+          status?: string
+          latitude?: number | null
+          longitude?: number | null
+          address?: string | null
+          zone_id?: string | null
+          stream_url?: string | null
+          snapshot_url?: string | null
+          last_seen_at?: string | null
+          notes?: string | null
+          metadata?: Json | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      parking_payments: {
+        Row: {
+          id: string
+          organization_id: string
+          plate_number: string
+          zone_id: string | null
+          session_id: string | null
+          amount_nzd: number
+          payment_provider: string
+          provider_reference: string | null
+          status: string
+          contact_email: string | null
+          contact_phone: string | null
+          metadata: Json | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          organization_id: string
+          plate_number: string
+          zone_id?: string | null
+          session_id?: string | null
+          amount_nzd: number
+          payment_provider?: string
+          provider_reference?: string | null
+          status?: string
+          contact_email?: string | null
+          contact_phone?: string | null
+          metadata?: Json | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          organization_id?: string
+          plate_number?: string
+          zone_id?: string | null
+          session_id?: string | null
+          amount_nzd?: number
+          payment_provider?: string
+          provider_reference?: string | null
+          status?: string
+          contact_email?: string | null
+          contact_phone?: string | null
+          metadata?: Json | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      pricing_rules: {
+        Row: {
+          id: string
+          organization_id: string
+          zone_id: string | null
+          label: string
+          day_of_week: number | null
+          hour_from: number | null
+          hour_to: number | null
+          multiplier: number
+          flat_override_nzd: number | null
+          is_active: boolean
+          notes: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          organization_id: string
+          zone_id?: string | null
+          label: string
+          day_of_week?: number | null
+          hour_from?: number | null
+          hour_to?: number | null
+          multiplier?: number
+          flat_override_nzd?: number | null
+          is_active?: boolean
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          organization_id?: string
+          zone_id?: string | null
+          label?: string
+          day_of_week?: number | null
+          hour_from?: number | null
+          hour_to?: number | null
+          multiplier?: number
+          flat_override_nzd?: number | null
+          is_active?: boolean
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pricing_rules_zone_id_fkey"
+            columns: ["zone_id"]
+            referencedRelation: "zones"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      lmr_bridge_config: {
+        Row: {
+          id: string
+          organization_id: string
+          label: string
+          gateway_url: string
+          gateway_token: string | null
+          radio_channel: string
+          direction: string
+          is_active: boolean
+          notes: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          organization_id: string
+          label: string
+          gateway_url: string
+          gateway_token?: string | null
+          radio_channel?: string
+          direction?: string
+          is_active?: boolean
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          organization_id?: string
+          label?: string
+          gateway_url?: string
+          gateway_token?: string | null
+          radio_channel?: string
+          direction?: string
+          is_active?: boolean
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      lmr_bridge_sessions: {
+        Row: {
+          id: string
+          organization_id: string
+          config_id: string
+          direction: string
+          radio_unit_id: string | null
+          radio_unit_alias: string | null
+          ptt_speaker_id: string | null
+          ptt_speaker_name: string | null
+          channel_id: string
+          started_at: string
+          ended_at: string | null
+          duration_ms: number | null
+          audio_url: string | null
+          transcript: string | null
+          is_emergency: boolean
+          metadata: Json
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          organization_id: string
+          config_id: string
+          direction: string
+          radio_unit_id?: string | null
+          radio_unit_alias?: string | null
+          ptt_speaker_id?: string | null
+          ptt_speaker_name?: string | null
+          channel_id: string
+          started_at?: string
+          ended_at?: string | null
+          audio_url?: string | null
+          transcript?: string | null
+          is_emergency?: boolean
+          metadata?: Json
+          created_at?: string
+        }
+        Update: {
+          ended_at?: string | null
+          audio_url?: string | null
+          transcript?: string | null
+          is_emergency?: boolean
+          metadata?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lmr_bridge_sessions_config_id_fkey"
+            columns: ["config_id"]
+            referencedRelation: "lmr_bridge_config"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
       flagged_vehicles: {
         Row: {
           attachments: Json | null
@@ -11060,7 +11319,13 @@ export type Database = {
           day_visit_only: boolean | null
           description: string | null
           enforcement_authority: string | null
+          fee_nzd: number | null
           geometry: Json | null
+          has_dump_station: boolean | null
+          has_rubbish: boolean | null
+          has_shower: boolean | null
+          has_toilets: boolean | null
+          has_water: boolean | null
           id: string
           is_active: boolean | null
           land_manager: string | null
@@ -11068,6 +11333,7 @@ export type Database = {
           location_lat: number | null
           location_lng: number | null
           max_consecutive_nights: number | null
+          max_vehicles: number | null
           name: string
           needs_admin_review: boolean | null
           nights_per_month: number | null
@@ -11091,7 +11357,13 @@ export type Database = {
           day_visit_only?: boolean | null
           description?: string | null
           enforcement_authority?: string | null
+          fee_nzd?: number | null
           geometry?: Json | null
+          has_dump_station?: boolean | null
+          has_rubbish?: boolean | null
+          has_shower?: boolean | null
+          has_toilets?: boolean | null
+          has_water?: boolean | null
           id?: string
           is_active?: boolean | null
           land_manager?: string | null
@@ -11099,6 +11371,7 @@ export type Database = {
           location_lat?: number | null
           location_lng?: number | null
           max_consecutive_nights?: number | null
+          max_vehicles?: number | null
           name: string
           needs_admin_review?: boolean | null
           nights_per_month?: number | null
@@ -11122,7 +11395,13 @@ export type Database = {
           day_visit_only?: boolean | null
           description?: string | null
           enforcement_authority?: string | null
+          fee_nzd?: number | null
           geometry?: Json | null
+          has_dump_station?: boolean | null
+          has_rubbish?: boolean | null
+          has_shower?: boolean | null
+          has_toilets?: boolean | null
+          has_water?: boolean | null
           id?: string
           is_active?: boolean | null
           land_manager?: string | null
@@ -11130,6 +11409,7 @@ export type Database = {
           location_lat?: number | null
           location_lng?: number | null
           max_consecutive_nights?: number | null
+          max_vehicles?: number | null
           name?: string
           needs_admin_review?: boolean | null
           nights_per_month?: number | null

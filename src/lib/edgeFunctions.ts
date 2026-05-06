@@ -1727,4 +1727,50 @@ export const edgeFunctions = {
     return callEdgeFunction('doc-council-sync', params)
   },
 
+  /**
+   * Translate text to a target language (B-28).
+   *
+   * Calls the translate-text edge function which uses Azure Cognitive Services
+   * Translator when AZURE_TRANSLATOR_KEY is configured, or returns a mock
+   * response in degraded mode.
+   */
+  translateText: async (params: {
+    text: string
+    target_lang: 'en' | 'mi' | 'zh-Hans' | 'hi' | 'ko' | 'fr' | 'de' | 'es' | 'ja'
+    source_lang?: string
+  }) => {
+    return callEdgeFunction('translate-text', params)
+  },
+
+  /**
+   * Initiate a pay-by-plate parking payment session (B-29).
+   *
+   * Scaffolded PayByPhone NZ integration. Returns a payment_url for the
+   * customer to complete payment, plus a payment_id for status polling.
+   * Operates in mock mode when PAYBYPHONE_API_KEY is not configured.
+   */
+  initiateParkingPayment: async (params: {
+    plate_number: string
+    zone_id: string
+    duration_mins: number
+    contact_email?: string
+    contact_phone?: string
+  }) => {
+    return callEdgeFunction('initiate-parking-payment', params)
+  },
+
+  /**
+   * Calculate effective parking fee for a zone at a given datetime (B-32).
+   *
+   * Returns the base fee adjusted by any matching pricing_rules (time-of-day /
+   * day-of-week multipliers or flat overrides).  datetime_iso defaults to now()
+   * in Pacific/Auckland if not supplied.
+   */
+  calculateDynamicPrice: async (params: {
+    zone_id: string
+    datetime_iso?: string
+  }) => {
+    return callEdgeFunction('calculate-dynamic-price', params, { showToast: false })
+  },
+
 }

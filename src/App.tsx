@@ -83,6 +83,16 @@ const EvidencePackages = lazy(() => import('@/pages/EvidencePackages'))
 const AlarmEvents = lazy(() => import('@/pages/AlarmEvents'))
 const OccupancyAnalytics = lazy(() => import('@/pages/OccupancyAnalytics'))
 const PatrolRouteOptimiser = lazy(() => import('@/pages/PatrolRouteOptimiser'))
+const FixedCameras = lazy(() => import('@/pages/FixedCameras'))
+const PublicPayByPlate = lazy(() => import('@/pages/PublicPayByPlate'))
+const PatrolNavigation = lazy(() => import('@/pages/PatrolNavigation'))
+const DynamicPricing = lazy(() => import('@/pages/DynamicPricing'))
+const RevenueForecast = lazy(() => import('@/pages/RevenueForecast'))
+const LMRBridge = lazy(() => import('@/pages/LMRBridge'))
+const CaseBridge = lazy(() => import('@/pages/CaseBridge'))
+const ServiceAgreements = lazy(() => import('@/pages/ServiceAgreements'))
+const POIVOIDashboard = lazy(() => import('@/pages/POIVOIDashboard'))
+const AccessAuditLog = lazy(() => import('@/pages/AccessAuditLog'))
 const PublicDisputePortal = lazy(() => import('@/pages/PublicDisputePortal'))
 const PublicFreedomCampingMap = lazy(() => import('@/pages/PublicFreedomCampingMap'))
 const PublicNoiseComplaintPortal = lazy(() => import('@/pages/PublicNoiseComplaintPortal'))
@@ -622,6 +632,7 @@ export default function App() {
           <Route path="/public/zone-map" element={<PublicFreedomCampingMap />} />
           <Route path="/public/noise-complaint" element={<PublicNoiseComplaintPortal />} />
           <Route path="/public/parking-appeal" element={<PublicParkingAppealPortal />} />
+          <Route path="/public/pay-by-plate" element={<PublicPayByPlate />} />
           <Route path="/public/register" element={<PublicCamperRegistration />} />
           <Route
             path="/portal-selection"
@@ -902,6 +913,109 @@ export default function App() {
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'officer']}>
                   <PatrolRouteOptimiser />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/fixed-cameras"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <FixedCameras />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/patrol-navigation"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'officer']}>
+                  <PatrolNavigation />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/dynamic-pricing"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <DynamicPricing />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/revenue-forecasting"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <RevenueForecast />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/lmr-bridge"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <LMRBridge />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Case Bridge — operational case management (B-37) */}
+          <Route
+            path="/case-bridge"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'grand_master']}>
+                  <CaseBridge />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Service Agreements (B-39) */}
+          <Route
+            path="/service-agreements"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'grand_master']}>
+                  <ServiceAgreements />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* POI / VOI Watch-list Dashboard (B-40) */}
+          <Route
+            path="/poi-voi-dashboard"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'grand_master']}>
+                  <POIVOIDashboard />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Access Entries Audit Log (B-41) */}
+          <Route
+            path="/access-audit"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'grand_master']}>
+                  <AccessAuditLog />
                 </RoleRoute>
               </ProtectedRoute>
             }

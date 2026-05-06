@@ -2375,3 +2375,278 @@ The web SPA delivers SOS via the existing `officer_welfare_alerts` table + `send
 - B-27: Fixed Camera Support (CCTV feed into zone map / incidents)
 - B-28: Real-time Translation in incident notes UI
 - B-29: Pay-by-Plate payment integration (PayByPhone NZ)
+
+---
+
+## Phase 5 Sprint 6 — B-27 / B-28 / B-29 (2026-05-06)
+
+### Changes
+
+| File | Change |
+|---|---|
+| `supabase/migrations/20260506000005_fixed_cameras.sql` | B-27: New `public.fixed_cameras` table — camera_type (cctv/alpr/traffic/body_worn/other), status, GPS, zone link, stream_url, snapshot_url. Org-scoped RLS (read/insert/update/delete). Updated_at trigger with `search_path = public`. |
+| `src/types/database.ts` | B-27: Added `fixed_cameras` Row/Insert/Update types. B-29: Added `parking_payments` Row/Insert/Update types. Updated `zones` Row/Insert/Update with amenity columns (fee_nzd, max_vehicles, has_toilets, has_water, has_dump_station, has_shower, has_rubbish). |
+| `src/pages/FixedCameras.tsx` | B-27: Admin camera dashboard — list with status/type badges, add/edit dialog, zone linkage, set-active/mark-offline quick actions, 4 summary stat cards, search + type/status filters. |
+| `src/App.tsx` | B-27: Lazy import + `/fixed-cameras` route (admin/admin_officer/master). B-29: Lazy import + `/public/pay-by-plate` route (unauthenticated). |
+| `src/components/features/AppLayout.tsx` | B-27: Sidebar entry `Fixed Cameras` (Camera icon) under Dispatch group. |
+| `supabase/functions/translate-text/index.ts` | B-28: New edge function — Azure Cognitive Services Translator v3 (when `AZURE_TRANSLATOR_KEY` + `AZURE_TRANSLATOR_REGION` set); graceful mock fallback. Supports en/mi/zh-Hans/hi/ko/fr/de/es/ja. |
+| `src/hooks/useTranslation.ts` | B-28: `useTranslation` hook — wraps translate-text edge function, per-component LRU cache keyed by (text, targetLang), exposes `{ translate, result, isLoading, error, clearResult }`. |
+| `src/components/features/TranslateButton.tsx` | B-28: Drop-in translate affordance — language picker popover (EN/MĀ/中/हि/한), inline result card with `(preview)` badge in mock mode. |
+| `src/pages/IncidentManagement.tsx` | B-28: Imports `TranslateButton`; renders it below each incident description card. |
+| `src/lib/edgeFunctions.ts` | B-28: `translateText()` wrapper. B-29: `initiateParkingPayment()` wrapper. |
+| `supabase/migrations/20260506000006_parking_payments.sql` | B-29: New `public.parking_payments` table — plate, zone, session link, amount_nzd, payment_provider, provider_reference, status (pending/completed/failed/refunded/cancelled). Anon INSERT + read; org-scoped update. |
+| `supabase/functions/initiate-parking-payment/index.ts` | B-29: New edge function — validates plate/zone/duration, calculates fee from `zones.fee_nzd`, inserts pending row, calls PayByPhone NZ API (when `PAYBYPHONE_API_KEY` set), returns mock payment URL in degraded mode. |
+| `src/pages/PublicPayByPlate.tsx` | B-29: Public `/public/pay-by-plate` page — zone browse with fee display, duration picker (30 min–24 hr), total calculation, optional receipt contact, payment session creation, post-payment confirmation screen. |
+| `docs/competitive-gap-board.md` | B-27/B-28/B-29 marked ✅ Closed. |
+| `docs/STAGING.md` | Sprint 6 session snapshot added. |
+
+### B-27 Success Criteria
+
+- [x] `fixed_cameras` migration: org-scoped RLS + SECURITY DEFINER search_path hardening
+- [x] Admin page: list with type/status filters + search
+- [x] Add/edit dialog: name, type, status, GPS, zone link, stream/snapshot URLs, notes
+- [x] Quick actions: Set Active / Mark Offline per row
+- [x] 4 summary stat cards: Total, Active, Offline, ALPR count
+- [x] `fixed_cameras` TypeScript types added to database.ts
+- [x] Route + sidebar wired
+
+### B-28 Success Criteria
+
+- [x] `translate-text` edge function: Azure Cognitive Services v3 + mock degraded mode
+- [x] Supports 9 target languages: en, mi, zh-Hans, hi, ko, fr, de, es, ja
+- [x] `useTranslation` hook: per-component cache, isLoading, error states
+- [x] `TranslateButton` component: language picker popover + inline translated result card
+- [x] Wired into `IncidentManagement` incident description cards
+- [x] `edgeFunctions.translateText()` wrapper
+
+### B-29 Success Criteria
+
+- [x] `parking_payments` migration: anon INSERT (public payment), org-scoped update (reconciliation)
+- [x] `initiate-parking-payment` edge function: fee from zone.fee_nzd, PayByPhone NZ API + mock fallback
+- [x] `/public/pay-by-plate`: unauthenticated, plate + zone + duration form
+- [x] Duration picker: 30 min increments to 24 hrs; total shown live
+- [x] Post-payment confirmation screen with payment reference
+- [x] `parking_payments` TypeScript types added to database.ts
+- [x] `edgeFunctions.initiateParkingPayment()` wrapper
+
+### Sprint 6 Board
+
+| ID | Item | Status |
+|---|---|---|
+| B-27 | Fixed Camera Support | ✅ |
+| B-28 | Real-time Translation (incident notes UI) | ✅ |
+| B-29 | Pay-by-Plate Integration (PayByPhone NZ scaffold) | ✅ |
+
+- [x] `bun run build` → PASS (✓ built in 24.43s)
+- [x] `bun run lint` → PASS (0 errors, 0 warnings)
+
+### Competitive Gap Board — Updated (post Sprint 6)
+
+| Category | Newly Closed | Remaining Open |
+|---|---|---|
+| ALPR / Cameras | B-27 Fixed Camera Support | Video Context on plate hit |
+| PTT / Comms | B-28 Real-time Translation | LMR Radio Bridge |
+| Parking | B-29 Pay-by-Plate Integration | Dynamic Pricing, Revenue Forecasting |
+
+**Next sprint candidates:**
+- B-30: Video Context on plate hit (camera snapshot in observation card)
+- B-31: Turn-by-Turn Navigation (Leaflet routing / OSRM)
+- B-32: Dynamic Pricing Engine (time-of-day / occupancy-based fee)
+
+---
+
+## Phase 5 Sprint 7 — B-30 / B-31 / B-32 (2026-05-06)
+
+### Changes
+
+| File | Change |
+|---|---|
+| `src/pages/MobilePlateFinder.tsx` | B-30: Added `zone_id` to observation query; tracks `photo_url` + `last_zone_id` per result; queries `fixed_cameras` by result zone IDs; shows observation photo thumbnail (click to open full) + active fixed-camera badge with link to `/fixed-cameras`. |
+| `src/pages/PatrolNavigation.tsx` | B-31: New turn-by-turn navigation page. GPS acquisition + manual origin; zone or custom-coordinate destination; OSRM routing API fetch; step list with manoeuvre icons + per-step distance; route summary (total distance + duration); copy Google Maps link button. |
+| `src/pages/DynamicPricing.tsx` | B-32: Admin pricing-rules CRUD page. List with zone/time/rate display; add/edit dialog (zone, day-of-week, hour range, multiplier OR flat-override, active toggle, notes); delete with confirmation; live price preview card (pick zone + datetime → call calculate-dynamic-price). |
+| `supabase/migrations/20260506000007_pricing_rules.sql` | B-32: `public.pricing_rules` table — zone_id (nullable = org-wide), day_of_week, hour_from, hour_to, multiplier, flat_override_nzd, is_active. Org-scoped RLS. `updated_at` SECURITY DEFINER trigger. |
+| `supabase/functions/calculate-dynamic-price/index.ts` | B-32: New edge function. Resolves datetime in Pacific/Auckland; fetches zone base fee; finds best-matching pricing rule (zone-specific > org-wide, day+hour > day > hour > always); returns effective_fee_nzd, applied_rule_id/label. |
+| `supabase/functions/initiate-parking-payment/index.ts` | B-32: Now calls `calculate-dynamic-price` non-blocking before computing amount_nzd; falls back to zone base fee on error; persists `applied_rule_label` in metadata. |
+| `src/types/database.ts` | B-32: Added `pricing_rules` Row/Insert/Update types with FK relationship to zones. |
+| `src/lib/edgeFunctions.ts` | B-32: `calculateDynamicPrice()` wrapper. |
+| `src/App.tsx` | B-31: Lazy import + `/patrol-navigation` route (all roles). B-32: Lazy import + `/dynamic-pricing` route (admin/master). |
+| `src/components/features/AppLayout.tsx` | B-31: `Navigation2` icon + "Patrol Navigation" entry in Live Ops group. B-32: `Gauge` icon + "Dynamic Pricing" entry in Management group. |
+| `docs/competitive-gap-board.md` | B-30/B-31/B-32 marked ✅ Closed. |
+| `docs/STAGING.md` | Sprint 7 session snapshot added. |
+
+### B-30 Success Criteria
+
+- [x] `zone_id` added to observations query in MobilePlateFinder
+- [x] Latest observation `photo_url` carried through to ResultRow
+- [x] `fixed_cameras` queried for all result zone IDs (active cameras only)
+- [x] Photo thumbnail rendered inline in plate result card (click opens full image)
+- [x] Fixed camera badge shown in Zone column when active camera covers zone
+- [x] Camera badge links to `/fixed-cameras` admin page
+
+### B-31 Success Criteria
+
+- [x] Browser GPS acquisition with loading / success / error states
+- [x] Manual origin coordinates input
+- [x] Zone destination picker (zones with location_lat / location_lng only)
+- [x] Custom destination coordinates input
+- [x] OSRM routing API fetch with step-by-step results
+- [x] Route summary: total distance (km) + duration (min)
+- [x] Turn-by-turn step list with manoeuvre icons + per-step distance
+- [x] Reset and copy Google Maps link actions
+- [x] Sidebar entry + `/patrol-navigation` route (all roles)
+
+### B-32 Success Criteria
+
+- [x] `pricing_rules` migration: org-scoped RLS, SECURITY DEFINER search_path hardening
+- [x] `calculate-dynamic-price` edge function: rule matching by zone/day/hour priority
+- [x] `initiate-parking-payment` updated to call dynamic price (non-blocking fallback)
+- [x] Admin page: list with zone/time/rate columns + active toggle
+- [x] Add/edit dialog: multiplier OR flat-override mode, full time restriction fields
+- [x] Delete with AlertDialog confirmation
+- [x] Live price preview: zone + datetime → effective fee + rule label
+- [x] TypeScript types in database.ts
+- [x] `edgeFunctions.calculateDynamicPrice()` wrapper
+- [x] Sidebar entry + `/dynamic-pricing` route
+
+### Sprint 7 Board
+
+| ID | Item | Status |
+|---|---|---|
+| B-30 | Video Context on plate hit | ✅ |
+| B-31 | Turn-by-Turn Navigation (OSRM) | ✅ |
+| B-32 | Dynamic Pricing Engine | ✅ |
+
+- [x] `bun run build` → PASS
+- [x] `bun run lint` → PASS (0 errors, 0 warnings)
+
+### Competitive Gap Board — Updated (post Sprint 7)
+
+| Category | Newly Closed | Remaining Open |
+|---|---|---|
+| ALPR / Cameras | B-30 Video Context on plate hit | — (module complete) |
+| Navigation | B-31 Turn-by-Turn Navigation | Route Optimisation (client-side), Traffic Overlay |
+| Parking | B-32 Dynamic Pricing Engine | Revenue Forecasting |
+
+**Next sprint candidates:**
+- B-33: Revenue Forecasting Dashboard (parking revenue projections by zone/period)
+- B-34: Traffic Overlay on Operations Map (HERE Maps / OpenStreetMap tiles)
+- B-35: LMR / Radio Bridge scaffold (Zello Gateway integration)
+
+---
+
+## Phase 5 — Sprint 8 (B-33 / B-34 / B-35)
+
+### Changes
+
+| File | Change |
+|---|---|
+| `src/pages/RevenueForecast.tsx` | New — B-33 Revenue Forecasting Dashboard |
+| `src/pages/LMRBridge.tsx` | New — B-35 LMR / Radio Bridge admin page |
+| `supabase/functions/lmr-bridge/index.ts` | New — Zello Gateway webhook edge function |
+| `supabase/migrations/20260506000008_lmr_bridge.sql` | New — lmr_bridge_config + lmr_bridge_sessions tables |
+| `src/types/database.ts` | Added lmr_bridge_config + lmr_bridge_sessions types |
+| `src/pages/OperationsMap.tsx` | B-34 traffic layer + HERE Maps TileLayer overlay |
+| `src/App.tsx` | Lazy imports + routes for /revenue-forecasting, /lmr-bridge |
+| `src/components/features/AppLayout.tsx` | Sidebar entries for Revenue Forecasting + LMR Bridge |
+
+### Sprint 8 Board
+
+| ID | Item | Status |
+|---|---|---|
+| B-33 | Revenue Forecasting Dashboard | ✅ |
+| B-34 | Traffic Overlay on Operations Map | ✅ |
+| B-35 | LMR / Radio Bridge scaffold | ✅ |
+
+- [x] `bun run build` → PASS
+- [x] `bun run lint` → PASS (0 errors, 0 warnings)
+
+### Competitive Gap Board — Updated (post Sprint 8)
+
+| Category | Newly Closed | Remaining Open |
+|---|---|---|
+| Parking | B-33 Revenue Forecasting | — |
+| Operations Map | B-34 Traffic Overlay | — |
+| Radio / Comms | B-35 LMR Bridge | — |
+
+**Next sprint candidates:**
+- B-36: Asset & Key Management portal (asset_records, key_issuances)
+- B-37: Case Bridge — link incidents/breaches to case records
+- B-38: Seasonal Zone Scheduling UI (is_zone_seasonally_open admin controls)
+
+---
+
+## Phase 5 — Sprint 9 (B-36 / B-37 / B-38)
+
+### Changes
+
+| File | Change |
+|---|---|
+| `src/pages/CaseBridge.tsx` | New — B-37 Operational Case Management (list, create, detail, comments) |
+| `src/App.tsx` | Lazy import + `/case-bridge` route |
+| `src/components/features/AppLayout.tsx` | Sidebar entry + `FolderKanban` icon for Case Bridge |
+
+> B-36 (AssetManagement.tsx + /asset-management) and B-38 (seasonal controls in ZoneManagement.tsx) were already implemented in earlier sprints.
+
+### Sprint 9 Board
+
+| ID | Item | Status |
+|---|---|---|
+| B-36 | Asset & Key Management | ✅ (prior sprint) |
+| B-37 | Case Bridge — Operational Case Management | ✅ |
+| B-38 | Seasonal Zone Scheduling UI | ✅ (prior sprint) |
+
+- [x] `bun run build` → PASS
+- [x] `bun run lint` → PASS (0 errors, 0 warnings)
+
+### Competitive Gap Board — Updated (post Sprint 9)
+
+| Category | Newly Closed | Remaining Open |
+|---|---|---|
+| Assets / Keys | B-36 Asset & Key Management | — |
+| Cases / Investigations | B-37 Case Bridge | — |
+| Zone Scheduling | B-38 Seasonal Zone Scheduling | — |
+
+**Next sprint candidates:**
+- B-39: Service Agreements admin UI (service_agreements table)
+- B-40: POI / VOI Watch-list dashboard (poi_alerts, voi_alerts)
+- B-41: Identity Verification audit log UI (person_id_documents timeline)
+
+---
+
+## Phase 5 — Sprint 10 (B-39 / B-40 / B-41)
+
+### Changes
+
+| File | Change |
+|---|---|
+| `src/pages/ServiceAgreements.tsx` | New — B-39 Service Agreements admin UI (list, create, edit, toggle, delete) |
+| `src/pages/POIVOIDashboard.tsx` | New — B-40 POI/VOI Watch-list dashboard (KPIs, expiry alerts, two-tab tables) |
+| `src/pages/AccessAuditLog.tsx` | New — B-41 Access Entries Audit Log (identity verification event timeline) |
+| `src/App.tsx` | Lazy imports + routes: `/service-agreements`, `/poi-voi-dashboard`, `/access-audit` |
+| `src/components/features/AppLayout.tsx` | Sidebar entries + `FileBadge2`, `Users2`, `ScanFaceAudit` icons |
+
+> `service_agreements` and `access_entries` are not in generated database.ts types (added via migrations 20260707000005 and 20260509000001 respectively). Both pages use `(supabase as any).from(...)` to bypass the type union check.
+
+### Sprint 10 Board
+
+| ID | Item | Status |
+|---|---|---|
+| B-39 | Service Agreements Admin UI | ✅ |
+| B-40 | POI/VOI Watch-list Dashboard | ✅ |
+| B-41 | Access Entries Audit Log | ✅ |
+
+- [x] `bun run build` → PASS
+- [x] `bun run lint` → PASS (0 errors, 0 warnings)
+
+### Competitive Gap Board — Updated (post Sprint 10)
+
+| Category | Newly Closed | Remaining Open |
+|---|---|---|
+| Client Management | B-39 Service Agreements | — |
+| Intelligence / Watch-lists | B-40 POI/VOI Dashboard | — |
+| Access Control / Audit | B-41 Access Entries Audit Log | — |
+
+**Next sprint candidates:**
+- B-42: Site Risk Assessment viewer/editor (site_risk_assessments table)
+- B-43: Person Records management (person_records + person_id_documents linkage)
+- B-44: Dispatch LOI browser (locations_of_interest table)
