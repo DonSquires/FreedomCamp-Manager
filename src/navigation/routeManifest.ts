@@ -757,6 +757,7 @@ export const routeManifest: RouteManifestEntry[] = [
     routeId: 'admin.radio-log',
     path: '/radio/log',
     shell: 'admin',
+    // Officers can review their own PTT transmission history — intentional officer access
     rolesAllowed: ['admin', 'admin_officer', 'master', 'grand_master', 'officer'],
     navGroup: 'Live Ops',
     navLabel: 'Radio Log',

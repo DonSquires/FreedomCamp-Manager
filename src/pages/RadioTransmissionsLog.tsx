@@ -228,14 +228,14 @@ export default function RadioTransmissionsLog() {
   // Client-side filters
   const filtered = useMemo(() => {
     return transmissions.filter((t) => {
-      if (dateFrom && t.started_at < dateFrom) return false
-      if (dateTo && t.started_at > dateTo + 'T23:59:59Z') return false
+      if (dateFrom && new Date(t.started_at) < new Date(dateFrom + 'T00:00:00Z')) return false
+      if (dateTo && new Date(t.started_at) > new Date(dateTo + 'T23:59:59Z')) return false
       if (channelTypeFilter !== 'all' && t.channel_type !== channelTypeFilter) return false
       if (emergencyFilter === 'yes' && !t.is_emergency) return false
       if (emergencyFilter === 'no' && t.is_emergency) return false
       if (speakerSearch.trim()) {
         const q = speakerSearch.toLowerCase()
-        if (!t.speaker_name.toLowerCase().includes(q) && !t.channel_id.toLowerCase().includes(q)) return false
+        if (!(t.speaker_name ?? '').toLowerCase().includes(q) && !t.channel_id.toLowerCase().includes(q)) return false
       }
       return true
     })

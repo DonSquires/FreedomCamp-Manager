@@ -85,6 +85,11 @@ function fmtTs(iso: string | null) {
   }
 }
 
+function fmtOfficer(name: string | null | undefined, id: string) {
+  if (name && name.trim()) return name.trim()
+  return id.slice(0, 8) + '…'
+}
+
 function statusBadge(isActive: boolean) {
   return isActive ? (
     <span className="inline-flex items-center gap-1 rounded-md bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300 px-2 py-0.5 text-xs font-medium">
@@ -493,7 +498,7 @@ export default function VoiceProfilesConsent() {
                   ) : (
                     filteredProfiles.map((p) => (
                       <TableRow key={p.id} className={!p.is_active ? 'opacity-60' : ''}>
-                        <TableCell className="text-xs font-mono truncate max-w-[140px]">{p.officer_name ?? p.officer_id.slice(0, 8) + '…'}</TableCell>
+                        <TableCell className="text-xs font-mono truncate max-w-[140px]">{fmtOfficer(p.officer_name, p.officer_id)}</TableCell>
                         <TableCell className="text-xs">{p.provider}</TableCell>
                         <TableCell className="text-xs font-mono truncate max-w-[100px] text-muted-foreground">{p.model_ref}</TableCell>
                         <TableCell className="text-xs">{fmtTs(p.enrolled_at)}</TableCell>
@@ -520,6 +525,7 @@ export default function VoiceProfilesConsent() {
             {!profilesLoading && filteredProfiles.length > 0 && (
               <div className="px-4 py-2 text-xs text-muted-foreground border-t">
                 {filteredProfiles.length} profile{filteredProfiles.length !== 1 ? 's' : ''}
+                {profiles.length >= 200 && ' (capped at 200)'}
               </div>
             )}
           </Card>
@@ -589,7 +595,7 @@ export default function VoiceProfilesConsent() {
                       const isActive = !c.revoked_at
                       return (
                         <TableRow key={c.id} className={!isActive ? 'opacity-60' : ''}>
-                          <TableCell className="text-xs font-mono truncate max-w-[130px]">{c.officer_name ?? c.officer_id.slice(0, 8) + '…'}</TableCell>
+                          <TableCell className="text-xs font-mono truncate max-w-[130px]">{fmtOfficer(c.officer_name, c.officer_id)}</TableCell>
                           <TableCell className="text-xs max-w-[140px] truncate">{c.purpose}</TableCell>
                           <TableCell className="text-xs">{c.provider}</TableCell>
                           <TableCell className="text-xs">{c.retention_days}d</TableCell>
