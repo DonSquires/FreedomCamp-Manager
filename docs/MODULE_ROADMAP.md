@@ -3,7 +3,7 @@
 Date: 2026-05-06 (verified against src App.tsx)
 Source of truth for routes: App router file src App.tsx (159 total routes as of Sprint 26 completion)
 
-> **Last Verification**: 2026-05-04 — All 122 routes reviewed and role-gating validated. No changes since baseline a6e39a0f.
+> **Last Verification**: 2026-05-06 — All 159 routes reviewed and role-gating validated. Sprints 18–26 (B-64–B-90) documentation complete.
 
 ## How To Use
 
