@@ -72,6 +72,7 @@ import {
   Flag,
   CreditCard,
   SignpostBig,
+  BadgeCheck,
 } from 'lucide-react'
 
 type DrillConfig = {
@@ -1380,6 +1381,9 @@ export default function AdminPortal() {
                     { path: '/checkpoint-visits-log',  label: 'Checkpoint Visits', Icon: MapPin,        color: 'text-teal-600',   bg: 'bg-teal-50 dark:bg-teal-900/20' },
                     { path: '/ems-attendances-log',    label: 'EMS Attendances',   Icon: ClipboardCheck,color: 'text-red-600',    bg: 'bg-red-50 dark:bg-red-900/20' },
                     { path: '/parking-sessions-log',   label: 'Parking Sessions',  Icon: ParkingSquare, color: 'text-orange-600', bg: 'bg-orange-50 dark:bg-orange-900/20' },
+                    { path: '/officer-activity-log',   label: 'Activity Log',      Icon: Activity,      color: 'text-blue-700',   bg: 'bg-blue-50 dark:bg-blue-900/20' },
+                    { path: '/credential-processing-log', label: 'Credentials',    Icon: BadgeCheck,    color: 'text-purple-600', bg: 'bg-purple-50 dark:bg-purple-900/20' },
+                    { path: '/dispatch-ack-log',       label: 'Dispatch Ack',      Icon: Radio,         color: 'text-indigo-600', bg: 'bg-indigo-50 dark:bg-indigo-900/20' },
                   ].map(({ path, label, Icon, color, bg, badge }) => (
                     <button key={path} onClick={() => navigate(path)} aria-label={`Open ${label}`} className={`${moduleTileClass} ${bg}`}>
                       {badge !== undefined && (

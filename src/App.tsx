@@ -160,6 +160,9 @@ const ParkingSessionLog = lazy(() => import('@/pages/ParkingSessionLog'))
 const FlaggedVehicleManager = lazy(() => import('@/pages/FlaggedVehicleManager'))
 const ParkingPaymentLog = lazy(() => import('@/pages/ParkingPaymentLog'))
 const ZoneSignageEvidence = lazy(() => import('@/pages/ZoneSignageEvidence'))
+const OfficerActivityLog = lazy(() => import('@/pages/OfficerActivityLog'))
+const CredentialProcessingLog = lazy(() => import('@/pages/CredentialProcessingLog'))
+const DispatchAcknowledgementLog = lazy(() => import('@/pages/DispatchAcknowledgementLog'))
 const MessagingPage = lazy(() => import('@/modules/messaging'))
 const IntelApprovalQueue = lazy(() => import('@/pages/IntelApprovalQueue'))
 const BobIntakeQueue = lazy(() => import('@/pages/BobIntakeQueue'))
@@ -2272,6 +2275,42 @@ export default function App() {
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
                   <ZoneSignageEvidence />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Sprint 26 — B-88 Officer Activity Log */}
+          <Route
+            path="/officer-activity-log"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <OfficerActivityLog />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Sprint 26 — B-89 Credential Processing Log */}
+          <Route
+            path="/credential-processing-log"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'master']}>
+                  <CredentialProcessingLog />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Sprint 26 — B-90 Dispatch Acknowledgement Log */}
+          <Route
+            path="/dispatch-ack-log"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <DispatchAcknowledgementLog />
                 </RoleRoute>
               </ProtectedRoute>
             }

@@ -110,6 +110,7 @@ import {
   Flag,
   CreditCard,
   SignpostBig,
+  BadgeCheck,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { supabase } from '@/lib/supabase'
@@ -286,6 +287,9 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/flagged-vehicles-manager', icon: Flag, label: 'Flagged Vehicles', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/parking-payments-log', icon: CreditCard, label: 'Parking Payments', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/zone-signage-evidence', icon: SignpostBig, label: 'Zone Signage Evidence', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/officer-activity-log', icon: Activity, label: 'Officer Activity Log', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/credential-processing-log', icon: BadgeCheck, label: 'Credential Processing', roles: ['admin', 'master'] },
+      { path: '/dispatch-ack-log', icon: Radio, label: 'Dispatch Ack Log', roles: ['admin', 'admin_officer', 'master'] },
     ],
   },
   {

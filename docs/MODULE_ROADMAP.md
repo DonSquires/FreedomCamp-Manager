@@ -1,9 +1,9 @@
 # Module Roadmap (Operator Navigation Map)
 
 Date: 2026-05-06 (verified against src App.tsx)
-Source of truth for routes: App router file src App.tsx (145 total routes as of Sprint 25 completion)
+Source of truth for routes: App router file src App.tsx (148 total routes as of Sprint 26 completion)
 
-> **Last Verification**: 2026-05-06 — Sprint 25 routes added (B-85 Flagged Vehicle Manager `/flagged-vehicles-manager`, B-86 Parking Payment Log `/parking-payments-log`, B-87 Zone Signage Evidence `/zone-signage-evidence`). Previous baseline: Sprint 24 (142 routes).
+> **Last Verification**: 2026-05-06 — Sprint 26 routes added (B-88 Officer Activity Log `/officer-activity-log`, B-89 Credential Processing Log `/credential-processing-log`, B-90 Dispatch Acknowledgement Log `/dispatch-ack-log`). Previous baseline: Sprint 25 (145 routes).
 
 ## How To Use
 
@@ -206,6 +206,28 @@ Three new admin pages covering flagged vehicle management, parking payment revie
    - Role gate: admin, admin_officer, master
    - Table: zone_signage_evidence (fully typed)
    - Features: KPI strip (Total/Current/Superseded/Unique Zones), is_current+signage_type filters, Mark Current action, expandable rows with photo link, GPS, SHA256
+
+## Sprint 26 Additions (2026-05-06)
+
+Three new admin log pages covering officer activity tracking, AI credential processing, and dispatch lifecycle acknowledgement.
+
+1. Officer Activity Log — B-88
+   - Path: /officer-activity-log
+   - Role gate: admin, admin_officer, master
+   - Table: officer_activity_log (fully typed)
+   - Features: KPI strip (Total/Unique Officers/With GPS), activity_type+date filters, expandable rows with full GPS coords + metadata JSON
+
+2. Credential Processing Log — B-89
+   - Path: /credential-processing-log
+   - Role gate: admin, master
+   - Table: credential_processing_log (fully typed)
+   - Features: KPI strip (Total/Verified/Pending-Proc/Avg Confidence), status+doc_type+date filters, confidence bar, Mark Verified action, expandable rows with authorized_activities, ai_model, error_message, extracted_text
+
+3. Dispatch Acknowledgement Log — B-90
+   - Path: /dispatch-ack-log
+   - Role gate: admin, admin_officer, master
+   - Table: dispatch_acknowledgement_log (fully typed, typed lifecycle_stage enum)
+   - Features: KPI strip (Total/On Scene/Completed/Avg ETA), stage+callsign+date filters, ETA display, expandable rows with case_id, job_id, notes
 
 ## Route Topology Addendum (2026-05-03)
 
