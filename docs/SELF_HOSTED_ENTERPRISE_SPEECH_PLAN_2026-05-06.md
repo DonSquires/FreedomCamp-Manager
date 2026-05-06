@@ -138,7 +138,7 @@ Files and services:
 
 ### Ticket 4: Establish intent JSON lane via Railway Ollama
 
-1. Route `INTENT_URL` to Railway Ollama (`https://ollama-production-a142.up.railway.app`) using the OpenAI-compatible `/v1/chat/completions` endpoint.
+1. Route `INTENT_URL` to Railway Ollama (`https://ollama-production-a142.up.railway.app`) using native Ollama `/api/generate` with JSON output.
 2. Define JSON schema enforced via system prompt and response parsing.
 3. Test route, role, and org-sensitive prompts against the deployed model.
 4. Only provision a separate RunPod vLLM endpoint if Railway Ollama latency is unacceptable under load.

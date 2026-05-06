@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import json
 import logging
 import os
 import time
@@ -8,7 +9,7 @@ from collections import defaultdict
 from typing import Any
 
 import httpx
-from fastapi import FastAPI, HTTPException, Request, Security
+from fastapi import FastAPI, HTTPException, Security
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field, field_validator
 
@@ -19,6 +20,9 @@ APP_VERSION = "0.2.0"
 REQUEST_TIMEOUT_SECONDS = float(os.getenv("SPEECH_ROUTER_TIMEOUT_SECONDS", "45"))
 MAX_AUDIO_BYTES = int(os.getenv("SPEECH_ROUTER_MAX_AUDIO_BYTES", str(10 * 1024 * 1024)))  # 10 MB
 MAX_TTS_CHARS = int(os.getenv("SPEECH_ROUTER_MAX_TTS_CHARS", "2000"))
+INTENT_MODEL = os.getenv("INTENT_MODEL", "llama3.1:8b-instruct-q4_K_M")
+ALLOW_OPENAI_RUNTIME = os.getenv("ALLOW_OPENAI_RUNTIME", "false").strip().lower() == "true"
+BLOCKED_OPENAI_HOSTS = ("api.openai.com", "openai.com")
 
 # ---------------------------------------------------------------------------
 # Circuit-breaker state (in-process; suitable for single-worker deployments)
@@ -119,6 +123,66 @@ def _required_env(name: str) -> str:
     return value
 
 
+def _assert_runtime_url_policy(name: str, url: str) -> None:
+    lower_url = url.lower()
+    if not ALLOW_OPENAI_RUNTIME and any(host in lower_url for host in BLOCKED_OPENAI_HOSTS):
+        raise HTTPException(
+            status_code=403,
+            detail=f"Blocked runtime egress for {name}: OpenAI endpoints are disabled in production speech flows",
+        )
+
+
+def _intent_prompt(transcript: str, payload: SpeechToIntentRequest) -> str:
+    # Keep the schema minimal and deterministic for easier downstream policy checks.
+    return (
+        "You are an intent classifier for patrol voice commands. "
+        "Return strict JSON with keys: intent, confidence, needs_confirmation, summary, entities. "
+        "confidence is a number between 0 and 1. needs_confirmation is true/false. "
+        "entities is an object.\n"
+        f"language={payload.language}\n"
+        f"wake_phrase={payload.wake_phrase or ''}\n"
+        f"org_id={payload.org_id or ''}\n"
+        f"user_id={payload.user_id or ''}\n"
+        f"context={json.dumps(payload.context or {}, separators=(',', ':'))}\n"
+        f"transcript={transcript}"
+    )
+
+
+def _extract_intent(intent_result: dict[str, Any]) -> dict[str, Any]:
+    if "intent" in intent_result and isinstance(intent_result["intent"], dict):
+        return intent_result["intent"]
+
+    # Ollama /api/generate format commonly returns {"response": "..."}
+    response_text = str(intent_result.get("response") or "").strip()
+    if not response_text and isinstance(intent_result.get("message"), dict):
+        response_text = str(intent_result["message"].get("content") or "").strip()
+
+    if response_text:
+        try:
+            parsed = json.loads(response_text)
+            if isinstance(parsed, dict):
+                return parsed
+        except Exception:
+            pass
+        return {
+            "intent": "advisory_unknown",
+            "confidence": 0.0,
+            "needs_confirmation": True,
+            "summary": response_text,
+            "entities": {},
+        }
+
+    # Last-resort normalized shape
+    return {
+        "intent": "advisory_unknown",
+        "confidence": 0.0,
+        "needs_confirmation": True,
+        "summary": "Intent provider returned an unexpected payload",
+        "entities": {},
+        "raw": intent_result,
+    }
+
+
 async def _post_json(url: str, payload: dict[str, Any], headers: dict[str, str] | None = None) -> dict[str, Any]:
     _circuit_check(url)
     timeout = httpx.Timeout(REQUEST_TIMEOUT_SECONDS)
@@ -157,10 +221,14 @@ async def health() -> dict[str, Any]:
         "version": APP_VERSION,
         "mode": "modular-self-hosted",
         "auth": "enabled" if _ROUTER_API_KEY else "disabled",
+        "egress_policy": {
+            "openai_runtime": "allowed" if ALLOW_OPENAI_RUNTIME else "blocked",
+            "intent_model": INTENT_MODEL,
+        },
         "stack": {
             "wakeword": os.getenv("WAKEWORD_PROVIDER", "sherpa-onnx/openwakeword"),
             "stt": os.getenv("STT_PROVIDER", "faster-whisper"),
-            "intent": os.getenv("INTENT_PROVIDER", "vllm"),
+            "intent": os.getenv("INTENT_PROVIDER", "ollama"),
             "tts": os.getenv("TTS_PROVIDER", "kokoro-onnx"),
         },
         "circuits": provider_status,
@@ -175,6 +243,8 @@ async def speech_to_intent(
     _check_auth(credentials)
     stt_url = _required_env("STT_URL")
     intent_url = _required_env("INTENT_URL")
+    _assert_runtime_url_policy("STT_URL", stt_url)
+    _assert_runtime_url_policy("INTENT_URL", intent_url)
     stt_api_key = os.getenv("STT_API_KEY", "").strip()
     intent_api_key = os.getenv("INTENT_API_KEY", "").strip()
 
@@ -199,27 +269,21 @@ async def speech_to_intent(
     intent_result = await _post_json(
         intent_url,
         {
-            "text": transcript,
-            "language": payload.language,
-            "wake_phrase": payload.wake_phrase,
-            "org_id": payload.org_id,
-            "user_id": payload.user_id,
-            "context": payload.context or {},
+            "model": INTENT_MODEL,
+            "prompt": _intent_prompt(transcript, payload),
+            "stream": False,
+            "format": "json",
         },
         headers=intent_headers,
     )
-
-    if "intent" in intent_result and isinstance(intent_result["intent"], dict):
-        intent = intent_result["intent"]
-    else:
-        intent = intent_result
+    intent = _extract_intent(intent_result)
 
     return SpeechToIntentResponse(
         transcript=transcript,
         intent=intent,
         provider={
             "stt": os.getenv("STT_PROVIDER", "faster-whisper"),
-            "intent": os.getenv("INTENT_PROVIDER", "vllm"),
+            "intent": os.getenv("INTENT_PROVIDER", "ollama"),
         },
     )
 
@@ -231,6 +295,7 @@ async def tts(
 ) -> TtsResponse:
     _check_auth(credentials)
     tts_url = _required_env("TTS_URL")
+    _assert_runtime_url_policy("TTS_URL", tts_url)
     tts_api_key = os.getenv("TTS_API_KEY", "").strip()
     tts_headers = {"Authorization": f"Bearer {tts_api_key}"} if tts_api_key else {}
 
