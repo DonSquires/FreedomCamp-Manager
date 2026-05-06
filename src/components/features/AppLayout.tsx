@@ -266,6 +266,10 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/users', icon: Users, label: 'Users', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/organization-profile', icon: Building2, label: 'Organisation', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/organizations', icon: Building2, label: 'Organisations', roles: ['master'] },
+      // Sprint 22–26 (B-76–B-90) config/manager
+      { path: '/investigation-job-config', icon: Settings, label: 'Investigation Job Config', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/zone-legal-config', icon: FileText, label: 'Zone Legal Config', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/flagged-vehicles-manager', icon: AlertTriangle, label: 'Flagged Vehicles', roles: ['admin', 'admin_officer', 'master'] },
     ],
   },
   {
@@ -289,6 +293,19 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/reports-hub', icon: FileBarChart, label: 'Reports Hub', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/audit-log', icon: Activity, label: 'Audit Log', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/privacy-curtain', icon: EyeOff, label: 'Privacy Curtain', roles: ['admin', 'admin_officer', 'master'] },
+      // Sprint 22–26 (B-76–B-90) logs
+      { path: '/drift-events', icon: Navigation2, label: 'Drift Events', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/investigation-jobs-log', icon: BrainCircuit, label: 'Investigation Jobs', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/operational-cases-log', icon: FolderKanban, label: 'Operational Cases', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/patrol-events-log', icon: Route, label: 'Patrol Events Log', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/checkpoint-visits-log', icon: ScanLine, label: 'Checkpoint Visits', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/ems-attendances-log', icon: HeartPulse, label: 'EMS Attendances', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/parking-sessions-log', icon: ParkingSquare, label: 'Parking Sessions', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/parking-payments-log', icon: Receipt, label: 'Parking Payments', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/zone-signage-evidence', icon: ImageIcon, label: 'Zone Signage Evidence', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/officer-activity-log', icon: Activity, label: 'Officer Activity Log', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/credential-processing-log', icon: Shield, label: 'Credential Processing', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/dispatch-ack-log', icon: Radio, label: 'Dispatch Acknowledgements', roles: ['admin', 'admin_officer', 'master'] },
     ],
   },
   {
