@@ -3385,3 +3385,57 @@ The web SPA delivers SOS via the existing `officer_welfare_alerts` table + `send
 - `bun run build` → PASS (22.96s)
 
 **Next session:** Sprint 31 — B-103 VehiclesOfInterestLog, B-104 PersonsOfInterestLog, B-105 PhotoMetadataLog.
+
+---
+
+## Phase 5 — Sprint 31 (B-103 / B-104 / B-105)
+
+### Changes
+
+| File | Change |
+|---|---|
+| `src/pages/VehiclesOfInterestLog.tsx` | New — B-103: Log viewer for vehicles_of_interest; KPIs (Total/Active/Expired/Expiring Soon); status/date/plate-search filters; overdue highlight; description/notes/photos; linked person + zone expand; fully typed |
+| `src/pages/PersonsOfInterestLog.tsx` | New — B-104: Log viewer for persons_of_interest; KPIs (Total/Active/Expired/Privacy Notice Given); status/date/name-search filters; overdue highlight; physical desc/contact/features/lawful purpose/notes/photos expand; fully typed |
+| `src/pages/PhotoMetadataLog.tsx` | New — B-105: Log viewer for photo_metadata; KPIs (Total Photos/Unique Users/SHA256 Verified/Avg Size KB); mime_type/date/file-name-search filters; MIME type badge; SHA256 hash + storage path + view link expand |
+| `src/App.tsx` | Sprint 31 lazy imports + 3 new routes |
+| `src/navigation/routeManifest.ts` | 3 new entries: Intel (B-103/B-104), Records (B-105) |
+| `src/components/features/AppLayout.tsx` | Added UserX icon; vehicles-of-interest-log + persons-of-interest-log + photo-metadata-log under Records |
+| `src/pages/AdminPortal.tsx` | Added UserX icon; VOI Log + POI Log + Photo Metadata tiles (Intelligence & Radio section) |
+| `docs/MODULE_ROADMAP.md` | Route count 171 → 174; Sprint 31 addendum appended |
+
+### Sprint 31 Board
+
+| ID | Item | Status |
+|---|---|---|
+| B-103 | Vehicles of Interest Log | ✅ |
+| B-104 | Persons of Interest Log | ✅ |
+| B-105 | Photo Metadata Log | ✅ |
+
+- [x] `bun run lint` → PASS
+- [x] `bun run build` → PASS (27.53s)
+
+**Next sprint candidates:**
+- B-106: `OperationalCaseViewer` — operational_cases full detail viewer with linked incidents/dispatch/enforcement events
+- B-107: `SafetyChecklistLog` — safety_checklists log with template name + pass/fail KPIs + item expand
+- B-108: `ClientSiteActivityLog` — client_site_activity_log with site/type/date filters
+
+---
+
+## Session Snapshot (Sprint 31 — 2026-05-06)
+
+- Timestamp (UTC): 2026-05-06 14:19 UTC
+- Current branch: copilot/find-staging-doc-and-follow-instructions
+
+**New pages built:**
+- `src/pages/VehiclesOfInterestLog.tsx` — vehicles_of_interest viewer
+- `src/pages/PersonsOfInterestLog.tsx` — persons_of_interest viewer
+- `src/pages/PhotoMetadataLog.tsx` — photo_metadata viewer
+
+**Wiring applied:** App.tsx (lazy import + route), routeManifest.ts, AppLayout.tsx sidebar, AdminPortal.tsx tiles
+
+**Validation:**
+- `bun run lint` → PASS
+- `bun run build` → PASS (27.53s)
+
+**Next session:** Sprint 32 — B-106 OperationalCaseViewer, B-107 SafetyChecklistLog, B-108 ClientSiteActivityLog (or equivalent backlog items).
+

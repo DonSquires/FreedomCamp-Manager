@@ -1,9 +1,9 @@
 # Module Roadmap (Operator Navigation Map)
 
 Date: 2026-05-06 (verified against src App.tsx)
-Source of truth for routes: App router file src App.tsx (165 total routes as of Sprint 28 completion)
+Source of truth for routes: App router file src App.tsx (174 total routes as of Sprint 31 completion)
 
-> **Last Verification**: 2026-05-06 — All 165 routes reviewed and role-gating validated. Sprints 18–28 (B-64–B-96) documentation complete.
+> **Last Verification**: 2026-05-06 — All 174 routes reviewed and role-gating validated. Sprints 18–31 (B-64–B-105) documentation complete.
 
 ## How To Use
 
@@ -464,3 +464,22 @@ New admin routes added in Sprint 30 (B-100, B-101, B-102):
    - Route: /person-observations-log
    - Role gate: admin, admin_officer, master
    - Viewer for person_observations; KPIs (Total/Alert Generated/Avg Match Conf/Minor Records); obs_type/alert/date/plate-search filters; alert type badges; match confidence bar; GPS/metadata/evidence photos expand
+
+## Sprint 31 Route Addendum (2026-05-06)
+
+New admin routes added in Sprint 31 (B-103, B-104, B-105):
+
+1. Vehicles of Interest Log (B-103)
+   - Route: /vehicles-of-interest-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for vehicles_of_interest; KPIs (Total/Active/Expired/Expiring Soon); status/date/plate-search filters; overdue highlight; description/notes/photos; linked person + primary zone expand
+
+2. Persons of Interest Log (B-104)
+   - Route: /persons-of-interest-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for persons_of_interest; KPIs (Total/Active/Expired/Privacy Notice Given); status/date/name-search filters; overdue highlight; physical description/contact/distinguishing features/privacy lawful purpose/notes/photos expand
+
+3. Photo Metadata Log (B-105)
+   - Route: /photo-metadata-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for photo_metadata; KPIs (Total Photos/Unique Users/SHA256 Verified/Avg Size KB); mime_type/date/file-name-search filters; MIME type badge; SHA256 hash display; storage path + view link expand

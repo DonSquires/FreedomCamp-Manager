@@ -81,6 +81,7 @@ import {
   Bug,
   CalendarClock,
   TicketX,
+  UserX,
 } from 'lucide-react'
 
 type DrillConfig = {
@@ -1501,6 +1502,9 @@ export default function AdminPortal() {
                     { path: '/lmr-bridge',          label: 'LMR Bridge',        Icon: Radio,     color: 'text-blue-600',   bg: 'bg-blue-50 dark:bg-blue-900/20' },
                     { path: '/loi-browser',         label: 'LOI Browser',       Icon: MapPin,    color: 'text-amber-600',  bg: 'bg-amber-50 dark:bg-amber-900/20' },
                     { path: '/case-bridge',         label: 'Case Bridge',       Icon: Database,  color: 'text-indigo-600', bg: 'bg-indigo-50 dark:bg-indigo-900/20' },
+                    { path: '/vehicles-of-interest-log', label: 'VOI Log',      Icon: Car,       color: 'text-red-600',    bg: 'bg-red-50 dark:bg-red-900/20' },
+                    { path: '/persons-of-interest-log',  label: 'POI Log',      Icon: UserX,     color: 'text-red-700',    bg: 'bg-red-50 dark:bg-red-900/20' },
+                    { path: '/photo-metadata-log',       label: 'Photo Metadata',Icon: Camera,    color: 'text-blue-600',  bg: 'bg-blue-50 dark:bg-blue-900/20' },
                   ].map(({ path, label, Icon, color, bg, badge }) => (
                     <button key={path} onClick={() => navigate(path)} aria-label={`Open ${label}`} className={`${moduleTileClass} ${bg}`}>
                       {badge !== undefined && (

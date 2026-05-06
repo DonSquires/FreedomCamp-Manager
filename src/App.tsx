@@ -229,6 +229,10 @@ const NoiseAssessmentLog   = lazy(() => import('@/pages/NoiseAssessmentLog'))
 const TrespassNoticeLog    = lazy(() => import('@/pages/TrespassNoticeLog'))
 const ParkingInfringementLog = lazy(() => import('@/pages/ParkingInfringementLog'))
 const PersonObservationLog = lazy(() => import('@/pages/PersonObservationLog'))
+// Sprint 31: B-103–B-105
+const VehiclesOfInterestLog  = lazy(() => import('@/pages/VehiclesOfInterestLog'))
+const PersonsOfInterestLog   = lazy(() => import('@/pages/PersonsOfInterestLog'))
+const PhotoMetadataLog       = lazy(() => import('@/pages/PhotoMetadataLog'))
 
 const NetworkStatusBar = lazy(() => import('@/components/features/NetworkStatusBar').then((m) => ({ default: m.NetworkStatusBar })))
 const PWAInstallPrompt = lazy(() => import('@/components/features/PWAInstallPrompt').then((m) => ({ default: m.PWAInstallPrompt })))
@@ -2363,6 +2367,10 @@ export default function App() {
           <Route path="/trespass-notices-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><TrespassNoticeLog /></RoleRoute></ProtectedRoute>} />
           <Route path="/parking-infringements-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><ParkingInfringementLog /></RoleRoute></ProtectedRoute>} />
           <Route path="/person-observations-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><PersonObservationLog /></RoleRoute></ProtectedRoute>} />
+          {/* Sprint 31: B-103–B-105 */}
+          <Route path="/vehicles-of-interest-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><VehiclesOfInterestLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/persons-of-interest-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><PersonsOfInterestLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/photo-metadata-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><PhotoMetadataLog /></RoleRoute></ProtectedRoute>} />
 
           {/* CRM – Accounts (Clients + Contractors) */}
           <Route
