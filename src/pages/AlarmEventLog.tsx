@@ -313,17 +313,17 @@ export default function AlarmEventLog() {
                           <TableRow key={`${e.id}-detail`} className="bg-muted/20">
                             <TableCell colSpan={9} className="py-3 px-6">
                               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-                                {e.resolution_notes && (
+                                {e.notes && (
                                   <div>
-                                    <p className="font-semibold text-muted-foreground mb-1">Resolution Notes</p>
-                                    <p>{e.resolution_notes}</p>
+                                    <p className="font-semibold text-muted-foreground mb-1">Notes</p>
+                                    <p>{e.notes}</p>
                                   </div>
                                 )}
-                                {e.metadata && (
+                                {e.raw_payload && (
                                   <div>
-                                    <p className="font-semibold text-muted-foreground mb-1">Metadata</p>
+                                    <p className="font-semibold text-muted-foreground mb-1">Raw Payload</p>
                                     <pre className="text-xs bg-muted rounded p-2 overflow-x-auto max-h-32">
-                                      {JSON.stringify(e.metadata, null, 2)}
+                                      {JSON.stringify(e.raw_payload, null, 2)}
                                     </pre>
                                   </div>
                                 )}

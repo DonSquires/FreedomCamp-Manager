@@ -200,3 +200,35 @@ New routes added:
 - `/drift-events` — Drift Event Log (B-76); role gate: admin, admin_officer, master; nav group: Management; table: drift_events; status/event_type/month filters; mark-reviewed
 - `/investigation-job-config` — Investigation Job Config (B-77); role gate: admin, master; nav group: Records; tables: investigation_job_templates + investigation_job_types (tabbed); activate/deactivate; create job type dialog
 - `/zone-legal-config` — Zone Legal Config (B-78); role gate: admin, master; nav group: Management; table: zone_legal_config; split list + detail panel; enforcement / stay limits / org address / payment info
+
+## Sprint 23 Addendum (2026-05-06) — B-79/B-80/B-81
+
+New routes added:
+
+- `/alarm-events-log` — Alarm Event Log (B-79); role gate: admin, admin_officer, master; nav group: Operations; table: alarm_events; severity/status/alarm_type filters; Acknowledge action; expandable metadata
+- `/enforcement-events-log` — Enforcement Event Log (B-80); role gate: admin, admin_officer, master; nav group: Operations; table: enforcement_events; event_type/status/outcome filters; photo count; expandable evidence notes
+- `/open-shifts-manager` — Open Shift Manager (B-81); role gate: admin, admin_officer, master; nav group: Roster & Workforce; table: open_shifts; priority/type/claimed filters; Mark Claimed action; KPIs
+
+## Sprint 24 Addendum (2026-05-06) — B-82/B-83/B-84
+
+New routes added:
+
+- `/checkpoint-visits-log` — Checkpoint Visit Log (B-82); role gate: admin, admin_officer, master; nav group: Operations; table: checkpoint_visits; scan_method/radius/date filters; GPS KPIs; expandable GPS detail
+- `/ems-attendances-log` — EMS Attendance Log (B-83); role gate: admin, admin_officer, master; nav group: Roster & Workforce; table: ems_attendances; status/date/action filters; billable hours KPI; Approve action
+- `/parking-sessions-log` — Parking Session Log (B-84); role gate: admin, admin_officer, master; nav group: Specialist Portals; table: parking_sessions; violation/plate/zone/date filters; avg dwell KPI; photo links; expandable tyre valve positions
+
+## Sprint 25 Addendum (2026-05-06) — B-85/B-86/B-87
+
+New routes added:
+
+- `/flagged-vehicles-manager` — Flagged Vehicle Manager (B-85); role gate: admin, admin_officer, master; nav group: Management; table: flagged_vehicles; is_active/priority filters; Deactivate/Reactivate toggle; confirmed_homeless KPI
+- `/parking-payments-log` — Parking Payment Log (B-86); role gate: admin, admin_officer, master; nav group: Specialist Portals; table: parking_payments; status/provider/plate/date filters; total revenue NZD KPI; expandable metadata
+- `/zone-signage-evidence` — Zone Signage Evidence (B-87); role gate: admin, admin_officer, master; nav group: Management; table: zone_signage_evidence; is_current/signage_type filters; Mark Current action; photo link; SHA256 display
+
+## Sprint 26 Addendum (2026-05-06) — B-88/B-89/B-90
+
+New routes added:
+
+- `/officer-activity-log` — Officer Activity Log (B-88); role gate: admin, admin_officer, master; nav group: Operations; table: officer_activity_log; activity_type/date filters; GPS KPIs; expandable metadata
+- `/credential-processing-log` — Credential Processing Log (B-89); role gate: admin, admin_officer, master; nav group: Records; table: credential_processing_log; confidence score bar (green/amber/red); Mark Verified action; expandable extracted data
+- `/dispatch-ack-log` — Dispatch Acknowledgement Log (B-90); role gate: admin, admin_officer, master; nav group: Live Ops; table: dispatch_acknowledgement_log; typed lifecycle_stage enum filter; avg ETA KPI
