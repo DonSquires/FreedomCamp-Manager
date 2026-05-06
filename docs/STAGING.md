@@ -2650,3 +2650,42 @@ The web SPA delivers SOS via the existing `officer_welfare_alerts` table + `send
 - B-42: Site Risk Assessment viewer/editor (site_risk_assessments table)
 - B-43: Person Records management (person_records + person_id_documents linkage)
 - B-44: Dispatch LOI browser (locations_of_interest table)
+
+---
+
+## Phase 5 — Sprint 11 (B-42 / B-43 / B-44)
+
+### Changes
+
+| File | Change |
+|---|---|
+| `src/components/features/AppLayout.tsx` | B-42 sidebar entry added — `/site-risk-assessment` under Records (`ClipboardCheck` icon) |
+| `src/components/features/AppLayout.tsx` | B-44 sidebar entry added — `/loi-browser` under Records (`MapPin` icon) |
+| `src/pages/DispatchLOIBrowser.tsx` | New — B-44 Dispatch LOI Browser (KPI cards, loi_kind filter, active filter, keyword search, full table with GPS/hazard/access summaries, canonical badge) |
+| `src/App.tsx` | Lazy import + route `/loi-browser` for DispatchLOIBrowser |
+
+> B-43 (PersonRecords.tsx + /person-records) was already fully implemented in a prior sprint (page, route, and sidebar entry all present).
+> B-42 (SiteRiskAssessment.tsx + useSiteRiskAssessment.ts + /site-risk-assessment) was fully implemented but lacked a sidebar entry — fixed in this sprint.
+
+### Sprint 11 Board
+
+| ID | Item | Status |
+|---|---|---|
+| B-42 | Site Risk Assessment viewer/editor | ✅ |
+| B-43 | Person Records management | ✅ (prior sprint) |
+| B-44 | Dispatch LOI Browser | ✅ |
+
+- [x] `bun run build` → PASS
+- [x] `bun run lint` → PASS (0 errors, 0 warnings)
+
+### Competitive Gap Board — Updated (post Sprint 11)
+
+| Category | Newly Closed | Remaining Open |
+|---|---|---|
+| H&S / WorkSafe | B-42 Site Risk Assessments sidebar | — |
+| Intelligence | B-44 Dispatch LOI Browser | — |
+
+**Next sprint candidates:**
+- B-45: Trespass Notices UI (trespass_notices table)
+- B-46: Access Permissions manager (access_permissions table — grant/revoke per person + zone)
+- B-47: Canonical Person deduplication viewer (canonical_persons table)

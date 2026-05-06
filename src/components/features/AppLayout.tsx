@@ -260,6 +260,8 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/incident-reports', icon: ClipboardList, label: 'Incident Reports', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/investigations', icon: BrainCircuit, label: 'Investigations', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/person-records', icon: PersonStanding, label: 'Person Records', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/site-risk-assessment', icon: ClipboardCheck, label: 'Site Risk Assessments', roles: ['admin', 'admin_officer', 'master', 'officer'] },
+      { path: '/loi-browser', icon: MapPin, label: 'Dispatch LOI Browser', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/reports', icon: FileText, label: 'Reports', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/reports-hub', icon: FileBarChart, label: 'Reports Hub', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/audit-log', icon: Activity, label: 'Audit Log', roles: ['admin', 'admin_officer', 'master'] },

@@ -68,6 +68,7 @@ const EnforcementReview = lazy(() => import('@/pages/EnforcementReview'))
 const InvestigationJobsPage = lazy(() => import('@/pages/InvestigationJobsPage'))
 const VehicleDetailPage = lazy(() => import('@/pages/VehicleDetailPage'))
 const PersonRecords = lazy(() => import('@/pages/PersonRecords'))
+const DispatchLOIBrowser = lazy(() => import('@/pages/DispatchLOIBrowser'))
 const ImportData = lazy(() => import('@/pages/ImportData'))
 const ImportHistoricalData = lazy(() => import('@/pages/ImportHistoricalData'))
 const BreachNotices = lazy(() => import('@/pages/BreachNotices'))
@@ -1658,6 +1659,17 @@ export default function App() {
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'officer']}>
                   <SiteRiskAssessment />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/loi-browser"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <DispatchLOIBrowser />
                 </RoleRoute>
               </ProtectedRoute>
             }
