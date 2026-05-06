@@ -1,27 +1,37 @@
 {
   "os": "Alpine Linux v3.23",
-  "node_version": "v24.15.0",
+  "node_version": "v22.15.0",
   "bun_version": "1.3.13",
   "toolchain_ready": true,
-  "modules": ["messaging", "bob_user_scope", "bob_org_voiceprint_policy"],
-  "lockfiles": ["bun.lock", "package-lock.json"],
-  "generated_at": "2026-05-05T00:00:00Z",
-  "source": "scripts/system-check.sh",
-  "last_migrations_applied": [
-    "20260505000001_bob_memory_user_scope",
-    "20260505000002_bob_org_voiceprint_policy"
+  "modules": [
+    "messaging"
   ],
-  "last_edge_functions_deployed": ["onspace-ai-chat"],
-  "last_runpod_worker_change": "2026-05-05: clarified Dockerfile/start_mode.sh serverless wording — CMD must start long-running runpod.serverless handler loop, not a one-shot test runner",
-  "bob_user_scope": {
-    "status": "production",
-    "description": "Bob preferences (voice, identity, biometrics) are now user-specific with cloud sync via bob_user_profiles. RLS enforces user-ownership on bob_conversations, bob_messages, bob_learning_log. Org admins can toggle voiceprint enrollment via organizations.bob_voiceprint_enrollment_allowed.",
-    "hooks": ["useBobIdentitySettings", "useBobConversation"],
-    "stores": ["bobStore", "bobAssistantStore"],
-    "pages": ["Settings", "BobAssistantStudio", "BobStudio"],
-    "migrations_applied": [
-      "20260505000001_bob_memory_user_scope",
-      "20260505000002_bob_org_voiceprint_policy"
-    ]
-  }
+  "lockfiles": [
+    "bun.lock",
+    "package-lock.json"
+  ],
+  "generated_at": "2026-05-06T04:03:55Z",
+  "source": "scripts/system-check.sh",
+  "monitor": {
+    "checked_at": "2026-05-06T04:03:55.437Z",
+    "window_minutes": 15,
+    "error_threshold": 5,
+    "recent_500_errors": 0,
+    "status": "warning",
+    "live_session_diagnostics": {
+      "checked_at": "2026-05-06T04:03:55.533Z",
+      "window_minutes": 20,
+      "status": "stale",
+      "source": "live-session-diagnostics-summary",
+      "reason": "No live session diagnostic events detected in last 20m.",
+      "recent_events": 0,
+      "route_changes": 0,
+      "offline_events": 0,
+      "console_error_count": 0,
+      "unhandled_count": 0,
+      "latest_route": "/admin/dashboard",
+      "top_event_types": []
+    }
+  },
+  "critical_warning": "Live session diagnostics stale: No live session diagnostic events detected in last 20m."
 }

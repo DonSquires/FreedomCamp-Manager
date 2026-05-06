@@ -26,6 +26,7 @@ import { useSessionPreferencesStore } from '@/stores/sessionPreferencesStore'
 import { useThemePreferencesStore } from '@/stores/themePreferencesStore'
 import { useBobIdentitySettings, type EmergencyCancelVerificationMode } from '@/hooks/useBobIdentitySettings'
 import { useBobAssistantStore } from '@/stores/bobAssistantStore'
+import { edgeFunctions } from '@/lib/edgeFunctions'
 
 interface NotificationPreferences {
   breach_alerts: boolean
@@ -128,52 +129,47 @@ export default function Settings() {
   }>(null)
 
   useEffect(() => {
-    const inferenceBase = String(import.meta.env.VITE_INFERENCE_SERVICE_URL || '').replace(/\/$/, '')
-    if (!inferenceBase) {
-      setBobStatus({
-        healthy: false,
-        mode: 'unknown',
-        provider: 'unknown',
-        egressAllowed: false,
-        model: 'unknown',
-        runtime: 'unconfigured',
-        note: 'VITE_INFERENCE_SERVICE_URL is not configured in this environment.',
-      })
-      return
-    }
-
     let cancelled = false
+
     const loadStatus = async () => {
       setBobStatusLoading(true)
       try {
-        const apiKey = String(import.meta.env.VITE_INFERENCE_API_KEY || '').trim()
-        const headers: Record<string, string> = {}
-        if (apiKey) {
-          headers.Authorization = `Bearer ${apiKey}`
-          headers['x-inference-api-key'] = apiKey
+        const isPrivilegedViewer = ['master', 'grand_master'].includes(user?.role ?? '')
+
+        if (isPrivilegedViewer) {
+          const { data, error } = await edgeFunctions.grandmasterStudio({ action: 'health_check' })
+          if (error) throw new Error(String(error))
+          if (cancelled) return
+
+          const payload = data as Record<string, any>
+          const config = payload?.config ?? {}
+          setBobStatus({
+            healthy: Boolean(payload?.status === 'ok' || payload?.ok === true),
+            mode: String(config.OPERATING_MODE ?? config.operating_mode ?? 'unknown'),
+            provider: String(config.CHAT_PROVIDER ?? config.chat_provider ?? 'unknown'),
+            egressAllowed: Boolean(config.EXTERNAL_EGRESS_ALLOWED ?? config.external_egress_allowed ?? false),
+            model: String(config.OLLAMA_MODEL ?? config.model ?? 'unknown'),
+            runtime: String(payload?.runtime ?? config.runtime ?? 'unknown'),
+            note: 'Live status from Bob health via edge function proxy.',
+          })
+          return
         }
 
-        const response = await fetch(`${inferenceBase}/health`, {
-          method: 'GET',
-          headers,
-        })
-
-        if (!response.ok) {
-          throw new Error(`Health check failed (${response.status})`)
-        }
-
-        const payload = await response.json()
+        const { data, error } = await edgeFunctions.checkServicesHealth()
+        if (error) throw new Error(String(error))
         if (cancelled) return
 
-        const config = payload?.config ?? {}
+        const payload = data as Record<string, any>
+        const inference = (payload?.inference ?? {}) as Record<string, any>
+        const inferenceStatus = String(inference?.status ?? 'unknown')
         setBobStatus({
-          healthy: Boolean(payload?.status === 'ok' || payload?.ok === true),
-          mode: String(config.OPERATING_MODE ?? config.operating_mode ?? 'unknown'),
-          provider: String(config.CHAT_PROVIDER ?? config.chat_provider ?? 'unknown'),
-          egressAllowed: Boolean(config.EXTERNAL_EGRESS_ALLOWED ?? config.external_egress_allowed ?? false),
-          model: String(config.OLLAMA_MODEL ?? config.model ?? 'unknown'),
-          runtime: String(payload?.runtime ?? config.runtime ?? 'unknown'),
-          note: 'Live status from Bob /health endpoint.',
+          healthy: inferenceStatus === 'ok' || inferenceStatus === 'healthy',
+          mode: inferenceStatus,
+          provider: String(inference?.provider ?? 'managed-edge'),
+          egressAllowed: false,
+          model: String(inference?.model ?? inference?.worker_model ?? 'unknown'),
+          runtime: inferenceStatus,
+          note: String(inference?.warning ?? inference?.error ?? 'Inference service status from edge function health check.'),
         })
       } catch (error: any) {
         if (cancelled) return
@@ -195,7 +191,7 @@ export default function Settings() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [user?.role])
 
   const handleSave = async () => {
     // Persist to user_preferences if the table exists, or just show success

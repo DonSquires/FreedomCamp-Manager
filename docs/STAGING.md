@@ -48,6 +48,7 @@ node scripts/auto-ingest.mjs
 ```bash
 bun run lint
 bun run build
+bun run test:bob:governance
 node --test ptt-server/test/radio-health-schema.test.js
 ```
 
@@ -121,6 +122,7 @@ redis-server --version
 4. Treat local Playwright credential failures as environment blockers unless CI reproduces code failure.
 5. After each material change: lint, build, relevant tests, then CI status pull for current SHA.
 6. If conflicts appear across plans, update canonical doc first, then align downstream docs.
+7. For Bob-related changes, validate the shared gateway contract before merge: the client must route through `src/lib/edgeFunctions.ts`, named mutation contracts must be enforced client-side and server-side, and any persisted execution review must stay inside existing Bob memory JSONB context unless a new migration is explicitly introduced.
 
 ### Throughput Requirement (Mandatory)
 
@@ -176,6 +178,13 @@ Current finding: org-scoping static audit now reports `missing_org_filter=0` aft
 
 - [x] Ensure each release gate run ends with GO, CONDITIONAL_GO, or NO_GO and all blockers have owners.
 - [x] Keep CI run IDs and outcomes logged in Section 7 before ending a session.
+
+### F. Bob Governance And Staging Integrity
+
+- [ ] Run `bun run test:bob:governance` before promoting Bob-related changes.
+- [ ] Verify `onspace-ai-chat`, `grandmaster-studio`, and `bob-code-change-task` are redeployed together when Bob mutation-contract logic changes.
+- [ ] Confirm Bob execution-review persistence remains in `bob_conversation_memory.context` JSONB and does not require an untracked schema change.
+- [ ] Verify the deployment notes mention the current Bob contract artifacts: schema registry, route/entity map, mutation catalog, and execution review output.
 
 ## 7. Session Handoff Log (Update Before Exit)
 

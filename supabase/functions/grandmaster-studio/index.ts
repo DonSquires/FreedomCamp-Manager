@@ -41,6 +41,74 @@ const OWNER_ONLY_ACTIONS = new Set<Action>([
   'ask_copilot_submit',
 ])
 
+const ACTION_MUTATION_CONTRACT_MAP: Partial<Record<Action, string>> = {
+  code_task_submit: 'queue_bob_code_change_task',
+  code_task_skip: 'queue_bob_code_change_task',
+  code_task_delete: 'queue_bob_code_change_task',
+  doctor_health: 'run_grandmaster_diagnostics',
+  doctor_timeline: 'run_grandmaster_diagnostics',
+  doctor_playbook_run: 'run_grandmaster_diagnostics',
+  inference_endpoint_health: 'run_grandmaster_diagnostics',
+  ask_copilot_submit: 'queue_owner_research_task',
+}
+
+type BobExecutionMode = 'owner_full' | 'master_balanced' | 'officer_assist'
+
+const SERVER_MUTATION_RULES: Record<string, BobExecutionMode[]> = {
+  queue_bob_code_change_task: ['owner_full'],
+  run_grandmaster_diagnostics: ['owner_full', 'master_balanced'],
+  queue_owner_research_task: ['owner_full'],
+}
+
+function resolveExecutionModeFromRole(role: string): BobExecutionMode {
+  const normalized = String(role || '').toLowerCase()
+  if (normalized === 'grand_master') return 'owner_full'
+  if (normalized === 'master' || normalized === 'admin' || normalized === 'client_admin') return 'master_balanced'
+  return 'officer_assist'
+}
+
+function validateRequestedMutationContract(input: {
+  requestedContract: string | null
+  actionContract: string | null
+  mode: BobExecutionMode
+}): { allowed: boolean; reason: string } {
+  if (!input.actionContract) {
+    return {
+      allowed: input.requestedContract === null,
+      reason: input.requestedContract
+        ? 'No mutation contract is allowed for this action.'
+        : 'No mutation contract required for this action.',
+    }
+  }
+
+  if (!input.requestedContract) {
+    return {
+      allowed: false,
+      reason: `Missing required mutation contract ${input.actionContract} for this action.`,
+    }
+  }
+
+  if (input.requestedContract !== input.actionContract) {
+    return {
+      allowed: false,
+      reason: `Requested mutation contract ${input.requestedContract} does not match required contract ${input.actionContract}.`,
+    }
+  }
+
+  const allowedModes = SERVER_MUTATION_RULES[input.requestedContract] ?? []
+  if (!allowedModes.includes(input.mode)) {
+    return {
+      allowed: false,
+      reason: `Requested mutation contract ${input.requestedContract} is blocked for mode ${input.mode}.`,
+    }
+  }
+
+  return {
+    allowed: true,
+    reason: `Requested mutation contract ${input.requestedContract} is allowed.`,
+  }
+}
+
 function extractBearerToken(req: Request): string | null {
   const authHeader = req.headers.get('Authorization') || req.headers.get('authorization')
   if (!authHeader) return null
@@ -243,6 +311,24 @@ Deno.serve(async (req: Request) => {
         JSON.stringify({
           error: 'Forbidden: this action is restricted to the configured Grandmaster owner account',
         }),
+        { status: 403, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } },
+      )
+    }
+
+    const executionMode = resolveExecutionModeFromRole(role)
+    const actionContract = ACTION_MUTATION_CONTRACT_MAP[action] ?? null
+    const requestedContract = typeof body?.requested_mutation_contract === 'string'
+      ? String(body.requested_mutation_contract).trim()
+      : null
+    const contractAccess = validateRequestedMutationContract({
+      requestedContract,
+      actionContract,
+      mode: executionMode,
+    })
+
+    if (!contractAccess.allowed) {
+      return new Response(
+        JSON.stringify({ error: `Mutation contract blocked by server policy: ${contractAccess.reason}` }),
         { status: 403, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } },
       )
     }

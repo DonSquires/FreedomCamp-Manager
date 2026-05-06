@@ -5295,6 +5295,8 @@ export type Database = {
           action_notes: string | null
           address: string
           address_photo_url: string | null
+          ai_confidence_score: number | null
+          ai_rationale: string | null
           assessed_at: string
           created_at: string
           district_plan_limit_db: number | null
@@ -5328,6 +5330,8 @@ export type Database = {
           action_notes?: string | null
           address: string
           address_photo_url?: string | null
+          ai_confidence_score?: number | null
+          ai_rationale?: string | null
           assessed_at?: string
           created_at?: string
           district_plan_limit_db?: number | null
@@ -5361,6 +5365,8 @@ export type Database = {
           action_notes?: string | null
           address?: string
           address_photo_url?: string | null
+          ai_confidence_score?: number | null
+          ai_rationale?: string | null
           assessed_at?: string
           created_at?: string
           district_plan_limit_db?: number | null

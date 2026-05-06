@@ -19,6 +19,7 @@ bun install
 # Verify environment
 bun run build  # Should succeed with no errors
 bun run lint   # Should pass ESLint
+bun run test:bob:governance  # Bob governance contract must stay green
 
 # Check current realignment status
 cat docs/BUILD_REALIGNMENT_PLAN_2026-05-04.md | head -50
@@ -99,6 +100,7 @@ bun run build  # Verify all tools work
    - Edit `docs/BUILD_REALIGNMENT_PLAN_2026-05-04.md` → Update "**Status**: In Progress"
    - Add completion timestamp to relevant section (e.g., "11.1a completed May 15, 10:30 UTC")
    - Format: `**Section 11.1a Completed**: May 15, 10:30 UTC by @username`
+  - If Bob execution or governance changed, also update `docs/STAGING.md`, `docs/DEPLOYMENT_GUIDE.md`, and `docs/DECISIONS.md`
 
 3. **Commit & Push**
    ```bash
@@ -109,7 +111,7 @@ bun run build  # Verify all tools work
    - [Bullet of what was done]
    - [Bullet of what was done]
 
-   Tests: [bun run build] ✅ [bun run lint] ✅
+  Tests: [bun run build] ✅ [bun run lint] ✅ [bun run test:bob:governance] ✅
    Docs updated: docs/BUILD_REALIGNMENT_PLAN_2026-05-04.md
    "
    
@@ -152,6 +154,9 @@ bun run build  # Verify all tools work
 ### Week 1 (May 12–18): Foundation & Schema
 
 **Goal**: Case model schema defined, org isolation test framework created.
+
+Bob governance note for this lane:
+- The current Bob execution-review persistence already fits the existing schema because `public.bob_conversation_memory.context` is JSONB. Do not add a new migration for execution-review metadata unless the shape must become queryable at SQL level.
 
 #### To-Do Items
 

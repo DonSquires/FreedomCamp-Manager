@@ -2103,6 +2103,19 @@ export default function PTTRadio() {
       .then((result: any) => {
         const text = result?.transcript ?? result?.text ?? null
         setLastClipTranscript(text)
+
+        if (radioFeatureFlags.captionsEnabled && text?.trim()) {
+          radioCaptionService.emit({
+            transmissionId: String(clip.id),
+            sequenceNum: 0,
+            segmentStartMs: 0,
+            segmentEndMs: Math.max(1000, Math.round(Number(clip.duration || 0) * 1000) || 3000),
+            text: String(text).trim(),
+            language: 'en',
+            confidence: typeof result?.confidence === 'number' ? Number(result.confidence) : 0.72,
+            isFinal: true,
+          })
+        }
       })
       .catch(() => {
         // Transcription is best-effort — silently fail

@@ -202,6 +202,88 @@ function buildSystemPromptWithAttitude(): string {
   return `${SYSTEM_PROMPT}\n\n${attitudeSection}`
 }
 
+function buildAuthoritativeExecutionPolicyBlock(input: { role: string; isGrandMaster: boolean }): string {
+  const role = String(input.role || 'officer').toLowerCase()
+  const mode = input.isGrandMaster
+    ? 'owner_full'
+    : role === 'master' || role === 'admin' || role === 'client_admin'
+      ? 'master_balanced'
+      : 'officer_assist'
+
+  const modeInstruction = mode === 'owner_full'
+    ? 'Execution authority: owner_full. Provide implementation-ready actions end-to-end with rollback notes.'
+    : mode === 'master_balanced'
+      ? 'Execution authority: master_balanced. Provide actions with explicit approval and guardrail checkpoints.'
+      : 'Execution authority: officer_assist. Do not claim autonomous execution. Provide task assistance and escalation steps only.'
+
+  return [
+    'AUTHORITATIVE EXECUTION POLICY (server-enforced):',
+    `- role=${role}`,
+    `- mode=${mode}`,
+    `- ${modeInstruction}`,
+    '- Required output headings: Review Findings, Assessment, Action Plan.',
+    '- If high-risk or unclear, ask for minimum required clarification and provide a safe partial plan.',
+  ].join('\n')
+}
+
+type BobExecutionMode = 'owner_full' | 'master_balanced' | 'officer_assist'
+
+function resolveExecutionMode(role: string, isGrandMaster: boolean): BobExecutionMode {
+  const normalizedRole = String(role || 'officer').toLowerCase()
+  if (isGrandMaster) return 'owner_full'
+  if (normalizedRole === 'master' || normalizedRole === 'admin' || normalizedRole === 'client_admin') {
+    return 'master_balanced'
+  }
+  return 'officer_assist'
+}
+
+type MutationRule = {
+  allowedModes: BobExecutionMode[]
+}
+
+const SERVER_MUTATION_RULES: Record<string, MutationRule> = {
+  import_data_file: { allowedModes: ['owner_full', 'master_balanced'] },
+  import_historical_patrol_data: { allowedModes: ['owner_full', 'master_balanced'] },
+  process_tender_document: { allowedModes: ['owner_full', 'master_balanced'] },
+  generate_tender_sections: { allowedModes: ['owner_full', 'master_balanced'] },
+  generate_dashboard_report: { allowedModes: ['owner_full', 'master_balanced', 'officer_assist'] },
+  email_dashboard_report: { allowedModes: ['owner_full', 'master_balanced'] },
+  create_user_account: { allowedModes: ['owner_full', 'master_balanced'] },
+  set_user_active_status: { allowedModes: ['owner_full', 'master_balanced'] },
+  queue_bob_code_change_task: { allowedModes: ['owner_full'] },
+  run_grandmaster_diagnostics: { allowedModes: ['owner_full', 'master_balanced'] },
+  queue_owner_research_task: { allowedModes: ['owner_full'] },
+}
+
+function validateRequestedMutationContract(input: {
+  requestedContract: string | null
+  mode: BobExecutionMode
+}): { allowed: boolean; reason: string } {
+  if (!input.requestedContract) {
+    return { allowed: true, reason: 'No mutation contract requested.' }
+  }
+
+  const rule = SERVER_MUTATION_RULES[input.requestedContract]
+  if (!rule) {
+    return {
+      allowed: false,
+      reason: `Unknown requested mutation contract: ${input.requestedContract}`,
+    }
+  }
+
+  if (!rule.allowedModes.includes(input.mode)) {
+    return {
+      allowed: false,
+      reason: `Requested mutation contract ${input.requestedContract} is blocked for mode ${input.mode}.`,
+    }
+  }
+
+  return {
+    allowed: true,
+    reason: `Requested mutation contract ${input.requestedContract} is allowed for mode ${input.mode}.`,
+  }
+}
+
 const PRIVACY_REQUEST_PATTERN = /(share|show|reveal|give|tell|export|download).*(user|officer|profile|email|phone|address|location|personal|private|details)/i
 const EXPLICIT_PERMISSION_PATTERN = /(with permission|has permission|consent|authori[sz]ed by user|user approved|user said yes)/i
 
@@ -542,7 +624,7 @@ Deno.serve(async (req: Request) => {
 
     let user: { id: string } | null = null
     let userRole = 'service'
-    let isGrandMaster = true
+    let isGrandMaster = false
     let profile: { role: string; first_name?: string; last_name?: string; organization_id?: string | null } | null = null
 
     const token = extractBearerToken(req)
@@ -709,19 +791,50 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    const effectiveExecutionMode = resolveExecutionMode(userRole, isGrandMaster)
+    const requestedMutationContract = typeof (context as any)?.requested_mutation_contract === 'string'
+      ? String((context as any).requested_mutation_contract).trim()
+      : null
+    const requestedMutationAccess = validateRequestedMutationContract({
+      requestedContract: requestedMutationContract,
+      mode: effectiveExecutionMode,
+    })
+
+    if (!requestedMutationAccess.allowed) {
+      return new Response(
+        JSON.stringify({
+          error: `Mutation contract blocked by server policy: ${requestedMutationAccess.reason}`,
+          policy_mode: effectiveExecutionMode,
+          requested_mutation_contract: requestedMutationContract,
+        }),
+        { status: 403, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } },
+      )
+    }
+
+    const authoritativePolicyBlock = buildAuthoritativeExecutionPolicyBlock({ role: userRole, isGrandMaster })
+    const immutableSystemPrompt = `${defaultSystemPrompt}\n\n${authoritativePolicyBlock}`
+
     if (Array.isArray(rawMessages) && rawMessages.length > 0) {
-      // Format A: caller provides full messages array; inject system prompt only if not present
-      const hasSystem = rawMessages[0]?.role === 'system'
-      messages = hasSystem
-        ? [...prependedHistory, ...rawMessages]
-        : [{ role: 'system', content: defaultSystemPrompt }, ...prependedHistory, ...rawMessages]
+      // Format A: always enforce immutable server system prompt first.
+      // Caller-provided system messages are downgraded to assistant context notes.
+      const sanitizedMessages = rawMessages.map((m) => {
+        if (m?.role === 'system') {
+          return {
+            role: 'assistant',
+            content: `[Caller context note]\n${String(m?.content || '').slice(0, 4000)}`,
+          }
+        }
+        return m
+      })
+
+      messages = [{ role: 'system', content: immutableSystemPrompt }, ...prependedHistory, ...sanitizedMessages]
     } else if (message) {
       // Format B: single message + optional context object
       const userContent = context
         ? `${message}\n\nContext:\n${typeof context === 'string' ? context : JSON.stringify(context, null, 2)}`
         : message
       messages = [
-        { role: 'system', content: defaultSystemPrompt },
+        { role: 'system', content: immutableSystemPrompt },
         ...prependedHistory,
         { role: 'user', content: userContent },
       ]

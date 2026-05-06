@@ -12,6 +12,7 @@ import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { BobActionApprovalDialog, type BobRecommendation } from '@/components/features/BobActionApprovalDialog'
 import { useBobAssistantStore } from '@/stores/bobAssistantStore'
+import { getEffectiveBobExecutionPolicy, useBobExecutionPolicyStore } from '@/stores/bobExecutionPolicyStore'
 import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
 import { useBobActionApproval } from '@/hooks/useBobActionApproval'
@@ -20,6 +21,7 @@ import { supabase } from '@/lib/supabase'
 import { BrainCircuit, CheckCircle2, ClipboardList, FlaskConical, Loader2, MapPinned, Mic, MicOff, Paintbrush2, Play, Radio, Route, Send, Volume2, VolumeX, Wrench, Github, ShieldAlert, PhoneOff, SignalHigh, Stethoscope, XCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import { edgeFunctions } from '@/lib/edgeFunctions'
+import { assertBobMutationAccess } from '@/lib/bobMutationCatalog'
 import { smokeTests, dataVerification, performanceTests, runBugFixDeepDive } from '@/lib/testUtils'
 import { consumeLatestBobCollaborationPacket, publishBobResponse, type BobCollaborationPacket } from '@/lib/bobCollaboration'
 import { BOB_PROJECT_KNOWLEDGE } from '@/lib/bobKnowledgeBase'
@@ -63,6 +65,16 @@ type ChatMessage = {
   role: 'user' | 'assistant'
   text: string
   createdAt: string
+  actionChecklist?: string[]
+  executionReview?: {
+    currentRoute?: string | null
+    matchedRoutes?: string[]
+    matchedEntities?: string[]
+    candidateMutationContracts?: string[]
+    requestedMutationContract?: string | null
+    mutationAccess?: { allowed: boolean; reason: string } | null
+    policyMode?: string
+  }
 }
 
 type PlanType =
@@ -501,6 +513,17 @@ export default function BobAssistantStudio() {
 
   const [chatInput, setChatInput] = useState('')
   const [chat, setChat] = useState<ChatMessage[]>([])
+  const [completedChecklist, setCompletedChecklist] = useState<Record<string, boolean>>({})
+    const isPolicyManager = user?.role === 'master' || user?.role === 'grand_master'
+    const policyMode = useBobExecutionPolicyStore((state) => state.mode)
+    const setPolicyMode = useBobExecutionPolicyStore((state) => state.setMode)
+    const enforceSchemaCheck = useBobExecutionPolicyStore((state) => state.enforceSchemaCheck)
+    const setEnforceSchemaCheck = useBobExecutionPolicyStore((state) => state.setEnforceSchemaCheck)
+    const enforceHardSections = useBobExecutionPolicyStore((state) => state.enforceHardSections)
+    const setEnforceHardSections = useBobExecutionPolicyStore((state) => state.setEnforceHardSections)
+    const showActionChecklist = useBobExecutionPolicyStore((state) => state.showActionChecklist)
+    const setShowActionChecklist = useBobExecutionPolicyStore((state) => state.setShowActionChecklist)
+    const effectivePolicy = getEffectiveBobExecutionPolicy()
   const [pendingCommandConfirmation, setPendingCommandConfirmation] = useState<{
     command: BobCommand
     requestedAt: string
@@ -1218,6 +1241,18 @@ export default function BobAssistantStudio() {
       return
     }
 
+    if (effectivePolicy.mode === 'officer_assist' && command.intent !== 'unknown') {
+      const restrictedMsg: ChatMessage = {
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        text: 'Officer assist mode is active. I can assess and prepare task steps, but execution commands are restricted. Please escalate to master/grand master for run actions.',
+        createdAt: new Date().toISOString(),
+      }
+      setChat((prev) => [...prev, restrictedMsg])
+      setChatInput('')
+      return
+    }
+
     if (command.intent !== 'unknown' && commandPolicy.requiresApproval && !isConfirmCommand) {
       const promptMsg: ChatMessage = {
         id: crypto.randomUUID(),
@@ -1267,6 +1302,13 @@ export default function BobAssistantStudio() {
     }
 
     if (command.intent === 'run_diagnostics' && !commandPolicy.requiresApproval) {
+      const mutationAccess = assertBobMutationAccess('run_grandmaster_diagnostics', effectivePolicy.mode)
+      if (!mutationAccess.allowed) {
+        pushAssistantReply(`Diagnostics command blocked by catalog policy: ${mutationAccess.reason}`)
+        setThinking(false)
+        return
+      }
+
       try {
         const { data, error } = await edgeFunctions.grandmasterStudio({ action: 'doctor_health' })
         if (error) {
@@ -1326,6 +1368,7 @@ export default function BobAssistantStudio() {
         context: {
           tone,
           source: 'bob-studio',
+          currentRoute: window.location.pathname,
           privacy: {
             expressPermission: expressUserDataPermission,
             permittedUserIdentity: permittedUserIdentity || null,
@@ -1362,6 +1405,10 @@ export default function BobAssistantStudio() {
         role: 'assistant',
         text: replyText,
         createdAt: new Date().toISOString(),
+        actionChecklist: Array.isArray((data as any)?.actionChecklist)
+          ? ((data as any).actionChecklist as string[])
+          : [],
+        executionReview: (data as any)?.executionReview,
       }
 
       setChat((prev) => [...prev, bobMsg])
@@ -1386,6 +1433,7 @@ export default function BobAssistantStudio() {
         assistantReply: replyText,
         currentRoute: window.location.pathname,
         destinationHint: destination || null,
+        executionReview: (data as any)?.executionReview ?? null,
       })
 
       // Gateway-side learning ingest (privacy-first): only when explicit
@@ -1477,6 +1525,7 @@ export default function BobAssistantStudio() {
         assistantReply: replyText,
         currentRoute: window.location.pathname,
         destinationHint: destination || null,
+        executionReview: null,
       })
 
       if (expressUserDataPermission) {
@@ -2411,6 +2460,11 @@ export default function BobAssistantStudio() {
   }
 
   const executeGenerateCodeChangeTask = async () => {
+    const mutationAccess = assertBobMutationAccess('queue_bob_code_change_task', effectivePolicy.mode)
+    if (!mutationAccess.allowed) {
+      throw new Error(mutationAccess.reason)
+    }
+
     const targetPaths = codeChangeRequest.targetPaths
       .split(',')
       .map((p) => p.trim())
@@ -3488,6 +3542,39 @@ export default function BobAssistantStudio() {
                 </div>
               )}
 
+              <div className="rounded-lg border bg-muted/30 px-3 py-3 space-y-2">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div className="text-sm font-medium">Execution Policy</div>
+                  <Badge variant="outline">Effective: {effectivePolicy.mode}</Badge>
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  Role: {effectivePolicy.role} · Title: {effectivePolicy.title || 'not set'}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button size="sm" variant={policyMode === 'auto' ? 'default' : 'outline'} onClick={() => setPolicyMode('auto')} disabled={!isPolicyManager || thinking}>Auto</Button>
+                  <Button size="sm" variant={policyMode === 'owner_full' ? 'default' : 'outline'} onClick={() => setPolicyMode('owner_full')} disabled={!isPolicyManager || thinking}>Owner Full</Button>
+                  <Button size="sm" variant={policyMode === 'master_balanced' ? 'default' : 'outline'} onClick={() => setPolicyMode('master_balanced')} disabled={!isPolicyManager || thinking}>Master Balanced</Button>
+                  <Button size="sm" variant={policyMode === 'officer_assist' ? 'default' : 'outline'} onClick={() => setPolicyMode('officer_assist')} disabled={!isPolicyManager || thinking}>Officer Assist</Button>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className="flex items-center justify-between rounded border px-2 py-1.5">
+                    <Label className="text-xs">Schema checks</Label>
+                    <Switch checked={enforceSchemaCheck} onCheckedChange={setEnforceSchemaCheck} disabled={!isPolicyManager || thinking} />
+                  </div>
+                  <div className="flex items-center justify-between rounded border px-2 py-1.5">
+                    <Label className="text-xs">Hard section rules</Label>
+                    <Switch checked={enforceHardSections} onCheckedChange={setEnforceHardSections} disabled={!isPolicyManager || thinking} />
+                  </div>
+                  <div className="flex items-center justify-between rounded border px-2 py-1.5">
+                    <Label className="text-xs">Action checklist</Label>
+                    <Switch checked={showActionChecklist} onCheckedChange={setShowActionChecklist} disabled={!isPolicyManager || thinking} />
+                  </div>
+                </div>
+                {!isPolicyManager && (
+                  <div className="text-xs text-muted-foreground">Manual restriction controls are available for master and grand master roles.</div>
+                )}
+              </div>
+
               <div className="h-[45vh] min-h-[200px] overflow-auto rounded border p-3 space-y-2 bg-muted/20">
                 {chat.length === 0 && !thinking ? (
                   <div className="text-sm text-muted-foreground">No messages yet. Ask Bob for import help, directions, or operational guidance.</div>
@@ -3500,6 +3587,51 @@ export default function BobAssistantStudio() {
                       <div className={`max-w-[85%] rounded px-3 py-2 text-sm ${message.role === 'assistant' ? 'bg-primary text-primary-foreground mr-auto' : 'bg-background border ml-auto text-right'}`}>
                         <div className="text-[11px] opacity-80 mb-1">{message.role === 'assistant' ? displayName : 'You'}</div>
                         <div className="text-left">{message.text}</div>
+                        {message.role === 'assistant' && !!message.actionChecklist?.length && (
+                          <div className="mt-2 rounded border border-white/40 bg-white/10 p-2 space-y-1">
+                            <div className="text-xs font-semibold">Action Checklist</div>
+                            {message.actionChecklist.map((task, index) => {
+                              const key = `${message.id}-${index}`
+                              const done = !!completedChecklist[key]
+                              return (
+                                <button
+                                  key={key}
+                                  type="button"
+                                  className="block w-full text-left text-xs rounded border border-white/30 px-2 py-1 hover:bg-white/10"
+                                  onClick={() => setCompletedChecklist((prev) => ({ ...prev, [key]: !done }))}
+                                >
+                                  {done ? '[x]' : '[ ]'} {task}
+                                </button>
+                              )
+                            })}
+                          </div>
+                        )}
+                        {message.role === 'assistant' && !!message.executionReview && (
+                          <div className="mt-2 rounded border border-white/40 bg-white/10 p-2 space-y-1 text-xs">
+                            <div className="font-semibold">Execution Review</div>
+                            <div>Policy mode: {message.executionReview.policyMode || 'unknown'}</div>
+                            {!!message.executionReview.currentRoute && (
+                              <div>Current route: {message.executionReview.currentRoute}</div>
+                            )}
+                            {!!message.executionReview.matchedRoutes?.length && (
+                              <div>Matched routes: {message.executionReview.matchedRoutes.join(', ')}</div>
+                            )}
+                            {!!message.executionReview.matchedEntities?.length && (
+                              <div>Matched entities: {message.executionReview.matchedEntities.join(', ')}</div>
+                            )}
+                            {!!message.executionReview.candidateMutationContracts?.length && (
+                              <div>Candidate contracts: {message.executionReview.candidateMutationContracts.join(', ')}</div>
+                            )}
+                            {!!message.executionReview.requestedMutationContract && (
+                              <div>
+                                Requested contract: {message.executionReview.requestedMutationContract}
+                                {message.executionReview.mutationAccess
+                                  ? ` (${message.executionReview.mutationAccess.allowed ? 'allowed' : 'blocked'})`
+                                  : ''}
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))
