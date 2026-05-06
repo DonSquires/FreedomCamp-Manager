@@ -1,13 +1,26 @@
 # Railway Services Authority Map
 
-**Updated:** April 19, 2026  
+**Updated:** May 6, 2026  
 **Purpose:** Current source of truth for Railway ownership after the Voice VPS + RunPod Serverless migration.
 
 ## Active Railway Scope
 
-Railway is now used **strictly for the Proxy service / IP address hosting**.
+Railway hosts two active production services: the Proxy and the Ollama inference instance.
 
 ### Active Service: Proxy Server (`proxy-server/` — NZSCV/MotorWeb)
+
+> Manages vehicle registration lookups.
+
+### Active Service: Ollama (`ollama-production-a142.up.railway.app`)
+
+| Property | Value |
+|---|---|
+| **Owns** | LLM inference for Bob chat and speech intent |
+| **Runtime** | Ollama v0.20.2, CPU, 22 GiB RAM, us-west2 |
+| **Used by** | `runpod-worker/handler.py` via `OLLAMA_EXTERNAL_URL`; speech-router `INTENT_URL` |
+| **Public URL** | `https://ollama-production-a142.up.railway.app` |
+
+> This is a live production service. Do not retire without a validated replacement.
 
 | Property | Value |
 |---|---|
@@ -25,8 +38,7 @@ These workloads were intentionally migrated off Railway:
 
 | Service | New Home | Status |
 |---|---|---|
-| Bob inference | RunPod Serverless endpoint | Active on RunPod |
-| Ollama inference | RunPod Serverless endpoint | Active on RunPod |
+| Bob inference gateway | RunPod Serverless endpoint | Active on RunPod |
 | PTT signaling | Voice VPS (`72.61.123.97`) | Active on Voice VPS |
 
 ## Secrets (Railway)
@@ -41,4 +53,6 @@ Only proxy-related Railway secrets should be used for active deploys:
 
 ## Guardrail
 
-Do not add new Railway deploy workflows/config for Bob, Ollama, or PTT.
+- Do not add new Railway deploy workflows for PTT (lives on Voice VPS).
+- Ollama on Railway is intentional and production. Changes to it require an ADR.
+- Do not move Ollama off Railway without benchmarking the replacement first.
