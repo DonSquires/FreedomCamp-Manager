@@ -185,6 +185,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS tr_contract_number ON crm_contracts;
 CREATE TRIGGER tr_contract_number
   BEFORE INSERT ON crm_contracts
   FOR EACH ROW
@@ -329,6 +330,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS tr_invoice_number ON crm_invoices;
 CREATE TRIGGER tr_invoice_number
   BEFORE INSERT ON crm_invoices
   FOR EACH ROW
@@ -477,6 +479,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS tr_payment_update_invoice ON crm_payments;
 CREATE TRIGGER tr_payment_update_invoice
   AFTER INSERT OR UPDATE ON crm_payments
   FOR EACH ROW
