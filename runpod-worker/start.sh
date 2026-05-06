@@ -19,6 +19,8 @@ ALLOW_LOCAL_OLLAMA="${RUNPOD_ALLOW_LOCAL_OLLAMA:-false}"
 # Determine if we're using external or local Ollama.
 # Serverless production is external-Ollama-first. Local Ollama must be
 # explicitly re-enabled with RUNPOD_ALLOW_LOCAL_OLLAMA=true.
+# Known external Ollama: https://ollama-production-a142.up.railway.app (Railway, us-west2)
+# Set OLLAMA_EXTERNAL_URL to this value on the RunPod endpoint env.
 OLLAMA_EXTERNAL_URL="${OLLAMA_EXTERNAL_URL:-}"
 OLLAMA_BASE_URL="${OLLAMA_BASE_URL:-}"
 LOCAL_OLLAMA_URL="http://127.0.0.1:11434"
@@ -37,10 +39,12 @@ elif [ "$ALLOW_LOCAL_OLLAMA" = "true" ]; then
   USE_LOCAL_OLLAMA="true"
   echo "[start] Local Ollama explicitly enabled at $LOCAL_OLLAMA_URL"
 else
-  echo "[start] ERROR: No external Ollama configured for this serverless worker."
-  echo "[start] Set OLLAMA_EXTERNAL_URL (preferred) or a non-local OLLAMA_BASE_URL."
+  echo "[start] WARNING: No external Ollama configured for this serverless worker."
+  echo "[start] Worker will remain online in degraded mode so RunPod health does not fail hard during misconfiguration."
+  echo "[start] Set OLLAMA_EXTERNAL_URL (preferred) or a non-local OLLAMA_BASE_URL to restore chat/vision inference."
   echo "[start] Only set RUNPOD_ALLOW_LOCAL_OLLAMA=true if you are intentionally rebuilding a local-Ollama image."
-  exit 1
+  RESOLVED_OLLAMA_URL=""
+  USE_LOCAL_OLLAMA="false"
 fi
 
 if [ -z "${RUNPOD_PREP_REPO_NODE_DEPS_ON_START+x}" ]; then
@@ -246,6 +250,11 @@ fi
 INFERENCE_SVC_DIR="${REPO_DIR}/inference-service"
 BOB_INFERENCE_SERVICE="${BOB_INFERENCE_SERVICE:-true}"
 if [ "$BOB_INFERENCE_SERVICE" = "true" ] && [ -f "${INFERENCE_SVC_DIR}/server.js" ]; then
+  if [ -z "$RESOLVED_OLLAMA_URL" ]; then
+    echo "[start] inference-service skipped: no Ollama endpoint resolved for serverless worker"
+    exec python3 handler.py
+  fi
+
   VISION_MODEL="${OLLAMA_VISION_MODEL:-llama3.2-vision:11b}"
   if [ "$USE_LOCAL_OLLAMA" = "true" ]; then
     echo "[start] Ensuring vision model is available: ${VISION_MODEL}"

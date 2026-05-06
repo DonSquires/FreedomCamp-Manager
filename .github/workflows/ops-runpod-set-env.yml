@@ -1,0 +1,130 @@
+name: Ops – RunPod Set Endpoint Env Vars
+
+# Patches environment variable overrides on the fieldops-ai-engine serverless
+# endpoint via the RunPod REST API.  Run this once after initial deployment to
+# wire the Railway Ollama instance, or any time env vars need to be updated
+# without rebuilding the image.
+#
+# Required secrets:
+#   RUNPOD_API_KEY         — RunPod personal API key with endpoint admin access
+#   RUNPOD_ENDPOINT_ID     — Serverless endpoint ID (e.g. n0bp1ifmq01cx2)
+#   OLLAMA_EXTERNAL_URL    — Full HTTPS URL for the external Ollama service
+#                            (e.g. https://ollama-production-a142.up.railway.app)
+#
+# The workflow sets OLLAMA_EXTERNAL_URL on the endpoint so workers immediately
+# resolve the correct Ollama instance without a new image build.
+
+on:
+  workflow_dispatch:
+    inputs:
+      ollama_url:
+        description: >
+          External Ollama URL to set on the endpoint.
+          Defaults to the Railway Ollama instance stored in OLLAMA_EXTERNAL_URL secret.
+        required: false
+        type: string
+        default: ''
+      dry_run:
+        description: 'Dry run — print the payload without calling the API'
+        required: false
+        type: boolean
+        default: false
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  set-env:
+    name: Set RunPod Endpoint Env Vars
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check required secrets
+        env:
+          RUNPOD_API_KEY: ${{ secrets.RUNPOD_API_KEY }}
+          RUNPOD_ENDPOINT_ID: ${{ secrets.RUNPOD_ENDPOINT_ID }}
+        run: |
+          if [ -z "${RUNPOD_API_KEY:-}" ]; then
+            echo "::error::RUNPOD_API_KEY secret is not set"
+            exit 1
+          fi
+          if [ -z "${RUNPOD_ENDPOINT_ID:-}" ]; then
+            echo "::error::RUNPOD_ENDPOINT_ID secret is not set"
+            exit 1
+          fi
+          echo "✅ Required secrets present"
+
+      - name: Resolve Ollama URL
+        id: resolve
+        env:
+          INPUT_URL: ${{ inputs.ollama_url }}
+          SECRET_URL: ${{ secrets.OLLAMA_EXTERNAL_URL }}
+        run: |
+          OLLAMA_URL="${INPUT_URL:-$SECRET_URL}"
+          if [ -z "${OLLAMA_URL:-}" ]; then
+            echo "::error::No Ollama URL provided. Set the OLLAMA_EXTERNAL_URL secret or pass ollama_url input."
+            exit 1
+          fi
+          echo "ollama_url=${OLLAMA_URL}" >> "$GITHUB_OUTPUT"
+          echo "Resolved Ollama URL: ${OLLAMA_URL}"
+
+      - name: Build JSON payload
+        id: payload
+        env:
+          OLLAMA_URL: ${{ steps.resolve.outputs.ollama_url }}
+        run: |
+          PAYLOAD=$(jq -n \
+            --arg ollama_url "$OLLAMA_URL" \
+            '{
+              "env": [
+                {"key": "OLLAMA_EXTERNAL_URL", "value": $ollama_url}
+              ]
+            }')
+          echo "payload<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$PAYLOAD" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+          echo "Generated payload:"
+          echo "$PAYLOAD"
+
+      - name: Dry run — show payload
+        if: ${{ inputs.dry_run == true }}
+        run: |
+          echo "::notice::DRY RUN — no API call made"
+          echo "${{ steps.payload.outputs.payload }}"
+
+      - name: Patch RunPod endpoint env
+        if: ${{ inputs.dry_run != true }}
+        env:
+          RUNPOD_API_KEY: ${{ secrets.RUNPOD_API_KEY }}
+          RUNPOD_ENDPOINT_ID: ${{ secrets.RUNPOD_ENDPOINT_ID }}
+        run: |
+          HTTP_STATUS=$(curl -s -o /tmp/runpod_response.json -w "%{http_code}" \
+            -X PATCH \
+            "https://api.runpod.io/v2/endpoint/${RUNPOD_ENDPOINT_ID}" \
+            -H "Authorization: Bearer ${RUNPOD_API_KEY}" \
+            -H "Content-Type: application/json" \
+            -d '${{ steps.payload.outputs.payload }}')
+
+          cat /tmp/runpod_response.json
+
+          if [ "$HTTP_STATUS" -ge 400 ]; then
+            echo "::error::RunPod API returned HTTP ${HTTP_STATUS}"
+            exit 1
+          fi
+          echo "✅ Endpoint env updated — HTTP ${HTTP_STATUS}"
+
+      - name: Verify endpoint health
+        if: ${{ inputs.dry_run != true }}
+        env:
+          RUNPOD_API_KEY: ${{ secrets.RUNPOD_API_KEY }}
+          RUNPOD_ENDPOINT_ID: ${{ secrets.RUNPOD_ENDPOINT_ID }}
+        run: |
+          sleep 5
+          HTTP_STATUS=$(curl -s -o /tmp/runpod_health.json -w "%{http_code}" \
+            "https://api.runpod.io/v2/endpoint/${RUNPOD_ENDPOINT_ID}" \
+            -H "Authorization: Bearer ${RUNPOD_API_KEY}")
+
+          cat /tmp/runpod_health.json
+          echo "Endpoint fetch HTTP status: ${HTTP_STATUS}"
