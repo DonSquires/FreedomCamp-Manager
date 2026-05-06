@@ -1,17 +1,17 @@
 {
-  "timestamp": "2026-05-03T11:24:50.319Z",
-  "sourceFile": "/workspaces/FreedomCamp-Manager/docs/UI_UX_ENTERPRISE_FORWARD_PLAN_2026-05-03.md",
-  "reviewArtifact": "/workspaces/FreedomCamp-Manager/data/dr-bob-reviews/UI_UX_ENTERPRISE_FORWARD_PLAN_2026-05-03.md.2026-05-03T11-24-50-303Z.json",
-  "escalationArtifact": "/workspaces/FreedomCamp-Manager/data/dr-bob-escalations/escalation.2026-05-03T11-24-50-318Z.json",
-  "structured": true,
+  "timestamp": "2026-05-06T07:06:43.850Z",
+  "sourceFile": "/workspaces/FreedomCamp-Manager/docs/SELF_HOSTED_ENTERPRISE_SPEECH_SPEC_2026-05-06.md",
+  "reviewArtifact": "/workspaces/FreedomCamp-Manager/data/dr-bob-reviews/SELF_HOSTED_ENTERPRISE_SPEECH_SPEC_2026-05-06.md.2026-05-06T07-06-43-835Z.json",
+  "escalationArtifact": "/workspaces/FreedomCamp-Manager/data/dr-bob-escalations/escalation.2026-05-06T07-06-43-849Z.json",
+  "structured": false,
   "decision": "needs-revision",
-  "reason": "blocker-findings",
-  "summary": "The plan references future artifacts and services that are not grounded in the current system_state.json, which could lead to ungrounded assumptions.",
+  "reason": "unstructured-review",
+  "summary": "Dr Bob returned an unstructured review. Inspect the raw response.",
   "findingsCount": 1,
-  "topFinding": "Future artifact references without grounding",
+  "topFinding": "Unstructured review response",
   "selfHealAttempted": false,
   "selfHealSuccess": false,
   "handoffRequired": true,
   "copilotActionHint": "Investigate escalation artifact and implement targeted fix",
-  "responsePreview": "{\"delayTime\":18,\"executionTime\":1618,\"id\":\"sync-8be92c3b-4574-4c4a-b825-da698d300cbf-u2\",\"output\":{\"message\":\"{\\n  \\\"decision\\\": \\\"needs-revision\\\",\\n  \\\"summary\\\": \\\"The plan references future artifacts and services that are not grounded in the current system_state.json, which could lead to ungroun"
+  "responsePreview": "{\"delayTime\":792,\"executionTime\":1064,\"id\":\"sync-9c1f37c7-f29e-44d1-82d5-ca9eecb5e4fb-u2\",\"output\":{\"message\":\"{\\n  \\\"json\\\": {\\n    \\\"findings\\\": [],\\n    \\\"verificationChecks\\\": [\\n      \\\"Ensure all speech requests include authenticated user and organization context.\\\",\\n      \\\"Verify advisory s"
 }

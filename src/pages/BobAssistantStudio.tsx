@@ -58,6 +58,7 @@ import {
   persistConversationTurnRemote,
 } from '@/lib/bobLearningMemory'
 import { classifyBobCommand, evaluateBobCommandPolicy, type BobCommand } from '@/lib/bobCommandBus'
+import { useSpeechIntent, type SpeechIntentResult } from '@/hooks/useSpeechIntent'
 import { radioTranslationService } from '@/lib/radio/radioTranslationService'
 
 type ChatMessage = {
@@ -475,6 +476,21 @@ function BobSketchPad() {
 export default function BobAssistantStudio() {
   const navigate = useNavigate()
   const user = useAuthStore((state) => state.user)
+  // ── Ticket 8: Advisory speech-intent pilot (user-scoped only) ──────────
+  const speechIntentPilotEnabled = import.meta.env.VITE_SPEECH_INTENT_PILOT === 'true'
+  const {
+    state: speechIntentState,
+    startListening: startSpeechIntent,
+    stopListening: stopSpeechIntent,
+    result: speechIntentResult,
+    error: speechIntentError,
+    reset: resetSpeechIntent,
+  } = useSpeechIntent({
+    onResult: (r: SpeechIntentResult) => {
+      toast.success(`Intent detected: ${r.intent.intent} (${Math.round(r.intent.confidence * 100)}% confidence)`)
+    },
+    onError: (err: string) => toast.error(`Voice intent error: ${err}`),
+  })
   const { organizationId } = useGlobalFiltersStore()
   const isGrandMaster = user?.role === 'grand_master'
   const bobActionApproval = useBobActionApproval()
@@ -3672,6 +3688,48 @@ export default function BobAssistantStudio() {
                   {speechEnabled ? <Volume2 className="h-4 w-4 mr-1" /> : <VolumeX className="h-4 w-4 mr-1" />} Test Voice
                 </Button>
               </div>
+
+                {/* ── Ticket 8: Speech-Intent Advisory Pilot ─────────────────────── */}
+                {speechIntentPilotEnabled && (
+                  <div className="space-y-2">
+                    <div className="flex gap-2 flex-wrap">
+                      {speechIntentState === 'listening' ? (
+                        <Button variant="secondary" onClick={stopSpeechIntent}>
+                          <MicOff className="h-4 w-4 mr-1" /> Stop Voice Intent
+                        </Button>
+                      ) : (
+                        <Button variant="secondary" onClick={startSpeechIntent} disabled={speechIntentState === 'processing'}>
+                          {speechIntentState === 'processing'
+                            ? <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                            : <Mic className="h-4 w-4 mr-1" />}
+                          {speechIntentState === 'processing' ? 'Analysing…' : 'Voice Intent (Pilot)'}
+                        </Button>
+                      )}
+                      {speechIntentResult && (
+                        <Button variant="ghost" size="sm" onClick={resetSpeechIntent}>Clear</Button>
+                      )}
+                    </div>
+
+                    {speechIntentError && (
+                      <div className="text-sm text-destructive rounded-md border border-destructive/30 p-2">
+                        {speechIntentError}
+                      </div>
+                    )}
+
+                    {speechIntentResult && (
+                      <div className="rounded-md border bg-muted/40 p-3 space-y-1 text-sm">
+                        <div className="font-medium text-muted-foreground uppercase tracking-wide text-xs">Advisory — Speech Intent (read-only)</div>
+                        <div><span className="font-semibold">Transcript:</span> {speechIntentResult.transcript}</div>
+                        <div><span className="font-semibold">Intent:</span> {speechIntentResult.intent.intent}</div>
+                        <div><span className="font-semibold">Confidence:</span> {Math.round(speechIntentResult.intent.confidence * 100)}%</div>
+                        <div><span className="font-semibold">Summary:</span> {speechIntentResult.intent.summary}</div>
+                        {speechIntentResult.intent.needs_confirmation && (
+                          <Badge variant="outline" className="text-amber-600 border-amber-400">Confirmation required before action</Badge>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
             </CardContent>
           </Card>
 

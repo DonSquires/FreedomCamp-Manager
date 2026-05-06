@@ -1,5 +1,5 @@
 {
-  "checked_at": "2026-05-06T04:03:55.533Z",
+  "checked_at": "2026-05-06T09:05:26.254Z",
   "window_minutes": 20,
   "status": "stale",
   "source": "live-session-diagnostics-summary",
@@ -9,6 +9,6 @@
   "offline_events": 0,
   "console_error_count": 0,
   "unhandled_count": 0,
-  "latest_route": "/admin/dashboard",
+  "latest_route": "/",
   "top_event_types": []
 }
