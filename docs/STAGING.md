@@ -220,9 +220,9 @@ Fill this before stopping work:
 
 Latest Session Snapshot (Staging Section 6.F Complete — 2026-05-07):
 
-- Timestamp (NZ): 2026-05-07 22:08 NZST
+- Timestamp (NZ): 2026-05-07 22:14 NZST
 - Current branch: copilot/546-continue-from-noop
-- HEAD SHA: 4743acccd513aa90d9b88f63ca7e71f812671420
+- HEAD SHA: 71ff838955a919fdf2c1c4f1535857ce6aa62ed6
 - Working tree status (`git status -sb`): clean (`## copilot/546-continue-from-noop...origin/copilot/546-continue-from-noop`)
 - Scope completed:
   - Re-ran the restart checklist truth sync and local quality gates from `docs/STAGING.md`.
