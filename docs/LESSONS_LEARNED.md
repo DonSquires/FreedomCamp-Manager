@@ -13,6 +13,20 @@ Use this file to record concrete mistakes Bob and Dr Bob found during adversaria
 
 ## Current Lessons
 
+- Date: 2026-05-07
+- Trigger: Playwright Bob UI regression (`tests/e2e/governance-bob-regression.spec.ts`) showing blank `/login` and `/bob` pages.
+- Mistake: duplicate `/open-shifts` entries existed in both `src/navigation/routeManifest.ts` and `src/App.tsx`, causing route manifest validation to throw during app boot.
+- Risk: full app startup failure in dev/prod, blank-page regressions, and misleading route-level debugging.
+- Fix: removed duplicate route ID/path registrations and revalidated startup plus Bob/login route tests.
+- Prevention Rule: when adding routes, run a manifest uniqueness check (routeId + path) and verify startup in browser before running deeper feature tests.
+
+- Date: 2026-05-07
+- Trigger: Browser console/runtime errors on Bob Assistant (`Cannot read properties of undefined (reading 'toFixed')`) and CSP warnings in production.
+- Mistake: render path assumed numeric values (`speechRate`, `confidence`) were always defined; CSP policy did not include Vercel feedback script origin.
+- Risk: render crashes in `BobAssistantStudio`, error-boundary fallbacks, and noisy console warnings that hide real defects.
+- Fix: guarded `toFixed` calls with null-safe defaults, added migration fallback for speech rate, updated CSP `script-src` with `https://vercel.live`, and added `mobile-web-app-capable` meta tag.
+- Prevention Rule: every user-controlled or persisted numeric render value must have a safe default, and CSP updates must accompany any newly introduced third-party script origins.
+
 - Date: 2026-05-04
 - Trigger: Repeated synthetic monitor bug-report bursts (#483-#502).
 - Mistake: health workflow treated Bob provider degradation as a full platform outage even when frontend, Supabase, and Playwright checks passed.
