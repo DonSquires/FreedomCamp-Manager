@@ -2040,7 +2040,40 @@ Latest Session Snapshot (Phase A Org-Isolation Gate — Explicit Deployment Bloc
 4. ✅ Execution success and failure write distinct event outcomes (`executed`, `execution_failed`).
 5. ✅ Bob status cockpit now surfaces the structured approval queue with visible due-state badges.
 
-**Next session:** Phase D Slice D2 — Translation / Speech runtime boundaries and degraded-mode controls.
+---
+
+### Session Snapshot (Phase D2 Translation/Speech Runtime Boundaries — 2026-05-07):
+
+- Timestamp (NZ): 2026-05-07 NZST
+- Current branch: copilot/548-define-post-sprint-42-realignment-phases
+- Scope: Phase D Slice D2 — translation/speech runtime boundary contracts, degraded-mode bounded responses, and audit persistence checks.
+
+**Artifacts:**
+
+| File | Description |
+|---|---|
+| `tests/e2e/phase-d2-translation-speech-boundaries.spec.ts` | D2 API gate spec covering translate-message, synthesize-speech, transcribe-audio bounded degraded outcomes, plus speech-to-intent audit persistence checks. |
+| `.github/workflows/ci-phase-d2-translation-speech-gate.yml` | Path-filtered D2 CI gate for translation/speech runtime boundary contracts. |
+
+**Phase D2 Gate Checklist:**
+
+| Item | Status | Evidence |
+|---|---|---|
+| D2 translation/speech API contract suite | ✅ DONE | `tests/e2e/phase-d2-translation-speech-boundaries.spec.ts` |
+| D2 degraded-mode bounded outcomes | ✅ DONE | translate/synthesize/transcribe assertions accept contract success or bounded 502/503 fallback paths |
+| D2 speech audit persistence verification | ✅ DONE | speech-to-intent call verifies `speech_audit_events` increments when router path executes |
+| D2 CI gate workflow | ✅ DONE | `.github/workflows/ci-phase-d2-translation-speech-gate.yml` |
+| Build passes (`bun run build`) | ✅ | Verified locally |
+| Lint passes (`bun run lint`) | ✅ | Verified locally |
+| Targeted D2 API suite | ✅/⏭️ | Runnable locally; environment-dependent endpoint states handled with bounded assertions |
+
+**D2 contract outcomes:**
+1. ✅ Translation and speech endpoints now have explicit Phase D2 gate coverage for both success and degraded responses.
+2. ✅ Runtime degradation paths are asserted as bounded outcomes instead of silent/unstructured failures.
+3. ✅ Speech-to-intent audit persistence is verified when the router execution path is available.
+4. ✅ D2 CI gate is path-filtered and tied directly to translation/speech contract files.
+
+**Next session:** Phase D Slice D3 — Active-org transition services, hybrid handshake, offline replay and reconnect hardening.
 
 ---
 
