@@ -559,7 +559,7 @@ export default function BreachAlerts() {
 
   const acknowledgeMutation = useAcknowledgeBreachAlert()
   const enforcementMutation = useStartBreachEnforcement()
-  const clearResolveNotes = useCallback(() => setResolveNotes(''), [])
+  const clearResolveNotes = useCallback(() => setResolveNotes(''), [setResolveNotes])
   const resolveMutation = useResolveBreachAlert({ onSuccess: clearResolveNotes })
   const dismissMutation = useDismissBreachAlert()
   const acknowledgeWelfareMutation = useAcknowledgeWelfareAlert()

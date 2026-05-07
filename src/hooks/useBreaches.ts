@@ -63,7 +63,7 @@ function firstString(...values: unknown[]): string | null {
 export function extractObservationId(alert: DeduplicatableBreachAlert | null | undefined): string | null {
   const details = alert?.breach_details || {}
   return firstString(
-    alert?.observation_id ||
+    alert?.observation_id,
     details.observation_id,
     details.triggering_observation_id,
     details.source_observation_id,
@@ -105,7 +105,7 @@ function pickBestRepresentative<T extends DeduplicatableBreachAlert>(bucket: T[]
  * Returns a new array; input is not mutated.
  */
 export function deduplicateBreachAlerts<T extends DeduplicatableBreachAlert>(alerts: T[]): T[] {
-  if (!alerts || alerts.length === 0) return alerts
+  if (!alerts || alerts.length === 0) return []
 
   // Phase 1: Group by observation_id when available
   const obsBuckets = new Map<string, T[]>()
@@ -144,10 +144,13 @@ export function deduplicateBreachAlerts<T extends DeduplicatableBreachAlert>(ale
     result.push(pickBestRepresentative(bucket))
   }
 
+  const createdAtTime = new Map<T, number>()
+  for (const alert of result) {
+    createdAtTime.set(alert, alert.created_at ? new Date(alert.created_at).getTime() : 0)
+  }
+
   // Preserve the original sort order (most-recent first)
-  result.sort(
-    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
-  )
+  result.sort((a, b) => (createdAtTime.get(b) ?? 0) - (createdAtTime.get(a) ?? 0))
 
   return result
 }
