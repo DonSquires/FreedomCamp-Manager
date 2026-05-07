@@ -120,7 +120,7 @@ function sanitizeCloudAssistantSettings(input: unknown): Partial<BobAssistantPer
     speechStyle: candidate.speechStyle === 'default' || candidate.speechStyle === 'bridge_lead' || candidate.speechStyle === 'wise_mentor'
       ? candidate.speechStyle
       : undefined,
-    speechRate: typeof candidate.speechRate === 'number' ? Math.max(0.7, Math.min(1.3, candidate.speechRate)) : undefined,
+    speechRate: typeof candidate.speechRate === 'number' ? Math.max(0.7, Math.min(1.3, candidate.speechRate)) : 1,
     speechEnabled: typeof candidate.speechEnabled === 'boolean' ? candidate.speechEnabled : undefined,
     autoSpeakReplies: typeof candidate.autoSpeakReplies === 'boolean' ? candidate.autoSpeakReplies : undefined,
     voiceActivatedConversation: typeof candidate.voiceActivatedConversation === 'boolean' ? candidate.voiceActivatedConversation : undefined,

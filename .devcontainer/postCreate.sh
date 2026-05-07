@@ -105,10 +105,35 @@ install_ripgrep_and_alias() {
   fi
 }
 
+install_browser_test_runtime() {
+  if command -v chromium >/dev/null 2>&1 || command -v chromium-browser >/dev/null 2>&1; then
+    log "system Chromium already installed"
+    return 0
+  fi
+
+  if command -v apk >/dev/null 2>&1; then
+    log "Installing Alpine browser runtime for Playwright"
+    sudo apk update
+    sudo apk add --no-cache chromium ttf-freefont
+    return 0
+  fi
+
+  if command -v apt-get >/dev/null 2>&1; then
+    log "Installing Debian/Ubuntu browser runtime for Playwright"
+    sudo apt-get update
+    sudo apt-get install -y chromium-browser fonts-freefont-ttf || \
+      sudo apt-get install -y chromium fonts-freefont-ttf
+    return 0
+  fi
+
+  log "No supported package manager found for installing browser runtime"
+}
+
 log "Ensuring project env file exists"
 cp -n .env.example .env 2>/dev/null || true
 mkdir -p .runtime/bin
 ensure_shell_path
+install_browser_test_runtime
 
 log "Installing JavaScript dependencies"
 if command -v bun >/dev/null 2>&1; then

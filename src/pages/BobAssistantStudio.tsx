@@ -1401,7 +1401,7 @@ export default function BobAssistantStudio() {
             'Command bus classification active.',
             `intent=${command.intent}`,
             `safety=${command.safety}`,
-            `confidence=${command.confidence.toFixed(2)}`,
+            `confidence=${(command.confidence ?? 0).toFixed(2)}`,
             `requires_approval=${commandPolicy.requiresApproval ? 'true' : 'false'}`,
             `policy_reason=${commandPolicy.reason}`,
           ].join(' | '),
@@ -2910,7 +2910,7 @@ export default function BobAssistantStudio() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2"><BrainCircuit className="h-4 w-4" /> Bob Personality</CardTitle>
               <div className="space-y-2">
-                <Label htmlFor="speech-rate">Voice Speed ({speechRate.toFixed(2)}x)</Label>
+                <Label htmlFor="speech-rate">Voice Speed ({(speechRate ?? 1).toFixed(2)}x)</Label>
                 <Input
                   id="speech-rate"
                   type="number"

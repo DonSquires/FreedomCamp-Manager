@@ -466,12 +466,20 @@ function AccessDenied({ requiredRoles, currentRole }: { requiredRoles: string[];
 
 // Protected Route wrapper
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuthStore()
+  const { user, loading, ensureLoadingResolved } = useAuthStore()
   const location = useLocation()
 
   // Auto-connect to PTT when authenticated
   usePTTAutoConnect()
   useSessionGpsLogging()
+
+  // Safety net: if auth loading never resolves (e.g. Supabase network timeout),
+  // force-resolve after 2 s so the route guard can still redirect to /login.
+  useEffect(() => {
+    if (!loading) return
+    const t = setTimeout(ensureLoadingResolved, 2_000)
+    return () => clearTimeout(t)
+  }, [loading, ensureLoadingResolved])
 
   const hasPortalChoice = () => {
     if (typeof window === 'undefined') return false
@@ -489,6 +497,10 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
               alt="Loading"
               className="h-10 w-10 rounded-lg object-cover"
             />
+          </div>
+          <div className="space-y-2">
+            <p className="text-sm font-medium text-foreground">FieldOps Manager</p>
+            <p className="text-xs text-muted-foreground">Checking session and permissions…</p>
           </div>
           <div className="flex items-center justify-center gap-1.5">
             {[0, 1, 2].map((i) => (
@@ -672,39 +684,9 @@ export default function App() {
     }
   }, [checkSession])
 
-  // Show loading state while checking session
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 via-cyan-50/30 to-gray-50 dark:from-gray-900 dark:via-cyan-950/20 dark:to-gray-900">
-        <div className="text-center space-y-6">
-          <div className="relative inline-flex items-center justify-center">
-            {/* Outer ring */}
-            <div className="absolute h-24 w-24 rounded-full border-4 border-primary/20 animate-ping" style={{ animationDuration: '2s' }} />
-            {/* Spinning ring */}
-            <div className="absolute h-20 w-20 rounded-full border-[3px] border-transparent border-t-primary animate-spin" style={{ animationDuration: '1.2s' }} />
-            {/* Logo */}
-            <img
-              src="/iron-eagle-security-logo.jpg"
-              alt="Loading"
-              className="h-14 w-14 rounded-xl object-cover shadow-lg"
-            />
-          </div>
-          <div>
-            <p className="text-lg font-semibold text-foreground">FieldOps Manager</p>
-            <div className="flex items-center justify-center gap-1.5 mt-2">
-              {[0, 1, 2].map((i) => (
-                <div
-                  key={i}
-                  className="h-2 w-2 rounded-full bg-primary animate-pulse"
-                  style={{ animationDelay: `${i * 200}ms` }}
-                />
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    )
-  }
+  // NOTE: Do NOT gate all routes on `loading` here.
+  // Public routes (/login, /dispute, /public/*) must render immediately.
+  // ProtectedRoute handles the auth-loading state for gated pages.
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -1713,6 +1695,11 @@ export default function App() {
               </ProtectedRoute>
             }
           />
+
+          {/* Bob alias redirects — /bob, /bob-studio, /bob/assistant-studio all redirect to the canonical assistant route */}
+          <Route path="/bob" element={<ProtectedRoute><Navigate to="/bob-assistant" replace /></ProtectedRoute>} />
+          <Route path="/bob-studio" element={<ProtectedRoute><Navigate to="/bob-assistant" replace /></ProtectedRoute>} />
+          <Route path="/bob/assistant-studio" element={<ProtectedRoute><Navigate to="/bob-assistant" replace /></ProtectedRoute>} />
 
           <Route
             path="/bob-intake-queue"
