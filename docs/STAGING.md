@@ -3468,3 +3468,33 @@ The web SPA delivers SOS via the existing `officer_welfare_alerts` table + `send
 - `bun run build` → PASS (26.86s)
 
 **Next session:** Sprint 33 — B-109 PatrolSessionEventLog, B-110 RadioTranscriptLog, B-111 DisputeIntakeLog.
+
+## Phase 5 — Sprint 33 (B-109 / B-110 / B-111)
+
+### Changes
+
+- **B-109 PatrolSessionEventLog** (`/patrol-session-events-log`): log viewer for `patrol_session_events` Table (org-scoped). KPIs: Total / Checkpoint Missed / Patrol Completed / Unique Officers. Filters: event_type (typed enum), date from. Table: event_time, event_type badge, checkpoint, officer, case. Expand: route instance, notes, full IDs.
+- **B-110 RadioTranscriptLog** (`/radio-transcript-log`): log viewer for `radio_transcript_segments` View (org-scoped by `org_id`). KPIs: Total Segments / Final Segments / Avg Confidence / Languages. Filters: language, is_final, date from, text search. Table: created, sequence, language, confidence bar, final badge, text preview. Expand: transmission_id, segment range, full text.
+- **B-111 DisputeIntakeLog** (`/dispute-intake-log`): log viewer for `dispute_intake` Table (org-scoped). KPIs: Total / Homeless Review / With Evidence / Assigned. Filters: status, date from, plate search, claimant search. Table: submitted, status badge, plate, claimant, source, homeless-review badge. Expand: message, evidence, hardship, admin notes, assignment/source metadata.
+
+### Sprint 33 Board
+
+| Ticket | Page | Route | Source |
+|--------|------|-------|--------|
+| B-109 | PatrolSessionEventLog | /patrol-session-events-log | Table: patrol_session_events |
+| B-110 | RadioTranscriptLog    | /radio-transcript-log      | View: radio_transcript_segments |
+| B-111 | DisputeIntakeLog      | /dispute-intake-log        | Table: dispute_intake |
+
+- [x] `bun run lint` → PASS
+- [x] `bun run build` → PASS
+
+### Session Snapshot (Sprint 33 — 2026-05-07)
+
+- Timestamp (UTC): 2026-05-07 01:48 UTC
+- Current branch: copilot/review-doc-and-staging-files
+
+**Validation:**
+- `bun run lint` → PASS
+- `bun run build` → PASS
+
+**Next session:** Sprint 34 — B-112 RadioTtsRenderLog, B-113 HealthSafetyReportLog, B-114 NoiseSeizureLog.

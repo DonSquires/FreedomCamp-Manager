@@ -237,6 +237,10 @@ const PhotoMetadataLog      = lazy(() => import('@/pages/PhotoMetadataLog'))
 const RadioCommsEventLog    = lazy(() => import('@/pages/RadioCommsEventLog'))
 const CaseCommentLog        = lazy(() => import('@/pages/CaseCommentLog'))
 const LmrBridgeSessionLog   = lazy(() => import('@/pages/LmrBridgeSessionLog'))
+// Sprint 33: B-109–B-111
+const PatrolSessionEventLog = lazy(() => import('@/pages/PatrolSessionEventLog'))
+const RadioTranscriptLog    = lazy(() => import('@/pages/RadioTranscriptLog'))
+const DisputeIntakeLog      = lazy(() => import('@/pages/DisputeIntakeLog'))
 
 const NetworkStatusBar = lazy(() => import('@/components/features/NetworkStatusBar').then((m) => ({ default: m.NetworkStatusBar })))
 const PWAInstallPrompt = lazy(() => import('@/components/features/PWAInstallPrompt').then((m) => ({ default: m.PWAInstallPrompt })))
@@ -2379,6 +2383,10 @@ export default function App() {
           <Route path="/radio-comms-events-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><RadioCommsEventLog /></RoleRoute></ProtectedRoute>} />
           <Route path="/case-comments-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><CaseCommentLog /></RoleRoute></ProtectedRoute>} />
           <Route path="/lmr-bridge-sessions-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><LmrBridgeSessionLog /></RoleRoute></ProtectedRoute>} />
+          {/* Sprint 33: B-109–B-111 */}
+          <Route path="/patrol-session-events-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><PatrolSessionEventLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/radio-transcript-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><RadioTranscriptLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/dispute-intake-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><DisputeIntakeLog /></RoleRoute></ProtectedRoute>} />
 
           {/* CRM – Accounts (Clients + Contractors) */}
           <Route
@@ -2479,4 +2487,3 @@ export default function App() {
     </QueryClientProvider>
   )
 }
-
