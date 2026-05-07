@@ -239,6 +239,46 @@ Latest Session Snapshot (Staging Section 6.F Complete — 2026-05-07):
 - Next exact command to run:
   - `GH_PAGER=cat gh run view 25489213626 --json databaseId,status,conclusion,url`
 
+Latest Session Snapshot (Phase D3 Gate Artifacts + Phase E Kickoff Alignment — 2026-05-08):
+
+- Timestamp (NZ): 2026-05-08 10:XX NZST
+- Current branch: copilot/550-continue-phase-realignment
+- Scope completed:
+  - Added `supabase/migrations/20260710000005_phase_d3_transition_handshake_offline.sql` with:
+    - `offline_replay_events_d3` replay-attempt audit table (org + idempotency scoped).
+    - `record_offline_replay_event_d3(...)` bounded replay outcomes (`accepted` / `duplicate`) and replay conflict flag.
+  - Added D3 client hook `src/hooks/useTransitionReplayD3.ts`:
+    - transition context polling through `get_active_context(...)`
+    - replay outcome recording through `record_offline_replay_event_d3(...)`
+  - Added D3 gate spec `tests/e2e/phase-d3-transition-handshake-offline.spec.ts`:
+    - bounded handshake/context behavior (0..1 context rows)
+    - duplicate replay conflict detection
+    - org-scoped idempotency behavior
+  - Added D3 path-filtered CI gate `.github/workflows/ci-phase-d3-transition-handshake-offline-gate.yml`.
+  - Updated `docs/MODULE_ROADMAP.md` with **Next Phase Continuation — Phase E Kickoff** (E1–E4 order, progression checkpoints, completion gate requirements).
+
+- Phase D3 gate checklist:
+  | Item | Status | Evidence |
+  |---|---|---|
+  | D3 migration contract (`20260710000005`) | ✅ DONE | `offline_replay_events_d3` + `record_offline_replay_event_d3(...)` |
+  | D3 client hook | ✅ DONE | `src/hooks/useTransitionReplayD3.ts` |
+  | D3 E2E gate suite | ✅ DONE | `tests/e2e/phase-d3-transition-handshake-offline.spec.ts` |
+  | D3 CI gate workflow | ✅ DONE | `.github/workflows/ci-phase-d3-transition-handshake-offline-gate.yml` |
+  | Docs progression updated | ✅ DONE | `docs/STAGING.md`, `docs/MODULE_ROADMAP.md` |
+
+- Phase D complete review:
+  | Slice | Status |
+  |---|---|
+  | D1 Bob approval contracts | ✅ COMPLETE |
+  | D2 translation/speech boundaries | ✅ COMPLETE |
+  | D3 transition/handshake/offline replay | ✅ COMPLETE |
+  | Phase D exit gate | ✅ READY — proceed to Phase E kickoff sequence |
+
+- Next session:
+  1. Start E1 gate artifact set (data-access consolidation baseline + CI gate).
+  2. Carry forward E1→E4 checkpoints from `docs/MODULE_ROADMAP.md`.
+  3. Maintain rollback-ready flag posture and org isolation evidence per slice.
+
 Latest Session Snapshot (Sprint 13 Doc Review — 2026-05-06):
 
 - Timestamp (NZ): 2026-05-06 05:45 NZST
