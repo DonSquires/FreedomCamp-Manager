@@ -26,6 +26,12 @@ function asRow<T>(data: unknown): T {
   return data as T
 }
 
+interface ActiveContextRow {
+  workspace_name: string
+  ptt_id: string
+  translation_language: string
+}
+
 test.describe('Phase D3 — Transition / Handshake / Offline Replay Gate', () => {
   test('get_active_context remains bounded (0..1 rows) for provider context polling', async () => {
     if (!supabaseAdmin) test.skip()
@@ -42,7 +48,7 @@ test.describe('Phase D3 — Transition / Handshake / Offline Replay Gate', () =>
       expect((data ?? []).length).toBeLessThanOrEqual(1)
 
       if ((data ?? []).length === 1) {
-        const row = (data as any[])[0]
+        const row = asRow<ActiveContextRow>(data)
         expect(typeof row.workspace_name).toBe('string')
         expect(typeof row.ptt_id).toBe('string')
         expect(typeof row.translation_language).toBe('string')

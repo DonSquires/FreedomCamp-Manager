@@ -1,6 +1,6 @@
 -- ============================================================================
 -- Phase D3: Transition / Handshake / Offline Replay Gate Contracts
--- Date: 2026-05-07
+-- Date: 2026-07-10
 --
 -- Adds bounded offline replay outcomes with org + idempotency dedupe semantics.
 -- ============================================================================
