@@ -1,28 +1,14 @@
 /**
  * CredentialProcessingLog — B-89
- *
- * Log viewer for credential_processing_log — AI-processed credential documents.
- *
- * Features:
- *  - KPI cards: Total / Verified / Pending / Failed
- *  - Filters: status, document_type, date range
- *  - Table: user_id, document_type, status, confidence bar (green/amber/red), processed_at
- *  - Expandable row: license_number, issuing_authority, expiry_date, extracted_text snippet,
- *                    authorized_activities chips, ai_model, error_message
- *  - Mark Verified action (admin/master only)
- *
+ * Log of credential_processing_log — AI-processed officer credential documents.
  * Route: /credential-processing-log — admin/admin_officer/master
  */
 
 import { useState } from 'react'
 import { format, parseISO } from 'date-fns'
-import {
-  BadgeCheck, RefreshCw, AlertCircle, Loader2,
-  ChevronDown, ChevronRight, ShieldCheck,
-} from 'lucide-react'
+import { FileCheck, Search, RefreshCw, AlertCircle, Loader2, ChevronDown, ChevronRight, CheckCircle2 } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { AppLayout } from '@/components/features/AppLayout'
@@ -30,282 +16,129 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import type { Database } from '@/types/database'
 
-// ─── Types ─────────────────────────────────────────────────────────────────────
+type CredentialProcessingRow = Database['public']['Tables']['credential_processing_log']['Row']
 
-type CredentialLog = Database['public']['Tables']['credential_processing_log']['Row']
-
-// ─── Styling maps ──────────────────────────────────────────────────────────────
-
-const STATUS_STYLES: Record<string, { label: string; className: string }> = {
-  verified:    { label: 'Verified',    className: 'bg-green-100 text-green-800' },
-  pending:     { label: 'Pending',     className: 'bg-yellow-100 text-yellow-800' },
-  processing:  { label: 'Processing',  className: 'bg-blue-100 text-blue-800' },
-  failed:      { label: 'Failed',      className: 'bg-red-100 text-red-800' },
-  unverified:  { label: 'Unverified',  className: 'bg-gray-100 text-gray-600' },
-}
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function fmtDate(ts: string | null) {
+function fmtDate(ts: string | null | undefined) {
   if (!ts) return '—'
   try { return format(parseISO(ts), 'dd MMM yyyy HH:mm') } catch { return ts }
 }
 
 function ConfidenceBar({ score }: { score: number | null }) {
-  if (score == null) return <span className="text-muted-foreground text-xs">—</span>
-  const pct = Math.round(score * 100)
-  const colour = pct >= 80 ? 'bg-green-500' : pct >= 50 ? 'bg-yellow-500' : 'bg-red-500'
+  const pct = (score ?? 0) * 100
+  const colour = pct >= 80 ? 'bg-green-500' : pct >= 50 ? 'bg-amber-500' : 'bg-red-500'
   return (
-    <div className="flex items-center gap-2 min-w-[80px]">
-      <div className="h-2 flex-1 bg-gray-200 rounded-full overflow-hidden">
-        <div className={`h-full ${colour} rounded-full`} style={{ width: `${pct}%` }} />
+    <div className="flex items-center gap-1.5 min-w-[80px]">
+      <div className="flex-1 bg-muted rounded-full h-2 overflow-hidden">
+        <div className={`h-2 rounded-full ${colour}`} style={{ width: `${pct}%` }} />
       </div>
-      <span className="text-xs font-medium w-8 text-right">{pct}%</span>
+      <span className="text-xs text-muted-foreground w-8 text-right">{pct.toFixed(0)}%</span>
     </div>
   )
 }
-
-// ─── Component ────────────────────────────────────────────────────────────────
 
 export default function CredentialProcessingLog() {
   const { user } = useAuthStore()
   const orgId = user?.organization_id
   const qc = useQueryClient()
+  const [search, setSearch] = useState('')
+  const [filterDocType, setFilterDocType] = useState('all')
+  const [filterVerified, setFilterVerified] = useState('all')
+  const [filterMonth, setFilterMonth] = useState('all')
+  const [expandedId, setExpandedId] = useState<string | null>(null)
 
-  const canVerify = user?.role === 'admin' || user?.role === 'master'
-
-  const [statusFilter, setStatusFilter] = useState('all')
-  const [typeFilter, setTypeFilter]     = useState('all')
-  const [dateFrom, setDateFrom]         = useState('')
-  const [expandedId, setExpandedId]     = useState<string | null>(null)
-
-  // ── Query ─────────────────────────────────────────────────────────────────
-
-  const { data: rows = [], isLoading, refetch } = useQuery<CredentialLog[]>({
-    queryKey: ['credential-processing-log', orgId, statusFilter, typeFilter, dateFrom],
-    enabled: !!orgId,
+  const { data: records = [], isLoading, error, refetch } = useQuery<CredentialProcessingRow[]>({
+    queryKey: ['credential-processing', orgId],
     queryFn: async () => {
-      let q = supabase
-        .from('credential_processing_log')
-        .select('*')
-        .order('processed_at', { ascending: false })
-        .limit(500)
-
-      if (statusFilter !== 'all') q = q.eq('status', statusFilter)
-      if (typeFilter !== 'all')   q = q.eq('document_type', typeFilter)
-      if (dateFrom)               q = q.gte('processed_at', dateFrom)
-
-      const { data, error } = await q
+      const { data, error } = await supabase.from('credential_processing_log').select('*').order('created_at', { ascending: false }).limit(500)
       if (error) throw error
       return data ?? []
     },
+    enabled: !!orgId,
   })
 
-  const docTypes = [...new Set(rows.map(r => r.document_type).filter(Boolean))].sort()
+  const filtered = records.filter(e => {
+    if (filterDocType !== 'all' && e.document_type !== filterDocType) return false
+    if (filterVerified === 'true'  && !e.manually_verified) return false
+    if (filterVerified === 'false' && e.manually_verified)  return false
+    if (filterMonth    !== 'all'   && e.created_at?.substring(0,7) !== filterMonth) return false
+    if (search) { const s = search.toLowerCase(); return e.license_number?.toLowerCase().includes(s) || e.user_id?.toLowerCase().includes(s) }
+    return true
+  })
 
-  // ── KPIs ──────────────────────────────────────────────────────────────────
+  const total       = records.length
+  const verified    = records.filter(e => e.manually_verified === true).length
+  const pending     = records.filter(e => !e.manually_verified).length
+  const confVals    = records.map(e => e.confidence_score).filter(v => v != null) as number[]
+  const avgConf     = confVals.length > 0 ? ((confVals.reduce((a,b)=>a+b,0)/confVals.length)*100).toFixed(0)+'%' : '—'
 
-  const total    = rows.length
-  const verified = rows.filter(r => r.status === 'verified' || r.manually_verified).length
-  const pending  = rows.filter(r => r.status === 'pending' || r.status === 'processing').length
-  const failed   = rows.filter(r => r.status === 'failed').length
-
-  // ── Mutation ──────────────────────────────────────────────────────────────
+  const docTypes = Array.from(new Set(records.map(e => e.document_type).filter(Boolean)))
+  const months   = Array.from(new Set(records.map(e => e.created_at?.substring(0,7)).filter(Boolean))).sort().reverse()
 
   const markVerified = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from('credential_processing_log')
-        .update({
-          manually_verified: true,
-          verified_at: new Date().toISOString(),
-          verified_by: user?.id,
-          status: 'verified',
-        })
-        .eq('id', id)
+      const { error } = await supabase.from('credential_processing_log').update({ manually_verified: true, verified_by: user?.id, verified_at: new Date().toISOString() }).eq('id', id)
       if (error) throw error
     },
-    onSuccess: () => {
-      toast.success('Credential marked as verified')
-      qc.invalidateQueries({ queryKey: ['credential-processing-log'] })
-    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['credential-processing'] }); toast.success('Credential marked verified') },
     onError: (e: Error) => toast.error(e.message),
   })
 
-  // ─────────────────────────────────────────────────────────────────────────
-
   return (
     <AppLayout>
-      <div className="p-6 space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
+      <div className="p-6 space-y-6 max-w-7xl mx-auto">
+        <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <BadgeCheck className="h-6 w-6 text-emerald-600" />
-            <div>
-              <h1 className="text-2xl font-bold">Credential Processing Log</h1>
-              <p className="text-sm text-muted-foreground">AI-processed credential documents and verification</p>
-            </div>
+            <FileCheck className="h-7 w-7 text-teal-600" />
+            <div><h1 className="text-2xl font-bold">Credential Processing Log</h1><p className="text-sm text-muted-foreground">AI-processed officer credential documents</p></div>
           </div>
-          <Button variant="outline" size="sm" onClick={() => refetch()}>
-            <RefreshCw className="h-4 w-4 mr-1" /> Refresh
-          </Button>
+          <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isLoading}><RefreshCw className={`h-4 w-4 mr-1.5 ${isLoading?'animate-spin':''}`} />Refresh</Button>
         </div>
-
-        {/* KPIs */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {[
-            { label: 'Total',    value: total,    colour: 'text-gray-700' },
-            { label: 'Verified', value: verified, colour: 'text-green-700' },
-            { label: 'Pending',  value: pending,  colour: 'text-yellow-700' },
-            { label: 'Failed',   value: failed,   colour: 'text-red-700' },
-          ].map(kpi => (
-            <Card key={kpi.label}>
-              <CardHeader className="pb-1 pt-3 px-4"><CardTitle className="text-xs text-muted-foreground">{kpi.label}</CardTitle></CardHeader>
-              <CardContent className="px-4 pb-3"><p className={`text-2xl font-bold ${kpi.colour}`}>{kpi.value}</p></CardContent>
-            </Card>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          {[{label:'Total',value:total,colour:'text-slate-600'},{label:'Verified',value:verified,colour:'text-green-600'},{label:'Pending',value:pending,colour:pending>0?'text-yellow-600':'text-muted-foreground'},{label:'Avg Confidence',value:avgConf,colour:'text-blue-600'}].map(({label,value,colour})=>(
+            <Card key={label}><CardHeader className="pb-1"><CardTitle className="text-sm font-medium text-muted-foreground">{label}</CardTitle></CardHeader><CardContent><span className={`text-2xl font-bold ${colour}`}>{value}</span></CardContent></Card>
           ))}
         </div>
-
-        {/* Filters */}
-        <div className="flex flex-wrap gap-3">
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-36"><SelectValue placeholder="Status" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All statuses</SelectItem>
-              {Object.entries(STATUS_STYLES).map(([v, s]) => <SelectItem key={v} value={v}>{s.label}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          <Select value={typeFilter} onValueChange={setTypeFilter}>
-            <SelectTrigger className="w-44"><SelectValue placeholder="Document type" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All types</SelectItem>
-              {docTypes.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="w-40" />
+        <div className="flex flex-wrap gap-3 items-end">
+          <div className="relative flex-1 min-w-[180px]">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
+            <Input placeholder="License #, User ID…" value={search} onChange={e=>setSearch(e.target.value)} className="pl-8" />
+          </div>
+          {docTypes.length>0&&(<Select value={filterDocType} onValueChange={setFilterDocType}><SelectTrigger className="w-[160px]"><SelectValue placeholder="Doc Type" /></SelectTrigger><SelectContent><SelectItem value="all">All Types</SelectItem>{docTypes.map(t=>(<SelectItem key={t} value={t} className="capitalize">{t?.replace(/_/g,' ')}</SelectItem>))}</SelectContent></Select>)}
+          <Select value={filterVerified} onValueChange={setFilterVerified}><SelectTrigger className="w-[150px]"><SelectValue placeholder="Verified" /></SelectTrigger><SelectContent><SelectItem value="all">All</SelectItem><SelectItem value="true">Verified</SelectItem><SelectItem value="false">Pending</SelectItem></SelectContent></Select>
+          {months.length>0&&(<Select value={filterMonth} onValueChange={setFilterMonth}><SelectTrigger className="w-[150px]"><SelectValue placeholder="Month" /></SelectTrigger><SelectContent><SelectItem value="all">All Months</SelectItem>{months.map(m=>(<SelectItem key={m} value={m}>{m}</SelectItem>))}</SelectContent></Select>)}
         </div>
-
-        {/* Table */}
-        {isLoading ? (
-          <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
-        ) : rows.length === 0 ? (
-          <div className="flex flex-col items-center py-12 text-muted-foreground gap-2">
-            <AlertCircle className="h-8 w-8" /><p>No credential records found</p>
-          </div>
-        ) : (
-          <div className="rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-8" />
-                  <TableHead>User</TableHead>
-                  <TableHead>Document Type</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Confidence</TableHead>
-                  <TableHead>Processed At</TableHead>
-                  <TableHead className="text-right">Action</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rows.map(row => {
-                  const expanded = expandedId === row.id
-                  const statusStyle = STATUS_STYLES[row.status ?? ''] ?? { label: row.status ?? '—', className: 'bg-gray-100 text-gray-600' }
-                  return (
-                    <>
-                      <TableRow key={row.id} className="cursor-pointer hover:bg-muted/50" onClick={() => setExpandedId(expanded ? null : row.id)}>
-                        <TableCell>{expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}</TableCell>
-                        <TableCell className="font-mono text-xs text-muted-foreground">{row.user_id ? `${row.user_id.slice(0, 8)}…` : '—'}</TableCell>
-                        <TableCell className="font-medium">{row.document_type}</TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1">
-                            <Badge className={statusStyle.className}>{statusStyle.label}</Badge>
-                            {row.manually_verified && <Badge className="bg-blue-100 text-blue-800"><ShieldCheck className="h-3 w-3 mr-1" />Manual</Badge>}
-                          </div>
-                        </TableCell>
-                        <TableCell><ConfidenceBar score={row.confidence_score} /></TableCell>
-                        <TableCell className="text-sm">{fmtDate(row.processed_at)}</TableCell>
-                        <TableCell className="text-right">
-                          {canVerify && !row.manually_verified && row.status !== 'verified' && (
-                            <Button
-                              size="sm" variant="outline"
-                              disabled={markVerified.isPending}
-                              onClick={e => { e.stopPropagation(); markVerified.mutate(row.id) }}
-                            >
-                              <ShieldCheck className="h-4 w-4 mr-1" /> Verify
-                            </Button>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                      {expanded && (
-                        <TableRow key={`${row.id}-exp`} className="bg-muted/30">
-                          <TableCell colSpan={7} className="p-4">
-                            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
-                              <div>
-                                <p className="font-medium mb-1">License Number</p>
-                                <p className="text-muted-foreground">{row.license_number ?? '—'}</p>
-                              </div>
-                              <div>
-                                <p className="font-medium mb-1">Issuing Authority</p>
-                                <p className="text-muted-foreground">{row.issuing_authority ?? '—'}</p>
-                              </div>
-                              <div>
-                                <p className="font-medium mb-1">Expiry Date</p>
-                                <p className="text-muted-foreground">{fmtDate(row.expiry_date)}</p>
-                              </div>
-                              <div>
-                                <p className="font-medium mb-1">AI Model</p>
-                                <p className="text-muted-foreground">{row.ai_model ?? '—'}</p>
-                              </div>
-                              {row.error_message && (
-                                <div className="col-span-2">
-                                  <p className="font-medium mb-1 text-red-700">Error</p>
-                                  <p className="text-red-600 text-xs">{row.error_message}</p>
-                                </div>
-                              )}
-                              {row.authorized_activities && row.authorized_activities.length > 0 && (
-                                <div className="col-span-3">
-                                  <p className="font-medium mb-1">Authorized Activities</p>
-                                  <div className="flex flex-wrap gap-1">
-                                    {row.authorized_activities.map((a, i) => (
-                                      <Badge key={i} variant="outline" className="text-xs">{a}</Badge>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
-                              {row.extracted_text && (
-                                <div className="col-span-3">
-                                  <p className="font-medium mb-1">Extracted Text</p>
-                                  <p className="text-muted-foreground text-xs line-clamp-3">{row.extracted_text}</p>
-                                </div>
-                              )}
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </>
-                  )
-                })}
-              </TableBody>
-            </Table>
-          </div>
-        )}
+        {error&&(<div className="flex items-center gap-2 text-destructive text-sm"><AlertCircle className="h-4 w-4" />{(error as Error).message}</div>)}
+        <Card><CardContent className="p-0">
+          {isLoading?(<div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>)
+          :filtered.length===0?(<div className="text-center py-12 text-muted-foreground text-sm">No credential records match your filters.</div>)
+          :(<Table><TableHeader><TableRow><TableHead className="w-8" /><TableHead>Created</TableHead><TableHead>Officer</TableHead><TableHead>Doc Type</TableHead><TableHead>License #</TableHead><TableHead>Expiry</TableHead><TableHead>Confidence</TableHead><TableHead>Verified</TableHead><TableHead>Verified At</TableHead><TableHead>Action</TableHead></TableRow></TableHeader>
+            <TableBody>{filtered.map(e=>{const isExpanded=expandedId===e.id; return(<>
+              <TableRow key={e.id} className="cursor-pointer hover:bg-muted/40" onClick={()=>setExpandedId(isExpanded?null:e.id)}>
+                <TableCell>{isExpanded?<ChevronDown className="h-4 w-4 text-muted-foreground"/>:<ChevronRight className="h-4 w-4 text-muted-foreground"/>}</TableCell>
+                <TableCell className="text-sm whitespace-nowrap">{fmtDate(e.created_at)}</TableCell>
+                <TableCell className="font-mono text-xs">{e.user_id?e.user_id.substring(0,8)+'…':'—'}</TableCell>
+                <TableCell className="text-sm capitalize">{e.document_type?.replace(/_/g,' ')??'—'}</TableCell>
+                <TableCell className="font-mono text-xs">{e.license_number??'—'}</TableCell>
+                <TableCell className="text-sm">{e.expiry_date??'—'}</TableCell>
+                <TableCell><ConfidenceBar score={e.confidence_score} /></TableCell>
+                <TableCell>{e.manually_verified?<Badge className="bg-green-100 text-green-800">Verified</Badge>:<Badge className="bg-yellow-100 text-yellow-800">Pending</Badge>}</TableCell>
+                <TableCell className="text-xs">{fmtDate(e.verified_at)}</TableCell>
+                <TableCell onClick={ev=>ev.stopPropagation()}>{!e.manually_verified&&(<Button size="sm" variant="outline" className="h-6 text-xs px-2" disabled={markVerified.isPending} onClick={()=>markVerified.mutate(e.id)}><CheckCircle2 className="h-3 w-3 mr-1"/>Verify</Button>)}</TableCell>
+              </TableRow>
+              {isExpanded&&(<TableRow key={`${e.id}-detail`} className="bg-muted/20"><TableCell colSpan={10} className="py-3 px-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                  {e.authorized_activities&&(<div><p className="font-semibold text-muted-foreground mb-1">Authorized Activities</p><pre className="text-xs bg-muted rounded p-2 overflow-x-auto max-h-32">{JSON.stringify(e.authorized_activities,null,2)}</pre></div>)}
+                  {e.extracted_text&&(<div><p className="font-semibold text-muted-foreground mb-1">Extracted Text</p><p className="text-xs">{e.extracted_text.substring(0,200)}{e.extracted_text.length>200?'…':''}</p></div>)}
+                  {e.error_message&&(<div><p className="font-semibold text-muted-foreground mb-1 text-red-600">Error</p><p className="text-xs text-red-600">{e.error_message}</p></div>)}
+                </div>
+              </TableCell></TableRow>)}
+            </>)})}
+            </TableBody></Table>)}
+        </CardContent></Card>
       </div>
     </AppLayout>
   )

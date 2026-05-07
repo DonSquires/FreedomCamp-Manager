@@ -1,22 +1,14 @@
 /**
  * ParkingSessionLog — B-84
- *
- * Log viewer for parking_sessions with violation filter and avg dwell KPI.
- *
- * Features:
- *  - KPI cards: Total / Violations / Avg Dwell (mins)
- *  - Filters: is_violation toggle, plate search, date range
- *  - Table: plate, vehicle (make/model/colour), pass_number, is_violation, entry_time, dwell_minutes, zone
- *  - Expandable row: violation_reason, GPS, photo links (entry/exit/sign/tyre)
- *
+ * Log of parking_sessions — vehicle parking entries, exits, and violations.
  * Route: /parking-sessions-log — admin/admin_officer/master
  */
 
 import { useState } from 'react'
 import { format, parseISO } from 'date-fns'
 import {
-  ParkingSquare, RefreshCw, AlertCircle, Loader2,
-  ChevronDown, ChevronRight, Image as ImageIcon,
+  ParkingSquare, Search, RefreshCw, AlertCircle, Loader2,
+  ChevronDown, ChevronRight, ExternalLink,
 } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 
@@ -27,8 +19,13 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { Checkbox } from '@/components/ui/checkbox'
-import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import {
   Table,
   TableBody,
@@ -39,195 +36,277 @@ import {
 } from '@/components/ui/table'
 import type { Database } from '@/types/database'
 
-// ─── Types ─────────────────────────────────────────────────────────────────────
+// ─── Types ────────────────────────────────────────────────────────────────────
 
-type ParkingSession = Database['public']['Tables']['parking_sessions']['Row']
+type ParkingSessionRow = Database['public']['Tables']['parking_sessions']['Row']
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function fmtDate(ts: string | null) {
+function fmtDate(ts: string | null | undefined) {
   if (!ts) return '—'
   try { return format(parseISO(ts), 'dd MMM yyyy HH:mm') } catch { return ts }
 }
 
-// ─── Component ────────────────────────────────────────────────────────────────
+// ─── Component ───────────────────────────────────────────────────────────────
 
 export default function ParkingSessionLog() {
   const { user } = useAuthStore()
   const orgId = user?.organization_id
 
-  const [plateSearch, setPlateSearch]       = useState('')
-  const [violationOnly, setViolationOnly]   = useState(false)
-  const [dateFrom, setDateFrom]             = useState('')
+  const [search, setSearch]                 = useState('')
+  const [filterViolation, setFilterViolation] = useState('all')
+  const [filterZone, setFilterZone]         = useState('all')
+  const [filterMonth, setFilterMonth]       = useState('all')
   const [expandedId, setExpandedId]         = useState<string | null>(null)
 
   // ── Query ─────────────────────────────────────────────────────────────────
 
-  const { data: rows = [], isLoading, refetch } = useQuery<ParkingSession[]>({
-    queryKey: ['parking-sessions-log', orgId, violationOnly, dateFrom],
-    enabled: !!orgId,
+  const { data: events = [], isLoading, error, refetch } = useQuery<ParkingSessionRow[]>({
+    queryKey: ['parking-sessions', orgId],
     queryFn: async () => {
       let q = supabase
         .from('parking_sessions')
         .select('*')
-        .eq('organization_id', orgId!)
         .order('entry_time', { ascending: false })
         .limit(500)
-
-      if (violationOnly) q = q.eq('is_violation', true)
-      if (dateFrom)      q = q.gte('entry_time', dateFrom)
-
+      if (orgId) q = q.eq('organization_id', orgId)
       const { data, error } = await q
       if (error) throw error
       return data ?? []
     },
+    enabled: !!orgId,
   })
 
-  const displayed = plateSearch
-    ? rows.filter(r => r.plate_number.toLowerCase().includes(plateSearch.toLowerCase()))
-    : rows
+  // ── Derived ───────────────────────────────────────────────────────────────
 
-  // ── KPIs ──────────────────────────────────────────────────────────────────
+  const filtered = events.filter(e => {
+    if (filterViolation === 'true'  && !e.is_violation) return false
+    if (filterViolation === 'false' && e.is_violation)  return false
+    if (filterZone !== 'all' && e.parking_zone_id !== filterZone) return false
+    if (filterMonth !== 'all' && e.entry_time?.substring(0, 7) !== filterMonth) return false
+    if (search) {
+      const s = search.toLowerCase()
+      return e.plate_number?.toLowerCase().includes(s)
+    }
+    return true
+  })
 
-  const total      = rows.length
-  const violations = rows.filter(r => r.is_violation).length
-  const dwellVals  = rows.map(r => r.dwell_minutes).filter(v => v != null) as number[]
-  const avgDwell   = dwellVals.length > 0
-    ? (dwellVals.reduce((a, b) => a + b, 0) / dwellVals.length).toFixed(0)
+  const total       = events.length
+  const violations  = events.filter(e => e.is_violation === true).length
+  const dwellVals   = events.map(e => e.dwell_minutes).filter(v => v != null) as number[]
+  const avgDwell    = dwellVals.length > 0
+    ? Math.round(dwellVals.reduce((a, b) => a + b, 0) / dwellVals.length) + ' min'
     : '—'
+  const withPhotos  = events.filter(e => e.entry_photo_url || e.exit_photo_url).length
+
+  const zones  = Array.from(new Set(events.map(e => e.parking_zone_id).filter(Boolean)))
+  const months = Array.from(new Set(events.map(e => e.entry_time?.substring(0, 7)).filter(Boolean))).sort().reverse()
 
   // ─────────────────────────────────────────────────────────────────────────
 
   return (
     <AppLayout>
-      <div className="p-6 space-y-6">
+      <div className="p-6 space-y-6 max-w-7xl mx-auto">
+
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <ParkingSquare className="h-6 w-6 text-blue-600" />
+            <ParkingSquare className="h-7 w-7 text-blue-600" />
             <div>
               <h1 className="text-2xl font-bold">Parking Session Log</h1>
-              <p className="text-sm text-muted-foreground">Vehicle parking sessions and violations</p>
+              <p className="text-sm text-muted-foreground">Vehicle parking entries, exits, and violations</p>
             </div>
           </div>
-          <Button variant="outline" size="sm" onClick={() => refetch()}>
-            <RefreshCw className="h-4 w-4 mr-1" /> Refresh
+          <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isLoading}>
+            <RefreshCw className={`h-4 w-4 mr-1.5 ${isLoading ? 'animate-spin' : ''}`} />
+            Refresh
           </Button>
         </div>
 
-        {/* KPIs */}
-        <div className="grid grid-cols-3 gap-4">
+        {/* KPI cards */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           {[
-            { label: 'Total',          value: total,      colour: 'text-gray-700' },
-            { label: 'Violations',     value: violations, colour: 'text-red-700' },
-            { label: 'Avg Dwell (min)',value: avgDwell,   colour: 'text-blue-700' },
-          ].map(kpi => (
-            <Card key={kpi.label}>
-              <CardHeader className="pb-1 pt-3 px-4"><CardTitle className="text-xs text-muted-foreground">{kpi.label}</CardTitle></CardHeader>
-              <CardContent className="px-4 pb-3"><p className={`text-2xl font-bold ${kpi.colour}`}>{kpi.value}</p></CardContent>
+            { label: 'Total',      value: total,      colour: 'text-slate-600' },
+            { label: 'Violations', value: violations, colour: violations > 0 ? 'text-red-600' : 'text-muted-foreground' },
+            { label: 'Avg Dwell',  value: avgDwell,   colour: 'text-blue-600' },
+            { label: 'With Photos',value: withPhotos, colour: 'text-green-600' },
+          ].map(({ label, value, colour }) => (
+            <Card key={label}>
+              <CardHeader className="pb-1">
+                <CardTitle className="text-sm font-medium text-muted-foreground">{label}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <span className={`text-2xl font-bold ${colour}`}>{value}</span>
+              </CardContent>
             </Card>
           ))}
         </div>
 
         {/* Filters */}
-        <div className="flex flex-wrap gap-3 items-center">
-          <Input placeholder="Search plate…" value={plateSearch} onChange={e => setPlateSearch(e.target.value)} className="w-44" />
-          <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="w-40" />
-          <div className="flex items-center gap-2">
-            <Checkbox id="viol" checked={violationOnly} onCheckedChange={v => setViolationOnly(!!v)} />
-            <Label htmlFor="viol" className="text-sm cursor-pointer">Violations only</Label>
+        <div className="flex flex-wrap gap-3 items-end">
+          <div className="relative flex-1 min-w-[180px]">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
+            <Input
+              placeholder="Plate number…"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="pl-8"
+            />
           </div>
+
+          <Select value={filterViolation} onValueChange={setFilterViolation}>
+            <SelectTrigger className="w-[150px]">
+              <SelectValue placeholder="Violation" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All</SelectItem>
+              <SelectItem value="true">Violations</SelectItem>
+              <SelectItem value="false">No Violation</SelectItem>
+            </SelectContent>
+          </Select>
+
+          {zones.length > 0 && (
+            <Select value={filterZone} onValueChange={setFilterZone}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Zone" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Zones</SelectItem>
+                {zones.map(z => (
+                  <SelectItem key={z} value={z}>{z}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+
+          {months.length > 0 && (
+            <Select value={filterMonth} onValueChange={setFilterMonth}>
+              <SelectTrigger className="w-[150px]">
+                <SelectValue placeholder="Month" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Months</SelectItem>
+                {months.map(m => (
+                  <SelectItem key={m} value={m}>{m}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
         </div>
 
-        {/* Table */}
-        {isLoading ? (
-          <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
-        ) : displayed.length === 0 ? (
-          <div className="flex flex-col items-center py-12 text-muted-foreground gap-2">
-            <AlertCircle className="h-8 w-8" /><p>No parking sessions found</p>
+        {/* Error */}
+        {error && (
+          <div className="flex items-center gap-2 text-destructive text-sm">
+            <AlertCircle className="h-4 w-4" />
+            {(error as Error).message}
           </div>
-        ) : (
-          <div className="rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-8" />
-                  <TableHead>Plate</TableHead>
-                  <TableHead>Vehicle</TableHead>
-                  <TableHead>Pass #</TableHead>
-                  <TableHead>Violation</TableHead>
-                  <TableHead>Entry Time</TableHead>
-                  <TableHead>Dwell (min)</TableHead>
-                  <TableHead>Zone</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {displayed.map(row => {
-                  const expanded = expandedId === row.id
-                  const vehicleDesc = [row.vehicle_make, row.vehicle_model, row.vehicle_colour].filter(Boolean).join(' ') || '—'
-                  const photoCount = [row.entry_photo_url, row.exit_photo_url, row.sign_photo_url, row.tyre_valve_photo_url].filter(Boolean).length
-                  return (
-                    <>
-                      <TableRow key={row.id} className="cursor-pointer hover:bg-muted/50" onClick={() => setExpandedId(expanded ? null : row.id)}>
-                        <TableCell>{expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}</TableCell>
-                        <TableCell className="font-mono font-semibold">{row.plate_number}</TableCell>
-                        <TableCell className="text-sm text-muted-foreground">{vehicleDesc}</TableCell>
-                        <TableCell className="text-sm">{row.pass_number}</TableCell>
-                        <TableCell>
-                          {row.is_violation
-                            ? <Badge className="bg-red-100 text-red-800">Violation</Badge>
-                            : <Badge className="bg-green-100 text-green-800">OK</Badge>}
-                        </TableCell>
-                        <TableCell className="text-sm">{fmtDate(row.entry_time)}</TableCell>
-                        <TableCell className="text-sm">{row.dwell_minutes ?? '—'}</TableCell>
-                        <TableCell className="text-sm text-muted-foreground">{row.parking_zone_id ?? '—'}</TableCell>
-                      </TableRow>
-                      {expanded && (
-                        <TableRow key={`${row.id}-exp`} className="bg-muted/30">
-                          <TableCell colSpan={8} className="p-4">
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                              <div>
-                                <p className="font-medium mb-1">Violation Reason</p>
-                                <p className="text-muted-foreground">{row.violation_reason ?? 'None'}</p>
-                              </div>
-                              <div>
-                                <p className="font-medium mb-1">Exit Time</p>
-                                <p className="text-muted-foreground">{fmtDate(row.exit_time)}</p>
-                              </div>
-                              <div>
-                                <p className="font-medium mb-1">GPS</p>
-                                <p className="text-muted-foreground">
-                                  {row.gps_lat != null && row.gps_lng != null
-                                    ? `${row.gps_lat.toFixed(5)}, ${row.gps_lng.toFixed(5)}`
-                                    : '—'}
-                                </p>
-                              </div>
-                              <div>
-                                <p className="font-medium mb-1">Notes</p>
-                                <p className="text-muted-foreground">{row.notes ?? 'None'}</p>
-                              </div>
-                              {photoCount > 0 && (
-                                <div className="col-span-4">
-                                  <p className="font-medium mb-1">Photos</p>
-                                  <div className="flex flex-wrap gap-2">
-                                    {row.entry_photo_url && <a href={row.entry_photo_url} target="_blank" rel="noreferrer" className="text-blue-600 underline text-xs flex items-center gap-1"><ImageIcon className="h-3 w-3" />Entry</a>}
-                                    {row.exit_photo_url && <a href={row.exit_photo_url} target="_blank" rel="noreferrer" className="text-blue-600 underline text-xs flex items-center gap-1"><ImageIcon className="h-3 w-3" />Exit</a>}
-                                    {row.sign_photo_url && <a href={row.sign_photo_url} target="_blank" rel="noreferrer" className="text-blue-600 underline text-xs flex items-center gap-1"><ImageIcon className="h-3 w-3" />Sign</a>}
-                                    {row.tyre_valve_photo_url && <a href={row.tyre_valve_photo_url} target="_blank" rel="noreferrer" className="text-blue-600 underline text-xs flex items-center gap-1"><ImageIcon className="h-3 w-3" />Tyre</a>}
-                                  </div>
-                                </div>
+        )}
+
+        {/* Table */}
+        <Card>
+          <CardContent className="p-0">
+            {isLoading ? (
+              <div className="flex justify-center py-12">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : filtered.length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground text-sm">No parking sessions match your filters.</div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-8" />
+                    <TableHead>Entry Time</TableHead>
+                    <TableHead>Plate</TableHead>
+                    <TableHead>Zone</TableHead>
+                    <TableHead>Vehicle</TableHead>
+                    <TableHead>Dwell (min)</TableHead>
+                    <TableHead>Violation</TableHead>
+                    <TableHead>Reason</TableHead>
+                    <TableHead>Photos</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filtered.map(e => {
+                    const isExpanded = expandedId === e.id
+                    return (
+                      <>
+                        <TableRow
+                          key={e.id}
+                          className="cursor-pointer hover:bg-muted/40"
+                          onClick={() => setExpandedId(isExpanded ? null : e.id)}
+                        >
+                          <TableCell>
+                            {isExpanded
+                              ? <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                              : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+                          </TableCell>
+                          <TableCell className="text-sm whitespace-nowrap">{fmtDate(e.entry_time)}</TableCell>
+                          <TableCell className="font-mono font-semibold">{e.plate_number ?? '—'}</TableCell>
+                          <TableCell className="text-sm text-muted-foreground">{e.parking_zone_id ?? '—'}</TableCell>
+                          <TableCell className="text-sm">
+                            {[e.vehicle_make, e.vehicle_model].filter(Boolean).join(' ') || '—'}
+                          </TableCell>
+                          <TableCell className="text-sm">{e.dwell_minutes != null ? e.dwell_minutes : '—'}</TableCell>
+                          <TableCell>
+                            {e.is_violation === true && (
+                              <Badge className="bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300">Yes</Badge>
+                            )}
+                            {e.is_violation === false && (
+                              <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">No</Badge>
+                            )}
+                            {e.is_violation == null && <span className="text-muted-foreground text-sm">—</span>}
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground max-w-[120px] truncate">{e.violation_reason ?? '—'}</TableCell>
+                          <TableCell className="text-sm" onClick={ev => ev.stopPropagation()}>
+                            <div className="flex gap-1">
+                              {e.entry_photo_url && (
+                                <a href={e.entry_photo_url} target="_blank" rel="noreferrer" className="text-blue-600 hover:text-blue-800">
+                                  <ExternalLink className="h-3.5 w-3.5" />
+                                </a>
                               )}
+                              {e.exit_photo_url && (
+                                <a href={e.exit_photo_url} target="_blank" rel="noreferrer" className="text-blue-600 hover:text-blue-800">
+                                  <ExternalLink className="h-3.5 w-3.5" />
+                                </a>
+                              )}
+                              {!e.entry_photo_url && !e.exit_photo_url && <span className="text-muted-foreground">—</span>}
                             </div>
                           </TableCell>
                         </TableRow>
-                      )}
-                    </>
-                  )
-                })}
-              </TableBody>
-            </Table>
-          </div>
-        )}
+
+                        {isExpanded && (
+                          <TableRow key={`${e.id}-detail`} className="bg-muted/20">
+                            <TableCell colSpan={9} className="py-3 px-6">
+                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
+                                <div>
+                                  <p className="font-semibold text-muted-foreground mb-1">GPS Coordinates</p>
+                                  <p className="font-mono text-xs">
+                                    {e.gps_lat != null ? e.gps_lat.toFixed(6) : '—'}, {e.gps_lng != null ? e.gps_lng.toFixed(6) : '—'}
+                                  </p>
+                                </div>
+                                <div>
+                                  <p className="font-semibold text-muted-foreground mb-1">Tyre Valve Positions</p>
+                                  <p className="text-xs">Entry: {e.entry_tyre_valve_pos ?? '—'} / Exit: {e.exit_tyre_valve_pos ?? '—'}</p>
+                                </div>
+                                {e.notes && (
+                                  <div>
+                                    <p className="font-semibold text-muted-foreground mb-1">Notes</p>
+                                    <p>{e.notes}</p>
+                                  </div>
+                                )}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </>
+                    )
+                  })}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </AppLayout>
   )

@@ -1,23 +1,14 @@
 /**
- * EnforcementEventLog — B-92
- *
- * Log viewer for enforcement_events — per-case enforcement actions and outcomes.
- *
- * Features:
- *  - KPI cards: Total / Open / Closed / Unique Officers
- *  - Filters: event_type (dynamic), status (dynamic), violation_type (dynamic), date from
- *  - Table: case_id, officer_id, event_type badge, subject_type + identifier,
- *           violation_type, status badge, event_timestamp, outcome
- *  - Expandable row: action_taken, evidence_notes, photo URLs
- *
+ * EnforcementEventLog — B-80
+ * Admin log for enforcement_events — enforcement actions and outcomes.
  * Route: /enforcement-events-log — admin/admin_officer/master
  */
 
 import { useState } from 'react'
 import { format, parseISO } from 'date-fns'
 import {
-  Siren, RefreshCw, AlertCircle, Loader2,
-  ChevronDown, ChevronRight, ExternalLink,
+  Scale, Search, RefreshCw, AlertCircle, Loader2,
+  ChevronDown, ChevronRight,
 } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 
@@ -45,254 +36,275 @@ import {
 } from '@/components/ui/table'
 import type { Database } from '@/types/database'
 
-// ─── Types ─────────────────────────────────────────────────────────────────────
+// ─── Types ────────────────────────────────────────────────────────────────────
 
-type EnforcementEvent = Database['public']['Tables']['enforcement_events']['Row']
+type EnforcementEventRow = Database['public']['Tables']['enforcement_events']['Row']
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function fmtDate(ts: string | null) {
+function fmtDate(ts: string | null | undefined) {
   if (!ts) return '—'
   try { return format(parseISO(ts), 'dd MMM yyyy HH:mm') } catch { return ts }
 }
 
-function statusBadge(status: string) {
-  if (status === 'open')       return 'bg-blue-100 text-blue-800'
-  if (status === 'closed')     return 'bg-gray-100 text-gray-700'
-  if (status === 'resolved')   return 'bg-green-100 text-green-800'
-  if (status === 'escalated')  return 'bg-red-100 text-red-800'
-  return 'bg-yellow-100 text-yellow-800'
+const STATUS_COLOURS: Record<string, string> = {
+  open:     'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300',
+  resolved: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
+  pending:  'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
+  closed:   'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400',
 }
 
-function eventTypeBadge(type: string) {
-  const colours: Record<string, string> = {
-    warning:       'bg-yellow-100 text-yellow-800',
-    infringement:  'bg-orange-100 text-orange-800',
-    arrest:        'bg-red-100 text-red-800',
-    caution:       'bg-blue-100 text-blue-800',
-    trespass:      'bg-purple-100 text-purple-800',
-  }
-  return colours[type] ?? 'bg-gray-100 text-gray-700'
-}
-
-// ─── Component ────────────────────────────────────────────────────────────────
+// ─── Component ───────────────────────────────────────────────────────────────
 
 export default function EnforcementEventLog() {
   const { user } = useAuthStore()
   const orgId = user?.organization_id
 
-  const [eventTypeFilter,    setEventTypeFilter]    = useState('all')
-  const [statusFilter,       setStatusFilter]       = useState('all')
-  const [violationTypeFilter, setViolationTypeFilter] = useState('all')
-  const [dateFrom,           setDateFrom]           = useState('')
-  const [expandedId,         setExpandedId]         = useState<string | null>(null)
+  const [search, setSearch]           = useState('')
+  const [filterType, setFilterType]   = useState('all')
+  const [filterStatus, setFilterStatus] = useState('all')
+  const [filterMonth, setFilterMonth] = useState('all')
+  const [expandedId, setExpandedId]   = useState<string | null>(null)
 
   // ── Query ─────────────────────────────────────────────────────────────────
 
-  const { data: rows = [], isLoading, refetch } = useQuery<EnforcementEvent[]>({
-    queryKey: ['enforcement-events-log', orgId, eventTypeFilter, statusFilter, violationTypeFilter, dateFrom],
-    enabled: !!orgId,
+  const { data: events = [], isLoading, error, refetch } = useQuery<EnforcementEventRow[]>({
+    queryKey: ['enforcement-events', orgId],
     queryFn: async () => {
       let q = supabase
         .from('enforcement_events')
         .select('*')
-        .eq('organization_id', orgId!)
         .order('event_timestamp', { ascending: false })
         .limit(500)
-
-      if (eventTypeFilter     !== 'all') q = q.eq('event_type', eventTypeFilter)
-      if (statusFilter        !== 'all') q = q.eq('status', statusFilter)
-      if (violationTypeFilter !== 'all') q = q.eq('violation_type', violationTypeFilter)
-      if (dateFrom)                      q = q.gte('event_timestamp', dateFrom)
-
+      if (orgId) q = q.eq('organization_id', orgId)
       const { data, error } = await q
       if (error) throw error
       return data ?? []
     },
+    enabled: !!orgId,
   })
 
-  const eventTypes     = [...new Set(rows.map(r => r.event_type).filter(Boolean))].sort()
-  const statusTypes    = [...new Set(rows.map(r => r.status).filter(Boolean))].sort()
-  const violationTypes = [...new Set(rows.map(r => r.violation_type).filter(Boolean))].sort()
-  const uniqueOfficers = new Set(rows.map(r => r.officer_id).filter(Boolean)).size
-  const openCount      = rows.filter(r => r.status === 'open').length
-  const closedCount    = rows.filter(r => r.status === 'closed' || r.status === 'resolved').length
+  // ── Derived ───────────────────────────────────────────────────────────────
+
+  const filtered = events.filter(e => {
+    if (filterType   !== 'all' && e.event_type !== filterType) return false
+    if (filterStatus !== 'all' && e.status !== filterStatus) return false
+    if (filterMonth  !== 'all' && e.event_timestamp?.substring(0, 7) !== filterMonth) return false
+    if (search) {
+      const s = search.toLowerCase()
+      return (
+        e.case_id?.toLowerCase().includes(s) ||
+        e.action_taken?.toLowerCase().includes(s)
+      )
+    }
+    return true
+  })
+
+  const total      = events.length
+  const open       = events.filter(e => e.status === 'open').length
+  const resolved   = events.filter(e => e.status === 'resolved').length
+  const withPhotos = events.filter(e => {
+    const urls = e.photo_urls as string[] | null
+    return urls && urls.length > 0
+  }).length
+
+  const eventTypes = Array.from(new Set(events.map(e => e.event_type).filter(Boolean)))
+  const statuses   = Array.from(new Set(events.map(e => e.status).filter(Boolean)))
+  const months     = Array.from(new Set(events.map(e => e.event_timestamp?.substring(0, 7)).filter(Boolean))).sort().reverse()
 
   // ─────────────────────────────────────────────────────────────────────────
 
   return (
     <AppLayout>
-      <div className="p-6 space-y-6">
+      <div className="p-6 space-y-6 max-w-7xl mx-auto">
+
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <Siren className="h-6 w-6 text-red-600" />
+            <Scale className="h-7 w-7 text-indigo-600" />
             <div>
               <h1 className="text-2xl font-bold">Enforcement Event Log</h1>
-              <p className="text-sm text-muted-foreground">Per-case enforcement actions, outcomes and evidence</p>
+              <p className="text-sm text-muted-foreground">Enforcement actions and outcomes</p>
             </div>
           </div>
-          <Button variant="outline" size="sm" onClick={() => refetch()}>
-            <RefreshCw className="h-4 w-4 mr-1" /> Refresh
+          <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isLoading}>
+            <RefreshCw className={`h-4 w-4 mr-1.5 ${isLoading ? 'animate-spin' : ''}`} />
+            Refresh
           </Button>
         </div>
 
-        {/* KPIs */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {/* KPI cards */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           {[
-            { label: 'Total Events',    value: rows.length,    colour: 'text-gray-700' },
-            { label: 'Open',            value: openCount,      colour: 'text-blue-700' },
-            { label: 'Closed/Resolved', value: closedCount,    colour: 'text-green-700' },
-            { label: 'Unique Officers', value: uniqueOfficers, colour: 'text-purple-700' },
-          ].map(kpi => (
-            <Card key={kpi.label}>
-              <CardHeader className="pb-1 pt-3 px-4">
-                <CardTitle className="text-xs text-muted-foreground">{kpi.label}</CardTitle>
+            { label: 'Total',       value: total,      colour: 'text-slate-600' },
+            { label: 'Open',        value: open,       colour: open > 0 ? 'text-yellow-600' : 'text-muted-foreground' },
+            { label: 'Resolved',    value: resolved,   colour: 'text-green-600' },
+            { label: 'With Photos', value: withPhotos, colour: 'text-blue-600' },
+          ].map(({ label, value, colour }) => (
+            <Card key={label}>
+              <CardHeader className="pb-1">
+                <CardTitle className="text-sm font-medium text-muted-foreground">{label}</CardTitle>
               </CardHeader>
-              <CardContent className="px-4 pb-3">
-                <p className={`text-2xl font-bold ${kpi.colour}`}>{kpi.value}</p>
+              <CardContent>
+                <span className={`text-2xl font-bold ${colour}`}>{value}</span>
               </CardContent>
             </Card>
           ))}
         </div>
 
         {/* Filters */}
-        <div className="flex flex-wrap gap-3">
-          <Select value={eventTypeFilter} onValueChange={setEventTypeFilter}>
-            <SelectTrigger className="w-48"><SelectValue placeholder="Event type" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All event types</SelectItem>
-              {eventTypes.map(t => (
-                <SelectItem key={t} value={t}>
-                  <span className={`inline-block px-2 py-0.5 rounded text-xs mr-1 ${eventTypeBadge(t)}`}>{t}</span>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-40"><SelectValue placeholder="Status" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All statuses</SelectItem>
-              {statusTypes.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          <Select value={violationTypeFilter} onValueChange={setViolationTypeFilter}>
-            <SelectTrigger className="w-52"><SelectValue placeholder="Violation type" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All violation types</SelectItem>
-              {violationTypes.map(v => <SelectItem key={v} value={v}>{v}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="w-40" />
+        <div className="flex flex-wrap gap-3 items-end">
+          <div className="relative flex-1 min-w-[180px]">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
+            <Input
+              placeholder="Case ID, action…"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="pl-8"
+            />
+          </div>
+
+          {eventTypes.length > 0 && (
+            <Select value={filterType} onValueChange={setFilterType}>
+              <SelectTrigger className="w-[160px]">
+                <SelectValue placeholder="Event Type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Types</SelectItem>
+                {eventTypes.map(t => (
+                  <SelectItem key={t} value={t} className="capitalize">{t?.replace(/_/g, ' ')}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+
+          {statuses.length > 0 && (
+            <Select value={filterStatus} onValueChange={setFilterStatus}>
+              <SelectTrigger className="w-[150px]">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Statuses</SelectItem>
+                {statuses.map(s => (
+                  <SelectItem key={s} value={s} className="capitalize">{s?.replace(/_/g, ' ')}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+
+          {months.length > 0 && (
+            <Select value={filterMonth} onValueChange={setFilterMonth}>
+              <SelectTrigger className="w-[150px]">
+                <SelectValue placeholder="Month" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Months</SelectItem>
+                {months.map(m => (
+                  <SelectItem key={m} value={m}>{m}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
         </div>
 
-        {/* Table */}
-        {isLoading ? (
-          <div className="flex justify-center py-12">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-          </div>
-        ) : rows.length === 0 ? (
-          <div className="flex flex-col items-center py-12 text-muted-foreground gap-2">
-            <AlertCircle className="h-8 w-8" /><p>No enforcement events found</p>
-          </div>
-        ) : (
-          <div className="rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-8" />
-                  <TableHead>Case ID</TableHead>
-                  <TableHead>Event Type</TableHead>
-                  <TableHead>Subject</TableHead>
-                  <TableHead>Violation</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Event Time</TableHead>
-                  <TableHead>Outcome</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rows.map(row => {
-                  const expanded = expandedId === row.id
-                  return (
-                    <>
-                      <TableRow
-                        key={row.id}
-                        className="cursor-pointer hover:bg-muted/50"
-                        onClick={() => setExpandedId(expanded ? null : row.id)}
-                      >
-                        <TableCell>
-                          {expanded
-                            ? <ChevronDown className="h-4 w-4" />
-                            : <ChevronRight className="h-4 w-4" />}
-                        </TableCell>
-                        <TableCell className="font-mono text-xs text-muted-foreground">
-                          {row.case_id ? `${row.case_id.slice(0, 8)}…` : '—'}
-                        </TableCell>
-                        <TableCell>
-                          <Badge className={eventTypeBadge(row.event_type)}>{row.event_type}</Badge>
-                        </TableCell>
-                        <TableCell className="text-sm">
-                          {row.subject_type && (
-                            <span className="text-muted-foreground mr-1">{row.subject_type}:</span>
-                          )}
-                          {row.subject_identifier ?? '—'}
-                        </TableCell>
-                        <TableCell className="text-sm">{row.violation_type ?? '—'}</TableCell>
-                        <TableCell>
-                          <Badge className={statusBadge(row.status)}>{row.status}</Badge>
-                        </TableCell>
-                        <TableCell className="text-sm">{fmtDate(row.event_timestamp)}</TableCell>
-                        <TableCell className="text-sm">{row.outcome ?? '—'}</TableCell>
-                      </TableRow>
-                      {expanded && (
-                        <TableRow key={`${row.id}-exp`} className="bg-muted/30">
-                          <TableCell colSpan={8} className="p-4 space-y-3">
-                            {row.action_taken && (
-                              <div>
-                                <p className="font-medium text-sm mb-1">Action Taken</p>
-                                <p className="text-sm text-muted-foreground">{row.action_taken}</p>
-                              </div>
-                            )}
-                            {row.evidence_notes && (
-                              <div>
-                                <p className="font-medium text-sm mb-1">Evidence Notes</p>
-                                <p className="text-sm text-muted-foreground">{row.evidence_notes}</p>
-                              </div>
-                            )}
-                            {row.photo_urls && row.photo_urls.length > 0 && (
-                              <div>
-                                <p className="font-medium text-sm mb-1">Photos</p>
-                                <div className="flex flex-wrap gap-2">
-                                  {row.photo_urls.map((url, i) => (
-                                    <a
-                                      key={i}
-                                      href={url}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline"
-                                    >
-                                      <ExternalLink className="h-3 w-3" />
-                                      Photo {i + 1}
-                                    </a>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                            <p className="text-xs text-muted-foreground">
-                              Officer: <span className="font-mono">{row.officer_id ? `${row.officer_id.slice(0, 8)}…` : '—'}</span>
-                              {' · '}Created: {fmtDate(row.created_at)}
-                              {' · '}Updated: {fmtDate(row.updated_at)}
-                            </p>
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </>
-                  )
-                })}
-              </TableBody>
-            </Table>
+        {/* Error */}
+        {error && (
+          <div className="flex items-center gap-2 text-destructive text-sm">
+            <AlertCircle className="h-4 w-4" />
+            {(error as Error).message}
           </div>
         )}
+
+        {/* Table */}
+        <Card>
+          <CardContent className="p-0">
+            {isLoading ? (
+              <div className="flex justify-center py-12">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : filtered.length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground text-sm">No enforcement events match your filters.</div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-8" />
+                    <TableHead>Timestamp</TableHead>
+                    <TableHead>Event Type</TableHead>
+                    <TableHead>Case ID</TableHead>
+                    <TableHead>Action Taken</TableHead>
+                    <TableHead>Outcome</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Photos</TableHead>
+                    <TableHead>Created By</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filtered.map(e => {
+                    const isExpanded = expandedId === e.id
+                    const photoUrls = e.photo_urls as string[] | null
+                    return (
+                      <>
+                        <TableRow
+                          key={e.id}
+                          className="cursor-pointer hover:bg-muted/40"
+                          onClick={() => setExpandedId(isExpanded ? null : e.id)}
+                        >
+                          <TableCell>
+                            {isExpanded
+                              ? <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                              : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+                          </TableCell>
+                          <TableCell className="text-sm whitespace-nowrap">{fmtDate(e.event_timestamp)}</TableCell>
+                          <TableCell className="text-sm capitalize">{e.event_type?.replace(/_/g, ' ') ?? '—'}</TableCell>
+                          <TableCell className="font-mono text-xs">{e.case_id?.substring(0, 8) ?? '—'}</TableCell>
+                          <TableCell className="text-sm max-w-[160px] truncate">{e.action_taken ?? '—'}</TableCell>
+                          <TableCell className="text-sm max-w-[120px] truncate">{e.outcome ?? '—'}</TableCell>
+                          <TableCell>
+                            <Badge className={`capitalize ${STATUS_COLOURS[e.status ?? ''] ?? 'bg-gray-100 text-gray-700'}`}>
+                              {e.status?.replace(/_/g, ' ') ?? 'unknown'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-sm text-muted-foreground">
+                            {photoUrls && photoUrls.length > 0 ? photoUrls.length : '—'}
+                          </TableCell>
+                          <TableCell className="font-mono text-xs text-muted-foreground">{e.created_by?.substring(0, 8) ?? '—'}</TableCell>
+                        </TableRow>
+
+                        {isExpanded && (
+                          <TableRow key={`${e.id}-detail`} className="bg-muted/20">
+                            <TableCell colSpan={9} className="py-3 px-6">
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                                {e.evidence_notes && (
+                                  <div>
+                                    <p className="font-semibold text-muted-foreground mb-1">Evidence Notes</p>
+                                    <p>{e.evidence_notes}</p>
+                                  </div>
+                                )}
+                                {photoUrls && photoUrls.length > 0 && (
+                                  <div>
+                                    <p className="font-semibold text-muted-foreground mb-1">Photo URLs</p>
+                                    <ul className="space-y-1">
+                                      {photoUrls.map((url, i) => (
+                                        <li key={i}>
+                                          <a href={url} target="_blank" rel="noreferrer" className="text-xs text-blue-600 underline truncate block max-w-xs">{url}</a>
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                )}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </>
+                    )
+                  })}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </AppLayout>
   )

@@ -1,25 +1,14 @@
 /**
- * OpenShiftManager — B-98
- *
- * Manager for open_shifts — unclaimed / published shifts available for officers.
- *
- * Features:
- *  - KPI cards: Total / Open (unclaimed) / Claimed / High Priority
- *  - Filters: status (dynamic), shift_type (dynamic), priority (dynamic), date
- *  - Table: title, shift_type badge, priority badge, status badge,
- *           shift_date, start_time, end_time, zone_id, claimed_by
- *  - Actions: Claim shift (sets claimed_at + claimed_by, status → claimed);
- *             Unclaim shift (clears claimed fields, status → open)
- *  - Expandable row: description, requirements, officer_shift_id
- *
- * Route: /open-shifts — admin/admin_officer/master/officer
+ * OpenShiftManager — B-81
+ * Manager for open_shifts — unclaimed shift publishing and claiming.
+ * Route: /open-shifts-manager — admin/admin_officer/master
  */
 
 import { useState } from 'react'
 import { format, parseISO } from 'date-fns'
 import {
-  CalendarClock, RefreshCw, AlertCircle, Loader2,
-  ChevronDown, ChevronRight,
+  CalendarClock, Search, RefreshCw, AlertCircle, Loader2,
+  ChevronDown, ChevronRight, CheckCircle2,
 } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -48,280 +37,310 @@ import {
 } from '@/components/ui/table'
 import type { Database } from '@/types/database'
 
-// ─── Types ─────────────────────────────────────────────────────────────────────
+// ─── Types ────────────────────────────────────────────────────────────────────
 
-type OpenShift = Database['public']['Tables']['open_shifts']['Row']
+type OpenShiftRow = Database['public']['Tables']['open_shifts']['Row']
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function fmtDate(ts: string | null) {
+function fmtDate(ts: string | null | undefined) {
   if (!ts) return '—'
-  try { return format(parseISO(ts), 'dd MMM yyyy') } catch { return ts }
+  try { return format(parseISO(ts), 'dd MMM yyyy HH:mm') } catch { return ts }
 }
 
-function fmtTime(ts: string | null) {
-  if (!ts) return '—'
-  // Handle HH:mm:ss or ISO
-  if (/^\d{2}:\d{2}/.test(ts)) return ts.slice(0, 5)
-  try { return format(parseISO(ts), 'HH:mm') } catch { return ts }
+const PRIORITY_COLOURS: Record<string, string> = {
+  critical: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300',
+  high:     'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300',
+  medium:   'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300',
+  low:      'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
 }
 
-function priorityBadge(priority: string) {
-  if (priority === 'high')   return 'bg-red-100 text-red-800'
-  if (priority === 'medium') return 'bg-yellow-100 text-yellow-800'
-  return 'bg-gray-100 text-gray-700'
-}
-
-function statusBadge(status: string) {
-  if (status === 'open')    return 'bg-blue-100 text-blue-800'
-  if (status === 'claimed') return 'bg-green-100 text-green-800'
-  if (status === 'filled')  return 'bg-purple-100 text-purple-800'
-  return 'bg-gray-100 text-gray-700'
-}
-
-// ─── Component ────────────────────────────────────────────────────────────────
+// ─── Component ───────────────────────────────────────────────────────────────
 
 export default function OpenShiftManager() {
   const { user } = useAuthStore()
   const orgId = user?.organization_id
   const qc = useQueryClient()
 
-  const [statusFilter,    setStatusFilter]    = useState('all')
-  const [shiftTypeFilter, setShiftTypeFilter] = useState('all')
-  const [priorityFilter,  setPriorityFilter]  = useState('all')
-  const [dateFrom,        setDateFrom]        = useState('')
-  const [expandedId,      setExpandedId]      = useState<string | null>(null)
+  const [search, setSearch]               = useState('')
+  const [filterPriority, setFilterPriority] = useState('all')
+  const [filterShiftType, setFilterShiftType] = useState('all')
+  const [filterClaimed, setFilterClaimed] = useState('all')
+  const [filterMonth, setFilterMonth]     = useState('all')
+  const [expandedId, setExpandedId]       = useState<string | null>(null)
 
   // ── Query ─────────────────────────────────────────────────────────────────
 
-  const { data: rows = [], isLoading, refetch } = useQuery<OpenShift[]>({
-    queryKey: ['open-shifts', orgId, statusFilter, shiftTypeFilter, priorityFilter, dateFrom],
-    enabled: !!orgId,
+  const { data: shifts = [], isLoading, error, refetch } = useQuery<OpenShiftRow[]>({
+    queryKey: ['open-shifts', orgId],
     queryFn: async () => {
       let q = supabase
         .from('open_shifts')
         .select('*')
-        .eq('organization_id', orgId!)
         .order('shift_date', { ascending: false })
         .limit(500)
-
-      if (statusFilter    !== 'all') q = q.eq('status', statusFilter)
-      if (shiftTypeFilter !== 'all') q = q.eq('shift_type', shiftTypeFilter)
-      if (priorityFilter  !== 'all') q = q.eq('priority', priorityFilter)
-      if (dateFrom)                  q = q.gte('shift_date', dateFrom)
-
+      if (orgId) q = q.eq('organization_id', orgId)
       const { data, error } = await q
       if (error) throw error
       return data ?? []
     },
+    enabled: !!orgId,
   })
 
-  // ── Claim / Unclaim mutations ──────────────────────────────────────────────
+  // ── Derived ───────────────────────────────────────────────────────────────
 
-  const claim = useMutation({
+  const filtered = shifts.filter(e => {
+    if (filterPriority  !== 'all' && e.priority !== filterPriority) return false
+    if (filterShiftType !== 'all' && e.shift_type !== filterShiftType) return false
+    if (filterClaimed   === 'unclaimed' && e.claimed_by) return false
+    if (filterClaimed   === 'claimed'   && !e.claimed_by) return false
+    if (filterMonth     !== 'all' && e.shift_date?.substring(0, 7) !== filterMonth) return false
+    if (search) {
+      const s = search.toLowerCase()
+      return (
+        e.shift_type?.toLowerCase().includes(s) ||
+        e.description?.toLowerCase().includes(s)
+      )
+    }
+    return true
+  })
+
+  const total        = shifts.length
+  const unclaimed    = shifts.filter(e => !e.claimed_by).length
+  const claimed      = shifts.filter(e => !!e.claimed_by).length
+  const highPriority = shifts.filter(e => e.priority === 'high' || e.priority === 'critical').length
+
+  const shiftTypes = Array.from(new Set(shifts.map(e => e.shift_type).filter(Boolean)))
+  const months     = Array.from(new Set(shifts.map(e => e.shift_date?.substring(0, 7)).filter(Boolean))).sort().reverse()
+
+  // ── Mutation ──────────────────────────────────────────────────────────────
+
+  const markClaimed = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase
         .from('open_shifts')
-        .update({ status: 'claimed', claimed_at: new Date().toISOString(), claimed_by: user?.id ?? null })
+        .update({
+          claimed_at: new Date().toISOString(),
+          claimed_by: user?.id,
+        })
         .eq('id', id)
       if (error) throw error
     },
-    onSuccess: () => { toast.success('Shift claimed'); qc.invalidateQueries({ queryKey: ['open-shifts'] }) },
-    onError: () => toast.error('Failed to claim shift'),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['open-shifts'] }); toast.success('Shift marked as claimed') },
+    onError: (e: Error) => toast.error(e.message),
   })
-
-  const unclaim = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from('open_shifts')
-        .update({ status: 'open', claimed_at: null, claimed_by: null })
-        .eq('id', id)
-      if (error) throw error
-    },
-    onSuccess: () => { toast.success('Shift unclaimed'); qc.invalidateQueries({ queryKey: ['open-shifts'] }) },
-    onError: () => toast.error('Failed to unclaim shift'),
-  })
-
-  const openCount    = rows.filter(r => r.status === 'open').length
-  const claimedCount = rows.filter(r => r.status === 'claimed' || r.status === 'filled').length
-  const highCount    = rows.filter(r => r.priority === 'high').length
-  const statusTypes  = [...new Set(rows.map(r => r.status).filter(Boolean))].sort()
-  const shiftTypes   = [...new Set(rows.map(r => r.shift_type).filter(Boolean))].sort()
-  const priorities   = [...new Set(rows.map(r => r.priority).filter(Boolean))].sort()
-
-  const isMutating = claim.isPending || unclaim.isPending
 
   // ─────────────────────────────────────────────────────────────────────────
 
   return (
     <AppLayout>
-      <div className="p-6 space-y-6">
+      <div className="p-6 space-y-6 max-w-7xl mx-auto">
+
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <CalendarClock className="h-6 w-6 text-blue-600" />
+            <CalendarClock className="h-7 w-7 text-cyan-600" />
             <div>
               <h1 className="text-2xl font-bold">Open Shift Manager</h1>
-              <p className="text-sm text-muted-foreground">Published and unclaimed shifts available to officers</p>
+              <p className="text-sm text-muted-foreground">Unclaimed shift publishing and claiming</p>
             </div>
           </div>
-          <Button variant="outline" size="sm" onClick={() => refetch()}>
-            <RefreshCw className="h-4 w-4 mr-1" /> Refresh
+          <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isLoading}>
+            <RefreshCw className={`h-4 w-4 mr-1.5 ${isLoading ? 'animate-spin' : ''}`} />
+            Refresh
           </Button>
         </div>
 
-        {/* KPIs */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {/* KPI cards */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           {[
-            { label: 'Total Shifts',    value: rows.length,  colour: 'text-gray-700' },
-            { label: 'Open',            value: openCount,    colour: 'text-blue-700' },
-            { label: 'Claimed / Filled',value: claimedCount, colour: 'text-green-700' },
-            { label: 'High Priority',   value: highCount,    colour: 'text-red-700' },
-          ].map(kpi => (
-            <Card key={kpi.label}>
-              <CardHeader className="pb-1 pt-3 px-4">
-                <CardTitle className="text-xs text-muted-foreground">{kpi.label}</CardTitle>
+            { label: 'Total',         value: total,        colour: 'text-slate-600' },
+            { label: 'Unclaimed',     value: unclaimed,    colour: unclaimed > 0 ? 'text-orange-600' : 'text-muted-foreground' },
+            { label: 'Claimed',       value: claimed,      colour: 'text-green-600' },
+            { label: 'High Priority', value: highPriority, colour: highPriority > 0 ? 'text-red-600' : 'text-muted-foreground' },
+          ].map(({ label, value, colour }) => (
+            <Card key={label}>
+              <CardHeader className="pb-1">
+                <CardTitle className="text-sm font-medium text-muted-foreground">{label}</CardTitle>
               </CardHeader>
-              <CardContent className="px-4 pb-3">
-                <p className={`text-2xl font-bold ${kpi.colour}`}>{kpi.value}</p>
+              <CardContent>
+                <span className={`text-2xl font-bold ${colour}`}>{value}</span>
               </CardContent>
             </Card>
           ))}
         </div>
 
         {/* Filters */}
-        <div className="flex flex-wrap gap-3">
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-40"><SelectValue placeholder="Status" /></SelectTrigger>
+        <div className="flex flex-wrap gap-3 items-end">
+          <div className="relative flex-1 min-w-[180px]">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
+            <Input
+              placeholder="Shift type, description…"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="pl-8"
+            />
+          </div>
+
+          <Select value={filterPriority} onValueChange={setFilterPriority}>
+            <SelectTrigger className="w-[150px]">
+              <SelectValue placeholder="Priority" />
+            </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All statuses</SelectItem>
-              {statusTypes.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          <Select value={shiftTypeFilter} onValueChange={setShiftTypeFilter}>
-            <SelectTrigger className="w-44"><SelectValue placeholder="Shift type" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All shift types</SelectItem>
-              {shiftTypes.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-            <SelectTrigger className="w-40"><SelectValue placeholder="Priority" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All priorities</SelectItem>
-              {priorities.map(p => (
-                <SelectItem key={p} value={p}>
-                  <span className={`inline-block px-2 py-0.5 rounded text-xs mr-1 ${priorityBadge(p)}`}>{p}</span>
-                </SelectItem>
+              <SelectItem value="all">All Priorities</SelectItem>
+              {['critical', 'high', 'medium', 'low'].map(p => (
+                <SelectItem key={p} value={p} className="capitalize">{p}</SelectItem>
               ))}
             </SelectContent>
           </Select>
-          <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="w-40" />
+
+          {shiftTypes.length > 0 && (
+            <Select value={filterShiftType} onValueChange={setFilterShiftType}>
+              <SelectTrigger className="w-[160px]">
+                <SelectValue placeholder="Shift Type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Types</SelectItem>
+                {shiftTypes.map(t => (
+                  <SelectItem key={t} value={t} className="capitalize">{t?.replace(/_/g, ' ')}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+
+          <Select value={filterClaimed} onValueChange={setFilterClaimed}>
+            <SelectTrigger className="w-[150px]">
+              <SelectValue placeholder="Claim Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All</SelectItem>
+              <SelectItem value="unclaimed">Unclaimed</SelectItem>
+              <SelectItem value="claimed">Claimed</SelectItem>
+            </SelectContent>
+          </Select>
+
+          {months.length > 0 && (
+            <Select value={filterMonth} onValueChange={setFilterMonth}>
+              <SelectTrigger className="w-[150px]">
+                <SelectValue placeholder="Month" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Months</SelectItem>
+                {months.map(m => (
+                  <SelectItem key={m} value={m}>{m}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
         </div>
 
-        {/* Table */}
-        {isLoading ? (
-          <div className="flex justify-center py-12">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-          </div>
-        ) : rows.length === 0 ? (
-          <div className="flex flex-col items-center py-12 text-muted-foreground gap-2">
-            <AlertCircle className="h-8 w-8" /><p>No open shifts found</p>
-          </div>
-        ) : (
-          <div className="rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-8" />
-                  <TableHead>Title</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Priority</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Start</TableHead>
-                  <TableHead>End</TableHead>
-                  <TableHead>Claimed By</TableHead>
-                  <TableHead className="w-36" />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rows.map(row => {
-                  const expanded = expandedId === row.id
-                  return (
-                    <>
-                      <TableRow
-                        key={row.id}
-                        className="cursor-pointer hover:bg-muted/50"
-                        onClick={() => setExpandedId(expanded ? null : row.id)}
-                      >
-                        <TableCell>
-                          {expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                        </TableCell>
-                        <TableCell className="text-sm font-medium max-w-44 truncate">{row.title}</TableCell>
-                        <TableCell><Badge className="bg-blue-100 text-blue-800">{row.shift_type}</Badge></TableCell>
-                        <TableCell><Badge className={priorityBadge(row.priority)}>{row.priority}</Badge></TableCell>
-                        <TableCell><Badge className={statusBadge(row.status)}>{row.status}</Badge></TableCell>
-                        <TableCell className="text-sm">{fmtDate(row.shift_date)}</TableCell>
-                        <TableCell className="text-sm">{fmtTime(row.start_time)}</TableCell>
-                        <TableCell className="text-sm">{fmtTime(row.end_time)}</TableCell>
-                        <TableCell className="font-mono text-xs text-muted-foreground">
-                          {row.claimed_by ? `${row.claimed_by.slice(0, 8)}…` : '—'}
-                        </TableCell>
-                        <TableCell onClick={e => e.stopPropagation()}>
-                          {row.status === 'open' ? (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="text-xs"
-                              disabled={isMutating}
-                              onClick={() => claim.mutate(row.id)}
-                            >
-                              Claim
-                            </Button>
-                          ) : row.status === 'claimed' ? (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="text-xs text-muted-foreground"
-                              disabled={isMutating}
-                              onClick={() => unclaim.mutate(row.id)}
-                            >
-                              Unclaim
-                            </Button>
-                          ) : null}
-                        </TableCell>
-                      </TableRow>
-                      {expanded && (
-                        <TableRow key={`${row.id}-exp`} className="bg-muted/30">
-                          <TableCell colSpan={10} className="p-4 space-y-2">
-                            {row.description && (
-                              <div>
-                                <p className="font-medium text-sm mb-1">Description</p>
-                                <p className="text-sm text-muted-foreground">{row.description}</p>
-                              </div>
-                            )}
-                            {row.requirements && (
-                              <div>
-                                <p className="font-medium text-sm mb-1">Requirements</p>
-                                <p className="text-sm text-muted-foreground">{row.requirements}</p>
-                              </div>
-                            )}
-                            <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
-                              {row.zone_id && <span>Zone: {row.zone_id.slice(0, 8)}…</span>}
-                              {row.officer_shift_id && <span>Officer shift: {row.officer_shift_id.slice(0, 8)}…</span>}
-                              {row.claimed_at && <span>Claimed: {fmtDate(row.claimed_at)}</span>}
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </>
-                  )
-                })}
-              </TableBody>
-            </Table>
+        {/* Error */}
+        {error && (
+          <div className="flex items-center gap-2 text-destructive text-sm">
+            <AlertCircle className="h-4 w-4" />
+            {(error as Error).message}
           </div>
         )}
+
+        {/* Table */}
+        <Card>
+          <CardContent className="p-0">
+            {isLoading ? (
+              <div className="flex justify-center py-12">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : filtered.length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground text-sm">No open shifts match your filters.</div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-8" />
+                    <TableHead>Shift Date</TableHead>
+                    <TableHead>Shift Type</TableHead>
+                    <TableHead>Time</TableHead>
+                    <TableHead>Priority</TableHead>
+                    <TableHead>Requirements</TableHead>
+                    <TableHead>Claimed By</TableHead>
+                    <TableHead>Claimed At</TableHead>
+                    <TableHead>Action</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filtered.map(e => {
+                    const isExpanded = expandedId === e.id
+                    const reqPreview = e.requirements ? JSON.stringify(e.requirements).substring(0, 40) : '—'
+                    return (
+                      <>
+                        <TableRow
+                          key={e.id}
+                          className="cursor-pointer hover:bg-muted/40"
+                          onClick={() => setExpandedId(isExpanded ? null : e.id)}
+                        >
+                          <TableCell>
+                            {isExpanded
+                              ? <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                              : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+                          </TableCell>
+                          <TableCell className="text-sm whitespace-nowrap">{e.shift_date ?? '—'}</TableCell>
+                          <TableCell className="text-sm capitalize">{e.shift_type?.replace(/_/g, ' ') ?? '—'}</TableCell>
+                          <TableCell className="text-sm whitespace-nowrap">
+                            {e.start_time ?? '—'} – {e.end_time ?? '—'}
+                          </TableCell>
+                          <TableCell>
+                            <Badge className={`capitalize ${PRIORITY_COLOURS[e.priority ?? ''] ?? 'bg-gray-100 text-gray-700'}`}>
+                              {e.priority ?? '—'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground truncate max-w-[120px]">{reqPreview}</TableCell>
+                          <TableCell className="font-mono text-xs text-muted-foreground">{e.claimed_by?.substring(0, 8) ?? '—'}</TableCell>
+                          <TableCell className="text-sm">{fmtDate(e.claimed_at)}</TableCell>
+                          <TableCell onClick={ev => ev.stopPropagation()}>
+                            {!e.claimed_by && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-6 text-xs px-2"
+                                disabled={markClaimed.isPending}
+                                onClick={() => markClaimed.mutate(e.id)}
+                              >
+                                <CheckCircle2 className="h-3 w-3 mr-1" />
+                                Claim
+                              </Button>
+                            )}
+                          </TableCell>
+                        </TableRow>
+
+                        {isExpanded && (
+                          <TableRow key={`${e.id}-detail`} className="bg-muted/20">
+                            <TableCell colSpan={9} className="py-3 px-6">
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                                {e.description && (
+                                  <div>
+                                    <p className="font-semibold text-muted-foreground mb-1">Description</p>
+                                    <p>{e.description}</p>
+                                  </div>
+                                )}
+                                {e.requirements && (
+                                  <div>
+                                    <p className="font-semibold text-muted-foreground mb-1">Requirements</p>
+                                    <pre className="text-xs bg-muted rounded p-2 overflow-x-auto max-h-32">
+                                      {JSON.stringify(e.requirements, null, 2)}
+                                    </pre>
+                                  </div>
+                                )}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </>
+                    )
+                  })}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </AppLayout>
   )
