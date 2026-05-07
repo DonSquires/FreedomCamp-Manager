@@ -57,17 +57,15 @@ jobs:
           [ -z "$SERVICE_ID" ] && missing="$missing RAILWAY_STT_SERVICE_ID|RAILWAY_SERVICE_ID"
 
           if [ -n "$missing" ]; then
-          RAILWAY_TOKEN2: ${{ secrets.RAILWAY_TOKEN2 }}
             echo "::error::Required secrets not configured ($missing) — deployment skipped."
             echo ""
-          RAILWAY_SST_TOKEN: ${{ secrets.RAILWAY_SST_TOKEN }}
             echo "Setup steps:"
             echo "  1. In Railway: New Service → GitHub Repo → FreedomCamp-Manager → Root: railway-stt/"
             echo "  2. Add service env vars: WHISPER_MODEL=distil-small.en, STT_API_KEY=<secret>"
             echo "  3. Copy the Railway service ID (Service → Settings → Service ID)"
             echo "     and add it as GitHub secret RAILWAY_STT_SERVICE_ID"
             echo "  4. Add a Railway project token as GitHub secret RAILWAY_TOKEN"
-          for CANDIDATE in "$RAILWAY_TOKEN" "$RAILWAY_TOKEN2" "$RAILWAY_BOB_TOKEN" "$RAILWAY_PTT_TOKEN" "$RAILWAY_SST_TOKEN"; do
+            exit 1
           fi
           echo "secrets_present=true" >> "$GITHUB_OUTPUT"
 
@@ -121,14 +119,16 @@ jobs:
         if: steps.check-secrets.outputs.secrets_present == 'true'
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_TOKEN2: ${{ secrets.RAILWAY_TOKEN2 }}
           RAILWAY_BOB_TOKEN: ${{ secrets.RAILWAY_BOB_TOKEN }}
           RAILWAY_PTT_TOKEN: ${{ secrets.RAILWAY_PTT_TOKEN }}
+          RAILWAY_SST_TOKEN: ${{ secrets.RAILWAY_SST_TOKEN }}
           RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_STT_SERVICE_ID || secrets.RAILWAY_SERVICE_ID }}
         run: |
           set -euo pipefail
           cd railway-stt
           DEPLOYED="false"
-          for CANDIDATE in "$RAILWAY_TOKEN" "$RAILWAY_BOB_TOKEN" "$RAILWAY_PTT_TOKEN"; do
+          for CANDIDATE in "$RAILWAY_TOKEN" "$RAILWAY_TOKEN2" "$RAILWAY_BOB_TOKEN" "$RAILWAY_PTT_TOKEN" "$RAILWAY_SST_TOKEN"; do
             if [ -z "$CANDIDATE" ]; then
               continue
             fi
