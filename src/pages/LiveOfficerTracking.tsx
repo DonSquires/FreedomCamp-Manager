@@ -26,13 +26,19 @@ interface OfficerLocation {
   first_name: string
   last_name: string
   role: string
-  last_activity_at: string
+  last_activity_at: string | null
   gps_latitude: number | null
   gps_longitude: number | null
   gps_accuracy: number | null
   activity_type: string
   zone_name: string | null
   status: 'active' | 'inactive' | 'warning'
+}
+
+interface OfficerActivity {
+  user_id: string
+  activity_type: string
+  recorded_at: string
 }
 
 export default function LiveOfficerTracking() {
@@ -48,6 +54,50 @@ export default function LiveOfficerTracking() {
     return 'inactive'
   }
 
+  const getLatestOfficerActivity = async (userIds: string[]): Promise<Map<string, OfficerActivity>> => {
+    if (userIds.length === 0) return new Map()
+
+    const since = new Date(Date.now() - 60 * 60 * 1000).toISOString()
+    const { data, error } = await (supabase as any)
+      .from('officer_activity_log')
+      .select('user_id, activity_type, recorded_at')
+      .in('user_id', userIds)
+      .in('activity_type', ['gps_update', 'gps_private', 'app_heartbeat', 'login', 'vehicle_scan'])
+      .gte('recorded_at', since)
+      .order('recorded_at', { ascending: false })
+      .limit(Math.max(userIds.length * 5, 20))
+
+    if (error || !Array.isArray(data)) {
+      if (error) console.warn('Unable to load officer presence activity:', error)
+      return new Map()
+    }
+
+    const latestByUser = new Map<string, OfficerActivity>()
+    for (const row of data as OfficerActivity[]) {
+      if (!latestByUser.has(row.user_id)) {
+        latestByUser.set(row.user_id, row)
+      }
+    }
+    return latestByUser
+  }
+
+  const formatActivityType = (activityType: string | null | undefined) => {
+    switch (activityType) {
+      case 'app_heartbeat':
+        return 'app online'
+      case 'gps_private':
+        return 'location private'
+      case 'gps_update':
+        return 'gps update'
+      case 'vehicle_scan':
+        return 'vehicle scan'
+      case 'login':
+        return 'logged in'
+      default:
+        return activityType || 'no recent activity'
+    }
+  }
+
   // Fetch live officer locations
   const { data: officers, isLoading, isFetching, isError, error, refetch } = useQuery({
     queryKey: ['live-officers', organizationId],
@@ -58,21 +108,24 @@ export default function LiveOfficerTracking() {
       })
 
       if (!liveError && Array.isArray(liveRows)) {
+        const latestActivity = await getLatestOfficerActivity(liveRows.map((row: any) => row.user_id).filter(Boolean))
         return liveRows.map((row: any) => {
           const lastGpsUpdate = row.last_gps_update ?? null
+          const activity = latestActivity.get(row.user_id)
+          const lastActivityAt = activity?.recorded_at ?? lastGpsUpdate
           return {
             id: row.user_id,
             user_id: row.user_id,
             first_name: row.first_name || 'Officer',
             last_name: row.last_name || '',
             role: 'officer',
-            last_activity_at: lastGpsUpdate || new Date().toISOString(),
+            last_activity_at: lastActivityAt,
             gps_latitude: row.last_gps_latitude ?? null,
             gps_longitude: row.last_gps_longitude ?? null,
             gps_accuracy: row.last_gps_accuracy ?? null,
-            activity_type: Number(row.recent_scans ?? 0) > 0 ? 'vehicle_scan' : 'gps_update',
+            activity_type: formatActivityType(activity?.activity_type ?? (Number(row.recent_scans ?? 0) > 0 ? 'vehicle_scan' : 'gps_update')),
             zone_name: row.last_scan_zone ?? null,
-            status: deriveStatus(lastGpsUpdate),
+            status: deriveStatus(lastActivityAt),
           } as OfficerLocation
         })
       }
@@ -89,21 +142,24 @@ export default function LiveOfficerTracking() {
       const { data, error } = await q.order('first_name', { ascending: true })
       if (error) throw error
 
+      const latestActivity = await getLatestOfficerActivity(((data || []) as any[]).map((row) => row.id).filter(Boolean))
       return ((data || []) as any[]).map((row) => {
         const lastGpsUpdate = row.last_gps_update ?? null
+        const activity = latestActivity.get(row.id)
+        const lastActivityAt = activity?.recorded_at ?? lastGpsUpdate
         return {
           id: row.id,
           user_id: row.id,
           first_name: row.first_name || 'Officer',
           last_name: row.last_name || '',
           role: row.role || 'officer',
-          last_activity_at: lastGpsUpdate || new Date().toISOString(),
+          last_activity_at: lastActivityAt,
           gps_latitude: row.last_gps_latitude ?? null,
           gps_longitude: row.last_gps_longitude ?? null,
           gps_accuracy: null,
-          activity_type: 'gps_update',
+          activity_type: formatActivityType(activity?.activity_type ?? 'gps_update'),
           zone_name: null,
-          status: deriveStatus(lastGpsUpdate),
+          status: deriveStatus(lastActivityAt),
         } as OfficerLocation
       })
     },
@@ -140,7 +196,8 @@ export default function LiveOfficerTracking() {
     }
   }
 
-  const getTimeSince = (timestamp: string) => {
+  const getTimeSince = (timestamp: string | null) => {
+    if (!timestamp) return 'No recent activity'
     const now = new Date()
     const then = new Date(timestamp)
     const diffMs = now.getTime() - then.getTime()
