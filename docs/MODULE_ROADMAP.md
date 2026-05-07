@@ -690,6 +690,12 @@ New admin routes added in Sprint 42 (B-136, B-137, B-138):
 
 With Sprint 42 route consolidation complete, execution progresses from route expansion to realignment phase delivery and gate-based progression.
 
+Gate status definition:
+- **Green gate** = all listed criteria for that phase are met and verified with documented evidence in staging/CI artifacts.
+
+Phase baseline:
+- **Phase A context** = foundational realignment work and prerequisites already defined in `docs/BUILD_REALIGNMENT_PLAN_2026-05-04.md` sections 11.2a and 12.1; this roadmap now tracks progression from the Phase B entry point onward.
+
 1. **Phase B — Consolidate Core Operational Flows**
    - Scope: Patrol/Dispatch/Enforcement consolidation, callsign/PTT runtime binding, geofence route event persistence.
    - Exit gate to Phase C:
