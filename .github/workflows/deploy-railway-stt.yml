@@ -5,7 +5,7 @@ name: Deploy Railway STT Service
 # GPU supply constraints.
 #
 # Required secrets (supports aliases):
-#   Token: RAILWAY_TOKEN or RAILWAY_BOB_TOKEN
+#   Token: RAILWAY_TOKEN or RAILWAY_BOB_TOKEN or RAILWAY_PTT_TOKEN
 #   Service ID: RAILWAY_STT_SERVICE_ID or RAILWAY_SERVICE_ID
 #
 # Optional secrets:
@@ -44,10 +44,10 @@ jobs:
         id: check-secrets
         run: |
           missing=""
-          TOKEN="${{ secrets.RAILWAY_TOKEN || secrets.RAILWAY_BOB_TOKEN }}"
+          TOKEN="${{ secrets.RAILWAY_TOKEN || secrets.RAILWAY_BOB_TOKEN || secrets.RAILWAY_PTT_TOKEN }}"
           SERVICE_ID="${{ secrets.RAILWAY_STT_SERVICE_ID || secrets.RAILWAY_SERVICE_ID }}"
 
-          [ -z "$TOKEN" ]      && missing="$missing RAILWAY_TOKEN|RAILWAY_BOB_TOKEN"
+          [ -z "$TOKEN" ]      && missing="$missing RAILWAY_TOKEN|RAILWAY_BOB_TOKEN|RAILWAY_PTT_TOKEN"
           [ -z "$SERVICE_ID" ] && missing="$missing RAILWAY_STT_SERVICE_ID|RAILWAY_SERVICE_ID"
 
           if [ -n "$missing" ]; then
@@ -112,7 +112,7 @@ jobs:
       - name: Deploy to Railway
         if: steps.check-secrets.outputs.secrets_present == 'true'
         env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN || secrets.RAILWAY_BOB_TOKEN }}
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN || secrets.RAILWAY_BOB_TOKEN || secrets.RAILWAY_PTT_TOKEN }}
           RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_STT_SERVICE_ID || secrets.RAILWAY_SERVICE_ID }}
         run: |
           set -euo pipefail
