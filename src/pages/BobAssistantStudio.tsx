@@ -381,6 +381,27 @@ const BOB_END_PHRASES = [
   'we are done',
 ]
 const VOICE_INACTIVITY_TIMEOUT_MS = 29_000
+const BOB_CHAT_RESPONSE_TIMEOUT_MS = 45_000
+
+async function withPromiseTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  timeoutMessage: string,
+): Promise<T> {
+  let timeoutHandle: number | undefined
+
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutHandle = window.setTimeout(() => reject(new Error(timeoutMessage)), timeoutMs)
+  })
+
+  try {
+    return await Promise.race([promise, timeoutPromise])
+  } finally {
+    if (timeoutHandle !== undefined) {
+      window.clearTimeout(timeoutHandle)
+    }
+  }
+}
 
 function BobSketchPad() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
@@ -1392,7 +1413,11 @@ export default function BobAssistantStudio() {
     }
 
     try {
-      const { data, error } = await edgeFunctions.aiChat(buildRequestBody())
+      const { data, error } = await withPromiseTimeout(
+        edgeFunctions.aiChat(buildRequestBody()),
+        BOB_CHAT_RESPONSE_TIMEOUT_MS,
+        `Bob response timeout after ${Math.round(BOB_CHAT_RESPONSE_TIMEOUT_MS / 1000)}s`,
+      )
       if (error || !data?.response) {
         throw new Error(error || 'Bob returned an empty response')
       }
@@ -1413,28 +1438,43 @@ export default function BobAssistantStudio() {
 
       setChat((prev) => [...prev, bobMsg])
 
-      // Continuous learning: persist each exchange so future prompts can reuse
-      // Bob's prior outcomes instead of starting from scratch.
-      await persistBobLearningRemote({
-        userId: learningUserId,
-        organizationId: user?.organization_id ?? null,
-        route: '/bob-assistant',
-        source: collaborationPacket?.source ?? 'bob-studio',
-        userMessage: message,
-        assistantReply: replyText,
-      })
+      // Run memory writes in background so chat UX is not blocked by DB latency.
+      void (async () => {
+        try {
+          await Promise.all([
+            persistBobLearningRemote({
+              userId: learningUserId,
+              organizationId: user?.organization_id ?? null,
+              route: '/bob-assistant',
+              source: collaborationPacket?.source ?? 'bob-studio',
+              userMessage: message,
+              assistantReply: replyText,
+            }),
+            persistConversationTurnRemote({
+              userId: learningUserId,
+              organizationId: user?.organization_id ?? null,
+              route: '/bob-assistant',
+              source: collaborationPacket?.source ?? 'bob-studio',
+              userMessage: message,
+              assistantReply: replyText,
+              currentRoute: window.location.pathname,
+              destinationHint: destination || null,
+              executionReview: (data as any)?.executionReview ?? null,
+            }),
+          ])
 
-      await persistConversationTurnRemote({
-        userId: learningUserId,
-        organizationId: user?.organization_id ?? null,
-        route: '/bob-assistant',
-        source: collaborationPacket?.source ?? 'bob-studio',
-        userMessage: message,
-        assistantReply: replyText,
-        currentRoute: window.location.pathname,
-        destinationHint: destination || null,
-        executionReview: (data as any)?.executionReview ?? null,
-      })
+          if (learningUserId !== 'anonymous') {
+            const [refreshedRemote, refreshedContinuation] = await Promise.all([
+              buildBobLearningContextRemote(learningUserId, 20),
+              buildConversationContinuationContextRemote(learningUserId, 16),
+            ])
+            setRemoteLearningContext(refreshedRemote)
+            setConversationContinuationContext(refreshedContinuation)
+          }
+        } catch {
+          // Keep chat resilient even if memory persistence fails.
+        }
+      })()
 
       // Gateway-side learning ingest (privacy-first): only when explicit
       // permission has been granted for user-data-aware processing.
@@ -1458,16 +1498,6 @@ export default function BobAssistantStudio() {
             redact_pii: true,
           },
         })
-      }
-
-      // Refresh remote context opportunistically after successful persistence.
-      if (learningUserId !== 'anonymous') {
-        const [refreshedRemote, refreshedContinuation] = await Promise.all([
-          buildBobLearningContextRemote(learningUserId, 20),
-          buildConversationContinuationContextRemote(learningUserId, 16),
-        ])
-        setRemoteLearningContext(refreshedRemote)
-        setConversationContinuationContext(refreshedContinuation)
       }
 
       // Publish response back to the originating component (sub-agent pattern)
@@ -1506,27 +1536,39 @@ export default function BobAssistantStudio() {
       }
       setChat((prev) => [...prev, bobMsg])
 
-      // Even in degraded mode, capture what was asked and what was answered.
-      await persistBobLearningRemote({
-        userId: learningUserId,
-        organizationId: user?.organization_id ?? null,
-        route: '/bob-assistant',
-        source: collaborationPacket?.source ?? 'bob-ollama-unavailable',
-        userMessage: message,
-        assistantReply: replyText,
-      })
+      // Capture degraded-mode turn in background so errors here never block UI.
+      void (async () => {
+        try {
+          await Promise.all([
+            persistBobLearningRemote({
+              userId: learningUserId,
+              organizationId: user?.organization_id ?? null,
+              route: '/bob-assistant',
+              source: collaborationPacket?.source ?? 'bob-ollama-unavailable',
+              userMessage: message,
+              assistantReply: replyText,
+            }),
+            persistConversationTurnRemote({
+              userId: learningUserId,
+              organizationId: user?.organization_id ?? null,
+              route: '/bob-assistant',
+              source: collaborationPacket?.source ?? 'bob-ollama-unavailable',
+              userMessage: message,
+              assistantReply: replyText,
+              currentRoute: window.location.pathname,
+              destinationHint: destination || null,
+              executionReview: null,
+            }),
+          ])
 
-      await persistConversationTurnRemote({
-        userId: learningUserId,
-        organizationId: user?.organization_id ?? null,
-        route: '/bob-assistant',
-        source: collaborationPacket?.source ?? 'bob-ollama-unavailable',
-        userMessage: message,
-        assistantReply: replyText,
-        currentRoute: window.location.pathname,
-        destinationHint: destination || null,
-        executionReview: null,
-      })
+          if (learningUserId !== 'anonymous') {
+            const refreshedContinuation = await buildConversationContinuationContextRemote(learningUserId, 16)
+            setConversationContinuationContext(refreshedContinuation)
+          }
+        } catch {
+          // Best-effort persistence only.
+        }
+      })()
 
       if (expressUserDataPermission) {
         void edgeFunctions.bobResponseFeedback({
@@ -1545,11 +1587,6 @@ export default function BobAssistantStudio() {
             redact_pii: true,
           },
         })
-      }
-
-      if (learningUserId !== 'anonymous') {
-        const refreshedContinuation = await buildConversationContinuationContextRemote(learningUserId, 16)
-        setConversationContinuationContext(refreshedContinuation)
       }
 
       if (collaborationPacket && !hasPublishedResponseRef.current) {
