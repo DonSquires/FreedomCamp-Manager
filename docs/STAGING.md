@@ -3559,4 +3559,22 @@ The web SPA delivers SOS via the existing `officer_welfare_alerts` table + `send
 - `bun run lint` → PASS
 - `bun run build` → PASS
 
-**Next session:** Sprint 41 — continue parity for any remaining App↔AppLayout routes not yet in manifest.
+## Phase 5 — Sprint 41 (Manifest parity finish)
+
+### Changes
+
+- Added final two App+AppLayout parity entries to `routeManifest.ts`:
+  - `/admin` (Command Centre)
+  - `/search` (Search)
+- After this pass, parity audit reports **0** remaining routes that are present in both `App.tsx` and AppLayout but missing from `routeManifest.ts`.
+
+### Session Snapshot (Sprint 41 — 2026-05-07)
+
+- Timestamp (UTC): 2026-05-07 03:01 UTC
+- Current branch: copilot/noop-529-continue
+
+**Validation:**
+- `bun run lint` → PASS
+- `bun run build` → PASS
+
+**Next session:** Sprint 42 — start next backlog tranche beyond route parity.
