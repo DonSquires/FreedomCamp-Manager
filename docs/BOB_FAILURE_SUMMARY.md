@@ -2,12 +2,12 @@
 
 Generated: 2026-05-07T00:21:22.511Z
 Window: last 24 hours
-Entries analyzed: 0
-Low-score entries: 0
+Entries analyzed: 3
+Low-score entries: 1
 
 ## Top Failure Reasons
 
-- none
+- Bob chat request failed (1)
 
 ## Top Hallucination Patterns
 
