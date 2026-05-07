@@ -3114,7 +3114,7 @@ export default function PTTRadio() {
           </div>
 
           {/* ── CENTER: PTT controls ─────────────────────── */}
-          <div className="flex-1 flex flex-col items-center justify-center gap-3 md:gap-4 px-3 md:px-6 bg-slate-950 relative overflow-hidden md:overflow-auto py-3 md:py-4 pb-28 md:pb-4">
+          <div className="flex-1 flex flex-col items-center justify-center gap-3 md:gap-4 px-3 md:px-6 bg-slate-950 relative overflow-hidden md:overflow-auto py-0 md:py-4 pb-28 md:pb-4">
 
             {/* Active channel header */}
             {activeChannel && (
