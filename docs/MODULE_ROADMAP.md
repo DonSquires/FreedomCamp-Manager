@@ -3,7 +3,7 @@
 Date: 2026-05-07 (verified against src/navigation/routeManifest.ts)
 Source of truth for routes: route manifest file src/navigation/routeManifest.ts (187 route manifest entries as of Sprint 41 completion)
 
-> **Last Verification**: 2026-05-07 — Role-gating and route docs reviewed through Sprint 41 (B-135). Production main includes Sprints 31-41.
+ > **Last Verification**: 2026-05-07 — Role-gating and route docs reviewed through Sprint 42 (B-138). Production main includes Sprints 31-42.
 
 ## How To Use
 
@@ -684,4 +684,37 @@ New admin routes added in Sprint 42 (B-136, B-137, B-138):
 
 - Branch: main
 - PR state (base main): 0 open
-- Consolidation status: Sprint 31 through Sprint 41 route work is merged to production main
+- Consolidation status: Sprint 31 through Sprint 42 route work is merged to production main
+
+## Post-Sprint-42 Realignment Phases and Phase-Gate Progression (#548)
+
+With Sprint 42 route consolidation complete, execution progresses from route expansion to realignment phase delivery and gate-based progression.
+
+1. **Phase B — Consolidate Core Operational Flows**
+   - Scope: Patrol/Dispatch/Enforcement consolidation, callsign/PTT runtime binding, geofence route event persistence.
+   - Exit gate to Phase C:
+     - Phase A gate remains green.
+     - Patrol, Dispatch, and one enforcement surface run on shared timeline contract in staging.
+     - Callsign binding and dispatch acknowledgement flows are executable end-to-end.
+     - Ownership and support rota are assigned for active slices.
+
+2. **Phase C — Consolidate Specialist and Assistive Layers**
+   - Scope: Site guard/security operations, identity/risk modules, POI/VOI/LOI, assets/keys/client integration surfaces.
+   - Exit gate to Phase D:
+     - Phase B gate is green.
+     - Security assistive surfaces resolve people/vehicle/place context from shared contracts.
+     - Site guard and assistive workflows attach to the same case/timeline model.
+
+3. **Phase D — Consolidate Bob, Translation, and Transition Systems**
+   - Scope: Bob approval contracts, speech/translation boundaries, active-org transition, handshake/offline/reconnect hardening.
+   - Exit gate to Phase E:
+     - Phase C gate is green.
+     - Bob approval, translation, and transition services are auditable and degraded-mode safe.
+     - Offline replay conflict handling passes defined test scenarios.
+
+4. **Phase E — Data Movement Reduction and Enterprise Hardening**
+   - Scope: page-query reduction, hook/service migration, audit dashboards, event completeness checks, comms delivery governance.
+   - Completion gate:
+     - Phase D gate is green.
+     - Target fragmentation pages show downward direct-query drift.
+     - Communications delivery audit and retry metrics are visible in operations dashboards.
