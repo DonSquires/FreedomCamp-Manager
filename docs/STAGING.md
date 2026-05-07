@@ -3438,3 +3438,33 @@ The web SPA delivers SOS via the existing `officer_welfare_alerts` table + `send
 - `bun run build` → PASS (27.50s)
 
 **Next session:** Sprint 32 — B-106 RadioCommsEventLog, B-107 CaseCommentLog, B-108 LmrBridgeSessionLog.
+
+## Phase 5 — Sprint 32 (B-106 / B-107 / B-108)
+
+### Changes
+
+- **B-106 RadioCommsEventLog** (`/radio-comms-events-log`): log viewer for `radio_comms_events` View (org-scoped). KPIs: Total / Escalated / Degraded Mode / Unique Cases. Filters: event_type (typed enum), degraded_mode toggle, date from. Table: event_type badge, event_timestamp, callsign, channel_scope, degraded badge, case_id. Expand: officer_id, ptt_session_id, notes.
+- **B-107 CaseCommentLog** (`/case-comments-log`): log viewer for `case_comments` Table (org-scoped). KPIs: Total / Edited / Unique Cases / Unique Authors. Filters: date from, case_id search, author_id search. Table: created_at, case_id, author_id, edited badge, comment preview. Expand: full comment text, edited_by, updated_at.
+- **B-108 LmrBridgeSessionLog** (`/lmr-bridge-sessions-log`): log viewer for `lmr_bridge_sessions` Table (org-scoped). KPIs: Total / Emergency / Avg Duration (s) / With Transcript. Filters: direction (dynamic), is_emergency toggle, date from. Table: started_at, direction badge, radio_unit_alias, ptt_speaker_name, duration, emergency badge. Expand: config_id, channel_id, audio_url, transcript, metadata.
+
+### Sprint 32 Board
+
+| Ticket | Page | Route | Source |
+|--------|------|-------|--------|
+| B-106 | RadioCommsEventLog | /radio-comms-events-log | View: radio_comms_events |
+| B-107 | CaseCommentLog     | /case-comments-log      | Table: case_comments     |
+| B-108 | LmrBridgeSessionLog | /lmr-bridge-sessions-log | Table: lmr_bridge_sessions |
+
+- [x] `bun run lint` → PASS
+- [x] `bun run build` → PASS (26.86s)
+
+### Session Snapshot (Sprint 32 — 2026-05-07)
+
+- Timestamp (UTC): 2026-05-07 01:26 UTC
+- Current branch: copilot/review-doc-and-staging-files
+
+**Validation:**
+- `bun run lint` → PASS
+- `bun run build` → PASS (26.86s)
+
+**Next session:** Sprint 33 — B-109 PatrolSessionEventLog, B-110 RadioTranscriptLog, B-111 DisputeIntakeLog.
