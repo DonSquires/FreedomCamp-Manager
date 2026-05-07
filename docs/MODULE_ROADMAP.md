@@ -715,3 +715,10 @@ Phase D closeout is now anchored to D3 transition-handshake-offline gate evidenc
 1. E1–E4 gate suites and CI workflows all present and passing.
 2. No unresolved blockers in staging handoff logs for tenant isolation, replay safety, or rollout rollback.
 3. Canonical docs (`STAGING.md`, `MODULE_ROADMAP.md`) updated with final evidence references.
+
+### E1 kickoff gate artifacts
+
+1. Gate spec: `tests/e2e/phase-e1-data-access-consolidation.spec.ts`.
+2. CI workflow: `.github/workflows/ci-phase-e1-data-access-consolidation-gate.yml`.
+3. Baseline scope: the ten priority consolidation targets from the realignment plan (`PTTRadio`, `DispatchConsole`, `FieldOfficerPortal`, `AssetManagement`, `VehicleManagement`, `BreachAlerts`, `AdminPortal`, `NoiseControlPortal`, `ClientAccountPage`, `RosterPlanner`).
+4. Gate behavior: fail on upward direct Supabase page-query drift; allow reductions as hooks/services absorb page-local data access.

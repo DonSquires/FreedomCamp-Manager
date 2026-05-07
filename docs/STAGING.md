@@ -279,6 +279,43 @@ Latest Session Snapshot (Phase D3 Gate Artifacts + Phase E Kickoff Alignment —
   2. Carry forward E1→E4 checkpoints from `docs/MODULE_ROADMAP.md`.
   3. Maintain rollback-ready flag posture and org isolation evidence per slice.
 
+Latest Session Snapshot (Phase E1 Data Access Consolidation Gate Kickoff — 2026-05-08):
+
+- Timestamp (NZ): 2026-05-08 10:49 NZST
+- Current branch: copilot/550-continue-phase-realignment
+- Scope completed:
+  - Started Phase E1 with a data-access consolidation gate for the ten priority high-fragmentation pages named in `docs/BUILD_REALIGNMENT_PLAN_2026-05-04.md` section 9.4.
+  - Added `tests/e2e/phase-e1-data-access-consolidation.spec.ts` to lock the current priority-page direct Supabase query baseline and fail on upward drift.
+  - Added `.github/workflows/ci-phase-e1-data-access-consolidation-gate.yml` as the E1 path-filtered CI workflow.
+  - Updated `docs/MODULE_ROADMAP.md` with E1 kickoff gate artifact references.
+
+- E1 priority-page baseline:
+  | Page | Direct Supabase query baseline |
+  |---|---:|
+  | PTTRadio | 3 |
+  | DispatchConsole | 1 |
+  | FieldOfficerPortal | 4 |
+  | AssetManagement | 0 |
+  | VehicleManagement | 19 |
+  | BreachAlerts | 20 |
+  | AdminPortal | 14 |
+  | NoiseControlPortal | 0 |
+  | ClientAccountPage | 0 |
+  | RosterPlanner | 0 |
+
+- E1 kickoff checklist:
+  | Item | Status | Evidence |
+  |---|---|---|
+  | Priority-page query baseline captured | ✅ DONE | `phase-e1-data-access-consolidation.spec.ts` |
+  | Upward drift gate added | ✅ DONE | per-page and total direct-query assertions |
+  | E1 CI gate workflow added | ✅ DONE | `ci-phase-e1-data-access-consolidation-gate.yml` |
+  | Roadmap artifact refs updated | ✅ DONE | `docs/MODULE_ROADMAP.md` |
+
+- Next session:
+  1. Begin first actual E1 hook/service migration on the highest-count pages (`BreachAlerts`, `VehicleManagement`, then `AdminPortal`).
+  2. Lower the E1 baseline in the gate as each page-local query cluster moves into hooks/services.
+  3. Keep lint/build and the E1 gate green before advancing to E2.
+
 Latest Session Snapshot (Sprint 13 Doc Review — 2026-05-06):
 
 - Timestamp (NZ): 2026-05-06 05:45 NZST
