@@ -2370,7 +2370,6 @@ export default function App() {
           <Route path="/bug-reports-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'master']}><BugReportLog /></RoleRoute></ProtectedRoute>} />
           {/* Sprint 29: B-97–B-99 */}
           <Route path="/radio-transmissions-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'officer']}><RadioTransmissionLog /></RoleRoute></ProtectedRoute>} />
-          <Route path="/open-shifts" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'officer']}><OpenShiftManager /></RoleRoute></ProtectedRoute>} />
           <Route path="/noise-assessments-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><NoiseAssessmentLog /></RoleRoute></ProtectedRoute>} />
           {/* Sprint 30: B-100–B-102 */}
           <Route path="/trespass-notices-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><TrespassNoticeLog /></RoleRoute></ProtectedRoute>} />

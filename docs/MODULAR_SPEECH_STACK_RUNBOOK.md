@@ -15,16 +15,17 @@ Replace proprietary wake-word + intent lock-in with a modular stack that you con
 
 ## Deployment Decision (grounded in current repo)
 
-1. Railway: STT service (`railway-stt/`, Faster-Whisper `distil-small.en`, CPU).
+1. Railway: STT service (`DonSquires/fieldops-railway-stt`, Faster-Whisper `distil-small.en`, CPU).
    - Replaces RunPod serverless STT which suffered persistent GPU supply constraints.
-   - Deployed via `.github/workflows/deploy-railway-stt.yml`.
+   - Production URL: `https://fieldops-railway-stt-production.up.railway.app`.
+   - Source lives in standalone GitHub repo `DonSquires/fieldops-railway-stt`.
    - ~$3–6/mo, absorbed by Railway Pro $20 credit, no cold-start GPU scarcity.
 2. RunPod: AI/Bob inference only (`fieldops-ai-engine`, endpoint `n0bp1ifmq01cx2`).
    - STT endpoint `qufsywq39klcma` kept idle (`workersMax=0`) as emergency GPU fallback.
 3. hPanel VPS: speech-router orchestration and optional local TTS endpoint.
 4. Railway: proxy-server + new railway-stt service.
 
-STT_URL in speech-router now points to Railway: `https://<railway-stt>.up.railway.app/transcribe`
+STT_URL in speech-router now points to Railway: `https://fieldops-railway-stt-production.up.railway.app/transcribe`
 
 ## Model and Format Strategy
 
