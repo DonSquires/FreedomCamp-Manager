@@ -726,3 +726,28 @@ Phase baseline:
      - Phase D gate is green.
      - Target fragmentation pages show downward direct-query drift.
      - Communications delivery audit and retry metrics are visible in operations dashboards.
+
+## Next Phase Continuation — Phase B Kickoff
+
+Phase B is the immediate execution phase after post-Sprint-42 planning alignment.
+
+1. **Phase B Entry Check (Go/No-Go)**
+   - Confirm Phase A gate remains green using the Phase A baseline source in `docs/BUILD_REALIGNMENT_PLAN_2026-05-04.md` (sections 11.2a and 12.1).
+   - Confirm ownership/support rota for B1–B4 slices is assigned and active.
+   - Confirm feature-flag rollout + rollback controls are ready for every Phase B slice.
+
+2. **Phase B Delivery Order**
+   - B1: Patrol and Respond
+   - B2: Dispatch and Command
+   - B3: Communications (callsign/PTT runtime linkage)
+   - B4: Freedom Camping + Parking
+
+3. **Phase B Progression Checkpoints**
+   - **Checkpoint 1 (B1 complete)**: patrol route/checkpoint/welfare events persist on shared timeline contract.
+   - **Checkpoint 2 (B2 complete)**: dispatch intake/assignment/acknowledgement is end-to-end on shared contract.
+   - **Checkpoint 3 (B3 complete)**: callsign binding and dispatch-to-radio escalation flows are operational.
+   - **Checkpoint 4 (B4 complete)**: at least one enforcement surface is fully on the shared timeline contract.
+
+4. **Phase B Exit to Phase C**
+   - All Phase B gate criteria are green (per build realignment gate definitions).
+   - Evidence is recorded in `docs/STAGING.md` with linked CI runs and validation artifacts.
