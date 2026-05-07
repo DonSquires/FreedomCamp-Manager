@@ -3409,261 +3409,32 @@ The web SPA delivers SOS via the existing `officer_welfare_alerts` table + `send
 
 **Next session:** Sprint 31 — B-103 VehiclesOfInterestLog, B-104 PersonsOfInterestLog, B-105 PhotoMetadataLog.
 
----
-
 ## Phase 5 — Sprint 31 (B-103 / B-104 / B-105)
 
 ### Changes
 
-| File | Change |
-|---|---|
-| `src/pages/VehiclesOfInterestLog.tsx` | New — B-103: Log viewer for vehicles_of_interest; KPIs (Total/Active/Expired/Expiring Soon); status/date/plate-search filters; overdue highlight; description/notes/photos; linked person + zone expand; fully typed |
-| `src/pages/PersonsOfInterestLog.tsx` | New — B-104: Log viewer for persons_of_interest; KPIs (Total/Active/Expired/Privacy Notice Given); status/date/name-search filters; overdue highlight; physical desc/contact/features/lawful purpose/notes/photos expand; fully typed |
-| `src/pages/PhotoMetadataLog.tsx` | New — B-105: Log viewer for photo_metadata; KPIs (Total Photos/Unique Users/SHA256 Verified/Avg Size KB); mime_type/date/file-name-search filters; MIME type badge; SHA256 hash + storage path + view link expand |
-| `src/App.tsx` | Sprint 31 lazy imports + 3 new routes |
-| `src/navigation/routeManifest.ts` | 3 new entries: Intel (B-103/B-104), Records (B-105) |
-| `src/components/features/AppLayout.tsx` | Added UserX icon; vehicles-of-interest-log + persons-of-interest-log + photo-metadata-log under Records |
-| `src/pages/AdminPortal.tsx` | Added UserX icon; VOI Log + POI Log + Photo Metadata tiles (Intelligence & Radio section) |
-| `docs/MODULE_ROADMAP.md` | Route count 171 → 174; Sprint 31 addendum appended |
+- **B-103 VehiclesOfInterestLog** (`/vehicles-of-interest-log`): log viewer for `vehicles_of_interest` table (org-scoped). KPIs: Total / Active / Expiring ≤7 Days / Expired. Filters: status (dynamic), active toggle, date from, plate search. Table: plate_number, status badge, active badge, make/model, reason, created/expires. Expand: description, notes, linked_person_id, zone, zone_last_observed_at, photos.
+- **B-104 PersonsOfInterestLog** (`/persons-of-interest-log`): log viewer for `persons_of_interest` table (org-scoped). KPIs: Total / Active / Site-Specific / Expiring ≤7 Days. Filters: status (dynamic), active toggle, date from, name search. Table: full_name, status badge, active badge, gender, reason, created/expires. Expand: description, distinguishing_features, address, notes, privacy info, photos.
+- **B-105 PhotoMetadataLog** (`/photo-metadata-log`): log viewer for `photo_metadata` table. KPIs: Total / With Hash / Unique Users / Total Size (MB). Filters: mime_type (dynamic), date from, file_name search. Table: file_name, mime_type badge, size, uploaded_at, sha256_hash (short). Expand: storage_path, user_id, observation_id, full sha256_hash.
 
 ### Sprint 31 Board
 
-| ID | Item | Status |
-|---|---|---|
-| B-103 | Vehicles of Interest Log | ✅ |
-| B-104 | Persons of Interest Log | ✅ |
-| B-105 | Photo Metadata Log | ✅ |
+| Ticket | Page | Route | Table |
+|--------|------|-------|-------|
+| B-103 | VehiclesOfInterestLog | /vehicles-of-interest-log | vehicles_of_interest |
+| B-104 | PersonsOfInterestLog  | /persons-of-interest-log  | persons_of_interest  |
+| B-105 | PhotoMetadataLog      | /photo-metadata-log       | photo_metadata       |
 
 - [x] `bun run lint` → PASS
-- [x] `bun run build` → PASS (27.53s)
+- [x] `bun run build` → PASS (27.50s)
 
-**Next sprint candidates:**
-- B-106: `OperationalCaseViewer` — operational_cases full detail viewer with linked incidents/dispatch/enforcement events
-- B-107: `SafetyChecklistLog` — safety_checklists log with template name + pass/fail KPIs + item expand
-- B-108: `ClientSiteActivityLog` — client_site_activity_log with site/type/date filters
+### Session Snapshot (Sprint 31 — 2026-05-07)
 
----
-
-## Session Snapshot (Sprint 31 — 2026-05-06)
-
-- Timestamp (UTC): 2026-05-06 14:19 UTC
-- Current branch: copilot/find-staging-doc-and-follow-instructions
-
-**New pages built:**
-- `src/pages/VehiclesOfInterestLog.tsx` — vehicles_of_interest viewer
-- `src/pages/PersonsOfInterestLog.tsx` — persons_of_interest viewer
-- `src/pages/PhotoMetadataLog.tsx` — photo_metadata viewer
-
-**Wiring applied:** App.tsx (lazy import + route), routeManifest.ts, AppLayout.tsx sidebar, AdminPortal.tsx tiles
+- Timestamp (UTC): 2026-05-07 00:34 UTC
+- Current branch: copilot/review-doc-and-staging-files
 
 **Validation:**
 - `bun run lint` → PASS
-- `bun run build` → PASS (27.53s)
+- `bun run build` → PASS (27.50s)
 
-**Next session:** Sprint 32 — B-106 OperationalCaseViewer, B-107 SafetyChecklistLog, B-108 ClientSiteActivityLog (or equivalent backlog items).
-
-
----
-
-## Phase 5 — Sprint 32 (B-106 / B-107 / B-108)
-
-### Changes
-
-| File | Change |
-|---|---|
-| `src/pages/RadioCommsEventLog.tsx` | New — B-106: Log viewer for radio_comms_events; KPIs (Total/Escalated/Degraded Mode/Unique Cases); event_type enum filter + degraded_mode filter + date; event_type badge; callsign/channel; notes expand; fully typed |
-| `src/pages/CaseCommentLog.tsx` | New — B-107: Log viewer for case_comments; KPIs (Total Comments/Unique Cases/Unique Authors/Edited); date/case_id/author filters; edited badge; full comment text expand |
-| `src/pages/LmrBridgeSessionLog.tsx` | New — B-108: Log viewer for lmr_bridge_sessions; KPIs (Total/Emergency/Avg Duration/With Transcript); direction/emergency/date filters; duration formatted; transcript + audio link + metadata JSON expand |
-| `src/App.tsx` | Sprint 32 lazy imports + 3 new routes |
-| `src/navigation/routeManifest.ts` | 3 new entries (Intelligence & Radio / Records) |
-| `src/components/features/AppLayout.tsx` | radio-comms-events-log + case-comments-log + lmr-bridge-sessions-log under Records |
-| `src/pages/AdminPortal.tsx` | MessageSquare icon added; 3 new tiles in Intelligence & Radio section |
-| `docs/MODULE_ROADMAP.md` | Route count 174 → 177; Sprint 32 addendum appended |
-
-### Sprint 32 Board
-
-| ID | Item | Status |
-|---|---|---|
-| B-106 | Radio Comms Event Log | ✅ |
-| B-107 | Case Comment Log | ✅ |
-| B-108 | LMR Bridge Session Log | ✅ |
-
-**Next sprint candidates:**
-- B-109: `PatrolEventLog2` / `PatrolSessionEventLog` — patrol_session_events log with session-level KPIs
-- B-110: `RadioTranscriptLog` — radio_transcript_segments log with confidence + speaker filters
-- B-111: `DisputeIntakeLog` — dispute_intake log with status workflow + deadline highlight
-
----
-
-## Session Snapshot (Sprint 32 — 2026-05-06)
-
-- Timestamp (UTC): 2026-05-06 21:34 UTC
-- Current branch: copilot/find-staging-doc-and-follow-instructions
-
-**New pages built:**
-- `src/pages/RadioCommsEventLog.tsx` — radio_comms_events viewer
-- `src/pages/CaseCommentLog.tsx` — case_comments viewer
-- `src/pages/LmrBridgeSessionLog.tsx` — lmr_bridge_sessions viewer
-
-**Wiring applied:** App.tsx (lazy import + route), routeManifest.ts, AppLayout.tsx sidebar, AdminPortal.tsx tiles
-
-**Validation:**
-- `bun run lint` → PASS (pending)
-- `bun run build` → PASS (pending)
-
-**Next session:** Sprint 33 — B-109 PatrolSessionEventLog, B-110 RadioTranscriptLog, B-111 DisputeIntakeLog (or equivalent backlog items).
-
----
-
-## Phase 5 — Sprint 33 (B-109 / B-110 / B-111)
-
-### Changes
-
-| File | Change |
-|---|---|
-| `src/pages/PatrolSessionEventLog.tsx` | New — B-109: Log viewer for patrol_session_events; KPIs (Scanned/Missed/Started/Completed); typed event_type enum filter + date + officer search; missed checkpoint row highlight; notes/route_instance expand |
-| `src/pages/RadioTranscriptLog.tsx` | New — B-110: Log viewer for radio_transcript_segments (View, org_id); KPIs (Total/Final/Avg Confidence/Unique Transmissions); is_final/language/date filters; confidence bar; full text + timestamps expand |
-| `src/pages/DisputeIntakeLog.tsx` | New — B-111: Log viewer for dispute_intake; KPIs (Total/Open/Homeless Review Req/Unique Plates); status/source_type/date + plate/claimant search; message/evidence/hardship/admin_notes expand |
-| `src/App.tsx` | Sprint 33 lazy imports + 3 new routes |
-| `src/navigation/routeManifest.ts` | 3 new entries (Operations / Intelligence & Radio / Disputes) |
-| `src/components/features/AppLayout.tsx` | patrol-session-events-log + radio-transcript-log + dispute-intake-log; Scale icon added |
-| `src/pages/AdminPortal.tsx` | Scale icon added; 3 new tiles in Intelligence & Radio section |
-| `docs/MODULE_ROADMAP.md` | Route count 177 → 180; Sprint 33 addendum appended |
-
-### Sprint 33 Board
-
-| ID | Item | Status |
-|---|---|---|
-| B-109 | Patrol Session Event Log | ✅ |
-| B-110 | Radio Transcript Log | ✅ |
-| B-111 | Dispute Intake Log | ✅ |
-
-**Next sprint candidates:**
-- B-112: `RadioTtsRenderLog` — radio_tts_renders log with speaker/voice/language filters + audio link
-- B-113: `RadioVoiceProfileLog` — radio_voice_profiles log with consent/language filters + waveform metadata
-- B-114: `SiteIncidentLogViewer` — site_incidents log with severity/status filters + GPS + response actions
-
----
-
-## Session Snapshot (Sprint 33 — 2026-05-06)
-
-- Timestamp (UTC): 2026-05-06 21:51 UTC
-- Current branch: copilot/find-staging-doc-and-follow-instructions
-
-**New pages built:**
-- `src/pages/PatrolSessionEventLog.tsx` — patrol_session_events viewer
-- `src/pages/RadioTranscriptLog.tsx` — radio_transcript_segments (View) viewer
-- `src/pages/DisputeIntakeLog.tsx` — dispute_intake viewer
-
-**Wiring applied:** App.tsx (lazy import + route), routeManifest.ts, AppLayout.tsx sidebar, AdminPortal.tsx tiles
-
-**Validation:**
-- `bun run lint` → PASS
-- `bun run build` → PASS (27.18s)
-
-**Next session:** Sprint 34 — B-112 RadioTtsRenderLog, B-113 RadioVoiceProfileLog, B-114 SiteIncidentLogViewer (or equivalent backlog items).
-
----
-
-## Phase 5 — Sprint 34 (B-112 / B-113 / B-114)
-
-### Changes
-
-| File | Change |
-|---|---|
-| `src/pages/RadioTtsRenderLog.tsx` | New — B-112: Log viewer for radio_tts_renders (View, org_id); KPIs (Total/Synthetic/Avg Duration/Avg Latency); provider/is_synthetic/language/date filters; audio storage_path link expand |
-| `src/pages/HealthSafetyReportLog.tsx` | New — B-113: Log viewer for health_safety_reports (Table); KPIs (Total/Open/High+/Unique Zones); severity/status/incident_type/date filters; severity+status badges; description expand |
-| `src/pages/NoiseSeizureLog.tsx` | New — B-114: Log viewer for noise_seizures (Table); KPIs (Total/Active/Police Present/Est. Total Value NZD); status/equipment_type/date filters; full detail expand with photos, return conditions, seizure metadata |
-| `src/App.tsx` | Sprint 34 lazy imports + 3 new routes |
-| `src/navigation/routeManifest.ts` | 3 new entries (Intelligence & Radio / Operations / Noise Enforcement) |
-| `src/components/features/AppLayout.tsx` | 3 new sidebar entries; PackageX icon added |
-| `src/pages/AdminPortal.tsx` | 3 new tiles; PackageX icon added |
-| `docs/MODULE_ROADMAP.md` | Route count 180 → 183; Sprint 34 addendum |
-
-### Sprint 34 Board
-
-| ID | Item | Status |
-|---|---|---|
-| B-112 | RadioTtsRenderLog | ✅ |
-| B-113 | HealthSafetyReportLog | ✅ |
-| B-114 | NoiseSeizureLog | ✅ |
-
-**Note:** radio_voice_profiles (candidate) skipped — already covered by VoiceProfilesConsent (B-49). site_incidents skipped — already covered by SiteIncidentLog (B-69). welfare_checkins skipped — already covered by WelfareCheckinLog (B-65).
-
-**Next sprint candidates:**
-- B-115: `LocationsOfInterestLog` — locations_of_interest log with loi_kind/city/hazard filters + GPS + address display
-- B-116: `RosterShiftLog` — roster_shifts log with status/shift_type filters + officer_id search + duration KPI
-- B-117: `PersonRecordLog` — person_records log with gender/ethnicity filters + canonical_person_id + photo links
-
----
-
-## Session Snapshot (Sprint 34 — 2026-05-06)
-
-- Timestamp (UTC): 2026-05-06 22:01 UTC
-- Current branch: copilot/find-staging-doc-and-follow-instructions
-
-**New pages built:**
-- `src/pages/RadioTtsRenderLog.tsx` — radio_tts_renders (View) viewer
-- `src/pages/HealthSafetyReportLog.tsx` — health_safety_reports viewer
-- `src/pages/NoiseSeizureLog.tsx` — noise_seizures viewer
-
-**Wiring applied:** App.tsx (lazy import + route), routeManifest.ts, AppLayout.tsx sidebar, AdminPortal.tsx tiles
-
-**Validation:**
-- `bun run lint` → PASS
-- `bun run build` → PASS (26.36s)
-
-**Next session:** Sprint 35 — B-115 LocationsOfInterestLog, B-116 RosterShiftLog, B-117 PersonRecordLog (or equivalent backlog items).
-
----
-
-## Phase 5 — Sprint 35 (B-115 / B-116 / B-117)
-
-### Changes
-
-| File | Change |
-|---|---|
-| `src/pages/LocationsOfInterestLog.tsx` | New — B-115: Log viewer for locations_of_interest (Table, organization_id); loi_kind/is_active/is_canonical/city filters + name/address search; hazard/access/GPS expand |
-| `src/pages/VehicleMonthlyStayLog.tsx` | New — B-116: Log viewer for vehicle_monthly_stays (Table, organization_id); month/plate filters; consecutive night highlight + reset/observation expand |
-| `src/pages/RadioVoiceConsentLog.tsx` | New — B-117: Log viewer for radio_voice_consents (**View**, org_id); revoked/provider/date filters; revocation reason expand |
-| `src/App.tsx` | Sprint 35 lazy imports + 3 new routes |
-| `src/navigation/routeManifest.ts` | 3 new entries (Records / Vehicles / Intelligence & Radio) |
-| `src/components/features/AppLayout.tsx` | 3 new sidebar entries |
-| `src/pages/AdminPortal.tsx` | 3 new tiles; CalendarRange + ShieldCheck icons added |
-| `docs/MODULE_ROADMAP.md` | Route count 183 → 186; Sprint 35 addendum |
-
-### Sprint 35 Board
-
-| ID | Item | Status |
-|---|---|---|
-| B-115 | LocationsOfInterestLog | ✅ |
-| B-116 | VehicleMonthlyStayLog | ✅ |
-| B-117 | RadioVoiceConsentLog | ✅ |
-
-**Note:** roster_shifts skipped (already B-67 RosterShiftLog). person_records skipped (already PersonRecords.tsx).
-radio_voice_consents is a View (org_id scope) not a Table — typed via Database['public']['Views'].
-
-**Next sprint candidates (36):**
-- B-118: `PatrolScheduleZoneLog` — patrol_schedule_zones (no org_id; join via patrol_id → patrols.organization_id)
-- B-119: `ImportBatchLog` — import_batches (check org scope)
-- B-120: `ContractorDocumentLog` — contractor_documents (check org scope)
-
----
-
-## Session Snapshot (Sprint 35 — 2026-05-06)
-
-- Timestamp (UTC): 2026-05-06 22:20 UTC
-- Current branch: copilot/find-staging-doc-and-follow-instructions
-
-**New pages built:**
-- `src/pages/LocationsOfInterestLog.tsx` — locations_of_interest (Table) viewer
-- `src/pages/VehicleMonthlyStayLog.tsx` — vehicle_monthly_stays (Table) viewer
-- `src/pages/RadioVoiceConsentLog.tsx` — radio_voice_consents (View) viewer
-
-**Wiring applied:** App.tsx, routeManifest.ts, AppLayout.tsx, AdminPortal.tsx
-
-**Validation:**
-- `bun run lint` → PASS
-- `bun run build` → PASS (26.71s)
-
-**Next session:** Sprint 36 — B-118/B-119/B-120 (import_batches, contractor_documents, + one more uncovered table)
+**Next session:** Sprint 32 — B-106 RadioCommsEventLog, B-107 CaseCommentLog, B-108 LmrBridgeSessionLog.

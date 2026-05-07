@@ -1,20 +1,18 @@
 /**
  * PhotoMetadataLog — B-105
  *
- * Log viewer for photo_metadata — uploaded evidence photos and their integrity metadata.
+ * Log viewer for photo_metadata — uploaded photo evidence records.
  *
  * Features:
- *  - KPI cards: Total Photos / Unique Users / SHA256 Verified / Avg File Size (KB)
- *  - Filters: mime_type (dynamic), date from, file name search
- *  - Table: file_name, mime_type badge, file_size (KB), sha256_hash (truncated),
- *           observation_id, created_at
- *  - Expandable row: storage_path, user_id, full sha256_hash, observation_id,
- *                    view link (storage_path)
+ *  - KPI cards: Total / With Hash / Unique Users / Total Size (MB)
+ *  - Filters: mime_type (dynamic), date from, file_name search
+ *  - Table: file_name, mime_type badge, file_size, created_at, sha256_hash (short)
+ *  - Expandable row: storage_path, user_id, observation_id, full sha256_hash
  *
- * Route: /photo-metadata-log — admin/admin_officer/master
+ * Route: /photo-metadata-log — admin/master
  */
 
-import { useState } from 'react'
+import { useState, Fragment } from 'react'
 import { format, parseISO } from 'date-fns'
 import {
   Image, RefreshCw, AlertCircle, Loader2,
@@ -23,7 +21,6 @@ import {
 import { useQuery } from '@tanstack/react-query'
 
 import { supabase } from '@/lib/supabase'
-import { useAuthStore } from '@/stores/authStore'
 import { AppLayout } from '@/components/features/AppLayout'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -52,44 +49,40 @@ type PhotoMeta = Database['public']['Tables']['photo_metadata']['Row']
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function fmtDate(ts: string | null | undefined) {
+function fmtDate(ts: string | null) {
   if (!ts) return '—'
   try { return format(parseISO(ts), 'dd MMM yyyy HH:mm') } catch { return ts }
 }
 
-function fmtKb(bytes: number | null) {
+function fmtSize(bytes: number | null) {
   if (bytes == null) return '—'
-  return `${(bytes / 1024).toFixed(1)} KB`
+  if (bytes < 1024)        return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`
 }
 
 function mimeColour(mime: string | null) {
   if (!mime) return 'bg-gray-100 text-gray-600'
   if (mime.startsWith('image/')) return 'bg-blue-100 text-blue-800'
   if (mime.startsWith('video/')) return 'bg-purple-100 text-purple-800'
-  if (mime === 'application/pdf') return 'bg-orange-100 text-orange-800'
+  if (mime === 'application/pdf') return 'bg-red-100 text-red-800'
   return 'bg-gray-100 text-gray-700'
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function PhotoMetadataLog() {
-  const { user } = useAuthStore()
-  const orgId = user?.organization_id
-
-  const [mimeFilter,  setMimeFilter]  = useState('all')
-  const [dateFrom,    setDateFrom]    = useState('')
-  const [nameSearch,  setNameSearch]  = useState('')
-  const [expandedId,  setExpandedId]  = useState<string | null>(null)
+  const [mimeFilter,    setMimeFilter]   = useState('all')
+  const [dateFrom,      setDateFrom]     = useState('')
+  const [fileSearch,    setFileSearch]   = useState('')
+  const [expandedId,    setExpandedId]   = useState<string | null>(null)
 
   // ── Query ─────────────────────────────────────────────────────────────────
-  // photo_metadata does not have an organization_id column; fetch scoped by
-  // the current user's uploaded records (user_id) or all if master role.
 
   const { data: rows = [], isLoading, refetch } = useQuery<PhotoMeta[]>({
-    queryKey: ['photo-metadata-log', orgId, mimeFilter, dateFrom],
-    enabled: !!orgId,
+    queryKey: ['photo-metadata-log', mimeFilter, dateFrom],
     queryFn: async () => {
-      let q = (supabase as any)
+      let q = supabase
         .from('photo_metadata')
         .select('*')
         .order('created_at', { ascending: false })
@@ -104,15 +97,15 @@ export default function PhotoMetadataLog() {
     },
   })
 
-  const filtered     = nameSearch
-    ? rows.filter((r: PhotoMeta) => (r.file_name ?? '').toLowerCase().includes(nameSearch.toLowerCase()))
+  const filtered      = fileSearch
+    ? rows.filter(r => r.file_name?.toLowerCase().includes(fileSearch.toLowerCase()))
     : rows
 
-  const uniqueUsers  = new Set(filtered.map((r: PhotoMeta) => r.user_id).filter(Boolean)).size
-  const shaCount     = filtered.filter((r: PhotoMeta) => !!r.sha256_hash).length
-  const totalBytes   = filtered.reduce((sum: number, r: PhotoMeta) => sum + (r.file_size ?? 0), 0)
-  const avgKb        = filtered.length > 0 ? (totalBytes / 1024 / filtered.length).toFixed(1) : '0'
-  const mimeTypes    = [...new Set(rows.map((r: PhotoMeta) => r.mime_type).filter(Boolean))].sort()
+  const withHash      = filtered.filter(r => !!r.sha256_hash).length
+  const uniqueUsers   = new Set(filtered.map(r => r.user_id).filter(Boolean)).size
+  const totalBytes    = filtered.reduce((sum, r) => sum + (r.file_size ?? 0), 0)
+  const totalMB       = totalBytes > 0 ? (totalBytes / (1024 * 1024)).toFixed(2) : '0.00'
+  const mimeTypes     = [...new Set(rows.map(r => r.mime_type).filter(Boolean))].sort()
 
   // ─────────────────────────────────────────────────────────────────────────
 
@@ -125,7 +118,7 @@ export default function PhotoMetadataLog() {
             <Image className="h-6 w-6 text-blue-600" />
             <div>
               <h1 className="text-2xl font-bold">Photo Metadata Log</h1>
-              <p className="text-sm text-muted-foreground">Uploaded evidence photos with integrity and storage metadata</p>
+              <p className="text-sm text-muted-foreground">Uploaded photo evidence records and integrity hashes</p>
             </div>
           </div>
           <Button variant="outline" size="sm" onClick={() => refetch()}>
@@ -136,10 +129,10 @@ export default function PhotoMetadataLog() {
         {/* KPIs */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
-            { label: 'Total Photos',      value: filtered.length, colour: 'text-gray-700' },
-            { label: 'Unique Users',       value: uniqueUsers,     colour: 'text-blue-700' },
-            { label: 'SHA256 Verified',    value: shaCount,        colour: 'text-green-700' },
-            { label: 'Avg Size',           value: `${avgKb} KB`,   colour: 'text-purple-700' },
+            { label: 'Total Photos',   value: filtered.length,  colour: 'text-gray-700' },
+            { label: 'With Hash',      value: withHash,          colour: 'text-green-700' },
+            { label: 'Unique Users',   value: uniqueUsers,       colour: 'text-blue-700' },
+            { label: 'Total Size (MB)', value: totalMB,          colour: 'text-purple-700' },
           ].map(kpi => (
             <Card key={kpi.label}>
               <CardHeader className="pb-1 pt-3 px-4">
@@ -158,15 +151,15 @@ export default function PhotoMetadataLog() {
             <SelectTrigger className="w-44"><SelectValue placeholder="MIME type" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All types</SelectItem>
-              {mimeTypes.map(m => <SelectItem key={m} value={m!}>{m}</SelectItem>)}
+              {mimeTypes.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
             </SelectContent>
           </Select>
           <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="w-40" />
           <Input
             placeholder="Search file name…"
-            value={nameSearch}
-            onChange={e => setNameSearch(e.target.value)}
-            className="w-48"
+            value={fileSearch}
+            onChange={e => setFileSearch(e.target.value)}
+            className="w-44"
           />
         </div>
 
@@ -188,73 +181,60 @@ export default function PhotoMetadataLog() {
                   <TableHead>File Name</TableHead>
                   <TableHead>MIME Type</TableHead>
                   <TableHead>Size</TableHead>
-                  <TableHead>SHA256</TableHead>
-                  <TableHead>Observation</TableHead>
                   <TableHead>Uploaded</TableHead>
+                  <TableHead>SHA-256 (short)</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filtered.map((row: PhotoMeta) => {
+                {filtered.map(row => {
                   const expanded = expandedId === row.id
                   return (
-                    <>
+                    <Fragment key={row.id}>
                       <TableRow
-                        key={row.id}
                         className="cursor-pointer hover:bg-muted/50"
                         onClick={() => setExpandedId(expanded ? null : row.id)}
                       >
                         <TableCell>
                           {expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                         </TableCell>
-                        <TableCell className="font-mono text-xs max-w-48 truncate">{row.file_name ?? '—'}</TableCell>
+                        <TableCell className="font-mono text-sm max-w-[200px] truncate">
+                          {row.file_name ?? '—'}
+                        </TableCell>
                         <TableCell>
-                          {row.mime_type
-                            ? <Badge className={mimeColour(row.mime_type)}>{row.mime_type}</Badge>
-                            : <span className="text-muted-foreground text-xs">—</span>}
+                          {row.mime_type ? (
+                            <Badge className={`text-xs ${mimeColour(row.mime_type)}`}>{row.mime_type}</Badge>
+                          ) : (
+                            <span className="text-muted-foreground text-xs">—</span>
+                          )}
                         </TableCell>
-                        <TableCell className="text-sm">{fmtKb(row.file_size)}</TableCell>
-                        <TableCell className="font-mono text-xs text-muted-foreground">
-                          {row.sha256_hash ? row.sha256_hash.slice(0, 16) + '…' : '—'}
-                        </TableCell>
-                        <TableCell className="font-mono text-xs text-muted-foreground">
-                          {row.observation_id ? row.observation_id.slice(0, 8) + '…' : '—'}
-                        </TableCell>
+                        <TableCell className="text-sm">{fmtSize(row.file_size)}</TableCell>
                         <TableCell className="text-sm">{fmtDate(row.created_at)}</TableCell>
+                        <TableCell className="font-mono text-xs text-muted-foreground">
+                          {row.sha256_hash ? row.sha256_hash.slice(0, 12) + '…' : '—'}
+                        </TableCell>
                       </TableRow>
                       {expanded && (
                         <TableRow key={`${row.id}-exp`} className="bg-muted/30">
-                          <TableCell colSpan={7} className="p-4 space-y-3">
+                          <TableCell colSpan={6} className="p-4 space-y-3">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs text-muted-foreground">
-                              {row.user_id       && <span>User: {row.user_id}</span>}
-                              {row.observation_id && <span>Observation: {row.observation_id}</span>}
-                              {row.storage_path  && (
-                                <span>
-                                  Storage path: <span className="font-mono">{row.storage_path}</span>
-                                </span>
+                              {row.user_id && <span>Uploaded by: {row.user_id.slice(0, 8)}…</span>}
+                              {row.observation_id && <span>Observation: {row.observation_id.slice(0, 8)}…</span>}
+                              {row.storage_path && (
+                                <span className="break-all">Path: {row.storage_path}</span>
                               )}
                             </div>
                             {row.sha256_hash && (
                               <div>
-                                <p className="font-medium text-sm mb-1">SHA256 Hash</p>
-                                <p className="font-mono text-xs text-muted-foreground break-all">{row.sha256_hash}</p>
-                              </div>
-                            )}
-                            {row.storage_path && (
-                              <div className="flex gap-2">
-                                <a
-                                  href={row.storage_path}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-xs text-blue-600 underline"
-                                >
-                                  📷 View File
-                                </a>
+                                <p className="font-medium text-sm mb-1">SHA-256 Hash</p>
+                                <p className="font-mono text-xs text-muted-foreground break-all bg-muted rounded p-2">
+                                  {row.sha256_hash}
+                                </p>
                               </div>
                             )}
                           </TableCell>
                         </TableRow>
                       )}
-                    </>
+                    </Fragment>
                   )
                 })}
               </TableBody>
