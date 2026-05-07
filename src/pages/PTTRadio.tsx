@@ -2842,7 +2842,7 @@ export default function PTTRadio() {
           </div>
         </div>
 
-        {/* Mobile menu access for channel selection and radio settings */}
+        {/* Mobile menu access for channel selection */}
         <div className="md:hidden absolute top-3 left-3 z-40">
           <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
             <SheetTrigger asChild>
@@ -2850,7 +2850,7 @@ export default function PTTRadio() {
                 variant="outline"
                 size="icon"
                 className="h-9 w-9 rounded-lg border-slate-700 bg-slate-900/90 text-slate-200"
-                aria-label="Open channel and settings menu"
+                aria-label="Open channel selection menu"
               >
                 <Menu className="h-5 w-5" />
               </Button>
