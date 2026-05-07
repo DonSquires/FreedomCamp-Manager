@@ -1030,6 +1030,18 @@ export const routeManifest: RouteManifestEntry[] = [
     preloadPolicy: 'none',
   },
   {
+    routeId: 'grand_master.raw-data-browser',
+    path: '/admin/raw-data-browser',
+    shell: 'master',
+    rolesAllowed: ['grand_master'],
+    navGroup: 'Tools',
+    navLabel: 'Raw Data Browser',
+    visibilityMode: 'internal',
+    featureFlag: null,
+    mobilePriority: null,
+    preloadPolicy: 'none',
+  },
+  {
     routeId: 'master.intel-approvals',
     path: '/intel-approvals',
     shell: 'master',
