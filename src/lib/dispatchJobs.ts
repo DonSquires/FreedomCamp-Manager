@@ -1,9 +1,16 @@
 import { supabase } from '@/lib/supabase'
 
 const DISPATCH_JOB_ALARM_TYPE_ERROR = 'dispatch_jobs.alarm_type'
+const DISPATCH_JOB_ALARM_TYPE_SCHEMA_CACHE_ERROR = "'alarm_type' column of 'dispatch_jobs'"
 
 export function isDispatchJobAlarmTypeMissing(error: { code?: string; message?: string } | null | undefined) {
-  return error?.code === '42703' && error.message?.includes(DISPATCH_JOB_ALARM_TYPE_ERROR)
+  const message = error?.message || ''
+  const isPostgresUndefinedColumn = error?.code === '42703' && message.includes(DISPATCH_JOB_ALARM_TYPE_ERROR)
+  const isPostgrestSchemaCacheMiss =
+    (error?.code === 'PGRST204' || message.toLowerCase().includes('schema cache')) &&
+    message.includes(DISPATCH_JOB_ALARM_TYPE_SCHEMA_CACHE_ERROR)
+
+  return isPostgresUndefinedColumn || isPostgrestSchemaCacheMiss
 }
 
 export async function runDispatchJobsQueryWithAlarmTypeFallback<T>(
