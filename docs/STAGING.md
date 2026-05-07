@@ -49,7 +49,6 @@ node scripts/auto-ingest.mjs
 bun run lint
 bun run build
 bun run test:bob:governance
-cd ptt-server && npm install && cd ..
 node --test ptt-server/test/radio-health-schema.test.js
 ```
 
@@ -86,6 +85,13 @@ Install project dependencies:
 ```bash
 cd /workspaces/FreedomCamp-Manager
 bun install
+```
+
+Install `ptt-server` dependencies once before running the radio health schema test:
+
+```bash
+cd /workspaces/FreedomCamp-Manager/ptt-server
+npm install
 ```
 
 Install Playwright browsers and deps:
