@@ -3408,3 +3408,33 @@ The web SPA delivers SOS via the existing `officer_welfare_alerts` table + `send
 - `bun run build` → PASS (22.96s)
 
 **Next session:** Sprint 31 — B-103 VehiclesOfInterestLog, B-104 PersonsOfInterestLog, B-105 PhotoMetadataLog.
+
+## Phase 5 — Sprint 31 (B-103 / B-104 / B-105)
+
+### Changes
+
+- **B-103 VehiclesOfInterestLog** (`/vehicles-of-interest-log`): log viewer for `vehicles_of_interest` table (org-scoped). KPIs: Total / Active / Expiring ≤7 Days / Expired. Filters: status (dynamic), active toggle, date from, plate search. Table: plate_number, status badge, active badge, make/model, reason, created/expires. Expand: description, notes, linked_person_id, zone, zone_last_observed_at, photos.
+- **B-104 PersonsOfInterestLog** (`/persons-of-interest-log`): log viewer for `persons_of_interest` table (org-scoped). KPIs: Total / Active / Site-Specific / Expiring ≤7 Days. Filters: status (dynamic), active toggle, date from, name search. Table: full_name, status badge, active badge, gender, reason, created/expires. Expand: description, distinguishing_features, address, notes, privacy info, photos.
+- **B-105 PhotoMetadataLog** (`/photo-metadata-log`): log viewer for `photo_metadata` table. KPIs: Total / With Hash / Unique Users / Total Size (MB). Filters: mime_type (dynamic), date from, file_name search. Table: file_name, mime_type badge, size, uploaded_at, sha256_hash (short). Expand: storage_path, user_id, observation_id, full sha256_hash.
+
+### Sprint 31 Board
+
+| Ticket | Page | Route | Table |
+|--------|------|-------|-------|
+| B-103 | VehiclesOfInterestLog | /vehicles-of-interest-log | vehicles_of_interest |
+| B-104 | PersonsOfInterestLog  | /persons-of-interest-log  | persons_of_interest  |
+| B-105 | PhotoMetadataLog      | /photo-metadata-log       | photo_metadata       |
+
+- [x] `bun run lint` → PASS
+- [x] `bun run build` → PASS (27.50s)
+
+### Session Snapshot (Sprint 31 — 2026-05-07)
+
+- Timestamp (UTC): 2026-05-07 00:34 UTC
+- Current branch: copilot/review-doc-and-staging-files
+
+**Validation:**
+- `bun run lint` → PASS
+- `bun run build` → PASS (27.50s)
+
+**Next session:** Sprint 32 — B-106 RadioCommsEventLog, B-107 CaseCommentLog, B-108 LmrBridgeSessionLog.
