@@ -3498,3 +3498,33 @@ The web SPA delivers SOS via the existing `officer_welfare_alerts` table + `send
 - `bun run build` → PASS
 
 **Next session:** Sprint 34 — B-112 RadioTtsRenderLog, B-113 HealthSafetyReportLog, B-114 NoiseSeizureLog.
+
+## Phase 5 — Sprint 34 (B-112 / B-113 / B-114)
+
+### Changes
+
+- **B-112 RadioTtsRenderLog** (`/radio-tts-render-log`): log viewer for `radio_tts_renders` View (org-scoped by `org_id`). KPIs: Total / Synthetic / Avg Latency / Providers. Filters: provider, target_language, is_synthetic. Table: created, provider, language, synthetic badge, latency, duration. Expand: translation_segment_id, voice_profile_id, storage_path.
+- **B-113 HealthSafetyReportLog** (`/health-safety-report-log`): log viewer for `health_safety_reports` Table (org-scoped). KPIs: Total / High+ / Open / Incident Types. Filters: severity, status, incident_type. Table: created, severity badge, status, type, reported_by. Expand: description + zone/updated metadata.
+- **B-114 NoiseSeizureLog** (`/noise-seizures-log`): log viewer for `noise_seizures` Table (org-scoped). KPIs: Total / Estimated Value / Police Present / With Photos. Filters: status, equipment_type. Table: seized_at, status badge, seizure_number, equipment, count, estimated value. Expand: address/officer/storage/GPS + equipment description + notes/photos.
+
+### Sprint 34 Board
+
+| Ticket | Page | Route | Source |
+|--------|------|-------|--------|
+| B-112 | RadioTtsRenderLog     | /radio-tts-render-log   | View: radio_tts_renders |
+| B-113 | HealthSafetyReportLog | /health-safety-report-log | Table: health_safety_reports |
+| B-114 | NoiseSeizureLog       | /noise-seizures-log     | Table: noise_seizures |
+
+- [x] `bun run lint` → PASS
+- [x] `bun run build` → PASS
+
+### Session Snapshot (Sprint 34 — 2026-05-07)
+
+- Timestamp (UTC): 2026-05-07 01:48 UTC
+- Current branch: copilot/review-doc-and-staging-files
+
+**Validation:**
+- `bun run lint` → PASS
+- `bun run build` → PASS
+
+**Next session:** Sprint 35 — B-115 LocationsOfInterestLog, B-116 VehicleMonthlyStayLog, B-117 RadioVoiceConsentLog.

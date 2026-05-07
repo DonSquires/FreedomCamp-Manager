@@ -241,6 +241,10 @@ const LmrBridgeSessionLog   = lazy(() => import('@/pages/LmrBridgeSessionLog'))
 const PatrolSessionEventLog = lazy(() => import('@/pages/PatrolSessionEventLog'))
 const RadioTranscriptLog    = lazy(() => import('@/pages/RadioTranscriptLog'))
 const DisputeIntakeLog      = lazy(() => import('@/pages/DisputeIntakeLog'))
+// Sprint 34: B-112–B-114
+const RadioTtsRenderLog     = lazy(() => import('@/pages/RadioTtsRenderLog'))
+const HealthSafetyReportLog = lazy(() => import('@/pages/HealthSafetyReportLog'))
+const NoiseSeizureLog       = lazy(() => import('@/pages/NoiseSeizureLog'))
 
 const NetworkStatusBar = lazy(() => import('@/components/features/NetworkStatusBar').then((m) => ({ default: m.NetworkStatusBar })))
 const PWAInstallPrompt = lazy(() => import('@/components/features/PWAInstallPrompt').then((m) => ({ default: m.PWAInstallPrompt })))
@@ -2387,6 +2391,10 @@ export default function App() {
           <Route path="/patrol-session-events-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><PatrolSessionEventLog /></RoleRoute></ProtectedRoute>} />
           <Route path="/radio-transcript-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><RadioTranscriptLog /></RoleRoute></ProtectedRoute>} />
           <Route path="/dispute-intake-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><DisputeIntakeLog /></RoleRoute></ProtectedRoute>} />
+          {/* Sprint 34: B-112–B-114 */}
+          <Route path="/radio-tts-render-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><RadioTtsRenderLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/health-safety-report-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><HealthSafetyReportLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/noise-seizures-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><NoiseSeizureLog /></RoleRoute></ProtectedRoute>} />
 
           {/* CRM – Accounts (Clients + Contractors) */}
           <Route
