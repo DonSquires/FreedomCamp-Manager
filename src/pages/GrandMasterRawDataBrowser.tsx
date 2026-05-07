@@ -27,6 +27,7 @@ const TABLE_SUGGESTIONS = [
   'import_batches',
   'notifications',
 ]
+const MUTABLE_TABLE_ALLOWLIST = new Set(TABLE_SUGGESTIONS)
 
 const DEFAULT_PAGE_SIZE = 100
 const TABLE_NAME_REGEX = /^[a-z][a-z0-9_]*$/
@@ -48,7 +49,10 @@ export default function GrandMasterRawDataBrowser() {
   const [draftJson, setDraftJson] = useState('')
 
   const normalizedTable = tableName.trim().toLowerCase()
+  const normalizedKeyColumn = rowKeyColumn.trim().toLowerCase()
   const isValidTableName = TABLE_NAME_REGEX.test(normalizedTable)
+  const isValidKeyColumn = TABLE_NAME_REGEX.test(normalizedKeyColumn)
+  const isMutableTable = MUTABLE_TABLE_ALLOWLIST.has(normalizedTable)
 
   const { data, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: ['grand-master-raw-browser', normalizedTable, page],
@@ -89,13 +93,19 @@ export default function GrandMasterRawDataBrowser() {
     setRowKeyColumn(inferKeyColumn(selectedRow))
   }, [rows, selectedRow])
 
+  useEffect(() => {
+    setSelectedRow(null)
+    setDraftJson('')
+  }, [normalizedTable, page])
+
   const updateMutation = useMutation({
     mutationFn: async () => {
       if (!selectedRow) throw new Error('No row selected')
-      if (!rowKeyColumn) throw new Error('Row key column is required')
-      const keyValue = selectedRow[rowKeyColumn]
+      if (!isMutableTable) throw new Error('This table is read-only in Raw Data Browser')
+      if (!isValidKeyColumn) throw new Error('Row key column is invalid')
+      const keyValue = selectedRow[normalizedKeyColumn]
       if (keyValue === undefined || keyValue === null) {
-        throw new Error(`Selected row has no "${rowKeyColumn}" value`)
+        throw new Error(`Selected row has no "${normalizedKeyColumn}" value`)
       }
       let payload: RawRecord
       try {
@@ -105,7 +115,7 @@ export default function GrandMasterRawDataBrowser() {
       }
       const { error } = await (supabase.from(normalizedTable as any) as any)
         .update(payload)
-        .eq(rowKeyColumn, keyValue)
+        .eq(normalizedKeyColumn, keyValue)
       if (error) throw error
     },
     onSuccess: () => {
@@ -119,12 +129,13 @@ export default function GrandMasterRawDataBrowser() {
 
   const deleteMutation = useMutation({
     mutationFn: async (row: RawRecord) => {
-      if (!rowKeyColumn) throw new Error('Row key column is required')
-      const keyValue = row[rowKeyColumn]
-      if (keyValue === undefined || keyValue === null) throw new Error(`Row has no "${rowKeyColumn}" value`)
+      if (!isMutableTable) throw new Error('This table is read-only in Raw Data Browser')
+      if (!isValidKeyColumn) throw new Error('Row key column is invalid')
+      const keyValue = row[normalizedKeyColumn]
+      if (keyValue === undefined || keyValue === null) throw new Error(`Row has no "${normalizedKeyColumn}" value`)
       const { error } = await (supabase.from(normalizedTable as any) as any)
         .delete()
-        .eq(rowKeyColumn, keyValue)
+        .eq(normalizedKeyColumn, keyValue)
       if (error) throw error
     },
     onSuccess: () => {
@@ -227,6 +238,7 @@ export default function GrandMasterRawDataBrowser() {
               <Badge variant="secondary">Rows loaded: {rows.length}</Badge>
               <Badge variant="secondary">Total: {total}</Badge>
               <Badge variant="secondary">Page: {page + 1}/{pageCount}</Badge>
+              {!isMutableTable && <Badge variant="outline">Read-only table (edit/delete disabled)</Badge>}
             </div>
           </CardContent>
         </Card>
@@ -249,7 +261,7 @@ export default function GrandMasterRawDataBrowser() {
                 </TableHeader>
                 <TableBody>
                   {filteredRows.map((row, idx) => (
-                    <TableRow key={`${idx}-${row[rowKeyColumn] ?? 'row'}`}>
+                    <TableRow key={`${idx}-${row[normalizedKeyColumn] ?? 'row'}`}>
                       {columns.map((column) => {
                         const value = row[column]
                         const text = value === null || value === undefined
@@ -271,6 +283,7 @@ export default function GrandMasterRawDataBrowser() {
                             setSelectedRow(row)
                             setDraftJson(JSON.stringify(row, null, 2))
                           }}
+                          disabled={!isMutableTable}
                         >
                           Edit
                         </Button>
@@ -278,11 +291,11 @@ export default function GrandMasterRawDataBrowser() {
                           size="sm"
                           variant="destructive"
                           onClick={() => {
-                            const keyValue = row[rowKeyColumn]
-                            if (!globalThis.confirm(`Delete row where ${rowKeyColumn} = ${String(keyValue)}?`)) return
+                            const keyValue = row[normalizedKeyColumn]
+                            if (!globalThis.confirm(`Delete row where ${normalizedKeyColumn} = ${String(keyValue)}?`)) return
                             deleteMutation.mutate(row)
                           }}
-                          disabled={deleteMutation.isPending}
+                          disabled={deleteMutation.isPending || !isMutableTable}
                         >
                           <Trash2 className="h-4 w-4 mr-1" />
                           Delete
@@ -322,7 +335,7 @@ export default function GrandMasterRawDataBrowser() {
                 className="min-h-[260px] font-mono text-xs"
               />
               <div className="flex gap-2">
-                <Button onClick={() => updateMutation.mutate()} disabled={updateMutation.isPending}>
+                <Button onClick={() => updateMutation.mutate()} disabled={updateMutation.isPending || !isMutableTable}>
                   <Save className="h-4 w-4 mr-2" />
                   Save Changes
                 </Button>
