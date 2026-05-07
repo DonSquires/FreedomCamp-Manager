@@ -799,3 +799,30 @@ With Phase C delivery and gate evidence in place, the next execution phase is Ph
 4. **Phase D Exit to Phase E**
    - All Phase D gate criteria are green (per build realignment gate definitions).
    - Evidence is recorded in `docs/STAGING.md` with linked CI runs and validation artifacts.
+
+## Next Phase Continuation — Phase E Kickoff
+
+With Phase D delivery and gate evidence in place, the next execution phase is Phase E.
+
+1. **Phase E Entry Check (Go/No-Go)**
+   - Confirm Phase D gate is green against `docs/BUILD_REALIGNMENT_PLAN_2026-05-04.md` section 12.1 criteria.
+   - Confirm ownership/support rota is active for E1–E4 slices.
+   - Confirm target high-fragmentation pages and dashboard acceptance criteria are agreed before implementation starts.
+
+2. **Phase E Delivery Order**
+   - E1: Direct page-query reduction baseline and targets.
+   - E2: Hook/service migration for highest-fragmentation surfaces.
+   - E3: Audit dashboard completeness for operational and contract events.
+   - E4: Communications delivery governance (retry visibility and accountability).
+
+3. **Phase E Progression Checkpoints**
+   - **Checkpoint 1 (E1 complete)**: baseline vs current direct-query drift is published for target pages.
+   - **Checkpoint 2 (E2 complete)**: migrated surfaces consume shared hook/service contracts.
+   - **Checkpoint 3 (E3 complete)**: audit completeness and event integrity checks are green.
+   - **Checkpoint 4 (E4 complete)**: communications delivery and retry metrics are visible in operations dashboards.
+
+4. **Phase E Completion Gate**
+   - Phase D gate remains green while E changes land.
+   - Target fragmentation pages show downward direct-query drift.
+   - Communications delivery governance is live and measurable in operations dashboards.
+   - Evidence is recorded in `docs/STAGING.md` with linked CI runs and validation artifacts.

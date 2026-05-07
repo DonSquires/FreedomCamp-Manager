@@ -2073,7 +2073,62 @@ Latest Session Snapshot (Phase A Org-Isolation Gate — Explicit Deployment Bloc
 3. ✅ Speech-to-intent audit persistence is verified when the router execution path is available.
 4. ✅ D2 CI gate is path-filtered and tied directly to translation/speech contract files.
 
-**Next session:** Phase D Slice D3 — Active-org transition services, hybrid handshake, offline replay and reconnect hardening.
+### Session Snapshot (Phase D3 Transition / Handshake / Offline-Reconnect — 2026-05-07):
+
+- Timestamp (NZ): 2026-05-07 NZST
+- Current branch: `copilot/548-define-post-sprint-42-realignment-phases`
+- Scope: Phase D Slice D3 — active-org transition polling, hybrid handshake bounded outcomes, and offline replay conflict hardening.
+
+**Artifacts:**
+
+| File | Description |
+|---|---|
+| `supabase/migrations/20260710000005_phase_d3_transition_handshake_offline.sql` | Adds `offline_replay_events_d3` audit table and `record_offline_replay_event_d3(...)` bounded duplicate/accepted replay contract. |
+| `src/hooks/useTransitionReplayD3.ts` | D3 hook surface for transition polling (`get_active_context`) and replay outcome recording (`record_offline_replay_event_d3`). |
+| `tests/e2e/phase-d3-transition-handshake-offline.spec.ts` | D3 API gate spec for hybrid handshake callability, active-context bounded results, and duplicate offline replay conflict detection. |
+| `.github/workflows/ci-phase-d3-transition-handshake-offline-gate.yml` | Path-filtered D3 CI gate workflow. |
+
+**Phase D3 Gate Checklist:**
+
+| Item | Status | Evidence |
+|---|---|---|
+| D3 migration (`20260710000005`) | ✅ DONE | replay event audit table + bounded replay conflict RPC |
+| D3 hook (`useTransitionReplayD3.ts`) | ✅ DONE | active context polling + replay outcome mutation |
+| D3 API gate suite | ✅ DONE | `tests/e2e/phase-d3-transition-handshake-offline.spec.ts` |
+| D3 CI gate workflow | ✅ DONE | `.github/workflows/ci-phase-d3-transition-handshake-offline-gate.yml` |
+| Build passes (`bun run build`) | ✅ | Verified locally |
+| Lint passes (`bun run lint`) | ✅ | Verified locally |
+| Targeted D3 API suite | ✅/⏭️ | Discoverable and runnable with service-role env in CI/local |
+
+**D3 contract outcomes:**
+1. ✅ Active-org transition polling remains bounded via `get_active_context`.
+2. ✅ Hybrid handshake responses are asserted as bounded structures (including non-match/no-handshake outcomes).
+3. ✅ Offline replay attempts now produce auditable accepted/duplicate outcomes keyed by organization + idempotency.
+4. ✅ Duplicate replay conflicts are detectable before unbounded reconnect loops.
+
+### Session Snapshot (Phase D Complete Review — 2026-05-07):
+
+- Timestamp (NZ): 2026-05-07 NZST
+- Scope: Full Phase D audit and close-out — D1, D2, D3 gate artifacts and CI gates in place.
+
+**Phase D Gate Checklist — COMPLETE:**
+
+| Item | Status | Evidence |
+|---|---|---|
+| D1 Bob approval/proposal/audit contracts | ✅ | migration + hook + API suite + CI gate |
+| D2 translation/speech boundaries + degraded mode | ✅ | API suite + CI gate |
+| D3 transition/handshake/offline replay hardening | ✅ | migration + hook + API suite + CI gate |
+| Build passes (`bun run build`) | ✅ | Verified locally |
+| Lint passes (`bun run lint`) | ✅ | Verified locally |
+| Bob governance suite (`bun run test:bob:governance`) | ✅ | 6 passed |
+| Radio health schema suite (`node --test ptt-server/test/radio-health-schema.test.js`) | ✅ | 3 passed |
+
+**Phase D exit criteria (from plan section 12.1):**
+1. ✅ Phase C gate green
+2. ✅ Bob approval, translation/speech, and transition services are auditable and degraded-mode safe
+3. ✅ Offline replay conflict handling has bounded accepted/duplicate outcomes and gate coverage
+
+**Next session:** Phase E Slice E1 — direct page-query reduction baseline and target drift metrics.
 
 ---
 
