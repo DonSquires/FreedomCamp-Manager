@@ -4,9 +4,9 @@ name: Deploy Railway STT Service
 # This replaces the RunPod serverless STT endpoint which suffered persistent
 # GPU supply constraints.
 #
-# Required secrets:
-#   RAILWAY_TOKEN          — Railway project token (Project → Settings → Tokens)
-#   RAILWAY_STT_SERVICE_ID — Railway service ID for the railway-stt service
+# Required secrets (supports aliases):
+#   Token: RAILWAY_TOKEN or RAILWAY_BOB_TOKEN
+#   Service ID: RAILWAY_STT_SERVICE_ID or RAILWAY_SERVICE_ID
 #
 # Optional secrets:
 #   RAILWAY_STT_URL        — deployed Railway URL used for post-deploy health check
@@ -44,8 +44,11 @@ jobs:
         id: check-secrets
         run: |
           missing=""
-          [ -z "${{ secrets.RAILWAY_TOKEN }}" ]          && missing="$missing RAILWAY_TOKEN"
-          [ -z "${{ secrets.RAILWAY_STT_SERVICE_ID }}" ] && missing="$missing RAILWAY_STT_SERVICE_ID"
+          TOKEN="${{ secrets.RAILWAY_TOKEN || secrets.RAILWAY_BOB_TOKEN }}"
+          SERVICE_ID="${{ secrets.RAILWAY_STT_SERVICE_ID || secrets.RAILWAY_SERVICE_ID }}"
+
+          [ -z "$TOKEN" ]      && missing="$missing RAILWAY_TOKEN|RAILWAY_BOB_TOKEN"
+          [ -z "$SERVICE_ID" ] && missing="$missing RAILWAY_STT_SERVICE_ID|RAILWAY_SERVICE_ID"
 
           if [ -n "$missing" ]; then
             echo "::error::Required secrets not configured ($missing) — deployment skipped."
@@ -109,8 +112,8 @@ jobs:
       - name: Deploy to Railway
         if: steps.check-secrets.outputs.secrets_present == 'true'
         env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-          RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_STT_SERVICE_ID }}
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN || secrets.RAILWAY_BOB_TOKEN }}
+          RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_STT_SERVICE_ID || secrets.RAILWAY_SERVICE_ID }}
         run: |
           set -euo pipefail
           cd railway-stt
@@ -122,7 +125,7 @@ jobs:
       - name: Post-deploy health check
         if: steps.check-secrets.outputs.secrets_present == 'true'
         env:
-          RAILWAY_STT_URL: ${{ secrets.RAILWAY_STT_URL }}
+          RAILWAY_STT_URL: ${{ secrets.RAILWAY_STT_URL || secrets.BOB_SERVICE_URL }}
         run: |
           STT_URL="${RAILWAY_STT_URL:-}"
           if [ -z "$STT_URL" ]; then
