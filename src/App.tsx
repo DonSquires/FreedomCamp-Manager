@@ -264,6 +264,9 @@ const UserSessionsLog        = lazy(() => import('@/pages/UserSessionsLog'))
 const RecentObservationPhotoStatusLog = lazy(() => import('@/pages/RecentObservationPhotoStatusLog'))
 const ObservationZoneAuditLog = lazy(() => import('@/pages/ObservationZoneAuditLog'))
 const UserDeactivationQueueLog = lazy(() => import('@/pages/UserDeactivationQueueLog'))
+const AlertAcknowledgementsLog = lazy(() => import('@/pages/AlertAcknowledgementsLog'))
+const OfficerWelfareAlertsLog = lazy(() => import('@/pages/OfficerWelfareAlertsLog'))
+const VehicleMigrationLog = lazy(() => import('@/pages/VehicleMigrationLog'))
 
 const NetworkStatusBar = lazy(() => import('@/components/features/NetworkStatusBar').then((m) => ({ default: m.NetworkStatusBar })))
 const PWAInstallPrompt = lazy(() => import('@/components/features/PWAInstallPrompt').then((m) => ({ default: m.PWAInstallPrompt })))
@@ -2421,6 +2424,9 @@ export default function App() {
           <Route path="/recent-observations-photo-status-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><RecentObservationPhotoStatusLog /></RoleRoute></ProtectedRoute>} />
           <Route path="/observation-zone-audit-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><ObservationZoneAuditLog /></RoleRoute></ProtectedRoute>} />
           <Route path="/user-deactivation-queue-log" element={<ProtectedRoute><RoleRoute allowedRoles={['master']}><UserDeactivationQueueLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/alert-acknowledgements-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><AlertAcknowledgementsLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/officer-welfare-alerts-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><OfficerWelfareAlertsLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/vehicle-migration-log" element={<ProtectedRoute><RoleRoute allowedRoles={['master']}><VehicleMigrationLog /></RoleRoute></ProtectedRoute>} />
 
           {/* CRM – Accounts (Clients + Contractors) */}
           <Route
