@@ -3528,3 +3528,33 @@ The web SPA delivers SOS via the existing `officer_welfare_alerts` table + `send
 - `bun run build` → PASS
 
 **Next session:** Sprint 35 — B-115 LocationsOfInterestLog, B-116 VehicleMonthlyStayLog, B-117 RadioVoiceConsentLog.
+
+## Phase 5 — Sprint 35 (B-115 / B-116 / B-117)
+
+### Changes
+
+- **B-115 LocationsOfInterestLog** (`/locations-of-interest-log`): log viewer for `locations_of_interest` Table (org-scoped). KPIs: Total / Active / Canonical / With Hazards. Filters: loi_kind, active, canonical, city, name search. Table: name, kind, city, active/canonical badges, updated. Expand: hazard summary, address, GPS, geocoder metadata.
+- **B-116 VehicleMonthlyStayLog** (`/vehicle-monthly-stays-log`): log viewer for `vehicle_monthly_stays` Table (org-scoped). KPIs: Records / Total Nights / Consecutive ≥3 / Zones. Filters: calendar_month, plate search. Table: month, plate, zone, nights, consecutive nights highlight, last observed. Expand: observation IDs + reset/update metadata.
+- **B-117 RadioVoiceConsentLog** (`/radio-voice-consent-log`): log viewer for `radio_voice_consents` View (org-scoped by `org_id`). KPIs: Total / Active / Revoked / Avg Retention. Filters: provider, revoked, date from. Table: consented_at, provider, officer, retention, status badge. Expand: purpose, voice profile, revocation reason.
+
+### Sprint 35 Board
+
+| Ticket | Page | Route | Source |
+|--------|------|-------|--------|
+| B-115 | LocationsOfInterestLog | /locations-of-interest-log | Table: locations_of_interest |
+| B-116 | VehicleMonthlyStayLog  | /vehicle-monthly-stays-log | Table: vehicle_monthly_stays |
+| B-117 | RadioVoiceConsentLog   | /radio-voice-consent-log   | View: radio_voice_consents |
+
+- [x] `bun run lint` → PASS
+- [x] `bun run build` → PASS
+
+### Session Snapshot (Sprint 35 — 2026-05-07)
+
+- Timestamp (UTC): 2026-05-07 01:48 UTC
+- Current branch: copilot/review-doc-and-staging-files
+
+**Validation:**
+- `bun run lint` → PASS
+- `bun run build` → PASS
+
+**Next session:** Sprint 36 — B-118 PatrolFieldEventLog, B-119 AlertQueueLog, B-120 ComplianceResultLog.
