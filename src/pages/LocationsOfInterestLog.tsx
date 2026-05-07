@@ -1,3 +1,21 @@
+/**
+ * LocationsOfInterestLog — B-115
+ *
+ * Log viewer for locations_of_interest — named locations (sites, camps, zones)
+ * linked to enforcement operations.
+ *
+ * Features:
+ *  - KPI cards: Total / Active / Canonical / Unique Cities
+ *  - Filters: loi_kind (dynamic), is_active, is_canonical, city (dynamic)
+ *  - Search: name / address_full
+ *  - Table: name, loi_kind badge, display_address, city, is_canonical indicator,
+ *           is_active badge, created_at
+ *  - Expandable row: description, hazard_summary, access_summary, GPS, geo_zone_ids,
+ *                    geocoder_source + confidence, canonical_loi_id, updated_at
+ *
+ * Route: /locations-of-interest-log — admin/admin_officer/master
+ */
+
 import { useState } from 'react'
 import { format, parseISO } from 'date-fns'
 import {
@@ -30,47 +48,57 @@ import {
 } from '@/components/ui/table'
 import type { Database } from '@/types/database'
 
-type LoiRow = Database['public']['Tables']['locations_of_interest']['Row']
+// ─── Types ─────────────────────────────────────────────────────────────────────
 
-function fmtDate(ts: string | null) {
+type LocationOfInterest = Database['public']['Tables']['locations_of_interest']['Row']
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function fmtDate(ts: string | null | undefined) {
   if (!ts) return '—'
   try { return format(parseISO(ts), 'dd MMM yyyy HH:mm') } catch { return ts }
 }
 
-function pct(v: number | null) {
-  if (v == null) return '—'
-  return `${Math.round(v * 100)}%`
+function kindColor(kind: string) {
+  if (kind === 'camp_site')          return 'bg-green-100 text-green-800'
+  if (kind === 'freedom_camp')       return 'bg-emerald-100 text-emerald-800'
+  if (kind === 'park')               return 'bg-teal-100 text-teal-800'
+  if (kind === 'enforcement_zone')   return 'bg-orange-100 text-orange-800'
+  if (kind === 'client_site')        return 'bg-blue-100 text-blue-800'
+  if (kind === 'hazard')             return 'bg-red-100 text-red-800'
+  return 'bg-gray-100 text-gray-700'
 }
+
+// ─── Component ────────────────────────────────────────────────────────────────
 
 export default function LocationsOfInterestLog() {
   const { user } = useAuthStore()
   const orgId = user?.organization_id
 
-  const [kindFilter, setKindFilter] = useState('all')
-  const [activeFilter, setActiveFilter] = useState('all')
+  const [kindFilter,      setKindFilter]      = useState('all')
+  const [activeFilter,    setActiveFilter]    = useState('all')
   const [canonicalFilter, setCanonicalFilter] = useState('all')
-  const [cityFilter, setCityFilter] = useState('all')
-  const [nameQuery, setNameQuery] = useState('')
-  const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [cityFilter,      setCityFilter]      = useState('all')
+  const [searchTerm,      setSearchTerm]      = useState('')
+  const [expandedId,      setExpandedId]      = useState<string | null>(null)
 
-  const { data: rows = [], isLoading, refetch } = useQuery<LoiRow[]>({
-    queryKey: ['locations-of-interest-log', orgId, kindFilter, activeFilter, canonicalFilter, cityFilter, nameQuery],
+  // ── Query ─────────────────────────────────────────────────────────────────
+
+  const { data: rows = [], isLoading, refetch } = useQuery<LocationOfInterest[]>({
+    queryKey: ['locations-of-interest-log', orgId, kindFilter, activeFilter, canonicalFilter, cityFilter],
     enabled: !!orgId,
     queryFn: async () => {
       let q = supabase
         .from('locations_of_interest')
         .select('*')
         .eq('organization_id', orgId!)
-        .order('updated_at', { ascending: false })
+        .order('created_at', { ascending: false })
         .limit(500)
 
-      if (kindFilter !== 'all') q = q.eq('loi_kind', kindFilter)
-      if (activeFilter === 'active') q = q.eq('is_active', true)
-      if (activeFilter === 'inactive') q = q.eq('is_active', false)
-      if (canonicalFilter === 'yes') q = q.eq('is_canonical', true)
-      if (canonicalFilter === 'no') q = q.eq('is_canonical', false)
-      if (cityFilter !== 'all') q = q.eq('city', cityFilter)
-      if (nameQuery.trim()) q = q.ilike('name', `%${nameQuery.trim()}%`)
+      if (kindFilter      !== 'all') q = q.eq('loi_kind', kindFilter)
+      if (activeFilter    !== 'all') q = q.eq('is_active', activeFilter === 'yes')
+      if (canonicalFilter !== 'all') q = q.eq('is_canonical', canonicalFilter === 'yes')
+      if (cityFilter      !== 'all') q = q.eq('city', cityFilter)
 
       const { data, error } = await q
       if (error) throw error
@@ -78,21 +106,32 @@ export default function LocationsOfInterestLog() {
     },
   })
 
-  const kinds = [...new Set(rows.map(r => r.loi_kind).filter(Boolean))].sort()
-  const cities = [...new Set(rows.map(r => r.city).filter(Boolean))].sort()
-  const activeCount = rows.filter(r => r.is_active).length
-  const canonicalCount = rows.filter(r => r.is_canonical).length
-  const hazardCount = rows.filter(r => !!r.hazard_summary).length
+  const filtered = searchTerm
+    ? rows.filter(r =>
+        (r.name ?? '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (r.address_full ?? '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (r.display_address ?? '').toLowerCase().includes(searchTerm.toLowerCase())
+      )
+    : rows
+
+  const activeCount    = filtered.filter(r => r.is_active).length
+  const canonicalCount = filtered.filter(r => r.is_canonical).length
+  const uniqueCities   = new Set(filtered.map(r => r.city).filter(Boolean)).size
+  const kinds          = [...new Set(rows.map(r => r.loi_kind).filter(Boolean))].sort()
+  const cities         = [...new Set(rows.map(r => r.city).filter(Boolean))].sort()
+
+  // ─────────────────────────────────────────────────────────────────────────
 
   return (
     <AppLayout>
       <div className="p-6 space-y-6">
+        {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <MapPin className="h-6 w-6 text-emerald-600" />
             <div>
               <h1 className="text-2xl font-bold">Locations of Interest Log</h1>
-              <p className="text-sm text-muted-foreground">Registered locations, geocoding details, and hazard context</p>
+              <p className="text-sm text-muted-foreground">Named locations linked to enforcement operations</p>
             </div>
           </div>
           <Button variant="outline" size="sm" onClick={() => refetch()}>
@@ -100,63 +139,74 @@ export default function LocationsOfInterestLog() {
           </Button>
         </div>
 
+        {/* KPIs */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
-            { label: 'Total LOIs', value: rows.length, colour: 'text-gray-700' },
-            { label: 'Active', value: activeCount, colour: 'text-emerald-700' },
-            { label: 'Canonical', value: canonicalCount, colour: 'text-blue-700' },
-            { label: 'With Hazards', value: hazardCount, colour: 'text-orange-700' },
+            { label: 'Total Locations', value: filtered.length, colour: 'text-gray-700' },
+            { label: 'Active',          value: activeCount,     colour: 'text-green-700' },
+            { label: 'Canonical',       value: canonicalCount,  colour: 'text-blue-700' },
+            { label: 'Unique Cities',   value: uniqueCities,    colour: 'text-teal-700' },
           ].map(kpi => (
             <Card key={kpi.label}>
-              <CardHeader className="pb-1 pt-3 px-4"><CardTitle className="text-xs text-muted-foreground">{kpi.label}</CardTitle></CardHeader>
-              <CardContent className="px-4 pb-3"><p className={`text-2xl font-bold ${kpi.colour}`}>{kpi.value}</p></CardContent>
+              <CardHeader className="pb-1 pt-3 px-4">
+                <CardTitle className="text-xs text-muted-foreground">{kpi.label}</CardTitle>
+              </CardHeader>
+              <CardContent className="px-4 pb-3">
+                <p className={`text-2xl font-bold ${kpi.colour}`}>{kpi.value}</p>
+              </CardContent>
             </Card>
           ))}
         </div>
 
+        {/* Filters */}
         <div className="flex flex-wrap gap-3">
-          <Input
-            value={nameQuery}
-            onChange={e => setNameQuery(e.target.value)}
-            placeholder="Search name…"
-            className="w-52"
-          />
           <Select value={kindFilter} onValueChange={setKindFilter}>
             <SelectTrigger className="w-44"><SelectValue placeholder="LOI kind" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All kinds</SelectItem>
-              {kinds.map(v => <SelectItem key={v} value={v}>{v}</SelectItem>)}
+              {kinds.map(k => <SelectItem key={k} value={k!}>{k!.replace(/_/g, ' ')}</SelectItem>)}
             </SelectContent>
           </Select>
           <Select value={activeFilter} onValueChange={setActiveFilter}>
-            <SelectTrigger className="w-40"><SelectValue placeholder="Active" /></SelectTrigger>
+            <SelectTrigger className="w-40"><SelectValue placeholder="Status" /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All states</SelectItem>
-              <SelectItem value="active">Active only</SelectItem>
-              <SelectItem value="inactive">Inactive only</SelectItem>
+              <SelectItem value="all">All</SelectItem>
+              <SelectItem value="yes">Active only</SelectItem>
+              <SelectItem value="no">Inactive only</SelectItem>
             </SelectContent>
           </Select>
           <Select value={canonicalFilter} onValueChange={setCanonicalFilter}>
             <SelectTrigger className="w-44"><SelectValue placeholder="Canonical" /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All records</SelectItem>
+              <SelectItem value="all">All</SelectItem>
               <SelectItem value="yes">Canonical only</SelectItem>
-              <SelectItem value="no">Non-canonical only</SelectItem>
+              <SelectItem value="no">Non-canonical</SelectItem>
             </SelectContent>
           </Select>
           <Select value={cityFilter} onValueChange={setCityFilter}>
             <SelectTrigger className="w-40"><SelectValue placeholder="City" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All cities</SelectItem>
-              {cities.map(v => <SelectItem key={v} value={v}>{v}</SelectItem>)}
+              {cities.map(c => <SelectItem key={c} value={c!}>{c}</SelectItem>)}
             </SelectContent>
           </Select>
+          <Input
+            placeholder="Search name / address…"
+            value={searchTerm}
+            onChange={e => setSearchTerm(e.target.value)}
+            className="w-56"
+          />
         </div>
 
+        {/* Table */}
         {isLoading ? (
-          <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
-        ) : rows.length === 0 ? (
-          <div className="flex flex-col items-center py-12 text-muted-foreground gap-2"><AlertCircle className="h-8 w-8" /><p>No locations of interest found</p></div>
+          <div className="flex justify-center py-12">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="flex flex-col items-center py-12 text-muted-foreground gap-2">
+            <AlertCircle className="h-8 w-8" /><p>No locations found</p>
+          </div>
         ) : (
           <div className="rounded-md border">
             <Table>
@@ -165,39 +215,73 @@ export default function LocationsOfInterestLog() {
                   <TableHead className="w-8" />
                   <TableHead>Name</TableHead>
                   <TableHead>Kind</TableHead>
+                  <TableHead>Address</TableHead>
                   <TableHead>City</TableHead>
-                  <TableHead>Active</TableHead>
                   <TableHead>Canonical</TableHead>
-                  <TableHead>Geo Confidence</TableHead>
-                  <TableHead>Updated</TableHead>
+                  <TableHead>Active</TableHead>
+                  <TableHead>Created</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {rows.map(row => {
+                {filtered.map(row => {
                   const expanded = expandedId === row.id
                   return (
                     <>
-                      <TableRow key={row.id} className="cursor-pointer hover:bg-muted/50" onClick={() => setExpandedId(expanded ? null : row.id)}>
-                        <TableCell>{expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}</TableCell>
-                        <TableCell className="text-sm font-medium">{row.name ?? '—'}</TableCell>
-                        <TableCell><Badge className="bg-blue-100 text-blue-800">{row.loi_kind}</Badge></TableCell>
+                      <TableRow
+                        key={row.id}
+                        className="cursor-pointer hover:bg-muted/50"
+                        onClick={() => setExpandedId(expanded ? null : row.id)}
+                      >
+                        <TableCell>
+                          {expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                        </TableCell>
+                        <TableCell className="font-medium text-sm">{row.name ?? '—'}</TableCell>
+                        <TableCell><Badge className={kindColor(row.loi_kind)}>{row.loi_kind.replace(/_/g, ' ')}</Badge></TableCell>
+                        <TableCell className="text-sm text-muted-foreground truncate max-w-48">{row.display_address ?? row.address_full ?? '—'}</TableCell>
                         <TableCell className="text-sm">{row.city ?? '—'}</TableCell>
-                        <TableCell>{row.is_active ? <Badge className="bg-green-100 text-green-800">Active</Badge> : <Badge className="bg-gray-100 text-gray-700">Inactive</Badge>}</TableCell>
-                        <TableCell>{row.is_canonical ? <Badge className="bg-violet-100 text-violet-800">Canonical</Badge> : <span className="text-muted-foreground text-xs">No</span>}</TableCell>
-                        <TableCell className="text-sm font-mono">{pct(row.geocoder_confidence)}</TableCell>
-                        <TableCell className="text-sm">{fmtDate(row.updated_at)}</TableCell>
+                        <TableCell className="text-center">
+                          {row.is_canonical
+                            ? <span className="text-blue-600 text-xs font-medium">✓</span>
+                            : <span className="text-muted-foreground text-xs">—</span>}
+                        </TableCell>
+                        <TableCell>
+                          {row.is_active
+                            ? <Badge className="bg-green-100 text-green-800">Active</Badge>
+                            : <Badge className="bg-gray-100 text-gray-600">Inactive</Badge>}
+                        </TableCell>
+                        <TableCell className="text-sm">{fmtDate(row.created_at)}</TableCell>
                       </TableRow>
                       {expanded && (
                         <TableRow key={`${row.id}-exp`} className="bg-muted/30">
-                          <TableCell colSpan={8} className="p-4">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-                              <div><span className="font-medium">Address:</span> <span className="text-muted-foreground">{row.display_address ?? row.address_full ?? '—'}</span></div>
-                              <div><span className="font-medium">GPS:</span> <span className="text-muted-foreground">{row.gps_lat != null && row.gps_lng != null ? `${row.gps_lat}, ${row.gps_lng}` : '—'}</span></div>
-                              <div><span className="font-medium">Hazard:</span> <span className="text-muted-foreground">{row.hazard_summary ?? '—'}</span></div>
-                              <div><span className="font-medium">Access:</span> <span className="text-muted-foreground">{row.access_summary ?? '—'}</span></div>
-                              <div><span className="font-medium">Canonical LOI:</span> <span className="font-mono text-xs">{row.canonical_loi_id ?? '—'}</span></div>
-                              <div><span className="font-medium">Geo Source:</span> <span className="text-muted-foreground">{row.geocoder_source ?? '—'}</span></div>
+                          <TableCell colSpan={8} className="p-4 space-y-3">
+                            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-xs text-muted-foreground">
+                              {row.gps_lat != null && row.gps_lng != null && (
+                                <span>GPS: {row.gps_lat.toFixed(5)}, {row.gps_lng.toFixed(5)}</span>
+                              )}
+                              {row.geocoder_source     && <span>Geocoder: {row.geocoder_source}</span>}
+                              {row.geocoder_confidence != null && <span>Confidence: {(row.geocoder_confidence * 100).toFixed(0)}%</span>}
+                              {row.canonical_loi_id    && <span>Canonical ID: {row.canonical_loi_id.slice(0, 8)}…</span>}
+                              {row.geo_zone_ids && row.geo_zone_ids.length > 0 && <span>Zones: {row.geo_zone_ids.length}</span>}
+                              {row.updated_at          && <span>Updated: {fmtDate(row.updated_at)}</span>}
                             </div>
+                            {row.description && (
+                              <div>
+                                <p className="font-medium text-sm mb-1">Description</p>
+                                <p className="text-sm text-muted-foreground">{row.description}</p>
+                              </div>
+                            )}
+                            {row.hazard_summary && (
+                              <div>
+                                <p className="font-medium text-sm mb-1">Hazard Summary</p>
+                                <p className="text-sm text-muted-foreground">{row.hazard_summary}</p>
+                              </div>
+                            )}
+                            {row.access_summary && (
+                              <div>
+                                <p className="font-medium text-sm mb-1">Access Summary</p>
+                                <p className="text-sm text-muted-foreground">{row.access_summary}</p>
+                              </div>
+                            )}
                           </TableCell>
                         </TableRow>
                       )}

@@ -1,8 +1,27 @@
+/**
+ * RadioTtsRenderLog — B-112
+ *
+ * Log viewer for radio_tts_renders (View) — text-to-speech renders from
+ * radio translation pipeline.
+ *
+ * Features:
+ *  - KPI cards: Total Renders / Synthetic / Avg Duration / Avg Render Latency
+ *  - Filters: provider (dynamic), is_synthetic, target_language (dynamic), date from
+ *  - Table: target_language, provider, is_synthetic badge, duration_ms,
+ *           render_latency_ms, created_at
+ *  - Expandable row: storage_path audio link, translation_segment_id,
+ *                    voice_profile_id, full timestamps
+ *
+ * Note: radio_tts_renders is a View; scoped by org_id.
+ *
+ * Route: /radio-tts-render-log — admin/admin_officer/master
+ */
+
 import { useState } from 'react'
 import { format, parseISO } from 'date-fns'
 import {
-  Radio, RefreshCw, AlertCircle, Loader2,
-  ChevronDown, ChevronRight, ExternalLink,
+  Volume2, RefreshCw, AlertCircle, Loader2,
+  ChevronDown, ChevronRight,
 } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 
@@ -30,44 +49,51 @@ import {
 } from '@/components/ui/table'
 import type { Database } from '@/types/database'
 
-type TtsRenderRow = Database['public']['Views']['radio_tts_renders']['Row']
+// ─── Types ─────────────────────────────────────────────────────────────────────
 
-function fmtDate(ts: string | null) {
+type RadioTtsRender = Database['public']['Views']['radio_tts_renders']['Row']
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function fmtDate(ts: string | null | undefined) {
   if (!ts) return '—'
   try { return format(parseISO(ts), 'dd MMM yyyy HH:mm') } catch { return ts }
 }
 
-function fmtMs(v: number | null) {
-  if (v == null) return '—'
-  return `${v} ms`
+function fmtMs(ms: number | null) {
+  if (ms == null) return '—'
+  return `${(ms / 1000).toFixed(2)}s`
 }
+
+// ─── Component ────────────────────────────────────────────────────────────────
 
 export default function RadioTtsRenderLog() {
   const { user } = useAuthStore()
   const orgId = user?.organization_id
 
-  const [providerFilter, setProviderFilter] = useState('all')
-  const [languageFilter, setLanguageFilter] = useState('all')
+  const [providerFilter,  setProviderFilter]  = useState('all')
   const [syntheticFilter, setSyntheticFilter] = useState('all')
-  const [dateFrom, setDateFrom] = useState('')
-  const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [langFilter,      setLangFilter]      = useState('all')
+  const [dateFrom,        setDateFrom]        = useState('')
+  const [expandedId,      setExpandedId]      = useState<string | null>(null)
 
-  const { data: rows = [], isLoading, refetch } = useQuery<TtsRenderRow[]>({
-    queryKey: ['radio-tts-render-log', orgId, providerFilter, languageFilter, syntheticFilter, dateFrom],
+  // ── Query ─────────────────────────────────────────────────────────────────
+
+  const { data: rows = [], isLoading, refetch } = useQuery<RadioTtsRender[]>({
+    queryKey: ['radio-tts-render-log', orgId, providerFilter, syntheticFilter, langFilter, dateFrom],
     enabled: !!orgId,
     queryFn: async () => {
-      let q = supabase
+      let q = (supabase as any)
         .from('radio_tts_renders')
         .select('*')
         .eq('org_id', orgId!)
         .order('created_at', { ascending: false })
         .limit(500)
 
-      if (providerFilter !== 'all') q = q.eq('provider', providerFilter)
-      if (languageFilter !== 'all') q = q.eq('target_language', languageFilter)
-      if (syntheticFilter === 'yes') q = q.eq('is_synthetic', true)
-      if (syntheticFilter === 'no') q = q.eq('is_synthetic', false)
-      if (dateFrom) q = q.gte('created_at', dateFrom)
+      if (providerFilter  !== 'all') q = q.eq('provider', providerFilter)
+      if (syntheticFilter !== 'all') q = q.eq('is_synthetic', syntheticFilter === 'yes')
+      if (langFilter      !== 'all') q = q.eq('target_language', langFilter)
+      if (dateFrom)                  q = q.gte('created_at', dateFrom)
 
       const { data, error } = await q
       if (error) throw error
@@ -75,24 +101,26 @@ export default function RadioTtsRenderLog() {
     },
   })
 
-  const providers = [...new Set(rows.map(r => r.provider).filter(Boolean))].sort()
-  const languages = [...new Set(rows.map(r => r.target_language).filter(Boolean))].sort()
   const syntheticCount = rows.filter(r => r.is_synthetic).length
-  const latencyValues = rows.map(r => r.render_latency_ms).filter((v): v is number => v != null)
-  const avgLatency = latencyValues.length > 0
-    ? `${Math.round(latencyValues.reduce((a, b) => a + b, 0) / latencyValues.length)} ms`
-    : '—'
-  const withAudioCount = rows.filter(r => !!r.storage_path).length
+  const durations      = rows.map(r => r.duration_ms).filter(v => v != null) as number[]
+  const latencies      = rows.map(r => r.render_latency_ms).filter(v => v != null) as number[]
+  const avgDuration    = durations.length  > 0 ? durations.reduce((a, b) => a + b, 0) / durations.length : null
+  const avgLatency     = latencies.length  > 0 ? latencies.reduce((a, b) => a + b, 0) / latencies.length : null
+  const providers      = [...new Set(rows.map(r => r.provider).filter(Boolean))].sort()
+  const languages      = [...new Set(rows.map(r => r.target_language).filter(Boolean))].sort()
+
+  // ─────────────────────────────────────────────────────────────────────────
 
   return (
     <AppLayout>
       <div className="p-6 space-y-6">
+        {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Radio className="h-6 w-6 text-violet-600" />
+            <Volume2 className="h-6 w-6 text-teal-600" />
             <div>
               <h1 className="text-2xl font-bold">Radio TTS Render Log</h1>
-              <p className="text-sm text-muted-foreground">Synthesized and translated radio render records</p>
+              <p className="text-sm text-muted-foreground">Text-to-speech renders from the radio translation pipeline</p>
             </div>
           </div>
           <Button variant="outline" size="sm" onClick={() => refetch()}>
@@ -100,63 +128,73 @@ export default function RadioTtsRenderLog() {
           </Button>
         </div>
 
+        {/* KPIs */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
-            { label: 'Total Renders', value: rows.length, colour: 'text-gray-700' },
-            { label: 'Synthetic', value: syntheticCount, colour: 'text-violet-700' },
-            { label: 'Avg Latency', value: avgLatency, colour: 'text-orange-700' },
-            { label: 'Audio Linked', value: withAudioCount, colour: 'text-blue-700' },
+            { label: 'Total Renders',     value: rows.length,                   colour: 'text-gray-700' },
+            { label: 'Synthetic',         value: syntheticCount,                colour: 'text-purple-700' },
+            { label: 'Avg Duration',      value: avgDuration != null ? fmtMs(Math.round(avgDuration)) : '—', colour: 'text-blue-700' },
+            { label: 'Avg Render Latency',value: avgLatency  != null ? fmtMs(Math.round(avgLatency))  : '—', colour: 'text-orange-700' },
           ].map(kpi => (
             <Card key={kpi.label}>
-              <CardHeader className="pb-1 pt-3 px-4"><CardTitle className="text-xs text-muted-foreground">{kpi.label}</CardTitle></CardHeader>
-              <CardContent className="px-4 pb-3"><p className={`text-2xl font-bold ${kpi.colour}`}>{kpi.value}</p></CardContent>
+              <CardHeader className="pb-1 pt-3 px-4">
+                <CardTitle className="text-xs text-muted-foreground">{kpi.label}</CardTitle>
+              </CardHeader>
+              <CardContent className="px-4 pb-3">
+                <p className={`text-2xl font-bold ${kpi.colour}`}>{kpi.value}</p>
+              </CardContent>
             </Card>
           ))}
         </div>
 
+        {/* Filters */}
         <div className="flex flex-wrap gap-3">
           <Select value={providerFilter} onValueChange={setProviderFilter}>
             <SelectTrigger className="w-40"><SelectValue placeholder="Provider" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All providers</SelectItem>
-              {providers.map(v => <SelectItem key={v} value={v}>{v}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          <Select value={languageFilter} onValueChange={setLanguageFilter}>
-            <SelectTrigger className="w-44"><SelectValue placeholder="Language" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All languages</SelectItem>
-              {languages.map(v => <SelectItem key={v} value={v}>{v}</SelectItem>)}
+              {providers.map(p => <SelectItem key={p} value={p!}>{p}</SelectItem>)}
             </SelectContent>
           </Select>
           <Select value={syntheticFilter} onValueChange={setSyntheticFilter}>
-            <SelectTrigger className="w-44"><SelectValue placeholder="Synthetic" /></SelectTrigger>
+            <SelectTrigger className="w-40"><SelectValue placeholder="Synthetic" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All renders</SelectItem>
               <SelectItem value="yes">Synthetic only</SelectItem>
-              <SelectItem value="no">Non-synthetic only</SelectItem>
+              <SelectItem value="no">Non-synthetic</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={langFilter} onValueChange={setLangFilter}>
+            <SelectTrigger className="w-40"><SelectValue placeholder="Language" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All languages</SelectItem>
+              {languages.map(l => <SelectItem key={l} value={l!}>{l}</SelectItem>)}
             </SelectContent>
           </Select>
           <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="w-40" />
         </div>
 
+        {/* Table */}
         {isLoading ? (
-          <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+          <div className="flex justify-center py-12">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          </div>
         ) : rows.length === 0 ? (
-          <div className="flex flex-col items-center py-12 text-muted-foreground gap-2"><AlertCircle className="h-8 w-8" /><p>No TTS renders found</p></div>
+          <div className="flex flex-col items-center py-12 text-muted-foreground gap-2">
+            <AlertCircle className="h-8 w-8" /><p>No TTS renders found</p>
+          </div>
         ) : (
           <div className="rounded-md border">
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-8" />
-                  <TableHead>Created</TableHead>
-                  <TableHead>Provider</TableHead>
                   <TableHead>Language</TableHead>
+                  <TableHead>Provider</TableHead>
                   <TableHead>Synthetic</TableHead>
-                  <TableHead>Latency</TableHead>
                   <TableHead>Duration</TableHead>
-                  <TableHead>Audio</TableHead>
+                  <TableHead>Latency</TableHead>
+                  <TableHead>Created</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -164,31 +202,46 @@ export default function RadioTtsRenderLog() {
                   const expanded = expandedId === row.id
                   return (
                     <>
-                      <TableRow key={row.id} className="cursor-pointer hover:bg-muted/50" onClick={() => setExpandedId(expanded ? null : row.id)}>
-                        <TableCell>{expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}</TableCell>
-                        <TableCell className="text-sm">{fmtDate(row.created_at)}</TableCell>
-                        <TableCell><Badge className="bg-blue-100 text-blue-800">{row.provider}</Badge></TableCell>
-                        <TableCell className="text-sm">{row.target_language}</TableCell>
-                        <TableCell>{row.is_synthetic ? <Badge className="bg-violet-100 text-violet-800">Yes</Badge> : <Badge className="bg-gray-100 text-gray-700">No</Badge>}</TableCell>
-                        <TableCell className="text-sm font-mono">{fmtMs(row.render_latency_ms)}</TableCell>
-                        <TableCell className="text-sm font-mono">{fmtMs(row.duration_ms)}</TableCell>
-                        <TableCell className="text-sm">
-                          {row.storage_path ? (
-                            <a href={row.storage_path} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-blue-600 hover:underline">
-                              Open <ExternalLink className="h-3 w-3" />
-                            </a>
-                          ) : '—'}
+                      <TableRow
+                        key={row.id}
+                        className="cursor-pointer hover:bg-muted/50"
+                        onClick={() => setExpandedId(expanded ? null : row.id)}
+                      >
+                        <TableCell>
+                          {expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                         </TableCell>
+                        <TableCell className="text-sm font-medium">{row.target_language}</TableCell>
+                        <TableCell className="text-sm">{row.provider}</TableCell>
+                        <TableCell>
+                          {row.is_synthetic
+                            ? <Badge className="bg-purple-100 text-purple-800">Synthetic</Badge>
+                            : <Badge className="bg-gray-100 text-gray-700">Human</Badge>}
+                        </TableCell>
+                        <TableCell className="text-sm">{fmtMs(row.duration_ms)}</TableCell>
+                        <TableCell className="text-sm">{fmtMs(row.render_latency_ms)}</TableCell>
+                        <TableCell className="text-sm">{fmtDate(row.created_at)}</TableCell>
                       </TableRow>
                       {expanded && (
                         <TableRow key={`${row.id}-exp`} className="bg-muted/30">
-                          <TableCell colSpan={8} className="p-4">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-                              <div><span className="font-medium">Render ID:</span> <span className="font-mono text-xs">{row.id}</span></div>
-                              <div><span className="font-medium">Translation Segment:</span> <span className="font-mono text-xs">{row.translation_segment_id}</span></div>
-                              <div><span className="font-medium">Voice Profile:</span> <span className="font-mono text-xs">{row.voice_profile_id ?? '—'}</span></div>
-                              <div><span className="font-medium">Org:</span> <span className="font-mono text-xs">{row.org_id}</span></div>
+                          <TableCell colSpan={7} className="p-4 space-y-3">
+                            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-xs text-muted-foreground">
+                              <span>Segment ID: {row.translation_segment_id.slice(0, 8)}…</span>
+                              {row.voice_profile_id && <span>Voice Profile: {row.voice_profile_id.slice(0, 8)}…</span>}
                             </div>
+                            {row.storage_path && (
+                              <div>
+                                <p className="font-medium text-sm mb-1">Audio</p>
+                                <a
+                                  href={row.storage_path}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-sm text-blue-600 hover:underline break-all"
+                                  onClick={e => e.stopPropagation()}
+                                >
+                                  {row.storage_path}
+                                </a>
+                              </div>
+                            )}
                           </TableCell>
                         </TableRow>
                       )}

@@ -59,6 +59,8 @@ import {
   Wrench,
   MessageSquarePlus,
   MessageSquare,
+  Scale,
+  PackageX,
   Volume2,
   ParkingSquare,
   ClipboardCheck,
@@ -118,10 +120,7 @@ import {
   CalendarClock,
   Eye,
   TicketX,
-  Subtitles,
-  Scale,
-  Flag,
-  ClipboardList as ComplianceList,
+  UserX,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { supabase } from '@/lib/supabase'
@@ -345,27 +344,26 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/dispatch-ack-log', icon: Radio, label: 'Dispatch Acknowledgements', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/noise-jobs-log', icon: Volume2, label: 'Noise Job Log', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/noise-assessments-log', icon: Volume2, label: 'Noise Assessment Log', roles: ['admin', 'admin_officer', 'master'] },
-      // Sprint 32-33 (B-106-B-111) logs
-      { path: '/radio-comms-events-log', icon: Radio, label: 'Radio Comms Event Log', roles: ['admin', 'admin_officer', 'master'] },
+      // Sprint 31: B-103–B-105
+      { path: '/vehicles-of-interest-log', icon: Car, label: 'Vehicles of Interest', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/persons-of-interest-log', icon: UserX, label: 'Persons of Interest', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/photo-metadata-log', icon: ImageIcon, label: 'Photo Metadata Log', roles: ['admin', 'admin_officer', 'master'] },
+      // Sprint 32: B-106–B-108
+      { path: '/radio-comms-events-log', icon: Radio, label: 'Radio Comms Events', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/case-comments-log', icon: MessageSquare, label: 'Case Comment Log', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/lmr-bridge-sessions-log', icon: Radio, label: 'LMR Bridge Session Log', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/patrol-session-events-log', icon: Activity, label: 'Patrol Session Events', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/radio-transcript-log', icon: Subtitles, label: 'Radio Transcript Log', roles: ['admin', 'admin_officer', 'master', 'officer'] },
+      { path: '/lmr-bridge-sessions-log', icon: Radio, label: 'LMR Bridge Sessions', roles: ['admin', 'admin_officer', 'master'] },
+      // Sprint 33: B-109–B-111
+      { path: '/patrol-session-events-log', icon: Route, label: 'Patrol Session Events', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/radio-transcript-log', icon: FileText, label: 'Radio Transcript Log', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/dispute-intake-log', icon: Scale, label: 'Dispute Intake Log', roles: ['admin', 'admin_officer', 'master'] },
-      // Sprint 34-35 (B-112-B-117) logs
-      { path: '/radio-tts-render-log', icon: Radio, label: 'Radio TTS Render Log', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/health-safety-report-log', icon: ShieldAlert, label: 'Health & Safety Report Log', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/noise-seizures-log', icon: Siren, label: 'Noise Seizures Log', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/locations-of-interest-log', icon: MapPin, label: 'Locations of Interest Log', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/vehicle-monthly-stays-log', icon: Car, label: 'Vehicle Monthly Stays Log', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/radio-voice-consent-log', icon: Mic, label: 'Radio Voice Consent Log', roles: ['admin', 'admin_officer', 'master'] },
-      // Sprint 36-37 (B-118-B-123)
-      { path: '/patrol-field-events-log', icon: MapPin, label: 'Patrol Field Events', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/alert-queue-log', icon: Bell, label: 'Alert Queue', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/compliance-results-log', icon: ComplianceList, label: 'Compliance Results', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/welfare-events-log', icon: HeartPulse, label: 'Welfare Events Log', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/zone-geofence-snapshots', icon: Map, label: 'Geofence Snapshots', roles: ['admin', 'master'] },
-      { path: '/feature-flags', icon: Flag, label: 'Feature Flags', roles: ['master'] },
+      // Sprint 34: B-112–B-114
+      { path: '/radio-tts-render-log', icon: Volume2, label: 'Radio TTS Render Log', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/health-safety-report-log', icon: HeartPulse, label: 'H&S Report Log', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/noise-seizures-log', icon: PackageX, label: 'Noise Seizure Log', roles: ['admin', 'admin_officer', 'master'] },
+      // Sprint 35: B-115–B-117
+      { path: '/locations-of-interest-log', icon: MapPin, label: 'Locations of Interest', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/vehicle-monthly-stays-log', icon: CalendarRange, label: 'Vehicle Monthly Stays', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/radio-voice-consent-log', icon: ShieldCheck, label: 'Voice Consent Log', roles: ['admin', 'admin_officer', 'master'] },
     ],
   },
   {

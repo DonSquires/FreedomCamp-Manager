@@ -1,8 +1,23 @@
+/**
+ * CaseCommentLog — B-107
+ *
+ * Log viewer for case_comments — comments posted on operational cases.
+ *
+ * Features:
+ *  - KPI cards: Total Comments / Unique Cases / Unique Authors / Edited Count
+ *  - Filters: date from, case_id search (partial), author search
+ *  - Table: case_id (truncated), author_id (truncated), comment preview,
+ *           created_at, edited indicator
+ *  - Expandable row: full comment_text, edited_by, updated_at, full case_id
+ *
+ * Route: /case-comments-log — admin/admin_officer/master
+ */
+
 import { useState } from 'react'
 import { format, parseISO } from 'date-fns'
 import {
   MessageSquare, RefreshCw, AlertCircle, Loader2,
-  ChevronDown, ChevronRight, PenLine,
+  ChevronDown, ChevronRight,
 } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 
@@ -23,23 +38,32 @@ import {
 } from '@/components/ui/table'
 import type { Database } from '@/types/database'
 
-type CaseCommentRow = Database['public']['Tables']['case_comments']['Row']
+// ─── Types ─────────────────────────────────────────────────────────────────────
 
-function fmtDate(ts: string | null) {
+type CaseComment = Database['public']['Tables']['case_comments']['Row']
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function fmtDate(ts: string | null | undefined) {
   if (!ts) return '—'
   try { return format(parseISO(ts), 'dd MMM yyyy HH:mm') } catch { return ts }
 }
+
+// ─── Component ────────────────────────────────────────────────────────────────
 
 export default function CaseCommentLog() {
   const { user } = useAuthStore()
   const orgId = user?.organization_id
 
-  const [dateFrom, setDateFrom] = useState('')
-  const [caseIdQuery, setCaseIdQuery] = useState('')
-  const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [dateFrom,     setDateFrom]     = useState('')
+  const [caseSearch,   setCaseSearch]   = useState('')
+  const [authorSearch, setAuthorSearch] = useState('')
+  const [expandedId,   setExpandedId]   = useState<string | null>(null)
 
-  const { data: rows = [], isLoading, refetch } = useQuery<CaseCommentRow[]>({
-    queryKey: ['case-comments-log', orgId, dateFrom, caseIdQuery],
+  // ── Query ─────────────────────────────────────────────────────────────────
+
+  const { data: rows = [], isLoading, refetch } = useQuery<CaseComment[]>({
+    queryKey: ['case-comments-log', orgId, dateFrom],
     enabled: !!orgId,
     queryFn: async () => {
       let q = supabase
@@ -49,7 +73,6 @@ export default function CaseCommentLog() {
         .order('created_at', { ascending: false })
         .limit(500)
 
-      if (caseIdQuery.trim()) q = q.ilike('case_id', `%${caseIdQuery.trim()}%`)
       if (dateFrom) q = q.gte('created_at', dateFrom)
 
       const { data, error } = await q
@@ -58,18 +81,28 @@ export default function CaseCommentLog() {
     },
   })
 
-  const editedCount = rows.filter(r => !!r.edited_by).length
-  const uniqueCases = new Set(rows.map(r => r.case_id)).size
+  const filtered = rows.filter(r => {
+    if (caseSearch   && !r.case_id.toLowerCase().includes(caseSearch.toLowerCase()))   return false
+    if (authorSearch && !r.author_id.toLowerCase().includes(authorSearch.toLowerCase())) return false
+    return true
+  })
+
+  const uniqueCases   = new Set(filtered.map(r => r.case_id)).size
+  const uniqueAuthors = new Set(filtered.map(r => r.author_id)).size
+  const editedCount   = filtered.filter(r => !!r.edited_by).length
+
+  // ─────────────────────────────────────────────────────────────────────────
 
   return (
     <AppLayout>
       <div className="p-6 space-y-6">
+        {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <MessageSquare className="h-6 w-6 text-blue-600" />
             <div>
               <h1 className="text-2xl font-bold">Case Comment Log</h1>
-              <p className="text-sm text-muted-foreground">All comments added to operational cases, including edit history</p>
+              <p className="text-sm text-muted-foreground">Comments posted on operational cases by officers and admins</p>
             </div>
           </div>
           <Button variant="outline" size="sm" onClick={() => refetch()}>
@@ -77,81 +110,99 @@ export default function CaseCommentLog() {
           </Button>
         </div>
 
+        {/* KPIs */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
-            { label: 'Total Comments', value: rows.length, colour: 'text-gray-700' },
-            { label: 'Edited', value: editedCount, colour: 'text-orange-700' },
-            { label: 'Unique Cases', value: uniqueCases, colour: 'text-blue-700' },
-            { label: 'Date Range', value: dateFrom || 'All time', colour: 'text-violet-700' },
+            { label: 'Total Comments',  value: filtered.length,  colour: 'text-gray-700' },
+            { label: 'Unique Cases',    value: uniqueCases,      colour: 'text-blue-700' },
+            { label: 'Unique Authors',  value: uniqueAuthors,    colour: 'text-purple-700' },
+            { label: 'Edited',          value: editedCount,      colour: 'text-orange-700' },
           ].map(kpi => (
             <Card key={kpi.label}>
-              <CardHeader className="pb-1 pt-3 px-4"><CardTitle className="text-xs text-muted-foreground">{kpi.label}</CardTitle></CardHeader>
-              <CardContent className="px-4 pb-3"><p className={`text-xl font-bold ${kpi.colour}`}>{kpi.value}</p></CardContent>
+              <CardHeader className="pb-1 pt-3 px-4">
+                <CardTitle className="text-xs text-muted-foreground">{kpi.label}</CardTitle>
+              </CardHeader>
+              <CardContent className="px-4 pb-3">
+                <p className={`text-2xl font-bold ${kpi.colour}`}>{kpi.value}</p>
+              </CardContent>
             </Card>
           ))}
         </div>
 
+        {/* Filters */}
         <div className="flex flex-wrap gap-3">
+          <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="w-40" />
           <Input
-            value={caseIdQuery}
-            onChange={e => setCaseIdQuery(e.target.value)}
             placeholder="Filter by case ID…"
+            value={caseSearch}
+            onChange={e => setCaseSearch(e.target.value)}
             className="w-52"
           />
-          <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="w-40" />
+          <Input
+            placeholder="Filter by author ID…"
+            value={authorSearch}
+            onChange={e => setAuthorSearch(e.target.value)}
+            className="w-52"
+          />
         </div>
 
+        {/* Table */}
         {isLoading ? (
-          <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
-        ) : rows.length === 0 ? (
-          <div className="flex flex-col items-center py-12 text-muted-foreground gap-2"><AlertCircle className="h-8 w-8" /><p>No case comments found</p></div>
+          <div className="flex justify-center py-12">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="flex flex-col items-center py-12 text-muted-foreground gap-2">
+            <AlertCircle className="h-8 w-8" /><p>No case comments found</p>
+          </div>
         ) : (
           <div className="rounded-md border">
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-8" />
-                  <TableHead>Created</TableHead>
-                  <TableHead>Case ID</TableHead>
+                  <TableHead>Case</TableHead>
                   <TableHead>Author</TableHead>
+                  <TableHead>Comment</TableHead>
+                  <TableHead>Posted</TableHead>
                   <TableHead>Edited</TableHead>
-                  <TableHead>Updated</TableHead>
-                  <TableHead>Preview</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {rows.map(row => {
+                {filtered.map(row => {
                   const expanded = expandedId === row.id
-                  const isEdited = !!row.edited_by
                   return (
                     <>
-                      <TableRow key={row.id} className="cursor-pointer hover:bg-muted/50" onClick={() => setExpandedId(expanded ? null : row.id)}>
-                        <TableCell>{expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}</TableCell>
-                        <TableCell className="text-sm">{fmtDate(row.created_at)}</TableCell>
+                      <TableRow
+                        key={row.id}
+                        className="cursor-pointer hover:bg-muted/50"
+                        onClick={() => setExpandedId(expanded ? null : row.id)}
+                      >
+                        <TableCell>
+                          {expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                        </TableCell>
                         <TableCell className="font-mono text-xs text-muted-foreground">{row.case_id.slice(0, 8)}…</TableCell>
                         <TableCell className="font-mono text-xs text-muted-foreground">{row.author_id.slice(0, 8)}…</TableCell>
+                        <TableCell className="text-sm max-w-64 truncate">{row.comment_text}</TableCell>
+                        <TableCell className="text-sm">{fmtDate(row.created_at)}</TableCell>
                         <TableCell>
-                          {isEdited
-                            ? <Badge className="bg-orange-100 text-orange-800 gap-1"><PenLine className="h-3 w-3" />Edited</Badge>
-                            : <span className="text-muted-foreground text-xs">No</span>}
+                          {row.edited_by
+                            ? <Badge className="bg-yellow-100 text-yellow-800">Edited</Badge>
+                            : <span className="text-muted-foreground text-xs">—</span>}
                         </TableCell>
-                        <TableCell className="text-sm">{fmtDate(row.updated_at)}</TableCell>
-                        <TableCell className="text-sm max-w-52 truncate text-muted-foreground">{row.comment_text}</TableCell>
                       </TableRow>
                       {expanded && (
                         <TableRow key={`${row.id}-exp`} className="bg-muted/30">
-                          <TableCell colSpan={7} className="p-4">
-                            <div className="space-y-3 text-sm">
-                              <div>
-                                <p className="font-medium mb-1">Comment Text:</p>
-                                <p className="text-muted-foreground whitespace-pre-wrap bg-muted rounded p-3">{row.comment_text}</p>
-                              </div>
-                              {isEdited && (
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                                  <div><span className="font-medium">Edited By:</span> <span className="font-mono text-xs">{row.edited_by}</span></div>
-                                </div>
-                              )}
-                              <div><span className="font-medium">Comment ID:</span> <span className="font-mono text-xs">{row.id}</span></div>
+                          <TableCell colSpan={6} className="p-4 space-y-3">
+                            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-xs text-muted-foreground">
+                              <span>Case: {row.case_id}</span>
+                              <span>Author: {row.author_id}</span>
+                              {row.edited_by  && <span>Edited by: {row.edited_by}</span>}
+                              {row.updated_at && <span>Updated: {fmtDate(row.updated_at)}</span>}
+                            </div>
+                            <div>
+                              <p className="font-medium text-sm mb-1">Comment</p>
+                              <p className="text-sm text-muted-foreground whitespace-pre-wrap">{row.comment_text}</p>
                             </div>
                           </TableCell>
                         </TableRow>

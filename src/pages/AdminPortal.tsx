@@ -47,6 +47,8 @@ import {
   Lock,
   Map,
   MapPin,
+  CalendarRange,
+  ShieldCheck,
   Mic,
   Navigation,
   ParkingSquare,
@@ -81,6 +83,10 @@ import {
   Bug,
   CalendarClock,
   TicketX,
+  UserX,
+  Scale,
+  PackageX,
+  MessageSquare,
 } from 'lucide-react'
 
 type DrillConfig = {
@@ -1501,6 +1507,21 @@ export default function AdminPortal() {
                     { path: '/lmr-bridge',          label: 'LMR Bridge',        Icon: Radio,     color: 'text-blue-600',   bg: 'bg-blue-50 dark:bg-blue-900/20' },
                     { path: '/loi-browser',         label: 'LOI Browser',       Icon: MapPin,    color: 'text-amber-600',  bg: 'bg-amber-50 dark:bg-amber-900/20' },
                     { path: '/case-bridge',         label: 'Case Bridge',       Icon: Database,  color: 'text-indigo-600', bg: 'bg-indigo-50 dark:bg-indigo-900/20' },
+                    { path: '/vehicles-of-interest-log', label: 'VOI Log',      Icon: Car,       color: 'text-red-600',    bg: 'bg-red-50 dark:bg-red-900/20' },
+                    { path: '/persons-of-interest-log',  label: 'POI Log',      Icon: UserX,     color: 'text-red-700',    bg: 'bg-red-50 dark:bg-red-900/20' },
+                    { path: '/photo-metadata-log',       label: 'Photo Metadata',Icon: Camera,    color: 'text-blue-600',  bg: 'bg-blue-50 dark:bg-blue-900/20' },
+                    { path: '/radio-comms-events-log',   label: 'Radio Events',  Icon: Radio,     color: 'text-cyan-700',  bg: 'bg-cyan-50 dark:bg-cyan-900/20' },
+                    { path: '/case-comments-log',        label: 'Case Comments', Icon: MessageSquare, color: 'text-blue-600', bg: 'bg-blue-50 dark:bg-blue-900/20' },
+                    { path: '/lmr-bridge-sessions-log',  label: 'LMR Sessions',  Icon: Radio,     color: 'text-slate-600', bg: 'bg-slate-50 dark:bg-slate-900/30' },
+                    { path: '/patrol-session-events-log',label: 'Patrol Events',  Icon: Route,     color: 'text-indigo-600',bg: 'bg-indigo-50 dark:bg-indigo-900/20' },
+                    { path: '/radio-transcript-log',     label: 'Transcripts',    Icon: FileText,  color: 'text-cyan-700',  bg: 'bg-cyan-50 dark:bg-cyan-900/20' },
+                    { path: '/dispute-intake-log',       label: 'Dispute Intake', Icon: Scale,     color: 'text-amber-700', bg: 'bg-amber-50 dark:bg-amber-900/20' },
+                    { path: '/radio-tts-render-log',     label: 'TTS Renders',    Icon: Volume2,   color: 'text-teal-700',  bg: 'bg-teal-50 dark:bg-teal-900/20' },
+                    { path: '/health-safety-report-log', label: 'H&S Reports',    Icon: HeartPulse,color: 'text-rose-700',  bg: 'bg-rose-50 dark:bg-rose-900/20' },
+                    { path: '/noise-seizures-log',       label: 'Noise Seizures', Icon: PackageX,  color: 'text-red-800',   bg: 'bg-red-50 dark:bg-red-900/20' },
+                    { path: '/locations-of-interest-log', label: 'Locations',     Icon: MapPin,    color: 'text-emerald-700', bg: 'bg-emerald-50 dark:bg-emerald-900/20' },
+                    { path: '/vehicle-monthly-stays-log', label: 'Monthly Stays', Icon: CalendarRange, color: 'text-cyan-700', bg: 'bg-cyan-50 dark:bg-cyan-900/20' },
+                    { path: '/radio-voice-consent-log',   label: 'Voice Consents', Icon: ShieldCheck, color: 'text-green-700', bg: 'bg-green-50 dark:bg-green-900/20' },
                   ].map(({ path, label, Icon, color, bg, badge }) => (
                     <button key={path} onClick={() => navigate(path)} aria-label={`Open ${label}`} className={`${moduleTileClass} ${bg}`}>
                       {badge !== undefined && (
