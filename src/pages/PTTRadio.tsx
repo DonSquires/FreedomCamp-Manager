@@ -2842,7 +2842,7 @@ export default function PTTRadio() {
           </div>
         </div>
 
-        {/* Mobile menu access — keep controls reachable without top info bars */}
+        {/* Mobile menu access for channel selection and radio settings */}
         <div className="md:hidden absolute top-3 left-3 z-40">
           <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
             <SheetTrigger asChild>

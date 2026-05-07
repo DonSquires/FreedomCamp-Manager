@@ -692,7 +692,7 @@ With Sprint 42 route consolidation complete, execution progresses from route exp
 
 Gate status definition:
 - **Green gate** = all listed criteria for that phase are met and verified with documented evidence in staging/CI artifacts.
-- Evidence location standard: record gate evidence in `docs/STAGING.md` and attach/reference the related GitHub Actions run URLs and test artifact links.
+- Evidence location standard: record gate evidence in the existing `docs/STAGING.md` file and attach/reference the related GitHub Actions run URLs and test artifact links.
 
 Phase baseline:
 - **Phase A context** = foundational realignment work and prerequisites already defined in `docs/BUILD_REALIGNMENT_PLAN_2026-05-04.md` sections 11.2a and 12.1; this roadmap now tracks progression from the Phase B entry point onward.
