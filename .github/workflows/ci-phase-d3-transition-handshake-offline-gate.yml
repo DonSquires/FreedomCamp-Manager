@@ -57,7 +57,6 @@ jobs:
         run: |
           bunx playwright test \
             tests/e2e/phase-d3-transition-handshake-offline.spec.ts \
-            --config=playwright.api.config.ts \
             --reporter=list
 
       - name: Upload Playwright artifacts
