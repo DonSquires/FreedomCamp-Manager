@@ -249,6 +249,10 @@ const NoiseSeizureLog       = lazy(() => import('@/pages/NoiseSeizureLog'))
 const LocationsOfInterestLog = lazy(() => import('@/pages/LocationsOfInterestLog'))
 const VehicleMonthlyStayLog  = lazy(() => import('@/pages/VehicleMonthlyStayLog'))
 const RadioVoiceConsentLog   = lazy(() => import('@/pages/RadioVoiceConsentLog'))
+// Sprint 36: B-118–B-120
+const PatrolFieldEventLog    = lazy(() => import('@/pages/PatrolFieldEventLog'))
+const AlertQueueLog          = lazy(() => import('@/pages/AlertQueueLog'))
+const ComplianceResultLog    = lazy(() => import('@/pages/ComplianceResultLog'))
 
 const NetworkStatusBar = lazy(() => import('@/components/features/NetworkStatusBar').then((m) => ({ default: m.NetworkStatusBar })))
 const PWAInstallPrompt = lazy(() => import('@/components/features/PWAInstallPrompt').then((m) => ({ default: m.PWAInstallPrompt })))
@@ -2403,6 +2407,10 @@ export default function App() {
           <Route path="/locations-of-interest-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><LocationsOfInterestLog /></RoleRoute></ProtectedRoute>} />
           <Route path="/vehicle-monthly-stays-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><VehicleMonthlyStayLog /></RoleRoute></ProtectedRoute>} />
           <Route path="/radio-voice-consent-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><RadioVoiceConsentLog /></RoleRoute></ProtectedRoute>} />
+          {/* Sprint 36: B-118–B-120 */}
+          <Route path="/patrol-field-events-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><PatrolFieldEventLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/alert-queue-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><AlertQueueLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/compliance-results-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><ComplianceResultLog /></RoleRoute></ProtectedRoute>} />
 
           {/* CRM – Accounts (Clients + Contractors) */}
           <Route

@@ -3558,3 +3558,29 @@ The web SPA delivers SOS via the existing `officer_welfare_alerts` table + `send
 - `bun run build` → PASS
 
 **Next session:** Sprint 36 — B-118 PatrolFieldEventLog, B-119 AlertQueueLog, B-120 ComplianceResultLog.
+
+## Phase 5 — Sprint 36 (B-118 / B-119 / B-120)
+
+### Changes
+
+- **B-118 PatrolFieldEventLog** (`/patrol-field-events-log`): log viewer for `patrol_events` Table (org-scoped). KPIs: Total / With GPS / With Photos / Statuses. Filters: event_type, status, patrol_type. Table: event_timestamp, event_type, status, patrol_type, case_id. Expand: officer, zone, GPS + observation text + photos.
+- **B-119 AlertQueueLog** (`/alert-queue-log`): log viewer for `alert_queue` Table (org-scoped). KPIs: Total / Acknowledged / Requires Ack / Types. Filters: alert_type, status, priority. Table: created, type, priority, status, title + Acknowledge mutation. Expand: message, details JSON, zone/user/expiry metadata.
+- **B-120 ComplianceResultLog** (`/compliance-results-log`): log viewer for `compliance_results` Table (org-scoped). KPIs: Total / Compliant / Exempt / After-hours Violations. Filters: is_compliant, is_exempt, violation_type. Table: evaluated_at, compliant/exempt badges, violation_type, vehicle. Expand: GPS, consecutive nights, violation reasons, exemption reason, matrix snapshot.
+
+### Sprint 36 Board
+
+| Ticket | Page | Route | Source |
+|--------|------|-------|--------|
+| B-118 | PatrolFieldEventLog | /patrol-field-events-log  | Table: patrol_events |
+| B-119 | AlertQueueLog       | /alert-queue-log          | Table: alert_queue |
+| B-120 | ComplianceResultLog | /compliance-results-log   | Table: compliance_results |
+
+- [x] `bun run lint` → PASS
+- [x] `bun run build` → PASS
+
+### Session Snapshot (Sprint 36 — 2026-05-07)
+
+- Timestamp (UTC): 2026-05-07 02:14 UTC
+- Current branch: copilot/review-doc-and-staging-files
+
+**Next session:** Sprint 37 — B-121 WelfareEventB1Log, B-122 ZoneGeofenceSnapshotLog, B-123 FeatureFlagManager.
