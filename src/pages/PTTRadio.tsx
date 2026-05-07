@@ -65,6 +65,7 @@ import { requestWakeLock, releaseWakeLock, requestNotificationPermission } from 
 import { radioFeatureFlags } from '@/lib/radio/radioFeatureFlags'
 import { radioCaptionService, type CaptionSegment } from '@/lib/radio/radioCaptionService'
 import { radioTranslationService, type TranslationSegment } from '@/lib/radio/radioTranslationService'
+import { reverseGeocode } from '@/lib/geocoding'
 import { checkInferenceHealth } from '@/lib/proxyServices'
 import { AppLayout } from '@/components/features/AppLayout'
 import { Badge } from '@/components/ui/badge'
@@ -108,6 +109,7 @@ import {
   Signal,
   PhoneOff,
   Menu,
+  Minimize2,
   BrainCircuit,
   Languages,
   History,
@@ -519,6 +521,8 @@ export default function PTTRadio() {
   const [disconnectingUserId, setDisconnectingUserId] = useState<string | null>(null)
   const [handoffGeoPoint, setHandoffGeoPoint] = useState<{ latitude: number; longitude: number } | null>(null)
   const [handoffGpsUnavailable, setHandoffGpsUnavailable] = useState(false)
+  const [handoffStreetAddress, setHandoffStreetAddress] = useState('')
+  const [mobileSettingsMenuOpen, setMobileSettingsMenuOpen] = useState(false)
   const [translationRailEnabled, setTranslationRailEnabled] = useState(true)
   const [pttStreamMode, setPttStreamMode] = useState<'tactical' | 'diplomatic'>('tactical')
   const [interpreterInput, setInterpreterInput] = useState('')
@@ -562,6 +566,7 @@ export default function PTTRadio() {
   const lastConnectAttemptAtRef = useRef(0)
   const lastConnectCircuitToastAtRef = useRef(0)
   const handoffGeoPollInFlightRef = useRef(false)
+  const lastGeocodeKeyRef = useRef('')
 
   // ── Live Captions (Phase 2 — gated by radioFeatureFlags.captionsEnabled) ──
   const [liveCaptions, setLiveCaptions] = useState<CaptionSegment[]>([])
@@ -1087,6 +1092,13 @@ export default function PTTRadio() {
     : handoffGpsUnavailable
       ? 'Translation active • tactical mode'
       : 'Provider tactical mode'
+
+  const mobileChannelLabel = activeChannel
+    ? `${activeChannel.badge_label || `CH ${activeChannel.channel_number}`} • ${activeChannel.name}`
+    : 'No channel selected'
+  const mobileJurisdictionLabel = hybridHandshake?.workspace_name
+    || (translationRailAvailable ? 'Client workspace active' : 'Provider jurisdiction')
+  const mobileAddressLabel = handoffStreetAddress || (handoffGpsUnavailable ? 'Location unavailable' : 'Locating street…')
 
   const translatorRestUrl = useMemo(
     () => deriveTranslatorRestUrlFromWs(import.meta.env.VITE_BOB_TRANSLATOR_WS_URL || ''),
@@ -1818,6 +1830,32 @@ export default function PTTRadio() {
       setTranslationRailEnabled(true)
     }
   }, [providerOrgId, translationRailEnabled])
+
+  useEffect(() => {
+    if (!handoffGeoPoint) {
+      setHandoffStreetAddress('')
+      return
+    }
+
+    const key = `${handoffGeoPoint.latitude.toFixed(5)},${handoffGeoPoint.longitude.toFixed(5)}`
+    if (key === lastGeocodeKeyRef.current) return
+    lastGeocodeKeyRef.current = key
+
+    let cancelled = false
+    void reverseGeocode(handoffGeoPoint.latitude, handoffGeoPoint.longitude)
+      .then((result) => {
+        if (cancelled) return
+        const line = [result?.street_number, result?.street_name].filter(Boolean).join(' ').trim()
+        setHandoffStreetAddress(line || result?.formatted_address || 'Unknown street')
+      })
+      .catch(() => {
+        if (!cancelled) setHandoffStreetAddress('Unknown street')
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [handoffGeoPoint])
 
   useEffect(() => {
     if (!providerOrgId) {
@@ -2606,6 +2644,23 @@ export default function PTTRadio() {
     handoffGeoPoint?.longitude,
   ])
 
+  const handleMinimizeRadio = useCallback(() => {
+    const fromState = (() => {
+      const state = location.state as { from?: string } | null
+      if (state?.from && state.from !== '/radio') return state.from
+      return null
+    })()
+
+    const savedRoute = (() => {
+      if (typeof window === 'undefined') return null
+      const value = window.sessionStorage.getItem('fc_last_non_radio_route')
+      if (!value || value === '/radio') return null
+      return value
+    })()
+
+    navigate(fromState || savedRoute || '/')
+  }, [location.state, navigate])
+
   // ─────────────────────────────────────────────────────────
   // Render
   // ─────────────────────────────────────────────────────────
@@ -2839,25 +2894,34 @@ export default function PTTRadio() {
             {isMuted && (
               <Badge variant="destructive" className="text-xs px-1.5 py-0">MUTED</Badge>
             )}
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700"
+              onClick={handleMinimizeRadio}
+            >
+              <Minimize2 className="h-3.5 w-3.5 mr-1" />
+              Minimize
+            </Button>
           </div>
         </div>
 
-        {/* Mobile menu access for channel selection */}
-        <div className="md:hidden absolute top-3 left-3 z-40">
+        {/* Mobile menu access — separate channel and settings controls */}
+        <div className="md:hidden absolute top-3 left-3 z-40 flex items-center gap-2">
           <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
             <SheetTrigger asChild>
               <Button
                 variant="outline"
                 size="icon"
                 className="h-9 w-9 rounded-lg border-slate-700 bg-slate-900/90 text-slate-200"
-                aria-label="Open channel selection menu"
+                aria-label="Open channel selection"
               >
                 <Menu className="h-5 w-5" />
               </Button>
             </SheetTrigger>
             <SheetContent side="left" className="w-[92vw] max-w-sm bg-slate-950 border-slate-800 text-slate-100 p-0">
               <SheetHeader className="px-4 py-3 border-b border-slate-800">
-                <SheetTitle className="text-slate-100 text-sm uppercase tracking-widest">Radio Menu</SheetTitle>
+                <SheetTitle className="text-slate-100 text-sm uppercase tracking-widest">Channel Select</SheetTitle>
               </SheetHeader>
 
               <div className="h-full flex flex-col">
@@ -2917,6 +2981,127 @@ export default function PTTRadio() {
               </div>
             </SheetContent>
           </Sheet>
+
+          <Sheet open={mobileSettingsMenuOpen} onOpenChange={setMobileSettingsMenuOpen}>
+            <SheetTrigger asChild>
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-9 w-9 rounded-lg border-slate-700 bg-slate-900/90 text-slate-200"
+                aria-label="Open radio settings"
+              >
+                <Settings className="h-5 w-5" />
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="right" className="w-[92vw] max-w-sm bg-slate-950 border-slate-800 text-slate-100 p-0">
+              <SheetHeader className="px-4 py-3 border-b border-slate-800">
+                <SheetTitle className="text-slate-100 text-sm uppercase tracking-widest">Radio Settings</SheetTitle>
+              </SheetHeader>
+
+              <div className="p-4 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-sm text-slate-200">VOX Mode</div>
+                    <div className="text-xs text-slate-500">Voice-activated transmission</div>
+                  </div>
+                  <Switch
+                    checked={voxEnabled}
+                    onCheckedChange={(v) => {
+                      setVoxEnabled(v)
+                      setInputMode(v ? 'vox' : 'ptt')
+                    }}
+                    className="data-[state=checked]:bg-green-600"
+                  />
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-sm text-slate-200">Translator</div>
+                    <div className="text-xs text-slate-500">Enable tactical translation rail</div>
+                  </div>
+                  <Switch
+                    checked={translationRailEnabled}
+                    onCheckedChange={setTranslationRailEnabled}
+                    disabled={!providerOrgId}
+                    aria-label="Universal translator toggle"
+                    className="data-[state=checked]:bg-blue-600"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <div className="text-sm text-slate-200">Target Language</div>
+                  <Select value={interpreterTargetLanguage} onValueChange={setInterpreterTargetLanguage}>
+                    <SelectTrigger className="h-10 w-full border-slate-700 bg-slate-900 text-slate-100">
+                      <SelectValue placeholder="Target language" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {TRANSLATION_LANGUAGE_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-sm text-slate-200">Scanner</div>
+                    <div className="text-xs text-slate-500">Auto-cycle across channels</div>
+                  </div>
+                  <Switch
+                    checked={scanMode}
+                    onCheckedChange={(v) => {
+                      setScanMode(v)
+                      if (!v && activeChannel) connectToChannel(activeChannel)
+                    }}
+                    className="data-[state=checked]:bg-yellow-500"
+                  />
+                </div>
+
+                <div>
+                  <div className="text-sm text-slate-200 mb-2">Scanner Dwell</div>
+                  <div className="flex gap-2">
+                    {[5000, 8000, 15000].map((ms) => (
+                      <button
+                        key={`mobile-dwell-${ms}`}
+                        className={`flex-1 py-1.5 rounded text-xs font-bold border transition-colors ${
+                          scanDwellMs === ms
+                            ? 'bg-yellow-500/20 border-yellow-600 text-yellow-300'
+                            : 'bg-slate-900 border-slate-700 text-slate-400 hover:border-slate-500'
+                        }`}
+                        onClick={() => setScanDwellMs(ms)}
+                      >
+                        {ms / 1000}s
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </SheetContent>
+          </Sheet>
+        </div>
+
+        <div className="md:hidden absolute top-3 right-3 z-40">
+          <Button
+            variant="outline"
+            size="icon"
+            className="h-9 w-9 rounded-lg border-slate-700 bg-slate-900/90 text-slate-200"
+            aria-label="Minimize radio"
+            onClick={handleMinimizeRadio}
+          >
+            <Minimize2 className="h-5 w-5" />
+          </Button>
+        </div>
+
+        {/* Mobile context strip — channel + location + jurisdiction */}
+        <div className="md:hidden absolute top-3 left-1/2 -translate-x-1/2 z-30 w-[calc(100%-8.5rem)] max-w-xs rounded-lg border border-slate-800 bg-slate-900/85 px-3 py-2 backdrop-blur-sm">
+          <div className="text-[10px] uppercase tracking-widest text-slate-500">{mobileChannelLabel}</div>
+          <div className="mt-0.5 text-[11px] text-slate-200 truncate">{mobileAddressLabel}</div>
+          <div className="text-[10px] text-cyan-300 truncate">{mobileJurisdictionLabel}</div>
+          {someoneSpeaking && (
+            <div className="mt-0.5 text-[10px] text-emerald-300 uppercase tracking-wide truncate">
+              Receiving: {(speakerName || 'Unknown').toUpperCase()}
+            </div>
+          )}
         </div>
 
         {/* ── Error banner ─────────────────────────────────── */}
@@ -3114,7 +3299,7 @@ export default function PTTRadio() {
           </div>
 
           {/* ── CENTER: PTT controls ─────────────────────── */}
-          <div className="flex-1 flex flex-col items-center justify-center gap-3 md:gap-4 px-3 md:px-6 bg-slate-950 relative overflow-hidden md:overflow-auto py-3 md:py-4 pb-28 md:pb-4">
+          <div className="flex-1 flex flex-col items-center justify-center gap-3 md:gap-4 px-3 md:px-6 bg-slate-950 relative overflow-hidden md:overflow-auto py-0 md:py-4 pb-28 md:pb-4">
 
             {/* Active channel header */}
             {activeChannel && (

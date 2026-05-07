@@ -7,18 +7,23 @@
  * switching logic, no mic capture.
  */
 
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { Radio, Mic, Volume2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import { usePTTStore } from '@/stores/pttStore'
+import { usePTTStore, usePTTAvailable, usePTTCanSpeak } from '@/stores/pttStore'
+import { useCallback, useState } from 'react'
+import { startSpeaking, stopSpeaking } from '@/lib/ptt'
 
 interface PTTBarProps {
   className?: string
+  enableHoldToTalk?: boolean
+  docked?: boolean
 }
 
-export function PTTBar({ className }: PTTBarProps) {
+export function PTTBar({ className, enableHoldToTalk = false, docked = false }: PTTBarProps) {
   const navigate = useNavigate()
+  const location = useLocation()
 
   const connectionStatus = usePTTStore((s) => s.connectionStatus)
   const channelName      = usePTTStore((s) => s.channelName)
@@ -26,6 +31,9 @@ export function PTTBar({ className }: PTTBarProps) {
   const speakerId        = usePTTStore((s) => s.speakerId)
   const speakerName      = usePTTStore((s) => s.speakerName)
   const degradedMode     = usePTTStore((s) => s.degradedMode)
+  const pttAvailable     = usePTTAvailable()
+  const pttCanSpeak      = usePTTCanSpeak()
+  const [holding, setHolding] = useState(false)
 
   const dotClass = {
     connected:    'bg-green-400 shadow-[0_0_5px_#4ade80]',
@@ -37,6 +45,31 @@ export function PTTBar({ className }: PTTBarProps) {
 
   const someoneSpeaking  = !!speakerId && !isSpeaking
   const iAmTransmitting  = isSpeaking
+  const canTransmit = enableHoldToTalk && pttAvailable && pttCanSpeak
+  const openRadioConsole = () => {
+    navigate('/radio', { state: { from: `${location.pathname}${location.search}${location.hash}` } })
+  }
+
+  const handlePTTDown = useCallback(async () => {
+    if (!canTransmit || holding || isSpeaking) return
+    try {
+      await startSpeaking()
+      setHolding(true)
+    } catch {
+      // ptt.ts handles user-facing errors
+    }
+  }, [canTransmit, holding, isSpeaking])
+
+  const handlePTTUp = useCallback(async () => {
+    if (!holding && !isSpeaking) return
+    try {
+      await stopSpeaking()
+    } catch {
+      // silent cleanup
+    } finally {
+      setHolding(false)
+    }
+  }, [holding, isSpeaking])
 
   return (
     <div className={cn('flex flex-col gap-1', className)}>
@@ -46,7 +79,7 @@ export function PTTBar({ className }: PTTBarProps) {
           ⚠ PTT server unreachable — use radio or direct call
         </div>
       )}
-      <div className="flex items-center gap-2">
+      <div className={cn('flex items-center gap-2', docked && 'rounded-2xl border border-slate-200/70 dark:border-slate-700 bg-white/95 dark:bg-slate-900/95 shadow-lg px-3 py-2')}>
       {/* Status dot + channel */}
       <div className="flex items-center gap-1.5 min-w-0">
         <span className={cn('w-2 h-2 rounded-full shrink-0', dotClass)} />
@@ -73,11 +106,40 @@ export function PTTBar({ className }: PTTBarProps) {
         variant="outline"
         size="sm"
         className="h-8 gap-1.5 text-xs shrink-0"
-        onClick={() => navigate('/radio')}
+        onClick={openRadioConsole}
       >
         <Radio className="h-3.5 w-3.5" />
         <span className="hidden sm:inline">Radio</span>
       </Button>
+
+      {enableHoldToTalk && (
+        <button
+          onPointerDown={(e) => {
+            if (e.pointerType === 'mouse' && e.button !== 0) return
+            e.preventDefault()
+            void handlePTTDown()
+          }}
+          onPointerUp={(e) => {
+            e.preventDefault()
+            void handlePTTUp()
+          }}
+          onPointerCancel={() => { void handlePTTUp() }}
+          onPointerLeave={() => { if (isSpeaking) void handlePTTUp() }}
+          onContextMenu={(e) => e.preventDefault()}
+          title={isSpeaking ? 'Transmitting…' : (canTransmit ? 'Hold to Talk' : 'PTT unavailable')}
+          className={cn(
+            'flex items-center justify-center rounded-full h-9 w-9 transition-all select-none shrink-0',
+            isSpeaking
+              ? 'bg-red-600 shadow-[0_0_18px_rgba(220,38,38,0.6)] ring-2 ring-red-400/60'
+              : canTransmit
+                ? 'bg-blue-600 active:scale-95'
+                : 'bg-slate-500 opacity-60 cursor-not-allowed',
+          )}
+          aria-label={isSpeaking ? 'Transmitting' : 'Push to Talk'}
+        >
+          <Mic className={cn('h-4 w-4 text-white', isSpeaking && 'animate-pulse')} />
+        </button>
+      )}
       </div>
     </div>
   )
