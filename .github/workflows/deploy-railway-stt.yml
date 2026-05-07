@@ -6,7 +6,8 @@ name: Deploy Railway STT Service
 #
 # Required secrets (supports aliases):
 #   Token: RAILWAY_TOKEN or RAILWAY_TOKEN2 or RAILWAY_BOB_TOKEN or RAILWAY_PTT_TOKEN or RAILWAY_SST_TOKEN
-#   Service ID: RAILWAY_STT_SERVICE_ID or RAILWAY_SERVICE_ID
+#   Target: Service ID (RAILWAY_STT_SERVICE_ID or RAILWAY_SERVICE_ID)
+#           or Project ID (RAILWAY_STT_PROJECT_ID / RAILWAY_BOB_PROJECT_ID / RAILWAY_PTT_PROJECT_ID) + service name
 #
 # Optional secrets:
 #   RAILWAY_STT_URL        — deployed Railway URL used for post-deploy health check
@@ -50,11 +51,14 @@ jobs:
           TOKEN_PTT="${{ secrets.RAILWAY_PTT_TOKEN }}"
           TOKEN_SST="${{ secrets.RAILWAY_SST_TOKEN }}"
           SERVICE_ID="${{ secrets.RAILWAY_STT_SERVICE_ID || secrets.RAILWAY_SERVICE_ID }}"
+          PROJECT_ID="${{ secrets.RAILWAY_STT_PROJECT_ID || secrets.RAILWAY_BOB_PROJECT_ID || secrets.RAILWAY_PTT_PROJECT_ID }}"
 
           if [ -z "$TOKEN_PRIMARY" ] && [ -z "$TOKEN_SECONDARY" ] && [ -z "$TOKEN_BOB" ] && [ -z "$TOKEN_PTT" ] && [ -z "$TOKEN_SST" ]; then
             missing="$missing RAILWAY_TOKEN|RAILWAY_TOKEN2|RAILWAY_BOB_TOKEN|RAILWAY_PTT_TOKEN|RAILWAY_SST_TOKEN"
           fi
-          [ -z "$SERVICE_ID" ] && missing="$missing RAILWAY_STT_SERVICE_ID|RAILWAY_SERVICE_ID"
+          if [ -z "$SERVICE_ID" ] && [ -z "$PROJECT_ID" ]; then
+            missing="$missing (RAILWAY_STT_SERVICE_ID|RAILWAY_SERVICE_ID) or (RAILWAY_STT_PROJECT_ID|RAILWAY_BOB_PROJECT_ID|RAILWAY_PTT_PROJECT_ID)"
+          fi
 
           if [ -n "$missing" ]; then
             echo "::error::Required secrets not configured ($missing) — deployment skipped."
@@ -124,6 +128,8 @@ jobs:
           RAILWAY_PTT_TOKEN: ${{ secrets.RAILWAY_PTT_TOKEN }}
           RAILWAY_SST_TOKEN: ${{ secrets.RAILWAY_SST_TOKEN }}
           RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_STT_SERVICE_ID || secrets.RAILWAY_SERVICE_ID }}
+          RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_STT_PROJECT_ID || secrets.RAILWAY_BOB_PROJECT_ID || secrets.RAILWAY_PTT_PROJECT_ID }}
+          RAILWAY_SERVICE_NAME: ${{ secrets.RAILWAY_STT_SERVICE_NAME || 'railway-stt' }}
         run: |
           set -euo pipefail
           cd railway-stt
@@ -133,9 +139,16 @@ jobs:
               continue
             fi
 
-            if RAILWAY_TOKEN="$CANDIDATE" railway up --service "$RAILWAY_SERVICE_ID" --detach; then
-              DEPLOYED="true"
-              break
+            if [ -n "$RAILWAY_SERVICE_ID" ]; then
+              if RAILWAY_TOKEN="$CANDIDATE" railway up --service "$RAILWAY_SERVICE_ID" --detach; then
+                DEPLOYED="true"
+                break
+              fi
+            else
+              if RAILWAY_TOKEN="$CANDIDATE" railway up --project "$RAILWAY_PROJECT_ID" --service "$RAILWAY_SERVICE_NAME" --detach; then
+                DEPLOYED="true"
+                break
+              fi
             fi
           done
 
