@@ -181,10 +181,16 @@ Current finding: org-scoping static audit now reports `missing_org_filter=0` aft
 
 ### F. Bob Governance And Staging Integrity
 
-- [ ] Run `bun run test:bob:governance` before promoting Bob-related changes.
-- [ ] Verify `onspace-ai-chat`, `grandmaster-studio`, and `bob-code-change-task` are redeployed together when Bob mutation-contract logic changes.
-- [ ] Confirm Bob execution-review persistence remains in `bob_conversation_memory.context` JSONB and does not require an untracked schema change.
-- [ ] Verify the deployment notes mention the current Bob contract artifacts: schema registry, route/entity map, mutation catalog, and execution review output.
+- [x] Run `bun run test:bob:governance` before promoting Bob-related changes.
+- [x] Verify `onspace-ai-chat`, `grandmaster-studio`, and `bob-code-change-task` are redeployed together when Bob mutation-contract logic changes.
+- [x] Confirm Bob execution-review persistence remains in `bob_conversation_memory.context` JSONB and does not require an untracked schema change.
+- [x] Verify the deployment notes mention the current Bob contract artifacts: schema registry, route/entity map, mutation catalog, and execution review output.
+
+Evidence (2026-05-07 UTC):
+- `bun run test:bob:governance` → 6/6 passed.
+- Redeploy group documented in `docs/DEPLOYMENT_GUIDE.md:305` (`onspace-ai-chat`, `grandmaster-studio`, `bob-code-change-task`, `ask-bob`).
+- Execution review persistence confirmed: `supabase/migrations/20260604000006_bob_conversation_memory.sql:12` (`context jsonb NOT NULL DEFAULT '{}'::jsonb`) and `src/lib/bobLearningMemory.ts:275` (`execution_review` written into `context` JSONB).
+- Contract artifacts named in `docs/DEPLOYMENT_GUIDE.md:300-305`: `bobSchemaRegistry.ts`, `bobRouteEntityMap.ts`, `bobMutationCatalog.ts`, execution review persistence, and required redeploy group.
 
 ## 7. Session Handoff Log (Update Before Exit)
 
@@ -200,6 +206,30 @@ Fill this before stopping work:
 - Active/last CI run IDs:
 - Open blockers with owner:
 - Next exact command to run:
+
+Latest Session Snapshot (Section 6.F Bob Governance — 2026-05-07):
+
+- Timestamp (NZ): 2026-05-07 15:32 NZST
+- Current branch: copilot/noop-529-continue
+- HEAD SHA: 45ba1f84
+- Working tree status (`git status -sb`): 1 modified (docs/STAGING.md)
+- Scope completed:
+  - Ran `bun run test:bob:governance` → 6/6 passed.
+  - Verified execution-review persistence in `bob_conversation_memory.context` JSONB (migration 20260604000006, `src/lib/bobLearningMemory.ts:275`).
+  - Confirmed redeploy group documented in `docs/DEPLOYMENT_GUIDE.md:305`.
+  - Confirmed Bob contract artifacts (`bobSchemaRegistry.ts`, `bobRouteEntityMap.ts`, `bobMutationCatalog.ts`) named in `docs/DEPLOYMENT_GUIDE.md:300-305`.
+  - Checked off all four Section 6.F items with evidence.
+- Latest lint result: pass (from prior session)
+- Latest build result: pass (from prior session)
+- Latest targeted test result:
+  - Bob governance: pass (`bun run test:bob:governance`, 6/6)
+  - PTT radio health schema: pass (`cd ptt-server && npm install && node --test ptt-server/test/radio-health-schema.test.js`, 3/3)
+- Active/last CI run IDs:
+  - `25474238063` Running Copilot cloud agent — `in_progress` (branch: `copilot/noop-529-continue`)
+- Open blockers with owner:
+  - Section 6.F items 2–4 are external deployment-time checks (no local repo code change required); all repo-side preconditions verified and documented.
+- Next exact command to run:
+  - `bun run lint && bun run build` on next session restart to confirm clean tree before any new work.
 
 Latest Session Snapshot (Staging Doc Instruction Review — 2026-05-07):
 
