@@ -3511,4 +3511,52 @@ The web SPA delivers SOS via the existing `officer_welfare_alerts` table + `send
 - `bun run lint` → PASS
 - `bun run build` → PASS
 
-**Next session:** Sprint 39 — continue route parity and remaining sprint backlog.
+## Phase 5 — Sprint 39 (Manifest parity for Sprint 13 B-routes)
+
+### Changes
+
+- Added missing `routeManifest` entries for six existing App routes already in AppLayout:
+  - `/access-audit` (B-41)
+  - `/loi-browser` (B-44)
+  - `/radio-transmissions` (B-48)
+  - `/voice-profiles` (B-49)
+  - `/trespass-notices` (B-50)
+  - `/access-permissions` and `/canonical-persons` parity entries aligned to existing route guards
+- This closes another manifest drift pocket where routes were live in `App.tsx` and visible in AppLayout but undocumented in `routeManifest.ts`.
+
+### Sprint 39 Board
+
+| Scope | Route(s) | File(s) |
+|-------|----------|---------|
+| B-route manifest parity | /access-audit, /loi-browser, /radio-transmissions, /voice-profiles, /trespass-notices, /access-permissions, /canonical-persons | src/navigation/routeManifest.ts |
+
+### Session Snapshot (Sprint 39 — 2026-05-07)
+
+- Timestamp (UTC): 2026-05-07 02:53 UTC
+- Current branch: copilot/noop-529-continue
+
+**Validation:**
+- `bun run lint` → PASS
+- `bun run build` → PASS
+
+## Phase 5 — Sprint 40 (Large manifest parity batch)
+
+### Changes
+
+- Added 19 additional `routeManifest` entries for routes already present in both `App.tsx` and AppLayout, including:
+  - live ops: `/alarm-events`, `/fixed-cameras`, `/lmr-bridge`, `/patrol-navigation`, `/patrol-route-optimiser`, `/radio/audit`
+  - management/workforce: `/asset-management`, `/case-bridge`, `/plate-finder`, `/service-agreements`, `/poi-voi-dashboard`
+  - specialist portals: `/biosecurity-officer`, `/smoke-officer`
+  - analytics/records: `/cohort-analysis`, `/evidence-packages`, `/occupancy-analytics`, `/revenue-forecasting`
+  - admin controls: `/admin/service-provider-access`
+
+### Session Snapshot (Sprint 40 — 2026-05-07)
+
+- Timestamp (UTC): 2026-05-07 02:58 UTC
+- Current branch: copilot/noop-529-continue
+
+**Validation:**
+- `bun run lint` → PASS
+- `bun run build` → PASS
+
+**Next session:** Sprint 41 — continue parity for any remaining App↔AppLayout routes not yet in manifest.
