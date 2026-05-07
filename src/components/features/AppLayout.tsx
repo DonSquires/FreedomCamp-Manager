@@ -439,6 +439,7 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/admin/cleanup-recalculate', icon: RefreshCw, label: 'Cleanup & Recalculate', roles: ['admin', 'master'] },
       { path: '/data', icon: Database, label: 'Data Management', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/admin/data-hub', icon: Database, label: 'Data Hub', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/admin/raw-data-browser', icon: Database, label: 'Raw Data Browser', roles: ['grand_master'] },
       { path: '/intel-approvals', icon: ShieldAlert, label: 'Intel Approvals', roles: ['master'] },
       { path: '/import-historical', icon: Upload, label: 'Import Data', roles: ['admin', 'master'] },
       { path: '/photo-reingest', icon: Camera, label: 'Photo Reingest', roles: ['admin', 'admin_officer', 'master'] },

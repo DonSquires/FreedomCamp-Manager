@@ -546,6 +546,27 @@ export default function DataManagementHub() {
               </Button>
             </CardContent>
           </Card>
+
+          {user?.role === 'grand_master' && (
+            <Card className="hover:shadow-lg transition-shadow border-amber-200">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Database className="h-5 w-5 text-amber-600" />
+                  Raw Data Browser
+                </CardTitle>
+                <CardDescription>
+                  Access-style raw table browser for direct view/edit/delete operations.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Link to="/admin/raw-data-browser">
+                  <Button className="w-full" variant="outline">
+                    Open Raw Data Browser
+                  </Button>
+                </Link>
+              </CardContent>
+            </Card>
+          )}
         </div>
 
         {/* Import History */}

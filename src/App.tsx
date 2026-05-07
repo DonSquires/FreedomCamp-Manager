@@ -50,6 +50,7 @@ const PatrolCheckpointManagement = lazy(() => import('@/pages/PatrolCheckpointMa
 const PatrolScheduleManagement = lazy(() => import('@/pages/PatrolScheduleManagement'))
 const PatrolKPIDashboard = lazy(() => import('@/pages/PatrolKPIDashboard'))
 const DataManagementHub = lazy(() => import('@/pages/DataManagementHub'))
+const GrandMasterRawDataBrowser = lazy(() => import('@/pages/GrandMasterRawDataBrowser'))
 const LivePatrolMonitor = lazy(() => import('@/pages/LivePatrolMonitor'))
 const CustomReportBuilder = lazy(() => import('@/pages/CustomReportBuilder'))
 const AiAnalysis = lazy(() => import('@/pages/AiAnalysis'))
@@ -1301,6 +1302,17 @@ export default function App() {
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
                   <DataManagementHub />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/admin/raw-data-browser"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['grand_master']}>
+                  <GrandMasterRawDataBrowser />
                 </RoleRoute>
               </ProtectedRoute>
             }
