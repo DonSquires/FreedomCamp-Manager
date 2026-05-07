@@ -255,6 +255,18 @@ const ComplianceResultLog    = lazy(() => import('@/pages/ComplianceResultLog'))
 const WelfareEventB1Log      = lazy(() => import('@/pages/WelfareEventB1Log'))
 const ZoneGeofenceSnapshotLog = lazy(() => import('@/pages/ZoneGeofenceSnapshotLog'))
 const FeatureFlagManager     = lazy(() => import('@/pages/FeatureFlagManager'))
+const FeatureFlagEvaluationLog = lazy(() => import('@/pages/FeatureFlagEvaluationLog'))
+const FeatureFlagRolloutLog  = lazy(() => import('@/pages/FeatureFlagRolloutLog'))
+const MissingPhotoQueueLog   = lazy(() => import('@/pages/MissingPhotoQueueLog'))
+const PhotoIntegrityHealthLog = lazy(() => import('@/pages/PhotoIntegrityHealthLog'))
+const PhotoRecoveryAuditLog  = lazy(() => import('@/pages/PhotoRecoveryAuditLog'))
+const UserSessionsLog        = lazy(() => import('@/pages/UserSessionsLog'))
+const RecentObservationPhotoStatusLog = lazy(() => import('@/pages/RecentObservationPhotoStatusLog'))
+const ObservationZoneAuditLog = lazy(() => import('@/pages/ObservationZoneAuditLog'))
+const UserDeactivationQueueLog = lazy(() => import('@/pages/UserDeactivationQueueLog'))
+const AlertAcknowledgementsLog = lazy(() => import('@/pages/AlertAcknowledgementsLog'))
+const OfficerWelfareAlertsLog = lazy(() => import('@/pages/OfficerWelfareAlertsLog'))
+const VehicleMigrationLog = lazy(() => import('@/pages/VehicleMigrationLog'))
 
 const NetworkStatusBar = lazy(() => import('@/components/features/NetworkStatusBar').then((m) => ({ default: m.NetworkStatusBar })))
 const PWAInstallPrompt = lazy(() => import('@/components/features/PWAInstallPrompt').then((m) => ({ default: m.PWAInstallPrompt })))
@@ -2403,6 +2415,18 @@ export default function App() {
           <Route path="/welfare-events-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><WelfareEventB1Log /></RoleRoute></ProtectedRoute>} />
           <Route path="/zone-geofence-snapshots" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><ZoneGeofenceSnapshotLog /></RoleRoute></ProtectedRoute>} />
           <Route path="/feature-flags" element={<ProtectedRoute><RoleRoute allowedRoles={['master']}><FeatureFlagManager /></RoleRoute></ProtectedRoute>} />
+          <Route path="/feature-flag-evaluations-log" element={<ProtectedRoute><RoleRoute allowedRoles={['master']}><FeatureFlagEvaluationLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/feature-flag-rollout-log" element={<ProtectedRoute><RoleRoute allowedRoles={['master']}><FeatureFlagRolloutLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/missing-photo-queue" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><MissingPhotoQueueLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/photo-integrity-health-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><PhotoIntegrityHealthLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/photo-recovery-audit-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><PhotoRecoveryAuditLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/user-sessions-log" element={<ProtectedRoute><RoleRoute allowedRoles={['master']}><UserSessionsLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/recent-observations-photo-status-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><RecentObservationPhotoStatusLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/observation-zone-audit-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><ObservationZoneAuditLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/user-deactivation-queue-log" element={<ProtectedRoute><RoleRoute allowedRoles={['master']}><UserDeactivationQueueLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/alert-acknowledgements-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><AlertAcknowledgementsLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/officer-welfare-alerts-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><OfficerWelfareAlertsLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/vehicle-migration-log" element={<ProtectedRoute><RoleRoute allowedRoles={['master']}><VehicleMigrationLog /></RoleRoute></ProtectedRoute>} />
 
           {/* CRM – Accounts (Clients + Contractors) */}
           <Route

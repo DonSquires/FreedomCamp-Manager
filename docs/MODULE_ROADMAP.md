@@ -1,9 +1,9 @@
 # Module Roadmap (Operator Navigation Map)
 
 Date: 2026-05-07 (verified against src/navigation/routeManifest.ts)
-Source of truth for routes: route manifest file src/navigation/routeManifest.ts (175 route manifest entries as of Sprint 37 completion)
+Source of truth for routes: route manifest file src/navigation/routeManifest.ts (187 route manifest entries as of Sprint 41 completion)
 
-> **Last Verification**: 2026-05-07 — Role-gating and route docs reviewed through Sprint 37 (B-123). Production main includes Sprints 31-37.
+> **Last Verification**: 2026-05-07 — Role-gating and route docs reviewed through Sprint 41 (B-135). Production main includes Sprints 31-41.
 
 ## How To Use
 
@@ -585,8 +585,84 @@ New admin routes added in Sprint 37 (B-121, B-122, B-123):
    - Role gate: master
    - Feature flag administration surface for controlled production rollout.
 
+## Sprint 38 Route Addendum (2026-05-07)
+
+New admin routes added in Sprint 38 (B-124, B-125, B-126):
+
+1. Feature Flag Evaluation Log (B-124)
+   - Route: /feature-flag-evaluations-log
+   - Role gate: master
+   - Viewer for feature_flag_evaluations; KPIs (Total/Enabled/Disabled/Unique Flags); enabled/flag_id/date filters; evaluation_context JSON and rollout_bucket expand
+
+2. Feature Flag Rollout Log (B-125)
+   - Route: /feature-flag-rollout-log
+   - Role gate: master
+   - Viewer for feature_flag_rollout_history; KPIs (Total/Increases/Rollbacks/Unique Flags); flag_id/stage/date filters; change_reason, monitoring_notes, error_rate, p95_latency expand
+
+3. Missing Photo Queue (B-126)
+   - Route: /missing-photo-queue
+   - Role gate: admin, admin_officer, master
+   - Viewer for missing_photo_queue; KPIs (Total/Pending/Failed/Resolved); status/plate/date filters; attempted_hash, original_photo_url, repair_notes expand
+
+## Sprint 39 Route Addendum (2026-05-07)
+
+New admin routes added in Sprint 39 (B-127, B-128, B-129):
+
+1. Photo Integrity Health (B-127)
+   - Route: /photo-integrity-health-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for photo_integrity_health; KPIs (Rows/Avg Coverage/Missing Hash/Missing URL); org/min coverage filters
+
+2. Photo Recovery Audit Log (B-128)
+   - Route: /photo-recovery-audit-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for photo_recovery_audit_log; KPIs (Total/Succeeded/Failed/Unique Plates); success/action/plate/date filters; error/meta expand
+
+3. User Sessions Log (B-129)
+   - Route: /user-sessions-log
+   - Role gate: master
+   - Viewer for user_sessions; KPIs (Total/Active 24h/Platforms/Named Devices); platform/user/date filters
+
+## Sprint 40 Route Addendum (2026-05-07)
+
+New admin routes added in Sprint 40 (B-130, B-131, B-132):
+
+1. Recent Observation Photo Status (B-130)
+   - Route: /recent-observations-photo-status-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for recent_observations_photo_status; KPIs (Total/Healthy/Missing Hash/Missing URL); status/plate/date filters
+
+2. Observation Zone Audit Log (B-131)
+   - Route: /observation-zone-audit-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for v_observation_zone_audit; KPIs (Total/Correct/Mismatched/Legacy); assignment/legacy/plate/date filters; zone assignment detail expand
+
+3. User Deactivation Queue Log (B-132)
+   - Route: /user-deactivation-queue-log
+   - Role gate: master
+   - Viewer for user_deactivation_queue; KPIs (Total/Processed/Pending/Errors); processed/action/user/date filters; error detail expand
+
+## Sprint 41 Route Addendum (2026-05-07)
+
+New admin routes added in Sprint 41 (B-133, B-134, B-135):
+
+1. Alert Acknowledgements Log (B-133)
+   - Route: /alert-acknowledgements-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for alert_acknowledgements; KPIs (Total/Follow-up/Evidence/Reports); type/follow-up/user/date filters
+
+2. Officer Welfare Alerts Log (B-134)
+   - Route: /officer-welfare-alerts-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for officer_welfare_alerts; KPIs (Total/Open/Resolved/Escalated); status/type/officer filters
+
+3. Vehicle Migration Log (B-135)
+   - Route: /vehicle-migration-log
+   - Role gate: master
+   - Viewer for vehicle_migration_log; KPIs (Total/Runs/Canonical-linked/Legacy-linked); action/plate/run/date filters
+
 ## Production Status Snapshot (2026-05-07)
 
 - Branch: main
 - PR state (base main): 0 open
-- Consolidation status: Sprint 31 through Sprint 37 route work is merged to production main
+- Consolidation status: Sprint 31 through Sprint 41 route work is merged to production main
