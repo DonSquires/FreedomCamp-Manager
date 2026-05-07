@@ -228,8 +228,8 @@ export default function LmrBridgeSessionLog() {
                         <TableRow key={`${row.id}-exp`} className="bg-muted/30">
                           <TableCell colSpan={7} className="p-4 space-y-3">
                             <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-xs text-muted-foreground">
-                              <span>Config: {row.config_id.slice(0, 8)}…</span>
-                              <span>Channel: {row.channel_id.slice(0, 8)}…</span>
+                              <span>Config: {row.config_id?.slice(0, 8) ?? '—'}…</span>
+                              <span>Channel: {row.channel_id?.slice(0, 8) ?? '—'}…</span>
                               {row.ended_at && <span>Ended: {fmtDate(row.ended_at)}</span>}
                             </div>
                             {row.audio_url && (

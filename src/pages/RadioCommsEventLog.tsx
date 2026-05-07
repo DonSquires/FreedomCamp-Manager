@@ -234,7 +234,7 @@ export default function RadioCommsEventLog() {
                           )}
                         </TableCell>
                         <TableCell className="font-mono text-xs text-muted-foreground">
-                          {row.case_id.slice(0, 8)}…
+                          {row.case_id?.slice(0, 8) ?? '—'}…
                         </TableCell>
                       </TableRow>
                       {expanded && (
@@ -245,7 +245,7 @@ export default function RadioCommsEventLog() {
                               {row.ptt_session_id && <span>PTT session: {row.ptt_session_id.slice(0, 8)}…</span>}
                               {row.created_by    && <span>Created by: {row.created_by.slice(0, 8)}…</span>}
                               <span>Created: {fmtDate(row.created_at)}</span>
-                              <span>Full case: {row.case_id}</span>
+                              <span>Full case: {row.case_id ?? '—'}</span>
                             </div>
                             {row.notes && (
                               <div>
