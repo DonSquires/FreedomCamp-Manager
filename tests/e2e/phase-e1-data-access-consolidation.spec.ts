@@ -27,6 +27,9 @@ function repoPath(relativePath: string) {
 
 function directQueryCount(filePath: string) {
   const source = fs.readFileSync(repoPath(filePath), 'utf8')
+  // This gate intentionally uses a lightweight lexical count for drift detection.
+  // If a baseline changes, the expected follow-up is to inspect the page and
+  // lower the count when direct Supabase calls move into hooks/services.
   return (source.match(/\bsupabase\.(from|rpc)\s*\(/g) ?? []).length
 }
 

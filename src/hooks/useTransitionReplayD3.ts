@@ -56,7 +56,7 @@ export function useRecordOfflineReplayEventD3() {
       if (error) throw error
 
       const row = Array.isArray(data) ? data[0] : data
-      if (!row) throw new Error('Offline replay response was empty')
+      if (!row) throw new Error('Offline replay RPC returned empty result when a replay event row was expected')
 
       return row as OfflineReplayEventResult
     },
