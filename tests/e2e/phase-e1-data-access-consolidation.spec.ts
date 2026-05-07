@@ -14,7 +14,7 @@ const priorityPages: PriorityPageBaseline[] = [
   { page: 'FieldOfficerPortal', path: 'src/pages/FieldOfficerPortal.tsx', directQueryBaseline: 4 },
   { page: 'AssetManagement', path: 'src/pages/AssetManagement.tsx', directQueryBaseline: 0 },
   { page: 'VehicleManagement', path: 'src/pages/VehicleManagement.tsx', directQueryBaseline: 19 },
-  { page: 'BreachAlerts', path: 'src/pages/BreachAlerts.tsx', directQueryBaseline: 15 },
+  { page: 'BreachAlerts', path: 'src/pages/BreachAlerts.tsx', directQueryBaseline: 11 },
   { page: 'AdminPortal', path: 'src/pages/AdminPortal.tsx', directQueryBaseline: 14 },
   { page: 'NoiseControlPortal', path: 'src/pages/NoiseControlPortal.tsx', directQueryBaseline: 0 },
   { page: 'ClientAccountPage', path: 'src/pages/ClientAccountPage.tsx', directQueryBaseline: 0 },

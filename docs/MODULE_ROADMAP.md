@@ -726,5 +726,6 @@ Phase D closeout is now anchored to D3 transition-handshake-offline gate evidenc
 ### E1 migration progress
 
 1. BreachAlerts decision/welfare mutations moved from `src/pages/BreachAlerts.tsx` into `src/hooks/useBreaches.ts`.
-2. BreachAlerts direct Supabase query baseline lowered from 20 to 15 in the E1 gate.
-3. Next priority targets remain BreachAlerts read clusters, VehicleManagement, and AdminPortal.
+2. BreachAlerts intelligence/safety/detail/history read clusters moved from `src/pages/BreachAlerts.tsx` into `src/hooks/useBreaches.ts`.
+3. BreachAlerts direct Supabase query baseline lowered from 20 to 11 in the E1 gate.
+4. Next priority targets remain BreachAlerts evidence/photo read clusters, VehicleManagement, and AdminPortal.

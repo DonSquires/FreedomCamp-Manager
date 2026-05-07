@@ -5,8 +5,14 @@ import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
 import {
+  deduplicateBreachAlerts,
+  extractObservationId,
   useAcknowledgeBreachAlert,
   useAcknowledgeWelfareAlert,
+  useBreachIntelligenceAlerts,
+  useBreachSafetyAlerts,
+  useBreachVehicleDetail,
+  useBreachVehicleHistory,
   useDismissBreachAlert,
   useResolveBreachAlert,
   useStartBreachEnforcement,
@@ -99,24 +105,6 @@ async function resolveViaDownload(bucket: string, path: string): Promise<string 
   }
 }
 
-/** Zone names that represent generic parent zones rather than specific locations. */
-const GENERIC_ZONE_NAMES = ['jurisdiction', 'general', 'other']
-
-/**
- * Extract the observation id from a breach alert, checking both the FK column
- * and the breach_details JSON blob.
- */
-function extractObservationId(alert: any): string | null {
-  const details = alert.breach_details || {}
-  return (
-    alert.observation_id ||
-    details.observation_id ||
-    details.triggering_observation_id ||
-    details.source_observation_id ||
-    null
-  )
-}
-
 function getBreachObservationId(breach: BreachAlert | null): string | null {
   if (!breach) return null
   return extractObservationId(breach)
@@ -133,82 +121,6 @@ function getBreachDisplayTimestamp(breach: BreachAlert | null): string | null {
     breach.created_at ||
     null
   )
-}
-
-/**
- * From a bucket of duplicate alerts, pick the best representative.
- * Prefers the alert whose zone name is the most specific (i.e. *not* a
- * generic "Jurisdiction" parent zone) so the admin sees the real location.
- */
-function pickBestRepresentative(bucket: any[]): any {
-  if (bucket.length === 1) return bucket[0]
-  const specific = bucket.find((a) => {
-    const zn = ((a.zones as any)?.name ?? '').toLowerCase()
-    return zn && !GENERIC_ZONE_NAMES.includes(zn)
-  })
-  return specific ?? bucket[0]
-}
-
-/**
- * Deduplicate breach alerts using a two-phase strategy:
- *
- * Phase 1 – Observation-based: alerts that share the same observation_id
- *   (from the FK column or breach_details JSON) are grouped together and
- *   collapsed to a single representative.
- *
- * Phase 2 – Time-bucket fallback: remaining alerts (no observation_id) are
- *   grouped by plate + breach_type + minute-bucket of created_at.
- *
- * In both phases the representative with the most specific zone name wins.
- *
- * Returns a new array; input is not mutated.
- */
-function deduplicateBreachAlerts(alerts: any[]): any[] {
-  if (!alerts || alerts.length === 0) return alerts
-
-  // Phase 1: Group by observation_id when available
-  const obsBuckets = new Map<string, any[]>()
-  const noObsAlerts: any[] = []
-
-  for (const alert of alerts) {
-    const obsId = extractObservationId(alert)
-    if (obsId) {
-      const bucket = obsBuckets.get(obsId) ?? []
-      bucket.push(alert)
-      obsBuckets.set(obsId, bucket)
-    } else {
-      noObsAlerts.push(alert)
-    }
-  }
-
-  const result: any[] = []
-  for (const [, bucket] of obsBuckets) {
-    result.push(pickBestRepresentative(bucket))
-  }
-
-  // Phase 2: Time-bucket fallback for alerts without observation_id
-  const timeBuckets = new Map<string, any[]>()
-  for (const alert of noObsAlerts) {
-    const plate = (alert.plate_number ?? '').toLowerCase()
-    const type = alert.breach_type ?? ''
-    const ts = alert.created_at ? new Date(alert.created_at) : null
-    const minuteBucket = ts ? ts.toISOString().slice(0, 16) : 'unknown'
-    const key = `${plate}|${type}|${minuteBucket}`
-    const bucket = timeBuckets.get(key) ?? []
-    bucket.push(alert)
-    timeBuckets.set(key, bucket)
-  }
-
-  for (const [, bucket] of timeBuckets) {
-    result.push(pickBestRepresentative(bucket))
-  }
-
-  // Preserve the original sort order (most-recent first)
-  result.sort(
-    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
-  )
-
-  return result
 }
 
 async function resolveEvidencePhotoUrl(rawUrl: string | null | undefined): Promise<string | null> {
@@ -409,49 +321,22 @@ export default function BreachAlerts() {
   }, [searchParams, setDateRange, setOrganization, setZone, user?.role])
 
   // ── Intelligence Alerts: breach alerts requiring attention ─────────────────
-  const { data: intelligenceAlerts } = useQuery({
-    queryKey: ['intelligence-alerts', effectiveOrganizationId, zoneId, dateFrom, dateTo],
-    queryFn: async ({ signal }) => {
-      // Fetch extra rows so we still have up to 10 after deduplication
-      let q = (supabase.from('breach_alerts') as any)
-        .select('id, plate_number, breach_type, created_at, status, zones!zone_id(name)')
-        .eq('status', 'pending')
-        .order('created_at', { ascending: false })
-        .limit(50)
-        .abortSignal(signal)
-
-      if (effectiveOrganizationId) {
-        q = q.eq('organization_id', effectiveOrganizationId)
-      }
-      if (zoneId) q = q.eq('zone_id', zoneId)
-      if (startDate) q = q.gte('created_at', startDate)
-      if (endDate) q = q.lte('created_at', endDate)
-
-      const { data } = await q
-      return deduplicateBreachAlerts(data || []).slice(0, 10)
-    },
+  const { data: intelligenceAlerts } = useBreachIntelligenceAlerts({
+    organizationId: effectiveOrganizationId,
+    zoneId,
+    startDate,
+    endDate,
+    dateFrom,
+    dateTo,
   })
 
   // ── Safety Alerts: officer unexpected departures (welfare inactivity) ──────
-  const { data: safetyAlerts } = useQuery({
-    queryKey: ['safety-alerts', effectiveOrganizationId, dateFrom, dateTo],
-    queryFn: async ({ signal }) => {
-      let q = (supabase.from('officer_welfare_alerts') as any)
-        .select('id, officer_name, alert_type, status, created_at, gps_latitude, gps_longitude')
-        .eq('status', 'pending')
-        .order('created_at', { ascending: false })
-        .limit(10)
-        .abortSignal(signal)
-
-      if (effectiveOrganizationId) {
-        q = q.eq('organization_id', effectiveOrganizationId)
-      }
-      if (startDate) q = q.gte('created_at', startDate)
-      if (endDate) q = q.lte('created_at', endDate)
-
-      const { data } = await q
-      return data || []
-    },
+  const { data: safetyAlerts } = useBreachSafetyAlerts({
+    organizationId: effectiveOrganizationId,
+    startDate,
+    endDate,
+    dateFrom,
+    dateTo,
   })
 
   // Fetch breach alerts (use created_at, not detected_at)
@@ -516,19 +401,7 @@ export default function BreachAlerts() {
   const activeBreach = breaches?.find((b: any) => b.id === activeBreachId) || null
 
   // Fetch enriched vehicle data for the active breach
-  const { data: detailVehicle } = useQuery({
-    queryKey: ['breach-vehicle', activeBreach?.plate_number],
-    queryFn: async ({ signal }) => {
-      if (!activeBreach?.plate_number) return null
-      const { data } = await (supabase.from('canonical_vehicles') as any)
-        .select('*')
-        .eq('plate_number', activeBreach.plate_number)
-        .abortSignal(signal)
-        .single()
-      return data
-    },
-    enabled: !!activeBreach?.plate_number,
-  })
+  const { data: detailVehicle } = useBreachVehicleDetail(activeBreach)
 
   // Fetch the specific observation that triggered this breach
   const { data: triggeringObservation } = useQuery({
@@ -682,22 +555,7 @@ export default function BreachAlerts() {
   // Includes observation_id + breach_details so deduplicateBreachAlerts can
   // collapse duplicate alerts that were created for the same observation by
   // different processing pipelines.
-  const { data: vehicleHistory } = useQuery({
-    queryKey: ['breach-history', activeBreach?.plate_number],
-    queryFn: async ({ signal }) => {
-      if (!activeBreach?.plate_number) return []
-      const { data } = await (supabase.from('breach_alerts') as any)
-        .select('id, breach_type, status, created_at, resolved_at, observation_id, breach_details, zones!zone_id(name)')
-        .eq('organization_id', activeBreach.organization_id)
-        .eq('plate_number', activeBreach.plate_number)
-        .neq('id', activeBreach.id)
-        .order('created_at', { ascending: false })
-        .limit(50)
-        .abortSignal(signal)
-      return deduplicateBreachAlerts(data || [])
-    },
-    enabled: !!activeBreach?.plate_number,
-  })
+  const { data: vehicleHistory } = useBreachVehicleHistory(activeBreach)
 
   const acknowledgeMutation = useAcknowledgeBreachAlert()
   const enforcementMutation = useStartBreachEnforcement()
