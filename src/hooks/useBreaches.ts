@@ -37,22 +37,43 @@ interface ActiveBreachReference {
   plate_number: string | null
 }
 
+interface DeduplicatableBreachAlert {
+  observation_id?: string | null
+  breach_details?: Record<string, unknown> | null
+  zones?: { name?: string | null } | { name?: string | null }[] | null
+  plate_number?: string | null
+  breach_type?: string | null
+  created_at?: string | null
+}
+
 /** Zone names that represent generic parent zones rather than specific locations. */
 const GENERIC_ZONE_NAMES = ['jurisdiction', 'general', 'other']
+
+function firstString(...values: unknown[]): string | null {
+  for (const value of values) {
+    if (typeof value === 'string' && value) return value
+  }
+  return null
+}
 
 /**
  * Extract the observation id from a breach alert, checking both the FK column
  * and the breach_details JSON blob.
  */
-export function extractObservationId(alert: any): string | null {
+export function extractObservationId(alert: DeduplicatableBreachAlert | null | undefined): string | null {
   const details = alert?.breach_details || {}
-  return (
+  return firstString(
     alert?.observation_id ||
-    details.observation_id ||
-    details.triggering_observation_id ||
-    details.source_observation_id ||
-    null
+    details.observation_id,
+    details.triggering_observation_id,
+    details.source_observation_id,
   )
+}
+
+function getZoneName(alert: DeduplicatableBreachAlert): string {
+  const zones = alert.zones
+  if (Array.isArray(zones)) return zones[0]?.name ?? ''
+  return zones?.name ?? ''
 }
 
 /**
@@ -60,10 +81,10 @@ export function extractObservationId(alert: any): string | null {
  * Prefers the alert whose zone name is the most specific (i.e. *not* a
  * generic "Jurisdiction" parent zone) so the admin sees the real location.
  */
-function pickBestRepresentative(bucket: any[]): any {
+function pickBestRepresentative<T extends DeduplicatableBreachAlert>(bucket: T[]): T {
   if (bucket.length === 1) return bucket[0]
   const specific = bucket.find((a) => {
-    const zn = ((a.zones as any)?.name ?? '').toLowerCase()
+    const zn = getZoneName(a).toLowerCase()
     return zn && !GENERIC_ZONE_NAMES.includes(zn)
   })
   return specific ?? bucket[0]
@@ -83,12 +104,12 @@ function pickBestRepresentative(bucket: any[]): any {
  *
  * Returns a new array; input is not mutated.
  */
-export function deduplicateBreachAlerts(alerts: any[]): any[] {
+export function deduplicateBreachAlerts<T extends DeduplicatableBreachAlert>(alerts: T[]): T[] {
   if (!alerts || alerts.length === 0) return alerts
 
   // Phase 1: Group by observation_id when available
-  const obsBuckets = new Map<string, any[]>()
-  const noObsAlerts: any[] = []
+  const obsBuckets = new Map<string, T[]>()
+  const noObsAlerts: T[] = []
 
   for (const alert of alerts) {
     const obsId = extractObservationId(alert)
@@ -101,13 +122,13 @@ export function deduplicateBreachAlerts(alerts: any[]): any[] {
     }
   }
 
-  const result: any[] = []
+  const result: T[] = []
   for (const [, bucket] of obsBuckets) {
     result.push(pickBestRepresentative(bucket))
   }
 
   // Phase 2: Time-bucket fallback for alerts without observation_id
-  const timeBuckets = new Map<string, any[]>()
+  const timeBuckets = new Map<string, T[]>()
   for (const alert of noObsAlerts) {
     const plate = (alert.plate_number ?? '').toLowerCase()
     const type = alert.breach_type ?? ''

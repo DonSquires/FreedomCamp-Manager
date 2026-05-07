@@ -340,7 +340,7 @@ export default function BreachAlerts() {
   })
 
   // Fetch breach alerts (use created_at, not detected_at)
-  const { data: breaches, isLoading, isError: breachesIsError, error: breachesError } = useQuery({
+  const { data: breaches, isLoading, isError: breachesIsError, error: breachesError } = useQuery<any[]>({
     queryKey: ['breach-alerts', effectiveOrganizationId, zoneId, statusFilter, breachTypeFilter, searchQuery, dateFrom, dateTo],
     queryFn: async ({ signal }) => {
       const applyFilters = (query: any) => {
@@ -559,7 +559,8 @@ export default function BreachAlerts() {
 
   const acknowledgeMutation = useAcknowledgeBreachAlert()
   const enforcementMutation = useStartBreachEnforcement()
-  const resolveMutation = useResolveBreachAlert({ onSuccess: () => setResolveNotes('') })
+  const clearResolveNotes = useCallback(() => setResolveNotes(''), [])
+  const resolveMutation = useResolveBreachAlert({ onSuccess: clearResolveNotes })
   const dismissMutation = useDismissBreachAlert()
   const acknowledgeWelfareMutation = useAcknowledgeWelfareAlert()
 
