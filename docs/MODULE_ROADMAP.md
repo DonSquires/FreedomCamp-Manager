@@ -1,9 +1,9 @@
 # Module Roadmap (Operator Navigation Map)
 
 Date: 2026-05-07 (verified against src/navigation/routeManifest.ts)
-Source of truth for routes: route manifest file src/navigation/routeManifest.ts (178 route manifest entries as of Sprint 38 completion)
+Source of truth for routes: route manifest file src/navigation/routeManifest.ts (181 route manifest entries as of Sprint 39 completion)
 
-> **Last Verification**: 2026-05-07 — Role-gating and route docs reviewed through Sprint 38 (B-126). Production main includes Sprints 31-38.
+> **Last Verification**: 2026-05-07 — Role-gating and route docs reviewed through Sprint 39 (B-129). Production main includes Sprints 31-39.
 
 ## How To Use
 
@@ -604,8 +604,27 @@ New admin routes added in Sprint 38 (B-124, B-125, B-126):
    - Role gate: admin, admin_officer, master
    - Viewer for missing_photo_queue; KPIs (Total/Pending/Failed/Resolved); status/plate/date filters; attempted_hash, original_photo_url, repair_notes expand
 
+## Sprint 39 Route Addendum (2026-05-07)
+
+New admin routes added in Sprint 39 (B-127, B-128, B-129):
+
+1. Photo Integrity Health (B-127)
+   - Route: /photo-integrity-health-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for photo_integrity_health; KPIs (Rows/Avg Coverage/Missing Hash/Missing URL); org/min coverage filters
+
+2. Photo Recovery Audit Log (B-128)
+   - Route: /photo-recovery-audit-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for photo_recovery_audit_log; KPIs (Total/Succeeded/Failed/Unique Plates); success/action/plate/date filters; error/meta expand
+
+3. User Sessions Log (B-129)
+   - Route: /user-sessions-log
+   - Role gate: master
+   - Viewer for user_sessions; KPIs (Total/Active 24h/Platforms/Named Devices); platform/user/date filters
+
 ## Production Status Snapshot (2026-05-07)
 
 - Branch: main
 - PR state (base main): 0 open
-- Consolidation status: Sprint 31 through Sprint 38 route work is merged to production main
+- Consolidation status: Sprint 31 through Sprint 39 route work is merged to production main
