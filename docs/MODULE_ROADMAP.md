@@ -1,9 +1,9 @@
 # Module Roadmap (Operator Navigation Map)
 
 Date: 2026-05-07 (verified against src/navigation/routeManifest.ts)
-Source of truth for routes: route manifest file src/navigation/routeManifest.ts (184 route manifest entries as of Sprint 40 completion)
+Source of truth for routes: route manifest file src/navigation/routeManifest.ts (187 route manifest entries as of Sprint 41 completion)
 
-> **Last Verification**: 2026-05-07 — Role-gating and route docs reviewed through Sprint 40 (B-132). Production main includes Sprints 31-40.
+> **Last Verification**: 2026-05-07 — Role-gating and route docs reviewed through Sprint 41 (B-135). Production main includes Sprints 31-41.
 
 ## How To Use
 
@@ -642,8 +642,27 @@ New admin routes added in Sprint 40 (B-130, B-131, B-132):
    - Role gate: master
    - Viewer for user_deactivation_queue; KPIs (Total/Processed/Pending/Errors); processed/action/user/date filters; error detail expand
 
+## Sprint 41 Route Addendum (2026-05-07)
+
+New admin routes added in Sprint 41 (B-133, B-134, B-135):
+
+1. Alert Acknowledgements Log (B-133)
+   - Route: /alert-acknowledgements-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for alert_acknowledgements; KPIs (Total/Follow-up/Evidence/Reports); type/follow-up/user/date filters
+
+2. Officer Welfare Alerts Log (B-134)
+   - Route: /officer-welfare-alerts-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for officer_welfare_alerts; KPIs (Total/Open/Resolved/Escalated); status/type/officer filters
+
+3. Vehicle Migration Log (B-135)
+   - Route: /vehicle-migration-log
+   - Role gate: master
+   - Viewer for vehicle_migration_log; KPIs (Total/Runs/Canonical-linked/Legacy-linked); action/plate/run/date filters
+
 ## Production Status Snapshot (2026-05-07)
 
 - Branch: main
 - PR state (base main): 0 open
-- Consolidation status: Sprint 31 through Sprint 40 route work is merged to production main
+- Consolidation status: Sprint 31 through Sprint 41 route work is merged to production main
