@@ -201,6 +201,29 @@ Fill this before stopping work:
 - Open blockers with owner:
 - Next exact command to run:
 
+Latest Session Snapshot (Staging Doc Instruction Review — 2026-05-07):
+
+- Timestamp (NZ): 2026-05-07 12:24 NZST
+- Current branch: copilot/review-doc-files-another-one
+- HEAD SHA: 0646dad95ee0725f7ac0f9f590d257521f80e904
+- Working tree status (`git status -sb`): clean (`## copilot/review-doc-files-another-one...origin/copilot/review-doc-files-another-one`)
+- Scope completed:
+  - Reviewed `docs/STAGING.md` authority order, restart checklist, and Section 6 first-unchecked guidance.
+  - Reviewed `docs/INSTRUCTION_MANUAL.md` baseline and validated staging doc remains the restart entrypoint.
+  - Executed restart checklist commands: repo context, truth sync, failure summary, auto-ingest, local quality gates, and branch-scoped CI run lookup.
+- Latest lint result: pass (`bun run lint`)
+- Latest build result: pass (`bun run build`)
+- Latest targeted test result:
+  - Bob governance: pass (`bun run test:bob:governance`, 6 passed)
+  - PTT radio health schema: fail (`node --test ptt-server/test/radio-health-schema.test.js`) — `Cannot find module 'express'` in `ptt-server/test/radio-health-schema.test.js`
+- Active/last CI run IDs:
+  - `25468600596` Running Copilot cloud agent — `in_progress` (branch: `copilot/review-doc-files-another-one`)
+- Open blockers with owner:
+  - PTT local test dependency gap (`express` missing for `ptt-server` test environment) — owner: local environment/package setup for ptt-server lane.
+  - Section 6.F (Bob Governance and staging integrity) remains unchecked deployment/runtime verification items.
+- Next exact command to run:
+  - `cd /home/runner/work/FreedomCamp-Manager/FreedomCamp-Manager/ptt-server && npm install && cd /home/runner/work/FreedomCamp-Manager/FreedomCamp-Manager && node --test ptt-server/test/radio-health-schema.test.js`
+
 Latest Session Snapshot (Sprint 13 Doc Review — 2026-05-06):
 
 - Timestamp (NZ): 2026-05-06 05:45 NZST
