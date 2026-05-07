@@ -146,7 +146,9 @@ jobs:
                 DEPLOYED="true"
                 break
               fi
-            else
+            fi
+
+            if [ -n "$RAILWAY_PROJECT_ID" ]; then
               if RAILWAY_TOKEN="$CANDIDATE" railway up --project "$RAILWAY_PROJECT_ID" --service "$RAILWAY_SERVICE_NAME" --detach; then
                 DEPLOYED="true"
                 break
