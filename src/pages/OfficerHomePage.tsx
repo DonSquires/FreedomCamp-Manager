@@ -160,12 +160,12 @@ export default function OfficerHomePage() {
         </Button>
       </div>
 
-      {/* PTT radio — navigate to /radio page from the sidebar nav */}
+      {/* Keep a lightweight top status row while main PTT controls are docked below */}
       <div className="border-b px-4 py-2">
-        <PTTBar />
+        <PTTBar className="opacity-85" />
       </div>
 
-      <main className="flex-1 flex flex-col items-center justify-center px-0 py-8 gap-6 max-w-md mx-auto w-full">
+      <main className="flex-1 flex flex-col items-center justify-center px-0 py-8 pb-32 md:pb-8 gap-6 max-w-md mx-auto w-full">
 
         {/* ── Status banner ──────────────────────────────────────────────── */}
         {geofenceViolation && isRostered ? (
@@ -312,6 +312,14 @@ export default function OfficerHomePage() {
           </button>
         </div>
       </main>
+
+      {/* Docked PTT controls — supports minimized radio workflow */}
+      <div className="md:hidden fixed bottom-2 left-2 right-2 z-40">
+        <PTTBar enableHoldToTalk docked />
+      </div>
+      <div className="hidden md:block fixed bottom-4 right-4 z-40">
+        <PTTBar enableHoldToTalk docked className="w-[340px]" />
+      </div>
 
       {/* ── Ad-hoc request dialog ─────────────────────────────────────────── */}
       <Dialog open={showAdhocDialog} onOpenChange={setShowAdhocDialog}>

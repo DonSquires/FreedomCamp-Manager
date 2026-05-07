@@ -710,6 +710,16 @@ export function AppLayout({ children, title, description, showBackButton, immers
     try { await stopSpeaking() } catch { /* silent */ } finally { setPttHolding(false) }
   }, [pttHolding, pttIsSpeaking])
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (location.pathname === '/radio') return
+    window.sessionStorage.setItem('fc_last_non_radio_route', `${location.pathname}${location.search}${location.hash}`)
+  }, [location.pathname, location.search, location.hash])
+
+  const openRadioConsole = useCallback(() => {
+    navigate('/radio', { state: { from: `${location.pathname}${location.search}${location.hash}` } })
+  }, [navigate, location.hash, location.pathname, location.search])
+
   // Automatic crash detection — submits bug reports without user action
   useAutoErrorReporter()
   const { data: notifCount = 0 } = useNotificationCount()
@@ -1208,11 +1218,88 @@ export function AppLayout({ children, title, description, showBackButton, immers
           {/* Global feedback button — visible to all authenticated users */}
           {user && !isLocked && (
             <>
+              {location.pathname !== '/radio' && (
+                <div className="md:hidden fixed bottom-2 left-2 right-2 z-40">
+                  <div className="rounded-2xl border border-slate-700 bg-slate-900/95 shadow-xl px-3 py-2 flex items-center gap-2">
+                    <button
+                      onClick={() => setPttExpanded(v => !v)}
+                      className="inline-flex items-center gap-1 rounded-full bg-slate-800 px-2 py-1 text-[10px] text-slate-200"
+                      title={pttExpanded ? 'Hide channel info' : 'Show channel info'}
+                      aria-label={pttExpanded ? 'Collapse PTT status' : 'Expand PTT status'}
+                    >
+                      {pttExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronUp className="h-3 w-3" />}
+                    </button>
+
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 text-[11px] text-slate-200">
+                        <span className={cn('w-2 h-2 rounded-full shrink-0', {
+                          'bg-green-400 shadow-[0_0_5px_#4ade80]': pttConnectionStatus === 'connected',
+                          'bg-yellow-400 animate-pulse': pttConnectionStatus === 'connecting' || pttConnectionStatus === 'reconnecting',
+                          'bg-red-500': pttConnectionStatus === 'error',
+                          'bg-slate-500': pttConnectionStatus === 'disconnected',
+                        })} />
+                        <span className="truncate">{pttChannelName ?? (pttConnectedNoChannel ? 'No channel' : 'Radio')}</span>
+                      </div>
+                      {pttExpanded && pttSpeakerId && !pttIsSpeaking && (
+                        <div className="text-[10px] text-green-300 truncate">Receiving: {pttSpeakerName ?? 'RX'}</div>
+                      )}
+                    </div>
+
+                    <button
+                      onClick={openRadioConsole}
+                      className="inline-flex items-center justify-center rounded-full h-10 w-10 bg-slate-700 text-slate-100"
+                      title="Open full radio console"
+                      aria-label="Open full radio console"
+                    >
+                      <Radio className="h-4 w-4" />
+                    </button>
+
+                    {pttConnectedNoChannel ? (
+                      <button
+                        onClick={openRadioConsole}
+                        title="No channel selected - open radio"
+                        className="inline-flex items-center justify-center rounded-full h-10 w-10 bg-slate-600 text-white opacity-80"
+                        aria-label="Select channel"
+                      >
+                        <Radio className="h-4 w-4" />
+                      </button>
+                    ) : (
+                      <button
+                        onPointerDown={(e) => {
+                          if (e.pointerType === 'mouse' && e.button !== 0) return
+                          e.preventDefault()
+                          void handlePTTDown()
+                        }}
+                        onPointerUp={(e) => {
+                          e.preventDefault()
+                          void handlePTTUp()
+                        }}
+                        onPointerCancel={() => { void handlePTTUp() }}
+                        onPointerLeave={() => { if (pttIsSpeaking) void handlePTTUp() }}
+                        onContextMenu={(e) => e.preventDefault()}
+                        title={pttIsSpeaking ? 'Transmitting...' : (pttCanSpeak ? 'Hold to Talk' : 'PTT Ready')}
+                        className={cn(
+                          'inline-flex items-center justify-center rounded-full h-10 w-10 transition-all select-none',
+                          pttIsSpeaking
+                            ? 'bg-red-600 shadow-[0_0_18px_rgba(220,38,38,0.6)] ring-2 ring-red-400/60'
+                            : pttCanSpeak
+                              ? 'bg-blue-600 active:scale-95'
+                              : 'bg-slate-600 opacity-70 cursor-not-allowed',
+                        )}
+                        aria-label={pttIsSpeaking ? 'Transmitting' : 'Push to Talk'}
+                      >
+                        <Mic className={cn('h-5 w-5 text-white', pttIsSpeaking && 'animate-pulse')} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+
               <div className="fixed bottom-4 right-4 z-40 flex flex-col items-end gap-2">
 
                 {/* ── Floating PTT button — hold to transmit on any page ─── */}
-                {(pttAvailable || pttConnectedNoChannel || pttConnectionStatus === 'connecting' || pttConnectionStatus === 'reconnecting') && location.pathname !== '/radio' && (
-                  <div className="flex flex-col items-end gap-1">
+                {location.pathname !== '/radio' && (
+                  <div className="hidden md:flex flex-col items-end gap-1">
                     {/* Expanded status strip — shown when pttExpanded */}
                     {pttExpanded && (
                       <div className="flex items-center gap-2 rounded-full bg-slate-800 dark:bg-slate-900 text-white text-[11px] font-medium px-3 py-1 shadow-lg">
@@ -1227,7 +1314,7 @@ export function AppLayout({ children, title, description, showBackButton, immers
                           <span className="text-green-300 truncate max-w-[80px]">📡 {pttSpeakerName ?? 'RX'}</span>
                         )}
                         <button
-                          onClick={() => navigate('/radio')}
+                          onClick={openRadioConsole}
                           className="ml-1 text-slate-300 hover:text-white transition-colors"
                           title="Open full radio console"
                         >
@@ -1264,7 +1351,7 @@ export function AppLayout({ children, title, description, showBackButton, immers
                     {/* Hold-to-talk button — only pointer/touch handlers, no onClick */}
                     {pttConnectedNoChannel ? (
                       <button
-                        onClick={() => navigate('/radio')}
+                        onClick={openRadioConsole}
                         title="No channel selected — tap to open radio and join a channel"
                         className="flex items-center justify-center rounded-full shadow-xl h-14 w-14 bg-slate-600 opacity-70 cursor-pointer hover:opacity-90 transition-opacity"
                         aria-label="Select a channel to enable PTT"
