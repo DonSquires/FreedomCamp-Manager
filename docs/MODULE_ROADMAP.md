@@ -751,3 +751,28 @@ Phase B is the immediate execution phase after post-Sprint-42 planning alignment
 4. **Phase B Exit to Phase C**
    - All Phase B gate criteria are green (per build realignment gate definitions).
    - Evidence is recorded in `docs/STAGING.md` with linked CI runs and validation artifacts.
+
+## Next Phase Continuation — Phase C Kickoff
+
+With Phase B delivery and gate evidence in place, the next execution phase is Phase C.
+
+1. **Phase C Entry Check (Go/No-Go)**
+   - Confirm Phase B gate is green against `docs/BUILD_REALIGNMENT_PLAN_2026-05-04.md` section 12.1 criteria.
+   - Confirm specialist/assistive ownership rota is active for C1–C4 slices.
+   - Confirm shared case/timeline contract remains the integration baseline for all Phase C slices.
+
+2. **Phase C Delivery Order (per 11.1 / 11.1a)**
+   - C1: Site Guard and Security Operations
+   - C2: Identity and Risk (Access Control, Face Recognition, Identity Verification, Site Risk)
+   - C3: Intelligence Data (POI/VOI/LOI, evidence capture, alert queues)
+   - C4: Client Services (Assets, Keys, Client/Contact/Service Agreement, reporting integration)
+
+3. **Phase C Progression Checkpoints**
+   - **Checkpoint 1 (C1 complete)**: site guard/static guard workflows and emergency assist attach to shared case/timeline contracts.
+   - **Checkpoint 2 (C2 complete)**: identity/risk surfaces resolve people, vehicle, and place context from shared contracts.
+   - **Checkpoint 3 (C3 complete)**: intelligence surfaces (POI/VOI/LOI/evidence/alerts) are contract-backed and org-scoped.
+   - **Checkpoint 4 (C4 complete)**: client services surfaces attach assets/keys/client/service data to the same operational contract model.
+
+4. **Phase C Exit to Phase D**
+   - All Phase C gate criteria are green (per build realignment gate definitions).
+   - Evidence is recorded in `docs/STAGING.md` with linked CI runs and validation artifacts.
