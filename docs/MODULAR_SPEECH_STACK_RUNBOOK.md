@@ -15,11 +15,16 @@ Replace proprietary wake-word + intent lock-in with a modular stack that you con
 
 ## Deployment Decision (grounded in current repo)
 
-1. RunPod: GPU-heavy STT + Intent inference.
-2. hPanel VPS: speech-router orchestration and optional local TTS endpoint.
-3. Railway: keep proxy-only role (do not move core Bob/speech inference there).
+1. Railway: STT service (`railway-stt/`, Faster-Whisper `distil-small.en`, CPU).
+   - Replaces RunPod serverless STT which suffered persistent GPU supply constraints.
+   - Deployed via `.github/workflows/deploy-railway-stt.yml`.
+   - ~$3–6/mo, absorbed by Railway Pro $20 credit, no cold-start GPU scarcity.
+2. RunPod: AI/Bob inference only (`fieldops-ai-engine`, endpoint `n0bp1ifmq01cx2`).
+   - STT endpoint `qufsywq39klcma` kept idle (`workersMax=0`) as emergency GPU fallback.
+3. hPanel VPS: speech-router orchestration and optional local TTS endpoint.
+4. Railway: proxy-server + new railway-stt service.
 
-This aligns with the current authority docs where proxy is Railway-only and Bob/PTT are self-hosted on RunPod + VPS.
+STT_URL in speech-router now points to Railway: `https://<railway-stt>.up.railway.app/transcribe`
 
 ## Model and Format Strategy
 
@@ -27,7 +32,8 @@ This aligns with the current authority docs where proxy is Railway-only and Bob/
    - Primary: Sherpa-ONNX keyword spotting for universal ONNX compatibility.
    - Alternative: openWakeWord for custom phrase training workflows.
 2. STT:
-   - Faster-Whisper (`distil-large-v3` for quality, `small.en` for speed/cost).
+   - `distil-small.en` on Railway CPU (primary — ~1s/clip, no GPU scarcity).
+   - `distil-large-v3` on RunPod GPU (fallback — higher quality, subject to supply).
 3. Intent:
    - Llama 3.1 8B Instruct (RunPod vLLM) for natural language intent mapping.
    - Optional fallback: Phi-3 mini for lower-cost latency-sensitive intents.

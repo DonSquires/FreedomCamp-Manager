@@ -13,7 +13,9 @@ if [[ -z "$API_KEY" ]]; then
   exit 1
 fi
 
-ENDPOINTS="${RUNPOD_RECOVERY_ENDPOINTS:-n0bp1ifmq01cx2:ai,qufsywq39klcma:stt}"
+# STT endpoint removed — STT is now served by Railway (railway-stt/).
+# Only the AI inference endpoint is managed here.
+ENDPOINTS="${RUNPOD_RECOVERY_ENDPOINTS:-n0bp1ifmq01cx2:ai}"
 INTERVAL_SEC="${RUNPOD_RECOVERY_INTERVAL_SEC:-120}"
 POLL_ROUNDS="${RUNPOD_RECOVERY_POLL_ROUNDS:-12}"
 POLL_SLEEP_SEC="${RUNPOD_RECOVERY_POLL_SLEEP_SEC:-5}"

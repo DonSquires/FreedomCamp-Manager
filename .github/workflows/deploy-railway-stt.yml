@@ -1,0 +1,151 @@
+name: Deploy Railway STT Service
+
+# Deploys railway-stt/ (Faster-Whisper CPU) to Railway.
+# This replaces the RunPod serverless STT endpoint which suffered persistent
+# GPU supply constraints.
+#
+# Required secrets:
+#   RAILWAY_TOKEN          — Railway project token (Project → Settings → Tokens)
+#   RAILWAY_STT_SERVICE_ID — Railway service ID for the railway-stt service
+#
+# Optional secrets:
+#   RAILWAY_STT_URL        — deployed Railway URL used for post-deploy health check
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "railway-stt/**"
+  workflow_dispatch:
+    inputs:
+      whisper_model:
+        description: "Faster-Whisper model to bake in (e.g. distil-small.en)"
+        default: "distil-small.en"
+        required: false
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository_owner }}/freedomcamp-manager-railway-stt
+
+jobs:
+  build-and-deploy:
+    name: Build & Deploy Railway STT
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check required secrets
+        id: check-secrets
+        run: |
+          missing=""
+          [ -z "${{ secrets.RAILWAY_TOKEN }}" ]          && missing="$missing RAILWAY_TOKEN"
+          [ -z "${{ secrets.RAILWAY_STT_SERVICE_ID }}" ] && missing="$missing RAILWAY_STT_SERVICE_ID"
+
+          if [ -n "$missing" ]; then
+            echo "::error::Required secrets not configured ($missing) — deployment skipped."
+            echo ""
+            echo "Setup steps:"
+            echo "  1. In Railway: New Service → GitHub Repo → FreedomCamp-Manager → Root: railway-stt/"
+            echo "  2. Add service env vars: WHISPER_MODEL=distil-small.en, STT_API_KEY=<secret>"
+            echo "  3. Copy the Railway service ID (Service → Settings → Service ID)"
+            echo "     and add it as GitHub secret RAILWAY_STT_SERVICE_ID"
+            echo "  4. Add a Railway project token as GitHub secret RAILWAY_TOKEN"
+            exit 1
+          fi
+          echo "secrets_present=true" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GitHub Container Registry
+        if: steps.check-secrets.outputs.secrets_present == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        if: steps.check-secrets.outputs.secrets_present == 'true'
+        uses: docker/setup-buildx-action@v3
+
+      - name: Determine model arg
+        id: model
+        run: |
+          MODEL="${{ github.event.inputs.whisper_model || 'distil-small.en' }}"
+          echo "model=$MODEL" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push image to GHCR
+        if: steps.check-secrets.outputs.secrets_present == 'true'
+        uses: docker/build-push-action@v5
+        with:
+          context: ./railway-stt
+          push: true
+          build-args: |
+            WHISPER_MODEL=${{ steps.model.outputs.model }}
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Install Railway CLI
+        if: steps.check-secrets.outputs.secrets_present == 'true'
+        run: |
+          RAILWAY_CLI_VERSION="4.31.0"
+          TARGET="x86_64-unknown-linux-gnu"
+          URL="https://github.com/railwayapp/cli/releases/download/v${RAILWAY_CLI_VERSION}/railway-v${RAILWAY_CLI_VERSION}-${TARGET}.tar.gz"
+          TMP_DIR=$(mktemp -d)
+          cd "$TMP_DIR"
+          curl -fsSL -o railway.tar.gz "$URL"
+          tar -xzf railway.tar.gz
+          mkdir -p "$HOME/.railway/bin"
+          install -m 0755 railway "$HOME/.railway/bin/railway"
+          echo "$HOME/.railway/bin" >> "$GITHUB_PATH"
+
+      - name: Deploy to Railway
+        if: steps.check-secrets.outputs.secrets_present == 'true'
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_STT_SERVICE_ID }}
+        run: |
+          set -euo pipefail
+          cd railway-stt
+          railway up \
+            --service "$RAILWAY_SERVICE_ID" \
+            --detach
+          echo "✅ Railway STT deploy triggered for service $RAILWAY_SERVICE_ID"
+
+      - name: Post-deploy health check
+        if: steps.check-secrets.outputs.secrets_present == 'true'
+        env:
+          RAILWAY_STT_URL: ${{ secrets.RAILWAY_STT_URL }}
+        run: |
+          STT_URL="${RAILWAY_STT_URL:-}"
+          if [ -z "$STT_URL" ]; then
+            echo "ℹ️  RAILWAY_STT_URL not set — skipping health check."
+            echo "   Add it as a GitHub secret after first deploy to enable automatic validation."
+            exit 0
+          fi
+
+          echo "Waiting 30s for Railway service to become healthy..."
+          sleep 30
+
+          MAX_TRIES=6
+          WAIT=10
+          for i in $(seq 1 $MAX_TRIES); do
+            STATUS=$(curl -sS --max-time 15 "${STT_URL%/}/health" | jq -r '.ok // false' 2>/dev/null || echo "false")
+            if [ "$STATUS" = "true" ]; then
+              echo "✅ Railway STT /health returned ok=true"
+              exit 0
+            fi
+            echo "  Attempt $i/$MAX_TRIES: not ready yet, waiting ${WAIT}s..."
+            sleep "$WAIT"
+          done
+
+          echo "::warning::Railway STT health check did not return ok=true after $((MAX_TRIES * WAIT + 30))s."
+          echo "  Check Railway service logs: railway logs --service ${{ secrets.RAILWAY_STT_SERVICE_ID }}"
+          exit 1

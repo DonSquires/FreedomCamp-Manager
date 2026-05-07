@@ -53,7 +53,9 @@ async function withTimeout(task, timeoutMs, label) {
 function parseEndpointSpecs() {
   const fromArg = String(getArg('endpoints', '')).trim();
   const fromEnv = String(process.env.RUNPOD_RECOVERY_ENDPOINTS || '').trim();
-  const raw = fromArg || fromEnv || 'n0bp1ifmq01cx2:ai,qufsywq39klcma:stt';
+  // STT endpoint removed — STT is now served by Railway (railway-stt/).
+  // Only the AI inference endpoint is managed here.
+  const raw = fromArg || fromEnv || 'n0bp1ifmq01cx2:ai';
 
   return raw
     .split(',')

@@ -1,10 +1,16 @@
-name: Build & Push STT Worker
+name: Build & Push STT Worker (RunPod fallback image)
+
+# NOTE: The primary STT service is now railway-stt/ on Railway (CPU, distil-small.en).
+# This workflow builds the GHCR image for the RunPod serverless endpoint which is
+# kept as a GPU fallback when Railway STT is unavailable.
+# Primary deployment is handled by: .github/workflows/deploy-railway-stt.yml
 
 on:
   push:
     branches: [main]
     paths:
       - "runpod-stt-worker/**"
+      - "railway-stt/**"
   workflow_dispatch:
     inputs:
       whisper_model:

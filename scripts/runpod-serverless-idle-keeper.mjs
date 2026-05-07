@@ -33,7 +33,8 @@ function log(message) {
 function parseEndpoints() {
   const fromArg = String(getArg('endpoints', '')).trim();
   const fromEnv = String(process.env.RUNPOD_IDLE_KEEPER_ENDPOINTS || '').trim();
-  const fallback = 'n0bp1ifmq01cx2,qufsywq39klcma';
+  // STT endpoint removed — STT is now served by Railway (railway-stt/).
+  const fallback = 'n0bp1ifmq01cx2';
   const raw = fromArg || fromEnv || fallback;
   return raw.split(',').map((id) => id.trim()).filter(Boolean);
 }
