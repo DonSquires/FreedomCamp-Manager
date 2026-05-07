@@ -177,6 +177,7 @@ interface AppLayoutProps {
   title?: string
   description?: string
   showBackButton?: boolean
+  immersive?: boolean
 }
 
 type NavItem = {
@@ -609,7 +610,7 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
   )
 }
 
-export function AppLayout({ children, title, description, showBackButton }: AppLayoutProps) {
+export function AppLayout({ children, title, description, showBackButton, immersive = false }: AppLayoutProps) {
   const brandLogoUrl = '/iron-eagle-security-logo.jpg'
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [feedbackOpen, setFeedbackOpen] = useState(false)
@@ -924,6 +925,7 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-100 via-slate-50 to-cyan-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-900">
       {/* Mobile Header */}
+      {!immersive && (
       <header className="lg:hidden bg-white/95 dark:bg-gray-800/95 backdrop-blur shadow-sm sticky top-0 z-40 border-b border-gray-200/60 dark:border-gray-700/60">
         <div className="px-4 py-3 space-y-2">
           <div className="flex items-center justify-between">
@@ -1011,6 +1013,7 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
           )}
         </div>
       </header>
+      )}
 
       {/* Desktop Sidebar */}
       <aside
@@ -1068,6 +1071,7 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
       {/* Main Content */}
       <div className={cn('transition-[padding] duration-200', desktopNavOpen ? 'lg:pl-64' : 'lg:pl-0')}>
         {/* Desktop Header */}
+        {!immersive && (
         <header className="hidden lg:block bg-white/95 dark:bg-gray-800/90 backdrop-blur shadow-[0_2px_8px_-2px_rgba(0,0,0,0.1)] dark:shadow-[0_2px_8px_-2px_rgba(0,0,0,0.4)] sticky top-0 z-20 border-b border-gray-100/90 dark:border-gray-700/60">
           <div className="px-6 py-4">
             <div className="flex items-center justify-between">
@@ -1147,18 +1151,19 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
             </div>
           </div>
         </header>
+        )}
 
         {/* Page Content */}
-        <main className="p-4 lg:p-6 relative">
-          <PublicSafetyBanner />
-          <JurisdictionBanner />
-          {(user?.role === 'admin' || user?.role === 'master' || user?.role === 'grand_master') && <HealthBanner />}
-          {isOffline && (
+        <main className={cn('relative', immersive ? 'p-0 lg:p-0' : 'p-4 lg:p-6')}>
+          {!immersive && <PublicSafetyBanner />}
+          {!immersive && <JurisdictionBanner />}
+          {!immersive && (user?.role === 'admin' || user?.role === 'master' || user?.role === 'grand_master') && <HealthBanner />}
+          {!immersive && isOffline && (
             <div className="mb-3 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-700 dark:bg-amber-900/25 dark:text-amber-200">
               Connection lost. You are offline and some live data may be stale.
             </div>
           )}
-          {!isOffline && activeFetchCount > 0 && (
+          {!immersive && !isOffline && activeFetchCount > 0 && (
             <div className="mb-3 inline-flex items-center gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 dark:border-blue-800 dark:bg-blue-900/20 dark:text-blue-300">
               <RefreshCw className="h-3.5 w-3.5 animate-spin" />
               Refreshing live data in the background

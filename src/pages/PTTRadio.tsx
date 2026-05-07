@@ -506,6 +506,7 @@ export default function PTTRadio() {
   const [liveTxSeconds, setLiveTxSeconds] = useState(0)
   const [showNotificationHint, setShowNotificationHint] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [mobileOverlayMenuOpen, setMobileOverlayMenuOpen] = useState(false)
   const [microphoneReady, setMicrophoneReady] = useState(false)
   const [microphoneError, setMicrophoneError] = useState<string | null>(null)
   const [audioPrimed, setAudioPrimed] = useState(false)
@@ -2613,14 +2614,15 @@ export default function PTTRadio() {
     <AppLayout
       title="Radio"
       description="Push-to-Talk radio console — independent 2-way radio system"
+      immersive
     >
       {/* Full-screen dark console */}
-      <div className="flex flex-col h-[calc(100vh-64px)] bg-slate-950 text-slate-100 font-sans md:font-mono overflow-hidden">
+      <div className="flex flex-col h-screen bg-slate-950 text-slate-100 font-sans md:font-mono overflow-hidden">
 
         {/* ── Top status bar ──────────────────────────────── */}
-        <div className="flex items-center justify-between px-3 md:px-4 py-2 bg-slate-900 border-b border-slate-800 shrink-0 flex-wrap gap-2">
+        <div className="hidden md:flex items-center justify-between px-3 md:px-4 py-2 bg-slate-900 border-b border-slate-800 shrink-0 flex-wrap gap-2">
           {/* Mobile hamburger */}
-          <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+          <Sheet open={mobileOverlayMenuOpen} onOpenChange={setMobileOverlayMenuOpen}>
             <SheetTrigger asChild>
               <Button
                 variant="outline"
@@ -2666,7 +2668,7 @@ export default function PTTRadio() {
                             disabled={isConnecting || retryCountdownSeconds !== null || isConnectCoolingDown}
                             onClick={() => {
                               handleChannelSelect(ch)
-                              setMobileMenuOpen(false)
+                              setMobileOverlayMenuOpen(false)
                             }}
                           >
                             <div className="flex flex-col items-center justify-center w-9 h-9 rounded bg-slate-900/80 shrink-0">
@@ -2840,6 +2842,83 @@ export default function PTTRadio() {
           </div>
         </div>
 
+        {/* Mobile menu access — keep controls reachable without top info bars */}
+        <div className="md:hidden absolute top-3 left-3 z-40">
+          <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+            <SheetTrigger asChild>
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-9 w-9 rounded-lg border-slate-700 bg-slate-900/90 text-slate-200"
+                aria-label="Open channel and settings menu"
+              >
+                <Menu className="h-5 w-5" />
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="left" className="w-[92vw] max-w-sm bg-slate-950 border-slate-800 text-slate-100 p-0">
+              <SheetHeader className="px-4 py-3 border-b border-slate-800">
+                <SheetTitle className="text-slate-100 text-sm uppercase tracking-widest">Radio Menu</SheetTitle>
+              </SheetHeader>
+
+              <div className="h-full flex flex-col">
+                <div className="px-3 pt-3 pb-1.5 shrink-0">
+                  <div className="text-[10px] text-slate-500 uppercase tracking-widest mb-1">Channels</div>
+                </div>
+                <ScrollArea className="flex-1 px-2">
+                  <div className="space-y-1.5 pb-3">
+                    {loadingChannels ? (
+                      <div className="flex justify-center py-8">
+                        <Loader2 className="h-5 w-5 animate-spin text-slate-500" />
+                      </div>
+                    ) : (
+                      channels.map((ch) => {
+                        const isActive = activeChannel?.id === ch.id
+                        const isEmergencyCh = ch.channel_type === 'emergency'
+                        return (
+                          <button
+                            key={`mobile-overlay-${ch.id}`}
+                            className={`w-full flex items-center gap-2.5 px-3 py-3 rounded-lg text-left transition-all ${
+                              isActive
+                                ? 'bg-slate-700 shadow-[0_0_12px_rgba(59,130,246,0.3)]'
+                                : 'bg-slate-800/60 hover:bg-slate-800'
+                            } ${isEmergencyCh ? 'border border-red-800' : 'border border-transparent'} ${
+                              isConnecting || retryCountdownSeconds !== null || isConnectCoolingDown
+                                ? 'opacity-60 cursor-not-allowed'
+                                : ''
+                            }`}
+                            style={isActive ? { borderColor: ch.color, boxShadow: `0 0 12px ${ch.color}33` } : {}}
+                            disabled={isConnecting || retryCountdownSeconds !== null || isConnectCoolingDown}
+                            onClick={() => {
+                              handleChannelSelect(ch)
+                              setMobileMenuOpen(false)
+                            }}
+                          >
+                            <div className="flex flex-col items-center justify-center w-9 h-9 rounded bg-slate-900/80 shrink-0">
+                              <span className="text-[9px] text-slate-500 uppercase leading-tight">CH</span>
+                              <span className="text-base font-bold leading-tight" style={{ color: ch.color }}>
+                                {renderChannelBadge(ch)}
+                              </span>
+                            </div>
+                            <div className="min-w-0">
+                              <div className="text-xs font-bold text-white truncate tracking-wide">{ch.name.toUpperCase()}</div>
+                              {ch.description && (
+                                <div className="text-[10px] text-slate-500 truncate">{ch.description}</div>
+                              )}
+                            </div>
+                            {isActive && (
+                              <div className="ml-auto w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: ch.color }} />
+                            )}
+                          </button>
+                        )
+                      })
+                    )}
+                  </div>
+                </ScrollArea>
+              </div>
+            </SheetContent>
+          </Sheet>
+        </div>
+
         {/* ── Error banner ─────────────────────────────────── */}
         {!connectionWarningArmed && activeChannel && connectionStatus !== 'connected' && (
           <div className="px-4 py-2 bg-slate-900 border-b border-slate-700 text-xs text-slate-300 flex items-center gap-2 shrink-0">
@@ -2915,7 +2994,7 @@ export default function PTTRadio() {
         )}
 
         {/* ── Translation rail status ─────────────────────── */}
-        <div className="px-3 md:px-4 py-1.5 md:py-2 border-b border-slate-800 bg-slate-900/80 shrink-0 flex items-center justify-between gap-2 flex-wrap">
+        <div className="hidden md:flex px-3 md:px-4 py-1.5 md:py-2 border-b border-slate-800 bg-slate-900/80 shrink-0 items-center justify-between gap-2 flex-wrap">
           <div className="flex items-center gap-2 min-w-0">
             <span className={`h-2.5 w-2.5 rounded-full ${isDiplomaticMode ? 'bg-yellow-400 animate-pulse' : 'bg-blue-400 animate-pulse'}`} />
             <span className="text-[11px] md:text-xs uppercase tracking-wide text-slate-200 font-medium">
@@ -3035,11 +3114,11 @@ export default function PTTRadio() {
           </div>
 
           {/* ── CENTER: PTT controls ─────────────────────── */}
-          <div className="flex-1 flex flex-col items-center justify-center gap-3 md:gap-4 px-3 md:px-6 bg-slate-950 relative overflow-auto py-3 md:py-4 pb-28 md:pb-4">
+          <div className="flex-1 flex flex-col items-center justify-center gap-3 md:gap-4 px-3 md:px-6 bg-slate-950 relative overflow-hidden md:overflow-auto py-3 md:py-4 pb-28 md:pb-4">
 
             {/* Active channel header */}
             {activeChannel && (
-              <div className="text-center">
+              <div className="hidden md:block text-center">
                 <div className="text-[10px] text-slate-500 uppercase tracking-widest">Active Channel</div>
                 <div className="text-lg md:text-2xl font-bold tracking-wide mt-0.5" style={{ color: activeChannel.color }}>
                   {(activeChannel.badge_label || `CH ${activeChannel.channel_number}`)} · {activeChannel.name.toUpperCase()}
@@ -3156,7 +3235,7 @@ export default function PTTRadio() {
               <AudioLevelMeter level={audioLevel} transmitting={isTransmitting} />
             </div>
 
-            <div className="w-full max-w-sm flex items-center justify-center pt-1">
+            <div className="hidden md:flex w-full max-w-sm items-center justify-center pt-1">
               <Button
                 variant="outline"
                 size="sm"
