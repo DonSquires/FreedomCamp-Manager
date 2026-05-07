@@ -65,7 +65,7 @@ export default function LiveOfficerTracking() {
       .in('activity_type', ['gps_update', 'gps_private', 'app_heartbeat', 'login', 'vehicle_scan'])
       .gte('recorded_at', since)
       .order('recorded_at', { ascending: false })
-      .limit(Math.max(userIds.length * 5, 20))
+      .limit(200)
 
     if (error || !Array.isArray(data)) {
       if (error) console.warn('Unable to load officer presence activity:', error)
