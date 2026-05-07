@@ -116,11 +116,18 @@ import {
   Briefcase,
   Waypoints,
   FlaskConical,
-  Scale,
   CalendarClock,
   Eye,
   TicketX,
   UserX,
+  Flag,
+  BadgeCheck,
+  Bug,
+  FileCheck,
+  CreditCard,
+  PhoneCall,
+  Ambulance,
+  BadgeDollarSign,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { supabase } from '@/lib/supabase'
@@ -364,6 +371,14 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/locations-of-interest-log', icon: MapPin, label: 'Locations of Interest', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/vehicle-monthly-stays-log', icon: CalendarRange, label: 'Vehicle Monthly Stays', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/radio-voice-consent-log', icon: ShieldCheck, label: 'Voice Consent Log', roles: ['admin', 'admin_officer', 'master'] },
+      // Sprint 36: B-118–B-120
+      { path: '/patrol-field-events-log', icon: Route, label: 'Patrol Field Events', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/alert-queue-log', icon: Bell, label: 'Alert Queue Log', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/compliance-results-log', icon: ClipboardCheck, label: 'Compliance Result Log', roles: ['admin', 'admin_officer', 'master'] },
+      // Sprint 37: B-121–B-123
+      { path: '/welfare-events-log', icon: HeartPulse, label: 'Welfare Event Log', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/zone-geofence-snapshots', icon: Map, label: 'Zone Geofence Snapshots', roles: ['admin', 'master'] },
+      { path: '/feature-flags', icon: Flag, label: 'Feature Flags', roles: ['master'] },
     ],
   },
   {

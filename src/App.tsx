@@ -214,44 +214,21 @@ const DataIntegrityDashboard = lazy(() => import('@/pages/DataIntegrityDashboard
 const CleanDashboard = lazy(() => import('@/pages/CleanDashboard'))
 const TestDashboard = lazy(() => import('@/pages/TestDashboard'))
 
-// Sprint 19–21: B-67–B-75
-const RosterShiftLog = lazy(() => import('@/pages/RosterShiftLog'))
-const NoiseNoticeLog = lazy(() => import('@/pages/NoiseNoticeLog'))
-const SiteIncidentLog = lazy(() => import('@/pages/SiteIncidentLog'))
-const PersonInteractionLog = lazy(() => import('@/pages/PersonInteractionLog'))
-const PlateScanLog = lazy(() => import('@/pages/PlateScanLog'))
-const DispatchEventLog = lazy(() => import('@/pages/DispatchEventLog'))
-const NoticeToVacateLog = lazy(() => import('@/pages/NoticeToVacateLog'))
-const ContractorManager = lazy(() => import('@/pages/ContractorManager'))
-const VehicleDiscrepancyLog = lazy(() => import('@/pages/VehicleDiscrepancyLog'))
-
-// Sprint 22–26: B-76–B-90
-const DriftEventLog = lazy(() => import('@/pages/DriftEventLog'))
-const InvestigationJobConfig = lazy(() => import('@/pages/InvestigationJobConfig'))
-const ZoneLegalConfigViewer = lazy(() => import('@/pages/ZoneLegalConfigViewer'))
+// Sprint 22–26: B-76–B-90 (DriftEventLog already imported above)
 const InvestigationJobLog = lazy(() => import('@/pages/InvestigationJobLog'))
 const OperationalCaseLog = lazy(() => import('@/pages/OperationalCaseLog'))
 // PatrolEventLog already imported above (B-59)
-const CheckpointVisitLog = lazy(() => import('@/pages/CheckpointVisitLog'))
-const EmsAttendanceLog = lazy(() => import('@/pages/EmsAttendanceLog'))
-const ParkingSessionLog = lazy(() => import('@/pages/ParkingSessionLog'))
-const FlaggedVehicleManager = lazy(() => import('@/pages/FlaggedVehicleManager'))
-const ParkingPaymentLog = lazy(() => import('@/pages/ParkingPaymentLog'))
-const ZoneSignageEvidence = lazy(() => import('@/pages/ZoneSignageEvidence'))
-const OfficerActivityLog = lazy(() => import('@/pages/OfficerActivityLog'))
-const CredentialProcessingLog = lazy(() => import('@/pages/CredentialProcessingLog'))
-const DispatchAcknowledgementLog = lazy(() => import('@/pages/DispatchAcknowledgementLog'))
 // Sprint 27: B-91–B-93
 const ComplianceAuditLog   = lazy(() => import('@/pages/ComplianceAuditLog'))
-const EnforcementEventLog  = lazy(() => import('@/pages/EnforcementEventLog'))
+// EnforcementEventLog already imported above (B-80)
 const NoiseJobLog          = lazy(() => import('@/pages/NoiseJobLog'))
 // Sprint 28: B-94–B-96
 const PatrolRouteLog       = lazy(() => import('@/pages/PatrolRouteLog'))
-const AlarmEventLog        = lazy(() => import('@/pages/AlarmEventLog'))
+// AlarmEventLog already imported above (B-79)
 const BugReportLog         = lazy(() => import('@/pages/BugReportLog'))
 // Sprint 29: B-97–B-99
 const RadioTransmissionLog = lazy(() => import('@/pages/RadioTransmissionLog'))
-const OpenShiftManager     = lazy(() => import('@/pages/OpenShiftManager'))
+// OpenShiftManager already imported above (B-81)
 const NoiseAssessmentLog   = lazy(() => import('@/pages/NoiseAssessmentLog'))
 // Sprint 30: B-100–B-102
 const TrespassNoticeLog    = lazy(() => import('@/pages/TrespassNoticeLog'))
@@ -261,6 +238,30 @@ const PersonObservationLog = lazy(() => import('@/pages/PersonObservationLog'))
 const VehiclesOfInterestLog = lazy(() => import('@/pages/VehiclesOfInterestLog'))
 const PersonsOfInterestLog  = lazy(() => import('@/pages/PersonsOfInterestLog'))
 const PhotoMetadataLog      = lazy(() => import('@/pages/PhotoMetadataLog'))
+// Sprint 32: B-106–B-108
+const RadioCommsEventLog    = lazy(() => import('@/pages/RadioCommsEventLog'))
+const CaseCommentLog        = lazy(() => import('@/pages/CaseCommentLog'))
+const LmrBridgeSessionLog   = lazy(() => import('@/pages/LmrBridgeSessionLog'))
+// Sprint 33: B-109–B-111
+const PatrolSessionEventLog = lazy(() => import('@/pages/PatrolSessionEventLog'))
+const RadioTranscriptLog    = lazy(() => import('@/pages/RadioTranscriptLog'))
+const DisputeIntakeLog      = lazy(() => import('@/pages/DisputeIntakeLog'))
+// Sprint 34: B-112–B-114
+const RadioTtsRenderLog     = lazy(() => import('@/pages/RadioTtsRenderLog'))
+const HealthSafetyReportLog = lazy(() => import('@/pages/HealthSafetyReportLog'))
+const NoiseSeizureLog       = lazy(() => import('@/pages/NoiseSeizureLog'))
+// Sprint 35: B-115–B-117
+const LocationsOfInterestLog  = lazy(() => import('@/pages/LocationsOfInterestLog'))
+const VehicleMonthlyStayLog   = lazy(() => import('@/pages/VehicleMonthlyStayLog'))
+const RadioVoiceConsentLog    = lazy(() => import('@/pages/RadioVoiceConsentLog'))
+// Sprint 36: B-118–B-120
+const PatrolFieldEventLog   = lazy(() => import('@/pages/PatrolFieldEventLog'))
+const AlertQueueLog         = lazy(() => import('@/pages/AlertQueueLog'))
+const ComplianceResultLog   = lazy(() => import('@/pages/ComplianceResultLog'))
+// Sprint 37: B-121–B-123
+const WelfareEventB1Log       = lazy(() => import('@/pages/WelfareEventB1Log'))
+const ZoneGeofenceSnapshotLog = lazy(() => import('@/pages/ZoneGeofenceSnapshotLog'))
+const FeatureFlagManager      = lazy(() => import('@/pages/FeatureFlagManager'))
 
 const NetworkStatusBar = lazy(() => import('@/components/features/NetworkStatusBar').then((m) => ({ default: m.NetworkStatusBar })))
 const PWAInstallPrompt = lazy(() => import('@/components/features/PWAInstallPrompt').then((m) => ({ default: m.PWAInstallPrompt })))
@@ -2399,6 +2400,30 @@ export default function App() {
           <Route path="/vehicles-of-interest-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><VehiclesOfInterestLog /></RoleRoute></ProtectedRoute>} />
           <Route path="/persons-of-interest-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><PersonsOfInterestLog /></RoleRoute></ProtectedRoute>} />
           <Route path="/photo-metadata-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'master']}><PhotoMetadataLog /></RoleRoute></ProtectedRoute>} />
+          {/* Sprint 32: B-106–B-108 */}
+          <Route path="/radio-comms-events-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><RadioCommsEventLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/case-comments-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><CaseCommentLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/lmr-bridge-sessions-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><LmrBridgeSessionLog /></RoleRoute></ProtectedRoute>} />
+          {/* Sprint 33: B-109–B-111 */}
+          <Route path="/patrol-session-events-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><PatrolSessionEventLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/radio-transcript-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><RadioTranscriptLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/dispute-intake-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><DisputeIntakeLog /></RoleRoute></ProtectedRoute>} />
+          {/* Sprint 34: B-112–B-114 */}
+          <Route path="/radio-tts-render-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><RadioTtsRenderLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/health-safety-report-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><HealthSafetyReportLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/noise-seizures-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><NoiseSeizureLog /></RoleRoute></ProtectedRoute>} />
+          {/* Sprint 35: B-115–B-117 */}
+          <Route path="/locations-of-interest-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><LocationsOfInterestLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/vehicle-monthly-stays-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><VehicleMonthlyStayLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/radio-voice-consent-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><RadioVoiceConsentLog /></RoleRoute></ProtectedRoute>} />
+          {/* Sprint 36: B-118–B-120 */}
+          <Route path="/patrol-field-events-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><PatrolFieldEventLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/alert-queue-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><AlertQueueLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/compliance-results-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><ComplianceResultLog /></RoleRoute></ProtectedRoute>} />
+          {/* Sprint 37: B-121–B-123 */}
+          <Route path="/welfare-events-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><WelfareEventB1Log /></RoleRoute></ProtectedRoute>} />
+          <Route path="/zone-geofence-snapshots" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'master']}><ZoneGeofenceSnapshotLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/feature-flags" element={<ProtectedRoute><RoleRoute allowedRoles={['master']}><FeatureFlagManager /></RoleRoute></ProtectedRoute>} />
 
           {/* CRM – Accounts (Clients + Contractors) */}
           <Route

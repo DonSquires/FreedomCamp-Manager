@@ -3438,3 +3438,50 @@ The web SPA delivers SOS via the existing `officer_welfare_alerts` table + `send
 - `bun run build` → PASS (27.50s)
 
 **Next session:** Sprint 32 — B-106 RadioCommsEventLog, B-107 CaseCommentLog, B-108 LmrBridgeSessionLog.
+
+## Phase 5 — Sprints 32–37 (B-106–B-123)
+
+### Changes
+
+- **B-106 RadioCommsEventLog** (`/radio-comms-events-log`): log viewer for `radio_comms_events` View; event_type enum/degraded_mode/date filters + escalated KPI + notes expand.
+- **B-107 CaseCommentLog** (`/case-comments-log`): log viewer for `case_comments` table; date/case_id/author filters + edited badge + full text expand.
+- **B-108 LmrBridgeSessionLog** (`/lmr-bridge-sessions-log`): log viewer for `lmr_bridge_sessions` table; direction/emergency/date filters + avg duration KPI + transcript/audio/metadata expand.
+- **B-109 PatrolSessionEventLog** (`/patrol-session-events-log`): log viewer for `patrol_session_events` table; typed event_type enum filters + missed highlight.
+- **B-110 RadioTranscriptLog** (`/radio-transcript-log`): log viewer for `radio_transcript_segments` View; confidence bar + is_final/language filters.
+- **B-111 DisputeIntakeLog** (`/dispute-intake-log`): log viewer for `dispute_intake` table; plate/claimant search + homeless review KPI + message/evidence/hardship expand.
+- **B-112 RadioTtsRenderLog** (`/radio-tts-render-log`): log viewer for `radio_tts_renders` View; provider/is_synthetic/language filters + avg latency KPI + audio link.
+- **B-113 HealthSafetyReportLog** (`/health-safety-report-log`): log viewer for `health_safety_reports` table; severity/status/type filters + High+ KPI.
+- **B-114 NoiseSeizureLog** (`/noise-seizures-log`): log viewer for `noise_seizures` table; status/equipment_type filters + est. total value KPI + full seizure metadata expand.
+- **B-115 LocationsOfInterestLog** (`/locations-of-interest-log`): log viewer for `locations_of_interest` table; loi_kind/is_active/canonical/city filters + name search + hazard/GPS expand.
+- **B-116 VehicleMonthlyStayLog** (`/vehicle-monthly-stays-log`): log viewer for `vehicle_monthly_stays` table; month/plate filters + consecutive nights highlight.
+- **B-117 RadioVoiceConsentLog** (`/radio-voice-consent-log`): log viewer for `radio_voice_consents` View; revoked/provider/date filters.
+- **B-118 PatrolFieldEventLog** (`/patrol-field-events-log`): log viewer for `patrol_events` table; event_type/status/patrol_type filters + GPS/photos expand.
+- **B-119 AlertQueueLog** (`/alert-queue-log`): log viewer for `alert_queue` table; type/status/priority filters + Acknowledge mutation.
+- **B-120 ComplianceResultLog** (`/compliance-results-log`): log viewer for `compliance_results` table; compliant/exempt/violation_type filters + GPS/matrix expand.
+- **B-121 WelfareEventB1Log** (`/welfare-events-log`): log viewer for `welfare_events_b1` table; typed event_type/status enums; emergency/missed KPIs.
+- **B-122 ZoneGeofenceSnapshotLog** (`/zone-geofence-snapshots`): log viewer for `zone_geofence_monthly_snapshots` table; quality_status/zone_type/month filters.
+- **B-123 FeatureFlagManager** (`/feature-flags`): feature flag management for `feature_flags` table; master-only; toggle switch; phase uses single-letter codes A–E.
+
+### Sprint 37 Board
+
+| Ticket | Page | Route | Table/View |
+|--------|------|-------|------------|
+| B-121 | WelfareEventB1Log | /welfare-events-log | welfare_events_b1 |
+| B-122 | ZoneGeofenceSnapshotLog | /zone-geofence-snapshots | zone_geofence_monthly_snapshots |
+| B-123 | FeatureFlagManager | /feature-flags | feature_flags |
+
+- [x] `bun run lint` → PASS
+- [x] `bun run build` → PASS (26.55s)
+
+### Session Snapshot (Sprint 37 — 2026-05-07)
+
+- Timestamp (UTC): 2026-05-07 02:40 UTC
+- Current branch: copilot/noop-529-continue
+
+**Validation:**
+- `bun run lint` → PASS
+- `bun run build` → PASS (26.55s)
+
+**Changes also included:** wired lazy imports + routes + manifest entries for Sprints 32–36 (B-106–B-120) that were present in AppLayout sidebar but missing from App.tsx and routeManifest.ts. Fixed pre-existing duplicate lazy imports and missing icon imports in AppLayout.tsx.
+
+**Next session:** Sprint 38 — TBD.
