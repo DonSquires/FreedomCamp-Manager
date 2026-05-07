@@ -65,7 +65,7 @@ export default function GrandMasterRawDataBrowser() {
     enabled: user?.role === 'grand_master',
   })
 
-  const rows = data?.rows ?? []
+  const rows = useMemo(() => data?.rows ?? [], [data?.rows])
   const total = data?.total ?? 0
   const pageCount = Math.max(1, Math.ceil(total / DEFAULT_PAGE_SIZE))
 
