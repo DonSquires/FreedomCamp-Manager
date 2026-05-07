@@ -518,7 +518,7 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
         const isActive = location.pathname === item.path
         return (
           <Link
-            key={item.path}
+            key={`pinned:${item.path}`}
             to={item.path}
             onClick={onClick}
             className={cn(
@@ -578,7 +578,7 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
                   const isActive = location.pathname === item.path
                   return (
                     <Link
-                      key={item.path}
+                      key={`group:${group.label}:${item.path}`}
                       to={item.path}
                       onClick={onClick}
                       className={cn(
