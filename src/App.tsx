@@ -257,6 +257,27 @@ const NoiseAssessmentLog   = lazy(() => import('@/pages/NoiseAssessmentLog'))
 const TrespassNoticeLog    = lazy(() => import('@/pages/TrespassNoticeLog'))
 const ParkingInfringementLog = lazy(() => import('@/pages/ParkingInfringementLog'))
 const PersonObservationLog = lazy(() => import('@/pages/PersonObservationLog'))
+// Sprint 32–33: B-106–B-111
+const RadioCommsEventLog    = lazy(() => import('@/pages/RadioCommsEventLog'))
+const CaseCommentLog        = lazy(() => import('@/pages/CaseCommentLog'))
+const LmrBridgeSessionLog   = lazy(() => import('@/pages/LmrBridgeSessionLog'))
+const PatrolSessionEventLog = lazy(() => import('@/pages/PatrolSessionEventLog'))
+const RadioTranscriptLog    = lazy(() => import('@/pages/RadioTranscriptLog'))
+const DisputeIntakeLog      = lazy(() => import('@/pages/DisputeIntakeLog'))
+// Sprint 34–35: B-112–B-117
+const RadioTtsRenderLog = lazy(() => import('@/pages/RadioTtsRenderLog'))
+const HealthSafetyReportLog = lazy(() => import('@/pages/HealthSafetyReportLog'))
+const NoiseSeizureLog = lazy(() => import('@/pages/NoiseSeizureLog'))
+const LocationsOfInterestLog = lazy(() => import('@/pages/LocationsOfInterestLog'))
+const VehicleMonthlyStayLog = lazy(() => import('@/pages/VehicleMonthlyStayLog'))
+const RadioVoiceConsentLog = lazy(() => import('@/pages/RadioVoiceConsentLog'))
+// Sprint 36–37: B-118–B-123
+const PatrolFieldEventLog      = lazy(() => import('@/pages/PatrolFieldEventLog'))
+const AlertQueueLog            = lazy(() => import('@/pages/AlertQueueLog'))
+const ComplianceResultLog      = lazy(() => import('@/pages/ComplianceResultLog'))
+const WelfareEventB1Log        = lazy(() => import('@/pages/WelfareEventB1Log'))
+const ZoneGeofenceSnapshotLog  = lazy(() => import('@/pages/ZoneGeofenceSnapshotLog'))
+const FeatureFlagManager       = lazy(() => import('@/pages/FeatureFlagManager'))
 
 const NetworkStatusBar = lazy(() => import('@/components/features/NetworkStatusBar').then((m) => ({ default: m.NetworkStatusBar })))
 const PWAInstallPrompt = lazy(() => import('@/components/features/PWAInstallPrompt').then((m) => ({ default: m.PWAInstallPrompt })))
@@ -2391,6 +2412,27 @@ export default function App() {
           <Route path="/trespass-notices-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><TrespassNoticeLog /></RoleRoute></ProtectedRoute>} />
           <Route path="/parking-infringements-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><ParkingInfringementLog /></RoleRoute></ProtectedRoute>} />
           <Route path="/person-observations-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><PersonObservationLog /></RoleRoute></ProtectedRoute>} />
+          {/* Sprint 32–33: B-106–B-111 */}
+          <Route path="/radio-comms-events-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><RadioCommsEventLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/case-comments-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><CaseCommentLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/lmr-bridge-sessions-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><LmrBridgeSessionLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/patrol-session-events-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><PatrolSessionEventLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/radio-transcript-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'officer']}><RadioTranscriptLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/dispute-intake-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><DisputeIntakeLog /></RoleRoute></ProtectedRoute>} />
+          {/* Sprint 34–35: B-112–B-117 */}
+          <Route path="/radio-tts-render-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><RadioTtsRenderLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/health-safety-report-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><HealthSafetyReportLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/noise-seizures-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><NoiseSeizureLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/locations-of-interest-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><LocationsOfInterestLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/vehicle-monthly-stays-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><VehicleMonthlyStayLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/radio-voice-consent-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><RadioVoiceConsentLog /></RoleRoute></ProtectedRoute>} />
+          {/* Sprint 36–37: B-118–B-123 */}
+          <Route path="/patrol-field-events-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><PatrolFieldEventLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/alert-queue-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><AlertQueueLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/compliance-results-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><ComplianceResultLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/welfare-events-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><WelfareEventB1Log /></RoleRoute></ProtectedRoute>} />
+          <Route path="/zone-geofence-snapshots" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'master']}><ZoneGeofenceSnapshotLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/feature-flags" element={<ProtectedRoute><RoleRoute allowedRoles={['master']}><FeatureFlagManager /></RoleRoute></ProtectedRoute>} />
 
           {/* CRM – Accounts (Clients + Contractors) */}
           <Route
@@ -2815,4 +2857,3 @@ export default function App() {
     </QueryClientProvider>
   )
 }
-
