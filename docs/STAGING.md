@@ -279,6 +279,26 @@ Latest Session Snapshot (Phase D3 Gate Artifacts + Phase E Kickoff Alignment —
   2. Carry forward E1→E4 checkpoints from `docs/MODULE_ROADMAP.md`.
   3. Maintain rollback-ready flag posture and org isolation evidence per slice.
 
+Latest Session Snapshot (Phase E1 BreachAlerts Mutation Consolidation — 2026-05-08):
+
+- Timestamp (NZ): 2026-05-08 11:02 NZST
+- Current branch: copilot/550-continue-phase-realignment
+- Scope completed:
+  - Continued E1 beyond the gate kickoff by moving BreachAlerts decision/welfare mutation data access into `src/hooks/useBreaches.ts`.
+  - Preserved existing decision outcomes: breach acknowledge, enforcement start, resolve, dismiss, and welfare acknowledgement still invalidate the same query keys and emit the same success/error toasts.
+  - Lowered the E1 BreachAlerts direct Supabase query baseline from 20 to 15 in `tests/e2e/phase-e1-data-access-consolidation.spec.ts`.
+  - Added `src/hooks/useBreaches.ts` to the E1 path-filtered workflow so future hook changes run with the consolidation gate.
+
+- E1 migration checkpoint:
+  | Surface | Before | After | Delta | Evidence |
+  |---|---:|---:|---:|---|
+  | BreachAlerts | 20 | 15 | -5 | `src/pages/BreachAlerts.tsx`, `src/hooks/useBreaches.ts`, `phase-e1-data-access-consolidation.spec.ts` |
+
+- Next session:
+  1. Continue E1 on the remaining BreachAlerts read clusters or move to `VehicleManagement` (19 baseline) if the next slice should target another high-count surface.
+  2. Lower the E1 baseline after each page-local query cluster migrates into hooks/services.
+  3. Keep lint/build and the E1 gate green before advancing to E2.
+
 Latest Session Snapshot (Phase E1 Data Access Consolidation Gate Kickoff — 2026-05-08):
 
 - Timestamp (NZ): 2026-05-08 10:49 NZST
@@ -297,7 +317,7 @@ Latest Session Snapshot (Phase E1 Data Access Consolidation Gate Kickoff — 202
   | FieldOfficerPortal | 4 |
   | AssetManagement | 0 |
   | VehicleManagement | 19 |
-  | BreachAlerts | 20 |
+  | BreachAlerts | 15 |
   | AdminPortal | 14 |
   | NoiseControlPortal | 0 |
   | ClientAccountPage | 0 |
@@ -312,7 +332,7 @@ Latest Session Snapshot (Phase E1 Data Access Consolidation Gate Kickoff — 202
   | Roadmap artifact refs updated | ✅ DONE | `docs/MODULE_ROADMAP.md` |
 
 - Next session:
-  1. Begin first actual E1 hook/service migration on the highest-count pages (`BreachAlerts`, `VehicleManagement`, then `AdminPortal`).
+  1. Continue actual E1 hook/service migration on the highest-count pages (`BreachAlerts`, `VehicleManagement`, then `AdminPortal`).
   2. Lower the E1 baseline in the gate as each page-local query cluster moves into hooks/services.
   3. Keep lint/build and the E1 gate green before advancing to E2.
 

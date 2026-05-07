@@ -234,3 +234,110 @@ export function useBreachStats(organizationId?: string | null) {
     },
   })
 }
+
+export function useAcknowledgeBreachAlert() {
+  const queryClient = useQueryClient()
+  const { user } = useAuthStore()
+
+  return useMutation({
+    mutationFn: async (breachId: string) => {
+      const { error } = await (supabase.from('breach_alerts') as any)
+        .update({
+          status: 'acknowledged',
+          notified_at: new Date().toISOString(),
+          notified_by: user?.id,
+        })
+        .eq('id', breachId)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['breach-alerts'] })
+      queryClient.invalidateQueries({ queryKey: ['intelligence-alerts'] })
+      toast.success('Breach acknowledged')
+    },
+    onError: () => toast.error('Failed to acknowledge breach'),
+  })
+}
+
+export function useStartBreachEnforcement() {
+  const queryClient = useQueryClient()
+  const { user } = useAuthStore()
+
+  return useMutation({
+    mutationFn: async (breachId: string) => {
+      const { error } = await (supabase.from('breach_alerts') as any)
+        .update({ status: 'enforcement_started', assigned_by: user?.id, assigned_at: new Date().toISOString() })
+        .eq('id', breachId)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['breach-alerts'] })
+      toast.success('Enforcement started')
+    },
+    onError: () => toast.error('Failed to start enforcement'),
+  })
+}
+
+export function useResolveBreachAlert(options: { onSuccess?: () => void } = {}) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ breachId, notes }: { breachId: string; notes: string }) => {
+      const { error } = await (supabase.from('breach_alerts') as any)
+        .update({
+          status: 'resolved',
+          resolved_at: new Date().toISOString(),
+          resolution_notes: notes || null,
+        })
+        .eq('id', breachId)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['breach-alerts'] })
+      queryClient.invalidateQueries({ queryKey: ['intelligence-alerts'] })
+      options.onSuccess?.()
+      toast.success('Breach marked as resolved')
+    },
+    onError: () => toast.error('Failed to resolve breach'),
+  })
+}
+
+export function useDismissBreachAlert() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ breachId, reason }: { breachId: string; reason?: string }) => {
+      const { error } = await (supabase.from('breach_alerts') as any)
+        .update({
+          status: 'dismissed',
+          resolution_notes: reason || null,
+        })
+        .eq('id', breachId)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['breach-alerts'] })
+      toast.success('Breach dismissed')
+    },
+    onError: () => toast.error('Failed to dismiss breach'),
+  })
+}
+
+export function useAcknowledgeWelfareAlert() {
+  const queryClient = useQueryClient()
+  const { user } = useAuthStore()
+
+  return useMutation({
+    mutationFn: async (alertId: string) => {
+      const { error } = await (supabase.from('officer_welfare_alerts') as any)
+        .update({ status: 'acknowledged', acknowledged_by: user?.id, acknowledged_at: new Date().toISOString() })
+        .eq('id', alertId)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['safety-alerts'] })
+      toast.success('Welfare alert acknowledged')
+    },
+    onError: () => toast.error('Failed to acknowledge welfare alert'),
+  })
+}

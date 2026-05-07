@@ -1,9 +1,16 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
+import {
+  useAcknowledgeBreachAlert,
+  useAcknowledgeWelfareAlert,
+  useDismissBreachAlert,
+  useResolveBreachAlert,
+  useStartBreachEnforcement,
+} from '@/hooks/useBreaches'
 import { AsyncStateWrapper } from '@/components/features/AsyncStateWrapper'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -692,94 +699,11 @@ export default function BreachAlerts() {
     enabled: !!activeBreach?.plate_number,
   })
 
-  // Acknowledge (was "notify") – correct status value per schema
-  const acknowledgeMutation = useMutation({
-    mutationFn: async (breachId: string) => {
-      const { error } = await (supabase.from('breach_alerts') as any)
-        .update({ 
-          status: 'acknowledged',
-          notified_at: new Date().toISOString(),
-          notified_by: user?.id,
-        })
-        .eq('id', breachId)
-      if (error) throw error
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['breach-alerts'] })
-      queryClient.invalidateQueries({ queryKey: ['intelligence-alerts'] })
-      toast.success('Breach acknowledged')
-    },
-    onError: () => toast.error('Failed to acknowledge breach'),
-  })
-
-  // Mark as enforcement started
-  const enforcementMutation = useMutation({
-    mutationFn: async (breachId: string) => {
-      const { error } = await (supabase.from('breach_alerts') as any)
-        .update({ status: 'enforcement_started', assigned_by: user?.id, assigned_at: new Date().toISOString() })
-        .eq('id', breachId)
-      if (error) throw error
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['breach-alerts'] })
-      toast.success('Enforcement started')
-    },
-    onError: () => toast.error('Failed to start enforcement'),
-  })
-
-  // Resolve breach – schema has no resolved_by column
-  const resolveMutation = useMutation({
-    mutationFn: async ({ breachId, notes }: { breachId: string; notes: string }) => {
-      const { error } = await (supabase.from('breach_alerts') as any)
-        .update({ 
-          status: 'resolved',
-          resolved_at: new Date().toISOString(),
-          resolution_notes: notes || null,
-        })
-        .eq('id', breachId)
-      if (error) throw error
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['breach-alerts'] })
-      queryClient.invalidateQueries({ queryKey: ['intelligence-alerts'] })
-      setResolveNotes('')
-      toast.success('Breach marked as resolved')
-    },
-    onError: () => toast.error('Failed to resolve breach'),
-  })
-
-  // Dismiss breach
-  const dismissMutation = useMutation({
-    mutationFn: async ({ breachId, reason }: { breachId: string; reason?: string }) => {
-      const { error } = await (supabase.from('breach_alerts') as any)
-        .update({ 
-          status: 'dismissed',
-          resolution_notes: reason || null,
-        })
-        .eq('id', breachId)
-      if (error) throw error
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['breach-alerts'] })
-      toast.success('Breach dismissed')
-    },
-    onError: () => toast.error('Failed to dismiss breach'),
-  })
-
-  // Welfare alert acknowledgement
-  const acknowledgeWelfareMutation = useMutation({
-    mutationFn: async (alertId: string) => {
-      const { error } = await (supabase.from('officer_welfare_alerts') as any)
-        .update({ status: 'acknowledged', acknowledged_by: user?.id, acknowledged_at: new Date().toISOString() })
-        .eq('id', alertId)
-      if (error) throw error
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['safety-alerts'] })
-      toast.success('Welfare alert acknowledged')
-    },
-    onError: () => toast.error('Failed to acknowledge welfare alert'),
-  })
+  const acknowledgeMutation = useAcknowledgeBreachAlert()
+  const enforcementMutation = useStartBreachEnforcement()
+  const resolveMutation = useResolveBreachAlert({ onSuccess: () => setResolveNotes('') })
+  const dismissMutation = useDismissBreachAlert()
+  const acknowledgeWelfareMutation = useAcknowledgeWelfareAlert()
 
   // Vehicle details enrichment
   const handleEnrichVehicle = async (plateNumber: string) => {

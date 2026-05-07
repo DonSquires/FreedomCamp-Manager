@@ -722,3 +722,9 @@ Phase D closeout is now anchored to D3 transition-handshake-offline gate evidenc
 2. CI workflow: `.github/workflows/ci-phase-e1-data-access-consolidation-gate.yml`.
 3. Baseline scope: the ten priority consolidation targets from the realignment plan (`PTTRadio`, `DispatchConsole`, `FieldOfficerPortal`, `AssetManagement`, `VehicleManagement`, `BreachAlerts`, `AdminPortal`, `NoiseControlPortal`, `ClientAccountPage`, `RosterPlanner`).
 4. Gate behavior: fail on upward direct Supabase page-query drift; allow reductions as hooks/services absorb page-local data access.
+
+### E1 migration progress
+
+1. BreachAlerts decision/welfare mutations moved from `src/pages/BreachAlerts.tsx` into `src/hooks/useBreaches.ts`.
+2. BreachAlerts direct Supabase query baseline lowered from 20 to 15 in the E1 gate.
+3. Next priority targets remain BreachAlerts read clusters, VehicleManagement, and AdminPortal.
