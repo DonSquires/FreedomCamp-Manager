@@ -1,9 +1,9 @@
 # Module Roadmap (Operator Navigation Map)
 
 Date: 2026-05-07 (verified against src/navigation/routeManifest.ts)
-Source of truth for routes: route manifest file src/navigation/routeManifest.ts (187 route manifest entries as of Sprint 41 completion)
+Source of truth for routes: route manifest file src/navigation/routeManifest.ts (187 route manifest entries as of Sprint 42 completion)
 
-> **Last Verification**: 2026-05-07 — Role-gating and route docs reviewed through Sprint 41 (B-135). Production main includes Sprints 31-41.
+> **Last Verification**: 2026-05-07 — Role-gating and route docs reviewed through Sprint 42 (B-138). Production main includes Sprints 31-42.
 
 ## How To Use
 
@@ -684,7 +684,7 @@ New admin routes added in Sprint 42 (B-136, B-137, B-138):
 
 - Branch: main
 - PR state (base main): 0 open
-- Consolidation status: Sprint 31 through Sprint 41 route work is merged to production main
+- Consolidation status: Sprint 31 through Sprint 42 route work is merged to production main
 
 ## Next Phase Continuation — Phase E Kickoff
 

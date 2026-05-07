@@ -1917,7 +1917,7 @@ Latest Session Snapshot (Phase A Org-Isolation Gate — Explicit Deployment Bloc
 4. Emergency rollback: `bash scripts/rollback-feature-flag.sh FF_PHASE_B_<NAME>`
 5. All transitions logged to `feature_flag_rollout_history`
 
-**Next session:** Phase C Slice C2 — Access Control, Face Recognition, Identity Verification, Site Risk Assessment.
+**Historical next session at this checkpoint:** Phase C Slice C2 — Access Control, Face Recognition, Identity Verification, Site Risk Assessment.
 
 ---
 
