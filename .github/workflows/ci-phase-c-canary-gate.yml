@@ -1,0 +1,91 @@
+name: CI Phase C Canary Gate
+
+# Path-filtered gate that validates the feature flag canary rollout
+# infrastructure for Phase C slices (C1–C4) whenever the canary
+# progression test, feature flag migration, or canary scripts change.
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'tests/e2e/feature-flag-canary-progression.test.ts'
+      - 'supabase/migrations/20260504000003_feature_flags.sql'
+      - 'supabase/migrations/20260507000002_phase_c1_site_guard_case_bridge.sql'
+      - 'supabase/migrations/20260710000001_phase_c2_access_control_case_bridge.sql'
+      - 'supabase/migrations/20260710000002_phase_c3_poi_voi_evidence_case_bridge.sql'
+      - 'supabase/migrations/20260710000003_phase_c4_assets_keys_client_case_bridge.sql'
+      - 'scripts/advance-canary-stage.sh'
+      - 'scripts/rollback-feature-flag.sh'
+      - 'tests/e2e/setup.ts'
+      - 'playwright.api.config.ts'
+      - 'package.json'
+      - 'bun.lock'
+      - '.github/workflows/ci-phase-c-canary-gate.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'tests/e2e/feature-flag-canary-progression.test.ts'
+      - 'supabase/migrations/20260504000003_feature_flags.sql'
+      - 'supabase/migrations/20260507000002_phase_c1_site_guard_case_bridge.sql'
+      - 'supabase/migrations/20260710000001_phase_c2_access_control_case_bridge.sql'
+      - 'supabase/migrations/20260710000002_phase_c3_poi_voi_evidence_case_bridge.sql'
+      - 'supabase/migrations/20260710000003_phase_c4_assets_keys_client_case_bridge.sql'
+      - 'scripts/advance-canary-stage.sh'
+      - 'scripts/rollback-feature-flag.sh'
+      - 'tests/e2e/setup.ts'
+      - 'playwright.api.config.ts'
+      - 'package.json'
+      - 'bun.lock'
+      - '.github/workflows/ci-phase-c-canary-gate.yml'
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  phase-c-canary-gate:
+    name: Phase C Canary Progression Gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+
+    env:
+      VITE_SUPABASE_URL:         ${{ secrets.VITE_SUPABASE_URL }}
+      VITE_SUPABASE_ANON_KEY:    ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Validate canary scripts are executable
+        run: |
+          [ -x scripts/advance-canary-stage.sh ] || chmod +x scripts/advance-canary-stage.sh
+          [ -x scripts/rollback-feature-flag.sh ] || chmod +x scripts/rollback-feature-flag.sh
+          echo "✓ Canary scripts are executable"
+
+      - name: Run feature flag canary progression test suite
+        run: |
+          bunx playwright test \
+            tests/e2e/feature-flag-canary-progression.test.ts \
+            --config=playwright.api.config.ts \
+            --reporter=list
+
+      - name: Upload Playwright artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: phase-c-canary-gate-${{ github.run_id }}
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore

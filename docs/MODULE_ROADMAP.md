@@ -776,3 +776,26 @@ With Phase B delivery and gate evidence in place, the next execution phase is Ph
 4. **Phase C Exit to Phase D**
    - All Phase C gate criteria are green (per build realignment gate definitions).
    - Evidence is recorded in `docs/STAGING.md` with linked CI runs and validation artifacts.
+
+## Next Phase Continuation — Phase D Kickoff
+
+With Phase C delivery and gate evidence in place, the next execution phase is Phase D.
+
+1. **Phase D Entry Check (Go/No-Go)**
+   - Confirm Phase C gate is green against `docs/BUILD_REALIGNMENT_PLAN_2026-05-04.md` section 12.1 criteria.
+   - Confirm Bob, translation, and transition ownership rota is active for D1–D3 slices.
+   - Confirm degraded-mode behaviour for Bob and translation surfaces is defined before implementation begins.
+
+2. **Phase D Delivery Order (per 11.1 / 11.1a)**
+   - D1: Bob Approval Contracts and Proposal / Audit Pathways
+   - D2: Translation / Speech Runtime Boundaries and Degraded-Mode Controls
+   - D3: Active-Org Transition Services, Hybrid Handshake, Offline Replay and Reconnect Hardening
+
+3. **Phase D Progression Checkpoints**
+   - **Checkpoint 1 (D1 complete)**: Bob approval, proposal, and audit contract outputs are traceable and governed end-to-end.
+   - **Checkpoint 2 (D2 complete)**: translation/speech services are bounded, degraded-mode safe, and produce auditable synthetic-audio outputs.
+   - **Checkpoint 3 (D3 complete)**: active-org transitions, hybrid handshakes, and offline-replay conflict resolution pass defined test scenarios.
+
+4. **Phase D Exit to Phase E**
+   - All Phase D gate criteria are green (per build realignment gate definitions).
+   - Evidence is recorded in `docs/STAGING.md` with linked CI runs and validation artifacts.

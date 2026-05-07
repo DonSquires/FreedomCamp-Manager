@@ -1861,8 +1861,145 @@ Latest Session Snapshot (Phase A Org-Isolation Gate — Explicit Deployment Bloc
 - `useActiveEmergencyAssists` polls every 30 s via `refetchInterval` so the command console surfaces active emergencies without a full realtime subscription.
 - `site_incidents.case_id` is nullable (SET NULL on cascade) so existing incidents created before C1 are not orphaned.
 
-**Next session:** Phase C Slice C2 — Access Control, Face Recognition, Identity Verification, Site Risk Assessment.
+---
 
+### Session Snapshot (Phase C2 Access Control — 2026-05-07):
+
+- Timestamp (NZ): 2026-05-07 NZST
+- Current branch: copilot/548-define-post-sprint-42-realignment-phases
+- Scope: Phase C Slice C2 — Access Control / Face Recognition / Identity Verification / Site Risk Assessment on the case backbone.
+
+**Artifacts:**
+
+| File | Description |
+|---|---|
+| `supabase/migrations/20260710000001_phase_c2_access_control_case_bridge.sql` | Extends `operational_cases` CHECK constraints with `access_control` and `identity_check` case types; adds `case_id` FK to `access_control_incidents`, `access_entries`, `person_id_documents`, `site_risk_assessments`. RLS org-scoped, indexes on each FK. |
+| `src/hooks/useAccessControlC2.ts` | `useOpenAccessControlCase`, `useLogAccessIncidentToCase`, `useLogIdentityVerificationToCase`, `useLogRiskAssessmentToCase`, `useAccessControlCaseTimeline` |
+| `tests/e2e/phase-c2-access-control.spec.ts` | 8 scenarios: table queries, case_type creation (access_control + identity_check), incident link, access_entries column, case stays active, timeline query, org isolation. |
+| `.github/workflows/ci-phase-c2-access-control-gate.yml` | Path-filtered CI gate (spec + migration + hook + workflow) |
+
+**Phase C2 Gate Checklist:**
+
+| Item | Status | Evidence |
+|---|---|---|
+| C2 migration (`20260710000001`) | ✅ DONE | `access_control` + `identity_check` case types, 4 FK columns |
+| C2 hook (`useAccessControlC2.ts`) | ✅ DONE | 5 hooks: open case, log incident/ID/risk, timeline |
+| C2 E2E gate suite | ✅ DONE | `tests/e2e/phase-c2-access-control.spec.ts` — 8 scenarios |
+| C2 CI gate workflow | ✅ DONE | `.github/workflows/ci-phase-c2-access-control-gate.yml` |
+| Build passes | ✅ | Verified |
+| Lint passes | ✅ | Verified |
+
+---
+
+### Session Snapshot (Phase C3 POI / VOI / Evidence — 2026-05-07):
+
+- Timestamp (NZ): 2026-05-07 NZST
+- Current branch: copilot/548-define-post-sprint-42-realignment-phases
+- Scope: Phase C Slice C3 — POI, VOI, LOI, trespass notices, alert queue case bridge.
+
+**Artifacts:**
+
+| File | Description |
+|---|---|
+| `supabase/migrations/20260710000002_phase_c3_poi_voi_evidence_case_bridge.sql` | Extends `operational_cases` with `poi_alert`, `voi_alert`, `evidence_capture` types; adds `case_id` FK to `persons_of_interest`, `vehicles_of_interest`, `trespass_notices`, `alert_queue`. |
+| `src/hooks/usePOIC3.ts` | `useOpenPOIAlertCase`, `useLinkPOIToCase`, `useLinkVOIToCase`, `useIssueTrespassNoticeOnCase`, `useLinkAlertToCase`, `usePOICaseTimeline` |
+| `tests/e2e/phase-c3-poi-voi-loi-evidence.spec.ts` | 8 scenarios: column checks, poi_alert/voi_alert case creation, POI/VOI case linking, trespass notice on case, alert link, timeline query, org isolation. |
+| `.github/workflows/ci-phase-c3-poi-voi-loi-gate.yml` | Path-filtered CI gate |
+
+**Phase C3 Gate Checklist:**
+
+| Item | Status | Evidence |
+|---|---|---|
+| C3 migration (`20260710000002`) | ✅ DONE | 3 new case types, 4 FK columns |
+| C3 hook (`usePOIC3.ts`) | ✅ DONE | 6 hooks: open POI case, link POI/VOI/alert, issue trespass, timeline |
+| C3 E2E gate suite | ✅ DONE | `tests/e2e/phase-c3-poi-voi-loi-evidence.spec.ts` — 8 scenarios |
+| C3 CI gate workflow | ✅ DONE | `.github/workflows/ci-phase-c3-poi-voi-loi-gate.yml` |
+| Build passes | ✅ | Verified |
+| Lint passes | ✅ | Verified |
+
+---
+
+### Session Snapshot (Phase C4 Assets / Keys / Client — 2026-05-07):
+
+- Timestamp (NZ): 2026-05-07 NZST
+- Current branch: copilot/548-define-post-sprint-42-realignment-phases
+- Scope: Phase C Slice C4 — Assets, Keys, Service Agreements case bridge.
+
+**Artifacts:**
+
+| File | Description |
+|---|---|
+| `supabase/migrations/20260710000003_phase_c4_assets_keys_client_case_bridge.sql` | Extends `operational_cases` with `client_request` type; creates `case_assets_used` and `case_keys_used` junction tables; creates `service_agreements` table for SLA contracts. |
+| `src/hooks/useAssetsKeysC4.ts` | `useRecordAssetUsedOnCase`, `useRecordKeyUsedOnCase`, `useC4CaseTimeline`, `useServiceAgreements`, `useCreateServiceAgreement` |
+| `tests/e2e/phase-c4-assets-keys-client.spec.ts` | Scenarios: table queries, client_request case creation, asset/key recording, service agreement CRUD, org isolation. |
+| `.github/workflows/ci-phase-c4-assets-keys-gate.yml` | Path-filtered CI gate |
+
+**Phase C4 Gate Checklist:**
+
+| Item | Status | Evidence |
+|---|---|---|
+| C4 migration (`20260710000003`) | ✅ DONE | `client_request` type + `case_assets_used` + `case_keys_used` + `service_agreements` |
+| C4 hook (`useAssetsKeysC4.ts`) | ✅ DONE | 5 hooks: record asset/key, timeline, service agreements CRUD |
+| C4 E2E gate suite | ✅ DONE | `tests/e2e/phase-c4-assets-keys-client.spec.ts` |
+| C4 CI gate workflow | ✅ DONE | `.github/workflows/ci-phase-c4-assets-keys-gate.yml` |
+| Build passes | ✅ | Verified |
+| Lint passes | ✅ | Verified |
+
+---
+
+### Session Snapshot (Phase C Complete Review — 2026-05-07):
+
+- Timestamp (NZ): 2026-05-07 NZST
+- Current branch: copilot/548-define-post-sprint-42-realignment-phases
+- Scope: Full Phase C audit and gap-close — all four slices (C1, C2, C3, C4) plus canary gate now complete end-to-end.
+
+**Gap Audit Result:**
+
+| Slice | Migration | Hook | E2E Test | CI Gate |
+|---|---|---|---|---|
+| C1 Site Guard | ✅ | ✅ | ✅ | ✅ |
+| C2 Access Control / Identity | ✅ | ✅ | ✅ | ✅ |
+| C3 POI / VOI / Evidence | ✅ | ✅ | ✅ | ✅ |
+| C4 Assets / Keys / Client | ✅ | ✅ | ✅ | ✅ |
+| Canary Gate | ✅ (feature_flags infra) | ✅ (useFeatureFlag) | ✅ (canary progression test) | ❌ MISSING → FIXED |
+
+**Artifact Created This Session:**
+
+| File | Description |
+|---|---|
+| `.github/workflows/ci-phase-c-canary-gate.yml` | Phase C canary path-filtered CI gate with script executability check; references all four C1-C4 migration paths |
+
+**Phase C Gate Checklist — COMPLETE:**
+
+| Item | Status | Evidence |
+|---|---|---|
+| Phase B gate (all criteria) | ✅ PASS | Session log 2026-05-05; B1–B4 migration + hook + test + CI |
+| C1: Site guard workflows on case backbone + CI | ✅ | `useSiteGuardC1.ts` + `20260507000002` + spec + gate |
+| C2: Identity/risk surfaces on shared contracts + CI | ✅ | `useAccessControlC2.ts` + `20260710000001` + spec + gate |
+| C3: Intelligence surfaces contract-backed + CI | ✅ | `usePOIC3.ts` + `20260710000002` + spec + gate |
+| C4: Client services on operational contract model + CI | ✅ | `useAssetsKeysC4.ts` + `20260710000003` + spec + gate |
+| Canary procedure: infra + test + scripts + CI | ✅ | feature_flags tables + useFeatureFlag + canary test + scripts + `ci-phase-c-canary-gate.yml` |
+| Build passes (`bun run build`) | ✅ | Verified locally |
+| Lint passes (`bun run lint`) | ✅ | Verified locally |
+| Ownership assigned (external) | ⏳ EXTERNAL | `docs/PHASE_A_OWNERSHIP_STATUS.md` |
+
+**Phase C exit criteria (from plan section 12.1):**
+1. ✅ Phase B gate green
+2. ✅ Security assistive surfaces resolve people, vehicle, and place context from shared contracts (C2 identity/risk, C3 POI/VOI)
+3. ✅ Site guard and assistive workflows attach to the same case/timeline model (C1 + C4)
+
+**Canary procedure for Phase C (`FF_PHASE_C_*` flags):**
+1. `bash scripts/advance-canary-stage.sh FF_PHASE_C_SITE_GUARD` — promotes to 5% canary
+2. `bash scripts/advance-canary-stage.sh FF_PHASE_C_ACCESS_CONTROL` — promotes to 5% canary
+3. Monitor: error rate < 1%, p95 < 500ms, then re-run to advance through 25%, 50%, 100%
+4. Emergency rollback: `bash scripts/rollback-feature-flag.sh FF_PHASE_C_<NAME>`
+5. All transitions logged to `feature_flag_rollout_history`
+
+**Open blockers with owner:**
+- C2–C4 migrations need `supabase db push` against live environment (owner: platform/database migration pipeline).
+- Ownership Slack confirmations still external-only (owner: Primary execution lead).
+
+**Next session:** Phase D Slice D1 — Bob approval contracts and proposal/audit pathways.
 
 ---
 
