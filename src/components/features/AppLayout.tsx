@@ -351,6 +351,9 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/dispatch-ack-log', icon: Radio, label: 'Dispatch Acknowledgements', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/noise-jobs-log', icon: Volume2, label: 'Noise Job Log', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/noise-assessments-log', icon: Volume2, label: 'Noise Assessment Log', roles: ['admin', 'admin_officer', 'master'] },
+      // Sprint 28–29: B-94–B-99
+      { path: '/patrol-route-log', icon: Route, label: 'Patrol Route Log', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/radio-transmissions-log', icon: Radio, label: 'Radio Transmission Log', roles: ['admin', 'admin_officer', 'master', 'officer'] },
       // Sprint 31: B-103–B-105
       { path: '/vehicles-of-interest-log', icon: Car, label: 'Vehicles of Interest', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/persons-of-interest-log', icon: UserX, label: 'Persons of Interest', roles: ['admin', 'admin_officer', 'master'] },

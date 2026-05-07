@@ -3484,4 +3484,31 @@ The web SPA delivers SOS via the existing `officer_welfare_alerts` table + `send
 
 **Changes also included:** wired lazy imports + routes + manifest entries for Sprints 32–36 (B-106–B-120) that were present in AppLayout sidebar but missing from App.tsx and routeManifest.ts. Fixed pre-existing duplicate lazy imports and missing icon imports in AppLayout.tsx.
 
-**Next session:** Sprint 38 — TBD.
+## Phase 5 — Sprint 38 (Parity cleanup for previously shipped B tickets)
+
+### Changes
+
+- Added missing `routeManifest` entry for `/open-shifts-manager` so `isRouteVisibleForRole` can resolve it consistently with `App.tsx` and AppLayout.
+- Added missing Admin Logs sidebar links for:
+  - `/patrol-route-log` (B-94)
+  - `/radio-transmissions-log` (B-97)
+- This closes parity gaps where routes existed in `App.tsx` + `routeManifest.ts` but were absent from AppLayout, or vice versa.
+
+### Sprint 38 Board
+
+| Scope | Route | File(s) |
+|-------|-------|---------|
+| OpenShiftManager parity | /open-shifts-manager | src/navigation/routeManifest.ts |
+| PatrolRouteLog nav parity | /patrol-route-log | src/components/features/AppLayout.tsx |
+| RadioTransmissionLog nav parity | /radio-transmissions-log | src/components/features/AppLayout.tsx |
+
+### Session Snapshot (Sprint 38 — 2026-05-07)
+
+- Timestamp (UTC): 2026-05-07 02:47 UTC
+- Current branch: copilot/noop-529-continue
+
+**Validation:**
+- `bun run lint` → PASS
+- `bun run build` → PASS
+
+**Next session:** Sprint 39 — continue route parity and remaining sprint backlog.

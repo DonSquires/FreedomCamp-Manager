@@ -898,6 +898,18 @@ export const routeManifest: RouteManifestEntry[] = [
     preloadPolicy: 'none',
   },
   {
+    routeId: 'admin.open-shifts-manager',
+    path: '/open-shifts-manager',
+    shell: 'admin',
+    rolesAllowed: ['admin', 'admin_officer', 'master', 'grand_master'],
+    navGroup: 'Roster & Workforce',
+    navLabel: 'Open Shift Manager',
+    visibilityMode: 'production',
+    featureFlag: null,
+    mobilePriority: 3,
+    preloadPolicy: 'none',
+  },
+  {
     routeId: 'admin.availability',
     path: '/availability',
     shell: 'admin',
