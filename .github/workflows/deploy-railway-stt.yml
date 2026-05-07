@@ -122,27 +122,24 @@ jobs:
           RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_STT_SERVICE_ID || secrets.RAILWAY_SERVICE_ID }}
         run: |
           set -euo pipefail
-
-          ACTIVE_TOKEN=""
+          cd railway-stt
+          DEPLOYED="false"
           for CANDIDATE in "$RAILWAY_TOKEN" "$RAILWAY_BOB_TOKEN" "$RAILWAY_PTT_TOKEN"; do
             if [ -z "$CANDIDATE" ]; then
               continue
             fi
-            if RAILWAY_TOKEN="$CANDIDATE" railway whoami >/dev/null 2>&1; then
-              ACTIVE_TOKEN="$CANDIDATE"
+
+            if RAILWAY_TOKEN="$CANDIDATE" railway up --service "$RAILWAY_SERVICE_ID" --detach; then
+              DEPLOYED="true"
               break
             fi
           done
 
-          if [ -z "$ACTIVE_TOKEN" ]; then
+          if [ "$DEPLOYED" != "true" ]; then
             echo "::error::No valid Railway token found among configured secrets."
             exit 1
           fi
 
-          cd railway-stt
-          RAILWAY_TOKEN="$ACTIVE_TOKEN" railway up \
-            --service "$RAILWAY_SERVICE_ID" \
-            --detach
           echo "✅ Railway STT deploy triggered for service $RAILWAY_SERVICE_ID"
 
       - name: Post-deploy health check
