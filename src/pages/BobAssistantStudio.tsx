@@ -382,6 +382,8 @@ const BOB_END_PHRASES = [
 ]
 const VOICE_INACTIVITY_TIMEOUT_MS = 29_000
 const BOB_CHAT_RESPONSE_TIMEOUT_MS = 45_000
+const BOB_SERVICE_OUTAGE_KEY = 'bob-service-outage-until'
+const BOB_SERVICE_OUTAGE_COOLDOWN_MS = 2 * 60_000
 
 async function withPromiseTimeout<T>(
   promise: Promise<T>,
@@ -401,6 +403,30 @@ async function withPromiseTimeout<T>(
       window.clearTimeout(timeoutHandle)
     }
   }
+}
+
+function getBobServiceOutageUntil(): number {
+  if (typeof window === 'undefined') return 0
+  const raw = window.localStorage.getItem(BOB_SERVICE_OUTAGE_KEY)
+  const parsed = Number(raw || '0')
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
+function isBobServiceInCooldown(): { active: boolean; remainingMs: number } {
+  const outageUntil = getBobServiceOutageUntil()
+  const remainingMs = Math.max(0, outageUntil - Date.now())
+  return { active: remainingMs > 0, remainingMs }
+}
+
+function markBobServiceOutage() {
+  if (typeof window === 'undefined') return
+  const outageUntil = Date.now() + BOB_SERVICE_OUTAGE_COOLDOWN_MS
+  window.localStorage.setItem(BOB_SERVICE_OUTAGE_KEY, String(outageUntil))
+}
+
+function clearBobServiceOutage() {
+  if (typeof window === 'undefined') return
+  window.localStorage.removeItem(BOB_SERVICE_OUTAGE_KEY)
 }
 
 function BobSketchPad() {
@@ -1412,6 +1438,24 @@ export default function BobAssistantStudio() {
       }
     }
 
+    const cooldown = isBobServiceInCooldown()
+    if (cooldown.active) {
+      const retrySeconds = Math.max(10, Math.ceil(cooldown.remainingMs / 1000))
+      setBobDegraded(true)
+      setChat((prev) => [
+        ...prev,
+        {
+          id: crypto.randomUUID(),
+          role: 'assistant',
+          text: `Bob/Ollama is still reconnecting. Please retry in about ${retrySeconds}s. I can still provide a quick local action checklist while AI service recovers.`,
+          createdAt: new Date().toISOString(),
+        },
+      ])
+      toast.error(`Bob/Ollama service recovering (retry in ~${retrySeconds}s)`)
+      setThinking(false)
+      return
+    }
+
     try {
       const { data, error } = await withPromiseTimeout(
         edgeFunctions.aiChat(buildRequestBody()),
@@ -1424,6 +1468,7 @@ export default function BobAssistantStudio() {
 
       const replyText: string = data?.response || 'I could not generate a response. Please try again.'
       setBobDegraded(data?.provider === 'local-fallback')
+      clearBobServiceOutage()
 
       const bobMsg: ChatMessage = {
         id: crypto.randomUUID(),
@@ -1526,6 +1571,7 @@ export default function BobAssistantStudio() {
       }
     } catch (err: any) {
       console.error('Bob assistant invoke failed:', err)
+      markBobServiceOutage()
       setBobDegraded(true)
       const replyText = 'Bob/Ollama is temporarily unavailable right now. Please retry in a moment.'
       const bobMsg: ChatMessage = {
