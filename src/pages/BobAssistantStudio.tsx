@@ -16,6 +16,7 @@ import { getEffectiveBobExecutionPolicy, useBobExecutionPolicyStore } from '@/st
 import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
 import { useBobActionApproval } from '@/hooks/useBobActionApproval'
+import { listPendingBobActionProposals, type BobActionProposalRow } from '@/hooks/useBobApprovalD1'
 import { usePTTStore } from '@/stores/pttStore'
 import { supabase } from '@/lib/supabase'
 import { BrainCircuit, CheckCircle2, ClipboardList, FlaskConical, Loader2, MapPinned, Mic, MicOff, Paintbrush2, Play, Radio, Route, Send, Volume2, VolumeX, Wrench, Github, ShieldAlert, PhoneOff, SignalHigh, Stethoscope, XCircle } from 'lucide-react'
@@ -116,6 +117,15 @@ interface PlanForm {
   assignedServiceProviderOrgId: string
   assignedOfficeLocationId: string
   fieldStaffCanView: boolean
+}
+
+function formatApprovalDueState(approvalDueAt: string): string {
+  const deltaMs = new Date(approvalDueAt).getTime() - Date.now()
+  if (deltaMs <= 0) return 'overdue'
+  const seconds = Math.ceil(deltaMs / 1000)
+  if (seconds < 60) return `due in ${seconds}s`
+  const minutes = Math.ceil(seconds / 60)
+  return `due in ${minutes}m`
 }
 
 type AssignmentOption = {
@@ -625,6 +635,7 @@ export default function BobAssistantStudio() {
   const [codeTaskLoading, setCodeTaskLoading] = useState(false)
   const [codeTaskResult, setCodeTaskResult] = useState('')
   const [pendingApprovalsCount, setPendingApprovalsCount] = useState(0)
+  const [pendingApprovalItems, setPendingApprovalItems] = useState<BobActionProposalRow[]>([])
   const [statusRefreshing, setStatusRefreshing] = useState(false)
   const [statusLastCheckedAt, setStatusLastCheckedAt] = useState<string | null>(null)
   const [doctorHealth, setDoctorHealth] = useState<any>(null)
@@ -2796,25 +2807,26 @@ export default function BobAssistantStudio() {
   }
 
   const loadPendingApprovals = useCallback(async () => {
-    if (!user?.id) {
+    const isSupervisor = ['admin', 'admin_officer', 'master', 'grand_master'].includes(String(user?.role ?? ''))
+    if (!user?.id || !effectiveOrgId || !isSupervisor) {
       setPendingApprovalsCount(0)
+      setPendingApprovalItems([])
       return
     }
 
     try {
-      const { count, error } = await ((supabase.from('notifications') as any)
-        .select('id', { count: 'exact', head: true })
-        .eq('user_id', user.id)
-        .eq('read', false)
-        .contains('data', { requires_code_fix_approval: true }))
-
-      if (error) throw error
-      setPendingApprovalsCount(Number(count ?? 0))
+      const queue = await listPendingBobActionProposals({
+        organizationId: effectiveOrgId,
+        limit: 5,
+      })
+      setPendingApprovalsCount(queue.length)
+      setPendingApprovalItems(queue)
       setStatusLastCheckedAt(new Date().toISOString())
     } catch {
       setPendingApprovalsCount(0)
+      setPendingApprovalItems([])
     }
-  }, [user?.id])
+  }, [effectiveOrgId, user?.id, user?.role])
 
   const loadDoctorHealth = useCallback(async () => {
     if (!isGrandMaster) return
@@ -3307,6 +3319,25 @@ export default function BobAssistantStudio() {
                   <div className="mt-1">{radioTranslationService.isReady() ? 'active' : 'warming/fallback'}</div>
                 </div>
               </div>
+
+              {pendingApprovalItems.length > 0 && (
+                <div className="rounded border p-3 text-xs space-y-2">
+                  <div className="font-medium text-muted-foreground">Bob approval queue</div>
+                  {pendingApprovalItems.slice(0, 3).map((proposal) => (
+                    <div key={proposal.id} className="flex items-center justify-between gap-3 rounded border px-2 py-2">
+                      <div className="min-w-0">
+                        <div className="truncate font-medium">{proposal.title}</div>
+                        <div className="text-muted-foreground">
+                          {proposal.impact_level} impact · {proposal.status}
+                        </div>
+                      </div>
+                      <Badge variant={proposal.status === 'pending_escalation' ? 'destructive' : 'secondary'}>
+                        {formatApprovalDueState(proposal.approval_due_at)}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              )}
 
               {endpointHealth && (
                 <div className="rounded border p-3 text-xs space-y-1">

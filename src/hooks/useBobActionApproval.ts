@@ -18,6 +18,13 @@ import { useAuthStore } from '@/stores/authStore'
 import { supabase } from '@/lib/supabase'
 import { toast } from 'sonner'
 import type { BobRecommendation } from '@/components/features/BobActionApprovalDialog'
+import {
+  approveBobActionProposalRecord,
+  createBobActionProposalRecord,
+  mapRiskLevelToImpactLevel,
+  markBobActionProposalExecutionRecord,
+  rejectBobActionProposalRecord,
+} from '@/hooks/useBobApprovalD1'
 
 export interface BobApprovalState {
   isOpen: boolean
@@ -35,6 +42,54 @@ export function useBobActionApproval() {
 
   const executionQueueRef = useRef<Map<string, BobRecommendation>>(new Map())
 
+  const ensureStructuredProposal = useCallback(
+    async (recommendation: BobRecommendation): Promise<BobRecommendation> => {
+      if (!user?.organization_id || !user?.id) return recommendation
+      if (recommendation.proposalId) return recommendation
+
+      const sourceRecordId = recommendation.entityId && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(recommendation.entityId)
+        ? recommendation.entityId
+        : null
+
+      const created = await createBobActionProposalRecord({
+        organizationId: user.organization_id,
+        requestedBy: user.id,
+        proposalType: recommendation.actionType,
+        title: recommendation.title,
+        proposalPayload: {
+          description: recommendation.description,
+          entity_type: recommendation.entityType ?? null,
+          entity_id: recommendation.entityId ?? null,
+          confidence: recommendation.confidence ?? null,
+          evidence: recommendation.evidence ?? [],
+          suggested_payload: recommendation.suggestedPayload ?? {},
+        },
+        impactLevel: recommendation.impactLevel ?? mapRiskLevelToImpactLevel(recommendation.riskLevel),
+        caseId: recommendation.caseId ?? null,
+        sourceRecordTable: recommendation.entityType ?? null,
+        sourceRecordId,
+        sourceContextRefs: recommendation.sourceContextRefs ?? recommendation.evidence ?? [],
+      })
+
+      const hydratedRecommendation = {
+        ...recommendation,
+        proposalId: created.id,
+        approvalDueAt: created.approval_due_at,
+      }
+
+      setState((prev) => {
+        if (!prev.recommendation || prev.recommendation.id !== recommendation.id) return prev
+        return {
+          ...prev,
+          recommendation: hydratedRecommendation,
+        }
+      })
+
+      return hydratedRecommendation
+    },
+    [user?.id, user?.organization_id],
+  )
+
   /**
    * Show approval dialog for a Bob recommendation
    */
@@ -44,7 +99,8 @@ export function useBobActionApproval() {
       recommendation,
       isLoading: false,
     })
-  }, [])
+    void ensureStructuredProposal(recommendation)
+  }, [ensureStructuredProposal])
 
   /**
    * Close dialog without approval
@@ -62,7 +118,7 @@ export function useBobActionApproval() {
    */
   const logBobAction = useCallback(
     async (
-      action: 'recommendation_approved' | 'recommendation_rejected' | 'action_executed',
+      _action: 'recommendation_approved' | 'recommendation_rejected' | 'action_executed',
       recommendation: BobRecommendation,
       outcome: 'approved' | 'rejected' | 'success' | 'failed',
       notes: string,
@@ -112,13 +168,22 @@ export function useBobActionApproval() {
       setState((prev) => ({ ...prev, isLoading: true }))
 
       try {
+        const persistedRecommendation = await ensureStructuredProposal(recommendation)
+
         // Log the approval first (before mutation)
         await logBobAction(
           'recommendation_approved',
-          recommendation,
+          persistedRecommendation,
           'approved',
           notes,
         )
+
+        if (persistedRecommendation.proposalId) {
+          await approveBobActionProposalRecord({
+            proposalId: persistedRecommendation.proposalId,
+            note: notes,
+          })
+        }
 
         // Execute the provided mutation function if available
         if (executeFn) {
@@ -127,10 +192,17 @@ export function useBobActionApproval() {
             // Log successful execution
             await logBobAction(
               'action_executed',
-              recommendation,
+              persistedRecommendation,
               'success',
               notes,
             )
+            if (persistedRecommendation.proposalId) {
+              await markBobActionProposalExecutionRecord({
+                proposalId: persistedRecommendation.proposalId,
+                status: 'executed',
+                note: notes,
+              })
+            }
             toast.success(`Action approved and executed: ${recommendation.title}`)
             setState({ isOpen: false, recommendation: null, isLoading: false })
             return result
@@ -138,11 +210,19 @@ export function useBobActionApproval() {
             // Log execution failure
             await logBobAction(
               'action_executed',
-              recommendation,
+              persistedRecommendation,
               'failed',
               notes,
               execError.message,
             )
+            if (persistedRecommendation.proposalId) {
+              await markBobActionProposalExecutionRecord({
+                proposalId: persistedRecommendation.proposalId,
+                status: 'execution_failed',
+                note: notes,
+                error: execError.message,
+              })
+            }
             toast.error(`Failed to execute action: ${execError.message}`)
             setState((prev) => ({ ...prev, isLoading: false }))
             throw execError
@@ -158,7 +238,7 @@ export function useBobActionApproval() {
         setState((prev) => ({ ...prev, isLoading: false }))
       }
     },
-    [user, logBobAction],
+    [user, logBobAction, ensureStructuredProposal],
   )
 
   /**
@@ -174,13 +254,22 @@ export function useBobActionApproval() {
       setState((prev) => ({ ...prev, isLoading: true }))
 
       try {
+        const persistedRecommendation = await ensureStructuredProposal(recommendation)
+
         // Log the rejection
         await logBobAction(
           'recommendation_rejected',
-          recommendation,
+          persistedRecommendation,
           'rejected',
           reason,
         )
+
+        if (persistedRecommendation.proposalId) {
+          await rejectBobActionProposalRecord({
+            proposalId: persistedRecommendation.proposalId,
+            note: reason,
+          })
+        }
 
         toast.info(`Rejected: ${recommendation.title}`)
         setState({ isOpen: false, recommendation: null, isLoading: false })
@@ -190,7 +279,7 @@ export function useBobActionApproval() {
         setState((prev) => ({ ...prev, isLoading: false }))
       }
     },
-    [user, logBobAction],
+    [user, logBobAction, ensureStructuredProposal],
   )
 
   return {

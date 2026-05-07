@@ -1999,7 +1999,48 @@ Latest Session Snapshot (Phase A Org-Isolation Gate — Explicit Deployment Bloc
 - C2–C4 migrations need `supabase db push` against live environment (owner: platform/database migration pipeline).
 - Ownership Slack confirmations still external-only (owner: Primary execution lead).
 
-**Next session:** Phase D Slice D1 — Bob approval contracts and proposal/audit pathways.
+---
+
+### Session Snapshot (Phase D1 Bob Approval Contracts — 2026-05-07):
+
+- Timestamp (NZ): 2026-05-07 NZST
+- Current branch: copilot/548-define-post-sprint-42-realignment-phases
+- Scope: Phase D Slice D1 — structured Bob proposal, approval, escalation, execution, and audit contracts.
+
+**Artifacts:**
+
+| File | Description |
+|---|---|
+| `supabase/migrations/20260710000004_phase_d1_bob_approval_contracts.sql` | Creates `bob_action_proposals` and `bob_action_proposal_events`; adds approval, escalation, and execution RPCs with org-scoped RLS and supervisor role checks. |
+| `src/hooks/useBobApprovalD1.ts` | D1 contract hook layer: create proposal, queue query, approve/reject, escalate expired, mark execution, audit trail, case timeline. |
+| `src/hooks/useBobActionApproval.ts` | Existing Bob approval dialog flow now persists structured proposals and writes approval/execution outcomes through the D1 RPC contract before/after legacy audit_log writes. |
+| `src/components/features/BobActionApprovalDialog.tsx` | Surfaces D1 proposal metadata including approval due time. |
+| `src/pages/BobAssistantStudio.tsx` | Bob status cockpit now counts structured pending proposals and shows top queue items with visible due-state badges. |
+| `tests/e2e/phase-d1-bob-approval-contracts.spec.ts` | 10 D1 API scenarios covering table availability, case linkage, approve/reject, escalation, execution success/failure, event trail, and org isolation. |
+| `.github/workflows/ci-phase-d1-bob-approval-gate.yml` | Path-filtered D1 CI gate. |
+| `playwright.api.config.ts` | Broadens API test discovery so phase gate specs passed on the CLI are discoverable. |
+
+**Phase D1 Gate Checklist:**
+
+| Item | Status | Evidence |
+|---|---|---|
+| D1 migration (`20260710000004`) | ✅ DONE | proposal + event tables, 3 RPCs, RLS, indexes |
+| D1 hook (`useBobApprovalD1.ts`) | ✅ DONE | create/queue/approve/reject/escalate/execute/audit timeline flows |
+| Existing Bob approval integration | ✅ DONE | `useBobActionApproval.ts` + `BobAssistantStudio.tsx` + dialog timer state |
+| D1 E2E gate suite | ✅ DONE | `tests/e2e/phase-d1-bob-approval-contracts.spec.ts` — 10 scenarios |
+| D1 CI gate workflow | ✅ DONE | `.github/workflows/ci-phase-d1-bob-approval-gate.yml` |
+| Build passes (`bun run build`) | ✅ | Verified locally |
+| Lint passes (`bun run lint`) | ✅ | Verified locally |
+| Targeted D1 API suite | ✅/⏭️ | Discoverable and invoked locally; skipped without service-role env, CI gate provides secrets |
+
+**D1 contract outcomes:**
+1. ✅ Bob writes structured proposal rows with status, payload, source refs, due time, case/domain linkage.
+2. ✅ Supervisor decisions record actor ID and timestamp through explicit approve/reject RPCs.
+3. ✅ SLA timeouts move proposals to `pending_escalation`, not `approved`.
+4. ✅ Execution success and failure write distinct event outcomes (`executed`, `execution_failed`).
+5. ✅ Bob status cockpit now surfaces the structured approval queue with visible due-state badges.
+
+**Next session:** Phase D Slice D2 — Translation / Speech runtime boundaries and degraded-mode controls.
 
 ---
 

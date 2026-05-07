@@ -22,6 +22,8 @@ import { useState } from 'react'
 export interface BobRecommendation {
   /** Unique action identifier */
   id: string
+  /** Optional structured D1 proposal identifier once persisted */
+  proposalId?: string
   /** Action type: 'create', 'update', 'delete', 'enforce_action', 'policy_change', etc. */
   actionType: string
   /** Human-readable action title */
@@ -32,12 +34,20 @@ export interface BobRecommendation {
   entityId?: string
   /** Optional: entity type (e.g., 'vehicle', 'user', 'zone') */
   entityType?: string
+  /** Optional case link for the operational timeline */
+  caseId?: string
+  /** Optional structured source references used for D1 audit trail */
+  sourceContextRefs?: string[]
   /** Confidence level 0-100 */
   confidence?: number
   /** Evidence/reasoning Bob used to make this recommendation */
   evidence?: string[]
   /** Risk level: 'low' | 'medium' | 'high' */
   riskLevel?: 'low' | 'medium' | 'high'
+  /** Optional D1 impact level for stored proposal contracts */
+  impactLevel?: 'low' | 'medium' | 'high' | 'critical'
+  /** Optional D1 approval due time */
+  approvalDueAt?: string | null
   /** Suggested data payload for the mutation (optional) */
   suggestedPayload?: Record<string, any>
   /** Link to drill-down details (optional) */
@@ -164,6 +174,12 @@ export function BobActionApprovalDialog({
                   View details <ExternalLink className="h-3 w-3" />
                 </a>
               )}
+            </div>
+          )}
+
+          {recommendation.approvalDueAt && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
+              Approval due by {new Date(recommendation.approvalDueAt).toLocaleString('en-NZ')}
             </div>
           )}
 
