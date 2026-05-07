@@ -31,6 +31,12 @@ interface BreachAlertDateRangeOptions {
   dateTo?: string | null
 }
 
+interface BreachAlertQueueOptions extends BreachAlertDateRangeOptions {
+  statusFilter?: string
+  breachTypeFilter?: string
+  searchQuery?: string
+}
+
 interface ActiveBreachReference {
   id: string
   organization_id: string
@@ -71,6 +77,8 @@ export function extractObservationId(alert: DeduplicatableBreachAlert | null | u
 }
 
 function getZoneName(alert: DeduplicatableBreachAlert): string {
+  // Supabase can return joined zones as an object for single-row relations or as
+  // an array for aliased/select fallback shapes used by older page queries.
   const zones = alert.zones
   if (Array.isArray(zones)) return zones[0]?.name ?? ''
   return zones?.name ?? ''
@@ -365,6 +373,69 @@ export function useBreachStats(organizationId?: string | null) {
         high: highRes.count || 0,
       }
     },
+  })
+}
+
+export function useBreachAlertQueue(options: BreachAlertQueueOptions = {}) {
+  const {
+    organizationId,
+    zoneId,
+    startDate,
+    endDate,
+    dateFrom,
+    dateTo,
+    statusFilter = 'all',
+    breachTypeFilter = 'all',
+    searchQuery = '',
+  } = options
+
+  return useQuery<any[]>({
+    queryKey: ['breach-alerts', organizationId, zoneId, statusFilter, breachTypeFilter, searchQuery, dateFrom, dateTo],
+    queryFn: async ({ signal }) => {
+      const applyFilters = (query: any) => {
+        if (organizationId) query = query.eq('organization_id', organizationId)
+        if (zoneId) query = query.eq('zone_id', zoneId)
+        if (startDate) query = query.gte('created_at', startDate)
+        if (endDate) query = query.lte('created_at', endDate)
+        if (statusFilter !== 'all') query = query.eq('status', statusFilter)
+        if (breachTypeFilter !== 'all') query = query.eq('breach_type', breachTypeFilter)
+        if (searchQuery) query = query.ilike('plate_number', `%${searchQuery}%`)
+        return query
+      }
+
+      // Primary path with joined labels.
+      let primaryQuery = (supabase.from('breach_alerts') as any)
+        .select(`
+          *,
+          zones!zone_id(name),
+          organizations!organization_id(name)
+        `)
+        .order('created_at', { ascending: false })
+        .abortSignal(signal)
+
+      primaryQuery = applyFilters(primaryQuery)
+      const primary = await primaryQuery.limit(500)
+      if (!primary.error) return deduplicateBreachAlerts(primary.data || [])
+
+      // Fallback path if relationship join is unavailable or policy blocks join targets.
+      let fallbackQuery = (supabase.from('breach_alerts') as any)
+        .select('*')
+        .order('created_at', { ascending: false })
+        .abortSignal(signal)
+
+      fallbackQuery = applyFilters(fallbackQuery)
+      const fallback = await fallbackQuery.limit(500)
+      if (fallback.error) throw fallback.error
+
+      return deduplicateBreachAlerts(
+        (fallback.data || []).map((row: any) => ({
+          ...row,
+          zones: null,
+          organizations: null,
+        }))
+      )
+    },
+    retry: 1,
   })
 }
 

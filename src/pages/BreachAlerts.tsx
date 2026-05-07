@@ -5,10 +5,10 @@ import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
 import {
-  deduplicateBreachAlerts,
   extractObservationId,
   useAcknowledgeBreachAlert,
   useAcknowledgeWelfareAlert,
+  useBreachAlertQueue,
   useBreachIntelligenceAlerts,
   useBreachSafetyAlerts,
   useBreachVehicleDetail,
@@ -339,54 +339,16 @@ export default function BreachAlerts() {
     dateTo,
   })
 
-  // Fetch breach alerts (use created_at, not detected_at)
-  const { data: breaches, isLoading, isError: breachesIsError, error: breachesError } = useQuery<any[]>({
-    queryKey: ['breach-alerts', effectiveOrganizationId, zoneId, statusFilter, breachTypeFilter, searchQuery, dateFrom, dateTo],
-    queryFn: async ({ signal }) => {
-      const applyFilters = (query: any) => {
-        if (effectiveOrganizationId) query = query.eq('organization_id', effectiveOrganizationId)
-        if (zoneId) query = query.eq('zone_id', zoneId)
-        if (startDate) query = query.gte('created_at', startDate)
-        if (endDate) query = query.lte('created_at', endDate)
-        if (statusFilter !== 'all') query = query.eq('status', statusFilter)
-        if (breachTypeFilter !== 'all') query = query.eq('breach_type', breachTypeFilter)
-        if (searchQuery) query = query.ilike('plate_number', `%${searchQuery}%`)
-        return query
-      }
-
-      // Primary path with joined labels.
-      let primaryQuery = (supabase.from('breach_alerts') as any)
-        .select(`
-          *,
-          zones!zone_id(name),
-          organizations!organization_id(name)
-        `)
-        .order('created_at', { ascending: false })
-        .abortSignal(signal)
-
-      primaryQuery = applyFilters(primaryQuery)
-      const primary = await primaryQuery.limit(500)
-      if (!primary.error) return deduplicateBreachAlerts(primary.data || [])
-
-      // Fallback path if relationship join is unavailable or policy blocks join targets.
-      let fallbackQuery = (supabase.from('breach_alerts') as any)
-        .select('*')
-        .order('created_at', { ascending: false })
-        .abortSignal(signal)
-
-      fallbackQuery = applyFilters(fallbackQuery)
-      const fallback = await fallbackQuery.limit(500)
-      if (fallback.error) throw fallback.error
-
-      return deduplicateBreachAlerts(
-        (fallback.data || []).map((row: any) => ({
-          ...row,
-          zones: null,
-          organizations: null,
-        }))
-      )
-    },
-    retry: 1,
+  const { data: breaches, isLoading, isError: breachesIsError, error: breachesError } = useBreachAlertQueue({
+    organizationId: effectiveOrganizationId,
+    zoneId,
+    startDate,
+    endDate,
+    dateFrom,
+    dateTo,
+    statusFilter,
+    breachTypeFilter,
+    searchQuery,
   })
 
   useEffect(() => {
