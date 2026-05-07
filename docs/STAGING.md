@@ -3578,9 +3578,28 @@ The web SPA delivers SOS via the existing `officer_welfare_alerts` table + `send
 - [x] `bun run lint` → PASS
 - [x] `bun run build` → PASS
 
-### Session Snapshot (Sprint 36 — 2026-05-07)
+### Session Snapshot (Sprint 37 — 2026-05-07)
 
 - Timestamp (UTC): 2026-05-07 02:14 UTC
 - Current branch: copilot/review-doc-and-staging-files
 
-**Next session:** Sprint 37 — B-121 WelfareEventB1Log, B-122 ZoneGeofenceSnapshotLog, B-123 FeatureFlagManager.
+**Delivered on main:** Sprint 37 — B-121 WelfareEventB1Log, B-122 ZoneGeofenceSnapshotLog, B-123 FeatureFlagManager.
+
+## Production Consolidation Snapshot (2026-05-07)
+
+- Production branch: `main`
+- Merge status: PR branch work for Sprint 31-36 is merged into `main`
+- Open PRs targeting `main`: 0
+- Local/remote status at verification: `main...origin/main` (clean)
+
+### Included Production Merges
+
+- PR #524 branch content merged to `main`
+- PR #526 branch content merged to `main`
+- PR #527 branch content merged to `main`
+- PR #529 branch content merged to `main` with add/add conflicts resolved by keeping existing `main` implementations for overlapping log page files
+
+### Current Next Step
+
+- Run post-deploy verification and monitor Bob inference endpoint stability.
+- Continue next delivery planning from Sprint 38 scope.

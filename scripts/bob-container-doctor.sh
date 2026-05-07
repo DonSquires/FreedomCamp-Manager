@@ -137,6 +137,11 @@ if [[ "$BASE_URL" =~ /run$ || "$BASE_URL" =~ /runs$ ]]; then
   endpoint_kind="run"
 fi
 
+RUNPOD_PROBE_URL="$BASE_URL"
+if [[ "$endpoint_kind" == "runsync" && ! "$BASE_URL" =~ /runsync$ ]]; then
+  RUNPOD_PROBE_URL="${BASE_URL%/}/runsync"
+fi
+
 if [[ -z "$BASE_URL" || -z "$API_KEY" ]]; then
   fail "Missing RunPod credentials. Need RUNPOD_API_KEY (or DR_BOB_API) and optionally RUNPOD_GATEWAY_URL (or RUNPOD_SERVERLESS_URL)."
   exit 1
@@ -150,7 +155,7 @@ log "Checking RunPod endpoint health (kind=$endpoint_kind)"
 if [[ "$endpoint_kind" == "runsync" ]]; then
   PING_PAYLOAD='{"input":{"action":"ping"}}'
   PING_HTTP="$(curl -sS -m 30 -o /tmp/bob-ping.json -w '%{http_code}' \
-    -X POST "$BASE_URL" \
+    -X POST "$RUNPOD_PROBE_URL" \
     -H 'Content-Type: application/json' \
     -H "Authorization: Bearer $API_KEY" \
     -d "$PING_PAYLOAD" || true)"
@@ -168,7 +173,7 @@ if [[ "$endpoint_kind" == "runsync" ]]; then
   log "Checking RunPod chat action"
   CHAT_PAYLOAD='{"input":{"action":"chat","messages":[{"role":"user","content":"Container doctor ping. Reply with one short line."}]}}'
   CHAT_HTTP="$(curl -sS -m 45 -o /tmp/bob-chat.json -w '%{http_code}' \
-    -X POST "$BASE_URL" \
+    -X POST "$RUNPOD_PROBE_URL" \
     -H 'Content-Type: application/json' \
     -H "Authorization: Bearer $API_KEY" \
     -d "$CHAT_PAYLOAD" || true)"

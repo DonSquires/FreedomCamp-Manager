@@ -1,9 +1,9 @@
 # Module Roadmap (Operator Navigation Map)
 
-Date: 2026-05-06 (verified against src App.tsx)
-Source of truth for routes: App router file src App.tsx (186 total routes as of Sprint 35 completion)
+Date: 2026-05-07 (verified against src/navigation/routeManifest.ts)
+Source of truth for routes: route manifest file src/navigation/routeManifest.ts (175 route manifest entries as of Sprint 37 completion)
 
-> **Last Verification**: 2026-05-06 — All 186 routes reviewed and role-gating validated. Sprints 18–35 (B-64–B-117) documentation complete.
+> **Last Verification**: 2026-05-07 — Role-gating and route docs reviewed through Sprint 37 (B-123). Production main includes Sprints 31-37.
 
 ## How To Use
 
@@ -508,3 +508,85 @@ New admin routes added in Sprint 33 (B-109, B-110, B-111):
    - Route: /dispute-intake-log
    - Role gate: admin, admin_officer, master
    - Viewer for dispute_intake; KPIs (Total/Open/Homeless Review Req/Unique Plates); status/source_type/date + plate/claimant search filters; status+source_type badges; message/evidence/hardship/admin_notes expand
+
+## Sprint 34 Route Addendum (2026-05-07)
+
+New admin routes added in Sprint 34 (B-112, B-113, B-114):
+
+1. Radio TTS Render Log (B-112)
+   - Route: /radio-tts-render-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for radio_tts_renders (View, org_id scope); KPIs (Total/Synthetic/Avg Latency/Providers); provider/language/synthetic filters; translation segment and voice profile detail expand
+
+2. Health Safety Report Log (B-113)
+   - Route: /health-safety-report-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for health_safety_reports; KPIs (Total/High+/Open/Incident Types); severity/status/type filters; description and zone metadata expand
+
+3. Noise Seizure Log (B-114)
+   - Route: /noise-seizures-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for noise_seizures; KPIs (Total/Estimated Value/Police Present/With Photos); status/equipment filters; seizure details and photos expand
+
+## Sprint 35 Route Addendum (2026-05-07)
+
+New admin routes added in Sprint 35 (B-115, B-116, B-117):
+
+1. Locations of Interest Log (B-115)
+   - Route: /locations-of-interest-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for locations_of_interest; KPIs (Total/Active/Canonical/With Hazards); kind/active/canonical/city/name filters; hazard and geocoder detail expand
+
+2. Vehicle Monthly Stay Log (B-116)
+   - Route: /vehicle-monthly-stays-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for vehicle_monthly_stays; KPIs (Records/Total Nights/Consecutive>=3/Zones); month/plate filters; observation ids and reset metadata expand
+
+3. Radio Voice Consent Log (B-117)
+   - Route: /radio-voice-consent-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for radio_voice_consents (View, org_id scope); KPIs (Total/Active/Revoked/Avg Retention); provider/revoked/date filters; consent purpose and revocation reason expand
+
+## Sprint 36 Route Addendum (2026-05-07)
+
+New admin routes added in Sprint 36 (B-118, B-119, B-120):
+
+1. Patrol Field Event Log (B-118)
+   - Route: /patrol-field-events-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for patrol_events; KPIs (Total/With GPS/With Photos/Statuses); event/status/patrol type filters; observation and photo evidence expand
+
+2. Alert Queue Log (B-119)
+   - Route: /alert-queue-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for alert_queue; KPIs (Total/Acknowledged/Requires Ack/Types); type/status/priority filters; acknowledge action; details JSON expand
+
+3. Compliance Result Log (B-120)
+   - Route: /compliance-results-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for compliance_results; KPIs (Total/Compliant/Exempt/After-hours Violations); compliant/exempt/violation filters; matrix and reason detail expand
+
+## Sprint 37 Route Addendum (2026-05-07)
+
+New admin routes added in Sprint 37 (B-121, B-122, B-123):
+
+1. Welfare Events Log (B-121)
+   - Route: /welfare-events-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for welfare event stream and officer welfare follow-up history.
+
+2. Zone Geofence Snapshots (B-122)
+   - Route: /zone-geofence-snapshots
+   - Role gate: admin, admin_officer, master
+   - Snapshot viewer for zone geofence state and boundary change checkpoints.
+
+3. Feature Flags (B-123)
+   - Route: /feature-flags
+   - Role gate: master
+   - Feature flag administration surface for controlled production rollout.
+
+## Production Status Snapshot (2026-05-07)
+
+- Branch: main
+- PR state (base main): 0 open
+- Consolidation status: Sprint 31 through Sprint 37 route work is merged to production main
