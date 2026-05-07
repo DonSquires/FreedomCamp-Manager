@@ -1,9 +1,9 @@
 # Module Roadmap (Operator Navigation Map)
 
 Date: 2026-05-07 (verified against src/navigation/routeManifest.ts)
-Source of truth for routes: route manifest file src/navigation/routeManifest.ts (175 route manifest entries as of Sprint 37 completion)
+Source of truth for routes: route manifest file src/navigation/routeManifest.ts (178 route manifest entries as of Sprint 38 completion)
 
-> **Last Verification**: 2026-05-07 — Role-gating and route docs reviewed through Sprint 37 (B-123). Production main includes Sprints 31-37.
+> **Last Verification**: 2026-05-07 — Role-gating and route docs reviewed through Sprint 38 (B-126). Production main includes Sprints 31-38.
 
 ## How To Use
 
@@ -585,8 +585,27 @@ New admin routes added in Sprint 37 (B-121, B-122, B-123):
    - Role gate: master
    - Feature flag administration surface for controlled production rollout.
 
+## Sprint 38 Route Addendum (2026-05-07)
+
+New admin routes added in Sprint 38 (B-124, B-125, B-126):
+
+1. Feature Flag Evaluation Log (B-124)
+   - Route: /feature-flag-evaluations-log
+   - Role gate: master
+   - Viewer for feature_flag_evaluations; KPIs (Total/Enabled/Disabled/Unique Flags); enabled/flag_id/date filters; evaluation_context JSON and rollout_bucket expand
+
+2. Feature Flag Rollout Log (B-125)
+   - Route: /feature-flag-rollout-log
+   - Role gate: master
+   - Viewer for feature_flag_rollout_history; KPIs (Total/Increases/Rollbacks/Unique Flags); flag_id/stage/date filters; change_reason, monitoring_notes, error_rate, p95_latency expand
+
+3. Missing Photo Queue (B-126)
+   - Route: /missing-photo-queue
+   - Role gate: admin, admin_officer, master
+   - Viewer for missing_photo_queue; KPIs (Total/Pending/Failed/Resolved); status/plate/date filters; attempted_hash, original_photo_url, repair_notes expand
+
 ## Production Status Snapshot (2026-05-07)
 
 - Branch: main
 - PR state (base main): 0 open
-- Consolidation status: Sprint 31 through Sprint 37 route work is merged to production main
+- Consolidation status: Sprint 31 through Sprint 38 route work is merged to production main
