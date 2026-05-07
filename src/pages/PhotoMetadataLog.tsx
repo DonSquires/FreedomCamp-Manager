@@ -12,7 +12,7 @@
  * Route: /photo-metadata-log — admin/master
  */
 
-import { useState } from 'react'
+import { useState, Fragment } from 'react'
 import { format, parseISO } from 'date-fns'
 import {
   Image, RefreshCw, AlertCircle, Loader2,
@@ -189,9 +189,8 @@ export default function PhotoMetadataLog() {
                 {filtered.map(row => {
                   const expanded = expandedId === row.id
                   return (
-                    <>
+                    <Fragment key={row.id}>
                       <TableRow
-                        key={row.id}
                         className="cursor-pointer hover:bg-muted/50"
                         onClick={() => setExpandedId(expanded ? null : row.id)}
                       >
@@ -235,7 +234,7 @@ export default function PhotoMetadataLog() {
                           </TableCell>
                         </TableRow>
                       )}
-                    </>
+                    </Fragment>
                   )
                 })}
               </TableBody>

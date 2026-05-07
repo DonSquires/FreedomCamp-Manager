@@ -13,7 +13,7 @@
  * Route: /vehicles-of-interest-log — admin/admin_officer/master
  */
 
-import { useState } from 'react'
+import { useState, Fragment } from 'react'
 import { format, parseISO, differenceInDays } from 'date-fns'
 import {
   Car, RefreshCw, AlertCircle, Loader2,
@@ -222,9 +222,8 @@ export default function VehiclesOfInterestLog() {
                   const expiring  = isExpiringSoon(row.expires_at)
                   const expired   = isExpired(row.expires_at)
                   return (
-                    <>
+                    <Fragment key={row.id}>
                       <TableRow
-                        key={row.id}
                         className={`cursor-pointer hover:bg-muted/50 ${expired ? 'opacity-60' : ''}`}
                         onClick={() => setExpandedId(expanded ? null : row.id)}
                       >
@@ -293,7 +292,7 @@ export default function VehiclesOfInterestLog() {
                           </TableCell>
                         </TableRow>
                       )}
-                    </>
+                    </Fragment>
                   )
                 })}
               </TableBody>

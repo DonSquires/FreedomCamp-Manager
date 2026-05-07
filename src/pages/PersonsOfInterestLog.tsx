@@ -13,7 +13,7 @@
  * Route: /persons-of-interest-log — admin/admin_officer/master
  */
 
-import { useState } from 'react'
+import { useState, Fragment } from 'react'
 import { format, parseISO, differenceInDays } from 'date-fns'
 import {
   UserX, RefreshCw, AlertCircle, Loader2,
@@ -216,9 +216,8 @@ export default function PersonsOfInterestLog() {
                   const expanded = expandedId === row.id
                   const expiring = isExpiringSoon(row.expires_at)
                   return (
-                    <>
+                    <Fragment key={row.id}>
                       <TableRow
-                        key={row.id}
                         className="cursor-pointer hover:bg-muted/50"
                         onClick={() => setExpandedId(expanded ? null : row.id)}
                       >
@@ -310,7 +309,7 @@ export default function PersonsOfInterestLog() {
                           </TableCell>
                         </TableRow>
                       )}
-                    </>
+                    </Fragment>
                   )
                 })}
               </TableBody>
