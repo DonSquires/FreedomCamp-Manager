@@ -511,6 +511,7 @@ export default function PTTRadio() {
   const [audioPrimed, setAudioPrimed] = useState(false)
   const [isPrimingAudio, setIsPrimingAudio] = useState(false)
   const [showDiagnostics, setShowDiagnostics] = useState(false)
+  const [showInterpreterPanel, setShowInterpreterPanel] = useState(false)
   const [diagnostics, setDiagnostics] = useState<PTTDiagnostics>(() => getPTTDiagnostics())
   const [showVoxCalibrator, setShowVoxCalibrator] = useState(false)
   const [degradedMode, setDegradedMode] = useState(false)
@@ -526,25 +527,6 @@ export default function PTTRadio() {
   const [interpreterPrefsHydrated, setInterpreterPrefsHydrated] = useState(false)
   const [isInterpreterListening, setIsInterpreterListening] = useState(false)
   const [isInterpreterTranslating, setIsInterpreterTranslating] = useState(false)
-  const signalingDebugLabel = useMemo(() => {
-    if (!wsUrl) return 'Signal URL unavailable'
-    try {
-      const parsed = new URL(wsUrl)
-      const path = parsed.pathname && parsed.pathname !== '/' ? parsed.pathname : ''
-      return `${parsed.protocol}//${parsed.host}${path}`
-    } catch {
-      return wsUrl
-    }
-  }, [wsUrl])
-  const signalingTransportState = useMemo(() => {
-    if (!wsUrl) return 'SIGNAL UNKNOWN'
-    if (wsUrl.startsWith('wss://')) return 'WSS OK'
-    if (wsUrl.startsWith('ws://')) {
-      if (typeof window !== 'undefined' && window.location.protocol === 'https:') return 'WS BLOCKED'
-      return 'WS INSECURE'
-    }
-    return 'SIGNAL UNKNOWN'
-  }, [wsUrl])
   const radioMode = useMemo(() => {
     const search = new URLSearchParams(location.search)
     return search.get('mode') || ''
@@ -2633,10 +2615,10 @@ export default function PTTRadio() {
       description="Push-to-Talk radio console — independent 2-way radio system"
     >
       {/* Full-screen dark console */}
-      <div className="flex flex-col h-[calc(100vh-64px)] bg-slate-950 text-slate-100 font-mono overflow-hidden">
+      <div className="flex flex-col h-[calc(100vh-64px)] bg-slate-950 text-slate-100 font-sans md:font-mono overflow-hidden">
 
         {/* ── Top status bar ──────────────────────────────── */}
-        <div className="flex items-center justify-between px-4 py-2 bg-slate-900 border-b border-slate-800 shrink-0 flex-wrap gap-2">
+        <div className="flex items-center justify-between px-3 md:px-4 py-2 bg-slate-900 border-b border-slate-800 shrink-0 flex-wrap gap-2">
           {/* Mobile hamburger */}
           <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
             <SheetTrigger asChild>
@@ -2811,44 +2793,44 @@ export default function PTTRadio() {
           </Sheet>
 
           {/* Left: callsign + org */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 md:gap-3">
             <Radio className="h-5 w-5 text-blue-400" />
             <div>
-              <div className="text-xs text-slate-400 uppercase tracking-widest">Callsign</div>
-              <div className="text-lg font-bold text-white tracking-wider">{callsign || '---'}</div>
+              <div className="text-[10px] md:text-xs text-slate-500 uppercase tracking-widest">Callsign</div>
+              <div className="text-base md:text-lg font-semibold text-white tracking-wide">{callsign || '---'}</div>
             </div>
           </div>
 
           {/* Center: active channel */}
-          <div className="flex items-center gap-2 px-4 py-1.5 rounded bg-slate-800 border border-slate-700 min-w-[180px] justify-center">
+          <div className="flex items-center gap-1.5 md:gap-2 px-2.5 md:px-4 py-1.5 rounded bg-slate-800 border border-slate-700 min-w-[130px] md:min-w-[180px] justify-center">
             {activeChannel ? (
               <>
-                <span className="text-xs text-slate-400 uppercase">
+                <span className="text-[10px] md:text-xs text-slate-400 uppercase">
                   {activeChannel.badge_label || `CH ${activeChannel.channel_number}`}
                 </span>
                 <span className="w-2 h-2 rounded-full" style={{ backgroundColor: activeChannel.color }} />
-                <span className="font-bold text-white text-sm tracking-wide">{activeChannel.name.toUpperCase()}</span>
+                <span className="font-semibold text-white text-xs md:text-sm tracking-wide truncate max-w-[96px] md:max-w-none">{activeChannel.name.toUpperCase()}</span>
                 {activeChannel.scope_label && (
-                  <span className="text-[10px] text-slate-500 uppercase tracking-wide">{activeChannel.scope_label}</span>
+                  <span className="hidden md:inline text-[10px] text-slate-500 uppercase tracking-wide">{activeChannel.scope_label}</span>
                 )}
-                {scanMode && <span className="text-xs text-yellow-400 animate-pulse ml-1">SCAN</span>}
+                {scanMode && <span className="hidden md:inline text-xs text-yellow-400 animate-pulse ml-1">SCAN</span>}
               </>
             ) : (
-              <span className="text-slate-500 text-xs">NO CHANNEL</span>
+              <span className="text-slate-500 text-[10px] md:text-xs">NO CHANNEL</span>
             )}
           </div>
 
           {/* Right: connection + clock */}
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 md:gap-4">
             <div className="flex items-center gap-1.5 text-xs">
               <span className={`w-2 h-2 rounded-full ${connectionDot}`} />
               <span className={`uppercase tracking-wide ${connectionColor}`}>{connectionStatus}</span>
               {isConnecting && <Loader2 className="h-3 w-3 animate-spin text-yellow-400 ml-1" />}
               {retryCountdownSeconds !== null && (
-                <span className="ml-1 text-yellow-300 tabular-nums">retry {retryCountdownSeconds}s</span>
+                <span className="hidden md:inline ml-1 text-yellow-300 tabular-nums">retry {retryCountdownSeconds}s</span>
               )}
             </div>
-            <div className="flex items-center gap-1 text-slate-300">
+            <div className="hidden md:flex items-center gap-1 text-slate-300">
               <Clock className="h-3.5 w-3.5 text-slate-500" />
               <NZClock />
             </div>
@@ -2863,10 +2845,7 @@ export default function PTTRadio() {
           <div className="px-4 py-2 bg-slate-900 border-b border-slate-700 text-xs text-slate-300 flex items-center gap-2 shrink-0">
             <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-300 shrink-0" />
             <div className="min-w-0">
-              <div>Connecting to radio signaling service…</div>
-              <div className="text-[10px] text-slate-400/80 uppercase tracking-wider mt-1">
-                Signaling: {signalingDebugLabel} ({signalingTransportState})
-              </div>
+              <div>Connecting to radio service…</div>
             </div>
           </div>
         )}
@@ -2876,9 +2855,6 @@ export default function PTTRadio() {
             <AlertTriangle className="h-3.5 w-3.5 text-red-400 shrink-0" />
             <div className="min-w-0">
               <div>{error}</div>
-              <div className="text-[10px] text-red-400/80 uppercase tracking-wider mt-1">
-                Signaling: {signalingDebugLabel} ({signalingTransportState})
-              </div>
             </div>
             {canFallbackToTextChat && (
               <Button
@@ -2924,10 +2900,7 @@ export default function PTTRadio() {
           <div className="px-4 py-2 bg-amber-950 border-b border-amber-700 text-xs text-amber-300 flex items-center gap-2 shrink-0">
             <WifiOff className="h-3.5 w-3.5 text-amber-400 shrink-0" />
             <div className="min-w-0">
-              <div>PTT server unreachable - check your connection or use mobile phone direct.</div>
-              <div className="text-[10px] text-amber-400/80 uppercase tracking-wider mt-1">
-                Signaling: {signalingDebugLabel} ({signalingTransportState})
-              </div>
+              <div>Radio service unreachable. Check your connection and retry.</div>
             </div>
             <Button
               variant="ghost"
@@ -2942,19 +2915,16 @@ export default function PTTRadio() {
         )}
 
         {/* ── Translation rail status ─────────────────────── */}
-        <div className="px-4 py-2 border-b border-slate-800 bg-slate-900/80 shrink-0 flex items-center justify-between gap-3 flex-wrap">
+        <div className="px-3 md:px-4 py-1.5 md:py-2 border-b border-slate-800 bg-slate-900/80 shrink-0 flex items-center justify-between gap-2 flex-wrap">
           <div className="flex items-center gap-2 min-w-0">
             <span className={`h-2.5 w-2.5 rounded-full ${isDiplomaticMode ? 'bg-yellow-400 animate-pulse' : 'bg-blue-400 animate-pulse'}`} />
-            <span className="text-xs uppercase tracking-wide text-slate-200">
-              {isDiplomaticMode ? 'Diplomatic Bus' : 'Tactical Bus'}
+            <span className="text-[11px] md:text-xs uppercase tracking-wide text-slate-200 font-medium">
+              {isDiplomaticMode ? 'Mode: Diplomatic' : 'Mode: Tactical'}
             </span>
-            <span className="text-[10px] text-slate-400 truncate">{translationRailSubtitle}</span>
+            <span className="hidden md:inline text-[10px] text-slate-500 truncate">{translationRailSubtitle}</span>
           </div>
           <div className="flex items-center gap-2">
-            <Badge variant="outline" className={isDiplomaticMode ? 'border-yellow-500 text-yellow-300' : 'border-blue-500 text-blue-300'}>
-              {isDiplomaticMode ? 'Gold Pulse' : 'Blue Pulse'}
-            </Badge>
-            <Badge variant="outline" className="border-emerald-500/60 text-emerald-300">
+            <Badge variant="outline" className="hidden md:inline-flex border-emerald-500/60 text-emerald-300">
               {translatorStatusLabel}
             </Badge>
             <Switch
@@ -3065,13 +3035,13 @@ export default function PTTRadio() {
           </div>
 
           {/* ── CENTER: PTT controls ─────────────────────── */}
-          <div className="flex-1 flex flex-col items-center justify-center gap-6 px-3 md:px-6 bg-slate-950 relative overflow-auto py-4">
+          <div className="flex-1 flex flex-col items-center justify-center gap-3 md:gap-4 px-3 md:px-6 bg-slate-950 relative overflow-auto py-3 md:py-4 pb-28 md:pb-4">
 
             {/* Active channel header */}
             {activeChannel && (
               <div className="text-center">
                 <div className="text-[10px] text-slate-500 uppercase tracking-widest">Active Channel</div>
-                <div className="text-2xl font-bold tracking-wider mt-0.5" style={{ color: activeChannel.color }}>
+                <div className="text-lg md:text-2xl font-bold tracking-wide mt-0.5" style={{ color: activeChannel.color }}>
                   {(activeChannel.badge_label || `CH ${activeChannel.channel_number}`)} · {activeChannel.name.toUpperCase()}
                 </div>
                 {activeChannel.scope_label && (
@@ -3082,11 +3052,11 @@ export default function PTTRadio() {
 
             {/* Speaker indicator (when someone else is talking) */}
             {someoneSpeaking && (
-              <div className="w-full flex flex-col items-center gap-1 shrink-0 pointer-events-none select-none">
+              <div className="hidden md:flex w-full flex-col items-center gap-1 shrink-0 pointer-events-none select-none">
                 <div className="relative flex items-center justify-center">
-                  <div className="absolute w-44 h-44 rounded-full border-4 border-green-500/50 animate-ping" />
-                  <div className="w-32 h-32 rounded-full bg-green-600/15 border border-green-500/60 flex items-center justify-center">
-                    <Volume2 className="h-8 w-8 text-green-300" />
+                  <div className="absolute w-36 h-36 rounded-full border-4 border-green-500/50 animate-ping" />
+                  <div className="w-28 h-28 rounded-full bg-green-600/15 border border-green-500/60 flex items-center justify-center">
+                    <Volume2 className="h-7 w-7 text-green-300" />
                   </div>
                 </div>
                 <span className="text-green-300 font-black text-sm tracking-[0.16em] uppercase animate-pulse">
@@ -3097,11 +3067,11 @@ export default function PTTRadio() {
 
             {/* TX pulsing ring indicator — unmissable in the dark */}
             {isTransmitting && (
-              <div className="w-full flex flex-col items-center gap-1 shrink-0 pointer-events-none select-none">
+              <div className="hidden md:flex w-full flex-col items-center gap-1 shrink-0 pointer-events-none select-none">
                 <div className="relative flex items-center justify-center">
-                  <div className="absolute w-52 h-52 rounded-full border-4 border-red-500 animate-ping opacity-40" />
-                  <div className="absolute w-44 h-44 rounded-full border-2 border-red-400 animate-ping opacity-60" style={{ animationDelay: '0.15s' }} />
-                  <div className="w-36 h-36 rounded-full bg-red-600/20 flex items-center justify-center">
+                  <div className="absolute w-40 h-40 rounded-full border-4 border-red-500 animate-ping opacity-40" />
+                  <div className="absolute w-36 h-36 rounded-full border-2 border-red-400 animate-ping opacity-60" style={{ animationDelay: '0.15s' }} />
+                  <div className="w-28 h-28 rounded-full bg-red-600/20 flex items-center justify-center">
                     <span className="text-red-300 font-black text-sm tracking-[0.3em] uppercase">TX</span>
                   </div>
                 </div>
@@ -3110,7 +3080,7 @@ export default function PTTRadio() {
             )}
 
             {/* Main PTT Button — full-width bottom bar on mobile, round on desktop */}
-            <div className="fixed bottom-3 left-3 right-3 z-30 md:static md:bottom-auto md:left-auto md:right-auto md:z-auto">
+            <div className="fixed bottom-3 left-3 right-3 z-30 md:static md:bottom-auto md:left-auto md:right-auto md:z-auto md:max-w-[220px]">
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -3119,7 +3089,7 @@ export default function PTTRadio() {
                       className={[
                         // Mobile: bottom full-width control; Desktop: round control.
                         'select-none touch-none flex items-center justify-center transition-all duration-100 border-4 w-full',
-                        'min-h-[84px] rounded-2xl md:rounded-full md:min-h-0 md:w-40 md:h-40',
+                        'min-h-[80px] rounded-2xl md:rounded-full md:min-h-0 md:w-40 md:h-40',
                         isTransmitting
                           ? 'bg-red-600 border-red-400 shadow-[0_0_40px_#dc262680] scale-[1.02]'
                           : emergencyMode
@@ -3147,15 +3117,15 @@ export default function PTTRadio() {
                       disabled={!canSpeak && !isTransmitting}
                       aria-label="Push to talk"
                     >
-                      <div className="flex flex-col items-center gap-1.5">
+                      <div className="flex flex-col items-center gap-1">
                         {isMuted ? (
-                          <MicOff className="h-10 w-10 text-red-400" />
+                          <MicOff className="h-9 w-9 md:h-10 md:w-10 text-red-400" />
                         ) : isTransmitting ? (
-                          <Mic className="h-10 w-10 text-white" />
+                          <Mic className="h-9 w-9 md:h-10 md:w-10 text-white" />
                         ) : (
-                          <Mic className={`h-10 w-10 ${canSpeak ? 'text-emerald-200' : 'text-slate-600'}`} />
+                          <Mic className={`h-9 w-9 md:h-10 md:w-10 ${canSpeak ? 'text-emerald-200' : 'text-slate-600'}`} />
                         )}
-                        <span className={`text-xs font-bold tracking-widest uppercase ${
+                        <span className={`text-[11px] md:text-xs font-bold tracking-widest uppercase ${
                           isTransmitting ? 'text-white' : isMuted ? 'text-red-400' : 'text-emerald-200'
                         }`}>
                           {isTransmitting
@@ -3176,16 +3146,29 @@ export default function PTTRadio() {
               </TooltipProvider>
             </div>
 
-            <div className="text-[10px] text-slate-600 uppercase tracking-widest">
+            <div className="hidden md:block text-[10px] text-slate-600 uppercase tracking-widest">
               {inputMode === 'vox' ? 'VOX MODE ACTIVE' : 'Hold button or hold SPACEBAR to transmit'}
             </div>
 
             {/* Audio level meter */}
-            <div className="flex flex-col items-center gap-1.5 w-full max-w-xs">
+            <div className="hidden md:flex flex-col items-center gap-1.5 w-full max-w-xs">
               <div className="text-[10px] text-slate-500 uppercase tracking-widest">Audio Level</div>
               <AudioLevelMeter level={audioLevel} transmitting={isTransmitting} />
             </div>
 
+            <div className="w-full max-w-sm flex items-center justify-center pt-1">
+              <Button
+                variant="outline"
+                size="sm"
+                className={`border-slate-700 bg-slate-800 text-slate-200 ${showInterpreterPanel ? 'border-blue-500 text-blue-300' : ''}`}
+                onClick={() => setShowInterpreterPanel((prev) => !prev)}
+              >
+                <Languages className="h-3.5 w-3.5 mr-1.5" />
+                {showInterpreterPanel ? 'Hide Interpreter' : 'Show Interpreter'}
+              </Button>
+            </div>
+
+            {showInterpreterPanel && (
             <div className="w-full max-w-sm rounded-xl border border-slate-800 bg-slate-900/80 p-3 space-y-2">
               <div className="flex items-center justify-between gap-2">
                 <div className="text-xs text-slate-400 uppercase tracking-widest">PTT Interpreter</div>
@@ -3251,9 +3234,10 @@ export default function PTTRadio() {
                 </Button>
               </div>
             </div>
+            )}
 
             {/* Quick controls row */}
-            <div className="flex gap-3">
+            <div className="flex gap-2 md:gap-3 flex-wrap justify-center">
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
