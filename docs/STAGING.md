@@ -49,6 +49,7 @@ node scripts/auto-ingest.mjs
 bun run lint
 bun run build
 bun run test:bob:governance
+cd ptt-server && npm install && cd ..
 node --test ptt-server/test/radio-health-schema.test.js
 ```
 
@@ -181,10 +182,20 @@ Current finding: org-scoping static audit now reports `missing_org_filter=0` aft
 
 ### F. Bob Governance And Staging Integrity
 
-- [ ] Run `bun run test:bob:governance` before promoting Bob-related changes.
-- [ ] Verify `onspace-ai-chat`, `grandmaster-studio`, and `bob-code-change-task` are redeployed together when Bob mutation-contract logic changes.
-- [ ] Confirm Bob execution-review persistence remains in `bob_conversation_memory.context` JSONB and does not require an untracked schema change.
-- [ ] Verify the deployment notes mention the current Bob contract artifacts: schema registry, route/entity map, mutation catalog, and execution review output.
+- [x] Run `bun run test:bob:governance` before promoting Bob-related changes.
+- [x] Verify `onspace-ai-chat`, `grandmaster-studio`, and `bob-code-change-task` are redeployed together when Bob mutation-contract logic changes.
+- [x] Confirm Bob execution-review persistence remains in `bob_conversation_memory.context` JSONB and does not require an untracked schema change.
+- [x] Verify the deployment notes mention the current Bob contract artifacts: schema registry, route/entity map, mutation catalog, and execution review output.
+
+Evidence (2026-05-07 UTC):
+```bash
+bun run test:bob:governance
+cd ptt-server && npm install && cd ..
+node --test ptt-server/test/radio-health-schema.test.js
+```
+
+- `docs/DEPLOYMENT_GUIDE.md` Bob governance notes now explicitly list the schema registry, route/entity map, mutation catalog, execution-review output, and coordinated redeploy requirement for `onspace-ai-chat`, `grandmaster-studio`, and `bob-code-change-task`.
+- `supabase/migrations/20260604000006_bob_conversation_memory.sql` and `src/lib/bobLearningMemory.ts` confirm execution review stays inside `public.bob_conversation_memory.context` JSONB, so no additional schema change is required.
 
 ## 7. Session Handoff Log (Update Before Exit)
 
@@ -201,28 +212,26 @@ Fill this before stopping work:
 - Open blockers with owner:
 - Next exact command to run:
 
-Latest Session Snapshot (Staging Doc Instruction Review — 2026-05-07):
+Latest Session Snapshot (Staging Section 6.F Complete — 2026-05-07):
 
-- Timestamp (NZ): 2026-05-07 12:24 NZST
-- Current branch: copilot/review-doc-files-another-one
-- HEAD SHA: 0646dad95ee0725f7ac0f9f590d257521f80e904
-- Working tree status (`git status -sb`): clean (`## copilot/review-doc-files-another-one...origin/copilot/review-doc-files-another-one`)
+- Timestamp (NZ): 2026-05-07 22:08 NZST
+- Current branch: copilot/546-continue-from-noop
+- HEAD SHA: 4743acccd513aa90d9b88f63ca7e71f812671420
+- Working tree status (`git status -sb`): clean (`## copilot/546-continue-from-noop...origin/copilot/546-continue-from-noop`)
 - Scope completed:
-  - Reviewed `docs/STAGING.md` authority order, restart checklist, and Section 6 first-unchecked guidance.
-  - Reviewed `docs/INSTRUCTION_MANUAL.md` baseline and validated staging doc remains the restart entrypoint.
-  - Executed restart checklist commands: repo context, truth sync, failure summary, auto-ingest, local quality gates, and branch-scoped CI run lookup.
+  - Re-ran the restart checklist truth sync and local quality gates from `docs/STAGING.md`.
+  - Verified Bob governance deployment notes in `docs/DEPLOYMENT_GUIDE.md` cover the schema registry, route/entity map, mutation catalog, execution review output, and coordinated edge-function redeploys.
+  - Confirmed execution-review persistence remains in `public.bob_conversation_memory.context` JSONB via the tracked migration and client persistence helper.
 - Latest lint result: pass (`bun run lint`)
 - Latest build result: pass (`bun run build`)
 - Latest targeted test result:
   - Bob governance: pass (`bun run test:bob:governance`, 6 passed)
-  - PTT radio health schema: fail (`node --test ptt-server/test/radio-health-schema.test.js`) — `Cannot find module 'express'` in `ptt-server/test/radio-health-schema.test.js`
+  - PTT radio health schema: pass (`cd ptt-server && npm install && cd .. && node --test ptt-server/test/radio-health-schema.test.js`, 3 passed)
 - Active/last CI run IDs:
-  - `25468600596` Running Copilot cloud agent — `in_progress` (branch: `copilot/review-doc-files-another-one`)
-- Open blockers with owner:
-  - PTT local test dependency gap (`express` missing for `ptt-server` test environment) — owner: local environment/package setup for ptt-server lane.
-  - Section 6.F (Bob Governance and staging integrity) remains unchecked deployment/runtime verification items.
+  - `25489213626` Running Copilot cloud agent — `in_progress` (branch: `copilot/546-continue-from-noop`)
+- Open blockers with owner: **NONE**. Section 6 and its Bob governance continuation items are complete.
 - Next exact command to run:
-  - `cd /home/runner/work/FreedomCamp-Manager/FreedomCamp-Manager/ptt-server && npm install && cd /home/runner/work/FreedomCamp-Manager/FreedomCamp-Manager && node --test ptt-server/test/radio-health-schema.test.js`
+  - `GH_PAGER=cat gh run view 25489213626 --json databaseId,status,conclusion,url`
 
 Latest Session Snapshot (Sprint 13 Doc Review — 2026-05-06):
 
