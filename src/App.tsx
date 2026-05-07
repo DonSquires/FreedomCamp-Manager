@@ -268,6 +268,9 @@ const UserDeactivationQueueLog = lazy(() => import('@/pages/UserDeactivationQueu
 const AlertAcknowledgementsLog = lazy(() => import('@/pages/AlertAcknowledgementsLog'))
 const OfficerWelfareAlertsLog = lazy(() => import('@/pages/OfficerWelfareAlertsLog'))
 const VehicleMigrationLog = lazy(() => import('@/pages/VehicleMigrationLog'))
+const ObservationDeletionLog = lazy(() => import('@/pages/ObservationDeletionLog'))
+const DispatchResourceLog = lazy(() => import('@/pages/DispatchResourceLog'))
+const RadioTranslationLog = lazy(() => import('@/pages/RadioTranslationLog'))
 
 const NetworkStatusBar = lazy(() => import('@/components/features/NetworkStatusBar').then((m) => ({ default: m.NetworkStatusBar })))
 const PWAInstallPrompt = lazy(() => import('@/components/features/PWAInstallPrompt').then((m) => ({ default: m.PWAInstallPrompt })))
@@ -2439,6 +2442,9 @@ export default function App() {
           <Route path="/alert-acknowledgements-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><AlertAcknowledgementsLog /></RoleRoute></ProtectedRoute>} />
           <Route path="/officer-welfare-alerts-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><OfficerWelfareAlertsLog /></RoleRoute></ProtectedRoute>} />
           <Route path="/vehicle-migration-log" element={<ProtectedRoute><RoleRoute allowedRoles={['master']}><VehicleMigrationLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/observation-deletions-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'master']}><ObservationDeletionLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/dispatch-resources-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><DispatchResourceLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/radio-translation-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><RadioTranslationLog /></RoleRoute></ProtectedRoute>} />
 
           {/* CRM – Accounts (Clients + Contractors) */}
           <Route

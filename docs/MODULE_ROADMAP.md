@@ -661,6 +661,25 @@ New admin routes added in Sprint 41 (B-133, B-134, B-135):
    - Role gate: master
    - Viewer for vehicle_migration_log; KPIs (Total/Runs/Canonical-linked/Legacy-linked); action/plate/run/date filters
 
+## Sprint 42 Route Addendum (2026-05-07)
+
+New admin routes added in Sprint 42 (B-136, B-137, B-138):
+
+1. Observation Deletion Log (B-136)
+   - Route: /observation-deletions-log
+   - Role gate: admin, master
+   - Viewer for observation_deletions; KPIs (Total/With Reason/Unique Zones/Unique Plates); plate/user/date filters; snapshot JSON expand
+
+2. Dispatch Resources Log (B-137)
+   - Route: /dispatch-resources-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for dispatch_resources; KPIs (Total/Active/Auto-Dispatch/Scheduling On); kind/status/search filters; config expand
+
+3. Radio Translation Log (B-138)
+   - Route: /radio-translation-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for radio_translation_segments view; KPIs (Total/Low Confidence/Avg Confidence/Languages); language/provider/date/search filters
+
 ## Production Status Snapshot (2026-05-07)
 
 - Branch: main
