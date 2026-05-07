@@ -1,9 +1,9 @@
 # Module Roadmap (Operator Navigation Map)
 
 Date: 2026-05-07 (verified against src/navigation/routeManifest.ts)
-Source of truth for routes: route manifest file src/navigation/routeManifest.ts (181 route manifest entries as of Sprint 39 completion)
+Source of truth for routes: route manifest file src/navigation/routeManifest.ts (184 route manifest entries as of Sprint 40 completion)
 
-> **Last Verification**: 2026-05-07 — Role-gating and route docs reviewed through Sprint 39 (B-129). Production main includes Sprints 31-39.
+> **Last Verification**: 2026-05-07 — Role-gating and route docs reviewed through Sprint 40 (B-132). Production main includes Sprints 31-40.
 
 ## How To Use
 
@@ -623,8 +623,27 @@ New admin routes added in Sprint 39 (B-127, B-128, B-129):
    - Role gate: master
    - Viewer for user_sessions; KPIs (Total/Active 24h/Platforms/Named Devices); platform/user/date filters
 
+## Sprint 40 Route Addendum (2026-05-07)
+
+New admin routes added in Sprint 40 (B-130, B-131, B-132):
+
+1. Recent Observation Photo Status (B-130)
+   - Route: /recent-observations-photo-status-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for recent_observations_photo_status; KPIs (Total/Healthy/Missing Hash/Missing URL); status/plate/date filters
+
+2. Observation Zone Audit Log (B-131)
+   - Route: /observation-zone-audit-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for v_observation_zone_audit; KPIs (Total/Correct/Mismatched/Legacy); assignment/legacy/plate/date filters; zone assignment detail expand
+
+3. User Deactivation Queue Log (B-132)
+   - Route: /user-deactivation-queue-log
+   - Role gate: master
+   - Viewer for user_deactivation_queue; KPIs (Total/Processed/Pending/Errors); processed/action/user/date filters; error detail expand
+
 ## Production Status Snapshot (2026-05-07)
 
 - Branch: main
 - PR state (base main): 0 open
-- Consolidation status: Sprint 31 through Sprint 39 route work is merged to production main
+- Consolidation status: Sprint 31 through Sprint 40 route work is merged to production main
