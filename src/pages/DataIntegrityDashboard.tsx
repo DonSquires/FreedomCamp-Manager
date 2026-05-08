@@ -110,16 +110,16 @@ export default function DataIntegrityDashboard() {
           .from('observations')
           .select('observation_id', { count: 'exact', head: true })
 
-      const { count: obsWithoutGPS } = await scopedGpsQuery.or('gps_latitude.is.null,gps_longitude.is.null')
+      const { count: obsWithMissingGPSCoordinates } = await scopedGpsQuery.or('gps_latitude.is.null,gps_longitude.is.null')
 
       checks.push({
         id: 'obs-gps',
         title: 'Observations with GPS',
         description: 'GPS coordinates required for legal evidence',
-        status: obsWithoutGPS === 0 ? 'pass' : obsWithoutGPS > 5 ? 'fail' : 'warning',
-        count: (totalObs || 0) - (obsWithoutGPS || 0),
+        status: obsWithMissingGPSCoordinates === 0 ? 'pass' : obsWithMissingGPSCoordinates > 5 ? 'fail' : 'warning',
+        count: (totalObs || 0) - (obsWithMissingGPSCoordinates || 0),
         total: totalObs || 0,
-        details: obsWithoutGPS > 0 ? `${obsWithoutGPS} observations missing GPS` : undefined,
+        details: obsWithMissingGPSCoordinates > 0 ? `${obsWithMissingGPSCoordinates} observations missing GPS` : undefined,
       })
 
       // 3. Breach alerts linked to an observation
