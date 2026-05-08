@@ -5,6 +5,6 @@
   "toolchain_ready": true,
   "modules": ["messaging"],
   "lockfiles": ["bun.lock"],
-  "generated_at": "2026-05-08T03:59:32Z",
+  "generated_at": "2026-05-08T04:16:24Z",
   "source": "scripts/system-check.sh"
 }
