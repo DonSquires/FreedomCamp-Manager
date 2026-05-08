@@ -98,6 +98,7 @@ import {
   RotateCcw,
   Table2,
   Briefcase,
+  Bell,
 } from 'lucide-react'
 
 type DrillConfig = {
@@ -1218,6 +1219,22 @@ export default function AdminPortal() {
                     { path: '/lmr-bridge-config-log',    label: 'LMR Config',       Icon: Radio,         color: 'text-blue-600',   bg: 'bg-blue-50 dark:bg-blue-900/20' },
                     { path: '/radio-voice-profiles-log', label: 'Voice Profiles',   Icon: Mic,           color: 'text-fuchsia-600',bg: 'bg-fuchsia-50 dark:bg-fuchsia-900/20' },
                     { path: '/zone-dispatch-rules-log',  label: 'Dispatch Rules',   Icon: Route,         color: 'text-emerald-600',bg: 'bg-emerald-50 dark:bg-emerald-900/20' },
+                    // Sprint 46: B-148–B-150
+                    { path: '/bob-action-proposal-events-log', label: 'Bob Action Evts', Icon: BrainCircuit, color: 'text-violet-600', bg: 'bg-violet-50 dark:bg-violet-900/20' },
+                    { path: '/homeless-records-log',           label: 'Homeless Log',    Icon: Tent,         color: 'text-cyan-600',   bg: 'bg-cyan-50 dark:bg-cyan-900/20' },
+                    { path: '/restrictions-log',               label: 'Restrictions',    Icon: Map,          color: 'text-emerald-600',bg: 'bg-emerald-50 dark:bg-emerald-900/20' },
+                    // Sprint 47: B-151–B-153
+                    { path: '/organizations-log',              label: 'Org Log',         Icon: Building2,    color: 'text-blue-600',   bg: 'bg-blue-50 dark:bg-blue-900/20' },
+                    { path: '/client-sites-log',               label: 'Client Sites Log',Icon: MapPin,       color: 'text-indigo-600', bg: 'bg-indigo-50 dark:bg-indigo-900/20' },
+                    { path: '/parking-permits-log',            label: 'Permits Log',     Icon: ParkingSquare,color: 'text-emerald-600',bg: 'bg-emerald-50 dark:bg-emerald-900/20' },
+                    // Sprint 48: B-154–B-156
+                    { path: '/incidents-log',                  label: 'Incident Log',    Icon: AlertTriangle,color: 'text-orange-600', bg: 'bg-orange-50 dark:bg-orange-900/20' },
+                    { path: '/person-records-log',             label: 'Person Records',  Icon: Users,        color: 'text-violet-600', bg: 'bg-violet-50 dark:bg-violet-900/20' },
+                    { path: '/notifications-log',              label: 'Notifications Log',Icon: Bell,        color: 'text-sky-600',    bg: 'bg-sky-50 dark:bg-sky-900/20' },
+                    // Sprint 49: B-157–B-159
+                    { path: '/face-records-log',               label: 'Face Records',    Icon: Camera,       color: 'text-blue-600',   bg: 'bg-blue-50 dark:bg-blue-900/20' },
+                    { path: '/infringement-notices-log',       label: 'Notice Log',      Icon: Receipt,      color: 'text-emerald-600',bg: 'bg-emerald-50 dark:bg-emerald-900/20' },
+                    { path: '/site-risk-assessments-log',      label: 'Site Risk Log',   Icon: ShieldAlert,  color: 'text-rose-600',   bg: 'bg-rose-50 dark:bg-rose-900/20' },
                   ].map(({ path, label, Icon, color, bg }) => (
                     <button key={path} onClick={() => navigate(path)} aria-label={`Open ${label}`} className={`${moduleTileClass} ${bg}`}>
                       <Icon className={`h-5 w-5 ${color}`} />
