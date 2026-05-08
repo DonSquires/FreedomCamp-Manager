@@ -236,14 +236,12 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/enforcement-events-log', icon: Gavel, label: 'Enforcement Event Log', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/checkpoint-visits-log', icon: ScanLine, label: 'Checkpoint Visit Log', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/officer-activity-log', icon: Activity, label: 'Officer Activity Log', roles: ['admin', 'admin_officer', 'master'] },
-      // Sprint 47: B-153
-      { path: '/notifications-log', icon: Bell, label: 'Notification Log', roles: ['admin', 'master'] },
-      // Sprint 48: B-155
-      { path: '/infringement-notices-log', icon: FileWarning, label: 'Infringement Notice Log', roles: ['admin', 'admin_officer', 'master'] },
-      // Sprint 49: B-157
-      { path: '/dispatch-jobs-log', icon: ClipboardList, label: 'Dispatch Job Log', roles: ['admin', 'admin_officer', 'master'] },
-      // Sprint 50: B-160
-      { path: '/breach-alerts-log', icon: AlertTriangle, label: 'Breach Alert Log', roles: ['admin', 'admin_officer', 'master'] },
+      // Sprint 48: B-154
+      { path: '/incidents-log', icon: AlertTriangle, label: 'Incident Log', roles: ['admin', 'admin_officer', 'master'] },
+      // Sprint 48: B-156
+      { path: '/notifications-log', icon: Bell, label: 'Notification Log', roles: ['admin', 'admin_officer', 'master'] },
+      // Sprint 49: B-158
+      { path: '/infringement-notices-log', icon: Receipt, label: 'Infringement Notice Log', roles: ['admin', 'admin_officer', 'master'] },
     ],
   },
   {
@@ -322,15 +320,9 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/lmr-bridge-config-log', icon: Radio, label: 'LMR Bridge Config Log', roles: ['admin', 'master'] },
       { path: '/zone-dispatch-rules-log', icon: Waypoints, label: 'Zone Dispatch Rule Log', roles: ['admin', 'master'] },
       // Sprint 46: B-150
-      { path: '/restrictions-log', icon: Ban, label: 'Restrictions Log', roles: ['admin', 'admin_officer', 'master'] },
-      // Sprint 49: B-158
-      { path: '/enforcement-actions-log', icon: Gavel, label: 'Enforcement Action Log', roles: ['admin', 'admin_officer', 'master'] },
-      // Sprint 50: B-162
-      { path: '/flagged-vehicles-log', icon: Flag, label: 'Flagged Vehicle Log', roles: ['admin', 'admin_officer', 'master'] },
-      // Sprint 51: B-164
-      { path: '/officer-availability-log', icon: CalendarCheck2, label: 'Officer Availability Log', roles: ['admin', 'master'] },
-      // Sprint 52: B-166
-      { path: '/client-sites-log', icon: Building2, label: 'Client Site Log', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/restrictions-log', icon: Map, label: 'Restriction Log', roles: ['admin', 'master'] },
+      // Sprint 47: B-151
+      { path: '/organizations-log', icon: Building2, label: 'Organization Log', roles: ['master', 'grand_master'] },
     ],
   },
   {
@@ -404,24 +396,16 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/contractor-documents-log', icon: Briefcase, label: 'Contractor Document Log', roles: ['admin', 'admin_officer', 'master'] },
       // Sprint 45: B-146
       { path: '/radio-voice-profiles-log', icon: Mic, label: 'Radio Voice Profile Log', roles: ['admin', 'admin_officer', 'master'] },
+      // Sprint 47: B-152
+      { path: '/client-sites-log', icon: MapPin, label: 'Client Site Log', roles: ['admin', 'admin_officer', 'master'] },
       // Sprint 46: B-149
-      { path: '/homeless-records-log', icon: Home, label: 'Homeless Record Log', roles: ['admin', 'admin_officer', 'master'] },
-      // Sprint 47: B-151, B-152
-      { path: '/incidents-log', icon: ShieldAlert, label: 'Incident Log', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/person-records-log', icon: PersonStanding, label: 'Person Record Log', roles: ['admin', 'admin_officer', 'master'] },
-      // Sprint 48: B-154, B-156
-      { path: '/face-records-log', icon: ScanFace, label: 'Face Record Log', roles: ['admin', 'master'] },
-      { path: '/site-risk-assessments-log', icon: ClipboardCheck, label: 'Site Risk Assessment Log', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/homeless-records-log', icon: Tent, label: 'Homeless Record Log', roles: ['admin', 'admin_officer', 'master'] },
+      // Sprint 48: B-155
+      { path: '/person-records-log', icon: Users, label: 'Person Record Log', roles: ['admin', 'admin_officer', 'master'] },
+      // Sprint 49: B-157
+      { path: '/face-records-log', icon: Camera, label: 'Face Record Log', roles: ['admin', 'admin_officer', 'master'] },
       // Sprint 49: B-159
-      { path: '/observations-log', icon: Eye, label: 'Observation Log', roles: ['admin', 'admin_officer', 'master'] },
-      // Sprint 50: B-161
-      { path: '/canonical-vehicles-log', icon: Car, label: 'Canonical Vehicle Log', roles: ['admin', 'master'] },
-      // Sprint 51: B-163
-      { path: '/canonical-scv-log', icon: ShieldCheck, label: 'Canonical SCV Log', roles: ['admin', 'admin_officer', 'master'] },
-      // Sprint 51: B-165
-      { path: '/canonical-homeless-log', icon: Users2, label: 'Canonical Homeless Log', roles: ['admin', 'admin_officer', 'master'] },
-      // Sprint 52: B-167
-      { path: '/parking-permits-log', icon: ParkingSquare, label: 'Parking Permit Log', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/site-risk-assessments-log', icon: ShieldAlert, label: 'Site Risk Assessment Log', roles: ['admin', 'admin_officer', 'master'] },
     ],
   },
   {
@@ -437,6 +421,8 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/officer-welfare', icon: HeartPulse, label: 'Officer Welfare', roles: ['admin', 'admin_officer', 'master'], scopeHint: 'Officer-based' },
       { path: '/welfare-checkins', icon: HeartPulse, label: 'Welfare Check-in Log', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/parking-permits', icon: ParkingSquare, label: 'Parking Permits', roles: ['admin', 'admin_officer', 'master'] },
+      // Sprint 47: B-153
+      { path: '/parking-permits-log', icon: ParkingSquare, label: 'Parking Permit Log', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/parking-sessions-log', icon: ParkingSquare, label: 'Parking Session Log', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/parking-payments-log', icon: CreditCard, label: 'Parking Payment Log', roles: ['admin', 'admin_officer', 'master'] },
     ],
@@ -449,8 +435,6 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/roster-shifts', icon: ClipboardList, label: 'Roster Shift Log', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/open-shifts', icon: CalendarCheck2, label: 'Open Shifts', roles: ['admin', 'admin_officer', 'master', 'officer'] },
       { path: '/open-shifts-manager', icon: CalendarClock, label: 'Open Shift Manager', roles: ['admin', 'admin_officer', 'master'] },
-      // Sprint 52: B-168
-      { path: '/open-shifts-log', icon: CalendarClock, label: 'Open Shift Log', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/availability', icon: CalendarDays, label: 'My Availability', roles: ['admin', 'admin_officer', 'master', 'officer'] },
       { path: '/officer-skills', icon: GraduationCap, label: 'Skills & Licences', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/timesheets', icon: ClipboardCopy, label: 'Timesheets', roles: ['admin', 'admin_officer', 'master'] },
@@ -482,7 +466,7 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/bob-proposals-log', icon: ScrollText, label: 'Bob Proposal Log', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/bob-proposal-events-log', icon: ListChecks, label: 'Bob Proposal Events', roles: ['admin', 'admin_officer', 'master'] },
       // Sprint 46: B-148
-      { path: '/bob-action-proposal-event-log', icon: ListChecks, label: 'Bob Action Proposal Events Log', roles: ['admin', 'master'] },
+      { path: '/bob-action-proposal-events-log', icon: ListChecks, label: 'Bob Action Prop. Events', roles: ['admin', 'admin_officer', 'master'] },
     ],
   },
   {

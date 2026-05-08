@@ -794,7 +794,7 @@ export default function FieldOfficerPortal() {
     } finally {
       setIsEndingShift(false)
     }
-  }, [activeShift, user, refetchShift, queryClient, endOfficerShift])
+  }, [activeShift, user, refetchShift, queryClient, endOfficerShift, deactivateWelfarePushSchedule])
 
   // Shift duration ticker — re-render every 30s to update displayed duration
   const [, setShiftTick] = useState(0)

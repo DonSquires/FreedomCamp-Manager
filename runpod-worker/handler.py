@@ -34,6 +34,15 @@ TRAINING_MEMORY_PATH = os.environ.get("TRAINING_MEMORY_PATH", os.path.join(os.pa
 MAX_RUNTIME_NOTES = 8
 OPENAI_REFERENCE_GATE_ENABLED = os.environ.get("OPENAI_REFERENCE_GATE_ENABLED", "true").strip().lower() in {"1", "true", "yes", "on"}
 ALLOW_OPENAI_REFERENCE_PROVIDER = os.environ.get("ALLOW_OPENAI_REFERENCE_PROVIDER", "false").strip().lower() in {"1", "true", "yes", "on"}
+ALLOW_OPENAI_RUNTIME = os.environ.get("ALLOW_OPENAI_RUNTIME", "true").strip().lower() in {"1", "true", "yes", "on"}
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "").strip()
+OPENAI_BASE_URL = os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1").strip().rstrip("/")
+OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-4o-mini").strip()
+OPENAI_ALLOWED_PURPOSES = {
+    item.strip().lower()
+    for item in os.environ.get("OPENAI_ALLOWED_PURPOSES", "research,training").split(",")
+    if item.strip()
+}
 
 print(f"[worker] FieldOps AI Worker (Python/runpod) starting")
 print(f"[worker] OLLAMA_BASE: {OLLAMA_BASE} (external)")
@@ -42,6 +51,8 @@ print(f"[worker] OLLAMA_VISION_MODEL: {OLLAMA_VISION_MODEL}")
 print(f"[worker] BOB_ATTITUDE_PROFILE: {BOB_ATTITUDE_PROFILE}")
 print(f"[worker] OPENAI_REFERENCE_GATE_ENABLED: {OPENAI_REFERENCE_GATE_ENABLED}")
 print(f"[worker] ALLOW_OPENAI_REFERENCE_PROVIDER: {ALLOW_OPENAI_REFERENCE_PROVIDER}")
+print(f"[worker] ALLOW_OPENAI_RUNTIME: {ALLOW_OPENAI_RUNTIME}")
+print(f"[worker] OPENAI_ALLOWED_PURPOSES: {sorted(OPENAI_ALLOWED_PURPOSES)}")
 
 ATTITUDE_PRESETS = {
     "operational": "Tone: calm, decisive, and practical. Prioritize concise operational steps and clear outcomes.",
@@ -150,6 +161,39 @@ def wants_openai_provider(inp):
     provider = str(inp.get("provider") or "").strip().lower()
     model = str(inp.get("model") or "").strip().lower()
     return provider in {"openai", "chatgpt"} or model.startswith("gpt-")
+
+
+def resolve_openai_purpose(inp):
+    direct = str(inp.get("openai_purpose") or inp.get("purpose") or "").strip().lower()
+    if direct:
+        return direct
+    context = inp.get("context") or {}
+    if isinstance(context, dict):
+        return str(context.get("openai_purpose") or context.get("purpose") or "").strip().lower()
+    return ""
+
+
+def openai_policy_gate(inp):
+    if not wants_openai_provider(inp):
+        return True, ""
+
+    if not OPENAI_REFERENCE_GATE_ENABLED:
+        return True, ""
+
+    if ALLOW_OPENAI_REFERENCE_PROVIDER:
+        return True, ""
+
+    if not ALLOW_OPENAI_RUNTIME:
+        return False, "OpenAI provider is disabled: ALLOW_OPENAI_RUNTIME=false"
+
+    purpose = resolve_openai_purpose(inp)
+    if not purpose:
+        return False, "OpenAI provider requires openai_purpose (research or training)"
+
+    if purpose not in OPENAI_ALLOWED_PURPOSES:
+        return False, f"OpenAI provider purpose '{purpose}' is not allowed. Allowed: {sorted(OPENAI_ALLOWED_PURPOSES)}"
+
+    return True, ""
 
 
 def remember_training_note(message):
@@ -309,6 +353,41 @@ def ollama_chat(messages, model=None, temperature=0.7):
     return {"content": content, "model": data.get("model", model or OLLAMA_MODEL)}
 
 
+def openai_chat(messages, model=None, temperature=0.7):
+    if not OPENAI_API_KEY:
+        raise RuntimeError("OPENAI_API_KEY is not configured")
+
+    payload = {
+        "model": model or OPENAI_MODEL,
+        "messages": messages,
+        "temperature": temperature,
+    }
+
+    resp = requests.post(
+        f"{OPENAI_BASE_URL}/chat/completions",
+        headers={
+            "Authorization": f"Bearer {OPENAI_API_KEY}",
+            "Content-Type": "application/json",
+        },
+        json=payload,
+        timeout=TIMEOUT_S,
+    )
+
+    if resp.status_code >= 400:
+        raise RuntimeError(f"OpenAI HTTP {resp.status_code}: {resp.text[:300]}")
+
+    data = resp.json()
+    choices = data.get("choices") or []
+    if not choices:
+        raise ValueError("OpenAI returned no choices")
+
+    content = ((choices[0] or {}).get("message") or {}).get("content")
+    if not content:
+        raise ValueError("OpenAI returned empty content")
+
+    return {"content": content, "model": data.get("model", model or OPENAI_MODEL)}
+
+
 def ollama_vision_chat(prompt, image_b64, model=None, temperature=0.2):
     """Send an image + prompt to the vision model. image_b64 is a base64-encoded image string."""
     chat_payload = {
@@ -434,12 +513,17 @@ def handler(job):
     print(f"[worker] action={action} job={job.get('id','?')}")
     role = detect_role(action, inp)
 
-    if OPENAI_REFERENCE_GATE_ENABLED and not ALLOW_OPENAI_REFERENCE_PROVIDER and wants_openai_provider(inp):
+    openai_allowed, openai_gate_message = openai_policy_gate(inp)
+    if not openai_allowed:
         return {
             "success": False,
-            "error": "OpenAI reference provider requests are disabled by policy on this worker. Use ollama/inference providers.",
+            "error": openai_gate_message,
             "provider": "policy-enforcer",
             "openai_reference_gate_enabled": OPENAI_REFERENCE_GATE_ENABLED,
+            "allow_openai_reference_provider": ALLOW_OPENAI_REFERENCE_PROVIDER,
+            "allow_openai_runtime": ALLOW_OPENAI_RUNTIME,
+            "openai_allowed_purposes": sorted(OPENAI_ALLOWED_PURPOSES),
+            "openai_purpose": resolve_openai_purpose(inp),
         }
 
     if action == "ping":
@@ -462,6 +546,8 @@ def handler(job):
             "runtime_training_notes": len(RUNTIME_TRAINING_NOTES),
             "openai_reference_gate_enabled": OPENAI_REFERENCE_GATE_ENABLED,
             "allow_openai_reference_provider": ALLOW_OPENAI_REFERENCE_PROVIDER,
+            "allow_openai_runtime": ALLOW_OPENAI_RUNTIME,
+            "openai_allowed_purposes": sorted(OPENAI_ALLOWED_PURPOSES),
             "provider": "ollama",
         }
 
@@ -494,24 +580,35 @@ def handler(job):
             *(inp.get("history") or []),
             {"role": "user", "content": message},
         ]
-        result = ollama_chat(messages, inp.get("model"), inp.get("temperature", 0.7))
-        return {"success": True, "response": result["content"], "message": result["content"],
-                "model": result["model"], "provider": "ollama"}
-
-    if action == "review":
-        message = inp.get("message") or inp.get("prompt")
-        if not message:
-            return {"success": False, "error": "message or prompt required"}
-        result = ollama_chat([
-            {"role": "system", "content": build_system_prompt("dr_bob", inp.get("system_prompt"))},
-            {"role": "user", "content": message},
-        ], inp.get("model"), inp.get("temperature", 0.2))
+        use_openai = wants_openai_provider(inp)
+        result = openai_chat(messages, inp.get("model"), inp.get("temperature", 0.7)) if use_openai else ollama_chat(messages, inp.get("model"), inp.get("temperature", 0.7))
+        provider_name = "openai" if use_openai else "ollama"
         return {
             "success": True,
             "response": result["content"],
             "message": result["content"],
             "model": result["model"],
-            "provider": "ollama-review",
+            "provider": provider_name,
+            "openai_purpose": resolve_openai_purpose(inp) if use_openai else None,
+        }
+
+    if action == "review":
+        message = inp.get("message") or inp.get("prompt")
+        if not message:
+            return {"success": False, "error": "message or prompt required"}
+        messages = [
+            {"role": "system", "content": build_system_prompt("dr_bob", inp.get("system_prompt"))},
+            {"role": "user", "content": message},
+        ]
+        use_openai = wants_openai_provider(inp)
+        result = openai_chat(messages, inp.get("model"), inp.get("temperature", 0.2)) if use_openai else ollama_chat(messages, inp.get("model"), inp.get("temperature", 0.2))
+        return {
+            "success": True,
+            "response": result["content"],
+            "message": result["content"],
+            "model": result["model"],
+            "provider": "openai-review" if use_openai else "ollama-review",
+            "openai_purpose": resolve_openai_purpose(inp) if use_openai else None,
         }
 
     if action == "assess":

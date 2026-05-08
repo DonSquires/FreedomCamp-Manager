@@ -3,6 +3,7 @@ FROM python:3.12-slim-bookworm
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Serverless-first worker image:
+# Build trigger note: keep this file change-safe so workflow path triggers can republish GHCR image.
 # - no CUDA base
 # - no local Ollama install
 # - no baked Ollama models
@@ -68,6 +69,11 @@ ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=0
 ENV OPENAI_REFERENCE_GATE_ENABLED=true
 ENV ALLOW_OPENAI_REFERENCE_PROVIDER=false
+ENV ALLOW_OPENAI_RUNTIME=true
+ENV OPENAI_ALLOWED_PURPOSES=research,training
+ENV OPENAI_MODEL=gpt-4o-mini
+ENV OPENAI_BASE_URL=https://api.openai.com/v1
+ENV OPENAI_API_KEY=
 
 WORKDIR /app
 
@@ -87,4 +93,5 @@ RUN npm install --save-dev @playwright/test && \
 # - the container default command must start a long-running handler process
 # - the handler must stay alive and read jobs from RunPod
 # - do not use one-shot local test commands as container default
+# Build trigger note: lowercase GHCR tag fix rollout trigger.
 CMD ["python3", "-u", "handler.py"]

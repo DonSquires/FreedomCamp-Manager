@@ -44,7 +44,6 @@ import {
   FileBarChart,
   FileText,
   FileWarning,
-  Flag,
   Gavel,
   GraduationCap,
   Heart,
@@ -99,6 +98,7 @@ import {
   RotateCcw,
   Table2,
   Briefcase,
+  Bell,
 } from 'lucide-react'
 
 type DrillConfig = {
@@ -1220,33 +1220,21 @@ export default function AdminPortal() {
                     { path: '/radio-voice-profiles-log', label: 'Voice Profiles',   Icon: Mic,           color: 'text-fuchsia-600',bg: 'bg-fuchsia-50 dark:bg-fuchsia-900/20' },
                     { path: '/zone-dispatch-rules-log',  label: 'Dispatch Rules',   Icon: Route,         color: 'text-emerald-600',bg: 'bg-emerald-50 dark:bg-emerald-900/20' },
                     // Sprint 46: B-148–B-150
-                    { path: '/bob-action-proposal-event-log', label: 'Bob Action Proposal Events Log', Icon: BrainCircuit, color: 'text-violet-600', bg: 'bg-violet-50 dark:bg-violet-900/20' },
-                    { path: '/homeless-records-log',          label: 'Homeless Records',  Icon: Home,         color: 'text-amber-600',  bg: 'bg-amber-50 dark:bg-amber-900/20' },
-                    { path: '/restrictions-log',              label: 'Restrictions Log',  Icon: Ban,          color: 'text-rose-600',   bg: 'bg-rose-50 dark:bg-rose-900/20' },
+                    { path: '/bob-action-proposal-events-log', label: 'Bob Action Evts', Icon: BrainCircuit, color: 'text-violet-600', bg: 'bg-violet-50 dark:bg-violet-900/20' },
+                    { path: '/homeless-records-log',           label: 'Homeless Log',    Icon: Tent,         color: 'text-cyan-600',   bg: 'bg-cyan-50 dark:bg-cyan-900/20' },
+                    { path: '/restrictions-log',               label: 'Restrictions',    Icon: Map,          color: 'text-emerald-600',bg: 'bg-emerald-50 dark:bg-emerald-900/20' },
                     // Sprint 47: B-151–B-153
-                    { path: '/incidents-log',       label: 'Incident Log',        Icon: ShieldAlert, color: 'text-rose-700',    bg: 'bg-rose-50 dark:bg-rose-900/20' },
-                    { path: '/person-records-log',  label: 'Person Record Log',   Icon: Users,       color: 'text-indigo-600',  bg: 'bg-indigo-50 dark:bg-indigo-900/20' },
-                    { path: '/notifications-log',   label: 'Notification Log',    Icon: BellRing,    color: 'text-sky-600',     bg: 'bg-sky-50 dark:bg-sky-900/20' },
+                    { path: '/organizations-log',              label: 'Org Log',         Icon: Building2,    color: 'text-blue-600',   bg: 'bg-blue-50 dark:bg-blue-900/20' },
+                    { path: '/client-sites-log',               label: 'Client Sites Log',Icon: MapPin,       color: 'text-indigo-600', bg: 'bg-indigo-50 dark:bg-indigo-900/20' },
+                    { path: '/parking-permits-log',            label: 'Permits Log',     Icon: ParkingSquare,color: 'text-emerald-600',bg: 'bg-emerald-50 dark:bg-emerald-900/20' },
                     // Sprint 48: B-154–B-156
-                    { path: '/face-records-log',             label: 'Face Record Log',          Icon: Camera,         color: 'text-violet-600', bg: 'bg-violet-50 dark:bg-violet-900/20' },
-                    { path: '/infringement-notices-log',     label: 'Infringement Notice Log',  Icon: FileWarning,    color: 'text-amber-700',  bg: 'bg-amber-50 dark:bg-amber-900/20' },
-                    { path: '/site-risk-assessments-log',    label: 'Site Risk Assessment Log', Icon: ClipboardCheck, color: 'text-teal-600',   bg: 'bg-teal-50 dark:bg-teal-900/20' },
+                    { path: '/incidents-log',                  label: 'Incident Log',    Icon: AlertTriangle,color: 'text-orange-600', bg: 'bg-orange-50 dark:bg-orange-900/20' },
+                    { path: '/person-records-log',             label: 'Person Records',  Icon: Users,        color: 'text-violet-600', bg: 'bg-violet-50 dark:bg-violet-900/20' },
+                    { path: '/notifications-log',              label: 'Notifications Log',Icon: Bell,        color: 'text-sky-600',    bg: 'bg-sky-50 dark:bg-sky-900/20' },
                     // Sprint 49: B-157–B-159
-                    { path: '/dispatch-jobs-log',            label: 'Dispatch Job Log',         Icon: ClipboardCheck, color: 'text-blue-600',   bg: 'bg-blue-50 dark:bg-blue-900/20' },
-                    { path: '/enforcement-actions-log',      label: 'Enforcement Action Log',   Icon: Gavel,          color: 'text-violet-700', bg: 'bg-violet-50 dark:bg-violet-900/20' },
-                    { path: '/observations-log',             label: 'Observation Log',          Icon: Eye,            color: 'text-sky-600',    bg: 'bg-sky-50 dark:bg-sky-900/20' },
-                    // Sprint 50: B-160–B-162
-                    { path: '/breach-alerts-log',            label: 'Breach Alert Log',         Icon: AlertTriangle,  color: 'text-amber-700',  bg: 'bg-amber-50 dark:bg-amber-900/20' },
-                    { path: '/canonical-vehicles-log',       label: 'Canonical Vehicle Log',    Icon: Car,            color: 'text-blue-700',   bg: 'bg-blue-50 dark:bg-blue-900/20' },
-                    { path: '/flagged-vehicles-log',         label: 'Flagged Vehicle Log',      Icon: Flag,           color: 'text-rose-700',   bg: 'bg-rose-50 dark:bg-rose-900/20' },
-                    // Sprint 51: B-163–B-165
-                    { path: '/canonical-scv-log',            label: 'Canonical SCV Log',        Icon: ShieldCheck,    color: 'text-green-700',  bg: 'bg-green-50 dark:bg-green-900/20' },
-                    { path: '/officer-availability-log',     label: 'Officer Availability Log', Icon: CalendarCheck2, color: 'text-indigo-700', bg: 'bg-indigo-50 dark:bg-indigo-900/20' },
-                    { path: '/canonical-homeless-log',       label: 'Canonical Homeless Log',   Icon: Users,          color: 'text-violet-700', bg: 'bg-violet-50 dark:bg-violet-900/20' },
-                    // Sprint 52: B-166–B-168
-                    { path: '/client-sites-log',             label: 'Client Site Log',          Icon: Building2,      color: 'text-purple-700', bg: 'bg-purple-50 dark:bg-purple-900/20' },
-                    { path: '/parking-permits-log',          label: 'Parking Permit Log',       Icon: ParkingSquare,  color: 'text-orange-700', bg: 'bg-orange-50 dark:bg-orange-900/20' },
-                    { path: '/open-shifts-log',              label: 'Open Shift Log',           Icon: CalendarClock,  color: 'text-indigo-700', bg: 'bg-indigo-50 dark:bg-indigo-900/20' },
+                    { path: '/face-records-log',               label: 'Face Records',    Icon: Camera,       color: 'text-blue-600',   bg: 'bg-blue-50 dark:bg-blue-900/20' },
+                    { path: '/infringement-notices-log',       label: 'Notice Log',      Icon: Receipt,      color: 'text-emerald-600',bg: 'bg-emerald-50 dark:bg-emerald-900/20' },
+                    { path: '/site-risk-assessments-log',      label: 'Site Risk Log',   Icon: ShieldAlert,  color: 'text-rose-600',   bg: 'bg-rose-50 dark:bg-rose-900/20' },
                   ].map(({ path, label, Icon, color, bg }) => (
                     <button key={path} onClick={() => navigate(path)} aria-label={`Open ${label}`} className={`${moduleTileClass} ${bg}`}>
                       <Icon className={`h-5 w-5 ${color}`} />

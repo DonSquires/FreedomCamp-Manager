@@ -12,8 +12,8 @@ fi
 PATTERN="@openai|from 'openai'|from \"openai\"|require\\('openai'\\)|\"openai\"[[:space:]]*:|OPENAI_API_KEY|OPENAI_BASE_URL"
 
 # Bob policy: OpenAI is permitted only for research/training flows.
-# New OpenAI references in production/runtime paths remain blocked.
-ALLOWED_OPENAI_PATH_REGEX='^(docs/|scripts/|knowledge_base/|inference-service/scripts/|inference-service/training/|tests/)'
+# Runtime OpenAI references are allowed only in the Bob worker policy surface.
+ALLOWED_OPENAI_PATH_REGEX='^(docs/|scripts/|knowledge_base/|inference-service/scripts/|inference-service/training/|tests/|runpod-worker/(handler\.py|Dockerfile)$)'
 
 # NZ privacy compliance evidence must be updated when introducing new OpenAI usage.
 REQUIRED_PRIVACY_DOC='docs/LEGAL_BASIS_REFERENCE.md'

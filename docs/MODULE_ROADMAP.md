@@ -1,9 +1,9 @@
 # Module Roadmap (Operator Navigation Map)
 
 Date: 2026-05-08 (verified against src/navigation/routeManifest.ts)
-Source of truth for routes: route manifest file src/navigation/routeManifest.ts (219 route manifest entries as of Sprint 52 completion)
+Source of truth for routes: route manifest file src/navigation/routeManifest.ts (211 route manifest entries as of Sprint 49 completion)
 
- > **Last Verification**: 2026-05-08 — Role-gating and route docs reviewed through Sprint 52 (B-168). Current branch includes Sprints 31-52; production main includes Sprints 31-45 until subsequent merges.
+ > **Last Verification**: 2026-05-08 — Role-gating and route docs reviewed through Sprint 49 (B-159). Production main includes Sprints 31-49.
 
 ## How To Use
 
@@ -742,139 +742,82 @@ New admin routes added in Sprint 45 (B-145, B-146, B-147):
 New admin routes added in Sprint 46 (B-148, B-149, B-150):
 
 1. Bob Action Proposal Event Log (B-148)
-   - Route: /bob-action-proposal-event-log
-   - Role gate: admin, master
-   - Viewer for bob_action_proposal_events; KPIs (Total Events/Unique Proposals/Case-Linked Events/With Notes); event_type/proposal_id/date filters; metadata expand
+   - Route: /bob-action-proposal-events-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for bob_action_proposal_events; KPIs (Total/Reviewed/Failed/With Notes); event_type/actor/proposal/date filters; metadata expand
 
 2. Homeless Record Log (B-149)
    - Route: /homeless-records-log
    - Role gate: admin, admin_officer, master
-   - Viewer for homeless_records; KPIs (Total/Active/Inactive/Unique Plates); plate/status/source/active filters; creator/updater audit detail
+   - Viewer for homeless_records; KPIs (Total/Active/Inactive/Unique Plates); plate/status/source/date filters; notes and actor detail expand
 
 3. Restriction Log (B-150)
    - Route: /restrictions-log
-   - Role gate: admin, admin_officer, master
-   - Viewer for restrictions; KPIs (Total/Types/With Metadata/Updated Last 30d); restriction_type/name filters; metadata expand while geometry stays map-only
+   - Role gate: admin, master
+   - Viewer for restrictions; KPIs (Total/Unique Types/Unique Orgs/With Metadata); type/name/org/date filters; metadata JSON expand
 
 ## Sprint 47 Route Addendum (2026-05-08)
 
 New admin routes added in Sprint 47 (B-151, B-152, B-153):
 
-1. Incident Log (B-151)
-   - Route: /incidents-log
-   - Role gate: admin, admin_officer, master
-   - Viewer for incidents; KPIs (Total/Open/Critical/With Evidence); type/severity/status/plate+description search/date_from filters; location, reporter, zone, person_record, retention_hold, metadata expand
+1. Organization Log (B-151)
+   - Route: /organizations-log
+   - Role gate: master, grand_master
+   - Viewer for organizations; KPIs (Total/Active/Inactive/With Parent); active/type/search filters; policy + hierarchy detail expand
 
-2. Person Record Log (B-152)
-   - Route: /person-records-log
+2. Client Site Log (B-152)
+   - Route: /client-sites-log
    - Role gate: admin, admin_officer, master
-   - Viewer for person_records; KPIs (Total/Of Interest/Trespass Issued/FCA Applies); name search/risk/trespass/FCA filters; DOB, vehicle association, trespass date, tent location, notes expand
+   - Viewer for client_sites; KPIs (Total/Active/Inactive/With Geofence); active/site_type/search filters; zone/contact/geofence detail expand
 
-3. Notification Log (B-153)
-   - Route: /notifications-log
-   - Role gate: admin, master
-   - Viewer for notifications; KPIs (Total/Delivered/Read/Unread); type/priority/delivery/date_from filters; recipient user ID, body, delivery and read timestamps, data payload expand
+3. Parking Permit Log (B-153)
+   - Route: /parking-permits-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for parking_permits; KPIs (Total/Active/Inactive/Expiring ≤30d); plate/type/state/date filters; permit validity and issuer detail expand
 
 ## Sprint 48 Route Addendum (2026-05-08)
 
 New admin routes added in Sprint 48 (B-154, B-155, B-156):
 
-1. Face Record Log (B-154)
-   - Route: /face-records-log
-   - Role gate: admin, master
-   - Viewer for face_records; KPIs (Total Records/Total Faces Detected/Linked to Person/Linked to Incident); label search/detection_method/date_from filters; officer, observation, person, incident, zone cross-refs, GPS coords, photo link expand
-
-2. Infringement Notice Log (B-155)
-   - Route: /infringement-notices-log
+1. Incident Log (B-154)
+   - Route: /incidents-log
    - Role gate: admin, admin_officer, master
-   - Viewer for infringement_notices; KPIs (Total/Paid/Overdue/Revenue); plate+notice#+recipient search/status/notice_type/date_from filters; offence details, service method, payment, court referral, PDF link expand
+   - Viewer for incidents; KPIs (Total/Open/Closed-Resolved/Critical); type/status/severity/plate/date filters; zone, evidence count, reporter detail expand
 
-3. Site Risk Assessment Log (B-156)
-   - Route: /site-risk-assessments-log
+2. Person Record Log (B-155)
+   - Route: /person-records-log
    - Role gate: admin, admin_officer, master
-   - Viewer for site_risk_assessments; KPIs (Total/High+Critical/Completed/Reviewed); site name search/risk_level/status/request_type/date_from filters; hazard checklist (18 fields), controls, PPE, GPS, safety indicators, reviewer expand
+   - Viewer for person_records; KPIs (Total/Of Interest/Trespass Notice/High Risk); risk/interest/trespass/name/date filters; DOB, FCA, vehicle association, trespass date expand
+
+3. Notification Log (B-156)
+   - Route: /notifications-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for notifications; KPIs (Total/Delivered/Undelivered/Unread); type/priority/delivered/title/date filters; user, delivery timestamp, body expand
 
 ## Sprint 49 Route Addendum (2026-05-08)
 
 New admin routes added in Sprint 49 (B-157, B-158, B-159):
 
-1. Dispatch Job Log (B-157)
-   - Route: /dispatch-jobs-log
+1. Face Record Log (B-157)
+   - Route: /face-records-log
    - Role gate: admin, admin_officer, master
-   - Viewer for dispatch_jobs; KPIs (Total/Active/Completed/SLA Breached); job#/title/address search, status/job_type/priority/date_from filters; caller, client site, case, breach alert, escalation, lifecycle timestamps, GPS expand
+   - Viewer for face_records; KPIs (Total/Labeled/Person Linked/With GPS); method/linked/label/date filters; incident/observation/zone/photo detail expand
 
-2. Enforcement Action Log (B-158)
-   - Route: /enforcement-actions-log
+2. Infringement Notice Log (B-158)
+   - Route: /infringement-notices-log
    - Role gate: admin, admin_officer, master
-   - Viewer for enforcement_actions; KPIs (Total/Pending/Completed/Assigned); plate+notes search, status/action_type/date_from filters; breach status, observation, vehicle record, compliance result, assignment/completion metadata expand
+   - Viewer for infringement_notices; KPIs (Total/Paid/Withdrawn/Overdue); status/type/plate/date filters; recipient/service/payment deadline detail expand
 
-3. Observation Log (B-159)
-   - Route: /observations-log
+3. Site Risk Assessment Log (B-159)
+   - Route: /site-risk-assessments-log
    - Role gate: admin, admin_officer, master
-   - Viewer for observations; KPIs (Total/Breaches/Compliant/With Photo); plate search, breach_type/compliance/date_from filters; processing state, GPS, incident link, nights stayed, notes, photo link expand
-
-## Sprint 50 Route Addendum (2026-05-08)
-
-New admin routes added in Sprint 50 (B-160, B-161, B-162):
-
-1. Breach Alert Log (B-160)
-   - Route: /breach-alerts-log
-   - Role gate: admin, admin_officer, master
-   - Viewer for breach_alerts; KPIs (Total/Pending/Acknowledged/Resolved); plate/case search, status/breach_type/date_from filters; assignment/review/notification/resolution metadata expand
-
-2. Canonical Vehicle Log (B-161)
-   - Route: /canonical-vehicles-log
-   - Role gate: admin, master
-   - Viewer for canonical_vehicles; KPIs (Total/Flagged/Homeless/With Breaches); plate+vehicle+owner search, flagged/homeless/date_from filters; owner, exemption, flag/homeless status, lifecycle totals expand
-
-3. Flagged Vehicle Log (B-162)
-   - Route: /flagged-vehicles-log
-   - Role gate: admin, admin_officer, master
-   - Viewer for flagged_vehicles; KPIs (Total/Active/High Priority/Confirmed Homeless); plate/reason/contact search, active/priority/date_from filters; creator/flagger, site, notes, and status expand
-
-## Sprint 52 Route Addendum (2026-05-08)
-
-New admin routes added in Sprint 52 (B-166, B-167, B-168):
-
-1. Client Site Log (B-166)
-   - Route: /client-sites-log
-   - Role gate: admin, admin_officer, master
-   - Viewer for client_sites; KPIs (Total/Active/Inactive/Site Types); site/code/address/contact search, status/site-type/priority/date filters; contract, commercial, geofence, hazards, notes expand
-
-2. Parking Permit Log (B-167)
-   - Route: /parking-permits-log
-   - Role gate: admin, admin_officer, master
-   - Viewer for parking_permits; KPIs (Total/Active/Expired/Permit Types); plate/holder/issuer search, status/type/date filters; holder, zone, issuer, validity, notes expand
-
-3. Open Shift Log (B-168)
-   - Route: /open-shifts-log
-   - Role gate: admin, admin_officer, master
-   - Viewer for open_shifts; KPIs (Total/Open/Claimed/Shift Types); title/description/creator/claimant search, status/priority/type/date filters; claim, zone, requirements, timestamps expand
-
-## Sprint 51 Route Addendum (2026-05-08)
-
-New admin routes added in Sprint 51 (B-163, B-164, B-165):
-
-1. Canonical SCV Log (B-163)
-   - Route: /canonical-scv-log
-   - Role gate: admin, admin_officer, master
-   - Viewer for canonical_scv; KPIs (Total/Self-Contained/Active Certs/Expired Certs); plate/VIN search, status/source/date filters; issue date, verified at, max occupants, notes expand
-
-2. Officer Availability Log (B-164)
-   - Route: /officer-availability-log
-   - Role gate: admin, master
-   - Viewer for officer_availability; KPIs (Total/Available/Unavailable + unique officers count); officer id/notes search, availability/day-of-week/date filters; unavailability reason, notes, timestamps expand
-
-3. Canonical Homeless Log (B-165)
-   - Route: /canonical-homeless-log
-   - Role gate: admin, admin_officer, master
-   - Viewer for canonical_homeless; KPIs (Total/Confirmed/Cleared/Sources); plate/notes/confirmed-by search, status/source/date filters; confirmed at, notes expand
+   - Viewer for site_risk_assessments; KPIs (Total/High+Critical/Open/Reviewed); risk/status/request/site/date filters; hazard count + controls/review detail expand
 
 ## Production Status Snapshot (2026-05-08)
 
 - Branch: main
 - PR state (base main): 0 open
-- Consolidation status: Sprint 31 through Sprint 52 route work is aligned on the active branch; production main currently includes Sprints 31-45
+- Consolidation status: Sprint 31 through Sprint 49 route work is merged to production main
 
 ## Post-Sprint-42 Realignment Phases and Phase-Gate Progression (#548)
 
@@ -1016,6 +959,37 @@ With Phase D delivery and gate evidence in place, the next execution phase is Ph
    - Target fragmentation pages show downward direct-query drift.
    - Communications delivery governance is live and measurable in operations dashboards.
    - Evidence is recorded in `docs/STAGING.md` with linked CI runs and validation artifacts.
+
+### Phase E kickoff order (E1 → E4)
+
+1. E1 — Direct page-query reduction baseline and targets.
+2. E2 — Hook/service migration for highest-fragmentation surfaces.
+3. E3 — Audit dashboard completeness for operational and contract events.
+4. E4 — Final release evidence pack and cross-module rollout sign-off.
+
+Phase E release criteria:
+- E1–E4 gate suites and CI workflows all present and passing.
+- No unresolved blockers in staging handoff logs for tenant isolation, replay safety, or rollout rollback.
+- Canonical docs (`STAGING.md`, `MODULE_ROADMAP.md`) updated with final evidence references.
+
+### E3 kickoff gate artifacts
+
+- `tests/e2e/phase-e3-communications-audit-retry.spec.ts`
+- `.github/workflows/ci-phase-e3-communications-audit-retry-gate.yml`
+- E3 gate scope covers communications delivery audit, retry governance, degraded push/email outcomes, and operations visibility anchors.
+- `NotificationsCenter.tsx` now exposes an admin-only **E3 Communications Delivery Metrics** card.
+- Runtime push/report/invite delivery attempts now write non-blocking `crm_communications` audit rows.
+
+### E4 release evidence gate artifacts
+
+- `tests/e2e/phase-e4-release-evidence.spec.ts`
+- `.github/workflows/ci-phase-e4-release-evidence-gate.yml`
+- Phase E release evidence pack locks E1–E3 gate coverage and final rollout readiness evidence.
+
+### Phase E closeout validation status
+
+- Phase E final validation is recorded as green.
+- E1, E2, E3, and E4 focused gates: PASS (`110 passed`).
 
 ## Phase E1 Data-Access Consolidation Baseline (2026-05-08)
 
