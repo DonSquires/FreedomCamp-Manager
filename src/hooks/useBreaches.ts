@@ -186,7 +186,7 @@ const HIGH_BREACH_FILTER = 'breach_type.eq.consecutive_nights,breach_type.eq.mon
 // Supabase relation selectors use FK constraint names. The `vehicle_observations_v2_*`
 // names are legacy constraint identifiers retained after table renames.
 const OBSERVATION_SELECT_FIELDS = 'observation_id, photo, photo_url, recorded_at, gps_latitude, gps_longitude, vehicle_make, vehicle_model, vehicle_year, vehicle_color, has_homeless_claim, homeless_claim_notes, officer_notes, zones!vehicle_observations_v2_zone_id_fkey(name)'
-const PHOTO_OBSERVATION_SELECT_FIELDS = 'observation_id, photo, photo_url, recorded_at, gps_latitude, gps_longitude, zones!vehicle_observations_v2_zone_id_fkey(name)'
+const OBSERVATION_PHOTO_ONLY_SELECT_FIELDS = 'observation_id, photo, photo_url, recorded_at, gps_latitude, gps_longitude, zones!vehicle_observations_v2_zone_id_fkey(name)'
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || ''
 
 async function resolveViaDownload(bucket: string, path: string): Promise<string | null> {
@@ -754,7 +754,7 @@ export function useBreachEvidencePhotos(activeBreach: ActiveBreachReference | nu
       const observationId = extractObservationId(activeBreach)
       if (observationId) {
         const byId = await (supabase.from('observations') as any)
-          .select(PHOTO_OBSERVATION_SELECT_FIELDS)
+          .select(OBSERVATION_PHOTO_ONLY_SELECT_FIELDS)
           .eq('observation_id', observationId)
           .limit(1)
           .abortSignal(signal)
@@ -768,7 +768,7 @@ export function useBreachEvidencePhotos(activeBreach: ActiveBreachReference | nu
       if (signal.aborted) return []
 
       const strictQuery = (supabase.from('observations') as any)
-        .select(PHOTO_OBSERVATION_SELECT_FIELDS)
+        .select(OBSERVATION_PHOTO_ONLY_SELECT_FIELDS)
         .eq('plate_number', activeBreach.plate_number)
         .eq('organization_id', activeBreach.organization_id)
         .lte('recorded_at', activeBreach.created_at)
@@ -786,7 +786,7 @@ export function useBreachEvidencePhotos(activeBreach: ActiveBreachReference | nu
 
       // Fallback: ignore org/date constraints when data quality is inconsistent.
       const fallback = await (supabase.from('observations') as any)
-        .select(PHOTO_OBSERVATION_SELECT_FIELDS)
+        .select(OBSERVATION_PHOTO_ONLY_SELECT_FIELDS)
         .eq('plate_number', activeBreach.plate_number)
         .order('recorded_at', { ascending: false })
         .limit(12)
