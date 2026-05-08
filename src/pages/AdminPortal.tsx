@@ -14,6 +14,12 @@ import { ListCardRow } from '@/components/features/ListCardRow'
 import { ComplianceTrendChart, type TrendDataPoint } from '@/components/features/ComplianceTrendChart'
 import { SystemHealthIndicator } from '@/components/features/SystemHealthIndicator'
 import { nzDateToUTCStart, nzDateToUTCEnd, parseNZDate } from '@/lib/timezone'
+import {
+  useAdminActivePatrolCount,
+  useAdminRecentHistoricalObservations,
+  useAdminTodayRosterShifts,
+  useAdminWelfareAlertCount,
+} from '@/hooks/useAdminPortalData'
 import { format } from 'date-fns'
 import { HOMELESS_UI_STATUSES } from '@/lib/homelessStatus'
 const HOMELESS_EXEMPT_STATUSES = ['confirmed', 'claimed'] as const
@@ -500,74 +506,22 @@ export default function AdminPortal() {
     }
   }, [queryClient, effectiveOrganizationId, zoneId, dateFrom, dateTo])
 
-  const { data: recentHistoricalObservations = [] } = useQuery({
-    queryKey: ['admin-recent-historical-observations', effectiveOrganizationId, zoneId, startDate, endDate],
-    queryFn: async () => {
-      let q = (supabase.from('observations') as any)
-        .select('observation_id, plate_number, recorded_at, breach_type, is_compliant, zone:zones!zone_id(name)')
-        .order('recorded_at', { ascending: false })
-        .limit(8)
-
-      if (effectiveOrganizationId) q = q.eq('organization_id', effectiveOrganizationId)
-      if (zoneId) q = q.eq('zone_id', zoneId)
-      if (startDate) q = q.gte('recorded_at', startDate)
-      if (endDate) q = q.lte('recorded_at', endDate)
-
-      const { data: rows, error: rowsError } = await q
-      if (rowsError) throw rowsError
-      return (rows || []) as any[]
-    },
+  const { data: recentHistoricalObservations = [] } = useAdminRecentHistoricalObservations({
+    organizationId: effectiveOrganizationId,
+    zoneId,
+    startDate,
+    endDate,
     enabled: !!effectiveOrganizationId,
   })
 
   // Welfare alerts — Welfare First inspired: surface officer safety issues immediately
-  const { data: welfareAlertCount = 0 } = useQuery({
-    queryKey: ['admin-welfare-alert-count', effectiveOrganizationId],
-    queryFn: async () => {
-      let q = (supabase.from('officer_welfare_alerts') as any)
-        .select('id', { count: 'exact', head: true })
-        .in('status', ['pending', 'acknowledged'])
-      if (effectiveOrganizationId) q = q.eq('organization_id', effectiveOrganizationId)
-      const { count } = await q
-      return count ?? 0
-    },
-    staleTime: 1000 * 30,
-  })
+  const { data: welfareAlertCount = 0 } = useAdminWelfareAlertCount(effectiveOrganizationId)
 
   // Active patrols today — Wilsar inspired: show guard tour progress
-  const { data: activePatrolCount = 0 } = useQuery({
-    queryKey: ['admin-active-patrol-count', effectiveOrganizationId],
-    queryFn: async () => {
-      const nzToday = new Date().toLocaleDateString('en-CA', { timeZone: 'Pacific/Auckland' })
-      let q = (supabase.from('patrols') as any)
-        .select('id', { count: 'exact', head: true })
-        .eq('status', 'in_progress')
-        .eq('patrol_date', nzToday)
-      if (effectiveOrganizationId) q = q.eq('organization_id', effectiveOrganizationId)
-      const { count } = await q
-      return count ?? 0
-    },
-    staleTime: 1000 * 30,
-  })
+  const { data: activePatrolCount = 0 } = useAdminActivePatrolCount(effectiveOrganizationId)
 
   // Today's roster shifts — Deputy / InTime inspired: show who is on duty today
-  const { data: todayRosterShifts = [] } = useQuery({
-    queryKey: ['admin-today-roster', effectiveOrganizationId],
-    queryFn: async () => {
-      const nzToday = new Date().toLocaleDateString('en-CA', { timeZone: 'Pacific/Auckland' })
-      let q = (supabase.from('roster_shifts') as any)
-        .select(`id, start_time, end_time, status, position_title, service_type,
-          officer:user_profiles!roster_shifts_officer_id_fkey(first_name, last_name)`)
-        .eq('shift_date', nzToday)
-        .in('status', ['published', 'confirmed', 'in_progress'])
-        .order('start_time', { ascending: true })
-        .limit(8)
-      if (effectiveOrganizationId) q = q.eq('organization_id', effectiveOrganizationId)
-      const { data } = await q
-      return (data ?? []) as any[]
-    },
-    staleTime: 1000 * 60,
-  })
+  const { data: todayRosterShifts = [] } = useAdminTodayRosterShifts(effectiveOrganizationId)
 
   const metrics = useMemo(() => {
     const totalObservations = data?.totalObservations ?? 0

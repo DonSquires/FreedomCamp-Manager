@@ -831,7 +831,7 @@ With Phase D delivery and gate evidence in place, the next execution phase is Ph
 
 Phase E1 starts with a static direct-query drift gate for the highest-fragmentation pages named in the build realignment plan. The baseline counts below are grounded in the current page files and are enforced by `tests/e2e/phase-e1-data-access-consolidation.spec.ts`; future hook/service migrations should lower the relevant baseline only after the page count drops.
 
-Reduction evidence: `BreachAlerts` has been lowered to 0 through breach hook consolidation, and `VehicleManagement` has been lowered from 21 to 16 by moving dialog observation list reads, zone/org name enrichment, photo-column detection, and observation photo lookup into `src/hooks/useVehicles.ts`.
+Reduction evidence: `BreachAlerts` has been lowered to 0 through breach hook consolidation, `VehicleManagement` has been lowered from 21 to 16 by moving dialog observation list reads, zone/org name enrichment, photo-column detection, and observation photo lookup into `src/hooks/useVehicles.ts`, and `AdminPortal` has been lowered from 20 to 16 by moving recent historical observations, welfare alerts, active patrol counts, and today roster reads into `src/hooks/useAdminPortalData.ts`.
 
 | Target page | Current direct `supabase.from(...)` calls | Phase E1 target |
 | --- | ---: | --- |
@@ -841,7 +841,7 @@ Reduction evidence: `BreachAlerts` has been lowered to 0 through breach hook con
 | AssetManagement | 0 | Keep page free of direct Supabase query clusters. |
 | VehicleManagement | 16 | Reduce by moving vehicle, owner, and enforcement reads into hooks/services. |
 | BreachAlerts | 0 | Keep page free of direct Supabase query clusters after breach hook consolidation. |
-| AdminPortal | 20 | Reduce by consolidating admin summary reads behind shared dashboard hooks. |
+| AdminPortal | 16 | Reduce by consolidating admin summary reads behind shared dashboard hooks. |
 | NoiseControlPortal | 13 | Reduce by moving noise complaint and evidence reads into domain hooks. |
 | ClientAccountPage | 0 | Keep page free of direct Supabase query clusters. |
 | RosterPlanner | 0 | Keep page free of direct Supabase query clusters. |
