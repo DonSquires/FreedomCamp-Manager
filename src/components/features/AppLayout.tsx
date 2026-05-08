@@ -329,6 +329,8 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/flagged-vehicles-log', icon: Flag, label: 'Flagged Vehicle Log', roles: ['admin', 'admin_officer', 'master'] },
       // Sprint 51: B-164
       { path: '/officer-availability-log', icon: CalendarCheck2, label: 'Officer Availability Log', roles: ['admin', 'master'] },
+      // Sprint 52: B-166
+      { path: '/client-sites-log', icon: Building2, label: 'Client Site Log', roles: ['admin', 'admin_officer', 'master'] },
     ],
   },
   {
@@ -418,6 +420,8 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/canonical-scv-log', icon: ShieldCheck, label: 'Canonical SCV Log', roles: ['admin', 'admin_officer', 'master'] },
       // Sprint 51: B-165
       { path: '/canonical-homeless-log', icon: Users2, label: 'Canonical Homeless Log', roles: ['admin', 'admin_officer', 'master'] },
+      // Sprint 52: B-167
+      { path: '/parking-permits-log', icon: ParkingSquare, label: 'Parking Permit Log', roles: ['admin', 'admin_officer', 'master'] },
     ],
   },
   {
@@ -445,6 +449,8 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/roster-shifts', icon: ClipboardList, label: 'Roster Shift Log', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/open-shifts', icon: CalendarCheck2, label: 'Open Shifts', roles: ['admin', 'admin_officer', 'master', 'officer'] },
       { path: '/open-shifts-manager', icon: CalendarClock, label: 'Open Shift Manager', roles: ['admin', 'admin_officer', 'master'] },
+      // Sprint 52: B-168
+      { path: '/open-shifts-log', icon: CalendarClock, label: 'Open Shift Log', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/availability', icon: CalendarDays, label: 'My Availability', roles: ['admin', 'admin_officer', 'master', 'officer'] },
       { path: '/officer-skills', icon: GraduationCap, label: 'Skills & Licences', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/timesheets', icon: ClipboardCopy, label: 'Timesheets', roles: ['admin', 'admin_officer', 'master'] },

@@ -1243,6 +1243,10 @@ export default function AdminPortal() {
                     { path: '/canonical-scv-log',            label: 'Canonical SCV Log',        Icon: ShieldCheck,    color: 'text-green-700',  bg: 'bg-green-50 dark:bg-green-900/20' },
                     { path: '/officer-availability-log',     label: 'Officer Availability Log', Icon: CalendarCheck2, color: 'text-indigo-700', bg: 'bg-indigo-50 dark:bg-indigo-900/20' },
                     { path: '/canonical-homeless-log',       label: 'Canonical Homeless Log',   Icon: Users,          color: 'text-violet-700', bg: 'bg-violet-50 dark:bg-violet-900/20' },
+                    // Sprint 52: B-166–B-168
+                    { path: '/client-sites-log',             label: 'Client Site Log',          Icon: Building2,      color: 'text-purple-700', bg: 'bg-purple-50 dark:bg-purple-900/20' },
+                    { path: '/parking-permits-log',          label: 'Parking Permit Log',       Icon: ParkingSquare,  color: 'text-orange-700', bg: 'bg-orange-50 dark:bg-orange-900/20' },
+                    { path: '/open-shifts-log',              label: 'Open Shift Log',           Icon: CalendarClock,  color: 'text-indigo-700', bg: 'bg-indigo-50 dark:bg-indigo-900/20' },
                   ].map(({ path, label, Icon, color, bg }) => (
                     <button key={path} onClick={() => navigate(path)} aria-label={`Open ${label}`} className={`${moduleTileClass} ${bg}`}>
                       <Icon className={`h-5 w-5 ${color}`} />
