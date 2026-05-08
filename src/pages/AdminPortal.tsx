@@ -44,6 +44,7 @@ import {
   FileBarChart,
   FileText,
   FileWarning,
+  Flag,
   Gavel,
   GraduationCap,
   Heart,
