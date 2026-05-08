@@ -806,6 +806,41 @@ Latest Session Snapshot (Sprint 52 — B-166 ClientSiteLog / B-167 ParkingPermit
 - Open blockers with owner:
   1. NONE.
 
+Latest Session Snapshot (Sprint 62 — B-195–B-200 + manifest normalization — 2026-05-09):
+
+- Timestamp (NZ): 2026-05-09 10:58 NZST
+- Current branch: copilot/continue-realignment-project-yet-again
+- Scope completed:
+  - Removed 13 duplicate route entries from `src/navigation/routeManifest.ts` (duplicate `routeId` + `path` pairs introduced in prior Sprint 57–61 addendum block).
+  - Added Sprint 62 manifest entries (B-195–B-200): `/radio-transmissions`, `/radio/audit`, `/radio/log`, `/ems`, `/lmr-bridge`, `/site-guard`.
+  - Preserved Sprint 61 unique route (`/access-audit`) and kept AdminPortal Sprint 57–61 tile wiring unchanged.
+  - Updated `docs/MODULE_ROADMAP.md` with corrected route-count/verification snapshot and Sprint 62 addendum.
+
+- Sprint 62 checklist:
+  | Item | Status | Evidence |
+  |---|---|---|
+  | Remove duplicate manifest rows for Sprint 57–61 routes | ✅ DONE | `src/navigation/routeManifest.ts` |
+  | B-195 `/radio-transmissions` manifest entry | ✅ DONE | `src/navigation/routeManifest.ts` |
+  | B-196 `/radio/audit` manifest entry | ✅ DONE | `src/navigation/routeManifest.ts` |
+  | B-197 `/radio/log` manifest entry | ✅ DONE | `src/navigation/routeManifest.ts` |
+  | B-198 `/ems` manifest entry | ✅ DONE | `src/navigation/routeManifest.ts` |
+  | B-199 `/lmr-bridge` manifest entry | ✅ DONE | `src/navigation/routeManifest.ts` |
+  | B-200 `/site-guard` manifest entry | ✅ DONE | `src/navigation/routeManifest.ts` |
+  | Route manifest normalization (`duplicate paths=0`, `duplicate routeIds=0`) | ✅ DONE | `src/navigation/routeManifest.ts` |
+  | Route manifest count (240 entries) | ✅ DONE | `src/navigation/routeManifest.ts` |
+  | MODULE_ROADMAP Sprint 62 addendum | ✅ DONE | `docs/MODULE_ROADMAP.md` |
+
+- Validation evidence:
+  | Command | Result | Notes |
+  |---|---|---|
+  | `bun run lint` | PASS | ESLint completed without errors |
+  | `bun run build` | PASS | TypeScript + Vite build succeeded |
+  | `bun run test:nav-parity` | PASS | navigation registry parity passed |
+  | `bun run build:budget` | PASS | under 8300 kB |
+
+- Open blockers with owner:
+  1. NONE.
+
 Latest Session Snapshot (Sprint 57–61 — B-181–B-194 — 2026-05-09):
 
 - Timestamp (NZ): 2026-05-09 10:30 NZST

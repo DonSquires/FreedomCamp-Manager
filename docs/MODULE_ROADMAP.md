@@ -1,9 +1,9 @@
 # Module Roadmap (Operator Navigation Map)
 
 Date: 2026-05-08 (verified against src/navigation/routeManifest.ts)
-Source of truth for routes: route manifest file src/navigation/routeManifest.ts (247 route manifest entries as of Sprint 61 completion)
+Source of truth for routes: route manifest file src/navigation/routeManifest.ts (240 route manifest entries as of Sprint 62 completion)
 
- > **Last Verification**: 2026-05-08 — Role-gating and route docs reviewed through Sprint 61 (B-194). Production main includes Sprints 31-61.
+ > **Last Verification**: 2026-05-08 — Role-gating and route docs reviewed through Sprint 62 (B-200). Production main includes Sprints 31-62.
 
 ## How To Use
 
@@ -1024,23 +1024,52 @@ New manifest entries added in Sprint 60 (B-190, B-191, B-192):
 
 ## Sprint 61 Route Addendum (2026-05-08)
 
-New manifest entries added in Sprint 61 (B-193, B-194):
+Manifest normalization retained Sprint 61 unique addition:
 
-1. Roster Shift Log (B-193)
-   - Route: /roster-shifts
-   - Role gate: admin, admin_officer, master
-   - navGroup: Roster & Workforce
-
-2. Access Audit Log (B-194)
+1. Access Audit Log (B-194)
    - Route: /access-audit
    - Role gate: admin, admin_officer, master, grand_master
    - navGroup: Records
+
+## Sprint 62 Route Addendum (2026-05-08)
+
+New manifest entries added in Sprint 62 (B-195, B-196, B-197, B-198, B-199, B-200):
+
+1. Radio Transmissions (B-195)
+   - Route: /radio-transmissions
+   - Role gate: admin, admin_officer, master
+   - navGroup: Operations
+
+2. Radio Audit (B-196)
+   - Route: /radio/audit
+   - Role gate: admin, admin_officer, master, grand_master
+   - navGroup: Operations
+
+3. PTT Transmission Log (B-197)
+   - Route: /radio/log
+   - Role gate: officer, admin_officer, admin, master, grand_master
+   - navGroup: Operations
+
+4. EMS Portal (B-198)
+   - Route: /ems
+   - Role gate: officer, admin_officer, admin, master, grand_master
+   - navGroup: Specialist Services
+
+5. LMR Bridge (B-199)
+   - Route: /lmr-bridge
+   - Role gate: admin, admin_officer, master
+   - navGroup: Operations
+
+6. Site Guard Portal (B-200)
+   - Route: /site-guard
+   - Role gate: officer, admin_officer, admin, master, grand_master
+   - navGroup: Specialist Services
 
 ## Production Status Snapshot (2026-05-08)
 
 - Branch: main
 - PR state (base main): 0 open
-- Consolidation status: Sprint 31 through Sprint 61 route work is merged to production main
+- Consolidation status: Sprint 31 through Sprint 62 route work is merged to production main
 
 ## Post-Sprint-42 Realignment Phases and Phase-Gate Progression (#548)
 
