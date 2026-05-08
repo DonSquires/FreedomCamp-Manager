@@ -54,7 +54,7 @@ export default function ZoneSignageEvidenceLog() {
 
       if (currentFilter === 'current') q = q.eq('is_current', true)
       if (currentFilter === 'not_current') q = q.eq('is_current', false)
-      if (signageFilter !== 'all') q = q.ilike('signage_type', signageFilter)
+      if (signageFilter !== 'all') q = q.eq('signage_type', signageFilter)
       if (zoneQuery.trim()) q = q.ilike('zone_id', `%${zoneQuery.trim()}%`)
 
       const { data, error } = await q

@@ -60,7 +60,7 @@ export default function ZoneLegalConfigLog() {
       if (!isElevatedRole && user?.organization_id) q = q.eq('organization_id', user.organization_id)
       if (selfContainedFilter === 'required') q = q.eq('self_contained_required', true)
       if (selfContainedFilter === 'not_required') q = q.eq('self_contained_required', false)
-      if (enforcementFilter !== 'all') q = q.ilike('enforcement_type', enforcementFilter)
+      if (enforcementFilter !== 'all') q = q.eq('enforcement_type', enforcementFilter)
       if (zoneQuery.trim()) q = q.ilike('zone_id', `%${zoneQuery.trim()}%`)
 
       const { data, error } = await q
