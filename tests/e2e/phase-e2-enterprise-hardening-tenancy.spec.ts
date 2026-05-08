@@ -84,7 +84,7 @@ test.describe('Phase E2 — Enterprise hardening and tenancy-safety gate', () =>
     expect(dashboard).toContain('Configuration completeness')
     expect(dashboard).toContain('Identity completeness')
     expect(dashboard).toContain('Vehicle data movement')
-    expect(dashboard).toContain('const scopedGpsQuery = orgFilter')
+    expect(dashboard).toContain('let scopedGpsQuery = supabase')
     expect(dashboard).toContain(".eq('organization_id', orgFilter)")
     expect(dashboard).toContain("scopedGpsQuery.or('gps_latitude.is.null,gps_longitude.is.null')")
   })
