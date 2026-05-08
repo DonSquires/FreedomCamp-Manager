@@ -94,6 +94,11 @@ interface BreachAlert {
   admin_review_notes: string | null
 }
 
+type BreachAlertListRow = BreachAlert & {
+  zones?: { name?: string | null } | null
+  organizations?: { name?: string | null } | null
+}
+
 function getBreachObservationId(breach: BreachAlert | null): string | null {
   if (!breach) return null
   return extractObservationId(breach)
@@ -226,10 +231,7 @@ export default function BreachAlerts() {
   }, [breachesIsError, breachesError])
 
   // Derived: active breach from the list
-  const activeBreach = (breaches?.find((b: any) => b.id === activeBreachId) ?? null) as (BreachAlert & {
-    zones?: any
-    organizations?: any
-  }) | null
+  const activeBreach = (breaches?.find((b) => b.id === activeBreachId) ?? null) as BreachAlertListRow | null
 
   const { data: detailVehicle } = useBreachVehicleDetails(activeBreach?.plate_number)
 

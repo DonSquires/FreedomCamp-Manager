@@ -90,7 +90,7 @@ type BreachAlertQueueRow = BreachAlertLike & {
 }
 
 const OBSERVATION_SELECT_FIELDS = 'observation_id, photo, photo_url, recorded_at, gps_latitude, gps_longitude, vehicle_make, vehicle_model, vehicle_year, vehicle_color, has_homeless_claim, homeless_claim_notes, officer_notes, zones!vehicle_observations_v2_zone_id_fkey(name)'
-const EVIDENCE_PHOTO_SELECT_FIELDS = 'observation_id, photo, photo_url, recorded_at, gps_latitude, gps_longitude, zones!vehicle_observations_v2_zone_id_fkey(name)'
+const OBSERVATION_EVIDENCE_PHOTO_SELECT_FIELDS = 'observation_id, photo, photo_url, recorded_at, gps_latitude, gps_longitude, zones!vehicle_observations_v2_zone_id_fkey(name)'
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || ''
 
 /** Zone names that represent generic parent zones rather than specific locations. */
@@ -101,12 +101,7 @@ const GENERIC_ZONE_NAMES = ['jurisdiction', 'general', 'other']
  * and the breach_details JSON blob.
  */
 export function extractObservationId(alert: BreachAlertLike): string | null {
-  const details =
-    alert.breach_details &&
-    typeof alert.breach_details === 'object' &&
-    !Array.isArray(alert.breach_details)
-      ? alert.breach_details
-      : {}
+  const details = extractBreachDetails(alert)
   return (
     alert.observation_id ||
     details.observation_id ||
@@ -114,6 +109,14 @@ export function extractObservationId(alert: BreachAlertLike): string | null {
     details.source_observation_id ||
     null
   )
+}
+
+function extractBreachDetails(alert: BreachAlertLike): Record<string, any> {
+  return alert.breach_details &&
+    typeof alert.breach_details === 'object' &&
+    !Array.isArray(alert.breach_details)
+      ? alert.breach_details
+      : {}
 }
 
 /**
@@ -783,7 +786,7 @@ export function useBreachEvidencePhotos(
       const observationId = extractObservationId(activeBreach)
       if (observationId) {
         const byId = await (supabase.from('observations') as any)
-          .select(EVIDENCE_PHOTO_SELECT_FIELDS)
+          .select(OBSERVATION_EVIDENCE_PHOTO_SELECT_FIELDS)
           .eq('observation_id', observationId)
           .limit(1)
           .abortSignal(signal)
@@ -797,7 +800,7 @@ export function useBreachEvidencePhotos(
       if (signal.aborted) return []
 
       const strictQuery = (supabase.from('observations') as any)
-        .select(EVIDENCE_PHOTO_SELECT_FIELDS)
+        .select(OBSERVATION_EVIDENCE_PHOTO_SELECT_FIELDS)
         .eq('plate_number', activeBreach.plate_number)
         .eq('organization_id', activeBreach.organization_id)
         .lte('recorded_at', activeBreach.created_at)
@@ -814,7 +817,7 @@ export function useBreachEvidencePhotos(
       if (signal.aborted) return []
 
       const fallback = await (supabase.from('observations') as any)
-        .select(EVIDENCE_PHOTO_SELECT_FIELDS)
+        .select(OBSERVATION_EVIDENCE_PHOTO_SELECT_FIELDS)
         .eq('plate_number', activeBreach.plate_number)
         .order('recorded_at', { ascending: false })
         .limit(12)
