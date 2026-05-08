@@ -1,9 +1,9 @@
 # Module Roadmap (Operator Navigation Map)
 
 Date: 2026-05-08 (verified against src/navigation/routeManifest.ts)
-Source of truth for routes: route manifest file src/navigation/routeManifest.ts (199 route manifest entries as of Sprint 45 completion)
+Source of truth for routes: route manifest file src/navigation/routeManifest.ts (202 route manifest entries as of Sprint 46 completion)
 
- > **Last Verification**: 2026-05-08 — Role-gating and route docs reviewed through Sprint 45 (B-147). Production main includes Sprints 31-45.
+ > **Last Verification**: 2026-05-08 — Role-gating and route docs reviewed through Sprint 46 (B-150). Production main includes Sprints 31-46.
 
 ## How To Use
 
@@ -737,11 +737,30 @@ New admin routes added in Sprint 45 (B-145, B-146, B-147):
    - Role gate: admin, master
    - Viewer for zone_dispatch_resource_rules; KPIs (Total/Active/Unique Zones/Scheduled Rules); status/job_type/org/date filters; day/time window visibility
 
+## Sprint 46 Route Addendum (2026-05-08)
+
+New admin routes added in Sprint 46 (B-148, B-149, B-150):
+
+1. Bob Action Proposal Event Log (B-148)
+   - Route: /bob-action-proposal-events-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for bob_action_proposal_events; KPIs (Total/Reviewed/Failed/With Notes); event_type/actor/proposal/date filters; metadata expand
+
+2. Homeless Record Log (B-149)
+   - Route: /homeless-records-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for homeless_records; KPIs (Total/Active/Inactive/Unique Plates); plate/status/source/date filters; notes and actor detail expand
+
+3. Restriction Log (B-150)
+   - Route: /restrictions-log
+   - Role gate: admin, master
+   - Viewer for restrictions; KPIs (Total/Unique Types/Unique Orgs/With Metadata); type/name/org/date filters; metadata JSON expand
+
 ## Production Status Snapshot (2026-05-08)
 
 - Branch: main
 - PR state (base main): 0 open
-- Consolidation status: Sprint 31 through Sprint 45 route work is merged to production main
+- Consolidation status: Sprint 31 through Sprint 46 route work is merged to production main
 
 ## Post-Sprint-42 Realignment Phases and Phase-Gate Progression (#548)
 

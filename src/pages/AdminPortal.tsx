@@ -1218,6 +1218,10 @@ export default function AdminPortal() {
                     { path: '/lmr-bridge-config-log',    label: 'LMR Config',       Icon: Radio,         color: 'text-blue-600',   bg: 'bg-blue-50 dark:bg-blue-900/20' },
                     { path: '/radio-voice-profiles-log', label: 'Voice Profiles',   Icon: Mic,           color: 'text-fuchsia-600',bg: 'bg-fuchsia-50 dark:bg-fuchsia-900/20' },
                     { path: '/zone-dispatch-rules-log',  label: 'Dispatch Rules',   Icon: Route,         color: 'text-emerald-600',bg: 'bg-emerald-50 dark:bg-emerald-900/20' },
+                    // Sprint 46: B-148–B-150
+                    { path: '/bob-action-proposal-events-log', label: 'Bob Action Evts', Icon: BrainCircuit, color: 'text-violet-600', bg: 'bg-violet-50 dark:bg-violet-900/20' },
+                    { path: '/homeless-records-log',           label: 'Homeless Log',    Icon: Tent,         color: 'text-cyan-600',   bg: 'bg-cyan-50 dark:bg-cyan-900/20' },
+                    { path: '/restrictions-log',               label: 'Restrictions',    Icon: Map,          color: 'text-emerald-600',bg: 'bg-emerald-50 dark:bg-emerald-900/20' },
                   ].map(({ path, label, Icon, color, bg }) => (
                     <button key={path} onClick={() => navigate(path)} aria-label={`Open ${label}`} className={`${moduleTileClass} ${bg}`}>
                       <Icon className={`h-5 w-5 ${color}`} />
