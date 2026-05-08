@@ -307,6 +307,36 @@ Latest Session Snapshot (Phase D3 Gate Artifacts + Phase E Kickoff Alignment —
   2. Carry forward E1→E4 checkpoints from `docs/MODULE_ROADMAP.md`.
   3. Maintain rollback-ready flag posture and org isolation evidence per slice.
 
+Latest Session Snapshot (Sprint 49 — B-157 / B-158 / B-159 — 2026-05-08):
+
+- Timestamp (NZ): 2026-05-08 23:53 NZST
+- Current branch: copilot/continue-realignment-project-another-one
+- Scope completed:
+  - Continued Sprint catalog after Sprint 48 by adding Sprint 49 route entries B-157, B-158, B-159.
+  - Created `src/pages/FaceRecordLog.tsx` (B-157) — log viewer for `face_records`; KPIs (Total/Labeled/Person Linked/With GPS); method/linked/label/date filters; incident/observation/zone/photo detail expand.
+  - Created `src/pages/InfringementNoticeLog.tsx` (B-158) — log viewer for `infringement_notices`; KPIs (Total/Paid/Withdrawn/Overdue); status/type/plate/date filters; recipient/service/payment deadline detail expand.
+  - Created `src/pages/SiteRiskAssessmentLog.tsx` (B-159) — log viewer for `site_risk_assessments`; KPIs (Total/High+Critical/Open/Reviewed); risk/status/request/site/date filters; hazard counts and controls/review detail expand.
+  - Updated `src/App.tsx` with lazy imports and protected routes for all three pages.
+  - Updated `src/navigation/routeManifest.ts` with Sprint 49 route entries (211 total).
+  - Updated `src/components/features/AppLayout.tsx` — Operations group gains B-158; Records group gains B-157/B-159.
+  - Updated `src/pages/AdminPortal.tsx` — Reports & Analytics tile section gains B-157/B-158/B-159.
+  - Updated `docs/MODULE_ROADMAP.md` — Sprint 49 addendum + production status snapshot.
+
+- Sprint 49 checkpoint:
+  | Item | Status | Artifact |
+  |---|---|---|
+  | B-157 FaceRecordLog | ✅ DONE | `src/pages/FaceRecordLog.tsx`, route `/face-records-log` |
+  | B-158 InfringementNoticeLog | ✅ DONE | `src/pages/InfringementNoticeLog.tsx`, route `/infringement-notices-log` |
+  | B-159 SiteRiskAssessmentLog | ✅ DONE | `src/pages/SiteRiskAssessmentLog.tsx`, route `/site-risk-assessments-log` |
+  | routeManifest.ts updated | ✅ DONE | 3 entries added (211 total) |
+  | AppLayout.tsx updated | ✅ DONE | Operations (B-158) + Records (B-157/B-159) |
+  | AdminPortal.tsx updated | ✅ DONE | 3 tiles in Reports & Analytics section |
+  | MODULE_ROADMAP.md updated | ✅ DONE | Sprint 49 addendum |
+
+- Next session:
+  1. Continue with Sprint 50 (B-160–B-162).
+  2. Keep E1–E4 gate artifacts green alongside Sprint 49 route additions.
+
 Latest Session Snapshot (Sprint 48 — B-154 / B-155 / B-156 — 2026-05-08):
 
 - Timestamp (NZ): 2026-05-08 23:35 NZST

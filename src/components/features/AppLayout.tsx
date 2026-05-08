@@ -240,6 +240,8 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/incidents-log', icon: AlertTriangle, label: 'Incident Log', roles: ['admin', 'admin_officer', 'master'] },
       // Sprint 48: B-156
       { path: '/notifications-log', icon: Bell, label: 'Notification Log', roles: ['admin', 'admin_officer', 'master'] },
+      // Sprint 49: B-158
+      { path: '/infringement-notices-log', icon: Receipt, label: 'Infringement Notice Log', roles: ['admin', 'admin_officer', 'master'] },
     ],
   },
   {
@@ -400,6 +402,10 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/homeless-records-log', icon: Tent, label: 'Homeless Record Log', roles: ['admin', 'admin_officer', 'master'] },
       // Sprint 48: B-155
       { path: '/person-records-log', icon: Users, label: 'Person Record Log', roles: ['admin', 'admin_officer', 'master'] },
+      // Sprint 49: B-157
+      { path: '/face-records-log', icon: Camera, label: 'Face Record Log', roles: ['admin', 'admin_officer', 'master'] },
+      // Sprint 49: B-159
+      { path: '/site-risk-assessments-log', icon: ShieldAlert, label: 'Site Risk Assessment Log', roles: ['admin', 'admin_officer', 'master'] },
     ],
   },
   {
