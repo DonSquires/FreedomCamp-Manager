@@ -39,6 +39,16 @@ type VideoPackRow = {
   revoked_at: string | null
 }
 
+type VideoAuditRow = {
+  id: string
+  purpose: string
+  provider: string | null
+  model_name: string | null
+  output_url: string | null
+  revoked_at: string | null
+  created_at: string
+}
+
 function fmtDate(ts: string | null) {
   if (!ts) return '—'
   try {
@@ -60,6 +70,7 @@ export default function BriefingVideoSuite() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [resultMessage, setResultMessage] = useState<string | null>(null)
   const [expanded, setExpanded] = useState<string | null>(null)
+  const [revokingPackId, setRevokingPackId] = useState<string | null>(null)
 
   const canGenerate = ['admin', 'admin_officer', 'master'].includes(String(user?.role || ''))
 
@@ -76,6 +87,19 @@ export default function BriefingVideoSuite() {
 
       if (error) throw error
       return (data ?? []) as VideoPackRow[]
+    },
+  })
+
+  const { data: auditRows = [], isLoading: auditLoading, refetch: refetchAudit } = useQuery<VideoAuditRow[]>({
+    queryKey: ['briefing-video-audit', user?.organization_id],
+    queryFn: async () => {
+      if (!user?.organization_id) return []
+      const { data, error } = await supabase.functions.invoke('video-audit-log', {
+        body: { org_id: user.organization_id, limit: 50 },
+      })
+      if (error) throw error
+      if (!data?.success) return []
+      return (data.rows ?? []) as VideoAuditRow[]
     },
   })
 
@@ -124,6 +148,36 @@ export default function BriefingVideoSuite() {
     }
 
     setResultMessage('Generation request completed with unexpected response.')
+  }
+
+  async function handleRevoke(videoPackId: string) {
+    if (!canGenerate) {
+      setResultMessage('Your role cannot revoke briefing videos.')
+      return
+    }
+
+    setRevokingPackId(videoPackId)
+    setResultMessage(null)
+
+    const { data, error } = await supabase.functions.invoke('revoke-briefing-video', {
+      body: { video_pack_id: videoPackId, reason: 'operator_revocation' },
+    })
+
+    setRevokingPackId(null)
+
+    if (error) {
+      setResultMessage(`Revoke failed: ${error.message}`)
+      return
+    }
+
+    if (data?.success) {
+      setResultMessage(`Video pack revoked: ${videoPackId}`)
+      void refetch()
+      void refetchAudit()
+      return
+    }
+
+    setResultMessage('Revoke completed with unexpected response.')
   }
 
   return (
@@ -205,6 +259,48 @@ export default function BriefingVideoSuite() {
           </CardContent>
         </Card>
 
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Video Audit Log (Latest 50)</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {auditLoading ? (
+              <div className="flex justify-center py-4"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
+            ) : auditRows.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No audit rows yet.</p>
+            ) : (
+              <div className="rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Created</TableHead>
+                      <TableHead>Purpose</TableHead>
+                      <TableHead>Provider</TableHead>
+                      <TableHead>Model</TableHead>
+                      <TableHead>Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {auditRows.map((row) => (
+                      <TableRow key={row.id}>
+                        <TableCell className="text-sm whitespace-nowrap">{fmtDate(row.created_at)}</TableCell>
+                        <TableCell><Badge variant="outline" className="text-xs">{row.purpose}</Badge></TableCell>
+                        <TableCell className="text-sm">{row.provider || '—'}</TableCell>
+                        <TableCell className="text-sm">{row.model_name || '—'}</TableCell>
+                        <TableCell>
+                          <Badge className={row.revoked_at ? 'bg-slate-100 text-slate-700' : 'bg-green-100 text-green-800'}>
+                            {row.revoked_at ? 'Revoked' : 'Active'}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
         {isLoading ? (
           <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
         ) : packs.length === 0 ? (
@@ -250,6 +346,22 @@ export default function BriefingVideoSuite() {
                           <div><span className="font-medium">Output URL:</span> {row.output_url || '—'}</div>
                           {row.description && <div><span className="font-medium">Description:</span> {row.description}</div>}
                           {row.revoked_at && <div><span className="font-medium">Revoked:</span> {fmtDate(row.revoked_at)}</div>}
+                          {!row.revoked_at && (
+                            <div className="pt-1">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                disabled={revokingPackId === row.id}
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  void handleRevoke(row.id)
+                                }}
+                              >
+                                {revokingPackId === row.id ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : null}
+                                Revoke Pack
+                              </Button>
+                            </div>
+                          )}
                         </TableCell>
                       </TableRow>
                     )}
