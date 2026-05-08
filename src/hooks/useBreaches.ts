@@ -74,6 +74,8 @@ type BreachAlertLike = {
   zones?: { name?: string | null } | null
 }
 
+type BreachAlertQueueRow = BreachAlertLike & Record<string, any>
+
 /** Zone names that represent generic parent zones rather than specific locations. */
 const GENERIC_ZONE_NAMES = ['jurisdiction', 'general', 'other']
 
@@ -438,7 +440,7 @@ export function useBreachAlertQueue({
 
       primaryQuery = applyFilters(primaryQuery)
       const primary = await primaryQuery.limit(500)
-      if (!primary.error) return deduplicateBreachAlerts(primary.data || [])
+      if (!primary.error) return deduplicateBreachAlerts((primary.data || []) as BreachAlertQueueRow[])
 
       let fallbackQuery = (supabase.from('breach_alerts') as any)
         .select('*')
@@ -450,7 +452,7 @@ export function useBreachAlertQueue({
       if (fallback.error) throw fallback.error
 
       return deduplicateBreachAlerts(
-        (fallback.data || []).map((row: any) => ({
+        ((fallback.data || []) as BreachAlertQueueRow[]).map((row) => ({
           ...row,
           zones: null,
           organizations: null,

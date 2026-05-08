@@ -350,7 +350,7 @@ export default function BreachAlerts() {
     dateTo,
     startDate,
     endDate,
-  }) as any
+  })
 
   useEffect(() => {
     if (!breachesIsError) return
@@ -361,7 +361,7 @@ export default function BreachAlerts() {
   }, [breachesIsError, breachesError])
 
   // Derived: active breach from the list
-  const activeBreach = breaches?.find((b: any) => b.id === activeBreachId) || null
+  const activeBreach = (breaches?.find((b: any) => b.id === activeBreachId) as any) || null
 
   const { data: detailVehicle } = useBreachVehicleDetails(activeBreach?.plate_number)
 
@@ -816,7 +816,7 @@ export default function BreachAlerts() {
   const handleBulkAcknowledge = async () => {
     const ids = Array.from(selectedIds)
     const pendingIds = ids.filter(id => {
-      const b = breaches?.find((b: any) => b.id === id)
+      const b = breaches?.find((b: any) => b.id === id) as any
       return b?.status === 'pending'
     })
     if (pendingIds.length === 0) { toast.warning('No pending breaches selected'); return }
@@ -828,7 +828,7 @@ export default function BreachAlerts() {
   const handleBulkDismiss = async () => {
     const ids = Array.from(selectedIds)
     const dismissableIds = ids.filter(id => {
-      const b = breaches?.find((b: any) => b.id === id)
+      const b = breaches?.find((b: any) => b.id === id) as any
       return b && !['resolved', 'dismissed'].includes(b.status)
     })
     if (dismissableIds.length === 0) { toast.warning('No dismissable breaches selected'); return }
