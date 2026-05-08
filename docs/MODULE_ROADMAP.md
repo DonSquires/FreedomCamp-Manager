@@ -857,3 +857,32 @@ Checkpoint 2 continuation evidence:
 - `DataIntegrityDashboard` now consumes a shared query hook (`src/hooks/useDataIntegrity.ts`) instead of page-local Supabase reads.
 - E2 tenancy gate coverage was updated to assert the scoped GPS completeness query cluster on `useDataIntegrityChecks` and preserve the dashboard ownership anchors.
 - Updated gate spec: `tests/e2e/phase-e2-enterprise-hardening-tenancy.spec.ts`
+
+### E3 kickoff gate artifacts
+
+- Gate ownership summary: communications delivery audit, retry governance, degraded push/email outcomes, and operations visibility anchors.
+- Test spec: `tests/e2e/phase-e3-communications-audit-retry.spec.ts`
+- CI workflow: `.github/workflows/ci-phase-e3-communications-audit-retry-gate.yml`
+- `NotificationsCenter.tsx` now exposes an admin-only **E3 Communications Delivery Metrics** card for org-scoped delivery success/failure, stale pending, and retry visibility.
+- Runtime push/report/invite delivery attempts now write non-blocking `crm_communications` audit rows through the shared helper contract.
+
+### Phase E kickoff order (E1 → E4)
+
+- E1: Direct page-query reduction baseline and drift gate.
+- E2: Hook/service migration for highest-fragmentation surfaces.
+- E3: Audit dashboard completeness and communications delivery governance.
+- E4 — Final release evidence pack and cross-module rollout sign-off.
+
+### E4 release evidence gate artifacts
+
+- Test spec: `tests/e2e/phase-e4-release-evidence.spec.ts`
+- CI workflow: `.github/workflows/ci-phase-e4-release-evidence-gate.yml`
+- Phase E release evidence pack locks E1–E3 gate coverage and validates release-ready handoff anchors.
+
+### Phase E closeout validation status
+
+- Phase E final validation is recorded as green.
+- E1, E2, E3, and E4 focused gates: PASS (`110 passed`).
+- E1–E4 gate suites and CI workflows all present and passing.
+- No unresolved blockers in staging handoff logs for tenant isolation, replay safety, or rollout rollback.
+- Canonical docs (`STAGING.md`, `MODULE_ROADMAP.md`) updated with final evidence references.
