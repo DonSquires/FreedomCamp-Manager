@@ -140,7 +140,7 @@ export default function IncidentLog() {
             <SelectTrigger className="w-44"><SelectValue placeholder="Type" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All types</SelectItem>
-              {types.map(t => <SelectItem key={t} value={t!}>{t}</SelectItem>)}
+              {types.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
             </SelectContent>
           </Select>
           <Select value={sevFilter} onValueChange={setSevFilter}>
@@ -154,7 +154,7 @@ export default function IncidentLog() {
             <SelectTrigger className="w-40"><SelectValue placeholder="Status" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All statuses</SelectItem>
-              {statuses.map(s => <SelectItem key={s} value={s!}>{s}</SelectItem>)}
+              {statuses.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
             </SelectContent>
           </Select>
           <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="w-40" />

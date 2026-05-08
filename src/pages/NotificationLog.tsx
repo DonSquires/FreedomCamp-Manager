@@ -37,7 +37,7 @@ import {
 } from '@/components/ui/table'
 import type { Database } from '@/types/database'
 
-type NotifRow = Database['public']['Tables']['notifications']['Row']
+type NotificationRow = Database['public']['Tables']['notifications']['Row']
 
 function fmtDate(ts: string | null) {
   if (!ts) return '—'
@@ -64,7 +64,7 @@ export default function NotificationLog() {
   const [dateFrom,       setDateFrom]       = useState('')
   const [expanded,       setExpanded]       = useState<string | null>(null)
 
-  const { data: rows = [], isLoading, refetch } = useQuery<NotifRow[]>({
+  const { data: rows = [], isLoading, refetch } = useQuery<NotificationRow[]>({
     queryKey: ['notifications-log', orgId, searchQuery, typeFilter, priorityFilter, deliveredFilter, dateFrom],
     enabled: !!orgId,
     queryFn: async () => {
