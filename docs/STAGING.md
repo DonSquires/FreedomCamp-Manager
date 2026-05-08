@@ -440,6 +440,26 @@ Latest Session Snapshot (Phase E Final Closeout Validation — 2026-05-08):
   2. Tenant isolation, degraded communications outcomes, data-access drift, and rollback-ready docs remain covered by the Phase E gate artifacts.
   3. No new Phase E blocker was identified during closeout validation.
 
+Latest Session Snapshot (Phase E2 DataIntegrity Hook/Service Continuation — 2026-05-08):
+
+- Timestamp (NZ): 2026-05-08 21:00 NZST
+- Current branch: copilot/continue-realignment-project-again
+- Scope completed:
+  - Continued Phase E checkpoint 2 by extracting `DataIntegrityDashboard` page-local query logic into `src/hooks/useDataIntegrity.ts`.
+  - Updated `src/pages/DataIntegrityDashboard.tsx` to consume `useDataIntegrityChecks` and keep E2 domain metric visibility unchanged.
+  - Updated `tests/e2e/phase-e2-enterprise-hardening-tenancy.spec.ts` to preserve E2 coverage anchors against the new shared-hook boundary.
+  - Updated `docs/MODULE_ROADMAP.md` with E2 hook/service continuation evidence.
+
+- E2 continuation checkpoint:
+  | Surface | Before | After | Evidence |
+  |---|---|---|---|
+  | `DataIntegrityDashboard` query boundary | Page-local Supabase query cluster | Shared hook (`useDataIntegrityChecks`) | `src/pages/DataIntegrityDashboard.tsx`, `src/hooks/useDataIntegrity.ts` |
+  | E2 tenancy gate anchors | GPS-scope assertions on page source | GPS-scope assertions on shared hook source | `tests/e2e/phase-e2-enterprise-hardening-tenancy.spec.ts` |
+
+- Validation note:
+  1. `bun run lint` and `bun run build` are green.
+  2. Focused Phase E gate run still reports a pre-existing roadmap-anchor failure in `phase-e3-communications-audit-retry.spec.ts` (missing expected `### E3 kickoff gate artifacts` heading in `docs/MODULE_ROADMAP.md` on this branch baseline).
+
 Latest Session Snapshot (Phase E2 Enterprise Hardening Tenancy Gate Kickoff — 2026-05-08):
 
 - Timestamp (NZ): 2026-05-08 12:57 NZST

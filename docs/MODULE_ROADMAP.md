@@ -850,3 +850,10 @@ Phase E1 gate artifacts:
 - Test spec: `tests/e2e/phase-e1-data-access-consolidation.spec.ts`
 - CI workflow: `.github/workflows/ci-phase-e1-data-access-consolidation-gate.yml`
 - Local command: `bunx playwright test tests/e2e/phase-e1-data-access-consolidation.spec.ts --config=playwright.api.config.ts --reporter=list`
+
+### Phase E2 Hook/Service Migration Continuation (2026-05-08)
+
+Checkpoint 2 continuation evidence:
+- `DataIntegrityDashboard` now consumes a shared query hook (`src/hooks/useDataIntegrity.ts`) instead of page-local Supabase reads.
+- E2 tenancy gate coverage was updated to assert the scoped GPS completeness query cluster on `useDataIntegrityChecks` and preserve the dashboard ownership anchors.
+- Updated gate spec: `tests/e2e/phase-e2-enterprise-hardening-tenancy.spec.ts`
