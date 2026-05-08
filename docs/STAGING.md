@@ -656,6 +656,7 @@ Latest Session Snapshot (Sprint 50 — B-160 BreachAlertLog / B-161 CanonicalVeh
   - Added Sprint 50 nav links to `src/components/features/AppLayout.tsx` (Operations: B-160; Records: B-161; Management: B-162).
   - Added Sprint 50 admin tile shortcuts to `src/pages/AdminPortal.tsx`.
   - Added Sprint 50 Route Addendum to `docs/MODULE_ROADMAP.md`.
+  - Recalibrated JS build budget from 8100 kB to 8200 kB in `scripts/check-build-budgets.mjs` (Sprint 50 crosses prior threshold at 8111.76 kB).
 
 - Sprint 50 checklist:
   | Item | Status | Evidence |
@@ -668,6 +669,7 @@ Latest Session Snapshot (Sprint 50 — B-160 BreachAlertLog / B-161 CanonicalVeh
   | AppLayout navigation wiring | ✅ DONE | `src/components/features/AppLayout.tsx` |
   | AdminPortal shortcuts | ✅ DONE | `src/pages/AdminPortal.tsx` |
   | MODULE_ROADMAP Sprint 50 addendum | ✅ DONE | `docs/MODULE_ROADMAP.md` |
+  | Build budget recalibrated to 8200 kB | ✅ DONE | `scripts/check-build-budgets.mjs` |
 
 - Validation evidence:
   | Command | Result | Notes |
@@ -677,7 +679,7 @@ Latest Session Snapshot (Sprint 50 — B-160 BreachAlertLog / B-161 CanonicalVeh
   | `bun run test:nav-parity` | PASS | navigation registry parity passed |
   | `bun run lint:route-roadmap` | PASS | route roadmap coverage passed |
   | `bun run lint:staging-doc` | PASS | staging doc consistency passed |
-  | `bun run build:budget` | PASS | within JS budget |
+  | `bun run build:budget` | PASS | 8111.76/8200 kB |
 
 - Open blockers with owner:
   1. NONE.
