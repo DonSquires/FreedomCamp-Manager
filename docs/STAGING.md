@@ -369,6 +369,28 @@ Latest Session Snapshot (Phase E3 Runtime Communications Audit Continuation — 
   2. Prepare E4 release evidence pack once runtime audit rows are verified green.
   3. Keep Phase E completion evidence focused on gate artifacts, org isolation, degraded outcomes, and rollback-ready docs.
 
+Latest Session Snapshot (Phase E4 Release Evidence Gate Kickoff — 2026-05-08):
+
+- Timestamp (NZ): 2026-05-08 15:11 NZST
+- Current branch: copilot/550-continue-phase-realignment
+- Scope completed:
+  - Advanced from E3 runtime communications audit into E4 release evidence and cross-module rollout sign-off.
+  - Added `tests/e2e/phase-e4-release-evidence.spec.ts` to lock Phase E completion evidence across E1–E4 gate artifacts, canonical docs, validation anchors, and rollback-ready handoff text.
+  - Added `.github/workflows/ci-phase-e4-release-evidence-gate.yml` as the E4 path-filtered CI workflow.
+  - Updated `docs/MODULE_ROADMAP.md` with E4 gate artifact references and release evidence scope.
+
+- E4 release evidence checkpoint:
+  | Surface | Evidence added | Gate coverage |
+  |---|---|---|
+  | `phase-e4-release-evidence.spec.ts` | E1–E4 gate artifact presence, completion requirements, staging checkpoint, validation anchors, and rollback-ready handoff checks | `ci-phase-e4-release-evidence-gate.yml` |
+  | `MODULE_ROADMAP.md` | E4 release evidence gate artifacts and completion behavior | `phase-e4-release-evidence.spec.ts` |
+  | `STAGING.md` | Phase E final handoff evidence for tenant isolation, degraded communications outcomes, data-access drift, and rollback-ready docs | `phase-e4-release-evidence.spec.ts` |
+
+- Phase E final validation handoff:
+  1. Run lint/build plus E1, E2, E3, and E4 gates before merging the realignment continuation.
+  2. Confirm tenant isolation, degraded communications outcomes, data-access drift, and rollback-ready docs remain covered by the Phase E gate artifacts.
+  3. Treat any `UNRESOLVED PHASE E BLOCKER` staging entry as a merge blocker until resolved.
+
 Latest Session Snapshot (Phase E2 Enterprise Hardening Tenancy Gate Kickoff — 2026-05-08):
 
 - Timestamp (NZ): 2026-05-08 12:57 NZST

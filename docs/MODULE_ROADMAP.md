@@ -765,3 +765,10 @@ Phase D closeout is now anchored to D3 transition-handshake-offline gate evidenc
 3. `send-report-email` records SMTP delivered and failed report-email outcomes, including invalid recipient and SMTP configuration failures when scoped to an organization.
 4. `send-invite-email` accepts optional `organization_id` and records proxy relay, direct SMTP fallback, relay failure, validation failure, and retry-count outcomes when scoped to an organization.
 5. The E3 gate and workflow now watch the shared audit helper and runtime audit-write anchors.
+
+### E4 release evidence gate artifacts
+
+1. Gate spec: `tests/e2e/phase-e4-release-evidence.spec.ts`.
+2. CI workflow: `.github/workflows/ci-phase-e4-release-evidence-gate.yml`.
+3. Phase E release evidence pack locks E1–E3 gate coverage, E4 sign-off anchors, canonical staging/roadmap references, validation command anchors, and rollback-ready handoff text.
+4. Gate behavior: fail when Phase E loses any E1–E4 spec/workflow artifact reference, completion gate requirement, staging checkpoint, or validation evidence anchor.
