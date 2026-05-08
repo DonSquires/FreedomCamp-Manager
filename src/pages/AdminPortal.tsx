@@ -45,6 +45,7 @@ import {
   FileBarChart,
   FileText,
   FileWarning,
+  Flag,
   Gavel,
   GraduationCap,
   Heart,
@@ -1262,6 +1263,10 @@ export default function AdminPortal() {
                     { path: '/officer-skills-log',             label: 'Officer Skills',  Icon: BadgeCheck,   color: 'text-teal-700',   bg: 'bg-teal-50 dark:bg-teal-900/20' },
                     { path: '/open-shifts-log',                label: 'Open Shifts',     Icon: CalendarCheck2, color: 'text-violet-700', bg: 'bg-violet-50 dark:bg-violet-900/20' },
                     { path: '/patrol-checkpoints-log',         label: 'Checkpoint Log',  Icon: ScanLine,     color: 'text-cyan-700',   bg: 'bg-cyan-50 dark:bg-cyan-900/20' },
+                    // Sprint 56: B-178–B-180
+                    { path: '/feature-flags-log',              label: 'Feature Flags',   Icon: Flag,         color: 'text-blue-700',   bg: 'bg-blue-50 dark:bg-blue-900/20' },
+                    { path: '/contractor-profiles-log',        label: 'Contractors',     Icon: Briefcase,    color: 'text-indigo-700', bg: 'bg-indigo-50 dark:bg-indigo-900/20' },
+                    { path: '/parking-zones-log',              label: 'Parking Zones',   Icon: ParkingSquare,color: 'text-emerald-700',bg: 'bg-emerald-50 dark:bg-emerald-900/20' },
                   ].map(({ path, label, Icon, color, bg }) => (
                     <button key={path} onClick={() => navigate(path)} aria-label={`Open ${label}`} className={`${moduleTileClass} ${bg}`}>
                       <Icon className={`h-5 w-5 ${color}`} />

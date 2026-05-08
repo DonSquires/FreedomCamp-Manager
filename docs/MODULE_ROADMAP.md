@@ -1,9 +1,9 @@
 # Module Roadmap (Operator Navigation Map)
 
 Date: 2026-05-08 (verified against src/navigation/routeManifest.ts)
-Source of truth for routes: route manifest file src/navigation/routeManifest.ts (229 route manifest entries as of Sprint 55 completion)
+Source of truth for routes: route manifest file src/navigation/routeManifest.ts (232 route manifest entries as of Sprint 56 completion)
 
- > **Last Verification**: 2026-05-09 — Role-gating and route docs reviewed through Sprint 55 (B-177). Production main includes Sprints 31-49.
+ > **Last Verification**: 2026-05-09 — Role-gating and route docs reviewed through Sprint 56 (B-180). Production main includes Sprints 31-49.
 
 ## How To Use
 
@@ -927,11 +927,30 @@ New admin routes added in Sprint 55 (B-175, B-176, B-177):
    - Role gate: admin, admin_officer, master
    - Viewer for patrol_checkpoints; KPIs (Total/Active/Required/With GPS); active/required/search filters; QR/NFC and geolocation detail expand
 
+## Sprint 56 Route Addendum (2026-05-09)
+
+New admin routes added in Sprint 56 (B-178, B-179, B-180):
+
+1. Feature Flag Log (B-178)
+   - Route: /feature-flags-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for feature_flags; KPIs (Total/Enabled/Org Scoped/User Scoped); enabled/phase/name filters; rollout thresholds and allow-list detail expand
+
+2. Contractor Profile Log (B-179)
+   - Route: /contractor-profiles-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for contractor_profiles; KPIs (Total Profiles/Insurance OK/H&S OK/Agreement Signed); compliance/search filters; expiry and rate-card detail expand
+
+3. Parking Zone Log (B-180)
+   - Route: /parking-zones-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for parking_zones; KPIs (Total/Active/With Fine/Permit Aware); active/type/search filters; enforcement, permit, and camera detail expand
+
 ## Production Status Snapshot (2026-05-08)
 
 - Branch: main
 - PR state (base main): 0 open
-- Consolidation status: Sprint 31 through Sprint 49 route work is merged to production main; Sprints 50–55 in progress
+- Consolidation status: Sprint 31 through Sprint 49 route work is merged to production main; Sprints 50–56 in progress
 
 ## Post-Sprint-42 Realignment Phases and Phase-Gate Progression (#548)
 

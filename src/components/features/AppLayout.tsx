@@ -343,6 +343,9 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/flagged-vehicles-log', icon: Car, label: 'Flagged Vehicle Log', roles: ['admin', 'admin_officer', 'master'] },
       // Sprint 55: B-175
       { path: '/officer-skills-log', icon: BadgeCheck, label: 'Officer Skills Log', roles: ['admin', 'admin_officer', 'master'] },
+      // Sprint 56: B-178, B-179
+      { path: '/feature-flags-log', icon: Flag, label: 'Feature Flag Log', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/contractor-profiles-log', icon: Briefcase, label: 'Contractor Profile Log', roles: ['admin', 'admin_officer', 'master'] },
     ],
   },
   {
@@ -441,6 +444,8 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/breach-alerts-log', icon: AlertTriangle, label: 'Breach Alert Log', roles: ['admin', 'admin_officer', 'master'] },
       // Sprint 55: B-177
       { path: '/patrol-checkpoints-log', icon: ScanLine, label: 'Patrol Checkpoint Log', roles: ['admin', 'admin_officer', 'master'] },
+      // Sprint 56: B-180
+      { path: '/parking-zones-log', icon: ParkingSquare, label: 'Parking Zone Log', roles: ['admin', 'admin_officer', 'master'] },
     ],
   },
   {
