@@ -1,9 +1,9 @@
 # Module Roadmap (Operator Navigation Map)
 
-Date: 2026-05-07 (verified against src/navigation/routeManifest.ts)
-Source of truth for routes: route manifest file src/navigation/routeManifest.ts (187 route manifest entries as of Sprint 41 completion)
+Date: 2026-05-08 (verified against src/navigation/routeManifest.ts)
+Source of truth for routes: route manifest file src/navigation/routeManifest.ts (199 route manifest entries as of Sprint 45 completion)
 
- > **Last Verification**: 2026-05-07 — Role-gating and route docs reviewed through Sprint 42 (B-138). Production main includes Sprints 31-42.
+ > **Last Verification**: 2026-05-08 — Role-gating and route docs reviewed through Sprint 45 (B-147). Production main includes Sprints 31-45.
 
 ## How To Use
 
@@ -684,20 +684,20 @@ New admin routes added in Sprint 42 (B-136, B-137, B-138):
 
 New admin routes added in Sprint 43 (B-139, B-140, B-141):
 
-1. Officer Shift Log (B-139)
-   - Route: /officer-shifts-log
+1. Bob Proposal Log (B-139)
+   - Route: /bob-proposals-log
    - Role gate: admin, admin_officer, master
-   - Viewer for officer_shifts; KPIs (Total/Active/Pending Approval/GPS Tracked); officer/approval/service-type/date filters; GPS and feedback expand
+   - Viewer for bob_action_proposals; KPIs (Total/Pending/Approved/Rejected+Failed); status/type/impact/title filters; approval notes/execution error/proposal payload expand
 
-2. Import Batch Log (B-140)
-   - Route: /import-batch-log
+2. Bob Proposal Event Log (B-140)
+   - Route: /bob-proposal-events-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for bob_action_proposal_events; KPIs (Total/Unique Proposals/Unique Cases/Unique Actors); event_type/proposal_id/case_id/date filters; metadata JSON expand
+
+3. Import Batch Log (B-141)
+   - Route: /import-batches-log
    - Role gate: admin, master
-   - Viewer for import_batches; KPIs (Total/Completed/Failed/Total Records); name/status/date filters; enrichment metrics expand
-
-3. Zone Compliance Matrix Log (B-141)
-   - Route: /zone-compliance-matrix-log
-   - Role gate: admin, admin_officer, master
-   - Viewer for zone_compliance_matrix; KPIs (Total/Day-Visit Only/Self-Contained Required/Homeless Exemption); zone/day-visit/self-contained filters; stay-limit and allowed-days expand
+   - Viewer for import_batches; KPIs (Total Batches/Total Records/Successful Records/Failed Records); status/batch_name/date filters; enrichment stats (vehicles/plates/homeless/H&S) + error_summary + import_config expand
 
 ## Sprint 44 Route Addendum (2026-05-08)
 
@@ -706,17 +706,17 @@ New admin routes added in Sprint 44 (B-142, B-143, B-144):
 1. Admin Recalculation Log (B-142)
    - Route: /admin-recalculation-log
    - Role gate: admin, master
-   - Viewer for admin_recalculation_actions; KPIs (Total/Completed/Failed/Drift Events Created); actor/status/scope/date filters; target org/zone and error expand
+   - Viewer for admin_recalculation_actions; KPIs (Total Runs/Completed/Failed/Observations Processed); status/scope_type/date filters; duration, compliance changes, drift events, error message, target orgs/zones expand
 
 2. Contractor Document Log (B-143)
-   - Route: /contractor-document-log
+   - Route: /contractor-documents-log
    - Role gate: admin, admin_officer, master
-   - Viewer for contractor_documents; KPIs (Total/Current/Expired/With Expiry Date); name/type/state filters; uploader/file-metadata expand
+   - Viewer for contractor_documents; KPIs (Total/Current/Expiring Soon/Expired); document_type/currency/name/date filters; expiry highlighting; document URL link
 
 3. Import Staging Log (B-144)
    - Route: /import-staging-log
    - Role gate: admin, master
-   - Viewer for import_staging; KPIs (Total/Imported/Enriched/With Errors); batch/status/error filters; raw payload and validation-error expand
+   - Viewer for import_staging; KPIs (Total Records/Imported/Failed/With Errors); status/batch_id/date filters; validation errors, confidence scores, raw data JSON expand
 
 ## Sprint 45 Route Addendum (2026-05-08)
 
@@ -724,43 +724,24 @@ New admin routes added in Sprint 45 (B-145, B-146, B-147):
 
 1. LMR Bridge Config Log (B-145)
    - Route: /lmr-bridge-config-log
-   - Role gate: admin, admin_officer, master
-   - Viewer for lmr_bridge_config; KPIs (Total/Active/Inbound/Gateway Token Set); search/direction/status filters; safe token-state and notes expand
+   - Role gate: admin, master
+   - Viewer for lmr_bridge_config; KPIs (Total/Active/Inactive/With Token); active/direction/label filters; masked token in detail view
 
 2. Radio Voice Profile Log (B-146)
-   - Route: /radio-voice-profile-log
+   - Route: /radio-voice-profiles-log
    - Role gate: admin, admin_officer, master
-   - Viewer for radio_voice_profiles; KPIs (Total/Active/Revoked/Unique Officers); officer/provider/status filters; profile/org audit expand
+   - Viewer for radio_voice_profiles; KPIs (Total/Active/Revoked/Providers); provider/status/officer/date filters
 
 3. Zone Dispatch Rule Log (B-147)
-   - Route: /zone-dispatch-rule-log
-   - Role gate: admin, admin_officer, master
-   - Viewer for zone_dispatch_resource_rules; KPIs (Total/Active/Zones Covered/Scheduled Rules); zone/resource/job/day/status filters; priority and assignment expand
-
-## Sprint 46 Route Addendum (2026-05-08)
-
-New admin routes added in Sprint 46 (B-148, B-149, B-150):
-
-1. Bob Action Proposal Event Log (B-148)
-   - Route: /bob-action-proposal-event-log
+   - Route: /zone-dispatch-rules-log
    - Role gate: admin, master
-   - Viewer for bob_action_proposal_events; KPIs (Total/Unique Proposals/Case-Linked/With Notes); proposal/event-type/date filters; metadata and notes expand
+   - Viewer for zone_dispatch_resource_rules; KPIs (Total/Active/Unique Zones/Scheduled Rules); status/job_type/org/date filters; day/time window visibility
 
-2. Homeless Record Log (B-149)
-   - Route: /homeless-records-log
-   - Role gate: admin, admin_officer, master
-   - Viewer for homeless_records; KPIs (Total/Active/Inactive/Unique Plates); plate/status/source/active filters; creator/updater and notes expand
-
-3. Restriction Log (B-150)
-   - Route: /restrictions-log
-   - Role gate: admin, admin_officer, master
-   - Viewer for restrictions; KPIs (Total/Types/With Metadata/Updated Last 30d); name/type filters; metadata JSON expand (geometry omitted from table, noted as spatial)
-
-## Production Status Snapshot (2026-05-07)
+## Production Status Snapshot (2026-05-08)
 
 - Branch: main
 - PR state (base main): 0 open
-- Consolidation status: Sprint 31 through Sprint 42 route work is merged to production main
+- Consolidation status: Sprint 31 through Sprint 45 route work is merged to production main
 
 ## Post-Sprint-42 Realignment Phases and Phase-Gate Progression (#548)
 
@@ -926,39 +907,3 @@ Phase E1 gate artifacts:
 - Test spec: `tests/e2e/phase-e1-data-access-consolidation.spec.ts`
 - CI workflow: `.github/workflows/ci-phase-e1-data-access-consolidation-gate.yml`
 - Local command: `bunx playwright test tests/e2e/phase-e1-data-access-consolidation.spec.ts --config=playwright.api.config.ts --reporter=list`
-
-### Phase E2 Hook/Service Migration Continuation (2026-05-08)
-
-Checkpoint 2 continuation evidence:
-- `DataIntegrityDashboard` now consumes a shared query hook (`src/hooks/useDataIntegrity.ts`) instead of page-local Supabase reads.
-- E2 tenancy gate coverage was updated to assert the scoped GPS completeness query cluster on `useDataIntegrityChecks` and preserve the dashboard ownership anchors.
-- Updated gate spec: `tests/e2e/phase-e2-enterprise-hardening-tenancy.spec.ts`
-
-### E3 kickoff gate artifacts
-
-- Gate ownership summary: communications delivery audit, retry governance, degraded push/email outcomes, and operations visibility anchors.
-- Test spec: `tests/e2e/phase-e3-communications-audit-retry.spec.ts`
-- CI workflow: `.github/workflows/ci-phase-e3-communications-audit-retry-gate.yml`
-- `NotificationsCenter.tsx` now exposes an admin-only **E3 Communications Delivery Metrics** card for org-scoped delivery success/failure, stale pending, and retry visibility.
-- Runtime push/report/invite delivery attempts now write non-blocking `crm_communications` audit rows through the shared helper contract.
-
-### Phase E kickoff order (E1 → E4)
-
-- E1: Direct page-query reduction baseline and drift gate.
-- E2: Hook/service migration for highest-fragmentation surfaces.
-- E3: Audit dashboard completeness and communications delivery governance.
-- E4 — Final release evidence pack and cross-module rollout sign-off.
-
-### E4 release evidence gate artifacts
-
-- Test spec: `tests/e2e/phase-e4-release-evidence.spec.ts`
-- CI workflow: `.github/workflows/ci-phase-e4-release-evidence-gate.yml`
-- Phase E release evidence pack locks E1–E3 gate coverage and validates release-ready handoff anchors.
-
-### Phase E closeout validation status
-
-- Phase E final validation is recorded as green.
-- E1, E2, E3, and E4 focused gates: PASS (`110 passed`).
-- E1–E4 gate suites and CI workflows all present and passing.
-- No unresolved blockers in staging handoff logs for tenant isolation, replay safety, or rollout rollback.
-- Canonical docs (`STAGING.md`, `MODULE_ROADMAP.md`) updated with final evidence references.

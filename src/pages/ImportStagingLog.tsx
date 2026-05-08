@@ -1,15 +1,15 @@
 /**
  * ImportStagingLog — B-144
  *
- * Admin log and viewer for import_staging.
- * Displays staging-row validation, enrichment status, batch lineage,
- * and raw payload snapshots for imported records.
+ * Admin audit log for import_staging.
+ * Shows each staged import record within a batch — status, enrichment outcomes,
+ * validation errors, and raw/enriched data inspection.
  *
  * Route: /import-staging-log — admin/master
  */
-import { Fragment, useState } from 'react'
+import { useState } from 'react'
 import { format, parseISO } from 'date-fns'
-import { DatabaseZap, RefreshCw, AlertCircle, Loader2 } from 'lucide-react'
+import { Table2, RefreshCw, AlertCircle, Loader2 } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 
 import { supabase } from '@/lib/supabase'
@@ -42,32 +42,33 @@ function fmtDate(ts: string | null) {
   try { return format(parseISO(ts), 'dd MMM yyyy HH:mm') } catch { return ts }
 }
 
-function jsonSize(value: unknown) {
-  if (!value) return 0
-  try { return JSON.stringify(value).length } catch { return 0 }
+const STATUS_COLOURS: Record<string, string> = {
+  pending:    'bg-amber-100 text-amber-800',
+  validated:  'bg-blue-100 text-blue-800',
+  enriched:   'bg-indigo-100 text-indigo-800',
+  imported:   'bg-green-100 text-green-800',
+  failed:     'bg-rose-100 text-rose-800',
+  skipped:    'bg-gray-100 text-gray-700',
 }
 
 export default function ImportStagingLog() {
-  const [batchQuery, setBatchQuery] = useState('')
-  const [statusFilter, setStatusFilter] = useState('all')
-  const [errorFilter, setErrorFilter] = useState('all')
-  const [expanded, setExpanded] = useState<string | null>(null)
+  const [statusFilter, setStatusFilter] = useState<string>('all')
+  const [batchQuery, setBatchQuery]     = useState('')
+  const [dateFrom, setDateFrom]         = useState('')
+  const [expanded, setExpanded]         = useState<string | null>(null)
 
   const { data: rows = [], isLoading, refetch } = useQuery<StagingRow[]>({
-    queryKey: ['import-staging-log', batchQuery, statusFilter, errorFilter],
+    queryKey: ['import-staging-log', statusFilter, batchQuery, dateFrom],
     queryFn: async () => {
       let q = supabase
         .from('import_staging')
         .select('*')
-        .order('created_at', { ascending: false, nullsFirst: false })
+        .order('created_at', { ascending: false })
         .limit(500)
 
-      if (batchQuery.trim()) {
-        q = q.or(`batch_id.ilike.%${batchQuery.trim()}%,observation_id.ilike.%${batchQuery.trim()}%,vehicle_id.ilike.%${batchQuery.trim()}%`)
-      }
       if (statusFilter !== 'all') q = q.eq('status', statusFilter)
-      if (errorFilter === 'errors') q = q.not('error_log', 'is', null)
-      if (errorFilter === 'clean') q = q.is('error_log', null)
+      if (batchQuery.trim())      q = q.ilike('batch_id', `%${batchQuery.trim()}%`)
+      if (dateFrom)               q = q.gte('created_at', dateFrom)
 
       const { data, error } = await q
       if (error) throw error
@@ -75,20 +76,22 @@ export default function ImportStagingLog() {
     },
   })
 
-  const statuses = [...new Set(rows.map(row => row.status).filter(Boolean))].sort()
-  const errored = rows.filter(row => !!row.error_log).length
-  const enriched = rows.filter(row => !!row.enriched_at).length
-  const imported = rows.filter(row => !!row.imported_at).length
+  const imported  = rows.filter(r => r.status === 'imported').length
+  const failed    = rows.filter(r => r.status === 'failed').length
+  const enriched  = rows.filter(r => r.enriched_at !== null).length
+  const withErrors = rows.filter(r => r.error_log).length
+
+  const statuses = ['all', ...Array.from(new Set(rows.map(r => r.status).filter(Boolean)))]
 
   return (
     <AppLayout>
       <div className="p-6 space-y-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <DatabaseZap className="h-6 w-6 text-amber-600" />
+            <Table2 className="h-6 w-6 text-cyan-600" />
             <div>
               <h1 className="text-2xl font-bold">Import Staging Log</h1>
-              <p className="text-sm text-muted-foreground">Staging-row validation and enrichment audit with batch lineage and raw payload detail</p>
+              <p className="text-sm text-muted-foreground">Per-record staging audit for all import batches — status, enrichment, validation errors</p>
             </div>
           </div>
           <Button variant="outline" size="sm" onClick={() => refetch()}>
@@ -98,10 +101,10 @@ export default function ImportStagingLog() {
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
-            { label: 'Total Staging Rows', value: rows.length, colour: 'text-gray-700' },
-            { label: 'Imported', value: imported, colour: 'text-emerald-700' },
-            { label: 'Enriched', value: enriched, colour: 'text-sky-700' },
-            { label: 'With Errors', value: errored, colour: 'text-rose-700' },
+            { label: 'Total Records',  value: rows.length,            colour: 'text-gray-700' },
+            { label: 'Imported',       value: imported,               colour: 'text-green-700' },
+            { label: 'Failed',         value: failed,                 colour: 'text-rose-700' },
+            { label: 'With Errors',    value: withErrors,             colour: 'text-amber-700' },
           ].map(kpi => (
             <Card key={kpi.label}>
               <CardHeader className="pb-1 pt-3 px-4"><CardTitle className="text-xs text-muted-foreground">{kpi.label}</CardTitle></CardHeader>
@@ -111,93 +114,118 @@ export default function ImportStagingLog() {
         </div>
 
         <div className="flex flex-wrap gap-3">
-          <Input value={batchQuery} onChange={e => setBatchQuery(e.target.value)} placeholder="Search batch, observation, or vehicle…" className="w-72" />
+          <Input
+            value={batchQuery}
+            onChange={e => setBatchQuery(e.target.value)}
+            placeholder="Search batch ID…"
+            className="w-52"
+          />
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-44"><SelectValue placeholder="Status" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All statuses</SelectItem>
-              {statuses.map(status => <SelectItem key={status} value={status!}>{status}</SelectItem>)}
-            </SelectContent>
+            <SelectTrigger className="w-36"><SelectValue placeholder="Status" /></SelectTrigger>
+            <SelectContent>{statuses.map(s => <SelectItem key={s} value={s}>{s === 'all' ? 'All statuses' : s}</SelectItem>)}</SelectContent>
           </Select>
-          <Select value={errorFilter} onValueChange={setErrorFilter}>
-            <SelectTrigger className="w-44"><SelectValue placeholder="Error state" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All rows</SelectItem>
-              <SelectItem value="errors">With errors</SelectItem>
-              <SelectItem value="clean">No errors</SelectItem>
-            </SelectContent>
-          </Select>
+          <input
+            type="date"
+            value={dateFrom}
+            onChange={e => setDateFrom(e.target.value)}
+            className="border rounded px-3 py-1 text-sm w-40 bg-background"
+          />
         </div>
 
         {isLoading ? (
           <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
         ) : rows.length === 0 ? (
-          <div className="flex flex-col items-center py-12 text-muted-foreground gap-2"><AlertCircle className="h-8 w-8" /><p>No records found</p></div>
+          <div className="flex flex-col items-center py-12 text-muted-foreground gap-2">
+            <AlertCircle className="h-8 w-8" /><p>No staging records found</p>
+          </div>
         ) : (
           <div className="rounded-md border">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Created</TableHead>
-                  <TableHead>Batch</TableHead>
+                  <TableHead>Created At</TableHead>
+                  <TableHead>Batch ID</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Imported</TableHead>
-                  <TableHead>Enriched</TableHead>
-                  <TableHead>Observation</TableHead>
+                  <TableHead>Enriched At</TableHead>
+                  <TableHead>Imported At</TableHead>
                   <TableHead>Vehicle</TableHead>
-                  <TableHead>Details</TableHead>
+                  <TableHead>Observation</TableHead>
+                  <TableHead>Detail</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {rows.map(row => (
-                  <Fragment key={row.id}>
+                  <>
                     <TableRow
+                      key={row.id}
                       className="cursor-pointer hover:bg-muted/40"
                       onClick={() => setExpanded(expanded === row.id ? null : row.id)}
                     >
-                      <TableCell className="text-sm">{fmtDate(row.created_at)}</TableCell>
-                      <TableCell className="font-mono text-xs">{row.batch_id}</TableCell>
+                      <TableCell className="text-sm whitespace-nowrap">{fmtDate(row.created_at)}</TableCell>
+                      <TableCell className="font-mono text-xs text-muted-foreground">{row.batch_id.slice(0, 8)}…</TableCell>
                       <TableCell>
-                        {row.status ? (
-                          <Badge className="bg-amber-100 text-amber-800">{row.status}</Badge>
-                        ) : (
-                          <span className="text-muted-foreground">—</span>
-                        )}
+                        <Badge className={`text-xs ${STATUS_COLOURS[row.status ?? ''] ?? 'bg-gray-100 text-gray-700'}`}>
+                          {row.status ?? '—'}
+                        </Badge>
                       </TableCell>
-                      <TableCell className="text-sm">{fmtDate(row.imported_at)}</TableCell>
                       <TableCell className="text-sm">{fmtDate(row.enriched_at)}</TableCell>
-                      <TableCell className="font-mono text-xs">{row.observation_id ?? '—'}</TableCell>
-                      <TableCell className="font-mono text-xs">{row.vehicle_id ?? '—'}</TableCell>
+                      <TableCell className="text-sm">{fmtDate(row.imported_at)}</TableCell>
+                      <TableCell className="font-mono text-xs text-muted-foreground">
+                        {row.vehicle_id ? row.vehicle_id.slice(0, 8) + '…' : '—'}
+                      </TableCell>
+                      <TableCell className="font-mono text-xs text-muted-foreground">
+                        {row.observation_id ? row.observation_id.slice(0, 8) + '…' : '—'}
+                      </TableCell>
                       <TableCell className="text-xs text-sky-600">{expanded === row.id ? '▲ hide' : '▼ show'}</TableCell>
                     </TableRow>
                     {expanded === row.id && (
-                      <TableRow className="bg-muted/20">
+                      <TableRow key={`${row.id}-exp`} className="bg-muted/20">
                         <TableCell colSpan={8} className="text-xs text-muted-foreground space-y-2 py-3">
-                          <div><span className="font-medium">ID:</span> {row.id}</div>
-                          <div>
-                            <span className="font-medium">Payload sizes:</span> raw {jsonSize(row.raw_data)} chars &nbsp;
-                            confidence {jsonSize(row.confidence_scores)} chars &nbsp;
-                            validation {jsonSize(row.validation_errors)} chars
+                          <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                            <div><span className="font-medium">Record ID:</span> {row.id}</div>
+                            <div><span className="font-medium">Batch ID:</span> {row.batch_id}</div>
+                            <div><span className="font-medium">Vehicle ID:</span> {row.vehicle_id ?? '—'}</div>
+                            <div><span className="font-medium">Observation ID:</span> {row.observation_id ?? '—'}</div>
                           </div>
-                          {row.error_log && <div><span className="font-medium text-rose-700">Error log:</span> <span className="text-rose-700">{row.error_log}</span></div>}
-                          <div>
-                            <span className="font-medium">Raw data:</span>
-                            <pre className="mt-1 overflow-auto max-h-32 text-xs bg-muted rounded p-2">{JSON.stringify(row.raw_data, null, 2)}</pre>
-                          </div>
+                          {row.error_log && (
+                            <div className="text-rose-700"><span className="font-medium">Error log:</span> {row.error_log}</div>
+                          )}
                           {row.validation_errors && (
                             <div>
                               <span className="font-medium">Validation errors:</span>
-                              <pre className="mt-1 overflow-auto max-h-32 text-xs bg-muted rounded p-2">{JSON.stringify(row.validation_errors, null, 2)}</pre>
+                              <pre className="mt-1 overflow-auto max-h-24 text-xs bg-muted rounded p-2">
+                                {JSON.stringify(row.validation_errors, null, 2)}
+                              </pre>
                             </div>
                           )}
+                          {row.confidence_scores && (
+                            <div>
+                              <span className="font-medium">Confidence scores:</span>
+                              <pre className="mt-1 overflow-auto max-h-24 text-xs bg-muted rounded p-2">
+                                {JSON.stringify(row.confidence_scores, null, 2)}
+                              </pre>
+                            </div>
+                          )}
+                          <div>
+                            <span className="font-medium">Raw data:</span>
+                            <pre className="mt-1 overflow-auto max-h-32 text-xs bg-muted rounded p-2">
+                              {JSON.stringify(row.raw_data, null, 2)}
+                            </pre>
+                          </div>
                         </TableCell>
                       </TableRow>
                     )}
-                  </Fragment>
+                  </>
                 ))}
               </TableBody>
             </Table>
           </div>
+        )}
+
+        {rows.length > 0 && (
+          <p className="text-xs text-muted-foreground text-right">
+            Showing {rows.length} record{rows.length !== 1 ? 's' : ''} · {enriched} enriched · {failed} failed
+          </p>
         )}
       </div>
     </AppLayout>

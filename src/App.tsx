@@ -271,22 +271,18 @@ const VehicleMigrationLog = lazy(() => import('@/pages/VehicleMigrationLog'))
 const ObservationDeletionLog = lazy(() => import('@/pages/ObservationDeletionLog'))
 const DispatchResourceLog = lazy(() => import('@/pages/DispatchResourceLog'))
 const RadioTranslationLog = lazy(() => import('@/pages/RadioTranslationLog'))
-// --- Sprint 43: B-139–B-141 ---
-const OfficerShiftLog = lazy(() => import('@/pages/OfficerShiftLog'))
+// Sprint 43: B-139–B-141
+const BobProposalLog = lazy(() => import('@/pages/BobProposalLog'))
+const BobProposalEventLog = lazy(() => import('@/pages/BobProposalEventLog'))
 const ImportBatchLog = lazy(() => import('@/pages/ImportBatchLog'))
-const ZoneComplianceMatrixLog = lazy(() => import('@/pages/ZoneComplianceMatrixLog'))
-// --- Sprint 44: B-142–B-144 ---
+// Sprint 44: B-142–B-144
 const AdminRecalculationLog = lazy(() => import('@/pages/AdminRecalculationLog'))
 const ContractorDocumentLog = lazy(() => import('@/pages/ContractorDocumentLog'))
 const ImportStagingLog = lazy(() => import('@/pages/ImportStagingLog'))
-// --- Sprint 45: B-145–B-147 ---
+// Sprint 45: B-145–B-147
 const LmrBridgeConfigLog = lazy(() => import('@/pages/LmrBridgeConfigLog'))
 const RadioVoiceProfileLog = lazy(() => import('@/pages/RadioVoiceProfileLog'))
 const ZoneDispatchRuleLog = lazy(() => import('@/pages/ZoneDispatchRuleLog'))
-// --- Sprint 46: B-148–B-150 ---
-const BobActionProposalEventLog = lazy(() => import('@/pages/BobActionProposalEventLog'))
-const HomelessRecordLog = lazy(() => import('@/pages/HomelessRecordLog'))
-const RestrictionLog = lazy(() => import('@/pages/RestrictionLog'))
 
 const NetworkStatusBar = lazy(() => import('@/components/features/NetworkStatusBar').then((m) => ({ default: m.NetworkStatusBar })))
 const PWAInstallPrompt = lazy(() => import('@/components/features/PWAInstallPrompt').then((m) => ({ default: m.PWAInstallPrompt })))
@@ -2462,21 +2458,17 @@ export default function App() {
           <Route path="/dispatch-resources-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><DispatchResourceLog /></RoleRoute></ProtectedRoute>} />
           <Route path="/radio-translation-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><RadioTranslationLog /></RoleRoute></ProtectedRoute>} />
           {/* Sprint 43: B-139–B-141 */}
-          <Route path="/officer-shifts-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><OfficerShiftLog /></RoleRoute></ProtectedRoute>} />
-          <Route path="/import-batch-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'master']}><ImportBatchLog /></RoleRoute></ProtectedRoute>} />
-          <Route path="/zone-compliance-matrix-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><ZoneComplianceMatrixLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/bob-proposals-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><BobProposalLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/bob-proposal-events-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><BobProposalEventLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/import-batches-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'master']}><ImportBatchLog /></RoleRoute></ProtectedRoute>} />
           {/* Sprint 44: B-142–B-144 */}
           <Route path="/admin-recalculation-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'master']}><AdminRecalculationLog /></RoleRoute></ProtectedRoute>} />
-          <Route path="/contractor-document-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><ContractorDocumentLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/contractor-documents-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><ContractorDocumentLog /></RoleRoute></ProtectedRoute>} />
           <Route path="/import-staging-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'master']}><ImportStagingLog /></RoleRoute></ProtectedRoute>} />
           {/* Sprint 45: B-145–B-147 */}
-          <Route path="/lmr-bridge-config-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><LmrBridgeConfigLog /></RoleRoute></ProtectedRoute>} />
-          <Route path="/radio-voice-profile-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><RadioVoiceProfileLog /></RoleRoute></ProtectedRoute>} />
-          <Route path="/zone-dispatch-rule-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><ZoneDispatchRuleLog /></RoleRoute></ProtectedRoute>} />
-          {/* Sprint 46: B-148–B-150 */}
-          <Route path="/bob-action-proposal-event-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'master']}><BobActionProposalEventLog /></RoleRoute></ProtectedRoute>} />
-          <Route path="/homeless-records-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><HomelessRecordLog /></RoleRoute></ProtectedRoute>} />
-          <Route path="/restrictions-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><RestrictionLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/lmr-bridge-config-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'master']}><LmrBridgeConfigLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/radio-voice-profiles-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><RadioVoiceProfileLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/zone-dispatch-rules-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'master']}><ZoneDispatchRuleLog /></RoleRoute></ProtectedRoute>} />
 
           {/* CRM – Accounts (Clients + Contractors) */}
           <Route

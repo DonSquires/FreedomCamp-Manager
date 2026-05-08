@@ -93,6 +93,11 @@ import {
   Scale,
   PackageX,
   MessageSquare,
+  BrainCircuit,
+  Upload,
+  RotateCcw,
+  Table2,
+  Briefcase,
 } from 'lucide-react'
 
 type DrillConfig = {
@@ -1201,6 +1206,18 @@ export default function AdminPortal() {
                     { path: '/audit-log',            label: 'Audit Log',           Icon: ScrollText,    color: 'text-gray-600',   bg: 'bg-gray-100 dark:bg-gray-800/30' },
                     { path: '/bug-reports-log',      label: 'Bug Reports',          Icon: Bug,           color: 'text-orange-600', bg: 'bg-orange-50 dark:bg-orange-900/20' },
                     { path: '/users',                label: 'Users',               Icon: Users,         color: 'text-slate-600',  bg: 'bg-slate-50 dark:bg-slate-900/30' },
+                    // Sprint 43: B-139–B-141
+                    { path: '/bob-proposals-log',       label: 'Bob Proposals',    Icon: BrainCircuit,  color: 'text-violet-600', bg: 'bg-violet-50 dark:bg-violet-900/20' },
+                    { path: '/bob-proposal-events-log', label: 'Bob Prop. Events', Icon: BrainCircuit,  color: 'text-indigo-600', bg: 'bg-indigo-50 dark:bg-indigo-900/20' },
+                    { path: '/import-batches-log',      label: 'Import Batches',   Icon: Upload,        color: 'text-emerald-600',bg: 'bg-emerald-50 dark:bg-emerald-900/20' },
+                    // Sprint 44: B-142–B-144
+                    { path: '/admin-recalculation-log',  label: 'Recalc. Runs',     Icon: RotateCcw,     color: 'text-blue-600',   bg: 'bg-blue-50 dark:bg-blue-900/20' },
+                    { path: '/contractor-documents-log', label: 'Contractor Docs',  Icon: Briefcase,     color: 'text-teal-600',   bg: 'bg-teal-50 dark:bg-teal-900/20' },
+                    { path: '/import-staging-log',       label: 'Import Staging',   Icon: Table2,        color: 'text-cyan-600',   bg: 'bg-cyan-50 dark:bg-cyan-900/20' },
+                    // Sprint 45: B-145–B-147
+                    { path: '/lmr-bridge-config-log',    label: 'LMR Config',       Icon: Radio,         color: 'text-blue-600',   bg: 'bg-blue-50 dark:bg-blue-900/20' },
+                    { path: '/radio-voice-profiles-log', label: 'Voice Profiles',   Icon: Mic,           color: 'text-fuchsia-600',bg: 'bg-fuchsia-50 dark:bg-fuchsia-900/20' },
+                    { path: '/zone-dispatch-rules-log',  label: 'Dispatch Rules',   Icon: Route,         color: 'text-emerald-600',bg: 'bg-emerald-50 dark:bg-emerald-900/20' },
                   ].map(({ path, label, Icon, color, bg }) => (
                     <button key={path} onClick={() => navigate(path)} aria-label={`Open ${label}`} className={`${moduleTileClass} ${bg}`}>
                       <Icon className={`h-5 w-5 ${color}`} />

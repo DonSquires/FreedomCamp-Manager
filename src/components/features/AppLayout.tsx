@@ -305,6 +305,14 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/flagged-vehicles-manager', icon: AlertTriangle, label: 'Flagged Vehicles', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/bug-reports-log', icon: Bug, label: 'Bug Report Log', roles: ['admin', 'master'] },
       { path: '/feature-flags', icon: Settings, label: 'Feature Flags', roles: ['master'] },
+      // Sprint 43: B-141
+      { path: '/import-batches-log', icon: Upload, label: 'Import Batch Log', roles: ['admin', 'master'] },
+      // Sprint 44: B-142, B-144
+      { path: '/admin-recalculation-log', icon: RefreshCw, label: 'Recalculation Run Log', roles: ['admin', 'master'] },
+      { path: '/import-staging-log', icon: LayoutList, label: 'Import Staging Log', roles: ['admin', 'master'] },
+      // Sprint 45: B-145, B-147
+      { path: '/lmr-bridge-config-log', icon: Radio, label: 'LMR Bridge Config Log', roles: ['admin', 'master'] },
+      { path: '/zone-dispatch-rules-log', icon: Waypoints, label: 'Zone Dispatch Rule Log', roles: ['admin', 'master'] },
     ],
   },
   {
@@ -374,6 +382,10 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/vehicle-monthly-stays-log', icon: CalendarRange, label: 'Vehicle Monthly Stays', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/radio-voice-consent-log', icon: ShieldCheck, label: 'Voice Consent Log', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/welfare-events-log', icon: HeartPulse, label: 'Welfare Events Log', roles: ['admin', 'admin_officer', 'master'] },
+      // Sprint 44: B-143
+      { path: '/contractor-documents-log', icon: Briefcase, label: 'Contractor Document Log', roles: ['admin', 'admin_officer', 'master'] },
+      // Sprint 45: B-146
+      { path: '/radio-voice-profiles-log', icon: Mic, label: 'Radio Voice Profile Log', roles: ['admin', 'admin_officer', 'master'] },
     ],
   },
   {
@@ -428,6 +440,9 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/bob-intake-queue', icon: ClipboardList, label: 'Bob Intake Queue', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/ai-analysis', icon: BrainCircuit, label: 'Bob Analysis', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/live-plan-reviews', icon: ShieldCheck, label: 'Live Plan Reviews', roles: ['admin', 'admin_officer', 'master'] },
+      // Sprint 43: B-139–B-140
+      { path: '/bob-proposals-log', icon: ScrollText, label: 'Bob Proposal Log', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/bob-proposal-events-log', icon: ListChecks, label: 'Bob Proposal Events', roles: ['admin', 'admin_officer', 'master'] },
     ],
   },
   {

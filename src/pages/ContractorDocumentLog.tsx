@@ -1,14 +1,14 @@
 /**
  * ContractorDocumentLog — B-143
  *
- * Admin log and viewer for contractor_documents.
- * Displays contractor document uploads, current/expired state,
- * file metadata, and uploader audit information.
+ * Admin audit log for contractor_documents.
+ * Shows uploaded compliance documents (licences, insurance, certs) per contractor
+ * with expiry tracking and currency status.
  *
- * Route: /contractor-document-log — admin/admin_officer/master
+ * Route: /contractor-documents-log — admin/admin_officer/master
  */
-import { Fragment, useState } from 'react'
-import { format, isAfter, parseISO } from 'date-fns'
+import { useState } from 'react'
+import { format, parseISO } from 'date-fns'
 import { FileText, RefreshCw, AlertCircle, Loader2 } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 
@@ -35,7 +35,7 @@ import {
 } from '@/components/ui/table'
 import type { Database } from '@/types/database'
 
-type DocumentRow = Database['public']['Tables']['contractor_documents']['Row']
+type DocRow = Database['public']['Tables']['contractor_documents']['Row']
 
 function fmtDate(ts: string | null) {
   if (!ts) return '—'
@@ -43,40 +43,45 @@ function fmtDate(ts: string | null) {
 }
 
 function fmtBytes(bytes: number | null) {
-  if (bytes == null) return '—'
+  if (!bytes) return '—'
   if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} kB`
-  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`
 }
 
-function isExpired(expiryDate: string | null) {
-  if (!expiryDate) return false
+function isExpiringSoon(expiry: string | null): boolean {
+  if (!expiry) return false
   try {
-    return !isAfter(parseISO(expiryDate), new Date())
-  } catch {
-    return false
-  }
+    const days = (parseISO(expiry).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
+    return days >= 0 && days <= 30
+  } catch { return false }
+}
+
+function isExpired(expiry: string | null): boolean {
+  if (!expiry) return false
+  try { return parseISO(expiry).getTime() < Date.now() } catch { return false }
 }
 
 export default function ContractorDocumentLog() {
-  const [nameQuery, setNameQuery] = useState('')
-  const [typeFilter, setTypeFilter] = useState('all')
-  const [stateFilter, setStateFilter] = useState('all')
-  const [expanded, setExpanded] = useState<string | null>(null)
+  const [typeFilter, setTypeFilter]   = useState<string>('all')
+  const [currentFilter, setCurrentFilter] = useState<string>('all')
+  const [nameQuery, setNameQuery]     = useState('')
+  const [dateFrom, setDateFrom]       = useState('')
 
-  const { data: rows = [], isLoading, refetch } = useQuery<DocumentRow[]>({
-    queryKey: ['contractor-document-log', nameQuery, typeFilter, stateFilter],
+  const { data: rows = [], isLoading, refetch } = useQuery<DocRow[]>({
+    queryKey: ['contractor-documents-log', typeFilter, currentFilter, nameQuery, dateFrom],
     queryFn: async () => {
       let q = supabase
         .from('contractor_documents')
         .select('*')
-        .order('created_at', { ascending: false, nullsFirst: false })
+        .order('created_at', { ascending: false })
         .limit(500)
 
-      if (nameQuery.trim()) q = q.or(`document_name.ilike.%${nameQuery.trim()}%,uploaded_by.ilike.%${nameQuery.trim()}%`)
-      if (typeFilter !== 'all') q = q.eq('document_type', typeFilter)
-      if (stateFilter === 'current') q = q.eq('is_current', true)
-      if (stateFilter === 'archived') q = q.eq('is_current', false)
+      if (typeFilter !== 'all')    q = q.eq('document_type', typeFilter)
+      if (currentFilter === 'current')   q = q.eq('is_current', true)
+      if (currentFilter === 'superseded') q = q.eq('is_current', false)
+      if (nameQuery.trim())        q = q.ilike('document_name', `%${nameQuery.trim()}%`)
+      if (dateFrom)                q = q.gte('created_at', dateFrom)
 
       const { data, error } = await q
       if (error) throw error
@@ -84,20 +89,21 @@ export default function ContractorDocumentLog() {
     },
   })
 
-  const types = [...new Set(rows.map(row => row.document_type).filter(Boolean))].sort()
-  const currentCount = rows.filter(row => row.is_current).length
-  const expiredCount = rows.filter(row => isExpired(row.expiry_date)).length
-  const withExpiry = rows.filter(row => row.expiry_date).length
+  const current      = rows.filter(r => r.is_current).length
+  const expiringSoon = rows.filter(r => isExpiringSoon(r.expiry_date)).length
+  const expired      = rows.filter(r => isExpired(r.expiry_date)).length
+
+  const docTypes = ['all', ...Array.from(new Set(rows.map(r => r.document_type)))]
 
   return (
     <AppLayout>
       <div className="p-6 space-y-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <FileText className="h-6 w-6 text-cyan-600" />
+            <FileText className="h-6 w-6 text-teal-600" />
             <div>
               <h1 className="text-2xl font-bold">Contractor Document Log</h1>
-              <p className="text-sm text-muted-foreground">Contractor document uploads with expiry state, file metadata, and uploader audit detail</p>
+              <p className="text-sm text-muted-foreground">Compliance documents uploaded per contractor — licences, insurance, certifications, and more</p>
             </div>
           </div>
           <Button variant="outline" size="sm" onClick={() => refetch()}>
@@ -107,10 +113,10 @@ export default function ContractorDocumentLog() {
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
-            { label: 'Total Documents', value: rows.length, colour: 'text-gray-700' },
-            { label: 'Current', value: currentCount, colour: 'text-emerald-700' },
-            { label: 'Expired', value: expiredCount, colour: 'text-rose-700' },
-            { label: 'With Expiry Date', value: withExpiry, colour: 'text-cyan-700' },
+            { label: 'Total Documents',   value: rows.length,   colour: 'text-gray-700' },
+            { label: 'Current',           value: current,       colour: 'text-green-700' },
+            { label: 'Expiring (30 days)', value: expiringSoon, colour: 'text-amber-700' },
+            { label: 'Expired',           value: expired,       colour: 'text-rose-700' },
           ].map(kpi => (
             <Card key={kpi.label}>
               <CardHeader className="pb-1 pt-3 px-4"><CardTitle className="text-xs text-muted-foreground">{kpi.label}</CardTitle></CardHeader>
@@ -120,83 +126,88 @@ export default function ContractorDocumentLog() {
         </div>
 
         <div className="flex flex-wrap gap-3">
-          <Input value={nameQuery} onChange={e => setNameQuery(e.target.value)} placeholder="Search name or uploader…" className="w-60" />
+          <Input
+            value={nameQuery}
+            onChange={e => setNameQuery(e.target.value)}
+            placeholder="Search document name…"
+            className="w-56"
+          />
           <Select value={typeFilter} onValueChange={setTypeFilter}>
             <SelectTrigger className="w-44"><SelectValue placeholder="Document type" /></SelectTrigger>
+            <SelectContent>{docTypes.map(t => <SelectItem key={t} value={t}>{t === 'all' ? 'All types' : t}</SelectItem>)}</SelectContent>
+          </Select>
+          <Select value={currentFilter} onValueChange={setCurrentFilter}>
+            <SelectTrigger className="w-36"><SelectValue placeholder="Currency" /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All types</SelectItem>
-              {types.map(type => <SelectItem key={type} value={type}>{type}</SelectItem>)}
+              <SelectItem value="all">All</SelectItem>
+              <SelectItem value="current">Current only</SelectItem>
+              <SelectItem value="superseded">Superseded</SelectItem>
             </SelectContent>
           </Select>
-          <Select value={stateFilter} onValueChange={setStateFilter}>
-            <SelectTrigger className="w-44"><SelectValue placeholder="Current state" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All states</SelectItem>
-              <SelectItem value="current">Current</SelectItem>
-              <SelectItem value="archived">Archived</SelectItem>
-            </SelectContent>
-          </Select>
+          <input
+            type="date"
+            value={dateFrom}
+            onChange={e => setDateFrom(e.target.value)}
+            className="border rounded px-3 py-1 text-sm w-40 bg-background"
+          />
         </div>
 
         {isLoading ? (
           <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
         ) : rows.length === 0 ? (
-          <div className="flex flex-col items-center py-12 text-muted-foreground gap-2"><AlertCircle className="h-8 w-8" /><p>No records found</p></div>
+          <div className="flex flex-col items-center py-12 text-muted-foreground gap-2">
+            <AlertCircle className="h-8 w-8" /><p>No documents found</p>
+          </div>
         ) : (
           <div className="rounded-md border">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Created</TableHead>
-                  <TableHead>Document</TableHead>
+                  <TableHead>Uploaded At</TableHead>
+                  <TableHead>Document Name</TableHead>
                   <TableHead>Type</TableHead>
-                  <TableHead>State</TableHead>
+                  <TableHead>Current</TableHead>
                   <TableHead>Expiry</TableHead>
-                  <TableHead>File</TableHead>
-                  <TableHead>Details</TableHead>
+                  <TableHead>Size</TableHead>
+                  <TableHead>Notes</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {rows.map(row => (
-                  <Fragment key={row.id}>
-                    <TableRow
-                      className="cursor-pointer hover:bg-muted/40"
-                      onClick={() => setExpanded(expanded === row.id ? null : row.id)}
-                    >
-                      <TableCell className="text-sm">{fmtDate(row.created_at)}</TableCell>
-                      <TableCell className="font-medium text-sm max-w-[14rem] truncate">{row.document_name}</TableCell>
-                      <TableCell className="text-sm">{row.document_type}</TableCell>
+                {rows.map(row => {
+                  const exp = isExpired(row.expiry_date)
+                  const soon = isExpiringSoon(row.expiry_date)
+                  return (
+                    <TableRow key={row.id} className="hover:bg-muted/40">
+                      <TableCell className="text-sm whitespace-nowrap">{fmtDate(row.created_at)}</TableCell>
+                      <TableCell className="max-w-[16rem] truncate font-medium text-sm" title={row.document_name}>
+                        <a href={row.document_url} target="_blank" rel="noopener noreferrer" className="text-sky-600 hover:underline" onClick={e => e.stopPropagation()}>
+                          {row.document_name}
+                        </a>
+                      </TableCell>
                       <TableCell>
-                        <Badge className={row.is_current ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-700'}>
-                          {row.is_current ? 'Current' : 'Archived'}
+                        <Badge variant="outline" className="text-xs">{row.document_type}</Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge className={`text-xs ${row.is_current ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-700'}`}>
+                          {row.is_current ? 'Current' : 'Superseded'}
                         </Badge>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className={`text-sm ${exp ? 'text-rose-700 font-semibold' : soon ? 'text-amber-700 font-semibold' : ''}`}>
                         {row.expiry_date ? (
-                          <Badge className={isExpired(row.expiry_date) ? 'bg-rose-100 text-rose-800' : 'bg-sky-100 text-sky-800'}>
+                          <>
                             {fmtDate(row.expiry_date)}
-                          </Badge>
-                        ) : (
-                          <span className="text-muted-foreground">—</span>
-                        )}
+                            {exp && <span className="ml-1 text-xs">(expired)</span>}
+                            {soon && !exp && <span className="ml-1 text-xs">(soon)</span>}
+                          </>
+                        ) : '—'}
                       </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">{fmtBytes(row.file_size_bytes)}</TableCell>
-                      <TableCell className="text-xs text-sky-600">{expanded === row.id ? '▲ hide' : '▼ show'}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{fmtBytes(row.file_size_bytes)}</TableCell>
+                      <TableCell className="max-w-[12rem] truncate text-xs text-muted-foreground" title={row.notes ?? ''}>
+                        {row.notes ?? '—'}
+                      </TableCell>
                     </TableRow>
-                    {expanded === row.id && (
-                      <TableRow className="bg-muted/20">
-                        <TableCell colSpan={7} className="text-xs text-muted-foreground space-y-1 py-3">
-                          <div><span className="font-medium">ID:</span> {row.id}</div>
-                          <div><span className="font-medium">Organization:</span> {row.organization_id}</div>
-                          <div><span className="font-medium">Uploaded by:</span> {row.uploaded_by ?? '—'}</div>
-                          <div><span className="font-medium">MIME type:</span> {row.mime_type ?? '—'}</div>
-                          <div><span className="font-medium">Document URL:</span> <span className="break-all">{row.document_url}</span></div>
-                          {row.notes && <div><span className="font-medium">Notes:</span> {row.notes}</div>}
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </Fragment>
-                ))}
+                  )
+                })}
               </TableBody>
             </Table>
           </div>
