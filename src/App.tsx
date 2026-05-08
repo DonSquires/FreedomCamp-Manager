@@ -291,6 +291,10 @@ const RestrictionLog = lazy(() => import('@/pages/RestrictionLog'))
 const OrganizationLog = lazy(() => import('@/pages/OrganizationLog'))
 const ClientSiteLog = lazy(() => import('@/pages/ClientSiteLog'))
 const ParkingPermitLog = lazy(() => import('@/pages/ParkingPermitLog'))
+// Sprint 48: B-154–B-156
+const IncidentLog = lazy(() => import('@/pages/IncidentLog'))
+const PersonRecordLog = lazy(() => import('@/pages/PersonRecordLog'))
+const NotificationLog = lazy(() => import('@/pages/NotificationLog'))
 
 const NetworkStatusBar = lazy(() => import('@/components/features/NetworkStatusBar').then((m) => ({ default: m.NetworkStatusBar })))
 const PWAInstallPrompt = lazy(() => import('@/components/features/PWAInstallPrompt').then((m) => ({ default: m.PWAInstallPrompt })))
@@ -2485,6 +2489,10 @@ export default function App() {
           <Route path="/organizations-log" element={<ProtectedRoute><RoleRoute allowedRoles={['master', 'grand_master']}><OrganizationLog /></RoleRoute></ProtectedRoute>} />
           <Route path="/client-sites-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><ClientSiteLog /></RoleRoute></ProtectedRoute>} />
           <Route path="/parking-permits-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><ParkingPermitLog /></RoleRoute></ProtectedRoute>} />
+          {/* Sprint 48: B-154–B-156 */}
+          <Route path="/incidents-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><IncidentLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/person-records-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><PersonRecordLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/notifications-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><NotificationLog /></RoleRoute></ProtectedRoute>} />
 
           {/* CRM – Accounts (Clients + Contractors) */}
           <Route

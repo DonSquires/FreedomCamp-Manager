@@ -98,6 +98,7 @@ import {
   RotateCcw,
   Table2,
   Briefcase,
+  Bell,
 } from 'lucide-react'
 
 type DrillConfig = {
@@ -1226,6 +1227,10 @@ export default function AdminPortal() {
                     { path: '/organizations-log',              label: 'Org Log',         Icon: Building2,    color: 'text-blue-600',   bg: 'bg-blue-50 dark:bg-blue-900/20' },
                     { path: '/client-sites-log',               label: 'Client Sites Log',Icon: MapPin,       color: 'text-indigo-600', bg: 'bg-indigo-50 dark:bg-indigo-900/20' },
                     { path: '/parking-permits-log',            label: 'Permits Log',     Icon: ParkingSquare,color: 'text-emerald-600',bg: 'bg-emerald-50 dark:bg-emerald-900/20' },
+                    // Sprint 48: B-154–B-156
+                    { path: '/incidents-log',                  label: 'Incident Log',    Icon: AlertTriangle,color: 'text-orange-600', bg: 'bg-orange-50 dark:bg-orange-900/20' },
+                    { path: '/person-records-log',             label: 'Person Records',  Icon: Users,        color: 'text-violet-600', bg: 'bg-violet-50 dark:bg-violet-900/20' },
+                    { path: '/notifications-log',              label: 'Notifications Log',Icon: Bell,        color: 'text-sky-600',    bg: 'bg-sky-50 dark:bg-sky-900/20' },
                   ].map(({ path, label, Icon, color, bg }) => (
                     <button key={path} onClick={() => navigate(path)} aria-label={`Open ${label}`} className={`${moduleTileClass} ${bg}`}>
                       <Icon className={`h-5 w-5 ${color}`} />
