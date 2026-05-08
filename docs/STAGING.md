@@ -208,6 +208,7 @@ node --test ptt-server/test/radio-health-schema.test.js
 - [x] Kick off Phase E1 with a grounded direct page-query baseline for the highest-fragmentation target pages.
 - [x] Add a focused Phase E1 drift gate spec so target pages cannot add direct `supabase.from(...)` page queries above the published baseline.
 - [x] Add a path-filtered CI workflow for Phase E1 data-access consolidation evidence.
+- [x] Lower BreachAlerts direct page Supabase baseline from 20 to 12 by moving decision, welfare, vehicle-enrichment, and manual-plate mutations into `src/hooks/useBreaches.ts`.
 - [ ] Continue E1 by migrating the highest-count page query clusters into hooks/services and lowering the published baselines after each verified reduction.
 
 Evidence (2026-05-08 UTC):

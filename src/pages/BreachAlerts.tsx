@@ -49,6 +49,15 @@ import { AdminFollowUpDrawer } from '@/components/features/AdminFollowUpDrawer'
 import { ListCardRow } from '@/components/features/ListCardRow'
 import { enrichVehicleFromMotorWeb } from '@/lib/proxyServices'
 import { isPhotoUrlExpired, parseStorageUrl } from '@/lib/photoUtils'
+import {
+  acknowledgeBreachAlert,
+  acknowledgeWelfareAlert,
+  dismissBreachAlert,
+  resolveBreachAlert,
+  startBreachEnforcement,
+  updateBreachManualPlate,
+  updateCanonicalVehicleFromEnrichment,
+} from '@/hooks/useBreaches'
 
 // Schema-aligned BreachAlert type
 // breach_alerts table columns (from 20260218_rebuild_breach_alerts_system.sql):
@@ -695,14 +704,7 @@ export default function BreachAlerts() {
   // Acknowledge (was "notify") – correct status value per schema
   const acknowledgeMutation = useMutation({
     mutationFn: async (breachId: string) => {
-      const { error } = await (supabase.from('breach_alerts') as any)
-        .update({ 
-          status: 'acknowledged',
-          notified_at: new Date().toISOString(),
-          notified_by: user?.id,
-        })
-        .eq('id', breachId)
-      if (error) throw error
+      await acknowledgeBreachAlert(breachId, user?.id)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['breach-alerts'] })
@@ -715,10 +717,7 @@ export default function BreachAlerts() {
   // Mark as enforcement started
   const enforcementMutation = useMutation({
     mutationFn: async (breachId: string) => {
-      const { error } = await (supabase.from('breach_alerts') as any)
-        .update({ status: 'enforcement_started', assigned_by: user?.id, assigned_at: new Date().toISOString() })
-        .eq('id', breachId)
-      if (error) throw error
+      await startBreachEnforcement(breachId, user?.id)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['breach-alerts'] })
@@ -730,14 +729,7 @@ export default function BreachAlerts() {
   // Resolve breach – schema has no resolved_by column
   const resolveMutation = useMutation({
     mutationFn: async ({ breachId, notes }: { breachId: string; notes: string }) => {
-      const { error } = await (supabase.from('breach_alerts') as any)
-        .update({ 
-          status: 'resolved',
-          resolved_at: new Date().toISOString(),
-          resolution_notes: notes || null,
-        })
-        .eq('id', breachId)
-      if (error) throw error
+      await resolveBreachAlert({ breachId, notes })
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['breach-alerts'] })
@@ -751,13 +743,7 @@ export default function BreachAlerts() {
   // Dismiss breach
   const dismissMutation = useMutation({
     mutationFn: async ({ breachId, reason }: { breachId: string; reason?: string }) => {
-      const { error } = await (supabase.from('breach_alerts') as any)
-        .update({ 
-          status: 'dismissed',
-          resolution_notes: reason || null,
-        })
-        .eq('id', breachId)
-      if (error) throw error
+      await dismissBreachAlert({ breachId, reason })
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['breach-alerts'] })
@@ -769,10 +755,7 @@ export default function BreachAlerts() {
   // Welfare alert acknowledgement
   const acknowledgeWelfareMutation = useMutation({
     mutationFn: async (alertId: string) => {
-      const { error } = await (supabase.from('officer_welfare_alerts') as any)
-        .update({ status: 'acknowledged', acknowledged_by: user?.id, acknowledged_at: new Date().toISOString() })
-        .eq('id', alertId)
-      if (error) throw error
+      await acknowledgeWelfareAlert(alertId, user?.id)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['safety-alerts'] })
@@ -792,16 +775,9 @@ export default function BreachAlerts() {
         return
       }
       if (data) {
-        const { error: updateError } = await (supabase.from('canonical_vehicles') as any)
-          .update({
-            vehicle_make: data.make,
-            vehicle_model: data.model,
-            vehicle_year: data.year ?? null,
-            vehicle_color: data.colour,
-          })
-          .eq('plate_number', plateNumber)
-
-        if (updateError) {
+        try {
+          await updateCanonicalVehicleFromEnrichment(plateNumber, data)
+        } catch {
           toast.error('Failed to save enriched vehicle data')
           return
         }
@@ -869,17 +845,11 @@ export default function BreachAlerts() {
 
     setIsSavingManualPlate(true)
     try {
-      // Update the observation with the real plate
-      const { error: obsErr } = await (supabase.from('observations') as any)
-        .update({ plate_number: plate })
-        .eq('observation_id', observationId)
-      if (obsErr) throw obsErr
-
-      // Update the breach alert plate
-      const { error: breachErr } = await (supabase.from('breach_alerts') as any)
-        .update({ plate_number: plate })
-        .eq('id', activeBreach.id)
-      if (breachErr) throw breachErr
+      await updateBreachManualPlate({
+        breachId: activeBreach.id,
+        observationId,
+        plateNumber: plate,
+      })
 
       toast.success(`Plate updated to ${plate} — compliance re-evaluation will run shortly`)
       setManualPlateInput('')

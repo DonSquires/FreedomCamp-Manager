@@ -22,6 +22,13 @@ interface BreachAlertExtended extends BreachAlert {
   }
 }
 
+interface VehicleEnrichmentDetails {
+  make?: string | null
+  model?: string | null
+  year?: number | null
+  colour?: string | null
+}
+
 function deriveSeverityFromBreachType(breachType?: string): 'critical' | 'high' | 'medium' {
   const bt = String(breachType || '').toLowerCase()
   if (bt.includes('tow') || bt.includes('danger')) return 'critical'
@@ -233,4 +240,90 @@ export function useBreachStats(organizationId?: string | null) {
       }
     },
   })
+}
+
+export async function acknowledgeBreachAlert(breachId: string, userId?: string | null) {
+  const { error } = await (supabase.from('breach_alerts') as any)
+    .update({
+      status: 'acknowledged',
+      notified_at: new Date().toISOString(),
+      notified_by: userId,
+    })
+    .eq('id', breachId)
+
+  if (error) throw error
+}
+
+export async function startBreachEnforcement(breachId: string, userId?: string | null) {
+  const { error } = await (supabase.from('breach_alerts') as any)
+    .update({ status: 'enforcement_started', assigned_by: userId, assigned_at: new Date().toISOString() })
+    .eq('id', breachId)
+
+  if (error) throw error
+}
+
+export async function resolveBreachAlert({ breachId, notes }: { breachId: string; notes: string }) {
+  const { error } = await (supabase.from('breach_alerts') as any)
+    .update({
+      status: 'resolved',
+      resolved_at: new Date().toISOString(),
+      resolution_notes: notes || null,
+    })
+    .eq('id', breachId)
+
+  if (error) throw error
+}
+
+export async function dismissBreachAlert({ breachId, reason }: { breachId: string; reason?: string }) {
+  const { error } = await (supabase.from('breach_alerts') as any)
+    .update({
+      status: 'dismissed',
+      resolution_notes: reason || null,
+    })
+    .eq('id', breachId)
+
+  if (error) throw error
+}
+
+export async function acknowledgeWelfareAlert(alertId: string, userId?: string | null) {
+  const { error } = await (supabase.from('officer_welfare_alerts') as any)
+    .update({ status: 'acknowledged', acknowledged_by: userId, acknowledged_at: new Date().toISOString() })
+    .eq('id', alertId)
+
+  if (error) throw error
+}
+
+export async function updateCanonicalVehicleFromEnrichment(plateNumber: string, data: VehicleEnrichmentDetails) {
+  const { error } = await (supabase.from('canonical_vehicles') as any)
+    .update({
+      vehicle_make: data.make,
+      vehicle_model: data.model,
+      vehicle_year: data.year ?? null,
+      vehicle_color: data.colour,
+    })
+    .eq('plate_number', plateNumber)
+
+  if (error) throw error
+}
+
+export async function updateBreachManualPlate({
+  breachId,
+  observationId,
+  plateNumber,
+}: {
+  breachId: string
+  observationId: string
+  plateNumber: string
+}) {
+  const { error: obsErr } = await (supabase.from('observations') as any)
+    .update({ plate_number: plateNumber })
+    .eq('observation_id', observationId)
+
+  if (obsErr) throw obsErr
+
+  const { error: breachErr } = await (supabase.from('breach_alerts') as any)
+    .update({ plate_number: plateNumber })
+    .eq('id', breachId)
+
+  if (breachErr) throw breachErr
 }
