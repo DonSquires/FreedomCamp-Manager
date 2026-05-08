@@ -71,7 +71,7 @@ export default function CanonicalHomelessLog() {
         if (plates.length === 0) return []
       }
 
-      let q = (supabase as any)
+      let q = supabase
         .from('canonical_homeless')
         .select('*')
         .order('updated_at', { ascending: false, nullsFirst: false })

@@ -60,7 +60,7 @@ export default function ClientSiteLog() {
     queryKey: ['client-site-log', user?.role, orgId, searchQuery, activeFilter, siteTypeFilter, priorityFilter, dateFrom],
     enabled: !!user,
     queryFn: async () => {
-      let q = (supabase as any)
+      let q = supabase
         .from('client_sites')
         .select('*')
         .order('updated_at', { ascending: false, nullsFirst: false })

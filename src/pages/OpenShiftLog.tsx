@@ -65,7 +65,7 @@ export default function OpenShiftLog() {
     queryKey: ['open-shift-log', user?.role, orgId, searchQuery, statusFilter, priorityFilter, shiftTypeFilter, dateFrom],
     enabled: !!user,
     queryFn: async () => {
-      let q = (supabase as any)
+      let q = supabase
         .from('open_shifts')
         .select('*')
         .order('shift_date', { ascending: false, nullsFirst: false })

@@ -53,7 +53,7 @@ export default function ParkingPermitLog() {
     queryKey: ['parking-permit-log', user?.role, orgId, searchQuery, activeFilter, typeFilter, dateFrom],
     enabled: !!user,
     queryFn: async () => {
-      let q = (supabase as any)
+      let q = supabase
         .from('parking_permits')
         .select('*')
         .order('updated_at', { ascending: false, nullsFirst: false })
