@@ -313,6 +313,8 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       // Sprint 45: B-145, B-147
       { path: '/lmr-bridge-config-log', icon: Radio, label: 'LMR Bridge Config Log', roles: ['admin', 'master'] },
       { path: '/zone-dispatch-rules-log', icon: Waypoints, label: 'Zone Dispatch Rule Log', roles: ['admin', 'master'] },
+      // Sprint 46: B-150
+      { path: '/restrictions-log', icon: Ban, label: 'Restriction Log', roles: ['admin', 'admin_officer', 'master'] },
     ],
   },
   {
@@ -386,6 +388,8 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/contractor-documents-log', icon: Briefcase, label: 'Contractor Document Log', roles: ['admin', 'admin_officer', 'master'] },
       // Sprint 45: B-146
       { path: '/radio-voice-profiles-log', icon: Mic, label: 'Radio Voice Profile Log', roles: ['admin', 'admin_officer', 'master'] },
+      // Sprint 46: B-149
+      { path: '/homeless-records-log', icon: Home, label: 'Homeless Record Log', roles: ['admin', 'admin_officer', 'master'] },
     ],
   },
   {
@@ -443,6 +447,8 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       // Sprint 43: B-139–B-140
       { path: '/bob-proposals-log', icon: ScrollText, label: 'Bob Proposal Log', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/bob-proposal-events-log', icon: ListChecks, label: 'Bob Proposal Events', roles: ['admin', 'admin_officer', 'master'] },
+      // Sprint 46: B-148
+      { path: '/bob-action-proposal-event-log', icon: ListChecks, label: 'Bob Action Proposal Events', roles: ['admin', 'master'] },
     ],
   },
   {
