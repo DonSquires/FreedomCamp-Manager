@@ -837,9 +837,9 @@ Reduction evidence: `BreachAlerts` has been lowered to 0 through breach hook con
 | --- | ---: | --- |
 | PTTRadio | 3 | Hold at or below baseline while shared radio hooks remain the data boundary. |
 | DispatchConsole | 3 | Hold at or below baseline while dispatch contract hooks absorb new reads. |
-| FieldOfficerPortal | 11 | Reduce by migrating patrol, welfare, and observation clusters into hooks/services. |
+| FieldOfficerPortal | 0 | All reads/mutations extracted into useFieldOfficerData + useFieldOfficerMutations hooks (11 → 0). |
 | AssetManagement | 0 | Keep page free of direct Supabase query clusters. |
-| VehicleManagement | 14 | Reduce by moving vehicle, owner, and enforcement reads into hooks/services. |
+| VehicleManagement | 0 | All vehicle-list reads extracted into useVehicleListQuery in useVehicles.ts (14 → 0). |
 | BreachAlerts | 0 | Keep page free of direct Supabase query clusters after breach hook consolidation. |
 | AdminPortal | 0 | Primary dashboard useQuery extracted into useAdminPrimaryDashboard hook (16 → 0). |
 | NoiseControlPortal | 0 | All reads and mutations extracted into useNoiseControl hooks (13 → 0). |
