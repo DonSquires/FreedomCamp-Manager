@@ -242,6 +242,9 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/notifications-log', icon: Bell, label: 'Notification Log', roles: ['admin', 'admin_officer', 'master'] },
       // Sprint 49: B-158
       { path: '/infringement-notices-log', icon: Receipt, label: 'Infringement Notice Log', roles: ['admin', 'admin_officer', 'master'] },
+      // Sprint 50: B-160–B-161
+      { path: '/dispatch-jobs-log', icon: ClipboardList, label: 'Dispatch Job Log', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/enforcement-actions-log', icon: ShieldAlert, label: 'Enforcement Action Log', roles: ['admin', 'admin_officer', 'master'] },
     ],
   },
   {
@@ -323,7 +326,7 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/restrictions-log', icon: Map, label: 'Restriction Log', roles: ['admin', 'master'] },
       // Sprint 47: B-151
       { path: '/organizations-log', icon: Building2, label: 'Organization Log', roles: ['master', 'grand_master'] },
-      // Sprint 50: B-160
+      // Briefing video suite
       { path: '/admin/video-generation', icon: BrainCircuit, label: 'Video Generation Suite', roles: ['admin', 'admin_officer', 'master'] },
     ],
   },
@@ -408,6 +411,8 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/face-records-log', icon: Camera, label: 'Face Record Log', roles: ['admin', 'admin_officer', 'master'] },
       // Sprint 49: B-159
       { path: '/site-risk-assessments-log', icon: ShieldAlert, label: 'Site Risk Assessment Log', roles: ['admin', 'admin_officer', 'master'] },
+      // Sprint 50: B-162
+      { path: '/observations-log', icon: Eye, label: 'Observation Log', roles: ['admin', 'admin_officer', 'master'] },
     ],
   },
   {

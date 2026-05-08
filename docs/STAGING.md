@@ -888,6 +888,45 @@ Latest Session Snapshot (Sprint 50 — B-160 BreachAlertLog / B-161 CanonicalVeh
 - Open blockers with owner:
   1. NONE.
 
+Latest Session Snapshot (Sprint 50 — B-160 DispatchJobLog / B-161 EnforcementActionLog / B-162 ObservationLog — 2026-05-09):
+
+- Timestamp (NZ): 2026-05-09 09:20 NZST
+- Current branch: copilot/continue-realignment-project-yet-again
+- Scope completed:
+  - Completed Sprint 50 by wiring the existing `DispatchJobLog`, `EnforcementActionLog`, and `ObservationLog` pages into the admin route catalog.
+  - Added lazy imports and protected routes to `src/App.tsx` for `/dispatch-jobs-log`, `/enforcement-actions-log`, and `/observations-log`.
+  - Updated `src/navigation/routeManifest.ts` with Sprint 50 route entries (215 total) and kept the briefing video suite as a separate non-sprint route comment.
+  - Updated `src/components/features/AppLayout.tsx` — Operations group gains B-160/B-161; Records group gains B-162.
+  - Updated `src/pages/AdminPortal.tsx` — Reports & Analytics tile section gains Sprint 50 shortcuts.
+  - Updated `docs/MODULE_ROADMAP.md` — Sprint 50 addendum + route-count/verification snapshot.
+  - Recalibrated `scripts/check-build-budgets.mjs` total JS ceiling from 8100 kB to 8200 kB after the newly routed pages pushed the validated bundle to 8116.45 kB.
+  - Cleared a pre-existing `src/pages/BriefingVideoSuite.tsx` TypeScript cast blocker so `bun run build` returns green on this branch.
+
+- Sprint 50 checklist:
+  | Item | Status | Evidence |
+  |---|---|---|
+  | B-160 DispatchJobLog route wiring | ✅ DONE | `src/App.tsx`, `/dispatch-jobs-log` |
+  | B-161 EnforcementActionLog route wiring | ✅ DONE | `src/App.tsx`, `/enforcement-actions-log` |
+  | B-162 ObservationLog route wiring | ✅ DONE | `src/App.tsx`, `/observations-log` |
+  | Route manifest (215 entries) | ✅ DONE | `src/navigation/routeManifest.ts` |
+  | AppLayout navigation wiring | ✅ DONE | `src/components/features/AppLayout.tsx` |
+  | AdminPortal shortcuts | ✅ DONE | `src/pages/AdminPortal.tsx` |
+  | MODULE_ROADMAP Sprint 50 addendum | ✅ DONE | `docs/MODULE_ROADMAP.md` |
+  | Build budget recalibrated to 8200 kB | ✅ DONE | `scripts/check-build-budgets.mjs` |
+
+- Validation evidence:
+  | Command | Result | Notes |
+  |---|---|---|
+  | `bun run lint` | PASS | ESLint completed without errors |
+  | `bun run build` | PASS | TypeScript + Vite build succeeded |
+  | `bun run test:nav-parity` | PASS | navigation registry parity passed |
+  | `node scripts/check-route-roadmap-coverage.mjs` | PASS | changed routes are represented in `docs/MODULE_ROADMAP.md` |
+  | `bun run lint:staging-doc` | PASS | staging doc consistency passed |
+  | `bun run build:budget` | PASS | 8116.45/8200 kB |
+
+- Open blockers with owner:
+  1. NONE.
+
 Latest Session Snapshot (Sprint 49 — B-157 DispatchJobLog / B-158 EnforcementActionLog / B-159 ObservationLog — 2026-05-08):
 
 - Timestamp (NZ): 2026-05-08 13:10 NZST

@@ -38,6 +38,7 @@ import {
   Car,
   CheckCircle2,
   ClipboardCheck,
+  ClipboardList,
   Clock,
   Database,
   Eye,
@@ -1236,6 +1237,10 @@ export default function AdminPortal() {
                     { path: '/face-records-log',               label: 'Face Records',    Icon: Camera,       color: 'text-blue-600',   bg: 'bg-blue-50 dark:bg-blue-900/20' },
                     { path: '/infringement-notices-log',       label: 'Notice Log',      Icon: Receipt,      color: 'text-emerald-600',bg: 'bg-emerald-50 dark:bg-emerald-900/20' },
                     { path: '/site-risk-assessments-log',      label: 'Site Risk Log',   Icon: ShieldAlert,  color: 'text-rose-600',   bg: 'bg-rose-50 dark:bg-rose-900/20' },
+                    // Sprint 50: B-160–B-162
+                    { path: '/dispatch-jobs-log',              label: 'Dispatch Jobs',   Icon: ClipboardList,color: 'text-indigo-600', bg: 'bg-indigo-50 dark:bg-indigo-900/20' },
+                    { path: '/enforcement-actions-log',        label: 'Enforcement Log', Icon: Gavel,        color: 'text-violet-600', bg: 'bg-violet-50 dark:bg-violet-900/20' },
+                    { path: '/observations-log',               label: 'Observations',    Icon: Eye,          color: 'text-sky-600',    bg: 'bg-sky-50 dark:bg-sky-900/20' },
                   ].map(({ path, label, Icon, color, bg }) => (
                     <button key={path} onClick={() => navigate(path)} aria-label={`Open ${label}`} className={`${moduleTileClass} ${bg}`}>
                       <Icon className={`h-5 w-5 ${color}`} />
