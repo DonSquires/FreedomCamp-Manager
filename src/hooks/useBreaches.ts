@@ -66,6 +66,7 @@ type ActiveBreachVehicleContext = {
 
 type BreachAlertLike = {
   id?: string
+  organization_id?: string | null
   observation_id?: string | null
   breach_details?: Record<string, any> | null
   plate_number?: string | null
@@ -75,7 +76,6 @@ type BreachAlertLike = {
 }
 
 type BreachAlertQueueRow = BreachAlertLike & {
-  organization_id?: string | null
   zone_id?: string | null
   status?: string | null
   resolved_at?: string | null
@@ -87,6 +87,11 @@ type BreachAlertQueueRow = BreachAlertLike & {
   admin_review_notes?: string | null
   organizations?: { name?: string | null } | null
 }
+
+type EvidencePhotoResolver = (rawUrl: string | null | undefined) => Promise<string | null>
+
+const OBSERVATION_SELECT_FIELDS = 'observation_id, photo, photo_url, recorded_at, gps_latitude, gps_longitude, vehicle_make, vehicle_model, vehicle_year, vehicle_color, has_homeless_claim, homeless_claim_notes, officer_notes, zones!vehicle_observations_v2_zone_id_fkey(name)'
+const EVIDENCE_PHOTO_SELECT_FIELDS = 'observation_id, photo, photo_url, recorded_at, gps_latitude, gps_longitude, zones!vehicle_observations_v2_zone_id_fkey(name)'
 
 /** Zone names that represent generic parent zones rather than specific locations. */
 const GENERIC_ZONE_NAMES = ['jurisdiction', 'general', 'other']
@@ -534,6 +539,158 @@ export function useBreachVehicleHistory(activeBreach?: ActiveBreachVehicleContex
         .limit(50)
         .abortSignal(signal)
       return deduplicateBreachAlerts(data || [])
+    },
+    enabled: !!activeBreach?.plate_number,
+  })
+}
+
+export function useBreachTriggeringObservation(activeBreach?: BreachAlertLike | null) {
+  return useQuery({
+    queryKey: ['breach-triggering-obs', activeBreach?.id],
+    queryFn: async ({ signal }) => {
+      if (!activeBreach) return null
+
+      const observationId = extractObservationId(activeBreach)
+      if (observationId) {
+        const { data } = await (supabase.from('observations') as any)
+          .select(OBSERVATION_SELECT_FIELDS)
+          .eq('observation_id', observationId)
+          .abortSignal(signal)
+          .single()
+        return data || null
+      }
+
+      const { data } = await (supabase.from('observations') as any)
+        .select(OBSERVATION_SELECT_FIELDS)
+        .eq('plate_number', activeBreach.plate_number)
+        .eq('organization_id', activeBreach.organization_id)
+        .lte('recorded_at', activeBreach.created_at)
+        .order('recorded_at', { ascending: false })
+        .limit(1)
+        .abortSignal(signal)
+        .single()
+
+      return data || null
+    },
+    enabled: !!activeBreach,
+  })
+}
+
+async function normalizeBreachEvidencePhotos(rows: any[], signal: AbortSignal, resolveEvidencePhotoUrl: EvidencePhotoResolver) {
+  if (signal.aborted) return []
+
+  const normalizedRows = (rows || []).map((row: any) => ({
+    ...row,
+    id: row.observation_id ?? row.id,
+  }))
+
+  const missingPhotoObservationIds = normalizedRows
+    .filter((row: any) => !row.photo && !row.photo_url && !!row.id)
+    .map((row: any) => row.id)
+
+  const fallbackPhotoByObservationId: Record<string, string> = {}
+  if (missingPhotoObservationIds.length > 0) {
+    const { data: metadataRows } = await (supabase.from('photo_metadata') as any)
+      .select('observation_id, bucket_name, storage_path, file_name, created_at')
+      .in('observation_id', missingPhotoObservationIds)
+      .order('created_at', { ascending: false })
+      .abortSignal(signal)
+
+    for (const meta of metadataRows || []) {
+      const observationId = meta.observation_id
+      if (!observationId || fallbackPhotoByObservationId[observationId]) continue
+
+      const candidate =
+        (meta.bucket_name && meta.storage_path ? `${meta.bucket_name}/${meta.storage_path}` : null)
+        || meta.storage_path
+        || meta.file_name
+        || null
+
+      if (candidate) {
+        fallbackPhotoByObservationId[observationId] = candidate
+      }
+    }
+  }
+
+  const BATCH_SIZE = 3
+  const resolved: any[] = []
+  for (let i = 0; i < normalizedRows.length; i += BATCH_SIZE) {
+    if (signal.aborted) break
+    const batch = normalizedRows.slice(i, i + BATCH_SIZE)
+    const batchResults = await Promise.all(
+      batch.map(async (row: any) => {
+        if (signal.aborted) return null
+        const primary = await resolveEvidencePhotoUrl(row.photo ?? row.photo_url)
+        const fallback = primary
+          ? null
+          : await resolveEvidencePhotoUrl(fallbackPhotoByObservationId[row.id] ?? null)
+
+        return {
+          ...row,
+          display_url: primary ?? fallback,
+          fallback_urls: [row.photo_url, row.photo, fallbackPhotoByObservationId[row.id] ?? null]
+            .map((v: any) => (typeof v === 'string' ? v.trim() : null))
+            .filter((v: string | null): v is string => !!v)
+            .filter((v: string) => v !== (primary ?? fallback)),
+        }
+      })
+    )
+    resolved.push(...batchResults.filter((r: any) => r !== null))
+  }
+
+  return resolved.filter((row: any) => !!row.display_url)
+}
+
+export function useBreachEvidencePhotos(
+  activeBreach: BreachAlertLike | null | undefined,
+  resolveEvidencePhotoUrl: EvidencePhotoResolver,
+) {
+  return useQuery({
+    queryKey: ['breach-evidence-photos', activeBreach?.id, activeBreach?.plate_number, activeBreach?.created_at],
+    queryFn: async ({ signal }) => {
+      if (!activeBreach?.plate_number) return []
+
+      const observationId = extractObservationId(activeBreach)
+      if (observationId) {
+        const byId = await (supabase.from('observations') as any)
+          .select(EVIDENCE_PHOTO_SELECT_FIELDS)
+          .eq('observation_id', observationId)
+          .limit(1)
+          .abortSignal(signal)
+
+        const normalized = await normalizeBreachEvidencePhotos(byId.data || [], signal, resolveEvidencePhotoUrl)
+        if (normalized.length > 0) {
+          return normalized
+        }
+      }
+
+      if (signal.aborted) return []
+
+      const strictQuery = (supabase.from('observations') as any)
+        .select(EVIDENCE_PHOTO_SELECT_FIELDS)
+        .eq('plate_number', activeBreach.plate_number)
+        .eq('organization_id', activeBreach.organization_id)
+        .lte('recorded_at', activeBreach.created_at)
+        .order('recorded_at', { ascending: false })
+        .limit(12)
+        .abortSignal(signal)
+
+      const strict = await strictQuery
+      const strictNormalized = await normalizeBreachEvidencePhotos(strict.data || [], signal, resolveEvidencePhotoUrl)
+      if (strictNormalized.length > 0) {
+        return strictNormalized
+      }
+
+      if (signal.aborted) return []
+
+      const fallback = await (supabase.from('observations') as any)
+        .select(EVIDENCE_PHOTO_SELECT_FIELDS)
+        .eq('plate_number', activeBreach.plate_number)
+        .order('recorded_at', { ascending: false })
+        .limit(12)
+        .abortSignal(signal)
+
+      return await normalizeBreachEvidencePhotos(fallback.data || [], signal, resolveEvidencePhotoUrl)
     },
     enabled: !!activeBreach?.plate_number,
   })

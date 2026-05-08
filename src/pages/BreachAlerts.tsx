@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
@@ -58,8 +58,10 @@ import {
   resolveBreachAlert,
   startBreachEnforcement,
   useBreachAlertQueue,
+  useBreachEvidencePhotos,
   useBreachIntelligenceAlerts,
   useBreachSafetyAlerts,
+  useBreachTriggeringObservation,
   useBreachVehicleDetails,
   useBreachVehicleHistory,
   updateBreachManualPlate,
@@ -93,9 +95,6 @@ interface BreachAlert {
   admin_review_notes: string | null
 }
 
-// Supabase relation selectors use FK constraint names. The `vehicle_observations_v2_*`
-// names are legacy constraint identifiers retained after table renames.
-const OBSERVATION_SELECT_FIELDS = 'observation_id, photo, photo_url, recorded_at, gps_latitude, gps_longitude, vehicle_make, vehicle_model, vehicle_year, vehicle_color, has_homeless_claim, homeless_claim_notes, officer_notes, zones!vehicle_observations_v2_zone_id_fkey(name)'
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || ''
 
 async function resolveViaDownload(bucket: string, path: string): Promise<string | null> {
@@ -368,153 +367,8 @@ export default function BreachAlerts() {
 
   const { data: detailVehicle } = useBreachVehicleDetails(activeBreach?.plate_number)
 
-  // Fetch the specific observation that triggered this breach
-  const { data: triggeringObservation } = useQuery({
-    queryKey: ['breach-triggering-obs', activeBreach?.id],
-    queryFn: async ({ signal }) => {
-      if (!activeBreach) return null
-      // Try to fetch via the breach's observation_id FK first, then breach_details
-      const observationId = getBreachObservationId(activeBreach)
-      if (observationId) {
-        const { data } = await (supabase.from('observations') as any)
-          .select(OBSERVATION_SELECT_FIELDS)
-          .eq('observation_id', observationId)
-          .abortSignal(signal)
-          .single()
-        return data || null
-      }
-      // Fallback: look for the most recent observation at or before the breach was created
-      const { data } = await (supabase.from('observations') as any)
-        .select(OBSERVATION_SELECT_FIELDS)
-        .eq('plate_number', activeBreach.plate_number)
-        .eq('organization_id', activeBreach.organization_id)
-        .lte('recorded_at', activeBreach.created_at)
-        .order('recorded_at', { ascending: false })
-        .limit(1)
-        .abortSignal(signal)
-        .single()
-      return data || null
-    },
-    enabled: !!activeBreach,
-  })
-
-  // Fetch evidence photos from observations for the active breach
-  const { data: evidencePhotos } = useQuery({
-    queryKey: ['breach-evidence-photos', activeBreach?.id, activeBreach?.plate_number, activeBreach?.created_at],
-    queryFn: async ({ signal }) => {
-      if (!activeBreach?.plate_number) return []
-
-      const normalizePhotos = async (rows: any[]) => {
-        if (signal.aborted) return []
-
-        const normalizedRows = (rows || []).map((row: any) => ({
-          ...row,
-          id: row.observation_id ?? row.id,
-        }))
-
-        const missingPhotoObservationIds = normalizedRows
-          .filter((row: any) => !row.photo && !row.photo_url && !!row.id)
-          .map((row: any) => row.id)
-
-        const fallbackPhotoByObservationId: Record<string, string> = {}
-        if (missingPhotoObservationIds.length > 0) {
-          const { data: metadataRows } = await (supabase.from('photo_metadata') as any)
-            .select('observation_id, bucket_name, storage_path, file_name, created_at')
-            .in('observation_id', missingPhotoObservationIds)
-            .order('created_at', { ascending: false })
-            .abortSignal(signal)
-
-          for (const meta of metadataRows || []) {
-            const observationId = meta.observation_id
-            if (!observationId || fallbackPhotoByObservationId[observationId]) continue
-
-            const candidate =
-              (meta.bucket_name && meta.storage_path ? `${meta.bucket_name}/${meta.storage_path}` : null)
-              || meta.storage_path
-              || meta.file_name
-              || null
-
-            if (candidate) {
-              fallbackPhotoByObservationId[observationId] = candidate
-            }
-          }
-        }
-
-        // Process photos in small batches to avoid saturating the HTTP connection pool.
-        const BATCH_SIZE = 3
-        const resolved: any[] = []
-        for (let i = 0; i < normalizedRows.length; i += BATCH_SIZE) {
-          if (signal.aborted) break
-          const batch = normalizedRows.slice(i, i + BATCH_SIZE)
-          const batchResults = await Promise.all(
-            batch.map(async (row: any) => {
-              if (signal.aborted) return null
-              const primary = await resolveEvidencePhotoUrl(row.photo ?? row.photo_url)
-              const fallback = primary
-                ? null
-                : await resolveEvidencePhotoUrl(fallbackPhotoByObservationId[row.id] ?? null)
-
-              return {
-                ...row,
-                display_url: primary ?? fallback,
-                fallback_urls: [row.photo_url, row.photo, fallbackPhotoByObservationId[row.id] ?? null]
-                  .map((v: any) => (typeof v === 'string' ? v.trim() : null))
-                  .filter((v: string | null): v is string => !!v)
-                  .filter((v: string) => v !== (primary ?? fallback)),
-              }
-            })
-          )
-          resolved.push(...batchResults.filter((r: any) => r !== null))
-        }
-
-        return resolved.filter((row: any) => !!row.display_url)
-      }
-
-      const observationId = getBreachObservationId(activeBreach)
-      if (observationId) {
-        const byId = await (supabase.from('observations') as any)
-          .select('observation_id, photo, photo_url, recorded_at, gps_latitude, gps_longitude, zones!vehicle_observations_v2_zone_id_fkey(name)')
-          .eq('observation_id', observationId)
-          .limit(1)
-          .abortSignal(signal)
-
-        const normalized = await normalizePhotos(byId.data || [])
-        if (normalized.length > 0) {
-          return normalized
-        }
-      }
-
-      if (signal.aborted) return []
-
-      const strictQuery = (supabase.from('observations') as any)
-        .select('observation_id, photo, photo_url, recorded_at, gps_latitude, gps_longitude, zones!vehicle_observations_v2_zone_id_fkey(name)')
-        .eq('plate_number', activeBreach.plate_number)
-        .eq('organization_id', activeBreach.organization_id)
-        .lte('recorded_at', activeBreach.created_at)
-        .order('recorded_at', { ascending: false })
-        .limit(12)
-        .abortSignal(signal)
-
-      const strict = await strictQuery
-      const strictNormalized = await normalizePhotos(strict.data || [])
-      if (strictNormalized.length > 0) {
-        return strictNormalized
-      }
-
-      if (signal.aborted) return []
-
-      // Fallback: ignore org/date constraints when data quality is inconsistent.
-      const fallback = await (supabase.from('observations') as any)
-        .select('observation_id, photo, photo_url, recorded_at, gps_latitude, gps_longitude, zones!vehicle_observations_v2_zone_id_fkey(name)')
-        .eq('plate_number', activeBreach.plate_number)
-        .order('recorded_at', { ascending: false })
-        .limit(12)
-        .abortSignal(signal)
-
-      return await normalizePhotos(fallback.data || [])
-    },
-    enabled: !!activeBreach?.plate_number,
-  })
+  const { data: triggeringObservation } = useBreachTriggeringObservation(activeBreach)
+  const { data: evidencePhotos } = useBreachEvidencePhotos(activeBreach, resolveEvidencePhotoUrl)
 
   const { data: vehicleHistory } = useBreachVehicleHistory(activeBreach)
 
