@@ -181,7 +181,7 @@ export default function BobActionProposalEventLog() {
                         {row.actor_id ? `${row.actor_id.slice(0, 8)}…` : '—'}
                       </TableCell>
                       <TableCell className="font-mono text-xs text-muted-foreground">
-                        {row.organization_id.slice(0, 8)}…
+                        {row.organization_id ? `${row.organization_id.slice(0, 8)}…` : '—'}
                       </TableCell>
                       <TableCell className="max-w-[12rem] truncate text-sm text-muted-foreground" title={row.notes ?? ''}>
                         {row.notes ?? '—'}
