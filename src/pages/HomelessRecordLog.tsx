@@ -1,6 +1,15 @@
+/**
+ * HomelessRecordLog — B-149
+ *
+ * Admin log and viewer for homeless_records.
+ * Displays vehicles and persons tracked with homeless-exempt status,
+ * their source, active/inactive state, and first/last reported dates.
+ *
+ * Route: /homeless-records-log — admin/admin_officer/master
+ */
 import { Fragment, useState } from 'react'
 import { format, parseISO } from 'date-fns'
-import { Tent, RefreshCw, AlertCircle, Loader2 } from 'lucide-react'
+import { Home, RefreshCw, AlertCircle, Loader2 } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 
 import { supabase } from '@/lib/supabase'
@@ -36,32 +45,30 @@ function fmtDate(ts: string | null) {
 
 export default function HomelessRecordLog() {
   const { user } = useAuthStore()
+  const orgId = user?.organization_id
+
+  const [searchQuery,  setSearchQuery]  = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [sourceFilter, setSourceFilter] = useState('all')
   const [activeFilter, setActiveFilter] = useState('all')
-  const [plateQuery, setPlateQuery] = useState('')
-  const [dateFrom, setDateFrom] = useState('')
-  const [expanded, setExpanded] = useState<string | null>(null)
+  const [expanded,     setExpanded]     = useState<string | null>(null)
 
   const { data: rows = [], isLoading, refetch } = useQuery<HomelessRow[]>({
-    queryKey: ['homeless-records-log', statusFilter, sourceFilter, activeFilter, plateQuery, dateFrom],
+    queryKey: ['homeless-records-log', orgId, searchQuery, statusFilter, sourceFilter, activeFilter],
+    enabled: !!orgId,
     queryFn: async () => {
-      const isElevatedRole = user?.role === 'master' || user?.role === 'grand_master'
-      if (!isElevatedRole && !user?.organization_id) return []
-
       let q = supabase
         .from('homeless_records')
         .select('*')
-        .order('last_reported_at', { ascending: false })
+        .eq('organization_id', orgId!)
+        .order('last_reported_at', { ascending: false, nullsFirst: false })
         .limit(500)
 
-      if (!isElevatedRole && user?.organization_id) q = q.eq('organization_id', user.organization_id)
+      if (searchQuery.trim()) q = q.ilike('plate_number', `%${searchQuery.trim()}%`)
       if (statusFilter !== 'all') q = q.eq('status', statusFilter)
       if (sourceFilter !== 'all') q = q.eq('source', sourceFilter)
-      if (activeFilter === 'active') q = q.eq('is_active', true)
+      if (activeFilter === 'active')   q = q.eq('is_active', true)
       if (activeFilter === 'inactive') q = q.eq('is_active', false)
-      if (plateQuery.trim()) q = q.ilike('plate_number', `%${plateQuery.trim()}%`)
-      if (dateFrom) q = q.gte('last_reported_at', dateFrom)
 
       const { data, error } = await q
       if (error) throw error
@@ -69,21 +76,20 @@ export default function HomelessRecordLog() {
     },
   })
 
-  const activeCount = rows.filter((r) => r.is_active).length
-  const inactiveCount = rows.length - activeCount
-  const uniquePlates = new Set(rows.map((r) => r.plate_number)).size
-  const statuses = ['all', ...Array.from(new Set(rows.map((r) => r.status).filter(Boolean)))]
-  const sources = ['all', ...Array.from(new Set(rows.map((r) => r.source).filter(Boolean)))]
+  const activeCount   = rows.filter(r => r.is_active).length
+  const statuses      = [...new Set(rows.map(r => r.status).filter(Boolean))].sort()
+  const sources       = [...new Set(rows.map(r => r.source).filter(Boolean))].sort()
+  const uniquePlates  = new Set(rows.map(r => r.plate_number)).size
 
   return (
     <AppLayout>
       <div className="p-6 space-y-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Tent className="h-6 w-6 text-cyan-600" />
+            <Home className="h-6 w-6 text-amber-600" />
             <div>
               <h1 className="text-2xl font-bold">Homeless Record Log</h1>
-              <p className="text-sm text-muted-foreground">Historical and active homeless record entries by plate and source</p>
+              <p className="text-sm text-muted-foreground">Vehicles and persons registered under homeless-exempt status with activity history</p>
             </div>
           </div>
           <Button variant="outline" size="sm" onClick={() => refetch()}>
@@ -93,108 +99,84 @@ export default function HomelessRecordLog() {
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
-            { label: 'Total Records', value: rows.length, color: 'text-gray-700' },
-            { label: 'Active', value: activeCount, color: 'text-green-700' },
-            { label: 'Inactive', value: inactiveCount, color: 'text-slate-700' },
-            { label: 'Unique Plates', value: uniquePlates, color: 'text-cyan-700' },
-          ].map((kpi) => (
+            { label: 'Total Records',    value: rows.length,    colour: 'text-gray-700' },
+            { label: 'Active',           value: activeCount,    colour: 'text-emerald-700' },
+            { label: 'Inactive',         value: rows.length - activeCount, colour: 'text-rose-700' },
+            { label: 'Unique Plates',    value: uniquePlates,   colour: 'text-amber-700' },
+          ].map(kpi => (
             <Card key={kpi.label}>
               <CardHeader className="pb-1 pt-3 px-4"><CardTitle className="text-xs text-muted-foreground">{kpi.label}</CardTitle></CardHeader>
-              <CardContent className="px-4 pb-3"><p className={`text-2xl font-bold ${kpi.color}`}>{kpi.value}</p></CardContent>
+              <CardContent className="px-4 pb-3"><p className={`text-2xl font-bold ${kpi.colour}`}>{kpi.value}</p></CardContent>
             </Card>
           ))}
         </div>
 
         <div className="flex flex-wrap gap-3">
-          <Input
-            value={plateQuery}
-            onChange={(e) => setPlateQuery(e.target.value)}
-            placeholder="Search plate…"
-            className="w-40"
-          />
+          <Input value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search plate number…" className="w-52" />
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-40"><SelectValue placeholder="Status" /></SelectTrigger>
+            <SelectTrigger className="w-44"><SelectValue placeholder="Status" /></SelectTrigger>
             <SelectContent>
-              {statuses.map((status) => (
-                <SelectItem key={status} value={status}>{status === 'all' ? 'All statuses' : status}</SelectItem>
-              ))}
+              <SelectItem value="all">All statuses</SelectItem>
+              {statuses.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
             </SelectContent>
           </Select>
           <Select value={sourceFilter} onValueChange={setSourceFilter}>
             <SelectTrigger className="w-44"><SelectValue placeholder="Source" /></SelectTrigger>
             <SelectContent>
-              {sources.map((source) => (
-                <SelectItem key={source} value={source}>{source === 'all' ? 'All sources' : source}</SelectItem>
-              ))}
+              <SelectItem value="all">All sources</SelectItem>
+              {sources.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
             </SelectContent>
           </Select>
           <Select value={activeFilter} onValueChange={setActiveFilter}>
-            <SelectTrigger className="w-36"><SelectValue placeholder="Activity" /></SelectTrigger>
+            <SelectTrigger className="w-40"><SelectValue placeholder="Active" /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All states</SelectItem>
+              <SelectItem value="all">All records</SelectItem>
               <SelectItem value="active">Active only</SelectItem>
               <SelectItem value="inactive">Inactive only</SelectItem>
             </SelectContent>
           </Select>
-          <input
-            type="date"
-            value={dateFrom}
-            onChange={(e) => setDateFrom(e.target.value)}
-            className="border rounded px-3 py-1 text-sm w-40 bg-background"
-          />
         </div>
 
         {isLoading ? (
           <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
         ) : rows.length === 0 ? (
-          <div className="flex flex-col items-center py-12 text-muted-foreground gap-2">
-            <AlertCircle className="h-8 w-8" />
-            <p>No homeless records found</p>
-          </div>
+          <div className="flex flex-col items-center py-12 text-muted-foreground gap-2"><AlertCircle className="h-8 w-8" /><p>No records found</p></div>
         ) : (
           <div className="rounded-md border">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Last Reported</TableHead>
                   <TableHead>Plate</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Source</TableHead>
                   <TableHead>Active</TableHead>
                   <TableHead>First Reported</TableHead>
+                  <TableHead>Last Reported</TableHead>
                   <TableHead>Detail</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {rows.map((row) => (
+                {rows.map(row => (
                   <Fragment key={row.id}>
-                    <TableRow
-                      className="cursor-pointer hover:bg-muted/40"
-                      onClick={() => setExpanded(expanded === row.id ? null : row.id)}
-                    >
-                      <TableCell className="text-sm whitespace-nowrap">{fmtDate(row.last_reported_at)}</TableCell>
-                      <TableCell className="font-mono text-xs">{row.plate_number}</TableCell>
-                      <TableCell><Badge variant="outline" className="text-xs">{row.status}</Badge></TableCell>
-                      <TableCell><Badge variant="secondary" className="text-xs">{row.source}</Badge></TableCell>
+                    <TableRow className="cursor-pointer hover:bg-muted/40" onClick={() => setExpanded(expanded === row.id ? null : row.id)}>
+                      <TableCell className="font-mono font-semibold">{row.plate_number}</TableCell>
+                      <TableCell><Badge className="bg-sky-100 text-sky-800">{row.status}</Badge></TableCell>
+                      <TableCell className="text-sm">{row.source}</TableCell>
                       <TableCell>
-                        <Badge className={row.is_active ? 'bg-green-100 text-green-800' : 'bg-slate-100 text-slate-700'}>
+                        <Badge className={row.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-700'}>
                           {row.is_active ? 'Active' : 'Inactive'}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-sm whitespace-nowrap">{fmtDate(row.first_reported_at)}</TableCell>
+                      <TableCell className="text-sm">{fmtDate(row.first_reported_at)}</TableCell>
+                      <TableCell className="text-sm">{fmtDate(row.last_reported_at)}</TableCell>
                       <TableCell className="text-xs text-sky-600">{expanded === row.id ? '▲ hide' : '▼ show'}</TableCell>
                     </TableRow>
                     {expanded === row.id && (
                       <TableRow className="bg-muted/20">
                         <TableCell colSpan={7} className="text-xs text-muted-foreground space-y-1 py-3">
-                          <div className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-1">
-                            <div><span className="font-medium">Record ID:</span> {row.id}</div>
-                            <div><span className="font-medium">Organization:</span> {row.organization_id}</div>
-                            <div><span className="font-medium">Created:</span> {fmtDate(row.created_at)}</div>
-                            <div><span className="font-medium">Updated:</span> {fmtDate(row.updated_at)}</div>
-                            <div><span className="font-medium">Created by:</span> {row.created_by ?? '—'}</div>
-                            <div><span className="font-medium">Updated by:</span> {row.updated_by ?? '—'}</div>
-                          </div>
+                          <div><span className="font-medium">Record ID:</span> {row.id}</div>
+                          <div><span className="font-medium">Created by:</span> {row.created_by ?? '—'} &nbsp; <span className="font-medium">at:</span> {fmtDate(row.created_at)}</div>
+                          <div><span className="font-medium">Updated by:</span> {row.updated_by ?? '—'} &nbsp; <span className="font-medium">at:</span> {fmtDate(row.updated_at)}</div>
                           {row.notes && <div><span className="font-medium">Notes:</span> {row.notes}</div>}
                         </TableCell>
                       </TableRow>
