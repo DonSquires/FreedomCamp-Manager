@@ -1,9 +1,9 @@
 # Module Roadmap (Operator Navigation Map)
 
 Date: 2026-05-08 (verified against src/navigation/routeManifest.ts)
-Source of truth for routes: route manifest file src/navigation/routeManifest.ts (213 route manifest entries as of Sprint 50 completion)
+Source of truth for routes: route manifest file src/navigation/routeManifest.ts (216 route manifest entries as of Sprint 51 completion)
 
- > **Last Verification**: 2026-05-08 — Role-gating and route docs reviewed through Sprint 50 (B-162). Current branch includes Sprints 31-50; production main includes Sprints 31-45 until subsequent merges.
+ > **Last Verification**: 2026-05-08 — Role-gating and route docs reviewed through Sprint 51 (B-165). Current branch includes Sprints 31-51; production main includes Sprints 31-45 until subsequent merges.
 
 ## How To Use
 
@@ -832,11 +832,30 @@ New admin routes added in Sprint 50 (B-160, B-161, B-162):
    - Role gate: admin, admin_officer, master
    - Viewer for flagged_vehicles; KPIs (Total/Active/High Priority/Confirmed Homeless); plate/reason/contact search, active/priority/date_from filters; creator/flagger, site, notes, and status expand
 
+## Sprint 51 Route Addendum (2026-05-08)
+
+New admin routes added in Sprint 51 (B-163, B-164, B-165):
+
+1. Canonical SCV Log (B-163)
+   - Route: /canonical-scv-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for canonical_scv; KPIs (Total/Self-Contained/Active Certs/Expired Certs); plate/VIN search, status/source/date filters; issue date, verified at, max occupants, notes expand
+
+2. Officer Availability Log (B-164)
+   - Route: /officer-availability-log
+   - Role gate: admin, master
+   - Viewer for officer_availability; KPIs (Total/Available/Unavailable + unique officers count); officer id/notes search, availability/day-of-week/date filters; unavailability reason, notes, timestamps expand
+
+3. Canonical Homeless Log (B-165)
+   - Route: /canonical-homeless-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for canonical_homeless; KPIs (Total/Confirmed/Cleared/Sources); plate/notes/confirmed-by search, status/source/date filters; confirmed at, notes expand
+
 ## Production Status Snapshot (2026-05-08)
 
 - Branch: main
 - PR state (base main): 0 open
-- Consolidation status: Sprint 31 through Sprint 50 route work is aligned on the active branch; production main currently includes Sprints 31-45
+- Consolidation status: Sprint 31 through Sprint 51 route work is aligned on the active branch; production main currently includes Sprints 31-45
 
 ## Post-Sprint-42 Realignment Phases and Phase-Gate Progression (#548)
 

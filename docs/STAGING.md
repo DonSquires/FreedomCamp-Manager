@@ -642,6 +642,46 @@ Latest Session Snapshot (Sprint 45 — B-145 LmrBridgeConfigLog / B-146 RadioVoi
 - Open blockers with owner:
   1. NONE.
 
+Latest Session Snapshot (Sprint 51 — B-163 CanonicalScvLog / B-164 OfficerAvailabilityLog / B-165 CanonicalHomelessLog — 2026-05-08):
+
+- Timestamp (NZ): 2026-05-08 13:55 NZST
+- Current branch: copilot/continue-realignment-project-yet-again
+- Scope completed:
+  - Added Sprint 51 route trio (B-163, B-164, B-165) following the established admin-log sprint pattern.
+  - Created `src/pages/CanonicalScvLog.tsx` (B-163) — `/canonical-scv-log` — `canonical_scv` viewer with plate/VIN search, status/source/date filters; cert metadata expand; org-scoped via observations join for non-master users.
+  - Created `src/pages/OfficerAvailabilityLog.tsx` (B-164) — `/officer-availability-log` — `officer_availability` viewer with officer id/notes search, availability/day-of-week/date filters; reason, notes, timestamps expand.
+  - Created `src/pages/CanonicalHomelessLog.tsx` (B-165) — `/canonical-homeless-log` — `canonical_homeless` viewer with plate/notes/confirmed-by search, status/source/date filters; confirmed at and notes expand; org-scoped via observations join for non-master users.
+  - Added lazy imports and role-gated routes to `src/App.tsx`.
+  - Added Sprint 51 entries to `src/navigation/routeManifest.ts` (216 entries, up from 213).
+  - Added Sprint 51 nav links to `src/components/features/AppLayout.tsx` (Records: B-163, B-165; Management: B-164).
+  - Added Sprint 51 admin tile shortcuts to `src/pages/AdminPortal.tsx`.
+  - Added Sprint 51 Route Addendum to `docs/MODULE_ROADMAP.md`.
+
+- Sprint 51 checklist:
+  | Item | Status | Evidence |
+  |---|---|---|
+  | B-163 CanonicalScvLog page | ✅ DONE | `src/pages/CanonicalScvLog.tsx` |
+  | B-164 OfficerAvailabilityLog page | ✅ DONE | `src/pages/OfficerAvailabilityLog.tsx` |
+  | B-165 CanonicalHomelessLog page | ✅ DONE | `src/pages/CanonicalHomelessLog.tsx` |
+  | App.tsx imports + routes | ✅ DONE | `src/App.tsx` |
+  | Route manifest (216 entries) | ✅ DONE | `src/navigation/routeManifest.ts` |
+  | AppLayout navigation wiring | ✅ DONE | `src/components/features/AppLayout.tsx` |
+  | AdminPortal shortcuts | ✅ DONE | `src/pages/AdminPortal.tsx` |
+  | MODULE_ROADMAP Sprint 51 addendum | ✅ DONE | `docs/MODULE_ROADMAP.md` |
+
+- Validation evidence:
+  | Command | Result | Notes |
+  |---|---|---|
+  | `bun run lint` | PASS | 0 errors (1 pre-existing warning in `src/pages/FieldOfficerPortal.tsx`) |
+  | `bun run build` | PASS | TypeScript + Vite build succeeded |
+  | `bun run test:nav-parity` | PASS | navigation registry parity passed |
+  | `bun run lint:route-roadmap` | PASS | route roadmap coverage passed |
+  | `bun run lint:staging-doc` | PASS | staging doc consistency passed |
+  | `bun run build:budget` | PASS | within JS budget (8200 kB cap) |
+
+- Open blockers with owner:
+  1. NONE.
+
 Latest Session Snapshot (Sprint 50 — B-160 BreachAlertLog / B-161 CanonicalVehicleLog / B-162 FlaggedVehicleLog — 2026-05-08):
 
 - Timestamp (NZ): 2026-05-08 13:27 NZST
