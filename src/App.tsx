@@ -311,6 +311,10 @@ const CanonicalHomelessLog = lazy(() => import('@/pages/CanonicalHomelessLog'))
 const CanonicalVehiclesLog = lazy(() => import('@/pages/CanonicalVehiclesLog'))
 const CanonicalPersonsLog = lazy(() => import('@/pages/CanonicalPersonsLog'))
 const CanonicalPersonZonesLog = lazy(() => import('@/pages/CanonicalPersonZonesLog'))
+// Sprint 53: B-169–B-171
+const PricingRuleLog = lazy(() => import('@/pages/PricingRuleLog'))
+const ZoneLegalConfigLog = lazy(() => import('@/pages/ZoneLegalConfigLog'))
+const ZoneSignageEvidenceLog = lazy(() => import('@/pages/ZoneSignageEvidenceLog'))
 
 const NetworkStatusBar = lazy(() => import('@/components/features/NetworkStatusBar').then((m) => ({ default: m.NetworkStatusBar })))
 const PWAInstallPrompt = lazy(() => import('@/components/features/PWAInstallPrompt').then((m) => ({ default: m.PWAInstallPrompt })))
@@ -2525,6 +2529,10 @@ export default function App() {
           <Route path="/canonical-vehicles-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><CanonicalVehiclesLog /></RoleRoute></ProtectedRoute>} />
           <Route path="/canonical-persons-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><CanonicalPersonsLog /></RoleRoute></ProtectedRoute>} />
           <Route path="/canonical-person-zones-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><CanonicalPersonZonesLog /></RoleRoute></ProtectedRoute>} />
+          {/* Sprint 53: B-169–B-171 */}
+          <Route path="/pricing-rules-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><PricingRuleLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/zone-legal-config-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><ZoneLegalConfigLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/zone-signage-evidence-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><ZoneSignageEvidenceLog /></RoleRoute></ProtectedRoute>} />
 
           {/* CRM – Accounts (Clients + Contractors) */}
           <Route
