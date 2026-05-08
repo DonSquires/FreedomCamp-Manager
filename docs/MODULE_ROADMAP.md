@@ -1,9 +1,9 @@
 # Module Roadmap (Operator Navigation Map)
 
 Date: 2026-05-08 (verified against src/navigation/routeManifest.ts)
-Source of truth for routes: route manifest file src/navigation/routeManifest.ts (262 route manifest entries as of Sprint 64 completion)
+Source of truth for routes: route manifest file src/navigation/routeManifest.ts (265 route manifest entries as of Sprint 65 completion)
 
- > **Last Verification**: 2026-05-08 — Role-gating and route docs reviewed through Sprint 64 (B-222). Production main includes Sprints 31-64.
+ > **Last Verification**: 2026-05-08 — Role-gating and route docs reviewed through Sprint 65 (B-225). Production main includes Sprints 31-65.
 
 ## How To Use
 
@@ -1183,11 +1183,30 @@ New manifest entries added in Sprint 64 (B-210 through B-222):
    - Role gate: admin, admin_officer, master, grand_master
    - navGroup: Roster & Workforce
 
+## Sprint 65 Route Addendum (2026-05-08)
+
+New manifest entries added in Sprint 65 (B-223 through B-225):
+
+1. Command Centre (B-223)
+   - Route: /admin
+   - Role gate: admin, admin_officer, master
+   - navGroup: Core
+
+2. Service Provider Access (B-224)
+   - Route: /admin/service-provider-access
+   - Role gate: admin, master
+   - navGroup: Settings
+
+3. Search (B-225)
+   - Route: /search
+   - Role gate: master, admin, officer, admin_officer, nzscv_monitor, grand_master, client_viewer
+   - navGroup: Core
+
 ## Production Status Snapshot (2026-05-08)
 
 - Branch: main
 - PR state (base main): 0 open
-- Consolidation status: Sprint 31 through Sprint 64 route work is merged to production main
+- Consolidation status: Sprint 31 through Sprint 65 route work is merged to production main
 
 ## Post-Sprint-42 Realignment Phases and Phase-Gate Progression (#548)
 

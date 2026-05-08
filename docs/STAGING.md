@@ -4,6 +4,35 @@ Date: 2026-05-05
 Owner: GitHub Copilot (GPT-5.3-Codex)
 Status: Active staging checklist
 
+Latest Session Snapshot (Sprint 65 — B-223–B-225 — 2026-05-09):
+
+- Timestamp (NZ): 2026-05-09 11:45 NZST
+- Current branch: copilot/continue-realignment-project-yet-again
+- Scope completed:
+  - Added Sprint 65 manifest entries (B-223–B-225): `/admin`, `/admin/service-provider-access`, `/search`.
+  - Source of truth used for role gates and labels: `src/App.tsx` route protection and `src/components/features/AppLayout.tsx` navigation labels.
+  - Updated `docs/MODULE_ROADMAP.md` with Sprint 65 addendum and manifest count progression.
+
+- Sprint 65 checklist:
+  | Item | Status | Evidence |
+  |---|---|---|
+  | B-223 `/admin` manifest entry | ✅ DONE | `src/navigation/routeManifest.ts` |
+  | B-224 `/admin/service-provider-access` manifest entry | ✅ DONE | `src/navigation/routeManifest.ts` |
+  | B-225 `/search` manifest entry | ✅ DONE | `src/navigation/routeManifest.ts` |
+  | Route manifest (265 entries) | ✅ DONE | `src/navigation/routeManifest.ts` |
+  | MODULE_ROADMAP Sprint 65 addendum | ✅ DONE | `docs/MODULE_ROADMAP.md` |
+
+- Validation evidence:
+  | Command | Result | Notes |
+  |---|---|---|
+  | `bun run lint` | PASS | ESLint completed without errors |
+  | `bun run build` | PASS | TypeScript + Vite build succeeded |
+  | `bun run test:nav-parity` | PASS | navigation registry parity passed |
+  | `bun run build:budget` | PASS | under 8300 kB |
+
+- Open blockers with owner:
+  1. NONE.
+
 ## 1. Purpose
 
 This is the single staging plan to resume work safely after interruptions.
