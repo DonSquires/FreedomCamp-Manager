@@ -699,6 +699,25 @@ New admin routes added in Sprint 43 (B-139, B-140, B-141):
    - Role gate: admin, admin_officer, master
    - Viewer for zone_compliance_matrix; KPIs (Total/Day-Visit Only/Self-Contained Required/Homeless Exemption); zone/day-visit/self-contained filters; stay-limit and allowed-days expand
 
+## Sprint 44 Route Addendum (2026-05-08)
+
+New admin routes added in Sprint 44 (B-142, B-143, B-144):
+
+1. Admin Recalculation Log (B-142)
+   - Route: /admin-recalculation-log
+   - Role gate: admin, master
+   - Viewer for admin_recalculation_actions; KPIs (Total/Completed/Failed/Drift Events Created); actor/status/scope/date filters; target org/zone and error expand
+
+2. Contractor Document Log (B-143)
+   - Route: /contractor-document-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for contractor_documents; KPIs (Total/Current/Expired/With Expiry Date); name/type/state filters; uploader/file-metadata expand
+
+3. Import Staging Log (B-144)
+   - Route: /import-staging-log
+   - Role gate: admin, master
+   - Viewer for import_staging; KPIs (Total/Imported/Enriched/With Errors); batch/status/error filters; raw payload and validation-error expand
+
 ## Production Status Snapshot (2026-05-07)
 
 - Branch: main

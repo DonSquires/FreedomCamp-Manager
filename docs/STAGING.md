@@ -515,6 +515,39 @@ Latest Session Snapshot (Sprint 43 — B-139 OfficerShiftLog / B-140 ImportBatch
 - Open blockers with owner:
   1. NONE.
 
+Latest Session Snapshot (Sprint 44 — B-142 AdminRecalculationLog / B-143 ContractorDocumentLog / B-144 ImportStagingLog — 2026-05-08):
+
+- Timestamp (NZ): 2026-05-08 22:07 NZST
+- Current branch: copilot/continue-realignment-project-again
+- Scope completed:
+  - Added Sprint 44 route trio (B-142, B-143, B-144) following the established admin-log sprint pattern.
+  - Created `src/pages/AdminRecalculationLog.tsx` (B-142) — `/admin-recalculation-log` — `admin_recalculation_actions` viewer with run-status, scope, and drift-impact metrics.
+  - Created `src/pages/ContractorDocumentLog.tsx` (B-143) — `/contractor-document-log` — `contractor_documents` viewer with expiry/current-state and uploader/file metadata.
+  - Created `src/pages/ImportStagingLog.tsx` (B-144) — `/import-staging-log` — `import_staging` viewer with enrichment/import/error-state metrics and raw payload detail.
+  - Added lazy imports and role-gated routes to `src/App.tsx`.
+  - Added Sprint 44 entries to `src/navigation/routeManifest.ts` (195 entries, up from 192).
+  - Added Sprint 44 Route Addendum to `docs/MODULE_ROADMAP.md`.
+
+- Sprint 44 checklist:
+  | Item | Status | Evidence |
+  |---|---|---|
+  | B-142 AdminRecalculationLog page | ✅ DONE | `src/pages/AdminRecalculationLog.tsx` |
+  | B-143 ContractorDocumentLog page | ✅ DONE | `src/pages/ContractorDocumentLog.tsx` |
+  | B-144 ImportStagingLog page | ✅ DONE | `src/pages/ImportStagingLog.tsx` |
+  | App.tsx imports + routes | ✅ DONE | `src/App.tsx` |
+  | Route manifest (195 entries) | ✅ DONE | `src/navigation/routeManifest.ts` |
+  | MODULE_ROADMAP Sprint 44 addendum | ✅ DONE | `docs/MODULE_ROADMAP.md` |
+
+- Validation evidence:
+  | Command | Result | Notes |
+  |---|---|---|
+  | `bun run lint` | PASS | 0 errors (1 pre-existing warning in FieldOfficerPortal.tsx) |
+  | `bun run build` | PASS | TypeScript + Vite build succeeded |
+  | `node scripts/check-build-budgets.mjs` | PASS | 7951/8000 kB |
+
+- Open blockers with owner:
+  1. NONE.
+
 Latest Session Snapshot (Phase E2 Enterprise Hardening Tenancy Gate Kickoff — 2026-05-08):
 
 - Timestamp (NZ): 2026-05-08 12:57 NZST
