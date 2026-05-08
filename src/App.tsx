@@ -307,6 +307,10 @@ const ObservationLog = lazy(() => import('@/pages/ObservationLog'))
 const CanonicalScvLog = lazy(() => import('@/pages/CanonicalScvLog'))
 const OfficerAvailabilityLog = lazy(() => import('@/pages/OfficerAvailabilityLog'))
 const CanonicalHomelessLog = lazy(() => import('@/pages/CanonicalHomelessLog'))
+// Sprint 52: B-166–B-168
+const CanonicalVehiclesLog = lazy(() => import('@/pages/CanonicalVehiclesLog'))
+const CanonicalPersonsLog = lazy(() => import('@/pages/CanonicalPersonsLog'))
+const CanonicalPersonZonesLog = lazy(() => import('@/pages/CanonicalPersonZonesLog'))
 
 const NetworkStatusBar = lazy(() => import('@/components/features/NetworkStatusBar').then((m) => ({ default: m.NetworkStatusBar })))
 const PWAInstallPrompt = lazy(() => import('@/components/features/PWAInstallPrompt').then((m) => ({ default: m.PWAInstallPrompt })))
@@ -2517,6 +2521,10 @@ export default function App() {
           <Route path="/canonical-scv-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><CanonicalScvLog /></RoleRoute></ProtectedRoute>} />
           <Route path="/officer-availability-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><OfficerAvailabilityLog /></RoleRoute></ProtectedRoute>} />
           <Route path="/canonical-homeless-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><CanonicalHomelessLog /></RoleRoute></ProtectedRoute>} />
+          {/* Sprint 52: B-166–B-168 */}
+          <Route path="/canonical-vehicles-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><CanonicalVehiclesLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/canonical-persons-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><CanonicalPersonsLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/canonical-person-zones-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><CanonicalPersonZonesLog /></RoleRoute></ProtectedRoute>} />
 
           {/* CRM – Accounts (Clients + Contractors) */}
           <Route

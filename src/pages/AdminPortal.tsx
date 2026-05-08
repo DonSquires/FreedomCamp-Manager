@@ -70,6 +70,7 @@ import {
   Shield,
   Sparkles,
   TrendingUp,
+  User,
   UserCheck,
   Users,
   Volume2,
@@ -1245,6 +1246,10 @@ export default function AdminPortal() {
                     { path: '/canonical-scv-log',              label: 'Canonical SCV',   Icon: Car,          color: 'text-sky-600',    bg: 'bg-sky-50 dark:bg-sky-900/20' },
                     { path: '/officer-availability-log',       label: 'Officer Avail.',  Icon: CalendarCheck,color: 'text-teal-600',   bg: 'bg-teal-50 dark:bg-teal-900/20' },
                     { path: '/canonical-homeless-log',         label: 'Canonical HM',    Icon: Tent,         color: 'text-amber-600',  bg: 'bg-amber-50 dark:bg-amber-900/20' },
+                    // Sprint 52: B-166–B-168
+                    { path: '/canonical-vehicles-log',         label: 'Canonical Veh.',  Icon: Car,          color: 'text-indigo-600', bg: 'bg-indigo-50 dark:bg-indigo-900/20' },
+                    { path: '/canonical-persons-log',          label: 'Canonical Person',Icon: User,         color: 'text-purple-600', bg: 'bg-purple-50 dark:bg-purple-900/20' },
+                    { path: '/canonical-person-zones-log',     label: 'Person Zones',    Icon: MapPin,       color: 'text-emerald-600',bg: 'bg-emerald-50 dark:bg-emerald-900/20' },
                   ].map(({ path, label, Icon, color, bg }) => (
                     <button key={path} onClick={() => navigate(path)} aria-label={`Open ${label}`} className={`${moduleTileClass} ${bg}`}>
                       <Icon className={`h-5 w-5 ${color}`} />

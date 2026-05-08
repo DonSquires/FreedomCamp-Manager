@@ -331,6 +331,8 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/organizations-log', icon: Building2, label: 'Organization Log', roles: ['master', 'grand_master'] },
       // Sprint 51: B-164
       { path: '/officer-availability-log', icon: CalendarCheck, label: 'Officer Availability Log', roles: ['admin', 'admin_officer', 'master'] },
+      // Sprint 52: B-166
+      { path: '/canonical-vehicles-log', icon: Car, label: 'Canonical Vehicles Log', roles: ['admin', 'admin_officer', 'master'] },
     ],
   },
   {
@@ -420,6 +422,9 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/canonical-scv-log', icon: Car, label: 'Canonical SCV Log', roles: ['admin', 'admin_officer', 'master'] },
       // Sprint 51: B-165
       { path: '/canonical-homeless-log', icon: Tent, label: 'Canonical Homeless Log', roles: ['admin', 'admin_officer', 'master'] },
+      // Sprint 52: B-167, B-168
+      { path: '/canonical-persons-log', icon: User, label: 'Canonical Persons Log', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/canonical-person-zones-log', icon: MapPin, label: 'Canonical Person Zones Log', roles: ['admin', 'admin_officer', 'master'] },
     ],
   },
   {

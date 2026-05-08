@@ -1,9 +1,9 @@
 # Module Roadmap (Operator Navigation Map)
 
 Date: 2026-05-08 (verified against src/navigation/routeManifest.ts)
-Source of truth for routes: route manifest file src/navigation/routeManifest.ts (217 route manifest entries as of Sprint 51 completion)
+Source of truth for routes: route manifest file src/navigation/routeManifest.ts (220 route manifest entries as of Sprint 52 completion)
 
- > **Last Verification**: 2026-05-08 — Role-gating and route docs reviewed through Sprint 51 (B-165). Production main includes Sprints 31-49.
+ > **Last Verification**: 2026-05-08 — Role-gating and route docs reviewed through Sprint 52 (B-168). Production main includes Sprints 31-49.
 
 ## How To Use
 
@@ -851,11 +851,30 @@ New admin routes added in Sprint 51 (B-163, B-164, B-165):
    - Role gate: admin, admin_officer, master
    - Viewer for canonical_homeless; KPIs (Total/Confirmed/Pending/Unique Sources); status/source/plate/date filters; confirmed by/at, notes detail expand
 
+## Sprint 52 Route Addendum (2026-05-08)
+
+New admin routes added in Sprint 52 (B-166, B-167, B-168):
+
+1. Canonical Vehicles Log (B-166)
+   - Route: /canonical-vehicles-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for canonical_vehicles; KPIs (Total/Flagged/Homeless/Exempt); flagged/homeless/plate/date filters; enforcement totals, priority, notes detail expand
+
+2. Canonical Persons Log (B-167)
+   - Route: /canonical-persons-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for canonical_persons; KPIs (Total/Flagged/POI/High Risk); risk/flag/name/date filters; identity/access/risk detail expand
+
+3. Canonical Person Zones Log (B-168)
+   - Route: /canonical-person-zones-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for canonical_person_zones; KPIs (Total/Active/Inactive/Unique Zones); active/scope/person/date filters; zone mapping and expiry detail expand
+
 ## Production Status Snapshot (2026-05-08)
 
 - Branch: main
 - PR state (base main): 0 open
-- Consolidation status: Sprint 31 through Sprint 49 route work is merged to production main; Sprints 50–51 in progress
+- Consolidation status: Sprint 31 through Sprint 49 route work is merged to production main; Sprints 50–52 in progress
 
 ## Post-Sprint-42 Realignment Phases and Phase-Gate Progression (#548)
 

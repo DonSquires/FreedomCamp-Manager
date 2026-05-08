@@ -397,6 +397,36 @@ Latest Session Snapshot (Sprint 51 — B-163 / B-164 / B-165 — 2026-05-08):
   1. Continue with Sprint 52 (B-166–B-168).
   2. Keep E1–E4 gate artifacts green alongside Sprint 51 route additions.
 
+Latest Session Snapshot (Sprint 52 — B-166 / B-167 / B-168 — 2026-05-09):
+
+- Timestamp (NZ): 2026-05-09 07:46 NZST
+- Current branch: copilot/continue-realignment-project-one-more-time
+- Scope completed:
+  - Continued Sprint catalog after Sprint 51 by adding Sprint 52 route entries B-166, B-167, B-168.
+  - Created `src/pages/CanonicalVehiclesLog.tsx` (B-166) — log viewer for `canonical_vehicles`; KPIs (Total/Flagged/Homeless/Exempt); flagged/homeless/plate/date filters; enforcement totals, priority, notes detail expand.
+  - Created `src/pages/CanonicalPersonsLog.tsx` (B-167) — log viewer for `canonical_persons`; KPIs (Total/Flagged/POI/High Risk); risk/flag/name/date filters; identity/access/risk detail expand.
+  - Created `src/pages/CanonicalPersonZonesLog.tsx` (B-168) — log viewer for `canonical_person_zones`; KPIs (Total/Active/Inactive/Unique Zones); active/scope/person/date filters; zone mapping and expiry detail expand.
+  - Updated `src/App.tsx` with lazy imports and protected routes for all three pages.
+  - Updated `src/navigation/routeManifest.ts` with Sprint 52 route entries (220 total).
+  - Updated `src/components/features/AppLayout.tsx` — Management group gains B-166; Records group gains B-167/B-168.
+  - Updated `src/pages/AdminPortal.tsx` — Reports & Analytics tile section gains B-166/B-167/B-168.
+  - Updated `docs/MODULE_ROADMAP.md` — Sprint 52 addendum + production status snapshot.
+
+- Sprint 52 checkpoint:
+  | Item | Status | Artifact |
+  |---|---|---|
+  | B-166 CanonicalVehiclesLog | ✅ DONE | `src/pages/CanonicalVehiclesLog.tsx`, route `/canonical-vehicles-log` |
+  | B-167 CanonicalPersonsLog | ✅ DONE | `src/pages/CanonicalPersonsLog.tsx`, route `/canonical-persons-log` |
+  | B-168 CanonicalPersonZonesLog | ✅ DONE | `src/pages/CanonicalPersonZonesLog.tsx`, route `/canonical-person-zones-log` |
+  | routeManifest.ts updated | ✅ DONE | 3 entries added (220 total) |
+  | AppLayout.tsx updated | ✅ DONE | Management (B-166) + Records (B-167/B-168) |
+  | AdminPortal.tsx updated | ✅ DONE | 3 tiles in Reports & Analytics section |
+  | MODULE_ROADMAP.md updated | ✅ DONE | Sprint 52 addendum |
+
+- Next session:
+  1. Continue with Sprint 53 (B-169–B-171).
+  2. Keep E1–E4 gate artifacts green alongside Sprint 52 route additions.
+
 Latest Session Snapshot (Sprint 49 — B-157 / B-158 / B-159 — 2026-05-08):
 
 - Timestamp (NZ): 2026-05-08 23:35 NZST
