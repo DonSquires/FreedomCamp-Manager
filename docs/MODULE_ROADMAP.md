@@ -1,9 +1,9 @@
 # Module Roadmap (Operator Navigation Map)
 
 Date: 2026-05-08 (verified against src/navigation/routeManifest.ts)
-Source of truth for routes: route manifest file src/navigation/routeManifest.ts (216 route manifest entries as of Sprint 51 completion)
+Source of truth for routes: route manifest file src/navigation/routeManifest.ts (219 route manifest entries as of Sprint 52 completion)
 
- > **Last Verification**: 2026-05-08 — Role-gating and route docs reviewed through Sprint 51 (B-165). Current branch includes Sprints 31-51; production main includes Sprints 31-45 until subsequent merges.
+ > **Last Verification**: 2026-05-08 — Role-gating and route docs reviewed through Sprint 52 (B-168). Current branch includes Sprints 31-52; production main includes Sprints 31-45 until subsequent merges.
 
 ## How To Use
 
@@ -832,6 +832,25 @@ New admin routes added in Sprint 50 (B-160, B-161, B-162):
    - Role gate: admin, admin_officer, master
    - Viewer for flagged_vehicles; KPIs (Total/Active/High Priority/Confirmed Homeless); plate/reason/contact search, active/priority/date_from filters; creator/flagger, site, notes, and status expand
 
+## Sprint 52 Route Addendum (2026-05-08)
+
+New admin routes added in Sprint 52 (B-166, B-167, B-168):
+
+1. Client Site Log (B-166)
+   - Route: /client-sites-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for client_sites; KPIs (Total/Active/Inactive/Site Types); site/code/address/contact search, status/site-type/priority/date filters; contract, commercial, geofence, hazards, notes expand
+
+2. Parking Permit Log (B-167)
+   - Route: /parking-permits-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for parking_permits; KPIs (Total/Active/Expired/Permit Types); plate/holder/issuer search, status/type/date filters; holder, zone, issuer, validity, notes expand
+
+3. Open Shift Log (B-168)
+   - Route: /open-shifts-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for open_shifts; KPIs (Total/Open/Claimed/Shift Types); title/description/creator/claimant search, status/priority/type/date filters; claim, zone, requirements, timestamps expand
+
 ## Sprint 51 Route Addendum (2026-05-08)
 
 New admin routes added in Sprint 51 (B-163, B-164, B-165):
@@ -855,7 +874,7 @@ New admin routes added in Sprint 51 (B-163, B-164, B-165):
 
 - Branch: main
 - PR state (base main): 0 open
-- Consolidation status: Sprint 31 through Sprint 51 route work is aligned on the active branch; production main currently includes Sprints 31-45
+- Consolidation status: Sprint 31 through Sprint 52 route work is aligned on the active branch; production main currently includes Sprints 31-45
 
 ## Post-Sprint-42 Realignment Phases and Phase-Gate Progression (#548)
 

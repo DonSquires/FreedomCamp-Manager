@@ -642,6 +642,46 @@ Latest Session Snapshot (Sprint 45 — B-145 LmrBridgeConfigLog / B-146 RadioVoi
 - Open blockers with owner:
   1. NONE.
 
+Latest Session Snapshot (Sprint 52 — B-166 ClientSiteLog / B-167 ParkingPermitLog / B-168 OpenShiftLog — 2026-05-08):
+
+- Timestamp (NZ): 2026-05-08 14:07 NZST
+- Current branch: copilot/continue-realignment-project-yet-again
+- Scope completed:
+  - Added Sprint 52 route trio (B-166, B-167, B-168) following the established admin-log sprint pattern.
+  - Created `src/pages/ClientSiteLog.tsx` (B-166) — `/client-sites-log` — `client_sites` viewer with site/code/address/contact search, active/site-type/priority/date filters; contract, contact, geofence, hazards, notes expand.
+  - Created `src/pages/ParkingPermitLog.tsx` (B-167) — `/parking-permits-log` — `parking_permits` viewer with plate/holder/issuer search, active/type/date filters; holder, zone, issuer, validity, notes expand.
+  - Created `src/pages/OpenShiftLog.tsx` (B-168) — `/open-shifts-log` — `open_shifts` viewer with title/description/creator/claimant search, status/priority/type/date filters; claim, zone, requirements, timestamps expand.
+  - Added lazy imports and role-gated routes to `src/App.tsx`.
+  - Added Sprint 52 entries to `src/navigation/routeManifest.ts` (219 entries, up from 216).
+  - Added Sprint 52 nav links to `src/components/features/AppLayout.tsx` (Management: B-166; Records: B-167; Roster & Workforce: B-168).
+  - Added Sprint 52 admin tile shortcuts to `src/pages/AdminPortal.tsx`.
+  - Added Sprint 52 Route Addendum to `docs/MODULE_ROADMAP.md`.
+
+- Sprint 52 checklist:
+  | Item | Status | Evidence |
+  |---|---|---|
+  | B-166 ClientSiteLog page | ✅ DONE | `src/pages/ClientSiteLog.tsx` |
+  | B-167 ParkingPermitLog page | ✅ DONE | `src/pages/ParkingPermitLog.tsx` |
+  | B-168 OpenShiftLog page | ✅ DONE | `src/pages/OpenShiftLog.tsx` |
+  | App.tsx imports + routes | ✅ DONE | `src/App.tsx` |
+  | Route manifest (219 entries) | ✅ DONE | `src/navigation/routeManifest.ts` |
+  | AppLayout navigation wiring | ✅ DONE | `src/components/features/AppLayout.tsx` |
+  | AdminPortal shortcuts | ✅ DONE | `src/pages/AdminPortal.tsx` |
+  | MODULE_ROADMAP Sprint 52 addendum | ✅ DONE | `docs/MODULE_ROADMAP.md` |
+
+- Validation evidence:
+  | Command | Result | Notes |
+  |---|---|---|
+  | `bun run lint` | PASS | 0 errors (1 pre-existing warning in `src/pages/FieldOfficerPortal.tsx`) |
+  | `bun run build` | PASS | TypeScript + Vite build succeeded |
+  | `bun run test:nav-parity` | PASS | navigation registry parity passed |
+  | `bun run lint:route-roadmap` | PASS | route roadmap coverage passed |
+  | `bun run lint:staging-doc` | PASS | staging doc consistency passed |
+  | `bun run build:budget` | PASS | 8162.92/8200 kB |
+
+- Open blockers with owner:
+  1. NONE.
+
 Latest Session Snapshot (Sprint 51 — B-163 CanonicalScvLog / B-164 OfficerAvailabilityLog / B-165 CanonicalHomelessLog — 2026-05-08):
 
 - Timestamp (NZ): 2026-05-08 13:55 NZST
