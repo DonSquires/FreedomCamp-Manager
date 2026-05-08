@@ -642,7 +642,47 @@ Latest Session Snapshot (Sprint 45 — B-145 LmrBridgeConfigLog / B-146 RadioVoi
 - Open blockers with owner:
   1. NONE.
 
-Latest Session Snapshot (Sprint 47 — B-151 IncidentLog / B-152 PersonRecordLog / B-153 NotificationLog — 2026-05-08):
+Latest Session Snapshot (Sprint 48 — B-154 FaceRecordLog / B-155 InfringementNoticeLog / B-156 SiteRiskAssessmentLog — 2026-05-08):
+
+- Timestamp (NZ): 2026-05-08 12:55 NZST
+- Current branch: copilot/continue-realignment-project-yet-again
+- Scope completed:
+  - Added Sprint 48 route trio (B-154, B-155, B-156) following the established admin-log sprint pattern.
+  - Created `src/pages/FaceRecordLog.tsx` (B-154) — `/face-records-log` — `face_records` viewer with label search, detection_method/date filters; embedding quality score, face count, officer/observation/person/incident/zone cross-refs, GPS, photo link expand.
+  - Created `src/pages/InfringementNoticeLog.tsx` (B-155) — `/infringement-notices-log` — `infringement_notices` viewer with plate+notice#+recipient search, status/type/date filters; revenue KPI; offence details, service method, payment, court referral, PDF link expand.
+  - Created `src/pages/SiteRiskAssessmentLog.tsx` (B-156) — `/site-risk-assessments-log` — `site_risk_assessments` viewer with site search, risk_level/status/request_type/date filters; full 18-field hazard checklist, controls, PPE, GPS, safety indicators, reviewer expand.
+  - Added lazy imports and role-gated routes to `src/App.tsx`.
+  - Added Sprint 48 entries to `src/navigation/routeManifest.ts` (207 entries, up from 204).
+  - Added Sprint 48 nav links to `src/components/features/AppLayout.tsx` (Records group: B-154/B-156; Operations group: B-155).
+  - Added Sprint 48 admin tile shortcuts to `src/pages/AdminPortal.tsx`.
+  - Added Sprint 48 Route Addendum to `docs/MODULE_ROADMAP.md`.
+
+- Sprint 48 checklist:
+  | Item | Status | Evidence |
+  |---|---|---|
+  | B-154 FaceRecordLog page | ✅ DONE | `src/pages/FaceRecordLog.tsx` |
+  | B-155 InfringementNoticeLog page | ✅ DONE | `src/pages/InfringementNoticeLog.tsx` |
+  | B-156 SiteRiskAssessmentLog page | ✅ DONE | `src/pages/SiteRiskAssessmentLog.tsx` |
+  | App.tsx imports + routes | ✅ DONE | `src/App.tsx` |
+  | Route manifest (207 entries) | ✅ DONE | `src/navigation/routeManifest.ts` |
+  | AppLayout navigation wiring | ✅ DONE | `src/components/features/AppLayout.tsx` |
+  | AdminPortal shortcuts | ✅ DONE | `src/pages/AdminPortal.tsx` |
+  | MODULE_ROADMAP Sprint 48 addendum | ✅ DONE | `docs/MODULE_ROADMAP.md` |
+
+- Validation evidence:
+  | Command | Result | Notes |
+  |---|---|---|
+  | `bun run lint` | PASS | 0 errors (1 pre-existing warning in FieldOfficerPortal.tsx) |
+  | `bun run build` | PASS | TypeScript + Vite build succeeded (4128 modules) |
+  | `bun run test:nav-parity` | PASS | 4 tests passed |
+  | `node scripts/check-build-budgets.mjs` | PASS | 8055.88/8100 kB |
+  | `node scripts/check-route-roadmap-coverage.mjs` | PASS | |
+  | `node scripts/check-staging-doc.mjs` | PASS | |
+
+- Open blockers with owner:
+  1. NONE.
+
+
 
 - Timestamp (NZ): 2026-05-08 12:45 NZST
 - Current branch: copilot/continue-realignment-project-yet-again
