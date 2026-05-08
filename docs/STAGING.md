@@ -203,6 +203,34 @@ node --test ptt-server/test/radio-health-schema.test.js
 - `docs/DEPLOYMENT_GUIDE.md` Bob governance notes now explicitly list the schema registry, route/entity map, mutation catalog, execution-review output, and coordinated redeploy requirement for `onspace-ai-chat`, `grandmaster-studio`, and `bob-code-change-task`.
 - `supabase/migrations/20260604000006_bob_conversation_memory.sql` and `src/lib/bobLearningMemory.ts` confirm execution review stays inside `public.bob_conversation_memory.context` JSONB, so no additional schema change is required.
 
+### G. Realignment Phase E — Data Movement Reduction
+
+- [x] Kick off Phase E1 with a grounded direct page-query baseline for the highest-fragmentation target pages.
+- [x] Add a focused Phase E1 drift gate spec so target pages cannot add direct `supabase.from(...)` page queries above the published baseline.
+- [x] Add a path-filtered CI workflow for Phase E1 data-access consolidation evidence.
+- [x] Lower BreachAlerts direct page Supabase baseline from 20 to 12 by moving decision, welfare, vehicle-enrichment, and manual-plate mutations into `src/hooks/useBreaches.ts`.
+- [x] Lower BreachAlerts direct page Supabase baseline from 12 to 9 by moving alert queue and intelligence read clusters into `src/hooks/useBreaches.ts`.
+- [x] Lower BreachAlerts direct page Supabase baseline from 9 to 8 by moving safety alert reads into `src/hooks/useBreaches.ts`.
+- [x] Lower BreachAlerts direct page Supabase baseline from 8 to 6 by moving vehicle detail and history reads into `src/hooks/useBreaches.ts`.
+- [x] Lower BreachAlerts direct page Supabase baseline from 6 to 0 by moving triggering-observation and evidence-photo reads into `src/hooks/useBreaches.ts`.
+- [x] Lower VehicleManagement direct page Supabase baseline from 21 to 16 by moving dialog observation and enrichment reads into `src/hooks/useVehicles.ts`.
+- [x] Lower AdminPortal direct page Supabase baseline from 20 to 16 by moving recent historical observations, welfare alerts, active patrol count, and today roster reads into `src/hooks/useAdminPortalData.ts`.
+- [x] Lower VehicleManagement direct page Supabase baseline from 16 to 14 by moving MotorWeb enrichment update and flag-toggle mutations into `src/hooks/useVehicles.ts`.
+- [x] Lower FieldOfficerPortal direct page Supabase baseline from 15 to 11 by moving SOS welfare alert insert, notification mark-read, and officer shift start/end mutations into `src/hooks/useFieldOfficerMutations.ts`.
+- [x] Lower AdminPortal direct page Supabase baseline from 16 to 0 by extracting the primary dashboard useQuery into `useAdminPrimaryDashboard` hook in `src/hooks/useAdminPortalData.ts`.
+- [x] Lower NoiseControlPortal direct page Supabase baseline from 13 to 0 by extracting all reads and mutations into `src/hooks/useNoiseControl.ts`.
+- [x] Lower VehicleManagement direct page Supabase baseline from 14 to 0 by extracting the entire vehicle-list useQuery into `useVehicleListQuery` in `src/hooks/useVehicles.ts`.
+- [x] Lower FieldOfficerPortal direct page Supabase baseline from 11 to 0 by extracting all read hooks into `src/hooks/useFieldOfficerData.ts` and remaining mutations into `src/hooks/useFieldOfficerMutations.ts`.
+
+Evidence (2026-05-08 UTC):
+```bash
+bunx playwright test tests/e2e/phase-e1-data-access-consolidation.spec.ts --config=playwright.api.config.ts --reporter=list
+```
+
+- Test spec: `tests/e2e/phase-e1-data-access-consolidation.spec.ts`
+- CI workflow: `.github/workflows/ci-phase-e1-data-access-consolidation-gate.yml`
+- Baseline table: `docs/MODULE_ROADMAP.md` → `Phase E1 Data-Access Consolidation Baseline (2026-05-08)`
+
 ## 7. Session Handoff Log (Update Before Exit)
 
 Fill this before stopping work:

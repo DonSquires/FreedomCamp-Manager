@@ -15,9 +15,7 @@
  * brief officers before attendance.
  */
 import { useState } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
-import { supabase } from '@/lib/supabase'
 import { AppLayout } from '@/components/features/AppLayout'
 import { ListCardRow } from '@/components/features/ListCardRow'
 import { Button } from '@/components/ui/button'
@@ -32,6 +30,19 @@ import { Textarea } from '@/components/ui/textarea'
 import { toast } from 'sonner'
 import { formatDateTime } from '@/lib/utils'
 import { edgeFunctions } from '@/lib/edgeFunctions'
+import {
+  useNoiseJobs,
+  useNoiseNotices,
+  useNoiseSeizures,
+  useNoiseOfficers,
+  useCreateNoiseJob,
+  useCreateNoiseNotice,
+  useUpdateNoiseJobStatus,
+  type NoiseJob,
+  type NoiseNotice,
+  type NoiseSeizure,
+  type NoiseOfficer,
+} from '@/hooks/useNoiseControl'
 import {
   Volume2, AlertTriangle, ShieldAlert, Gavel, Package,
   PlusCircle, RefreshCw, MapPin, Clock, Users, BarChart3,
@@ -82,67 +93,11 @@ const PRIORITY_COLOUR: Record<string, string> = {
   urgent: 'bg-red-100 text-red-700',
 }
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-type NoiseJob = {
-  id: string
-  job_number: string
-  title: string
-  address: string
-  suburb: string
-  city: string
-  noise_type: string
-  priority: string
-  status: string
-  assigned_to: string | null
-  has_prior_end: boolean
-  has_permanent_end: boolean
-  has_hs_incident: boolean
-  has_prior_abatement: boolean
-  prior_notice_count: number
-  safety_notes: string | null
-  created_at: string
-  completed_at: string | null
-}
-
-type NoiseNotice = {
-  id: string
-  notice_number: string
-  notice_type: string
-  recipient_name: string
-  recipient_address: string
-  offence_description: string
-  issued_at: string
-  comply_by: string | null
-  status: string
-  penalty_amount_nzd: number | null
-  daily_penalty_nzd: number | null
-  is_permanent_end: boolean
-  previous_notice_count: number
-  issuing_officer_name: string | null
-}
-
-type NoiseSeizure = {
-  id: string
-  seizure_number: string
-  address: string
-  seized_at: string
-  equipment_description: string
-  equipment_count: number
-  estimated_value_nzd: number | null
-  status: string
-  storage_location: string | null
-  seizing_officer_name: string | null
-}
-
-type Officer = { id: string; full_name?: string; first_name: string | null; last_name: string | null; email: string }
-
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export default function NoiseControlPortal() {
   const { user } = useAuthStore()
   const orgId = user?.organization_id
-  const queryClient = useQueryClient()
 
   const [tab, setTab] = useState('jobs')
   const [filterStatus, setFilterStatus] = useState('all')
@@ -187,201 +142,16 @@ export default function NoiseControlPortal() {
 
   // ── Queries ────────────────────────────────────────────────────────────────
 
-  const { data: jobs = [], isLoading: jobsLoading, refetch: refetchJobs } = useQuery({
-    queryKey: ['noise_jobs', orgId, filterStatus, filterPriority],
-    queryFn: async () => {
-      if (!orgId) return []
-      let q = supabase
-        .from('noise_jobs')
-        .select('*')
-        .eq('organization_id', orgId)
-        .order('created_at', { ascending: false })
-        .limit(200)
-      if (filterStatus !== 'all') q = q.eq('status', filterStatus)
-      if (filterPriority !== 'all') q = q.eq('priority', filterPriority)
-      const { data, error } = await q
-      if (error) throw error
-      return (data || []) as unknown as NoiseJob[]
-    },
-    enabled: !!orgId,
-    refetchInterval: 30_000,
-  })
-
-  const { data: notices = [], isLoading: noticesLoading, refetch: refetchNotices } = useQuery({
-    queryKey: ['noise_notices', orgId],
-    queryFn: async () => {
-      if (!orgId) return []
-      const { data, error } = await supabase
-        .from('noise_notices')
-        .select('*')
-        .eq('organization_id', orgId)
-        .order('issued_at', { ascending: false })
-        .limit(200)
-      if (error) throw error
-      return (data || []) as unknown as NoiseNotice[]
-    },
-    enabled: !!orgId,
-  })
-
-  const { data: seizures = [], isLoading: seizuresLoading, refetch: refetchSeizures } = useQuery({
-    queryKey: ['noise_seizures', orgId],
-    queryFn: async () => {
-      if (!orgId) return []
-      const { data, error } = await supabase
-        .from('noise_seizures')
-        .select('*')
-        .eq('organization_id', orgId)
-        .order('seized_at', { ascending: false })
-        .limit(100)
-      if (error) throw error
-      return (data || []) as unknown as NoiseSeizure[]
-    },
-    enabled: !!orgId,
-  })
-
-  const { data: officers = [] } = useQuery({
-    queryKey: ['officers', orgId],
-    queryFn: async () => {
-      if (!orgId) return []
-      const { data, error } = await supabase
-        .from('user_profiles')
-        .select('id, email, first_name, last_name')
-        .eq('organization_id', orgId)
-        .in('role', ['officer', 'admin_officer'])
-        .order('first_name')
-      if (error) throw error
-      return (data || []) as unknown as Officer[]
-    },
-    enabled: !!orgId,
-  })
+  const { data: jobs = [], isLoading: jobsLoading, refetch: refetchJobs } = useNoiseJobs(orgId, filterStatus, filterPriority)
+  const { data: notices = [], isLoading: noticesLoading, refetch: refetchNotices } = useNoiseNotices(orgId)
+  const { data: seizures = [], isLoading: seizuresLoading, refetch: refetchSeizures } = useNoiseSeizures(orgId)
+  const { data: officers = [] } = useNoiseOfficers(orgId)
 
   // ── Mutations ──────────────────────────────────────────────────────────────
 
-  const createJobMutation = useMutation({
-    mutationFn: async () => {
-      if (!orgId || !user?.id) throw new Error('Not authenticated')
-      // Look up prior notices for this address to populate context flags
-      const addr = newJob.address.trim().toLowerCase()
-      const { data: priorNotices } = await supabase
-        .from('noise_notices')
-        .select('notice_type, is_permanent_end, recipient_address')
-        .eq('organization_id', orgId)
-        .ilike('recipient_address', `%${addr}%`)
-      const priorCount = priorNotices?.length || 0
-      const hasPriorEnd = (priorNotices || []).some((n: any) => n.notice_type === 'enforcement_notice')
-      const hasPermanentEnd = (priorNotices || []).some((n: any) => n.is_permanent_end)
-      const hasPriorAN = (priorNotices || []).some((n: any) => n.notice_type === 'abatement_notice')
-      // Generate job number via RPC or DB counter
-      const { data: counterRow } = await supabase
-        .from('noise_job_counters')
-        .select('last_number')
-        .eq('organization_id', orgId)
-        .maybeSingle()
-      const nextNum = ((counterRow as any)?.last_number || 0) + 1
-      const jobNumber = `NCJ-${new Date().getFullYear()}-${String(nextNum).padStart(6, '0')}`
-      await supabase
-        .from('noise_job_counters')
-        .upsert({ organization_id: orgId, last_number: nextNum }, { onConflict: 'organization_id' })
-      const { error } = await supabase
-        .from('noise_jobs')
-        .insert({
-          organization_id: orgId,
-          job_number: jobNumber,
-          title: newJob.title,
-          address: newJob.address,
-          suburb: newJob.suburb || null,
-          city: newJob.city || null,
-          noise_type: newJob.noise_type,
-          priority: newJob.priority,
-          complaint_source: newJob.complaint_source,
-          complaint_description: newJob.complaint_description || null,
-          assigned_to: newJob.assigned_to || null,
-          assigned_at: newJob.assigned_to ? new Date().toISOString() : null,
-          dispatched_by: user?.id,
-          has_prior_end: hasPriorEnd,
-          has_permanent_end: hasPermanentEnd,
-          has_hs_incident: newJob.has_hs_incident,
-          has_prior_abatement: hasPriorAN,
-          prior_notice_count: priorCount,
-          prior_notice_summary: newJob.prior_notice_summary || null,
-          safety_notes: newJob.safety_notes || null,
-          status: newJob.assigned_to ? 'assigned' : 'pending',
-        })
-      if (error) throw error
-    },
-    onSuccess: () => {
-      toast.success('Job created and dispatched')
-      setShowNewJobDialog(false)
-      setNewJob({ title: '', address: '', suburb: '', city: '', noise_type: 'music', priority: 'normal', complaint_source: 'public', complaint_description: '', assigned_to: '', has_hs_incident: false, safety_notes: '', prior_notice_summary: '' })
-      queryClient.invalidateQueries({ queryKey: ['noise_jobs', orgId] })
-    },
-    onError: (e: Error) => toast.error(e.message),
-  })
-
-  const createNoticeMutation = useMutation({
-    mutationFn: async () => {
-      if (!orgId || !user?.id) throw new Error('Not authenticated')
-      const { data: counterRow } = await supabase
-        .from('noise_notice_counters')
-        .select('last_number')
-        .eq('organization_id', orgId)
-        .maybeSingle()
-      const nextNum = ((counterRow as any)?.last_number || 0) + 1
-      const noticeNumber = `NCN-${new Date().getFullYear()}-${String(nextNum).padStart(6, '0')}`
-      await supabase
-        .from('noise_notice_counters')
-        .upsert({ organization_id: orgId, last_number: nextNum }, { onConflict: 'organization_id' })
-      const isEnd = newNotice.notice_type === 'enforcement_notice'
-      const { error } = await supabase
-        .from('noise_notices')
-        .insert({
-          organization_id: orgId,
-          notice_number: noticeNumber,
-          noise_job_id: newNotice.noise_job_id || null,
-          notice_type: newNotice.notice_type,
-          recipient_name: newNotice.recipient_name,
-          recipient_address: newNotice.recipient_address,
-          offence_description: newNotice.offence_description,
-          rma_section: newNotice.rma_section || null,
-          penalty_amount_nzd: isEnd && newNotice.penalty_amount_nzd ? parseFloat(newNotice.penalty_amount_nzd) : null,
-          daily_penalty_nzd: isEnd && newNotice.daily_penalty_nzd ? parseFloat(newNotice.daily_penalty_nzd) : null,
-          issuing_officer_id: user?.id,
-          issuing_officer_name: user?.full_name || null,
-          notes: newNotice.notes || null,
-          status: 'issued',
-        })
-      if (error) throw error
-      // If END issued, update linked job context flags
-      if (newNotice.noise_job_id && isEnd) {
-        await supabase
-          .from('noise_jobs')
-          .update({ has_prior_end: true })
-          .eq('id', newNotice.noise_job_id)
-      }
-    },
-    onSuccess: () => {
-      toast.success('Notice issued and recorded')
-      setShowNewNoticeDialog(false)
-      setNewNotice({ noise_job_id: '', notice_type: 'abatement_notice', recipient_name: '', recipient_address: '', offence_description: '', rma_section: 'RMA s.326(1)(a)', penalty_amount_nzd: '', daily_penalty_nzd: '', notes: '' })
-      queryClient.invalidateQueries({ queryKey: ['noise_notices', orgId] })
-    },
-    onError: (e: Error) => toast.error(e.message),
-  })
-
-  const updateJobStatusMutation = useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      const { error } = await supabase
-        .from('noise_jobs')
-        .update({ status, completed_at: status === 'completed' ? new Date().toISOString() : null, updated_at: new Date().toISOString() })
-        .eq('id', id)
-      if (error) throw error
-    },
-    onSuccess: () => {
-      toast.success('Job status updated')
-      queryClient.invalidateQueries({ queryKey: ['noise_jobs', orgId] })
-    },
-    onError: (e: Error) => toast.error(e.message),
-  })
+  const createJobMutation = useCreateNoiseJob(orgId, user?.id)
+  const createNoticeMutation = useCreateNoiseNotice(orgId, user?.id, (user as any)?.full_name)
+  const updateJobStatusMutation = useUpdateNoiseJobStatus(orgId)
 
   // ── Filtered lists ─────────────────────────────────────────────────────────
 
@@ -574,7 +344,7 @@ export default function NoiseControlPortal() {
                               <Eye className="h-3 w-3 mr-1" /> View
                             </Button>
                             {['pending','assigned'].includes(job.status) && (
-                              <Button size="sm" variant="outline" onClick={() => updateJobStatusMutation.mutate({ id: job.id, status: 'completed' })}>
+                              <Button size="sm" variant="outline" onClick={() => updateJobStatusMutation.mutate({ id: job.id, status: 'completed' }, { onSuccess: () => toast.success('Job status updated'), onError: (e: any) => toast.error(e.message) })}>
                                 <CheckCircle className="h-3 w-3 mr-1" /> Complete
                               </Button>
                             )}
@@ -876,7 +646,14 @@ export default function NoiseControlPortal() {
             <div className="flex gap-2 justify-end pt-2">
               <Button variant="outline" onClick={() => setShowNewJobDialog(false)}>Cancel</Button>
               <Button
-                onClick={() => createJobMutation.mutate()}
+                onClick={() => createJobMutation.mutate(newJob, {
+                  onSuccess: () => {
+                    toast.success('Job created and dispatched')
+                    setShowNewJobDialog(false)
+                    setNewJob({ title: '', address: '', suburb: '', city: '', noise_type: 'music', priority: 'normal', complaint_source: 'public', complaint_description: '', assigned_to: '', has_hs_incident: false, safety_notes: '', prior_notice_summary: '' })
+                  },
+                  onError: (e: any) => toast.error(e.message),
+                })}
                 disabled={createJobMutation.isPending || !newJob.title || !newJob.address}
               >
                 {createJobMutation.isPending ? 'Dispatching…' : 'Dispatch Job'}
@@ -963,7 +740,14 @@ export default function NoiseControlPortal() {
             <div className="flex gap-2 justify-end pt-2">
               <Button variant="outline" onClick={() => setShowNewNoticeDialog(false)}>Cancel</Button>
               <Button
-                onClick={() => createNoticeMutation.mutate()}
+                onClick={() => createNoticeMutation.mutate(newNotice, {
+                  onSuccess: () => {
+                    toast.success('Notice issued and recorded')
+                    setShowNewNoticeDialog(false)
+                    setNewNotice({ noise_job_id: '', notice_type: 'abatement_notice', recipient_name: '', recipient_address: '', offence_description: '', rma_section: 'RMA s.326(1)(a)', penalty_amount_nzd: '', daily_penalty_nzd: '', notes: '' })
+                  },
+                  onError: (e: any) => toast.error(e.message),
+                })}
                 disabled={createNoticeMutation.isPending || !newNotice.recipient_name || !newNotice.recipient_address || !newNotice.offence_description}
               >
                 {createNoticeMutation.isPending ? 'Issuing…' : 'Issue Notice'}
@@ -1008,7 +792,7 @@ export default function NoiseControlPortal() {
                 )}
               </div>
               <div className="flex gap-2 justify-end">
-                <Select onValueChange={v => { updateJobStatusMutation.mutate({ id: showJobDetail.id, status: v }); setShowJobDetail(null) }}>
+                <Select onValueChange={v => { updateJobStatusMutation.mutate({ id: showJobDetail.id, status: v }, { onSuccess: () => toast.success('Job status updated'), onError: (e: any) => toast.error(e.message) }); setShowJobDetail(null) }}>
                   <SelectTrigger className="w-44"><SelectValue placeholder="Update status…" /></SelectTrigger>
                   <SelectContent>
                     {Object.entries(JOB_STATUS).map(([k, v]) => <SelectItem key={k} value={k}>{v.label}</SelectItem>)}

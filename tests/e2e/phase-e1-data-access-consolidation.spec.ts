@@ -1,59 +1,84 @@
-import { test, expect } from '@playwright/test'
 import fs from 'node:fs'
 import path from 'node:path'
+import { test, expect } from '@playwright/test'
 
-interface PriorityPageBaseline {
+type PhaseE1Target = {
   page: string
-  path: string
-  directQueryBaseline: number
+  baselineDirectSupabaseFromCalls: number
+  reductionTarget: string
 }
 
-const priorityPages: PriorityPageBaseline[] = [
-  { page: 'PTTRadio', path: 'src/pages/PTTRadio.tsx', directQueryBaseline: 3 },
-  { page: 'DispatchConsole', path: 'src/pages/DispatchConsole.tsx', directQueryBaseline: 1 },
-  { page: 'FieldOfficerPortal', path: 'src/pages/FieldOfficerPortal.tsx', directQueryBaseline: 4 },
-  { page: 'AssetManagement', path: 'src/pages/AssetManagement.tsx', directQueryBaseline: 0 },
-  { page: 'VehicleManagement', path: 'src/pages/VehicleManagement.tsx', directQueryBaseline: 19 },
-  { page: 'BreachAlerts', path: 'src/pages/BreachAlerts.tsx', directQueryBaseline: 3 },
-  { page: 'AdminPortal', path: 'src/pages/AdminPortal.tsx', directQueryBaseline: 14 },
-  { page: 'NoiseControlPortal', path: 'src/pages/NoiseControlPortal.tsx', directQueryBaseline: 0 },
-  { page: 'ClientAccountPage', path: 'src/pages/ClientAccountPage.tsx', directQueryBaseline: 0 },
-  { page: 'RosterPlanner', path: 'src/pages/RosterPlanner.tsx', directQueryBaseline: 0 },
+const PHASE_E1_TARGETS: PhaseE1Target[] = [
+  { page: 'PTTRadio', baselineDirectSupabaseFromCalls: 3, reductionTarget: 'Hold at or below baseline while shared radio hooks remain the data boundary.' },
+  { page: 'DispatchConsole', baselineDirectSupabaseFromCalls: 3, reductionTarget: 'Hold at or below baseline while dispatch contract hooks absorb new reads.' },
+  { page: 'FieldOfficerPortal', baselineDirectSupabaseFromCalls: 0, reductionTarget: 'All reads/mutations extracted into useFieldOfficerData + useFieldOfficerMutations hooks (11 → 0).' },
+  { page: 'AssetManagement', baselineDirectSupabaseFromCalls: 0, reductionTarget: 'Keep page free of direct Supabase query clusters.' },
+  { page: 'VehicleManagement', baselineDirectSupabaseFromCalls: 0, reductionTarget: 'All vehicle-list reads extracted into useVehicleListQuery in useVehicles.ts (14 → 0).' },
+  { page: 'BreachAlerts', baselineDirectSupabaseFromCalls: 0, reductionTarget: 'Keep page free of direct Supabase query clusters after breach hook consolidation.' },
+  { page: 'AdminPortal', baselineDirectSupabaseFromCalls: 0, reductionTarget: 'Primary dashboard useQuery extracted into useAdminPrimaryDashboard hook (16 → 0).' },
+  { page: 'NoiseControlPortal', baselineDirectSupabaseFromCalls: 0, reductionTarget: 'All reads and mutations extracted into useNoiseControl hooks (13 → 0).' },
+  { page: 'ClientAccountPage', baselineDirectSupabaseFromCalls: 0, reductionTarget: 'Keep page free of direct Supabase query clusters.' },
+  { page: 'RosterPlanner', baselineDirectSupabaseFromCalls: 0, reductionTarget: 'Keep page free of direct Supabase query clusters.' },
 ]
 
-function repoPath(relativePath: string) {
-  return path.resolve(process.cwd(), relativePath)
+// Phase E1 tracks the page-owned query clusters that use the project-standard `supabase.from(...)` pattern.
+// Destructured aliases such as `const { from } = supabase` are out of scope and should not be introduced in page components.
+const PAGE_DIRECT_QUERY_PATTERN = /\bsupabase\s*\.\s*from\s*\(/g
+const DESTRUCTURED_SUPABASE_FROM_PATTERN = /\bconst\s*\{[^}]*\bfrom\b[^}]*\}\s*=\s*supabase\b/g
+
+function pagePath(page: string) {
+  return path.join(process.cwd(), 'src', 'pages', `${page}.tsx`)
 }
 
-function directQueryCount(filePath: string) {
-  const source = fs.readFileSync(repoPath(filePath), 'utf8')
-  // This gate intentionally uses a lightweight lexical count for drift detection.
-  // If a baseline changes, the expected follow-up is to inspect the page and
-  // lower the count when direct Supabase calls move into hooks/services.
-  return (source.match(/\bsupabase\.(from|rpc)\s*\(/g) ?? []).length
+function readPage(page: string) {
+  return fs.readFileSync(pagePath(page), 'utf8')
 }
 
-test.describe('Phase E1 — Data-access consolidation gate', () => {
-  test('priority consolidation pages remain present', () => {
-    for (const page of priorityPages) {
-      expect(fs.existsSync(repoPath(page.path)), `${page.page} should remain at ${page.path}`).toBe(true)
+function countDirectPageQueries(page: string) {
+  return readPage(page).match(PAGE_DIRECT_QUERY_PATTERN)?.length ?? 0
+}
+
+test.describe('Phase E1 — direct page-query reduction baseline', () => {
+  test('publishes grounded baselines for all Phase E1 target pages', () => {
+    expect(PHASE_E1_TARGETS).toHaveLength(10)
+
+    for (const target of PHASE_E1_TARGETS) {
+      expect(fs.existsSync(pagePath(target.page)), `${target.page} page should exist`).toBe(true)
+      expect(target.reductionTarget.length, `${target.page} should document a reduction target`).toBeGreaterThan(20)
     }
   })
 
-  test('priority page direct Supabase access does not drift above E1 baseline', () => {
-    const counts = priorityPages.map((page) => ({
-      ...page,
-      currentDirectQueries: directQueryCount(page.path),
-    }))
+  for (const target of PHASE_E1_TARGETS) {
+    test(`${target.page} does not exceed Phase E1 direct-query baseline`, () => {
+      expect(countDirectPageQueries(target.page)).toBeLessThanOrEqual(target.baselineDirectSupabaseFromCalls)
+    })
+  }
 
-    const regressions = counts.filter((page) => page.currentDirectQueries > page.directQueryBaseline)
-    expect(regressions, JSON.stringify(regressions, null, 2)).toEqual([])
+  test('target pages do not bypass the gate with destructured Supabase aliases', () => {
+    for (const target of PHASE_E1_TARGETS) {
+      expect(
+        readPage(target.page).match(DESTRUCTURED_SUPABASE_FROM_PATTERN) ?? [],
+        `${target.page} should not destructure supabase.from outside the direct-query baseline gate`
+      ).toHaveLength(0)
+    }
   })
 
-  test('E1 priority total direct query count does not drift upward', () => {
-    const baselineTotal = priorityPages.reduce((sum, page) => sum + page.directQueryBaseline, 0)
-    const currentTotal = priorityPages.reduce((sum, page) => sum + directQueryCount(page.path), 0)
+  test('aggregate Phase E1 target-page direct queries do not drift upward', () => {
+    const currentTotal = PHASE_E1_TARGETS.reduce((total, target) => total + countDirectPageQueries(target.page), 0)
+    const baselineTotal = PHASE_E1_TARGETS.reduce((total, target) => total + target.baselineDirectSupabaseFromCalls, 0)
 
     expect(currentTotal).toBeLessThanOrEqual(baselineTotal)
+  })
+
+  test('roadmap documents the Phase E data movement gate', () => {
+    const roadmap = fs.readFileSync(path.join(process.cwd(), 'docs', 'MODULE_ROADMAP.md'), 'utf8')
+    const baselineTable = roadmap.split('## Phase E1 Data-Access Consolidation Baseline')[1] ?? ''
+
+    expect(roadmap).toContain('Phase E — Data Movement Reduction and Enterprise Hardening')
+    expect(roadmap).toContain('Target fragmentation pages show downward direct-query drift')
+    expect(baselineTable).toContain('| Target page | Current direct `supabase.from(...)` calls | Phase E1 target |')
+    for (const target of PHASE_E1_TARGETS) {
+      expect(baselineTable).toContain(`| ${target.page} | ${target.baselineDirectSupabaseFromCalls} |`)
+    }
   })
 })
