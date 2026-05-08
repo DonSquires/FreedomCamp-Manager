@@ -314,7 +314,7 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/lmr-bridge-config-log', icon: Radio, label: 'LMR Bridge Config Log', roles: ['admin', 'master'] },
       { path: '/zone-dispatch-rules-log', icon: Waypoints, label: 'Zone Dispatch Rule Log', roles: ['admin', 'master'] },
       // Sprint 46: B-150
-      { path: '/restrictions-log', icon: Ban, label: 'Restriction Log', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/restrictions-log', icon: Ban, label: 'Restrictions Log', roles: ['admin', 'admin_officer', 'master'] },
     ],
   },
   {

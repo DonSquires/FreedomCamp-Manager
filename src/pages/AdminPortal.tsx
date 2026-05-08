@@ -1219,9 +1219,9 @@ export default function AdminPortal() {
                     { path: '/radio-voice-profiles-log', label: 'Voice Profiles',   Icon: Mic,           color: 'text-fuchsia-600',bg: 'bg-fuchsia-50 dark:bg-fuchsia-900/20' },
                     { path: '/zone-dispatch-rules-log',  label: 'Dispatch Rules',   Icon: Route,         color: 'text-emerald-600',bg: 'bg-emerald-50 dark:bg-emerald-900/20' },
                     // Sprint 46: B-148–B-150
-                    { path: '/bob-action-proposal-event-log', label: 'Bob Action Events', Icon: BrainCircuit, color: 'text-violet-600', bg: 'bg-violet-50 dark:bg-violet-900/20' },
+                    { path: '/bob-action-proposal-event-log', label: 'Bob Proposal Events', Icon: BrainCircuit, color: 'text-violet-600', bg: 'bg-violet-50 dark:bg-violet-900/20' },
                     { path: '/homeless-records-log',          label: 'Homeless Records',  Icon: Home,         color: 'text-amber-600',  bg: 'bg-amber-50 dark:bg-amber-900/20' },
-                    { path: '/restrictions-log',              label: 'Restrictions',      Icon: Ban,          color: 'text-rose-600',   bg: 'bg-rose-50 dark:bg-rose-900/20' },
+                    { path: '/restrictions-log',              label: 'Restrictions Log',  Icon: Ban,          color: 'text-rose-600',   bg: 'bg-rose-50 dark:bg-rose-900/20' },
                   ].map(({ path, label, Icon, color, bg }) => (
                     <button key={path} onClick={() => navigate(path)} aria-label={`Open ${label}`} className={`${moduleTileClass} ${bg}`}>
                       <Icon className={`h-5 w-5 ${color}`} />
