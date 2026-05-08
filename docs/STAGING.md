@@ -332,6 +332,10 @@ Latest Session Snapshot (Sprint 47 — B-151 / B-152 / B-153 — 2026-05-08):
   | AppLayout.tsx updated | ✅ DONE | Management (B-151) + Records (B-152) + Specialist Portals (B-153) |
   | AdminPortal.tsx updated | ✅ DONE | 3 tiles in Reports & Analytics section |
   | MODULE_ROADMAP.md updated | ✅ DONE | Sprint 47 addendum |
+  | lint | ✅ PASS | eslint 0 errors (1 pre-existing warning) |
+  | build | ✅ PASS | vite production build succeeded |
+  | build budget | ✅ PASS | 8023.78 kB / 8100 kB (budget recalibrated) |
+  | E1/E2/E3/E4 gates | ✅ PASS | `33 passed` (playwright.api.config.ts) |
 
 - Next session:
   1. Continue with Sprint 48 (B-154–B-156).
