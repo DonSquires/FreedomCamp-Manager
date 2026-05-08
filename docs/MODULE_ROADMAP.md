@@ -831,6 +831,8 @@ With Phase D delivery and gate evidence in place, the next execution phase is Ph
 
 Phase E1 starts with a static direct-query drift gate for the highest-fragmentation pages named in the build realignment plan. The baseline counts below are grounded in the current page files and are enforced by `tests/e2e/phase-e1-data-access-consolidation.spec.ts`; future hook/service migrations should lower the relevant baseline only after the page count drops.
 
+Reduction evidence: `BreachAlerts` has been lowered to 0 through breach hook consolidation, and `VehicleManagement` has been lowered from 21 to 16 by moving dialog observation/enrichment reads into `src/hooks/useVehicles.ts`.
+
 | Target page | Current direct `supabase.from(...)` calls | Phase E1 target |
 | --- | ---: | --- |
 | PTTRadio | 3 | Hold at or below baseline while shared radio hooks remain the data boundary. |
