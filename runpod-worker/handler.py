@@ -13,6 +13,7 @@ import os
 import json
 import shutil
 import base64
+import hashlib
 import urllib.parse
 import tempfile
 import subprocess
@@ -507,6 +508,77 @@ def synthesize_with_espeak(text, language="en-NZ", voice_profile=None, style="de
             pass
 
 
+def generate_briefing_video_artifact(inp):
+    fmt = str(inp.get("format") or "mp4").strip().lower()
+    fmt = "webm" if fmt == "webm" else "mp4"
+    quality = str(inp.get("quality") or "medium").strip().lower()
+
+    duration_seconds = 12 if quality == "high" else 6 if quality == "low" else 9
+    bitrate = "1800k" if quality == "high" else "850k" if quality == "low" else "1250k"
+    model_used = "ffmpeg-color-renderer-v1" if shutil.which("ffmpeg") else "deterministic-manifest-v1"
+
+    manifest = {
+        "title": str(inp.get("title") or "Operational Briefing Pack").strip(),
+        "notes": str(inp.get("notes") or "").strip(),
+        "org_id": str(inp.get("org_id") or "unknown-org").strip(),
+        "incident_id": str(inp.get("incident_id") or "").strip() or None,
+        "breach_id": str(inp.get("breach_id") or "").strip() or None,
+        "quality": quality,
+        "format": fmt,
+        "duration_seconds": duration_seconds,
+        "generated_at": __import__("datetime").datetime.utcnow().isoformat() + "Z",
+        "model_used": model_used,
+    }
+
+    if shutil.which("ffmpeg"):
+        with tempfile.TemporaryDirectory(prefix="briefing-video-") as temp_dir:
+            output_path = os.path.join(temp_dir, f"briefing.{fmt}")
+            ffmpeg_cmd = [
+                "ffmpeg",
+                "-y",
+                "-f",
+                "lavfi",
+                "-i",
+                f"color=c=0x0f172a:s=1280x720:d={duration_seconds}",
+            ]
+            if fmt == "webm":
+                ffmpeg_cmd.extend(["-c:v", "libvpx-vp9", "-b:v", bitrate, "-pix_fmt", "yuv420p", output_path])
+            else:
+                ffmpeg_cmd.extend(["-c:v", "libx264", "-b:v", bitrate, "-pix_fmt", "yuv420p", output_path])
+
+            subprocess.run(ffmpeg_cmd, check=True, capture_output=True, timeout=25)
+            with open(output_path, "rb") as rf:
+                blob = rf.read()
+
+        digest = hashlib.sha256(blob).hexdigest()
+        return {
+            "success": True,
+            "provider": "runpod-ffmpeg",
+            "model_used": model_used,
+            "duration_seconds": duration_seconds,
+            "output_hash": digest,
+            "output_url": f"runpod-artifact://{digest}.{fmt}",
+            "artifact_manifest": manifest,
+            "video_base64": base64.b64encode(blob).decode("ascii"),
+            "mime_type": "video/webm" if fmt == "webm" else "video/mp4",
+        }
+
+    manifest_bytes = json.dumps(manifest, indent=2).encode("utf-8")
+    digest = hashlib.sha256(manifest_bytes).hexdigest()
+    return {
+        "success": True,
+        "provider": "runpod-manifest",
+        "model_used": model_used,
+        "duration_seconds": duration_seconds,
+        "output_hash": digest,
+        "output_url": f"runpod-artifact://{digest}.{fmt}",
+        "artifact_manifest": manifest,
+        "video_base64": base64.b64encode(manifest_bytes).decode("ascii"),
+        "mime_type": "application/json",
+        "fallback_note": "ffmpeg unavailable; returned deterministic manifest artifact",
+    }
+
+
 def handler(job):
     inp = job.get("input") or {}
     action = inp.get("action", "chat")
@@ -799,6 +871,12 @@ def handler(job):
             "message": "No Whisper service configured/reachable. Use browser Web Speech API for transcription.",
             "provider": "client-fallback",
         }
+
+    if action == "generate_briefing_video":
+        try:
+            return generate_briefing_video_artifact(inp)
+        except Exception as exc:
+            return {"success": False, "error": f"Briefing video generation failed: {exc}", "provider": "runpod-video"}
 
     if action == "tender_generate":
         # Generate tender application or response sections via Ollama

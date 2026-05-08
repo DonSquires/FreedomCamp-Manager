@@ -5,8 +5,14 @@
  *        INFERENCE_SERVICE_URL=... INFERENCE_API_KEY=... node scripts/bob-direct-chat.mjs "Question"
  */
 
-import fetch from 'node:fetch';
 import readline from 'node:readline';
+
+const fetchFn = globalThis.fetch;
+
+if (typeof fetchFn !== 'function') {
+  console.error('Global fetch is unavailable in this runtime. Use Node 18+ or Bun with fetch enabled.');
+  process.exit(1);
+}
 
 const INFERENCE_SERVICE_URL = process.env.INFERENCE_SERVICE_URL || 
   'https://api.runpod.ai/v2/n0bp1ifmq01cx2';
@@ -54,7 +60,7 @@ async function chatWithBob(message) {
   const timeout = setTimeout(() => controller.abort(), RUNPOD_TIMEOUT_MS);
 
   try {
-    const response = await fetch(
+    const response = await fetchFn(
       `${INFERENCE_SERVICE_URL}/runsync`,
       {
         method: 'POST',
@@ -82,7 +88,13 @@ async function chatWithBob(message) {
 
     if (result.status === 'COMPLETED' && result.output) {
       log('success', 'Bob responded:');
-      console.log(`\n${colors.cyan}${result.output}${colors.reset}\n`);
+      if (typeof result.output === 'string') {
+        console.log(`\n${colors.cyan}${result.output}${colors.reset}\n`);
+      } else if (result.output?.response && typeof result.output.response === 'string') {
+        console.log(`\n${colors.cyan}${result.output.response}${colors.reset}\n`);
+      } else {
+        console.log(`\n${JSON.stringify(result.output, null, 2)}\n`);
+      }
     } else if (result.output) {
       log('info', 'Response output:');
       console.log(`\n${JSON.stringify(result.output, null, 2)}\n`);

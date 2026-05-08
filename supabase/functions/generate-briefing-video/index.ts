@@ -11,6 +11,7 @@ const INFERENCE_API_KEY =
   ''
 
 const ALLOWED_ROLES = new Set(['admin', 'admin_officer', 'master'])
+const VIDEO_BUCKET = (Deno.env.get('VIDEO_BRIEFING_BUCKET') || 'briefing-videos').trim()
 
 function json(req: Request, data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {
@@ -34,6 +35,13 @@ function parseUuidArray(value: unknown): string[] {
 
 function isRunpodServerless(url: string): boolean {
   return url.includes('runpod.io') || url.includes('/runsync')
+}
+
+function decodeBase64ToBytes(value: string): Uint8Array {
+  const binary = atob(value)
+  const bytes = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i)
+  return bytes
 }
 
 async function maybeCallVideoGenerator(payload: Record<string, unknown>) {
@@ -166,7 +174,7 @@ Deno.serve(async (req: Request) => {
     notes: body.notes || null,
   })
 
-  const generatedOutputUrl =
+  let generatedOutputUrl =
     String((generationResult as Record<string, unknown>)?.output_url || '').trim() ||
     `briefings/${orgId}/${mediaLog.id}.${format}`
 
@@ -174,6 +182,27 @@ Deno.serve(async (req: Request) => {
   const modelUsed = String((generationResult as Record<string, unknown>)?.model_used || body.model || 'placeholder').trim()
   const outputHash = String((generationResult as Record<string, unknown>)?.output_hash || '').trim() || null
   const durationSeconds = Number((generationResult as Record<string, unknown>)?.duration_seconds || body.duration_seconds || 0)
+
+  const videoBase64 = String((generationResult as Record<string, unknown>)?.video_base64 || '').trim()
+  const mimeType = String((generationResult as Record<string, unknown>)?.mime_type || '').trim() || 'video/mp4'
+
+  if (videoBase64) {
+    const storagePath = `briefings/${orgId}/${mediaLog.id}.${format}`
+    try {
+      const decoded = decodeBase64ToBytes(videoBase64)
+      const { error: uploadError } = await supabaseAdmin.storage.from(VIDEO_BUCKET).upload(storagePath, decoded, {
+        contentType: mimeType,
+        upsert: true,
+      })
+
+      if (!uploadError) {
+        const { data: publicUrlData } = supabaseAdmin.storage.from(VIDEO_BUCKET).getPublicUrl(storagePath)
+        generatedOutputUrl = String(publicUrlData?.publicUrl || '').trim() || `storage://${VIDEO_BUCKET}/${storagePath}`
+      }
+    } catch {
+      // Keep the inference output URL fallback when storage upload fails.
+    }
+  }
 
   const { error: mediaUpdateError } = await (supabaseAdmin.from('media_generation_log') as any)
     .update({

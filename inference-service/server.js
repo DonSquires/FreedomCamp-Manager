@@ -84,7 +84,7 @@ const rateLimit = require('express-rate-limit');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
-const { randomUUID } = require('crypto');
+const { randomUUID, createHash } = require('crypto');
 const { execFile } = require('child_process');
 const { promisify } = require('util');
 const { createSelfLearningService } = require('./lib/self-learning');
@@ -2141,6 +2141,90 @@ function resolveAudioExtension(mimeType = '') {
   if (normalized.includes('mpeg') || normalized.includes('mp3')) return 'mp3';
   if (normalized.includes('mp4') || normalized.includes('m4a')) return 'm4a';
   return 'bin';
+}
+
+async function generateBriefingVideoArtifact(payload = {}) {
+  const format = String(payload.format || 'mp4').trim().toLowerCase() === 'webm' ? 'webm' : 'mp4';
+  const quality = String(payload.quality || 'medium').trim().toLowerCase();
+  const durationSeconds = quality === 'high' ? 12 : quality === 'low' ? 6 : 9;
+  const bitrate = quality === 'high' ? '1800k' : quality === 'low' ? '850k' : '1250k';
+
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'briefing-video-'));
+  const outputPath = path.join(tempDir, `briefing.${format}`);
+
+  const title = String(payload.title || 'Operational Briefing Pack').trim();
+  const notes = String(payload.notes || '').trim();
+  const orgId = String(payload.org_id || 'unknown-org').trim();
+  const incidentId = String(payload.incident_id || '').trim();
+  const breachId = String(payload.breach_id || '').trim();
+  const modelUsed = commandExists('ffmpeg') ? 'ffmpeg-color-renderer-v1' : 'deterministic-manifest-v1';
+
+  const manifest = {
+    title,
+    notes,
+    org_id: orgId,
+    incident_id: incidentId || null,
+    breach_id: breachId || null,
+    quality,
+    format,
+    duration_seconds: durationSeconds,
+    generated_at: new Date().toISOString(),
+    model_used: modelUsed,
+  };
+
+  try {
+    if (commandExists('ffmpeg')) {
+      const filters = [
+        'drawbox=x=0:y=0:w=iw:h=112:color=0x111827@0.85:t=fill',
+        'drawbox=x=0:y=ih-78:w=iw:h=78:color=0x1f2937@0.85:t=fill',
+      ].join(',');
+
+      const ffmpegArgs = [
+        '-y',
+        '-f',
+        'lavfi',
+        '-i',
+        `color=c=0x0f172a:s=1280x720:d=${durationSeconds}`,
+        '-vf',
+        filters,
+      ];
+
+      if (format === 'webm') {
+        ffmpegArgs.push('-c:v', 'libvpx-vp9', '-b:v', bitrate, '-pix_fmt', 'yuv420p', outputPath);
+      } else {
+        ffmpegArgs.push('-c:v', 'libx264', '-b:v', bitrate, '-pix_fmt', 'yuv420p', outputPath);
+      }
+
+      await execFileAsync('ffmpeg', ffmpegArgs, { timeout: 25_000 });
+      const videoBuffer = fs.readFileSync(outputPath);
+      const outputHash = createHash('sha256').update(videoBuffer).digest('hex');
+
+      return {
+        provider: 'inference-service-ffmpeg',
+        model_used: modelUsed,
+        duration_seconds: durationSeconds,
+        output_hash: outputHash,
+        artifact_manifest: manifest,
+        video_base64: videoBuffer.toString('base64'),
+        mime_type: format === 'webm' ? 'video/webm' : 'video/mp4',
+      };
+    }
+
+    const manifestBuffer = Buffer.from(JSON.stringify(manifest, null, 2), 'utf-8');
+    const outputHash = createHash('sha256').update(manifestBuffer).digest('hex');
+    return {
+      provider: 'inference-service-manifest',
+      model_used: modelUsed,
+      duration_seconds: durationSeconds,
+      output_hash: outputHash,
+      artifact_manifest: manifest,
+      video_base64: manifestBuffer.toString('base64'),
+      mime_type: 'application/json',
+      fallback_note: 'ffmpeg unavailable; returned deterministic manifest artifact',
+    };
+  } finally {
+    try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch {}
+  }
 }
 
 // Preprocess image for YOLO (640x640)
@@ -7984,6 +8068,29 @@ app.post('/infer/video/analyze-action', inferenceRateLimit, requireInferenceAuth
   } catch (error) {
     console.error('❌ /infer/video/analyze-action error:', error);
     return res.status(500).json({ error: 'Action recognition failed', message: error.message });
+  }
+});
+
+app.post('/infer/video/generate', inferenceRateLimit, requireInferenceAuth, async (req, res) => {
+  try {
+    const payload = req.body || {};
+    const result = await generateBriefingVideoArtifact(payload);
+
+    return res.json({
+      success: true,
+      provider: result.provider,
+      model_used: result.model_used,
+      duration_seconds: result.duration_seconds,
+      output_hash: result.output_hash,
+      output_url: `inference-artifact://${result.output_hash}.${String(payload.format || 'mp4').toLowerCase()}`,
+      artifact_manifest: result.artifact_manifest,
+      video_base64: result.video_base64,
+      mime_type: result.mime_type,
+      fallback_note: result.fallback_note || null,
+    });
+  } catch (error) {
+    console.error('❌ /infer/video/generate error:', error);
+    return res.status(500).json({ error: 'Video generation failed', message: error.message });
   }
 });
 
