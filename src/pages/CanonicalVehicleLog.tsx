@@ -51,7 +51,7 @@ export default function CanonicalVehicleLog() {
   const [expanded, setExpanded] = useState<string | null>(null)
 
   const { data: rows = [], isLoading, refetch } = useQuery<CanonicalVehicleRow[]>({
-    queryKey: ['canonical-vehicles-log', user?.role, orgId, searchQuery, flaggedFilter, homelessFilter, dateFrom],
+    queryKey: ['canonical-vehicles-log', orgId, searchQuery, flaggedFilter, homelessFilter, dateFrom],
     enabled: !!user,
     queryFn: async () => {
       let q = supabase
@@ -60,16 +60,15 @@ export default function CanonicalVehicleLog() {
         .order('last_seen_at', { ascending: false, nullsFirst: false })
         .limit(500)
 
-      if (user?.role !== 'master') {
-        const { data: matchingObservations, error: matchingObsError } = await supabase
-          .from('observations')
-          .select('plate_number')
-          .eq('organization_id', orgId ?? '')
-        if (matchingObsError) throw matchingObsError
-        const matchingPlates = [...new Set((matchingObservations ?? []).map((o) => o.plate_number).filter(Boolean))]
-        if (matchingPlates.length === 0) return []
-        q = q.in('plate_number', matchingPlates as string[])
-      }
+      if (!orgId) return []
+      const { data: matchingObservations, error: matchingObsError } = await supabase
+        .from('observations')
+        .select('plate_number')
+        .eq('organization_id', orgId)
+      if (matchingObsError) throw matchingObsError
+      const matchingPlates = [...new Set((matchingObservations ?? []).map((o) => o.plate_number).filter(Boolean))]
+      if (matchingPlates.length === 0) return []
+      q = q.in('plate_number', matchingPlates as string[])
 
       if (searchQuery.trim()) {
         const term = searchQuery.trim()

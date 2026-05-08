@@ -55,7 +55,7 @@ export default function FlaggedVehicleLog() {
   const [expanded, setExpanded] = useState<string | null>(null)
 
   const { data: rows = [], isLoading, refetch } = useQuery<FlaggedVehicleRow[]>({
-    queryKey: ['flagged-vehicles-log', user?.role, orgId, searchQuery, activeFilter, priorityFilter, dateFrom],
+    queryKey: ['flagged-vehicles-log', orgId, searchQuery, activeFilter, priorityFilter, dateFrom],
     enabled: !!user,
     queryFn: async () => {
       let q = supabase
@@ -64,7 +64,8 @@ export default function FlaggedVehicleLog() {
         .order('created_at', { ascending: false, nullsFirst: false })
         .limit(500)
 
-      if (user?.role !== 'master') q = q.eq('organization_id', orgId ?? '')
+      if (!orgId) return []
+      q = q.eq('organization_id', orgId)
       if (activeFilter === 'active') q = q.eq('is_active', true)
       if (activeFilter === 'inactive') q = q.eq('is_active', false)
       if (priorityFilter !== 'all') q = q.eq('priority', priorityFilter)
