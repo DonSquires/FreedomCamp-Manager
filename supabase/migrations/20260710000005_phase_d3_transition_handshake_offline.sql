@@ -1,30 +1,25 @@
--- ============================================================================
--- Phase D3: Transition / Handshake / Offline Replay Gate Contracts
--- Date: 2026-07-10
---
--- Adds bounded offline replay outcomes with org + idempotency dedupe semantics.
--- ============================================================================
+-- ============================================================
+-- Phase D3: Transition / Handshake / Offline-Reconnect hardening
+-- ============================================================
+-- Adds auditable offline replay conflict recording while reusing
+-- existing active-org transition and hybrid workspace handshake contracts.
 
 CREATE TABLE IF NOT EXISTS public.offline_replay_events_d3 (
-  id                UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-  organization_id   UUID        NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
-  idempotency_key   TEXT        NOT NULL,
-  source            TEXT        NOT NULL DEFAULT 'offline_queue',
-  replay_status     TEXT        NOT NULL DEFAULT 'accepted'
-    CHECK (replay_status IN ('accepted', 'duplicate')),
-  replay_attempts   INTEGER     NOT NULL DEFAULT 1 CHECK (replay_attempts >= 1),
-  first_replayed_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  last_replayed_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-  created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
-  UNIQUE (organization_id, idempotency_key)
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
+  idempotency_key TEXT NOT NULL,
+  replay_status TEXT NOT NULL CHECK (replay_status IN ('accepted', 'duplicate', 'rejected')),
+  observation_id TEXT,
+  source TEXT NOT NULL DEFAULT 'offline_queue',
+  details JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS idx_offline_replay_events_d3_org_last
-  ON public.offline_replay_events_d3(organization_id, last_replayed_at DESC);
+CREATE INDEX IF NOT EXISTS idx_offline_replay_events_d3_org_created
+  ON public.offline_replay_events_d3(organization_id, created_at DESC);
 
-CREATE INDEX IF NOT EXISTS idx_offline_replay_events_d3_source
-  ON public.offline_replay_events_d3(source, last_replayed_at DESC);
+CREATE INDEX IF NOT EXISTS idx_offline_replay_events_d3_idempotency
+  ON public.offline_replay_events_d3(idempotency_key);
 
 ALTER TABLE public.offline_replay_events_d3 ENABLE ROW LEVEL SECURITY;
 
@@ -44,88 +39,96 @@ ON public.offline_replay_events_d3
 FOR INSERT
 TO authenticated
 WITH CHECK (
-  organization_id = public.get_user_organization_id(auth.uid())
-  OR public.get_user_role(auth.uid()) IN ('master', 'grand_master')
+  (
+    organization_id = public.get_user_organization_id(auth.uid())
+    OR public.get_user_role(auth.uid()) IN ('master', 'grand_master')
+  )
+  AND replay_status IN ('accepted', 'duplicate', 'rejected')
 );
-
-DROP POLICY IF EXISTS "offline_replay_events_d3_update" ON public.offline_replay_events_d3;
-CREATE POLICY "offline_replay_events_d3_update"
-ON public.offline_replay_events_d3
-FOR UPDATE
-TO authenticated
-USING (
-  organization_id = public.get_user_organization_id(auth.uid())
-  OR public.get_user_role(auth.uid()) IN ('master', 'grand_master')
-)
-WITH CHECK (
-  organization_id = public.get_user_organization_id(auth.uid())
-  OR public.get_user_role(auth.uid()) IN ('master', 'grand_master')
-);
-
-GRANT SELECT, INSERT, UPDATE ON public.offline_replay_events_d3 TO authenticated;
-GRANT SELECT, INSERT, UPDATE ON public.offline_replay_events_d3 TO service_role;
 
 CREATE OR REPLACE FUNCTION public.record_offline_replay_event_d3(
   p_organization_id UUID,
   p_idempotency_key TEXT,
   p_source TEXT DEFAULT 'offline_queue'
 )
-RETURNS TABLE(
-  replay_status TEXT,
-  replay_conflict BOOLEAN,
-  replay_event_id UUID,
-  replay_attempts INTEGER,
-  first_replayed_at TIMESTAMPTZ,
-  last_replayed_at TIMESTAMPTZ
-)
+RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
-  v_event public.offline_replay_events_d3%ROWTYPE;
+  v_observation RECORD;
+  v_role TEXT;
+  v_user_org UUID;
+  v_status TEXT;
+  v_event_id UUID;
 BEGIN
+  IF p_organization_id IS NULL THEN
+    RAISE EXCEPTION 'organization_id_required';
+  END IF;
+
+  IF p_idempotency_key IS NULL OR btrim(p_idempotency_key) = '' THEN
+    RAISE EXCEPTION 'idempotency_key_required';
+  END IF;
+
+  IF auth.uid() IS NOT NULL THEN
+    v_role := public.get_user_role(auth.uid());
+    v_user_org := public.get_user_organization_id(auth.uid());
+
+    IF COALESCE(v_role, '') NOT IN ('master', 'grand_master')
+      AND v_user_org IS DISTINCT FROM p_organization_id THEN
+      RAISE EXCEPTION 'organization_scope_violation';
+    END IF;
+  END IF;
+
+  SELECT o.id, o.observation_id
+    INTO v_observation
+  FROM public.observations o
+  WHERE o.organization_id = p_organization_id
+    AND o.idempotency_key = p_idempotency_key
+  ORDER BY o.created_at DESC NULLS LAST
+  LIMIT 1;
+
+  IF v_observation IS NULL THEN
+    v_status := 'accepted';
+  ELSE
+    v_status := 'duplicate';
+  END IF;
+
   INSERT INTO public.offline_replay_events_d3 (
     organization_id,
     idempotency_key,
-    source,
     replay_status,
-    replay_attempts,
-    first_replayed_at,
-    last_replayed_at,
-    updated_at
+    observation_id,
+    source,
+    details
   )
   VALUES (
     p_organization_id,
     p_idempotency_key,
-    COALESCE(NULLIF(trim(p_source), ''), 'offline_queue'),
-    'accepted',
-    1,
-    now(),
-    now(),
-    now()
+    v_status,
+    COALESCE(v_observation.observation_id, v_observation.id),
+    COALESCE(NULLIF(p_source, ''), 'offline_queue'),
+    jsonb_build_object(
+      'replay_conflict', (v_status = 'duplicate'),
+      'recorded_by', COALESCE(auth.uid()::text, 'service_role')
+    )
   )
-  ON CONFLICT (organization_id, idempotency_key)
-  DO UPDATE SET
-    replay_status = 'duplicate',
-    replay_attempts = public.offline_replay_events_d3.replay_attempts + 1,
-    source = COALESCE(NULLIF(trim(EXCLUDED.source), ''), 'offline_queue'),
-    last_replayed_at = now(),
-    updated_at = now()
-  RETURNING * INTO v_event;
+  RETURNING id INTO v_event_id;
 
-  replay_status := v_event.replay_status;
-  replay_conflict := (v_event.replay_status = 'duplicate');
-  replay_event_id := v_event.id;
-  replay_attempts := v_event.replay_attempts;
-  first_replayed_at := v_event.first_replayed_at;
-  last_replayed_at := v_event.last_replayed_at;
-  RETURN NEXT;
+  RETURN jsonb_build_object(
+    'replay_event_id', v_event_id,
+    'organization_id', p_organization_id,
+    'idempotency_key', p_idempotency_key,
+    'replay_status', v_status,
+    'replay_conflict', (v_status = 'duplicate'),
+    'observation_id', COALESCE(v_observation.observation_id, v_observation.id)
+  );
 END;
 $$;
 
 COMMENT ON FUNCTION public.record_offline_replay_event_d3(UUID, TEXT, TEXT)
-IS 'Records D3 offline replay attempts and returns bounded replay outcomes (accepted/duplicate) scoped by org + idempotency key.';
+IS 'Phase D3: Records offline replay attempts and returns bounded duplicate/accepted outcomes by organization + idempotency key.';
 
 GRANT EXECUTE ON FUNCTION public.record_offline_replay_event_d3(UUID, TEXT, TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.record_offline_replay_event_d3(UUID, TEXT, TEXT) TO service_role;

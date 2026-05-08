@@ -79,6 +79,223 @@ export type Database = {
           },
         ]
       }
+      bob_action_proposal_events: {
+        Row: {
+          actor_id: string | null
+          case_id: string | null
+          created_at: string
+          event_type: string
+          id: string
+          metadata: Json
+          notes: string | null
+          organization_id: string
+          proposal_id: string
+        }
+        Insert: {
+          actor_id?: string | null
+          case_id?: string | null
+          created_at?: string
+          event_type: string
+          id?: string
+          metadata?: Json
+          notes?: string | null
+          organization_id: string
+          proposal_id: string
+        }
+        Update: {
+          actor_id?: string | null
+          case_id?: string | null
+          created_at?: string
+          event_type?: string
+          id?: string
+          metadata?: Json
+          notes?: string | null
+          organization_id?: string
+          proposal_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bob_action_proposal_events_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "officer_compliance_dashboard"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "bob_action_proposal_events_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bob_action_proposal_events_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bob_action_proposal_events_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "operational_cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bob_action_proposal_events_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bob_action_proposal_events_proposal_id_fkey"
+            columns: ["proposal_id"]
+            isOneToOne: false
+            referencedRelation: "bob_action_proposals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bob_action_proposals: {
+        Row: {
+          approval_due_at: string
+          approval_notes: string | null
+          approved_at: string | null
+          approver_id: string | null
+          case_id: string | null
+          created_at: string
+          escalated_at: string | null
+          executed_at: string | null
+          execution_error: string | null
+          execution_failed_at: string | null
+          id: string
+          impact_level: string
+          organization_id: string
+          proposal_payload: Json
+          proposal_type: string
+          proposed_at: string
+          rejection_reason: string | null
+          requested_by: string | null
+          source_context_refs: Json
+          source_record_id: string | null
+          source_record_table: string | null
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          approval_due_at?: string
+          approval_notes?: string | null
+          approved_at?: string | null
+          approver_id?: string | null
+          case_id?: string | null
+          created_at?: string
+          escalated_at?: string | null
+          executed_at?: string | null
+          execution_error?: string | null
+          execution_failed_at?: string | null
+          id?: string
+          impact_level?: string
+          organization_id: string
+          proposal_payload?: Json
+          proposal_type: string
+          proposed_at?: string
+          rejection_reason?: string | null
+          requested_by?: string | null
+          source_context_refs?: Json
+          source_record_id?: string | null
+          source_record_table?: string | null
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          approval_due_at?: string
+          approval_notes?: string | null
+          approved_at?: string | null
+          approver_id?: string | null
+          case_id?: string | null
+          created_at?: string
+          escalated_at?: string | null
+          executed_at?: string | null
+          execution_error?: string | null
+          execution_failed_at?: string | null
+          id?: string
+          impact_level?: string
+          organization_id?: string
+          proposal_payload?: Json
+          proposal_type?: string
+          proposed_at?: string
+          rejection_reason?: string | null
+          requested_by?: string | null
+          source_context_refs?: Json
+          source_record_id?: string | null
+          source_record_table?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bob_action_proposals_approver_id_fkey"
+            columns: ["approver_id"]
+            isOneToOne: false
+            referencedRelation: "officer_compliance_dashboard"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "bob_action_proposals_approver_id_fkey"
+            columns: ["approver_id"]
+            isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bob_action_proposals_approver_id_fkey"
+            columns: ["approver_id"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bob_action_proposals_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "operational_cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bob_action_proposals_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bob_action_proposals_requested_by_fkey"
+            columns: ["requested_by"]
+            isOneToOne: false
+            referencedRelation: "officer_compliance_dashboard"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "bob_action_proposals_requested_by_fkey"
+            columns: ["requested_by"]
+            isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bob_action_proposals_requested_by_fkey"
+            columns: ["requested_by"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       admin_recalculation_actions: {
         Row: {
           completed_at: string | null

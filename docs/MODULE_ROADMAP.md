@@ -1,9 +1,9 @@
 # Module Roadmap (Operator Navigation Map)
 
 Date: 2026-05-07 (verified against src/navigation/routeManifest.ts)
-Source of truth for routes: route manifest file src/navigation/routeManifest.ts (187 route manifest entries as of Sprint 42 completion)
+Source of truth for routes: route manifest file src/navigation/routeManifest.ts (187 route manifest entries as of Sprint 41 completion)
 
-> **Last Verification**: 2026-05-07 — Role-gating and route docs reviewed through Sprint 42 (B-138). Production main includes Sprints 31-42.
+ > **Last Verification**: 2026-05-07 — Role-gating and route docs reviewed through Sprint 42 (B-138). Production main includes Sprints 31-42.
 
 ## How To Use
 
@@ -686,99 +686,143 @@ New admin routes added in Sprint 42 (B-136, B-137, B-138):
 - PR state (base main): 0 open
 - Consolidation status: Sprint 31 through Sprint 42 route work is merged to production main
 
+## Post-Sprint-42 Realignment Phases and Phase-Gate Progression (#548)
+
+With Sprint 42 route consolidation complete, execution progresses from route expansion to realignment phase delivery and gate-based progression.
+
+Gate status definition:
+- **Green gate** = all listed criteria for that phase are met and verified with documented evidence in staging/CI artifacts.
+- Evidence location standard: record gate evidence in the existing `docs/STAGING.md` file (present in this repository) and attach/reference the related GitHub Actions run URLs and test artifact links.
+
+Phase baseline:
+- **Phase A context** = foundational realignment work and prerequisites already defined in `docs/BUILD_REALIGNMENT_PLAN_2026-05-04.md` sections 11.2a and 12.1; this roadmap now tracks progression from the Phase B entry point onward.
+- If that file is renamed or superseded, use the latest `docs/BUILD_REALIGNMENT_PLAN*.md` document and its Phase A acceptance + gate criteria sections as the source of truth.
+
+1. **Phase B — Consolidate Core Operational Flows**
+   - Scope: Patrol/Dispatch/Enforcement consolidation, callsign/PTT runtime binding, geofence route event persistence.
+   - Exit gate to Phase C:
+     - Phase A gate remains green (org isolation tests passing, case/event contract published, bootstrap routes passing, feature-flag rollback tested, ownership assignments confirmed).
+     - Patrol, Dispatch, and one enforcement surface run on shared timeline contract in staging.
+     - Callsign binding and dispatch acknowledgement flows are executable end-to-end.
+     - Ownership and support rota are assigned for active slices.
+
+2. **Phase C — Consolidate Specialist and Assistive Layers**
+   - Scope: Site guard/security operations, identity/risk modules, POI/VOI/LOI, assets/keys/client integration surfaces.
+   - Exit gate to Phase D:
+     - Phase B gate is green.
+     - Security assistive surfaces resolve people/vehicle/place context from shared contracts.
+     - Site guard and assistive workflows attach to the same case/timeline model.
+
+3. **Phase D — Consolidate Bob, Translation, and Transition Systems**
+   - Scope: Bob approval contracts, speech/translation boundaries, active-org transition, handshake/offline/reconnect hardening.
+   - Exit gate to Phase E:
+     - Phase C gate is green.
+     - Bob approval, translation, and transition services are auditable and degraded-mode safe.
+     - Offline replay conflict handling passes defined test scenarios.
+
+4. **Phase E — Data Movement Reduction and Enterprise Hardening**
+   - Scope: page-query reduction, hook/service migration, audit dashboards, event completeness checks, comms delivery governance.
+   - Completion gate:
+     - Phase D gate is green.
+     - Target fragmentation pages show downward direct-query drift.
+     - Communications delivery audit and retry metrics are visible in operations dashboards.
+
+## Next Phase Continuation — Phase B Kickoff
+
+Phase B is the immediate execution phase after post-Sprint-42 planning alignment.
+
+1. **Phase B Entry Check (Go/No-Go)**
+   - Confirm Phase A gate remains green using the Phase A baseline source in `docs/BUILD_REALIGNMENT_PLAN_2026-05-04.md` (sections 11.2a and 12.1).
+   - Confirm ownership/support rota for B1–B4 slices is assigned and active.
+   - Confirm feature-flag rollout + rollback controls are ready for every Phase B slice.
+
+2. **Phase B Delivery Order**
+   - B1: Patrol and Respond
+   - B2: Dispatch and Command
+   - B3: Communications (callsign/PTT runtime linkage)
+   - B4: Freedom Camping + Parking
+
+3. **Phase B Progression Checkpoints**
+   - **Checkpoint 1 (B1 complete)**: patrol route/checkpoint/welfare events persist on shared timeline contract.
+   - **Checkpoint 2 (B2 complete)**: dispatch intake/assignment/acknowledgement is end-to-end on shared contract.
+   - **Checkpoint 3 (B3 complete)**: callsign binding and dispatch-to-radio escalation flows are operational.
+   - **Checkpoint 4 (B4 complete)**: at least one enforcement surface is fully on the shared timeline contract.
+
+4. **Phase B Exit to Phase C**
+   - All Phase B gate criteria are green (per build realignment gate definitions).
+   - Evidence is recorded in `docs/STAGING.md` with linked CI runs and validation artifacts.
+
+## Next Phase Continuation — Phase C Kickoff
+
+With Phase B delivery and gate evidence in place, the next execution phase is Phase C.
+
+1. **Phase C Entry Check (Go/No-Go)**
+   - Confirm Phase B gate is green against `docs/BUILD_REALIGNMENT_PLAN_2026-05-04.md` section 12.1 criteria.
+   - Confirm specialist/assistive ownership rota is active for C1–C4 slices.
+   - Confirm shared case/timeline contract remains the integration baseline for all Phase C slices.
+
+2. **Phase C Delivery Order (per 11.1 / 11.1a)**
+   - C1: Site Guard and Security Operations
+   - C2: Identity and Risk (Access Control, Face Recognition, Identity Verification, Site Risk)
+   - C3: Intelligence Data (POI/VOI/LOI, evidence capture, alert queues)
+   - C4: Client Services (Assets, Keys, Client/Contact/Service Agreement, reporting integration)
+
+3. **Phase C Progression Checkpoints**
+   - **Checkpoint 1 (C1 complete)**: site guard/static guard workflows and emergency assist attach to shared case/timeline contracts.
+   - **Checkpoint 2 (C2 complete)**: identity/risk surfaces resolve people, vehicle, and place context from shared contracts.
+   - **Checkpoint 3 (C3 complete)**: intelligence surfaces (POI/VOI/LOI/evidence/alerts) are contract-backed and org-scoped.
+   - **Checkpoint 4 (C4 complete)**: client services surfaces attach assets/keys/client/service data to the same operational contract model.
+
+4. **Phase C Exit to Phase D**
+   - All Phase C gate criteria are green (per build realignment gate definitions).
+   - Evidence is recorded in `docs/STAGING.md` with linked CI runs and validation artifacts.
+
+## Next Phase Continuation — Phase D Kickoff
+
+With Phase C delivery and gate evidence in place, the next execution phase is Phase D.
+
+1. **Phase D Entry Check (Go/No-Go)**
+   - Confirm Phase C gate is green against `docs/BUILD_REALIGNMENT_PLAN_2026-05-04.md` section 12.1 criteria.
+   - Confirm Bob, translation, and transition ownership rota is active for D1–D3 slices.
+   - Confirm degraded-mode behaviour for Bob and translation surfaces is defined before implementation begins.
+
+2. **Phase D Delivery Order (per 11.1 / 11.1a)**
+   - D1: Bob Approval Contracts and Proposal / Audit Pathways
+   - D2: Translation / Speech Runtime Boundaries and Degraded-Mode Controls
+   - D3: Active-Org Transition Services, Hybrid Handshake, Offline Replay and Reconnect Hardening
+
+3. **Phase D Progression Checkpoints**
+   - **Checkpoint 1 (D1 complete)**: Bob approval, proposal, and audit contract outputs are traceable and governed end-to-end.
+   - **Checkpoint 2 (D2 complete)**: translation/speech services are bounded, degraded-mode safe, and produce auditable synthetic-audio outputs.
+   - **Checkpoint 3 (D3 complete)**: active-org transitions, hybrid handshakes, and offline-replay conflict resolution pass defined test scenarios.
+
+4. **Phase D Exit to Phase E**
+   - All Phase D gate criteria are green (per build realignment gate definitions).
+   - Evidence is recorded in `docs/STAGING.md` with linked CI runs and validation artifacts.
+
 ## Next Phase Continuation — Phase E Kickoff
 
-Phase D closeout is now anchored to D3 transition-handshake-offline gate evidence.
+With Phase D delivery and gate evidence in place, the next execution phase is Phase E.
 
-### Phase D exit evidence
+1. **Phase E Entry Check (Go/No-Go)**
+   - Confirm Phase D gate is green against `docs/BUILD_REALIGNMENT_PLAN_2026-05-04.md` section 12.1 criteria.
+   - Confirm ownership/support rota is active for E1–E4 slices.
+   - Confirm target high-fragmentation pages and dashboard acceptance criteria are agreed before implementation starts.
 
-1. D1 Bob approval contracts and proposal/audit pathways: gate suite + CI evidence recorded.
-2. D2 translation and speech boundaries: gate suite + CI evidence recorded.
-3. D3 transition / handshake / offline replay: gate suite + CI evidence recorded.
-4. Feature flags remain rollback-ready for all D slices (`FF_PHASE_D_*` as applicable).
+2. **Phase E Delivery Order**
+   - E1: Direct page-query reduction baseline and targets.
+   - E2: Hook/service migration for highest-fragmentation surfaces.
+   - E3: Audit dashboard completeness for operational and contract events.
+   - E4: Communications delivery governance (retry visibility and accountability).
 
-### Phase E kickoff order (E1 → E4)
+3. **Phase E Progression Checkpoints**
+   - **Checkpoint 1 (E1 complete)**: baseline vs current direct-query drift is published for target pages.
+   - **Checkpoint 2 (E2 complete)**: migrated surfaces consume shared hook/service contracts.
+   - **Checkpoint 3 (E3 complete)**: audit completeness and event integrity checks are green.
+   - **Checkpoint 4 (E4 complete)**: communications delivery and retry metrics are visible in operations dashboards.
 
-1. E1 — Data-access consolidation pass on top-priority operational surfaces.
-2. E2 — Enterprise hardening and tenancy-safety verification for shared contracts.
-3. E3 — Performance and reliability baselines (including replay/error-rate drift checks).
-4. E4 — Final release evidence pack and cross-module rollout sign-off.
-
-### Progression checkpoints
-
-1. Each E slice must have a dedicated gate artifact set (spec + path-filtered workflow).
-2. Every slice must preserve org isolation and bounded failure outcomes.
-3. Phase E progression only advances when lint/build and slice gates remain green on current HEAD.
-
-### Phase E completion gate requirements
-
-1. E1–E4 gate suites and CI workflows all present and passing.
-2. No unresolved blockers in staging handoff logs for tenant isolation, replay safety, or rollout rollback.
-3. Canonical docs (`STAGING.md`, `MODULE_ROADMAP.md`) updated with final evidence references.
-
-### E1 kickoff gate artifacts
-
-1. Gate spec: `tests/e2e/phase-e1-data-access-consolidation.spec.ts`.
-2. CI workflow: `.github/workflows/ci-phase-e1-data-access-consolidation-gate.yml`.
-3. Baseline scope: the ten priority consolidation targets from the realignment plan (`PTTRadio`, `DispatchConsole`, `FieldOfficerPortal`, `AssetManagement`, `VehicleManagement`, `BreachAlerts`, `AdminPortal`, `NoiseControlPortal`, `ClientAccountPage`, `RosterPlanner`).
-4. Gate behavior: fail on upward direct Supabase page-query drift; allow reductions as hooks/services absorb page-local data access.
-
-### E1 migration progress
-
-1. BreachAlerts decision/welfare mutations moved from `src/pages/BreachAlerts.tsx` into `src/hooks/useBreaches.ts`.
-2. BreachAlerts intelligence/safety/detail/history read clusters moved from `src/pages/BreachAlerts.tsx` into `src/hooks/useBreaches.ts`.
-3. BreachAlerts queue read cluster moved from `src/pages/BreachAlerts.tsx` into `src/hooks/useBreaches.ts` as `useBreachAlertQueue`.
-4. BreachAlerts triggering-observation and evidence-photo read clusters moved from `src/pages/BreachAlerts.tsx` into `src/hooks/useBreaches.ts`.
-5. BreachAlerts direct Supabase query baseline lowered from 20 to 3 in the E1 gate.
-6. Next priority targets remain BreachAlerts enrichment/manual-plate mutation clusters, VehicleManagement, and AdminPortal.
-
-### E2 kickoff gate artifacts
-
-1. Gate spec: `tests/e2e/phase-e2-enterprise-hardening-tenancy.spec.ts`.
-2. CI workflow: `.github/workflows/ci-phase-e2-enterprise-hardening-tenancy-gate.yml`.
-3. Baseline scope: tenancy/shared-contract anchors for active organization resolution, operational organization selection, descendant client-org scoping, boundary reads, and effective-org fallback rules.
-4. Gate behavior: fail when shared tenancy contracts lose authorized-org bounds, descendant scoping, parameter-scoped boundary reads, or documented E2 audit/completeness/domain-query ownership anchors.
-
-### E2 dashboard metrics progress
-
-1. `src/pages/DataIntegrityDashboard.tsx` now exposes an **E2 Domain Query Metrics** coverage card for evidence completeness, enforcement event completeness, configuration completeness, identity completeness, and vehicle data movement.
-2. Observation GPS completeness now applies the same organization filter as photo completeness when an org scope is active.
-3. The E2 gate now watches `DataIntegrityDashboard` and fails if the dashboard loses the visible audit/completeness/domain-query coverage anchors.
-
-### E3 kickoff gate artifacts
-
-1. Gate spec: `tests/e2e/phase-e3-communications-audit-retry.spec.ts`.
-2. CI workflow: `.github/workflows/ci-phase-e3-communications-audit-retry-gate.yml`.
-3. Baseline scope: communications delivery audit, retry governance, degraded push/email outcomes, and operations visibility anchors across in-app notifications, push delivery, email delivery, and CRM communication audit schema.
-4. Gate behavior: fail when E3 loses Communications Lead ownership anchors, notification delivery tracking, org-bounded broadcast reads, web-push/Expo fallback behavior, email SMTP validation/fallback behavior, retry primitives, or communications audit status/retry fields.
-
-### E3 communications metrics progress
-
-1. `src/pages/NotificationsCenter.tsx` now exposes an admin-only **E3 Communications Delivery Metrics** card in the Broadcast surface for org-scoped delivery success, pending delivery, stale pending, delivery failure, and retry backlog visibility.
-2. New broadcast notification rows now persist `organization_id` so org-scoped delivery metrics can include broadcasts instead of leaving them unscoped.
-3. The E3 gate now watches the visible metrics anchors and fails if the dashboard loses `crm_communications` failure/retry counts or stale pending notification checks.
-
-### E3 runtime communications audit progress
-
-1. Runtime push/report/invite delivery attempts now write non-blocking `crm_communications` audit rows through `supabase/functions/_shared/communicationsAudit.ts` when an organization context is available.
-2. `send-push-notification` records web-push, Expo fallback, disabled preference, invalid/no-token, provider error, and retry-count outcomes without blocking the original response path if audit insertion fails.
-3. `send-report-email` records SMTP delivered and failed report-email outcomes, including invalid recipient and SMTP configuration failures when scoped to an organization.
-4. `send-invite-email` accepts optional `organization_id` and records proxy relay, direct SMTP fallback, relay failure, validation failure, and retry-count outcomes when scoped to an organization.
-5. The E3 gate and workflow now watch the shared audit helper and runtime audit-write anchors.
-
-### E4 release evidence gate artifacts
-
-1. Gate spec: `tests/e2e/phase-e4-release-evidence.spec.ts`.
-2. CI workflow: `.github/workflows/ci-phase-e4-release-evidence-gate.yml`.
-3. Phase E release evidence pack locks E1–E3 gate coverage, E4 sign-off anchors, canonical staging/roadmap references, validation command anchors, and rollback-ready handoff text.
-4. Gate behavior: fail when Phase E loses any E1–E4 spec/workflow artifact reference, completion gate requirement, staging checkpoint, or validation evidence anchor.
-
-### Phase E closeout validation status
-
-1. Phase E final validation is recorded as green on branch `copilot/550-continue-phase-realignment`.
-2. Validation evidence:
-   - `bun run lint`: PASS.
-   - `bun run build`: PASS.
-   - E1, E2, E3, and E4 focused gates: PASS (`110 passed`).
-3. Completion evidence remains anchored to `docs/STAGING.md`, this roadmap, and the E1–E4 path-filtered workflows.
-4. Release handoff remains rollback-ready: tenant isolation, degraded communications outcomes, data-access drift, and rollout blocker checks are represented in the Phase E gate artifacts.
+4. **Phase E Completion Gate**
+   - Phase D gate remains green while E changes land.
+   - Target fragmentation pages show downward direct-query drift.
+   - Communications delivery governance is live and measurable in operations dashboards.
+   - Evidence is recorded in `docs/STAGING.md` with linked CI runs and validation artifacts.

@@ -14,7 +14,7 @@ loadEnv({ path: '.env.playwright.local', override: true })
  */
 export default defineConfig({
   testDir: './tests/e2e',
-  testMatch: 'api-response.spec.ts',
+  testMatch: ['**/*.spec.ts', '**/*.test.ts'],
   fullyParallel: false,
   retries: 0,
   workers: 1,

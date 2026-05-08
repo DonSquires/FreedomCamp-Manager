@@ -1,4 +1,6 @@
-name: CI Phase D3 Transition Handshake Offline Gate
+name: CI Phase D3 Transition/Handshake/Offline Gate
+
+# Path-filtered gate for D3 active-org transition, hybrid handshake, and offline replay conflict controls.
 
 on:
   pull_request:
@@ -6,7 +8,12 @@ on:
     paths:
       - 'tests/e2e/phase-d3-transition-handshake-offline.spec.ts'
       - 'supabase/migrations/20260710000005_phase_d3_transition_handshake_offline.sql'
+      - 'supabase/migrations/20260701000003_hybrid_workspace_handshake.sql'
+      - 'supabase/migrations/20260705000001_geo_tenant_access.sql'
       - 'src/hooks/useTransitionReplayD3.ts'
+      - 'src/hooks/useHybridWorkspaceHandshake.ts'
+      - 'src/hooks/useGeofenceOrgTransition.ts'
+      - 'src/hooks/useOfflineQueue.ts'
       - 'tests/e2e/setup.ts'
       - 'playwright.api.config.ts'
       - 'package.json'
@@ -17,7 +24,12 @@ on:
     paths:
       - 'tests/e2e/phase-d3-transition-handshake-offline.spec.ts'
       - 'supabase/migrations/20260710000005_phase_d3_transition_handshake_offline.sql'
+      - 'supabase/migrations/20260701000003_hybrid_workspace_handshake.sql'
+      - 'supabase/migrations/20260705000001_geo_tenant_access.sql'
       - 'src/hooks/useTransitionReplayD3.ts'
+      - 'src/hooks/useHybridWorkspaceHandshake.ts'
+      - 'src/hooks/useGeofenceOrgTransition.ts'
+      - 'src/hooks/useOfflineQueue.ts'
       - 'tests/e2e/setup.ts'
       - 'playwright.api.config.ts'
       - 'package.json'
@@ -30,7 +42,7 @@ env:
 
 jobs:
   phase-d3-transition-handshake-offline-gate:
-    name: Phase D3 Transition Handshake Offline Gate
+    name: Phase D3 Transition/Handshake/Offline Gate
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -57,6 +69,7 @@ jobs:
         run: |
           bunx playwright test \
             tests/e2e/phase-d3-transition-handshake-offline.spec.ts \
+            --config=playwright.api.config.ts \
             --reporter=list
 
       - name: Upload Playwright artifacts
