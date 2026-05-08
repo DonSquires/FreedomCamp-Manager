@@ -307,6 +307,100 @@ Latest Session Snapshot (Phase D3 Gate Artifacts + Phase E Kickoff Alignment —
   2. Carry forward E1→E4 checkpoints from `docs/MODULE_ROADMAP.md`.
   3. Maintain rollback-ready flag posture and org isolation evidence per slice.
 
+Latest Session Snapshot (Sprint 45 — B-145 / B-146 / B-147 — 2026-05-08):
+
+- Timestamp (NZ): 2026-05-08 20:45 NZST
+- Current branch: copilot/continue-realignment-project
+- Scope completed:
+  - Continued Sprint catalog after Sprint 44 by adding Sprint 45 route entries B-145, B-146, B-147.
+  - Created `src/pages/LmrBridgeConfigLog.tsx` (B-145) — log viewer for `lmr_bridge_config`; KPIs (Total/Active/Inactive/With Token); active/direction/label filters; masked gateway token in detail row.
+  - Created `src/pages/RadioVoiceProfileLog.tsx` (B-146) — log viewer for `radio_voice_profiles`; KPIs (Total/Active/Revoked/Providers); provider/status/officer/date filters.
+  - Created `src/pages/ZoneDispatchRuleLog.tsx` (B-147) — log viewer for `zone_dispatch_resource_rules`; KPIs (Total/Active/Unique Zones/Scheduled Rules); status/job type/org/date filters.
+  - Updated `src/App.tsx` with lazy imports and protected routes for all three pages.
+  - Updated `src/navigation/routeManifest.ts` with Sprint 45 route entries (199 total).
+  - Updated `src/components/features/AppLayout.tsx` — Management group gains B-145/B-147; Records group gains B-146.
+  - Updated `src/pages/AdminPortal.tsx` — Reports & Analytics tile section gains B-145/B-146/B-147.
+  - Updated `docs/MODULE_ROADMAP.md` — Sprint 45 addendum + production status snapshot.
+
+- Sprint 45 checkpoint:
+  | Item | Status | Artifact |
+  |---|---|---|
+  | B-145 LmrBridgeConfigLog | ✅ DONE | `src/pages/LmrBridgeConfigLog.tsx`, route `/lmr-bridge-config-log` |
+  | B-146 RadioVoiceProfileLog | ✅ DONE | `src/pages/RadioVoiceProfileLog.tsx`, route `/radio-voice-profiles-log` |
+  | B-147 ZoneDispatchRuleLog | ✅ DONE | `src/pages/ZoneDispatchRuleLog.tsx`, route `/zone-dispatch-rules-log` |
+  | routeManifest.ts updated | ✅ DONE | 3 entries added (199 total) |
+  | AppLayout.tsx updated | ✅ DONE | Management group (B-145/B-147) + Records group (B-146) |
+  | AdminPortal.tsx updated | ✅ DONE | 3 tiles in Reports & Analytics section |
+  | MODULE_ROADMAP.md updated | ✅ DONE | Sprint 45 addendum |
+
+- Next session:
+  1. Continue with Sprint 46 (B-148–B-150).
+  2. Keep E1–E4 gate artifacts green alongside Sprint 45 route additions.
+
+Latest Session Snapshot (Sprint 44 — B-142 / B-143 / B-144 — 2026-05-08):
+
+- Timestamp (NZ): 2026-05-08 20:30 NZST
+- Current branch: copilot/continue-realignment-project
+- Scope completed:
+  - Continued Sprint catalog after Sprint 43 by adding Sprint 44 route entries B-142, B-143, B-144.
+  - Created `src/pages/AdminRecalculationLog.tsx` (B-142) — log viewer for `admin_recalculation_actions`; KPIs (Total Runs/Completed/Failed/Observations Processed); status/scope_type/date filters; duration, compliance_changed, drift_events_created, target orgs/zones, error message expand.
+  - Created `src/pages/ContractorDocumentLog.tsx` (B-143) — log viewer for `contractor_documents`; KPIs (Total/Current/Expiring Soon/Expired); document_type/currency/name/date filters; expiry highlighting with 30-day warning; document URL clickable link.
+  - Created `src/pages/ImportStagingLog.tsx` (B-144) — log viewer for `import_staging`; KPIs (Total Records/Imported/Failed/With Errors); status/batch_id/date filters; validation errors, confidence scores, raw data JSON expand.
+  - Updated `src/App.tsx` with lazy imports and protected routes for all three pages.
+  - Updated `src/navigation/routeManifest.ts` with Sprint 44 route entries (196 total).
+  - Updated `src/components/features/AppLayout.tsx` — Management group gains B-142/B-144; Records group gains B-143.
+  - Updated `src/pages/AdminPortal.tsx` — Reports & Analytics tile section gains B-142/B-143/B-144.
+  - Updated `docs/MODULE_ROADMAP.md` — Sprint 44 addendum + production status snapshot.
+
+- Sprint 44 checkpoint:
+  | Item | Status | Artifact |
+  |---|---|---|
+  | B-142 AdminRecalculationLog | ✅ DONE | `src/pages/AdminRecalculationLog.tsx`, route `/admin-recalculation-log` |
+  | B-143 ContractorDocumentLog | ✅ DONE | `src/pages/ContractorDocumentLog.tsx`, route `/contractor-documents-log` |
+  | B-144 ImportStagingLog | ✅ DONE | `src/pages/ImportStagingLog.tsx`, route `/import-staging-log` |
+  | routeManifest.ts updated | ✅ DONE | 3 entries added (196 total) |
+  | AppLayout.tsx updated | ✅ DONE | Management group (B-142/B-144) + Records group (B-143) |
+  | AdminPortal.tsx updated | ✅ DONE | 3 tiles in Reports & Analytics section |
+  | MODULE_ROADMAP.md updated | ✅ DONE | Sprint 44 addendum |
+  | lint | ✅ PASS | eslint 0 errors |
+  | build | ✅ PASS | built in 27s |
+  | build budget | ✅ PASS | 7951 kB / 8000 kB |
+
+- Next session:
+  1. Continue with Sprint 45 (B-145–B-147).
+  2. Keep E1–E4 gate artifacts green alongside Sprint 44 route additions.
+
+Latest Session Snapshot (Sprint 43 — B-139 / B-140 / B-141 — 2026-05-08):
+
+- Timestamp (NZ): 2026-05-08 19:30 NZST
+- Current branch: copilot/continue-realignment-project
+- Scope completed:
+  - Continued realignment project after Phase E closeout by adding Sprint 43 route catalog entries B-139, B-140, B-141.
+  - Created `src/pages/BobProposalLog.tsx` (B-139) — org-scoped log viewer for `bob_action_proposals`; KPIs (Total/Pending/Approved/Rejected+Failed); status/type/impact/title/date filters; approval notes, execution error, proposal payload expand.
+  - Created `src/pages/BobProposalEventLog.tsx` (B-140) — org-scoped log viewer for `bob_action_proposal_events`; KPIs (Total/Unique Proposals/Unique Cases/Unique Actors); event_type/proposal_id/case_id/date filters; metadata JSON expand.
+  - Created `src/pages/ImportBatchLog.tsx` (B-141) — org-scoped log viewer for `import_batches`; KPIs (Total Batches/Total Records/Successful Records/Failed Records); status/batch_name/date filters; enrichment stats + error_summary + import_config expand.
+  - Updated `src/App.tsx` with lazy imports and protected routes for all three pages.
+  - Updated `src/navigation/routeManifest.ts` with Sprint 43 route entries.
+  - Updated `src/components/features/AppLayout.tsx` — Bob group gains B-139/B-140; Management group gains B-141.
+  - Updated `src/pages/AdminPortal.tsx` — Reports & Analytics tile section gains B-139/B-140/B-141.
+  - Updated `docs/MODULE_ROADMAP.md` — Sprint 43 addendum + production status snapshot.
+
+- Sprint 43 checkpoint:
+  | Item | Status | Artifact |
+  |---|---|---|
+  | B-139 BobProposalLog | ✅ DONE | `src/pages/BobProposalLog.tsx`, route `/bob-proposals-log` |
+  | B-140 BobProposalEventLog | ✅ DONE | `src/pages/BobProposalEventLog.tsx`, route `/bob-proposal-events-log` |
+  | B-141 ImportBatchLog | ✅ DONE | `src/pages/ImportBatchLog.tsx`, route `/import-batches-log` |
+  | routeManifest.ts updated | ✅ DONE | 3 entries added (193 total) |
+  | AppLayout.tsx updated | ✅ DONE | Bob group (B-139/B-140) + Management group (B-141) |
+  | AdminPortal.tsx updated | ✅ DONE | 3 tiles in Reports & Analytics section |
+  | MODULE_ROADMAP.md updated | ✅ DONE | Sprint 43 addendum |
+
+- Next session:
+  1. Lint and build pass — verify `bun run build` succeeds with Sprint 43 pages.
+  2. Continue with Sprint 44 (B-142–B-144) once Sprint 43 is merged to main.
+  3. Keep E1–E4 gate artifacts green alongside Sprint 43 route additions.
+
 Latest Session Snapshot (Phase E2 Dashboard Metrics Continuation — 2026-05-08):
 
 - Timestamp (NZ): 2026-05-08 13:11 NZST
