@@ -751,3 +751,9 @@ Phase D closeout is now anchored to D3 transition-handshake-offline gate evidenc
 2. CI workflow: `.github/workflows/ci-phase-e3-communications-audit-retry-gate.yml`.
 3. Baseline scope: communications delivery audit, retry governance, degraded push/email outcomes, and operations visibility anchors across in-app notifications, push delivery, email delivery, and CRM communication audit schema.
 4. Gate behavior: fail when E3 loses Communications Lead ownership anchors, notification delivery tracking, org-bounded broadcast reads, web-push/Expo fallback behavior, email SMTP validation/fallback behavior, retry primitives, or communications audit status/retry fields.
+
+### E3 communications metrics progress
+
+1. `src/pages/NotificationsCenter.tsx` now exposes an admin-only **E3 Communications Delivery Metrics** card in the Broadcast surface for org-scoped delivery success, pending delivery, stale pending, delivery failure, and retry backlog visibility.
+2. New broadcast notification rows now persist `organization_id` so org-scoped delivery metrics can include broadcasts instead of leaving them unscoped.
+3. The E3 gate now watches the visible metrics anchors and fails if the dashboard loses `crm_communications` failure/retry counts or stale pending notification checks.

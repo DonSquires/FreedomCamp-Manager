@@ -322,6 +322,28 @@ Latest Session Snapshot (Phase E3 Communications Audit and Retry Gate Kickoff �
   2. Decide whether push/email delivery attempts should write to `crm_communications` directly or through a shared communications service before adding runtime mutations.
   3. Keep lint/build plus E1, E2, and E3 gates green before preparing E4 release evidence.
 
+Latest Session Snapshot (Phase E3 Communications Metrics Continuation — 2026-05-08):
+
+- Timestamp (NZ): 2026-05-08 13:57 NZST
+- Current branch: copilot/550-continue-phase-realignment
+- Scope completed:
+  - Continued E3 beyond kickoff by selecting `src/pages/NotificationsCenter.tsx` as the concrete operations visibility surface.
+  - Added an admin-only **E3 Communications Delivery Metrics** card for org-scoped delivery success, pending delivery, stale pending messages, delivery failures, and retry backlog.
+  - Updated broadcast notification inserts to persist `organization_id` so new broadcasts are included in org-scoped delivery metrics.
+  - Extended `tests/e2e/phase-e3-communications-audit-retry.spec.ts` to protect the visible metrics anchors, `crm_communications` failure/retry counts, and stale pending notification checks.
+
+- E3 communications metrics checkpoint:
+  | Surface | Evidence added | Gate coverage |
+  |---|---|---|
+  | `NotificationsCenter` | E3 Communications Delivery Metrics card + org-scoped broadcast rows | `phase-e3-communications-audit-retry.spec.ts`, `ci-phase-e3-communications-audit-retry-gate.yml` |
+  | `crm_communications` metrics | Failed/bounced/spam outcomes and retry backlog counts | `phase-e3-communications-audit-retry.spec.ts` |
+  | `notifications` metrics | Delivered, pending, and stale pending counts scoped by organization | `phase-e3-communications-audit-retry.spec.ts` |
+
+- Next session:
+  1. Decide whether push/email runtime delivery attempts should write audit rows into `crm_communications` directly or through a shared communications service.
+  2. Add provider-level degraded fallback audit rows once the shared write contract is selected.
+  3. Keep lint/build plus E1, E2, and E3 gates green before preparing E4 release evidence.
+
 Latest Session Snapshot (Phase E2 Enterprise Hardening Tenancy Gate Kickoff — 2026-05-08):
 
 - Timestamp (NZ): 2026-05-08 12:57 NZST
