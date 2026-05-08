@@ -673,11 +673,11 @@ Latest Session Snapshot (Sprint 49 — B-157 DispatchJobLog / B-158 EnforcementA
   | Command | Result | Notes |
   |---|---|---|
   | `bun run lint` | PASS | 0 errors (1 pre-existing warning in `src/pages/FieldOfficerPortal.tsx`) |
-  | `bun run build` | PASS | TypeScript + Vite build succeeded |
+  | `bun run build` | PASS | TypeScript + Vite build succeeded (4131 modules) |
   | `bun run test:nav-parity` | PASS | navigation registry parity passed |
   | `bun run lint:route-roadmap` | PASS | route roadmap coverage passed |
   | `bun run lint:staging-doc` | PASS | staging doc consistency passed |
-  | `bun run build:budget` | PASS | within JS budget |
+  | `bun run build:budget` | PASS | 8084.47/8100 kB |
 
 - Open blockers with owner:
   1. NONE.
