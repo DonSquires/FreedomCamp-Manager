@@ -448,7 +448,7 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/bob-proposals-log', icon: ScrollText, label: 'Bob Proposal Log', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/bob-proposal-events-log', icon: ListChecks, label: 'Bob Proposal Events', roles: ['admin', 'admin_officer', 'master'] },
       // Sprint 46: B-148
-      { path: '/bob-action-proposal-event-log', icon: ListChecks, label: 'Bob Action Proposal Events', roles: ['admin', 'master'] },
+      { path: '/bob-action-proposal-event-log', icon: ListChecks, label: 'Bob Action Proposal Events Log', roles: ['admin', 'master'] },
     ],
   },
   {
