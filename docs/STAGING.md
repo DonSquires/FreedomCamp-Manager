@@ -279,6 +279,26 @@ Latest Session Snapshot (Phase D3 Gate Artifacts + Phase E Kickoff Alignment —
   2. Carry forward E1→E4 checkpoints from `docs/MODULE_ROADMAP.md`.
   3. Maintain rollback-ready flag posture and org isolation evidence per slice.
 
+Latest Session Snapshot (Phase E2 Dashboard Metrics Continuation — 2026-05-08):
+
+- Timestamp (NZ): 2026-05-08 13:11 NZST
+- Current branch: copilot/550-continue-phase-realignment
+- Scope completed:
+  - Continued E2 beyond the tenancy kickoff by selecting `src/pages/DataIntegrityDashboard.tsx` as the concrete audit/completeness/domain-query dashboard surface.
+  - Added visible **E2 Domain Query Metrics** coverage for evidence completeness, enforcement event completeness, configuration completeness, identity completeness, and vehicle data movement.
+  - Tightened observation GPS completeness to reuse the active org scope before counting missing coordinates.
+  - Extended the E2 gate and path-filtered workflow to protect the dashboard coverage anchors.
+
+- E2 dashboard metrics checkpoint:
+  | Surface | Evidence added | Gate coverage |
+  |---|---|---|
+  | DataIntegrityDashboard | E2 Domain Query Metrics coverage card + org-scoped GPS completeness | `phase-e2-enterprise-hardening-tenancy.spec.ts`, `ci-phase-e2-enterprise-hardening-tenancy-gate.yml` |
+
+- Next session:
+  1. Continue E2 by moving dashboard query clusters into a shared hook/service if data-access consolidation is prioritized.
+  2. Add deeper event-completeness assertions once database-backed completeness views/RPCs are selected.
+  3. Keep lint/build plus E1 and E2 gates green before advancing toward E3.
+
 Latest Session Snapshot (Phase E2 Enterprise Hardening Tenancy Gate Kickoff — 2026-05-08):
 
 - Timestamp (NZ): 2026-05-08 12:57 NZST

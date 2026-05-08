@@ -8,6 +8,7 @@ const contractPaths = {
   clientOrgIds: 'src/hooks/useClientOrgIds.ts',
   organizationBoundary: 'src/hooks/useOrganizationBoundary.ts',
   orgUtils: 'src/lib/orgUtils.ts',
+  dataIntegrityDashboard: 'src/pages/DataIntegrityDashboard.tsx',
   realignmentPlan: 'docs/BUILD_REALIGNMENT_PLAN_2026-05-04.md',
 }
 
@@ -71,5 +72,18 @@ test.describe('Phase E2 — Enterprise hardening and tenancy-safety gate', () =>
     expect(plan).toContain('Slice E2, Data Platform Lead: audit dashboards, event completeness checks, domain query metrics')
     expect(plan).toContain('Add governance dashboards and event completeness checks')
     expect(plan).toContain('Data Platform Lead owns the data-access audit rule, CI drift checks, and domain query metrics')
+  })
+
+  test('Data Integrity Dashboard exposes E2 audit completeness and domain query metric coverage', () => {
+    const dashboard = source(contractPaths.dataIntegrityDashboard)
+
+    expect(dashboard).toContain('E2 Domain Query Metrics')
+    expect(dashboard).toContain('Audit dashboard coverage for event completeness, tenancy scope, and domain query ownership.')
+    expect(dashboard).toContain('Evidence completeness')
+    expect(dashboard).toContain('Enforcement event completeness')
+    expect(dashboard).toContain('Configuration completeness')
+    expect(dashboard).toContain('Identity completeness')
+    expect(dashboard).toContain('Vehicle data movement')
+    expect(dashboard).toContain("if (orgFilter) gpsQuery = gpsQuery.eq('organization_id', orgFilter)")
   })
 })

@@ -738,3 +738,9 @@ Phase D closeout is now anchored to D3 transition-handshake-offline gate evidenc
 2. CI workflow: `.github/workflows/ci-phase-e2-enterprise-hardening-tenancy-gate.yml`.
 3. Baseline scope: tenancy/shared-contract anchors for active organization resolution, operational organization selection, descendant client-org scoping, boundary reads, and effective-org fallback rules.
 4. Gate behavior: fail when shared tenancy contracts lose authorized-org bounds, descendant scoping, parameter-scoped boundary reads, or documented E2 audit/completeness/domain-query ownership anchors.
+
+### E2 dashboard metrics progress
+
+1. `src/pages/DataIntegrityDashboard.tsx` now exposes an **E2 Domain Query Metrics** coverage card for evidence completeness, enforcement event completeness, configuration completeness, identity completeness, and vehicle data movement.
+2. Observation GPS completeness now applies the same organization filter as photo completeness when an org scope is active.
+3. The E2 gate now watches `DataIntegrityDashboard` and fails if the dashboard loses the visible audit/completeness/domain-query coverage anchors.
