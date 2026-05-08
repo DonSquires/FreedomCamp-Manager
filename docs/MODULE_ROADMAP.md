@@ -1,9 +1,9 @@
 # Module Roadmap (Operator Navigation Map)
 
 Date: 2026-05-08 (verified against src/navigation/routeManifest.ts)
-Source of truth for routes: route manifest file src/navigation/routeManifest.ts (204 route manifest entries as of Sprint 47 completion)
+Source of truth for routes: route manifest file src/navigation/routeManifest.ts (207 route manifest entries as of Sprint 48 completion)
 
- > **Last Verification**: 2026-05-08 — Role-gating and route docs reviewed through Sprint 47 (B-153). Current branch includes Sprints 31-47; production main includes Sprints 31-45 until subsequent merges.
+ > **Last Verification**: 2026-05-08 — Role-gating and route docs reviewed through Sprint 48 (B-156). Current branch includes Sprints 31-48; production main includes Sprints 31-45 until subsequent merges.
 
 ## How To Use
 
@@ -775,11 +775,30 @@ New admin routes added in Sprint 47 (B-151, B-152, B-153):
    - Role gate: admin, master
    - Viewer for notifications; KPIs (Total/Delivered/Read/Unread); type/priority/delivery/date_from filters; recipient user ID, body, delivery and read timestamps, data payload expand
 
+## Sprint 48 Route Addendum (2026-05-08)
+
+New admin routes added in Sprint 48 (B-154, B-155, B-156):
+
+1. Face Record Log (B-154)
+   - Route: /face-records-log
+   - Role gate: admin, master
+   - Viewer for face_records; KPIs (Total Records/Total Faces Detected/Linked to Person/Linked to Incident); label search/detection_method/date_from filters; officer, observation, person, incident, zone cross-refs, GPS coords, photo link expand
+
+2. Infringement Notice Log (B-155)
+   - Route: /infringement-notices-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for infringement_notices; KPIs (Total/Paid/Overdue/Revenue); plate+notice#+recipient search/status/notice_type/date_from filters; offence details, service method, payment, court referral, PDF link expand
+
+3. Site Risk Assessment Log (B-156)
+   - Route: /site-risk-assessments-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for site_risk_assessments; KPIs (Total/High+Critical/Completed/Reviewed); site name search/risk_level/status/request_type/date_from filters; hazard checklist (18 fields), controls, PPE, GPS, safety indicators, reviewer expand
+
 ## Production Status Snapshot (2026-05-08)
 
 - Branch: main
 - PR state (base main): 0 open
-- Consolidation status: Sprint 31 through Sprint 47 route work is aligned on the active branch; production main currently includes Sprints 31-45
+- Consolidation status: Sprint 31 through Sprint 48 route work is aligned on the active branch; production main currently includes Sprints 31-45
 
 ## Post-Sprint-42 Realignment Phases and Phase-Gate Progression (#548)
 

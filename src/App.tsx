@@ -291,6 +291,10 @@ const RestrictionLog = lazy(() => import('@/pages/RestrictionLog'))
 const IncidentLog = lazy(() => import('@/pages/IncidentLog'))
 const PersonRecordLog = lazy(() => import('@/pages/PersonRecordLog'))
 const NotificationLog = lazy(() => import('@/pages/NotificationLog'))
+// Sprint 48: B-154–B-156
+const FaceRecordLog = lazy(() => import('@/pages/FaceRecordLog'))
+const InfringementNoticeLog = lazy(() => import('@/pages/InfringementNoticeLog'))
+const SiteRiskAssessmentLog = lazy(() => import('@/pages/SiteRiskAssessmentLog'))
 
 const NetworkStatusBar = lazy(() => import('@/components/features/NetworkStatusBar').then((m) => ({ default: m.NetworkStatusBar })))
 const PWAInstallPrompt = lazy(() => import('@/components/features/PWAInstallPrompt').then((m) => ({ default: m.PWAInstallPrompt })))
@@ -2485,6 +2489,10 @@ export default function App() {
           <Route path="/incidents-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><IncidentLog /></RoleRoute></ProtectedRoute>} />
           <Route path="/person-records-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><PersonRecordLog /></RoleRoute></ProtectedRoute>} />
           <Route path="/notifications-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'master']}><NotificationLog /></RoleRoute></ProtectedRoute>} />
+          {/* Sprint 48: B-154–B-156 */}
+          <Route path="/face-records-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'master']}><FaceRecordLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/infringement-notices-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><InfringementNoticeLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/site-risk-assessments-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><SiteRiskAssessmentLog /></RoleRoute></ProtectedRoute>} />
 
           {/* CRM – Accounts (Clients + Contractors) */}
           <Route
