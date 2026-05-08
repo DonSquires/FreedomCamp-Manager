@@ -85,5 +85,6 @@ test.describe('Phase E2 — Enterprise hardening and tenancy-safety gate', () =>
     expect(dashboard).toContain('Identity completeness')
     expect(dashboard).toContain('Vehicle data movement')
     expect(dashboard).toContain("if (orgFilter) gpsQuery = gpsQuery.eq('organization_id', orgFilter)")
+    expect(dashboard).toContain("gpsQuery = gpsQuery.or('gps_latitude.is.null,gps_longitude.is.null')")
   })
 })
