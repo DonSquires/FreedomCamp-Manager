@@ -9,6 +9,7 @@ const contractPaths = {
   organizationBoundary: 'src/hooks/useOrganizationBoundary.ts',
   orgUtils: 'src/lib/orgUtils.ts',
   dataIntegrityDashboard: 'src/pages/DataIntegrityDashboard.tsx',
+  dataIntegrityHook: 'src/hooks/useDataIntegrity.ts',
   realignmentPlan: 'docs/BUILD_REALIGNMENT_PLAN_2026-05-04.md',
 }
 
@@ -76,6 +77,7 @@ test.describe('Phase E2 — Enterprise hardening and tenancy-safety gate', () =>
 
   test('Data Integrity Dashboard exposes E2 audit completeness and domain query metric coverage', () => {
     const dashboard = source(contractPaths.dataIntegrityDashboard)
+    const dataIntegrityHook = source(contractPaths.dataIntegrityHook)
 
     expect(dashboard).toContain('E2 Domain Query Metrics')
     expect(dashboard).toContain('Audit dashboard coverage for event completeness, tenancy scope, and domain query ownership.')
@@ -84,8 +86,9 @@ test.describe('Phase E2 — Enterprise hardening and tenancy-safety gate', () =>
     expect(dashboard).toContain('Configuration completeness')
     expect(dashboard).toContain('Identity completeness')
     expect(dashboard).toContain('Vehicle data movement')
-    expect(dashboard).toContain('let scopedGpsQuery = supabase')
-    expect(dashboard).toContain(".eq('organization_id', orgFilter)")
-    expect(dashboard).toContain("scopedGpsQuery.or('gps_latitude.is.null,gps_longitude.is.null')")
+    expect(dataIntegrityHook).toContain('let scopedGpsQuery = supabase')
+    expect(dataIntegrityHook).toContain(".eq('organization_id', orgFilter)")
+    expect(dataIntegrityHook).toContain("scopedGpsQuery.or('gps_latitude.is.null,gps_longitude.is.null')")
+    expect(dashboard).toContain('useDataIntegrityChecks')
   })
 })
