@@ -247,6 +247,12 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/enforcement-actions-log', icon: ShieldAlert, label: 'Enforcement Action Log', roles: ['admin', 'admin_officer', 'master'] },
       // Sprint 51: B-164
       { path: '/officer-availability-log', icon: CalendarCheck2, label: 'Officer Availability Log', roles: ['admin', 'admin_officer', 'master'] },
+      // Sprint 52: B-166–B-168
+      { path: '/breach-alerts-log', icon: AlertTriangle, label: 'Breach Alert Log', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/flagged-vehicles-log', icon: Flag, label: 'Flagged Vehicle Log', roles: ['admin', 'admin_officer', 'master'] },
+      // Sprint 53: B-169–B-170
+      { path: '/officer-shifts-log', icon: CalendarClock, label: 'Officer Shift Log', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/open-shifts-log', icon: CalendarDays, label: 'Open Shift Log', roles: ['admin', 'admin_officer', 'master'] },
     ],
   },
   {
@@ -330,6 +336,8 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/organizations-log', icon: Building2, label: 'Organization Log', roles: ['master', 'grand_master'] },
       // Briefing video suite
       { path: '/admin/video-generation', icon: BrainCircuit, label: 'Video Generation Suite', roles: ['admin', 'admin_officer', 'master'] },
+      // Sprint 53: B-171
+      { path: '/zone-compliance-matrix-log', icon: ShieldCheck, label: 'Zone Compliance Matrix Log', roles: ['admin', 'master'] },
     ],
   },
   {
@@ -418,6 +426,8 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       // Sprint 51: B-163–B-165
       { path: '/canonical-scv-log', icon: ShieldCheck, label: 'Canonical SCV Log', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/canonical-homeless-log', icon: Users, label: 'Canonical Homeless Log', roles: ['admin', 'admin_officer', 'master'] },
+      // Sprint 52: B-167
+      { path: '/canonical-vehicles-log', icon: Car, label: 'Canonical Vehicle Log', roles: ['admin', 'admin_officer', 'master'] },
     ],
   },
   {

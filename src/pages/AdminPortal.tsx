@@ -1245,6 +1245,14 @@ export default function AdminPortal() {
                     { path: '/canonical-scv-log',              label: 'Canonical SCV',   Icon: ShieldCheck,  color: 'text-green-600',  bg: 'bg-green-50 dark:bg-green-900/20' },
                     { path: '/officer-availability-log',       label: 'Officer Avail.',  Icon: CalendarCheck2,color:'text-blue-600',   bg: 'bg-blue-50 dark:bg-blue-900/20' },
                     { path: '/canonical-homeless-log',         label: 'Homeless Canon.', Icon: Users,        color: 'text-amber-600',  bg: 'bg-amber-50 dark:bg-amber-900/20' },
+                    // Sprint 52: B-166–B-168
+                    { path: '/breach-alerts-log',              label: 'Breach Alerts',   Icon: AlertTriangle,color: 'text-red-600',    bg: 'bg-red-50 dark:bg-red-900/20' },
+                    { path: '/canonical-vehicles-log',         label: 'Canon. Vehicles', Icon: Car,          color: 'text-blue-600',   bg: 'bg-blue-50 dark:bg-blue-900/20' },
+                    { path: '/flagged-vehicles-log',           label: 'Flagged Vehicles',Icon: AlertTriangle,color: 'text-amber-600',  bg: 'bg-amber-50 dark:bg-amber-900/20' },
+                    // Sprint 53: B-169–B-171
+                    { path: '/officer-shifts-log',             label: 'Officer Shifts',  Icon: Clock,        color: 'text-indigo-600', bg: 'bg-indigo-50 dark:bg-indigo-900/20' },
+                    { path: '/open-shifts-log',                label: 'Open Shifts Log', Icon: CalendarClock,color: 'text-teal-600',   bg: 'bg-teal-50 dark:bg-teal-900/20' },
+                    { path: '/zone-compliance-matrix-log',     label: 'Zone Compliance', Icon: ShieldCheck,  color: 'text-green-600',  bg: 'bg-green-50 dark:bg-green-900/20' },
                   ].map(({ path, label, Icon, color, bg }) => (
                     <button key={path} onClick={() => navigate(path)} aria-label={`Open ${label}`} className={`${moduleTileClass} ${bg}`}>
                       <Icon className={`h-5 w-5 ${color}`} />

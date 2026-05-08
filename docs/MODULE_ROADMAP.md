@@ -1,9 +1,9 @@
 # Module Roadmap (Operator Navigation Map)
 
 Date: 2026-05-08 (verified against src/navigation/routeManifest.ts)
-Source of truth for routes: route manifest file src/navigation/routeManifest.ts (218 route manifest entries as of Sprint 51 completion)
+Source of truth for routes: route manifest file src/navigation/routeManifest.ts (224 route manifest entries as of Sprint 53 completion)
 
- > **Last Verification**: 2026-05-08 — Role-gating and route docs reviewed through Sprint 51 (B-165). Production main includes Sprints 31-51.
+ > **Last Verification**: 2026-05-08 — Role-gating and route docs reviewed through Sprint 53 (B-171). Production main includes Sprints 31-53.
 
 ## How To Use
 
@@ -851,11 +851,49 @@ New admin routes added in Sprint 51 (B-163, B-164, B-165):
    - Role gate: admin, admin_officer, master
    - Viewer for canonical_homeless; KPIs (Total/Confirmed/Cleared/Sources); status/source/date filters; confirmation, notes, and lifecycle detail expand
 
+## Sprint 52 Route Addendum (2026-05-08)
+
+New admin routes added in Sprint 52 (B-166, B-167, B-168):
+
+1. Breach Alert Log (B-166)
+   - Route: /breach-alerts-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for breach_alerts; KPIs (Total/Pending/Escalated/Resolved); status/breach type/date filters; alert level, zone, plate, notes, resolution detail expand
+
+2. Canonical Vehicle Log (B-167)
+   - Route: /canonical-vehicles-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for canonical_vehicles; KPIs (Total/Flagged/Homeless Linked/With Org); flagged/homeless/date filters; plate, make/model, colour, SCV status, org, and observation count detail expand
+
+3. Flagged Vehicle Log (B-168)
+   - Route: /flagged-vehicles-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for flagged_vehicles; KPIs (Total/Active/High Priority/With Plate); active/priority/date filters; flag type, reason, plate, expiry, and review notes detail expand
+
+## Sprint 53 Route Addendum (2026-05-08)
+
+New admin routes added in Sprint 53 (B-169, B-170, B-171):
+
+1. Officer Shift Log (B-169)
+   - Route: /officer-shifts-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for officer_shifts; KPIs (Total/Active/Approved/GPS Tracked); approval/service/date filters; shift start/end, GPS flag, service type, feedback, and break time detail expand
+
+2. Open Shift Log (B-170)
+   - Route: /open-shifts-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for open_shifts; KPIs (Total/Open/Filled/High Priority); status/type/priority/date filters; shift window, zone, required skills, assignment, and posting metadata detail expand
+
+3. Zone Compliance Matrix Log (B-171)
+   - Route: /zone-compliance-matrix-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for zone_compliance_matrix; KPIs (Total/Self-Contained Only/Night Cap Set/Monthly Cap Set); day-limit/self-contained/date filters; max nights, monthly limits, allowed days, and zone policy detail expand
+
 ## Production Status Snapshot (2026-05-08)
 
 - Branch: main
 - PR state (base main): 0 open
-- Consolidation status: Sprint 31 through Sprint 51 route work is merged to production main
+- Consolidation status: Sprint 31 through Sprint 53 route work is merged to production main
 
 ## Post-Sprint-42 Realignment Phases and Phase-Gate Progression (#548)
 

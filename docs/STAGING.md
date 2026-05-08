@@ -806,6 +806,46 @@ Latest Session Snapshot (Sprint 52 — B-166 ClientSiteLog / B-167 ParkingPermit
 - Open blockers with owner:
   1. NONE.
 
+Latest Session Snapshot (Sprint 52–53 — B-166–B-171 — 2026-05-09):
+
+- Timestamp (NZ): 2026-05-09 09:50 NZST
+- Current branch: copilot/continue-realignment-project-yet-again
+- Scope completed:
+  - Completed Sprints 52 and 53 by wiring six existing log pages into the admin route catalog.
+  - Sprint 52: Added lazy imports and protected routes to `src/App.tsx` for `/breach-alerts-log`, `/canonical-vehicles-log`, and `/flagged-vehicles-log`.
+  - Sprint 53: Added lazy imports and protected routes to `src/App.tsx` for `/officer-shifts-log`, `/open-shifts-log`, and `/zone-compliance-matrix-log`.
+  - Updated `src/navigation/routeManifest.ts` with Sprint 52–53 route entries (224 total).
+  - Updated `src/components/features/AppLayout.tsx` — Operations group gains B-166/B-168/B-169/B-170; Records group gains B-167; Management group gains B-171.
+  - Updated `src/pages/AdminPortal.tsx` — Reports & Analytics tile section gains Sprint 52–53 shortcuts.
+  - Updated `docs/MODULE_ROADMAP.md` — Sprint 52 and Sprint 53 addenda + route-count/verification snapshot.
+
+- Sprint 52–53 checklist:
+  | Item | Status | Evidence |
+  |---|---|---|
+  | B-166 BreachAlertLog route wiring | ✅ DONE | `src/App.tsx`, `/breach-alerts-log` |
+  | B-167 CanonicalVehicleLog route wiring | ✅ DONE | `src/App.tsx`, `/canonical-vehicles-log` |
+  | B-168 FlaggedVehicleLog route wiring | ✅ DONE | `src/App.tsx`, `/flagged-vehicles-log` |
+  | B-169 OfficerShiftLog route wiring | ✅ DONE | `src/App.tsx`, `/officer-shifts-log` |
+  | B-170 OpenShiftLog route wiring | ✅ DONE | `src/App.tsx`, `/open-shifts-log` |
+  | B-171 ZoneComplianceMatrixLog route wiring | ✅ DONE | `src/App.tsx`, `/zone-compliance-matrix-log` |
+  | Route manifest (224 entries) | ✅ DONE | `src/navigation/routeManifest.ts` |
+  | AppLayout navigation wiring | ✅ DONE | `src/components/features/AppLayout.tsx` |
+  | AdminPortal shortcuts | ✅ DONE | `src/pages/AdminPortal.tsx` |
+  | MODULE_ROADMAP Sprint 52–53 addenda | ✅ DONE | `docs/MODULE_ROADMAP.md` |
+
+- Validation evidence:
+  | Command | Result | Notes |
+  |---|---|---|
+  | `bun run lint` | PASS | ESLint completed without errors |
+  | `bun run build` | PASS | TypeScript + Vite build succeeded |
+  | `bun run test:nav-parity` | PASS | navigation registry parity passed |
+  | `node scripts/check-route-roadmap-coverage.mjs` | PASS | changed routes are represented in `docs/MODULE_ROADMAP.md` |
+  | `bun run lint:staging-doc` | PASS | staging doc consistency passed |
+  | `bun run build:budget` | PASS | under 8200 kB |
+
+- Open blockers with owner:
+  1. NONE.
+
 Latest Session Snapshot (Sprint 51 — B-163 CanonicalScvLog / B-164 OfficerAvailabilityLog / B-165 CanonicalHomelessLog — 2026-05-08):
 
 - Timestamp (NZ): 2026-05-08 13:55 NZST

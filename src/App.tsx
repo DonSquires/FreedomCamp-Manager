@@ -308,6 +308,14 @@ const ObservationLog = lazy(() => import('@/pages/ObservationLog'))
 const CanonicalScvLog = lazy(() => import('@/pages/CanonicalScvLog'))
 const OfficerAvailabilityLog = lazy(() => import('@/pages/OfficerAvailabilityLog'))
 const CanonicalHomelessLog = lazy(() => import('@/pages/CanonicalHomelessLog'))
+// Sprint 52: B-166–B-168
+const BreachAlertLog = lazy(() => import('@/pages/BreachAlertLog'))
+const CanonicalVehicleLog = lazy(() => import('@/pages/CanonicalVehicleLog'))
+const FlaggedVehicleLog = lazy(() => import('@/pages/FlaggedVehicleLog'))
+// Sprint 53: B-169–B-171
+const OfficerShiftLog = lazy(() => import('@/pages/OfficerShiftLog'))
+const OpenShiftLog = lazy(() => import('@/pages/OpenShiftLog'))
+const ZoneComplianceMatrixLog = lazy(() => import('@/pages/ZoneComplianceMatrixLog'))
 
 const NetworkStatusBar = lazy(() => import('@/components/features/NetworkStatusBar').then((m) => ({ default: m.NetworkStatusBar })))
 const PWAInstallPrompt = lazy(() => import('@/components/features/PWAInstallPrompt').then((m) => ({ default: m.PWAInstallPrompt })))
@@ -2529,6 +2537,14 @@ export default function App() {
           <Route path="/canonical-scv-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><CanonicalScvLog /></RoleRoute></ProtectedRoute>} />
           <Route path="/officer-availability-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><OfficerAvailabilityLog /></RoleRoute></ProtectedRoute>} />
           <Route path="/canonical-homeless-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><CanonicalHomelessLog /></RoleRoute></ProtectedRoute>} />
+          {/* Sprint 52: B-166–B-168 */}
+          <Route path="/breach-alerts-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><BreachAlertLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/canonical-vehicles-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><CanonicalVehicleLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/flagged-vehicles-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><FlaggedVehicleLog /></RoleRoute></ProtectedRoute>} />
+          {/* Sprint 53: B-169–B-171 */}
+          <Route path="/officer-shifts-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><OfficerShiftLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/open-shifts-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><OpenShiftLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/zone-compliance-matrix-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><ZoneComplianceMatrixLog /></RoleRoute></ProtectedRoute>} />
 
           {/* CRM – Accounts (Clients + Contractors) */}
           <Route
