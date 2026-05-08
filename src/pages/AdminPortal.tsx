@@ -1019,7 +1019,10 @@ export default function AdminPortal() {
                     { path: '/patrol-checkpoints', label: 'Checkpoints',     Icon: ScanLine,      color: 'text-teal-600',   bg: 'bg-teal-50 dark:bg-teal-900/20' },
                     { path: '/patrol-events',      label: 'Event Log',       Icon: Route,         color: 'text-slate-600',  bg: 'bg-slate-50 dark:bg-slate-900/30' },
                     { path: '/patrol-route-log',   label: 'Route Log',       Icon: Navigation,    color: 'text-teal-600',   bg: 'bg-teal-50 dark:bg-teal-900/20' },
-                    { path: '/alarm-events-log',   label: 'Alarm Events',    Icon: BellRing,      color: 'text-red-600',    bg: 'bg-red-50 dark:bg-red-900/20' },
+                    { path: '/alarm-events-log',       label: 'Alarm Events',     Icon: BellRing,   color: 'text-red-600',    bg: 'bg-red-50 dark:bg-red-900/20' },
+                    { path: '/checkpoint-visits-log',  label: 'Checkpoint Visits',Icon: ScanLine,   color: 'text-teal-700',   bg: 'bg-teal-50 dark:bg-teal-900/20' },
+                    { path: '/ems-attendances-log',    label: 'EMS Attendances',  Icon: HeartPulse, color: 'text-rose-600',   bg: 'bg-rose-50 dark:bg-rose-900/20' },
+                    { path: '/officer-activity-log',  label: 'Officer Activity', Icon: Activity,   color: 'text-indigo-600', bg: 'bg-indigo-50 dark:bg-indigo-900/20' },
                     { path: '/officer-performance',label: 'Performance',     Icon: UserCheck,     color: 'text-blue-600',   bg: 'bg-blue-50 dark:bg-blue-900/20' },
                   ].map(({ path, label, Icon, color, bg, badge }) => (
                     <button key={path} onClick={() => navigate(path)} aria-label={`Open ${label}`} className={`${moduleTileClass} ${bg}`}>
@@ -1048,6 +1051,10 @@ export default function AdminPortal() {
                     { path: '/admin/nzscv',            label: 'NZSCV Monitor',     Icon: Shield,        color: 'text-blue-600',   bg: 'bg-blue-50 dark:bg-blue-900/20', badge: (data as any)?.scvExpiringSoon > 0 ? (data as any)?.scvExpiringSoon : undefined },
                     { path: '/admin/discrepancies',    label: 'Discrepancies',     Icon: AlertTriangle, color: 'text-amber-600',  bg: 'bg-amber-50 dark:bg-amber-900/20', badge: (data as any)?.discrepanciesPending > 0 ? (data as any)?.discrepanciesPending : undefined },
                     { path: '/admin/canonical-records',label: 'Canonical Records', Icon: Database,      color: 'text-purple-600', bg: 'bg-purple-50 dark:bg-purple-900/20' },
+                    { path: '/drift-events',          label: 'Drift Events',      Icon: Navigation,    color: 'text-slate-600',  bg: 'bg-slate-50 dark:bg-slate-900/30' },
+                    { path: '/parking-payments-log',  label: 'Parking Payments',  Icon: Receipt,       color: 'text-emerald-600',bg: 'bg-emerald-50 dark:bg-emerald-900/20' },
+                    { path: '/parking-sessions-log',  label: 'Parking Sessions',  Icon: ParkingSquare, color: 'text-orange-600', bg: 'bg-orange-50 dark:bg-orange-900/20' },
+                    { path: '/plate-scans-log',       label: 'Plate Scans',       Icon: ScanLine,      color: 'text-blue-600',   bg: 'bg-blue-50 dark:bg-blue-900/20' },
                   ].map(({ path, label, Icon, color, bg, badge }) => (
                     <button key={path} onClick={() => navigate(path)} aria-label={`Open ${label}`} className={`${moduleTileClass} ${bg}`}>
                       {badge !== undefined && (
@@ -1078,6 +1085,7 @@ export default function AdminPortal() {
                     { path: '/site-risk-trends',    label: 'Risk Trends',       Icon: TrendingUp,    color: 'text-orange-600', bg: 'bg-orange-50 dark:bg-orange-900/20' },
                     { path: '/trespass-notices',    label: 'Trespass Notices',  Icon: Ban,           color: 'text-rose-600',   bg: 'bg-rose-50 dark:bg-rose-900/20',   badge: (data as any)?.activeTrespassCount > 0 ? (data as any)?.activeTrespassCount : undefined },
                     { path: '/access-permissions',  label: 'Access Permissions',Icon: KeyRound,      color: 'text-violet-600', bg: 'bg-violet-50 dark:bg-violet-900/20' },
+                    { path: '/access-audit',       label: 'Access Audit',      Icon: ScanLine,      color: 'text-slate-600',  bg: 'bg-slate-50 dark:bg-slate-900/30' },
                     { path: '/canonical-persons',   label: 'Canonical Persons', Icon: Users,         color: 'text-purple-600', bg: 'bg-purple-50 dark:bg-purple-900/20' },
                   ].map(({ path, label, Icon, color, bg, badge }) => (
                     <button key={path} onClick={() => navigate(path)} aria-label={`Open ${label}`} className={`${moduleTileClass} ${bg}`}>
@@ -1153,6 +1161,8 @@ export default function AdminPortal() {
                     { path: '/locations-of-interest-log', label: 'Locations',     Icon: MapPin,    color: 'text-emerald-700', bg: 'bg-emerald-50 dark:bg-emerald-900/20' },
                     { path: '/vehicle-monthly-stays-log', label: 'Monthly Stays', Icon: CalendarRange, color: 'text-cyan-700', bg: 'bg-cyan-50 dark:bg-cyan-900/20' },
                     { path: '/radio-voice-consent-log',   label: 'Voice Consents', Icon: ShieldCheck, color: 'text-green-700', bg: 'bg-green-50 dark:bg-green-900/20' },
+                    { path: '/dispatch-ack-log',          label: 'Dispatch Acks',  Icon: Radio,      color: 'text-cyan-700',  bg: 'bg-cyan-50 dark:bg-cyan-900/20' },
+                    { path: '/credential-processing-log', label: 'Credentials',    Icon: BadgeCheck, color: 'text-violet-700',bg: 'bg-violet-50 dark:bg-violet-900/20' },
                   ].map(({ path, label, Icon, color, bg, badge }) => (
                     <button key={path} onClick={() => navigate(path)} aria-label={`Open ${label}`} className={`${moduleTileClass} ${bg}`}>
                       {badge !== undefined && (
@@ -1186,6 +1196,7 @@ export default function AdminPortal() {
                     { path: '/camper-registrations',label:'Camper Reg.',     Icon: Tent,          color: 'text-teal-600',   bg: 'bg-teal-50 dark:bg-teal-900/20' },
                     { path: '/zone-amenities',    label: 'Zone Amenities',   Icon: Wrench,        color: 'text-slate-600',  bg: 'bg-slate-50 dark:bg-slate-900/30' },
                     { path: '/parking-permits',   label: 'Parking Permits',  Icon: BadgeCheck,    color: 'text-green-600',  bg: 'bg-green-50 dark:bg-green-900/20' },
+                    { path: '/roster-shifts',     label: 'Roster Shifts',    Icon: ClipboardList, color: 'text-violet-600', bg: 'bg-violet-50 dark:bg-violet-900/20' },
                   ].map(({ path, label, Icon, color, bg }) => (
                     <button key={path} onClick={() => navigate(path)} aria-label={`Open ${label}`} className={`${moduleTileClass} ${bg}`}>
                       <Icon className={`h-5 w-5 ${color}`} />

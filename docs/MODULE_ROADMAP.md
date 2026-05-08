@@ -1,9 +1,9 @@
 # Module Roadmap (Operator Navigation Map)
 
 Date: 2026-05-08 (verified against src/navigation/routeManifest.ts)
-Source of truth for routes: route manifest file src/navigation/routeManifest.ts (233 route manifest entries as of Sprint 56 completion)
+Source of truth for routes: route manifest file src/navigation/routeManifest.ts (247 route manifest entries as of Sprint 61 completion)
 
- > **Last Verification**: 2026-05-08 — Role-gating and route docs reviewed through Sprint 56 (B-180). Production main includes Sprints 31-56.
+ > **Last Verification**: 2026-05-08 — Role-gating and route docs reviewed through Sprint 61 (B-194). Production main includes Sprints 31-61.
 
 ## How To Use
 
@@ -946,11 +946,101 @@ New admin routes added in Sprint 56 (B-178, B-179, B-180):
    - Role gate: admin, admin_officer, master
    - Viewer for canonical_persons; KPIs (Total/Identified/Partial/Minor); identity/minor/date filters; descriptors and lifecycle metadata detail expand
 
+## Sprint 57 Route Addendum (2026-05-08)
+
+New manifest entries added in Sprint 57 (B-181, B-182, B-183) — routes already existed in App.tsx/AppLayout.tsx:
+
+1. Alarm Event Log (B-181)
+   - Route: /alarm-events-log
+   - Role gate: admin, admin_officer, master
+   - navGroup: Operations
+
+2. Checkpoint Visit Log (B-182)
+   - Route: /checkpoint-visits-log
+   - Role gate: admin, admin_officer, master
+   - navGroup: Operations
+
+3. Credential Processing Log (B-183)
+   - Route: /credential-processing-log
+   - Role gate: admin, admin_officer, master
+   - navGroup: Records
+
+## Sprint 58 Route Addendum (2026-05-08)
+
+New manifest entries added in Sprint 58 (B-184, B-185, B-186):
+
+1. Dispatch Ack Log (B-184)
+   - Route: /dispatch-ack-log
+   - Role gate: admin, admin_officer, master
+   - navGroup: Operations
+
+2. Drift Events (B-185)
+   - Route: /drift-events
+   - Role gate: admin, admin_officer, master
+   - navGroup: Operations
+
+3. EMS Attendance Log (B-186)
+   - Route: /ems-attendances-log
+   - Role gate: admin, admin_officer, master
+   - navGroup: Operations
+
+## Sprint 59 Route Addendum (2026-05-08)
+
+New manifest entries added in Sprint 59 (B-187, B-188, B-189):
+
+1. Enforcement Event Log (B-187)
+   - Route: /enforcement-events-log
+   - Role gate: admin, admin_officer, master
+   - navGroup: Enforcement
+
+2. Health & Safety Report Log (B-188)
+   - Route: /health-safety-report-log
+   - Role gate: admin, admin_officer, master
+   - navGroup: Records
+
+3. Officer Activity Log (B-189)
+   - Route: /officer-activity-log
+   - Role gate: admin, admin_officer, master
+   - navGroup: Operations
+
+## Sprint 60 Route Addendum (2026-05-08)
+
+New manifest entries added in Sprint 60 (B-190, B-191, B-192):
+
+1. Parking Payment Log (B-190)
+   - Route: /parking-payments-log
+   - Role gate: admin, admin_officer, master
+   - navGroup: Operations
+
+2. Parking Session Log (B-191)
+   - Route: /parking-sessions-log
+   - Role gate: admin, admin_officer, master
+   - navGroup: Operations
+
+3. Plate Scan Log (B-192)
+   - Route: /plate-scans-log
+   - Role gate: admin, admin_officer, master
+   - navGroup: Operations
+
+## Sprint 61 Route Addendum (2026-05-08)
+
+New manifest entries added in Sprint 61 (B-193, B-194):
+
+1. Roster Shift Log (B-193)
+   - Route: /roster-shifts
+   - Role gate: admin, admin_officer, master
+   - navGroup: Roster & Workforce
+
+2. Access Audit Log (B-194)
+   - Route: /access-audit
+   - Role gate: admin, admin_officer, master, grand_master
+   - navGroup: Records
+
 ## Production Status Snapshot (2026-05-08)
 
 - Branch: main
 - PR state (base main): 0 open
-- Consolidation status: Sprint 31 through Sprint 56 route work is merged to production main
+- Consolidation status: Sprint 31 through Sprint 61 route work is merged to production main
 
 ## Post-Sprint-42 Realignment Phases and Phase-Gate Progression (#548)
 

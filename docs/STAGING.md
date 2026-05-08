@@ -806,6 +806,54 @@ Latest Session Snapshot (Sprint 52 — B-166 ClientSiteLog / B-167 ParkingPermit
 - Open blockers with owner:
   1. NONE.
 
+Latest Session Snapshot (Sprint 57–61 — B-181–B-194 — 2026-05-09):
+
+- Timestamp (NZ): 2026-05-09 10:30 NZST
+- Current branch: copilot/continue-realignment-project-yet-again
+- Scope completed:
+  - Added Sprint 57 manifest entries (B-181–B-183): `/alarm-events-log`, `/checkpoint-visits-log`, `/credential-processing-log`.
+  - Added Sprint 58 manifest entries (B-184–B-186): `/dispatch-ack-log`, `/drift-events`, `/ems-attendances-log`.
+  - Added Sprint 59 manifest entries (B-187–B-189): `/enforcement-events-log`, `/health-safety-report-log`, `/officer-activity-log`.
+  - Added Sprint 60 manifest entries (B-190–B-192): `/parking-payments-log`, `/parking-sessions-log`, `/plate-scans-log`.
+  - Added Sprint 61 manifest entries (B-193–B-194): `/roster-shifts`, `/access-audit`.
+  - Updated `src/pages/AdminPortal.tsx` — added tiles for checkpoint-visits-log, ems-attendances-log, officer-activity-log (Patrol & Officers); drift-events, parking-payments-log, parking-sessions-log, plate-scans-log (Vehicles & Zones); dispatch-ack-log, credential-processing-log (Intelligence & Radio); roster-shifts (Workforce); access-audit (People & Records).
+  - Updated `docs/MODULE_ROADMAP.md` — route-count/verification snapshot updated to 247; Sprint 57–61 addenda added.
+  - App.tsx and AppLayout.tsx already had all 14 routes — no changes needed there.
+
+- Sprint 57–61 checklist:
+  | Item | Status | Evidence |
+  |---|---|---|
+  | B-181 alarm-events-log manifest entry | ✅ DONE | `src/navigation/routeManifest.ts` |
+  | B-182 checkpoint-visits-log manifest entry | ✅ DONE | `src/navigation/routeManifest.ts` |
+  | B-183 credential-processing-log manifest entry | ✅ DONE | `src/navigation/routeManifest.ts` |
+  | B-184 dispatch-ack-log manifest entry | ✅ DONE | `src/navigation/routeManifest.ts` |
+  | B-185 drift-events manifest entry | ✅ DONE | `src/navigation/routeManifest.ts` |
+  | B-186 ems-attendances-log manifest entry | ✅ DONE | `src/navigation/routeManifest.ts` |
+  | B-187 enforcement-events-log manifest entry | ✅ DONE | `src/navigation/routeManifest.ts` |
+  | B-188 health-safety-report-log manifest entry | ✅ DONE | `src/navigation/routeManifest.ts` |
+  | B-189 officer-activity-log manifest entry | ✅ DONE | `src/navigation/routeManifest.ts` |
+  | B-190 parking-payments-log manifest entry | ✅ DONE | `src/navigation/routeManifest.ts` |
+  | B-191 parking-sessions-log manifest entry | ✅ DONE | `src/navigation/routeManifest.ts` |
+  | B-192 plate-scans-log manifest entry | ✅ DONE | `src/navigation/routeManifest.ts` |
+  | B-193 roster-shifts manifest entry | ✅ DONE | `src/navigation/routeManifest.ts` |
+  | B-194 access-audit manifest entry | ✅ DONE | `src/navigation/routeManifest.ts` |
+  | Route manifest (247 entries) | ✅ DONE | `src/navigation/routeManifest.ts` |
+  | AdminPortal Sprint 57–61 tiles | ✅ DONE | `src/pages/AdminPortal.tsx` |
+  | MODULE_ROADMAP Sprint 57–61 addenda | ✅ DONE | `docs/MODULE_ROADMAP.md` |
+
+- Validation evidence:
+  | Command | Result | Notes |
+  |---|---|---|
+  | `bun run lint` | PASS | ESLint completed without errors |
+  | `bun run build` | PASS | TypeScript + Vite build succeeded |
+  | `bun run test:nav-parity` | PASS | navigation registry parity passed |
+  | `node scripts/check-route-roadmap-coverage.mjs` | PASS | changed routes are represented in `docs/MODULE_ROADMAP.md` |
+  | `bun run lint:staging-doc` | PASS | staging doc consistency passed |
+  | `bun run build:budget` | PASS | under 8300 kB |
+
+- Open blockers with owner:
+  1. NONE.
+
 Latest Session Snapshot (Sprint 54–56 — B-172–B-180 — 2026-05-09):
 
 - Timestamp (NZ): 2026-05-09 10:15 NZST
