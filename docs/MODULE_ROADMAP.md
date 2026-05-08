@@ -744,3 +744,10 @@ Phase D closeout is now anchored to D3 transition-handshake-offline gate evidenc
 1. `src/pages/DataIntegrityDashboard.tsx` now exposes an **E2 Domain Query Metrics** coverage card for evidence completeness, enforcement event completeness, configuration completeness, identity completeness, and vehicle data movement.
 2. Observation GPS completeness now applies the same organization filter as photo completeness when an org scope is active.
 3. The E2 gate now watches `DataIntegrityDashboard` and fails if the dashboard loses the visible audit/completeness/domain-query coverage anchors.
+
+### E3 kickoff gate artifacts
+
+1. Gate spec: `tests/e2e/phase-e3-communications-audit-retry.spec.ts`.
+2. CI workflow: `.github/workflows/ci-phase-e3-communications-audit-retry-gate.yml`.
+3. Baseline scope: communications delivery audit, retry governance, degraded push/email outcomes, and operations visibility anchors across in-app notifications, push delivery, email delivery, and CRM communication audit schema.
+4. Gate behavior: fail when E3 loses Communications Lead ownership anchors, notification delivery tracking, org-bounded broadcast reads, web-push/Expo fallback behavior, email SMTP validation/fallback behavior, retry primitives, or communications audit status/retry fields.

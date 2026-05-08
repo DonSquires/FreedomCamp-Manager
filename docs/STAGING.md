@@ -299,6 +299,29 @@ Latest Session Snapshot (Phase E2 Dashboard Metrics Continuation — 2026-05-08)
   2. Add deeper event-completeness assertions once database-backed completeness views/RPCs are selected.
   3. Keep lint/build plus E1 and E2 gates green before advancing toward E3.
 
+Latest Session Snapshot (Phase E3 Communications Audit and Retry Gate Kickoff — 2026-05-08):
+
+- Timestamp (NZ): 2026-05-08 13:45 NZST
+- Current branch: copilot/550-continue-phase-realignment
+- Scope completed:
+  - Advanced from E2 dashboard-visible evidence into E3 kickoff artifacts for communications delivery audit and retry/degraded-mode governance.
+  - Added `tests/e2e/phase-e3-communications-audit-retry.spec.ts` to lock E3 ownership anchors, in-app notification delivery tracking, org-bounded broadcasts, push fallback outcomes, email validation/fallback paths, retry helper availability, and CRM communication audit status/retry fields.
+  - Added `.github/workflows/ci-phase-e3-communications-audit-retry-gate.yml` as the E3 path-filtered CI workflow.
+  - Updated `docs/MODULE_ROADMAP.md` with E3 kickoff gate references.
+
+- E3 communications audit/retry checkpoint:
+  | Surface | Evidence protected | Gate coverage |
+  |---|---|---|
+  | `NotificationsCenter`, `useNotifications`, `useOfficerNotifications` | In-app delivery tracking + org-bounded broadcast/alert reads | `phase-e3-communications-audit-retry.spec.ts`, `ci-phase-e3-communications-audit-retry-gate.yml` |
+  | `send-push-notification` | Web Push / Expo fallback, disabled/no-token/invalid-token outcomes, expired-token cleanup | `phase-e3-communications-audit-retry.spec.ts` |
+  | `send-report-email`, `send-invite-email` | SMTP configuration validation, recipient validation, proxy relay fallback, direct SMTP fallback | `phase-e3-communications-audit-retry.spec.ts` |
+  | `crm_communications`, `fetchWithRetry` | Delivery status/retry audit schema + reusable retry primitive | `phase-e3-communications-audit-retry.spec.ts` |
+
+- Next session:
+  1. Continue E3 by adding visible operations dashboard metrics for delivery success/failure, retry count, stale pending messages, and degraded fallback outcomes.
+  2. Decide whether push/email delivery attempts should write to `crm_communications` directly or through a shared communications service before adding runtime mutations.
+  3. Keep lint/build plus E1, E2, and E3 gates green before preparing E4 release evidence.
+
 Latest Session Snapshot (Phase E2 Enterprise Hardening Tenancy Gate Kickoff — 2026-05-08):
 
 - Timestamp (NZ): 2026-05-08 12:57 NZST
