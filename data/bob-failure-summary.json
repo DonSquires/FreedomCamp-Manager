@@ -1,9 +1,14 @@
 {
-  "generatedAt": "2026-05-08T00:39:46.266Z",
+  "generatedAt": "2026-05-07T10:05:47.865Z",
   "windowHours": 24,
-  "totalEntries": 0,
-  "lowScoreCount": 0,
-  "topFailureReasons": [],
+  "totalEntries": 3,
+  "lowScoreCount": 1,
+  "topFailureReasons": [
+    {
+      "name": "Bob chat request failed",
+      "count": 1
+    }
+  ],
   "topHallucinationPatterns": [],
   "repeatedHallucinations": [],
   "topFlaggedArtifacts": [],
