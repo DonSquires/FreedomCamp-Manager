@@ -1258,6 +1258,10 @@ export default function AdminPortal() {
                     { path: '/breach-alerts-log',              label: 'Breach Alerts',   Icon: AlertTriangle,color: 'text-amber-700',  bg: 'bg-amber-50 dark:bg-amber-900/20' },
                     { path: '/fixed-cameras-log',              label: 'Fixed Cameras',   Icon: Camera,       color: 'text-sky-700',    bg: 'bg-sky-50 dark:bg-sky-900/20' },
                     { path: '/flagged-vehicles-log',           label: 'Flagged Veh.',    Icon: Car,          color: 'text-indigo-700', bg: 'bg-indigo-50 dark:bg-indigo-900/20' },
+                    // Sprint 55: B-175–B-177
+                    { path: '/officer-skills-log',             label: 'Officer Skills',  Icon: BadgeCheck,   color: 'text-teal-700',   bg: 'bg-teal-50 dark:bg-teal-900/20' },
+                    { path: '/open-shifts-log',                label: 'Open Shifts',     Icon: CalendarCheck2, color: 'text-violet-700', bg: 'bg-violet-50 dark:bg-violet-900/20' },
+                    { path: '/patrol-checkpoints-log',         label: 'Checkpoint Log',  Icon: ScanLine,     color: 'text-cyan-700',   bg: 'bg-cyan-50 dark:bg-cyan-900/20' },
                   ].map(({ path, label, Icon, color, bg }) => (
                     <button key={path} onClick={() => navigate(path)} aria-label={`Open ${label}`} className={`${moduleTileClass} ${bg}`}>
                       <Icon className={`h-5 w-5 ${color}`} />

@@ -248,6 +248,8 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/dispatch-jobs-log', icon: Truck, label: 'Dispatch Job Log', roles: ['admin', 'admin_officer', 'master'] },
       // Sprint 50: B-161
       { path: '/enforcement-actions-log', icon: ShieldCheck, label: 'Enforcement Action Log', roles: ['admin', 'admin_officer', 'master'] },
+      // Sprint 55: B-176
+      { path: '/open-shifts-log', icon: CalendarCheck2, label: 'Open Shifts Log', roles: ['admin', 'admin_officer', 'master'] },
     ],
   },
   {
@@ -339,6 +341,8 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       // Sprint 54: B-173, B-174
       { path: '/fixed-cameras-log', icon: Camera, label: 'Fixed Camera Log', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/flagged-vehicles-log', icon: Car, label: 'Flagged Vehicle Log', roles: ['admin', 'admin_officer', 'master'] },
+      // Sprint 55: B-175
+      { path: '/officer-skills-log', icon: BadgeCheck, label: 'Officer Skills Log', roles: ['admin', 'admin_officer', 'master'] },
     ],
   },
   {
@@ -435,6 +439,8 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/zone-signage-evidence-log', icon: Camera, label: 'Zone Signage Evidence Log', roles: ['admin', 'admin_officer', 'master'] },
       // Sprint 54: B-172
       { path: '/breach-alerts-log', icon: AlertTriangle, label: 'Breach Alert Log', roles: ['admin', 'admin_officer', 'master'] },
+      // Sprint 55: B-177
+      { path: '/patrol-checkpoints-log', icon: ScanLine, label: 'Patrol Checkpoint Log', roles: ['admin', 'admin_officer', 'master'] },
     ],
   },
   {
