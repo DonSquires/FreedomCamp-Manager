@@ -1,9 +1,9 @@
 # Module Roadmap (Operator Navigation Map)
 
 Date: 2026-05-08 (verified against src/navigation/routeManifest.ts)
-Source of truth for routes: route manifest file src/navigation/routeManifest.ts (265 route manifest entries as of Sprint 65 completion)
+Source of truth for routes: route manifest file src/navigation/routeManifest.ts (275 route manifest entries as of Sprint 66 completion)
 
- > **Last Verification**: 2026-05-08 — Role-gating and route docs reviewed through Sprint 65 (B-225). Production main includes Sprints 31-65.
+ > **Last Verification**: 2026-05-08 — Role-gating and route docs reviewed through Sprint 66 (B-235). Production main includes Sprints 31-66.
 
 ## How To Use
 
@@ -1202,11 +1202,65 @@ New manifest entries added in Sprint 65 (B-223 through B-225):
    - Role gate: master, admin, officer, admin_officer, nzscv_monitor, grand_master, client_viewer
    - navGroup: Core
 
+## Sprint 66 Route Addendum (2026-05-08)
+
+New manifest entries added in Sprint 66 (B-226 through B-235):
+
+1. Public Dispute Portal (B-226)
+   - Route: /dispute
+   - Role gate: manifest-shared public route
+   - navGroup: none
+
+2. Public Zone Map (B-227)
+   - Route: /public/zone-map
+   - Role gate: manifest-shared public route
+   - navGroup: none
+
+3. Public Noise Complaint Portal (B-228)
+   - Route: /public/noise-complaint
+   - Role gate: manifest-shared public route
+   - navGroup: none
+
+4. Public Parking Appeal Portal (B-229)
+   - Route: /public/parking-appeal
+   - Role gate: manifest-shared public route
+   - navGroup: none
+
+5. Public Pay by Plate (B-230)
+   - Route: /public/pay-by-plate
+   - Role gate: manifest-shared public route
+   - navGroup: none
+
+6. Public Registration (B-231)
+   - Route: /public/register
+   - Role gate: manifest-shared public route
+   - navGroup: none
+
+7. Bob Studio (B-232)
+   - Route: /bob-studio
+   - Role gate: admin, admin_officer, master, grand_master
+   - navGroup: Bob
+
+8. Bob UI Review (B-233)
+   - Route: /bob-ui-review
+   - Role gate: admin, admin_officer, master, grand_master
+   - navGroup: Bob
+
+9. Job Map (B-234)
+   - Route: /job-map
+   - Role gate: admin, admin_officer, master, officer
+   - navGroup: Live Ops
+
+10. Patrol Dispatch (B-235)
+   - Route: /field-officer/dispatch
+   - Role gate: officer, admin_officer
+   - navGroup: Officer
+
 ## Production Status Snapshot (2026-05-08)
 
 - Branch: main
 - PR state (base main): 0 open
-- Consolidation status: Sprint 31 through Sprint 65 route work is merged to production main
+- Consolidation status: Sprint 31 through Sprint 66 route work is merged to production main
 
 ## Post-Sprint-42 Realignment Phases and Phase-Gate Progression (#548)
 

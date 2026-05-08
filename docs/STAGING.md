@@ -4,6 +4,37 @@ Date: 2026-05-05
 Owner: GitHub Copilot (GPT-5.3-Codex)
 Status: Active staging checklist
 
+Latest Session Snapshot (Sprint 66 — B-226–B-235 — 2026-05-09):
+
+- Timestamp (NZ): 2026-05-09 11:56 NZST
+- Current branch: copilot/continue-realignment-project-yet-again
+- Scope completed:
+  - Added Sprint 66 manifest entries (B-226–B-235): `/dispute`, `/public/zone-map`, `/public/noise-complaint`, `/public/parking-appeal`, `/public/pay-by-plate`, `/public/register`, `/bob-studio`, `/bob-ui-review`, `/job-map`, `/field-officer/dispatch`.
+  - Source of truth used for roles and labels: `src/App.tsx`, `src/components/features/AppLayout.tsx`, and route page titles for specialist pages.
+  - Updated `docs/MODULE_ROADMAP.md` with Sprint 66 addendum and manifest count progression.
+
+- Sprint 66 checklist:
+  | Item | Status | Evidence |
+  |---|---|---|
+  | B-226 through B-231 public/shared manifest entries | ✅ DONE | `src/navigation/routeManifest.ts` |
+  | B-232 `/bob-studio` manifest entry | ✅ DONE | `src/navigation/routeManifest.ts` |
+  | B-233 `/bob-ui-review` manifest entry | ✅ DONE | `src/navigation/routeManifest.ts` |
+  | B-234 `/job-map` manifest entry | ✅ DONE | `src/navigation/routeManifest.ts` |
+  | B-235 `/field-officer/dispatch` manifest entry | ✅ DONE | `src/navigation/routeManifest.ts` |
+  | Route manifest (275 entries) | ✅ DONE | `src/navigation/routeManifest.ts` |
+  | MODULE_ROADMAP Sprint 66 addendum | ✅ DONE | `docs/MODULE_ROADMAP.md` |
+
+- Validation evidence:
+  | Command | Result | Notes |
+  |---|---|---|
+  | `bun run lint` | PASS | ESLint completed without errors |
+  | `bun run build` | PASS | TypeScript + Vite build succeeded |
+  | `bun run test:nav-parity` | PASS | navigation registry parity passed |
+  | `bun run build:budget` | PASS | under 8300 kB |
+
+- Open blockers with owner:
+  1. Remaining unmapped runtime routes are mostly aliases, client-role pages, or parameterized detail routes requiring separate manifest policy decisions.
+
 Latest Session Snapshot (Sprint 65 — B-223–B-225 — 2026-05-09):
 
 - Timestamp (NZ): 2026-05-09 11:45 NZST
