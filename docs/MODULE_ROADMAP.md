@@ -826,3 +826,25 @@ With Phase D delivery and gate evidence in place, the next execution phase is Ph
    - Target fragmentation pages show downward direct-query drift.
    - Communications delivery governance is live and measurable in operations dashboards.
    - Evidence is recorded in `docs/STAGING.md` with linked CI runs and validation artifacts.
+
+## Phase E1 Data-Access Consolidation Baseline (2026-05-08)
+
+Phase E1 starts with a static direct-query drift gate for the highest-fragmentation pages named in the build realignment plan. The baseline counts below are grounded in the current page files and are enforced by `tests/e2e/phase-e1-data-access-consolidation.spec.ts`; future hook/service migrations should lower the relevant baseline only after the page count drops.
+
+| Target page | Current direct `supabase.from(...)` calls | Phase E1 target |
+| --- | ---: | --- |
+| PTTRadio | 3 | Hold at or below baseline while shared radio hooks remain the data boundary. |
+| DispatchConsole | 3 | Hold at or below baseline while dispatch contract hooks absorb new reads. |
+| FieldOfficerPortal | 15 | Reduce by migrating patrol, welfare, and observation clusters into hooks/services. |
+| AssetManagement | 0 | Keep page free of direct Supabase query clusters. |
+| VehicleManagement | 21 | Reduce by moving vehicle, owner, and enforcement reads into hooks/services. |
+| BreachAlerts | 20 | Reduce by moving alert queue and decision mutations into breach hooks/services. |
+| AdminPortal | 20 | Reduce by consolidating admin summary reads behind shared dashboard hooks. |
+| NoiseControlPortal | 13 | Reduce by moving noise complaint and evidence reads into domain hooks. |
+| ClientAccountPage | 0 | Keep page free of direct Supabase query clusters. |
+| RosterPlanner | 0 | Keep page free of direct Supabase query clusters. |
+
+Phase E1 gate artifacts:
+- Test spec: `tests/e2e/phase-e1-data-access-consolidation.spec.ts`
+- CI workflow: `.github/workflows/ci-phase-e1-data-access-consolidation-gate.yml`
+- Local command: `bunx playwright test tests/e2e/phase-e1-data-access-consolidation.spec.ts --config=playwright.api.config.ts --reporter=list`

@@ -203,6 +203,22 @@ node --test ptt-server/test/radio-health-schema.test.js
 - `docs/DEPLOYMENT_GUIDE.md` Bob governance notes now explicitly list the schema registry, route/entity map, mutation catalog, execution-review output, and coordinated redeploy requirement for `onspace-ai-chat`, `grandmaster-studio`, and `bob-code-change-task`.
 - `supabase/migrations/20260604000006_bob_conversation_memory.sql` and `src/lib/bobLearningMemory.ts` confirm execution review stays inside `public.bob_conversation_memory.context` JSONB, so no additional schema change is required.
 
+### G. Realignment Phase E — Data Movement Reduction
+
+- [x] Kick off Phase E1 with a grounded direct page-query baseline for the highest-fragmentation target pages.
+- [x] Add a focused Phase E1 drift gate spec so target pages cannot add direct `supabase.from(...)` page queries above the published baseline.
+- [x] Add a path-filtered CI workflow for Phase E1 data-access consolidation evidence.
+- [ ] Continue E1 by migrating the highest-count page query clusters into hooks/services and lowering the published baselines after each verified reduction.
+
+Evidence (2026-05-08 UTC):
+```bash
+bunx playwright test tests/e2e/phase-e1-data-access-consolidation.spec.ts --config=playwright.api.config.ts --reporter=list
+```
+
+- Test spec: `tests/e2e/phase-e1-data-access-consolidation.spec.ts`
+- CI workflow: `.github/workflows/ci-phase-e1-data-access-consolidation-gate.yml`
+- Baseline table: `docs/MODULE_ROADMAP.md` → `Phase E1 Data-Access Consolidation Baseline (2026-05-08)`
+
 ## 7. Session Handoff Log (Update Before Exit)
 
 Fill this before stopping work:
