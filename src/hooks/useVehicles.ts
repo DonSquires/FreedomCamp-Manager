@@ -16,6 +16,96 @@ interface UseVehiclesOptions {
   statusFilter?: 'all' | 'compliant' | 'breaches' | 'homeless' | 'exempt'
 }
 
+interface UseVehicleDialogObservationsOptions {
+  plateNumber?: string | null
+  organizationId?: string | null
+  zoneId?: string | null
+  dateFrom?: string | null
+  dateTo?: string | null
+  enabled?: boolean
+}
+
+export function useVehicleDialogObservations(options: UseVehicleDialogObservationsOptions) {
+  const {
+    plateNumber,
+    organizationId,
+    zoneId,
+    dateFrom,
+    dateTo,
+    enabled = true,
+  } = options
+
+  return useQuery({
+    queryKey: ['vehicle-dialog-obs', plateNumber, organizationId, zoneId, dateFrom, dateTo],
+    queryFn: async () => {
+      let q = supabase
+        .from('observations')
+        .select('observation_id, recorded_at, is_compliant, breach_type, nights_stayed_this_month, organization_id, zone_id, recorded_by')
+        .eq('plate_number', plateNumber!)
+        .order('recorded_at', { ascending: false })
+        .limit(100)
+
+      if (organizationId) q = q.eq('organization_id', organizationId)
+      if (zoneId) q = q.eq('zone_id', zoneId)
+      if (dateFrom) q = q.gte('recorded_at', nzDateToUTCStart(dateFrom))
+      if (dateTo) q = q.lte('recorded_at', nzDateToUTCEnd(dateTo))
+
+      const { data: baseRows, error: baseError } = await q
+      if (baseError) throw baseError
+
+      const obsRows = (baseRows || []) as any[]
+      if (obsRows.length === 0) return []
+
+      const zoneIds = Array.from(new Set(obsRows.map((o: any) => o.zone_id).filter(Boolean)))
+      const orgIds = Array.from(new Set(obsRows.map((o: any) => o.organization_id).filter(Boolean)))
+
+      let zoneNames: Record<string, string> = {}
+      if (zoneIds.length > 0) {
+        const { data: z } = await (supabase.from('zones') as any).select('id, name').in('id', zoneIds)
+        zoneNames = Object.fromEntries((z || []).map((row: any) => [row.id, row.name]))
+      }
+
+      let orgNames: Record<string, string> = {}
+      if (orgIds.length > 0) {
+        const { data: o } = await (supabase.from('organizations') as any).select('id, name').in('id', orgIds)
+        orgNames = Object.fromEntries((o || []).map((row: any) => [row.id, row.name]))
+      }
+
+      const photoColumn = await (async () => {
+        const candidates: Array<'photo_url' | 'image_url' | 'photo'> = ['photo_url', 'image_url', 'photo']
+        for (const col of candidates) {
+          const { error } = await (supabase.from('observations') as any).select(`observation_id, ${col}`).limit(1)
+          if (!error) return col
+        }
+        return null
+      })()
+
+      let photosById: Record<string, string | null> = {}
+      if (photoColumn) {
+        const ids = obsRows.map((o: any) => o.observation_id).filter(Boolean)
+        if (ids.length > 0) {
+          const { data: p } = await (supabase.from('observations') as any)
+            .select(`observation_id, ${photoColumn}`)
+            .in('observation_id', ids)
+          photosById = Object.fromEntries(
+            (p || []).map((row: any) => [row.observation_id, row[photoColumn] ?? null])
+          )
+        }
+      }
+
+      return obsRows.map((row: any) => ({
+        ...row,
+        zone: row.zone_id ? { id: row.zone_id, name: zoneNames[row.zone_id] || 'Unknown Zone' } : null,
+        org: row.organization_id
+          ? { name: orgNames[row.organization_id] || 'Unknown Org' }
+          : null,
+        photo_url: photosById[row.observation_id] ?? null,
+      }))
+    },
+    enabled: enabled && !!plateNumber,
+  })
+}
+
 export function useVehicles(options: UseVehiclesOptions = {}) {
   const {
     organizationId,

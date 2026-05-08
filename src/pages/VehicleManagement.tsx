@@ -24,6 +24,7 @@ import { HOMELESS_UI_STATUSES, isHomelessForUi, normalizeHomelessStatus } from '
 import { checkNZSCVCertification, enrichVehicleFromMotorWeb } from '@/lib/proxyServices'
 import { getObservationPhotoUrl, getVehiclePhotoUrl } from '@/lib/photoUtils'
 import { PhotoWithFallback } from '@/components/features/PhotoWithFallback'
+import { useVehicleDialogObservations } from '@/hooks/useVehicles'
 import { toast } from 'sonner'
 
 interface Vehicle {
@@ -636,82 +637,13 @@ export default function VehicleManagement() {
   }
 
   // ─── Dialog: observations (org/zone/date filtered) ───────────────────────
-  const { data: dialogObservations = [], isLoading: loadingDialogObs } = useQuery({
-    queryKey: [
-      'vehicle-dialog-obs',
-      selectedVehicle?.plate_number,
-      effectiveOrganizationId,
-      zoneId,
-      dateFrom,
-      dateTo,
-    ],
-    queryFn: async () => {
-      let q = supabase
-        .from('observations')
-        .select('observation_id, recorded_at, is_compliant, breach_type, nights_stayed_this_month, organization_id, zone_id, recorded_by')
-        .eq('plate_number', selectedVehicle!.plate_number)
-        .order('recorded_at', { ascending: false })
-        .limit(100)
-
-      if (effectiveOrganizationId) q = q.eq('organization_id', effectiveOrganizationId)
-      if (zoneId) q = q.eq('zone_id', zoneId)
-      if (dateFrom) q = q.gte('recorded_at', nzDateToUTCStart(dateFrom))
-      if (dateTo) q = q.lte('recorded_at', nzDateToUTCEnd(dateTo))
-
-      const { data: baseRows, error: baseError } = await q
-      if (baseError) throw baseError
-
-      const obsRows = (baseRows || []) as any[]
-      if (obsRows.length === 0) return []
-
-      // Optional enrichment: zone/org names and photo fields vary by environment.
-      const zoneIds = Array.from(new Set(obsRows.map((o: any) => o.zone_id).filter(Boolean)))
-      const orgIds = Array.from(new Set(obsRows.map((o: any) => o.organization_id).filter(Boolean)))
-
-      let zoneNames: Record<string, string> = {}
-      if (zoneIds.length > 0) {
-        const { data: z } = await (supabase.from('zones') as any).select('id, name').in('id', zoneIds)
-        zoneNames = Object.fromEntries((z || []).map((row: any) => [row.id, row.name]))
-      }
-
-      let orgNames: Record<string, string> = {}
-      if (orgIds.length > 0) {
-        const { data: o } = await (supabase.from('organizations') as any).select('id, name').in('id', orgIds)
-        orgNames = Object.fromEntries((o || []).map((row: any) => [row.id, row.name]))
-      }
-
-      const photoColumn = await (async () => {
-        const candidates: Array<'photo_url' | 'image_url' | 'photo'> = ['photo_url', 'image_url', 'photo']
-        for (const col of candidates) {
-          const { error } = await (supabase.from('observations') as any).select(`observation_id, ${col}`).limit(1)
-          if (!error) return col
-        }
-        return null
-      })()
-
-      let photosById: Record<string, string | null> = {}
-      if (photoColumn) {
-        const ids = obsRows.map((o: any) => o.observation_id).filter(Boolean)
-        if (ids.length > 0) {
-          const { data: p } = await (supabase.from('observations') as any)
-            .select(`observation_id, ${photoColumn}`)
-            .in('observation_id', ids)
-          photosById = Object.fromEntries(
-            (p || []).map((row: any) => [row.observation_id, row[photoColumn] ?? null])
-          )
-        }
-      }
-
-      return obsRows.map((row: any) => ({
-        ...row,
-        zone: row.zone_id ? { id: row.zone_id, name: zoneNames[row.zone_id] || 'Unknown Zone' } : null,
-        org: row.organization_id
-          ? { name: orgNames[row.organization_id] || 'Unknown Org' }
-          : null,
-        photo_url: photosById[row.observation_id] ?? null,
-      }))
-    },
-    enabled: showDetailsDialog && !!selectedVehicle?.plate_number,
+  const { data: dialogObservations = [], isLoading: loadingDialogObs } = useVehicleDialogObservations({
+    plateNumber: selectedVehicle?.plate_number,
+    organizationId: effectiveOrganizationId,
+    zoneId,
+    dateFrom,
+    dateTo,
+    enabled: showDetailsDialog,
   })
 
   // ─── KPI computed from dialog observations ───────────────────────────────

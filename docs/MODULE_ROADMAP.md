@@ -837,7 +837,7 @@ Phase E1 starts with a static direct-query drift gate for the highest-fragmentat
 | DispatchConsole | 3 | Hold at or below baseline while dispatch contract hooks absorb new reads. |
 | FieldOfficerPortal | 15 | Reduce by migrating patrol, welfare, and observation clusters into hooks/services. |
 | AssetManagement | 0 | Keep page free of direct Supabase query clusters. |
-| VehicleManagement | 21 | Reduce by moving vehicle, owner, and enforcement reads into hooks/services. |
+| VehicleManagement | 16 | Reduce by moving vehicle, owner, and enforcement reads into hooks/services. |
 | BreachAlerts | 0 | Keep page free of direct Supabase query clusters after breach hook consolidation. |
 | AdminPortal | 20 | Reduce by consolidating admin summary reads behind shared dashboard hooks. |
 | NoiseControlPortal | 13 | Reduce by moving noise complaint and evidence reads into domain hooks. |
