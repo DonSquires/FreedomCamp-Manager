@@ -10,9 +10,15 @@ When a pattern, platform, or architectural decision changes, append a dated note
 - Decision: one sentence
 - Scope: files, services, or modules affected
 - Reason: why the decision was made
-- Consequences: follow-on constraints Bob must respect
+- Consequences: follow-on constraints Bob must persist
 
 ## Current Standing Decisions
+
+- Date: 2026-05-08
+- Decision: Total JS build budget recalibrated from 7200 kB to 8000 kB.
+- Scope: `scripts/check-build-budgets.mjs`.
+- Reason: Sprints 31–43 collectively added ~730 kB of new pages and feature components beyond the 7200 kB baseline. The total non-exempt JS reached 7924 kB before Sprint 43 landed. Recalibrating to 8000 kB preserves budget headroom for Sprint 44+. Per-chunk budget (550 kB) remains unchanged.
+- Consequences: Future sprints must not exceed 8000 kB total without a matching decision entry and re-calibration.
 
 - Date: 2026-05-06
 - Decision: Total JS build budget recalibrated from 7000 kB to 7200 kB.

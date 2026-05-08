@@ -305,6 +305,8 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/flagged-vehicles-manager', icon: AlertTriangle, label: 'Flagged Vehicles', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/bug-reports-log', icon: Bug, label: 'Bug Report Log', roles: ['admin', 'master'] },
       { path: '/feature-flags', icon: Settings, label: 'Feature Flags', roles: ['master'] },
+      // Sprint 43: B-141
+      { path: '/import-batches-log', icon: Upload, label: 'Import Batch Log', roles: ['admin', 'master'] },
     ],
   },
   {
@@ -428,6 +430,9 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/bob-intake-queue', icon: ClipboardList, label: 'Bob Intake Queue', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/ai-analysis', icon: BrainCircuit, label: 'Bob Analysis', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/live-plan-reviews', icon: ShieldCheck, label: 'Live Plan Reviews', roles: ['admin', 'admin_officer', 'master'] },
+      // Sprint 43: B-139–B-140
+      { path: '/bob-proposals-log', icon: ScrollText, label: 'Bob Proposal Log', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/bob-proposal-events-log', icon: ListChecks, label: 'Bob Proposal Events', roles: ['admin', 'admin_officer', 'master'] },
     ],
   },
   {

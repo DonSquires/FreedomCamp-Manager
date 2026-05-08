@@ -279,6 +279,37 @@ Latest Session Snapshot (Phase D3 Gate Artifacts + Phase E Kickoff Alignment —
   2. Carry forward E1→E4 checkpoints from `docs/MODULE_ROADMAP.md`.
   3. Maintain rollback-ready flag posture and org isolation evidence per slice.
 
+Latest Session Snapshot (Sprint 43 — B-139 / B-140 / B-141 — 2026-05-08):
+
+- Timestamp (NZ): 2026-05-08 19:30 NZST
+- Current branch: copilot/continue-realignment-project
+- Scope completed:
+  - Continued realignment project after Phase E closeout by adding Sprint 43 route catalog entries B-139, B-140, B-141.
+  - Created `src/pages/BobProposalLog.tsx` (B-139) — org-scoped log viewer for `bob_action_proposals`; KPIs (Total/Pending/Approved/Rejected+Failed); status/type/impact/title/date filters; approval notes, execution error, proposal payload expand.
+  - Created `src/pages/BobProposalEventLog.tsx` (B-140) — org-scoped log viewer for `bob_action_proposal_events`; KPIs (Total/Unique Proposals/Unique Cases/Unique Actors); event_type/proposal_id/case_id/date filters; metadata JSON expand.
+  - Created `src/pages/ImportBatchLog.tsx` (B-141) — org-scoped log viewer for `import_batches`; KPIs (Total Batches/Total Records/Successful Records/Failed Records); status/batch_name/date filters; enrichment stats + error_summary + import_config expand.
+  - Updated `src/App.tsx` with lazy imports and protected routes for all three pages.
+  - Updated `src/navigation/routeManifest.ts` with Sprint 43 route entries.
+  - Updated `src/components/features/AppLayout.tsx` — Bob group gains B-139/B-140; Management group gains B-141.
+  - Updated `src/pages/AdminPortal.tsx` — Reports & Analytics tile section gains B-139/B-140/B-141.
+  - Updated `docs/MODULE_ROADMAP.md` — Sprint 43 addendum + production status snapshot.
+
+- Sprint 43 checkpoint:
+  | Item | Status | Artifact |
+  |---|---|---|
+  | B-139 BobProposalLog | ✅ DONE | `src/pages/BobProposalLog.tsx`, route `/bob-proposals-log` |
+  | B-140 BobProposalEventLog | ✅ DONE | `src/pages/BobProposalEventLog.tsx`, route `/bob-proposal-events-log` |
+  | B-141 ImportBatchLog | ✅ DONE | `src/pages/ImportBatchLog.tsx`, route `/import-batches-log` |
+  | routeManifest.ts updated | ✅ DONE | 3 entries added (193 total) |
+  | AppLayout.tsx updated | ✅ DONE | Bob group (B-139/B-140) + Management group (B-141) |
+  | AdminPortal.tsx updated | ✅ DONE | 3 tiles in Reports & Analytics section |
+  | MODULE_ROADMAP.md updated | ✅ DONE | Sprint 43 addendum |
+
+- Next session:
+  1. Lint and build pass — verify `bun run build` succeeds with Sprint 43 pages.
+  2. Continue with Sprint 44 (B-142–B-144) once Sprint 43 is merged to main.
+  3. Keep E1–E4 gate artifacts green alongside Sprint 43 route additions.
+
 Latest Session Snapshot (Phase E2 Dashboard Metrics Continuation — 2026-05-08):
 
 - Timestamp (NZ): 2026-05-08 13:11 NZST

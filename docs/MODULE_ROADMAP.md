@@ -1,9 +1,9 @@
 # Module Roadmap (Operator Navigation Map)
 
-Date: 2026-05-07 (verified against src/navigation/routeManifest.ts)
-Source of truth for routes: route manifest file src/navigation/routeManifest.ts (187 route manifest entries as of Sprint 41 completion)
+Date: 2026-05-08 (verified against src/navigation/routeManifest.ts)
+Source of truth for routes: route manifest file src/navigation/routeManifest.ts (190 route manifest entries as of Sprint 42 completion; Sprint 43 adds 3 more → 193)
 
- > **Last Verification**: 2026-05-07 — Role-gating and route docs reviewed through Sprint 42 (B-138). Production main includes Sprints 31-42.
+ > **Last Verification**: 2026-05-08 — Role-gating and route docs reviewed through Sprint 43 (B-141). Production main includes Sprints 31-43.
 
 ## How To Use
 
@@ -680,11 +680,30 @@ New admin routes added in Sprint 42 (B-136, B-137, B-138):
    - Role gate: admin, admin_officer, master
    - Viewer for radio_translation_segments view; KPIs (Total/Low Confidence/Avg Confidence/Languages); language/provider/date/search filters
 
-## Production Status Snapshot (2026-05-07)
+## Sprint 43 Route Addendum (2026-05-08)
+
+New admin routes added in Sprint 43 (B-139, B-140, B-141):
+
+1. Bob Proposal Log (B-139)
+   - Route: /bob-proposals-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for bob_action_proposals; KPIs (Total/Pending/Approved/Rejected+Failed); status/type/impact/title filters; approval notes/execution error/proposal payload expand
+
+2. Bob Proposal Event Log (B-140)
+   - Route: /bob-proposal-events-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for bob_action_proposal_events; KPIs (Total/Unique Proposals/Unique Cases/Unique Actors); event_type/proposal_id/case_id/date filters; metadata JSON expand
+
+3. Import Batch Log (B-141)
+   - Route: /import-batches-log
+   - Role gate: admin, master
+   - Viewer for import_batches; KPIs (Total Batches/Total Records/Successful Records/Failed Records); status/batch_name/date filters; enrichment stats (vehicles/plates/homeless/H&S) + error_summary + import_config expand
+
+## Production Status Snapshot (2026-05-08)
 
 - Branch: main
 - PR state (base main): 0 open
-- Consolidation status: Sprint 31 through Sprint 42 route work is merged to production main
+- Consolidation status: Sprint 31 through Sprint 43 route work is merged to production main
 
 ## Post-Sprint-42 Realignment Phases and Phase-Gate Progression (#548)
 
