@@ -307,6 +307,36 @@ Latest Session Snapshot (Phase D3 Gate Artifacts + Phase E Kickoff Alignment —
   2. Carry forward E1→E4 checkpoints from `docs/MODULE_ROADMAP.md`.
   3. Maintain rollback-ready flag posture and org isolation evidence per slice.
 
+Latest Session Snapshot (Sprint 47 — B-151 / B-152 / B-153 — 2026-05-08):
+
+- Timestamp (NZ): 2026-05-08 23:15 NZST
+- Current branch: copilot/continue-realignment-project-another-one
+- Scope completed:
+  - Continued Sprint catalog after Sprint 46 by adding Sprint 47 route entries B-151, B-152, B-153.
+  - Created `src/pages/OrganizationLog.tsx` (B-151) — log viewer for `organizations`; KPIs (Total/Active/Inactive/With Parent); active/type/search filters; hierarchy and policy detail expand.
+  - Created `src/pages/ClientSiteLog.tsx` (B-152) — log viewer for `client_sites`; KPIs (Total/Active/Inactive/With Geofence); active/site_type/search filters; zone/contact/geofence detail expand.
+  - Created `src/pages/ParkingPermitLog.tsx` (B-153) — log viewer for `parking_permits`; KPIs (Total/Active/Inactive/Expiring ≤30d); plate/type/state/date filters; permit validity and issuer detail expand.
+  - Updated `src/App.tsx` with lazy imports and protected routes for all three pages.
+  - Updated `src/navigation/routeManifest.ts` with Sprint 47 route entries (205 total).
+  - Updated `src/components/features/AppLayout.tsx` — Management group gains B-151; Records group gains B-152; Specialist Portals group gains B-153.
+  - Updated `src/pages/AdminPortal.tsx` — Reports & Analytics tile section gains B-151/B-152/B-153.
+  - Updated `docs/MODULE_ROADMAP.md` — Sprint 47 addendum + production status snapshot.
+
+- Sprint 47 checkpoint:
+  | Item | Status | Artifact |
+  |---|---|---|
+  | B-151 OrganizationLog | ✅ DONE | `src/pages/OrganizationLog.tsx`, route `/organizations-log` |
+  | B-152 ClientSiteLog | ✅ DONE | `src/pages/ClientSiteLog.tsx`, route `/client-sites-log` |
+  | B-153 ParkingPermitLog | ✅ DONE | `src/pages/ParkingPermitLog.tsx`, route `/parking-permits-log` |
+  | routeManifest.ts updated | ✅ DONE | 3 entries added (205 total) |
+  | AppLayout.tsx updated | ✅ DONE | Management (B-151) + Records (B-152) + Specialist Portals (B-153) |
+  | AdminPortal.tsx updated | ✅ DONE | 3 tiles in Reports & Analytics section |
+  | MODULE_ROADMAP.md updated | ✅ DONE | Sprint 47 addendum |
+
+- Next session:
+  1. Continue with Sprint 48 (B-154–B-156).
+  2. Keep E1–E4 gate artifacts green alongside Sprint 47 route additions.
+
 Latest Session Snapshot (Sprint 46 — B-148 / B-149 / B-150 — 2026-05-08):
 
 - Timestamp (NZ): 2026-05-08 22:47 NZST

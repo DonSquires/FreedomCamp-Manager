@@ -1,9 +1,9 @@
 # Module Roadmap (Operator Navigation Map)
 
 Date: 2026-05-08 (verified against src/navigation/routeManifest.ts)
-Source of truth for routes: route manifest file src/navigation/routeManifest.ts (202 route manifest entries as of Sprint 46 completion)
+Source of truth for routes: route manifest file src/navigation/routeManifest.ts (205 route manifest entries as of Sprint 47 completion)
 
- > **Last Verification**: 2026-05-08 — Role-gating and route docs reviewed through Sprint 46 (B-150). Production main includes Sprints 31-46.
+ > **Last Verification**: 2026-05-08 — Role-gating and route docs reviewed through Sprint 47 (B-153). Production main includes Sprints 31-47.
 
 ## How To Use
 
@@ -756,11 +756,30 @@ New admin routes added in Sprint 46 (B-148, B-149, B-150):
    - Role gate: admin, master
    - Viewer for restrictions; KPIs (Total/Unique Types/Unique Orgs/With Metadata); type/name/org/date filters; metadata JSON expand
 
+## Sprint 47 Route Addendum (2026-05-08)
+
+New admin routes added in Sprint 47 (B-151, B-152, B-153):
+
+1. Organization Log (B-151)
+   - Route: /organizations-log
+   - Role gate: master, grand_master
+   - Viewer for organizations; KPIs (Total/Active/Inactive/With Parent); active/type/search filters; policy + hierarchy detail expand
+
+2. Client Site Log (B-152)
+   - Route: /client-sites-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for client_sites; KPIs (Total/Active/Inactive/With Geofence); active/site_type/search filters; zone/contact/geofence detail expand
+
+3. Parking Permit Log (B-153)
+   - Route: /parking-permits-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for parking_permits; KPIs (Total/Active/Inactive/Expiring ≤30d); plate/type/state/date filters; permit validity and issuer detail expand
+
 ## Production Status Snapshot (2026-05-08)
 
 - Branch: main
 - PR state (base main): 0 open
-- Consolidation status: Sprint 31 through Sprint 46 route work is merged to production main
+- Consolidation status: Sprint 31 through Sprint 47 route work is merged to production main
 
 ## Post-Sprint-42 Realignment Phases and Phase-Gate Progression (#548)
 

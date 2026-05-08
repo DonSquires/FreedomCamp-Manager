@@ -1222,6 +1222,10 @@ export default function AdminPortal() {
                     { path: '/bob-action-proposal-events-log', label: 'Bob Action Evts', Icon: BrainCircuit, color: 'text-violet-600', bg: 'bg-violet-50 dark:bg-violet-900/20' },
                     { path: '/homeless-records-log',           label: 'Homeless Log',    Icon: Tent,         color: 'text-cyan-600',   bg: 'bg-cyan-50 dark:bg-cyan-900/20' },
                     { path: '/restrictions-log',               label: 'Restrictions',    Icon: Map,          color: 'text-emerald-600',bg: 'bg-emerald-50 dark:bg-emerald-900/20' },
+                    // Sprint 47: B-151–B-153
+                    { path: '/organizations-log',              label: 'Org Log',         Icon: Building2,    color: 'text-blue-600',   bg: 'bg-blue-50 dark:bg-blue-900/20' },
+                    { path: '/client-sites-log',               label: 'Client Sites Log',Icon: MapPin,       color: 'text-indigo-600', bg: 'bg-indigo-50 dark:bg-indigo-900/20' },
+                    { path: '/parking-permits-log',            label: 'Permits Log',     Icon: ParkingSquare,color: 'text-emerald-600',bg: 'bg-emerald-50 dark:bg-emerald-900/20' },
                   ].map(({ path, label, Icon, color, bg }) => (
                     <button key={path} onClick={() => navigate(path)} aria-label={`Open ${label}`} className={`${moduleTileClass} ${bg}`}>
                       <Icon className={`h-5 w-5 ${color}`} />

@@ -315,6 +315,8 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/zone-dispatch-rules-log', icon: Waypoints, label: 'Zone Dispatch Rule Log', roles: ['admin', 'master'] },
       // Sprint 46: B-150
       { path: '/restrictions-log', icon: Map, label: 'Restriction Log', roles: ['admin', 'master'] },
+      // Sprint 47: B-151
+      { path: '/organizations-log', icon: Building2, label: 'Organization Log', roles: ['master', 'grand_master'] },
     ],
   },
   {
@@ -388,6 +390,8 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/contractor-documents-log', icon: Briefcase, label: 'Contractor Document Log', roles: ['admin', 'admin_officer', 'master'] },
       // Sprint 45: B-146
       { path: '/radio-voice-profiles-log', icon: Mic, label: 'Radio Voice Profile Log', roles: ['admin', 'admin_officer', 'master'] },
+      // Sprint 47: B-152
+      { path: '/client-sites-log', icon: MapPin, label: 'Client Site Log', roles: ['admin', 'admin_officer', 'master'] },
       // Sprint 46: B-149
       { path: '/homeless-records-log', icon: Tent, label: 'Homeless Record Log', roles: ['admin', 'admin_officer', 'master'] },
     ],
@@ -405,6 +409,8 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/officer-welfare', icon: HeartPulse, label: 'Officer Welfare', roles: ['admin', 'admin_officer', 'master'], scopeHint: 'Officer-based' },
       { path: '/welfare-checkins', icon: HeartPulse, label: 'Welfare Check-in Log', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/parking-permits', icon: ParkingSquare, label: 'Parking Permits', roles: ['admin', 'admin_officer', 'master'] },
+      // Sprint 47: B-153
+      { path: '/parking-permits-log', icon: ParkingSquare, label: 'Parking Permit Log', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/parking-sessions-log', icon: ParkingSquare, label: 'Parking Session Log', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/parking-payments-log', icon: CreditCard, label: 'Parking Payment Log', roles: ['admin', 'admin_officer', 'master'] },
     ],
