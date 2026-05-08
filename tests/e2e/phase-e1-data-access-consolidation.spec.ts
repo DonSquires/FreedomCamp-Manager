@@ -56,7 +56,10 @@ test.describe('Phase E1 — direct page-query reduction baseline', () => {
 
   test('target pages do not bypass the gate with destructured Supabase aliases', () => {
     for (const target of PHASE_E1_TARGETS) {
-      expect(readPage(target.page).match(DESTRUCTURED_SUPABASE_FROM_PATTERN) ?? []).toHaveLength(0)
+      expect(
+        readPage(target.page).match(DESTRUCTURED_SUPABASE_FROM_PATTERN) ?? [],
+        `${target.page} should not destructure supabase.from outside the direct-query baseline gate`
+      ).toHaveLength(0)
     }
   })
 

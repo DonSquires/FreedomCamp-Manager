@@ -25,6 +25,26 @@ interface UseVehicleDialogObservationsOptions {
   enabled?: boolean
 }
 
+type ObservationPhotoColumn = 'photo_url' | 'image_url' | 'photo'
+
+let vehicleDialogPhotoColumnCache: ObservationPhotoColumn | null | undefined
+
+async function getVehicleDialogPhotoColumn() {
+  if (vehicleDialogPhotoColumnCache !== undefined) return vehicleDialogPhotoColumnCache
+
+  const candidates: ObservationPhotoColumn[] = ['photo_url', 'image_url', 'photo']
+  for (const col of candidates) {
+    const { error } = await (supabase.from('observations') as any).select(`observation_id, ${col}`).limit(1)
+    if (!error) {
+      vehicleDialogPhotoColumnCache = col
+      return vehicleDialogPhotoColumnCache
+    }
+  }
+
+  vehicleDialogPhotoColumnCache = null
+  return vehicleDialogPhotoColumnCache
+}
+
 export function useVehicleDialogObservations(options: UseVehicleDialogObservationsOptions) {
   const {
     plateNumber,
@@ -71,14 +91,7 @@ export function useVehicleDialogObservations(options: UseVehicleDialogObservatio
         orgNames = Object.fromEntries((o || []).map((row: any) => [row.id, row.name]))
       }
 
-      const photoColumn = await (async () => {
-        const candidates: Array<'photo_url' | 'image_url' | 'photo'> = ['photo_url', 'image_url', 'photo']
-        for (const col of candidates) {
-          const { error } = await (supabase.from('observations') as any).select(`observation_id, ${col}`).limit(1)
-          if (!error) return col
-        }
-        return null
-      })()
+      const photoColumn = await getVehicleDialogPhotoColumn()
 
       let photosById: Record<string, string | null> = {}
       if (photoColumn) {
