@@ -51,13 +51,16 @@ export default function RestrictionLog() {
   const { data: rows = [], isLoading, refetch } = useQuery<RestrictionRow[]>({
     queryKey: ['restrictions-log', typeFilter, nameQuery, orgQuery, dateFrom],
     queryFn: async () => {
+      const isElevatedRole = user?.role === 'master' || user?.role === 'grand_master'
+      if (!isElevatedRole && !user?.organization_id) return []
+
       let q = supabase
         .from('restrictions')
         .select('*')
         .order('updated_at', { ascending: false })
         .limit(500)
 
-      if (user?.organization_id) q = q.eq('organization_id', user.organization_id)
+      if (!isElevatedRole && user?.organization_id) q = q.eq('organization_id', user.organization_id)
       if (typeFilter !== 'all') q = q.eq('restriction_type', typeFilter)
       if (nameQuery.trim()) q = q.ilike('name', `%${nameQuery.trim()}%`)
       if (orgQuery.trim()) q = q.ilike('organization_id', `%${orgQuery.trim()}%`)

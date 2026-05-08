@@ -4,6 +4,7 @@ import { MapPin, RefreshCw, AlertCircle, Loader2 } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 
 import { supabase } from '@/lib/supabase'
+import { useAuthStore } from '@/stores/authStore'
 import { AppLayout } from '@/components/features/AppLayout'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -34,6 +35,7 @@ function fmtDate(ts: string | null) {
 }
 
 export default function ClientSiteLog() {
+  const { user } = useAuthStore()
   const [activeFilter, setActiveFilter] = useState('all')
   const [siteTypeFilter, setSiteTypeFilter] = useState('all')
   const [searchQuery, setSearchQuery] = useState('')
@@ -42,12 +44,16 @@ export default function ClientSiteLog() {
   const { data: rows = [], isLoading, refetch } = useQuery<SiteRow[]>({
     queryKey: ['client-sites-log', activeFilter, siteTypeFilter, searchQuery],
     queryFn: async () => {
+      const isElevatedRole = user?.role === 'master' || user?.role === 'grand_master'
+      if (!isElevatedRole && !user?.organization_id) return []
+
       let q = supabase
         .from('client_sites')
         .select('*')
         .order('updated_at', { ascending: false })
         .limit(500)
 
+      if (!isElevatedRole && user?.organization_id) q = q.eq('organization_id', user.organization_id)
       if (activeFilter === 'active') q = q.eq('is_active', true)
       if (activeFilter === 'inactive') q = q.eq('is_active', false)
       if (siteTypeFilter !== 'all') q = q.eq('site_type', siteTypeFilter)

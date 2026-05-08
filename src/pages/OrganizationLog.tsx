@@ -4,6 +4,7 @@ import { Building2, RefreshCw, AlertCircle, Loader2 } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 
 import { supabase } from '@/lib/supabase'
+import { useAuthStore } from '@/stores/authStore'
 import { AppLayout } from '@/components/features/AppLayout'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -34,6 +35,7 @@ function fmtDate(ts: string | null) {
 }
 
 export default function OrganizationLog() {
+  const { user } = useAuthStore()
   const [activeFilter, setActiveFilter] = useState('all')
   const [typeFilter, setTypeFilter] = useState('all')
   const [searchQuery, setSearchQuery] = useState('')
@@ -42,6 +44,9 @@ export default function OrganizationLog() {
   const { data: rows = [], isLoading, refetch } = useQuery<OrganizationRow[]>({
     queryKey: ['organizations-log', activeFilter, typeFilter, searchQuery],
     queryFn: async () => {
+      const isElevatedRole = user?.role === 'master' || user?.role === 'grand_master'
+      if (!isElevatedRole) return []
+
       let q = supabase
         .from('organizations')
         .select('*')

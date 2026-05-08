@@ -46,13 +46,16 @@ export default function HomelessRecordLog() {
   const { data: rows = [], isLoading, refetch } = useQuery<HomelessRow[]>({
     queryKey: ['homeless-records-log', statusFilter, sourceFilter, activeFilter, plateQuery, dateFrom],
     queryFn: async () => {
+      const isElevatedRole = user?.role === 'master' || user?.role === 'grand_master'
+      if (!isElevatedRole && !user?.organization_id) return []
+
       let q = supabase
         .from('homeless_records')
         .select('*')
         .order('last_reported_at', { ascending: false })
         .limit(500)
 
-      if (user?.organization_id) q = q.eq('organization_id', user.organization_id)
+      if (!isElevatedRole && user?.organization_id) q = q.eq('organization_id', user.organization_id)
       if (statusFilter !== 'all') q = q.eq('status', statusFilter)
       if (sourceFilter !== 'all') q = q.eq('source', sourceFilter)
       if (activeFilter === 'active') q = q.eq('is_active', true)

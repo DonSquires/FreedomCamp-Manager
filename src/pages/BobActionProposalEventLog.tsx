@@ -55,13 +55,16 @@ export default function BobActionProposalEventLog() {
   const { data: rows = [], isLoading, refetch } = useQuery<EventRow[]>({
     queryKey: ['bob-action-proposal-events-log', eventTypeFilter, actorQuery, proposalQuery, dateFrom],
     queryFn: async () => {
+      const isElevatedRole = user?.role === 'master' || user?.role === 'grand_master'
+      if (!isElevatedRole && !user?.organization_id) return []
+
       let q = supabase
         .from('bob_action_proposal_events')
         .select('*')
         .order('created_at', { ascending: false })
         .limit(500)
 
-      if (user?.organization_id) q = q.eq('organization_id', user.organization_id)
+      if (!isElevatedRole && user?.organization_id) q = q.eq('organization_id', user.organization_id)
       if (eventTypeFilter !== 'all') q = q.eq('event_type', eventTypeFilter)
       if (actorQuery.trim()) q = q.ilike('actor_id', `%${actorQuery.trim()}%`)
       if (proposalQuery.trim()) q = q.ilike('proposal_id', `%${proposalQuery.trim()}%`)
