@@ -806,6 +806,45 @@ Latest Session Snapshot (Sprint 52 — B-166 ClientSiteLog / B-167 ParkingPermit
 - Open blockers with owner:
   1. NONE.
 
+Latest Session Snapshot (Sprint 64 — B-210–B-222 — 2026-05-09):
+
+- Timestamp (NZ): 2026-05-09 11:31 NZST
+- Current branch: copilot/continue-realignment-project-yet-again
+- Scope completed:
+  - Added Sprint 64 manifest entries (B-210–B-222): `/alarm-events`, `/fixed-cameras`, `/patrol-route-optimiser`, `/patrol-navigation`, `/plate-finder`, `/evidence-packages`, `/cohort-analysis`, `/occupancy-analytics`, `/open-shifts-manager`, `/dynamic-pricing`, `/revenue-forecasting`, `/service-agreements`, `/poi-voi-dashboard`.
+  - Used existing `src/App.tsx` role gates and `src/components/features/AppLayout.tsx` nav surfaces as source of truth; no route component changes were required.
+  - Updated `docs/MODULE_ROADMAP.md` with Sprint 64 addendum and route-count/verification snapshot.
+
+- Sprint 64 checklist:
+  | Item | Status | Evidence |
+  |---|---|---|
+  | B-210 `/alarm-events` manifest entry | ✅ DONE | `src/navigation/routeManifest.ts` |
+  | B-211 `/fixed-cameras` manifest entry | ✅ DONE | `src/navigation/routeManifest.ts` |
+  | B-212 `/patrol-route-optimiser` manifest entry | ✅ DONE | `src/navigation/routeManifest.ts` |
+  | B-213 `/patrol-navigation` manifest entry | ✅ DONE | `src/navigation/routeManifest.ts` |
+  | B-214 `/plate-finder` manifest entry | ✅ DONE | `src/navigation/routeManifest.ts` |
+  | B-215 `/evidence-packages` manifest entry | ✅ DONE | `src/navigation/routeManifest.ts` |
+  | B-216 `/cohort-analysis` manifest entry | ✅ DONE | `src/navigation/routeManifest.ts` |
+  | B-217 `/occupancy-analytics` manifest entry | ✅ DONE | `src/navigation/routeManifest.ts` |
+  | B-218 `/open-shifts-manager` manifest entry | ✅ DONE | `src/navigation/routeManifest.ts` |
+  | B-219 `/dynamic-pricing` manifest entry | ✅ DONE | `src/navigation/routeManifest.ts` |
+  | B-220 `/revenue-forecasting` manifest entry | ✅ DONE | `src/navigation/routeManifest.ts` |
+  | B-221 `/service-agreements` manifest entry | ✅ DONE | `src/navigation/routeManifest.ts` |
+  | B-222 `/poi-voi-dashboard` manifest entry | ✅ DONE | `src/navigation/routeManifest.ts` |
+  | Route manifest (262 entries) | ✅ DONE | `src/navigation/routeManifest.ts` |
+  | MODULE_ROADMAP Sprint 64 addendum | ✅ DONE | `docs/MODULE_ROADMAP.md` |
+
+- Validation evidence:
+  | Command | Result | Notes |
+  |---|---|---|
+  | `bun run lint` | PASS | ESLint completed without errors |
+  | `bun run build` | PASS | TypeScript + Vite build succeeded |
+  | `bun run test:nav-parity` | PASS | navigation registry parity passed |
+  | `bun run build:budget` | PASS | under 8300 kB |
+
+- Open blockers with owner:
+  1. NONE.
+
 Latest Session Snapshot (Sprint 63 — B-201–B-209 — 2026-05-09):
 
 - Timestamp (NZ): 2026-05-09 11:18 NZST

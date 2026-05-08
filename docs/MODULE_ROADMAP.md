@@ -1,9 +1,9 @@
 # Module Roadmap (Operator Navigation Map)
 
 Date: 2026-05-08 (verified against src/navigation/routeManifest.ts)
-Source of truth for routes: route manifest file src/navigation/routeManifest.ts (249 route manifest entries as of Sprint 63 completion)
+Source of truth for routes: route manifest file src/navigation/routeManifest.ts (262 route manifest entries as of Sprint 64 completion)
 
- > **Last Verification**: 2026-05-08 — Role-gating and route docs reviewed through Sprint 63 (B-209). Production main includes Sprints 31-63.
+ > **Last Verification**: 2026-05-08 — Role-gating and route docs reviewed through Sprint 64 (B-222). Production main includes Sprints 31-64.
 
 ## How To Use
 
@@ -1114,11 +1114,80 @@ New manifest entries added in Sprint 63 (B-201 through B-209):
    - Role gate: admin, admin_officer, master
    - navGroup: Operations
 
+## Sprint 64 Route Addendum (2026-05-08)
+
+New manifest entries added in Sprint 64 (B-210 through B-222):
+
+1. Alarm Events (B-210)
+   - Route: /alarm-events
+   - Role gate: admin, admin_officer, master
+   - navGroup: Operations
+
+2. Fixed Cameras (B-211)
+   - Route: /fixed-cameras
+   - Role gate: admin, admin_officer, master
+   - navGroup: Operations
+
+3. Patrol Route Optimiser (B-212)
+   - Route: /patrol-route-optimiser
+   - Role gate: admin, admin_officer, master, officer
+   - navGroup: Operations
+
+4. Patrol Navigation (B-213)
+   - Route: /patrol-navigation
+   - Role gate: admin, admin_officer, master, officer
+   - navGroup: Operations
+
+5. Plate Finder (B-214)
+   - Route: /plate-finder
+   - Role gate: admin, admin_officer, master, officer
+   - navGroup: Management
+
+6. Evidence Packages (B-215)
+   - Route: /evidence-packages
+   - Role gate: admin, admin_officer, master, officer
+   - navGroup: Records
+
+7. Cohort Analysis (B-216)
+   - Route: /cohort-analysis
+   - Role gate: admin, admin_officer, master
+   - navGroup: Records
+
+8. Occupancy Analytics (B-217)
+   - Route: /occupancy-analytics
+   - Role gate: admin, admin_officer, master
+   - navGroup: Records
+
+9. Open Shift Manager (B-218)
+   - Route: /open-shifts-manager
+   - Role gate: admin, admin_officer, master
+   - navGroup: Roster & Workforce
+
+10. Dynamic Pricing (B-219)
+   - Route: /dynamic-pricing
+   - Role gate: admin, admin_officer, master
+   - navGroup: Management
+
+11. Revenue Forecasting (B-220)
+   - Route: /revenue-forecasting
+   - Role gate: admin, admin_officer, master
+   - navGroup: Management
+
+12. Service Agreements (B-221)
+   - Route: /service-agreements
+   - Role gate: admin, admin_officer, master, grand_master
+   - navGroup: Roster & Workforce
+
+13. POI/VOI Watch-list (B-222)
+   - Route: /poi-voi-dashboard
+   - Role gate: admin, admin_officer, master, grand_master
+   - navGroup: Roster & Workforce
+
 ## Production Status Snapshot (2026-05-08)
 
 - Branch: main
 - PR state (base main): 0 open
-- Consolidation status: Sprint 31 through Sprint 63 route work is merged to production main
+- Consolidation status: Sprint 31 through Sprint 64 route work is merged to production main
 
 ## Post-Sprint-42 Realignment Phases and Phase-Gate Progression (#548)
 
