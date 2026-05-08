@@ -1,9 +1,9 @@
 # Module Roadmap (Operator Navigation Map)
 
 Date: 2026-05-08 (verified against src/navigation/routeManifest.ts)
-Source of truth for routes: route manifest file src/navigation/routeManifest.ts (214 route manifest entries as of Sprint 50 completion)
+Source of truth for routes: route manifest file src/navigation/routeManifest.ts (217 route manifest entries as of Sprint 51 completion)
 
- > **Last Verification**: 2026-05-08 — Role-gating and route docs reviewed through Sprint 50 (B-162). Production main includes Sprints 31-49.
+ > **Last Verification**: 2026-05-08 — Role-gating and route docs reviewed through Sprint 51 (B-165). Production main includes Sprints 31-49.
 
 ## How To Use
 
@@ -832,11 +832,30 @@ New admin routes added in Sprint 50 (B-160, B-161, B-162):
    - Role gate: admin, admin_officer, master
    - Viewer for observations; KPIs (Total/Breaches/Compliant/With GPS); breach/compliance/plate/date filters; GPS, breach type, consecutive nights, incident, homeless claim detail expand
 
+## Sprint 51 Route Addendum (2026-05-08)
+
+New admin routes added in Sprint 51 (B-163, B-164, B-165):
+
+1. Canonical SCV Log (B-163)
+   - Route: /canonical-scv-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for canonical_scv; KPIs (Total/Valid/Expired/Self-Contained); certificate status/self-contained/plate/date filters; VIN, max occupants, source, logo URL detail expand
+
+2. Officer Availability Log (B-164)
+   - Route: /officer-availability-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for officer_availability; KPIs (Total/Available/Unavailable/Unique Officers); availability/day-of-week/officer/date filters; specific date, unavailability reason, notes detail expand
+
+3. Canonical Homeless Log (B-165)
+   - Route: /canonical-homeless-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for canonical_homeless; KPIs (Total/Confirmed/Pending/Unique Sources); status/source/plate/date filters; confirmed by/at, notes detail expand
+
 ## Production Status Snapshot (2026-05-08)
 
 - Branch: main
 - PR state (base main): 0 open
-- Consolidation status: Sprint 31 through Sprint 49 route work is merged to production main; Sprint 50 in progress
+- Consolidation status: Sprint 31 through Sprint 49 route work is merged to production main; Sprints 50–51 in progress
 
 ## Post-Sprint-42 Realignment Phases and Phase-Gate Progression (#548)
 

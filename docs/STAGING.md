@@ -367,6 +367,36 @@ Latest Session Snapshot (Sprint 50 — B-160 / B-161 / B-162 — 2026-05-08):
   1. Continue with Sprint 51 (B-163–B-165).
   2. Keep E1–E4 gate artifacts green alongside Sprint 50 route additions.
 
+Latest Session Snapshot (Sprint 51 — B-163 / B-164 / B-165 — 2026-05-08):
+
+- Timestamp (NZ): 2026-05-09 02:48 NZST
+- Current branch: copilot/continue-realignment-project-one-more-time
+- Scope completed:
+  - Continued Sprint catalog after Sprint 50 by adding Sprint 51 route entries B-163, B-164, B-165.
+  - Created `src/pages/CanonicalScvLog.tsx` (B-163) — log viewer for `canonical_scv`; KPIs (Total/Valid/Expired/Self-Contained); certificate status/self-contained/plate/date filters; VIN, max occupants, source, logo URL detail expand.
+  - Created `src/pages/OfficerAvailabilityLog.tsx` (B-164) — log viewer for `officer_availability`; KPIs (Total/Available/Unavailable/Unique Officers); availability/day-of-week/officer/date filters; specific date, unavailability reason, notes detail expand.
+  - Created `src/pages/CanonicalHomelessLog.tsx` (B-165) — log viewer for `canonical_homeless`; KPIs (Total/Confirmed/Pending/Unique Sources); status/source/plate/date filters; confirmed by/at, notes detail expand.
+  - Updated `src/App.tsx` with lazy imports and protected routes for all three pages.
+  - Updated `src/navigation/routeManifest.ts` with Sprint 51 route entries (217 total).
+  - Updated `src/components/features/AppLayout.tsx` — Management group gains B-164; Records group gains B-163/B-165; added `CalendarCheck` icon import.
+  - Updated `src/pages/AdminPortal.tsx` — Reports & Analytics tile section gains B-163/B-164/B-165; added `CalendarCheck` icon import.
+  - Updated `docs/MODULE_ROADMAP.md` — Sprint 51 addendum + production status snapshot.
+
+- Sprint 51 checkpoint:
+  | Item | Status | Artifact |
+  |---|---|---|
+  | B-163 CanonicalScvLog | ✅ DONE | `src/pages/CanonicalScvLog.tsx`, route `/canonical-scv-log` |
+  | B-164 OfficerAvailabilityLog | ✅ DONE | `src/pages/OfficerAvailabilityLog.tsx`, route `/officer-availability-log` |
+  | B-165 CanonicalHomelessLog | ✅ DONE | `src/pages/CanonicalHomelessLog.tsx`, route `/canonical-homeless-log` |
+  | routeManifest.ts updated | ✅ DONE | 3 entries added (217 total) |
+  | AppLayout.tsx updated | ✅ DONE | Management (B-164) + Records (B-163/B-165) |
+  | AdminPortal.tsx updated | ✅ DONE | 3 tiles in Reports & Analytics section |
+  | MODULE_ROADMAP.md updated | ✅ DONE | Sprint 51 addendum |
+
+- Next session:
+  1. Continue with Sprint 52 (B-166–B-168).
+  2. Keep E1–E4 gate artifacts green alongside Sprint 51 route additions.
+
 Latest Session Snapshot (Sprint 49 — B-157 / B-158 / B-159 — 2026-05-08):
 
 - Timestamp (NZ): 2026-05-08 23:35 NZST

@@ -33,6 +33,7 @@ import {
   BarChart3,
   Building2,
   CalendarCheck2,
+  CalendarCheck,
   CalendarDays,
   Camera,
   Car,
@@ -1240,6 +1241,10 @@ export default function AdminPortal() {
                     { path: '/dispatch-jobs-log',              label: 'Dispatch Jobs',   Icon: Truck,        color: 'text-blue-700',   bg: 'bg-blue-50 dark:bg-blue-900/20' },
                     { path: '/enforcement-actions-log',        label: 'Enforcement Log', Icon: ShieldCheck,  color: 'text-green-700',  bg: 'bg-green-50 dark:bg-green-900/20' },
                     { path: '/observations-log',               label: 'Observation Log', Icon: Eye,          color: 'text-violet-700', bg: 'bg-violet-50 dark:bg-violet-900/20' },
+                    // Sprint 51: B-163–B-165
+                    { path: '/canonical-scv-log',              label: 'Canonical SCV',   Icon: Car,          color: 'text-sky-600',    bg: 'bg-sky-50 dark:bg-sky-900/20' },
+                    { path: '/officer-availability-log',       label: 'Officer Avail.',  Icon: CalendarCheck,color: 'text-teal-600',   bg: 'bg-teal-50 dark:bg-teal-900/20' },
+                    { path: '/canonical-homeless-log',         label: 'Canonical HM',    Icon: Tent,         color: 'text-amber-600',  bg: 'bg-amber-50 dark:bg-amber-900/20' },
                   ].map(({ path, label, Icon, color, bg }) => (
                     <button key={path} onClick={() => navigate(path)} aria-label={`Open ${label}`} className={`${moduleTileClass} ${bg}`}>
                       <Icon className={`h-5 w-5 ${color}`} />

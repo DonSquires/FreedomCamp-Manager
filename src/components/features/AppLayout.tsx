@@ -91,6 +91,7 @@ import {
   CalendarRange,
   GraduationCap,
   CalendarCheck2,
+  CalendarCheck,
   DollarSign,
   ClipboardCopy,
   Code2,
@@ -328,6 +329,8 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/restrictions-log', icon: Map, label: 'Restriction Log', roles: ['admin', 'master'] },
       // Sprint 47: B-151
       { path: '/organizations-log', icon: Building2, label: 'Organization Log', roles: ['master', 'grand_master'] },
+      // Sprint 51: B-164
+      { path: '/officer-availability-log', icon: CalendarCheck, label: 'Officer Availability Log', roles: ['admin', 'admin_officer', 'master'] },
     ],
   },
   {
@@ -413,6 +416,10 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/site-risk-assessments-log', icon: ShieldAlert, label: 'Site Risk Assessment Log', roles: ['admin', 'admin_officer', 'master'] },
       // Sprint 50: B-162
       { path: '/observations-log', icon: Eye, label: 'Observation Log', roles: ['admin', 'admin_officer', 'master'] },
+      // Sprint 51: B-163
+      { path: '/canonical-scv-log', icon: Car, label: 'Canonical SCV Log', roles: ['admin', 'admin_officer', 'master'] },
+      // Sprint 51: B-165
+      { path: '/canonical-homeless-log', icon: Tent, label: 'Canonical Homeless Log', roles: ['admin', 'admin_officer', 'master'] },
     ],
   },
   {
