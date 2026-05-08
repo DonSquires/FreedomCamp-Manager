@@ -1210,6 +1210,7 @@ export default function AdminPortal() {
                     // Sprint 43: B-139–B-141
                     { path: '/bob-proposals-log',       label: 'Bob Proposals',    Icon: BrainCircuit,  color: 'text-violet-600', bg: 'bg-violet-50 dark:bg-violet-900/20' },
                     { path: '/bob-proposal-events-log', label: 'Bob Prop. Events', Icon: BrainCircuit,  color: 'text-indigo-600', bg: 'bg-indigo-50 dark:bg-indigo-900/20' },
+                    { path: '/admin/video-generation',  label: 'Video Generation', Icon: BrainCircuit,  color: 'text-fuchsia-600',bg: 'bg-fuchsia-50 dark:bg-fuchsia-900/20' },
                     { path: '/import-batches-log',      label: 'Import Batches',   Icon: Upload,        color: 'text-emerald-600',bg: 'bg-emerald-50 dark:bg-emerald-900/20' },
                     // Sprint 44: B-142–B-144
                     { path: '/admin-recalculation-log',  label: 'Recalc. Runs',     Icon: RotateCcw,     color: 'text-blue-600',   bg: 'bg-blue-50 dark:bg-blue-900/20' },

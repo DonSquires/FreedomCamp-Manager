@@ -1587,4 +1587,6 @@ export const routeManifest: RouteManifestEntry[] = [
   { routeId: 'admin.face-records-log', path: '/face-records-log', shell: 'admin', rolesAllowed: ['admin', 'admin_officer', 'master'], navGroup: 'Records', navLabel: 'Face Record Log', visibilityMode: 'production', featureFlag: null, mobilePriority: null, preloadPolicy: 'none' },
   { routeId: 'admin.infringement-notices-log', path: '/infringement-notices-log', shell: 'admin', rolesAllowed: ['admin', 'admin_officer', 'master'], navGroup: 'Operations', navLabel: 'Infringement Notice Log', visibilityMode: 'production', featureFlag: null, mobilePriority: null, preloadPolicy: 'none' },
   { routeId: 'admin.site-risk-assessments-log', path: '/site-risk-assessments-log', shell: 'admin', rolesAllowed: ['admin', 'admin_officer', 'master'], navGroup: 'Records', navLabel: 'Site Risk Assessment Log', visibilityMode: 'production', featureFlag: null, mobilePriority: null, preloadPolicy: 'none' },
+  // --- Sprint 50: B-160 ---
+  { routeId: 'admin.video-generation-suite', path: '/admin/video-generation', shell: 'admin', rolesAllowed: ['admin', 'admin_officer', 'master'], navGroup: 'Bob', navLabel: 'Video Generation Suite', visibilityMode: 'production', featureFlag: null, mobilePriority: null, preloadPolicy: 'none' },
 ]

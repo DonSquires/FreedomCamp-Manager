@@ -198,6 +198,7 @@ const MessagingPage = lazy(() => import('@/modules/messaging'))
 const IntelApprovalQueue = lazy(() => import('@/pages/IntelApprovalQueue'))
 const BobIntakeQueue = lazy(() => import('@/pages/BobIntakeQueue'))
 const BobAssistantStudio = lazy(() => import('@/pages/BobAssistantStudio'))
+const BriefingVideoSuite = lazy(() => import('@/pages/BriefingVideoSuite'))
 const BobUIReview = lazy(() => import('@/pages/BobUIReview'))
 const OpsLivePlanReviewQueue = lazy(() => import('@/pages/OpsLivePlanReviewQueue'))
   const BobStudio = lazy(() => import('@/pages/BobStudio'))
@@ -1773,6 +1774,17 @@ export default function App() {
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'officer', 'grand_master']}>
                   <BobAssistantStudio />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/admin/video-generation"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <BriefingVideoSuite />
                 </RoleRoute>
               </ProtectedRoute>
             }
