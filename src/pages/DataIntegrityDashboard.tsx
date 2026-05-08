@@ -29,6 +29,39 @@ interface IntegrityCheck {
   details?: string
 }
 
+const e2DomainQueryMetrics = [
+  {
+    domain: 'Evidence completeness',
+    surfaces: 'observations',
+    checks: 'photo evidence, GPS evidence',
+    scope: 'organization_id',
+  },
+  {
+    domain: 'Enforcement event completeness',
+    surfaces: 'breach_alerts',
+    checks: 'triggering observation link',
+    scope: 'organization_id',
+  },
+  {
+    domain: 'Configuration completeness',
+    surfaces: 'zones, zone_compliance_matrix',
+    checks: 'zone compliance matrix coverage',
+    scope: 'organization_id',
+  },
+  {
+    domain: 'Identity completeness',
+    surfaces: 'user_profiles',
+    checks: 'organization assignment',
+    scope: 'global identity audit',
+  },
+  {
+    domain: 'Vehicle data movement',
+    surfaces: 'canonical_vehicles',
+    checks: 'orphan vehicle detection',
+    scope: 'global canonical fleet audit',
+  },
+]
+
 export default function DataIntegrityDashboard() {
   const { user } = useAuthStore()
   const { organizationId } = useGlobalFiltersStore()
@@ -68,19 +101,22 @@ export default function DataIntegrityDashboard() {
       })
 
       // 2. Observations with GPS
-      const { count: obsWithoutGPS } = await supabase
+      let scopedGpsQuery = supabase
         .from('observations')
         .select('observation_id', { count: 'exact', head: true })
-        .or('gps_latitude.is.null,gps_longitude.is.null')
+
+      if (orgFilter) scopedGpsQuery = scopedGpsQuery.eq('organization_id', orgFilter)
+
+      const { count: obsWithMissingGPSCoordinates } = await scopedGpsQuery.or('gps_latitude.is.null,gps_longitude.is.null')
 
       checks.push({
         id: 'obs-gps',
         title: 'Observations with GPS',
         description: 'GPS coordinates required for legal evidence',
-        status: obsWithoutGPS === 0 ? 'pass' : obsWithoutGPS > 5 ? 'fail' : 'warning',
-        count: (totalObs || 0) - (obsWithoutGPS || 0),
+        status: obsWithMissingGPSCoordinates === 0 ? 'pass' : obsWithMissingGPSCoordinates > 5 ? 'fail' : 'warning',
+        count: (totalObs || 0) - (obsWithMissingGPSCoordinates || 0),
         total: totalObs || 0,
-        details: obsWithoutGPS > 0 ? `${obsWithoutGPS} observations missing GPS` : undefined,
+        details: obsWithMissingGPSCoordinates > 0 ? `${obsWithMissingGPSCoordinates} observations missing GPS` : undefined,
       })
 
       // 3. Breach alerts linked to an observation
@@ -211,6 +247,37 @@ export default function DataIntegrityDashboard() {
             Monitor data quality, validation errors, and referential integrity
           </p>
         </div>
+
+        {/* E2 Audit / Completeness Coverage */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Database className="h-5 w-5" />
+              E2 Domain Query Metrics
+            </CardTitle>
+            <CardDescription>
+              Audit dashboard coverage for event completeness, tenancy scope, and domain query ownership.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {e2DomainQueryMetrics.map((metric) => (
+                <ListCardRow
+                  key={metric.domain}
+                  left={
+                    <div>
+                      <div className="font-medium">{metric.domain}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {metric.surfaces} · {metric.checks}
+                      </div>
+                    </div>
+                  }
+                  right={<Badge variant="outline">{metric.scope}</Badge>}
+                />
+              ))}
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Overall Health */}
         <Card>

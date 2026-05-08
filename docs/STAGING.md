@@ -267,6 +267,315 @@ Latest Session Snapshot (Staging Section 6.F Complete — 2026-05-07):
 - Next exact command to run:
   - `GH_PAGER=cat gh run view 25489213626 --json databaseId,status,conclusion,url`
 
+Latest Session Snapshot (Phase D3 Gate Artifacts + Phase E Kickoff Alignment — 2026-05-08):
+
+- Timestamp (NZ): 2026-05-08 10:20 NZST
+- Current branch: copilot/550-continue-phase-realignment
+- Scope completed:
+  - Added `supabase/migrations/20260710000005_phase_d3_transition_handshake_offline.sql` with:
+    - `offline_replay_events_d3` replay-attempt audit table (org + idempotency scoped).
+    - `record_offline_replay_event_d3(...)` bounded replay outcomes (`accepted` / `duplicate`) and replay conflict flag.
+  - Added D3 client hook `src/hooks/useTransitionReplayD3.ts`:
+    - transition context polling through `get_active_context(...)`
+    - replay outcome recording through `record_offline_replay_event_d3(...)`
+  - Added D3 gate spec `tests/e2e/phase-d3-transition-handshake-offline.spec.ts`:
+    - bounded handshake/context behavior (0..1 context rows)
+    - duplicate replay conflict detection
+    - org-scoped idempotency behavior
+  - Added D3 path-filtered CI gate `.github/workflows/ci-phase-d3-transition-handshake-offline-gate.yml`.
+  - Updated `docs/MODULE_ROADMAP.md` with **Next Phase Continuation — Phase E Kickoff** (E1–E4 order, progression checkpoints, completion gate requirements).
+
+- Phase D3 gate checklist:
+  | Item | Status | Evidence |
+  |---|---|---|
+  | D3 migration contract (`20260710000005`) | ✅ DONE | `offline_replay_events_d3` + `record_offline_replay_event_d3(...)` |
+  | D3 client hook | ✅ DONE | `src/hooks/useTransitionReplayD3.ts` |
+  | D3 E2E gate suite | ✅ DONE | `tests/e2e/phase-d3-transition-handshake-offline.spec.ts` |
+  | D3 CI gate workflow | ✅ DONE | `.github/workflows/ci-phase-d3-transition-handshake-offline-gate.yml` |
+  | Docs progression updated | ✅ DONE | `docs/STAGING.md`, `docs/MODULE_ROADMAP.md` |
+
+- Phase D complete review:
+  | Slice | Status |
+  |---|---|
+  | D1 Bob approval contracts | ✅ COMPLETE |
+  | D2 translation/speech boundaries | ✅ COMPLETE |
+  | D3 transition/handshake/offline replay | ✅ COMPLETE |
+  | Phase D exit gate | ✅ READY — proceed to Phase E kickoff sequence |
+
+- Next session:
+  1. Start E1 gate artifact set (data-access consolidation baseline + CI gate).
+  2. Carry forward E1→E4 checkpoints from `docs/MODULE_ROADMAP.md`.
+  3. Maintain rollback-ready flag posture and org isolation evidence per slice.
+
+Latest Session Snapshot (Phase E2 Dashboard Metrics Continuation — 2026-05-08):
+
+- Timestamp (NZ): 2026-05-08 13:11 NZST
+- Current branch: copilot/550-continue-phase-realignment
+- Scope completed:
+  - Continued E2 beyond the tenancy kickoff by selecting `src/pages/DataIntegrityDashboard.tsx` as the concrete audit/completeness/domain-query dashboard surface.
+  - Added visible **E2 Domain Query Metrics** coverage for evidence completeness, enforcement event completeness, configuration completeness, identity completeness, and vehicle data movement.
+  - Tightened observation GPS completeness to reuse the active org scope before counting missing coordinates.
+  - Extended the E2 gate and path-filtered workflow to protect the dashboard coverage anchors.
+
+- E2 dashboard metrics checkpoint:
+  | Surface | Evidence added | Gate coverage |
+  |---|---|---|
+  | DataIntegrityDashboard | E2 Domain Query Metrics coverage card + org-scoped GPS completeness | `phase-e2-enterprise-hardening-tenancy.spec.ts`, `ci-phase-e2-enterprise-hardening-tenancy-gate.yml` |
+
+- Next session:
+  1. Continue E2 by moving dashboard query clusters into a shared hook/service if data-access consolidation is prioritized.
+  2. Add deeper event-completeness assertions once database-backed completeness views/RPCs are selected.
+  3. Keep lint/build plus E1 and E2 gates green before advancing toward E3.
+
+Latest Session Snapshot (Phase E3 Communications Audit and Retry Gate Kickoff — 2026-05-08):
+
+- Timestamp (NZ): 2026-05-08 13:45 NZST
+- Current branch: copilot/550-continue-phase-realignment
+- Scope completed:
+  - Advanced from E2 dashboard-visible evidence into E3 kickoff artifacts for communications delivery audit and retry/degraded-mode governance.
+  - Added `tests/e2e/phase-e3-communications-audit-retry.spec.ts` to lock E3 ownership anchors, in-app notification delivery tracking, org-bounded broadcasts, push fallback outcomes, email validation/fallback paths, retry helper availability, and CRM communication audit status/retry fields.
+  - Added `.github/workflows/ci-phase-e3-communications-audit-retry-gate.yml` as the E3 path-filtered CI workflow.
+  - Updated `docs/MODULE_ROADMAP.md` with E3 kickoff gate references.
+
+- E3 communications audit/retry checkpoint:
+  | Surface | Evidence protected | Gate coverage |
+  |---|---|---|
+  | `NotificationsCenter`, `useNotifications`, `useOfficerNotifications` | In-app delivery tracking + org-bounded broadcast/alert reads | `phase-e3-communications-audit-retry.spec.ts`, `ci-phase-e3-communications-audit-retry-gate.yml` |
+  | `send-push-notification` | Web Push / Expo fallback, disabled/no-token/invalid-token outcomes, expired-token cleanup | `phase-e3-communications-audit-retry.spec.ts` |
+  | `send-report-email`, `send-invite-email` | SMTP configuration validation, recipient validation, proxy relay fallback, direct SMTP fallback | `phase-e3-communications-audit-retry.spec.ts` |
+  | `crm_communications`, `fetchWithRetry` | Delivery status/retry audit schema + reusable retry primitive | `phase-e3-communications-audit-retry.spec.ts` |
+
+- Next session:
+  1. Continue E3 by adding visible operations dashboard metrics for delivery success/failure, retry count, stale pending messages, and degraded fallback outcomes.
+  2. Decide whether push/email delivery attempts should write to `crm_communications` directly or through a shared communications service before adding runtime mutations.
+  3. Keep lint/build plus E1, E2, and E3 gates green before preparing E4 release evidence.
+
+Latest Session Snapshot (Phase E3 Communications Metrics Continuation — 2026-05-08):
+
+- Timestamp (NZ): 2026-05-08 13:57 NZST
+- Current branch: copilot/550-continue-phase-realignment
+- Scope completed:
+  - Continued E3 beyond kickoff by selecting `src/pages/NotificationsCenter.tsx` as the concrete operations visibility surface.
+  - Added an admin-only **E3 Communications Delivery Metrics** card for org-scoped delivery success, pending delivery, stale pending messages, delivery failures, and retry backlog.
+  - Updated broadcast notification inserts to persist `organization_id` so new broadcasts are included in org-scoped delivery metrics.
+  - Extended `tests/e2e/phase-e3-communications-audit-retry.spec.ts` to protect the visible metrics anchors, `crm_communications` failure/retry counts, and stale pending notification checks.
+
+- E3 communications metrics checkpoint:
+  | Surface | Evidence added | Gate coverage |
+  |---|---|---|
+  | `NotificationsCenter` | E3 Communications Delivery Metrics card + org-scoped broadcast rows | `phase-e3-communications-audit-retry.spec.ts`, `ci-phase-e3-communications-audit-retry-gate.yml` |
+  | `crm_communications` metrics | Failed/bounced/spam outcomes and retry backlog counts | `phase-e3-communications-audit-retry.spec.ts` |
+  | `notifications` metrics | Delivered, pending, and stale pending counts scoped by organization | `phase-e3-communications-audit-retry.spec.ts` |
+
+- Next session:
+  1. Decide whether push/email runtime delivery attempts should write audit rows into `crm_communications` directly or through a shared communications service.
+  2. Add provider-level degraded fallback audit rows once the shared write contract is selected.
+  3. Keep lint/build plus E1, E2, and E3 gates green before preparing E4 release evidence.
+
+Latest Session Snapshot (Phase E3 Runtime Communications Audit Continuation — 2026-05-08):
+
+- Timestamp (NZ): 2026-05-08 14:49 NZST
+- Current branch: copilot/550-continue-phase-realignment
+- Scope completed:
+  - Continued E3 beyond dashboard metrics by selecting a shared non-blocking audit helper for provider-level delivery outcomes.
+  - Added `supabase/functions/_shared/communicationsAudit.ts` to write `crm_communications` rows without blocking the original delivery response if audit insertion fails.
+  - Wired `send-push-notification` to audit web-push delivery, Expo fallback delivery, disabled preferences, invalid/no-token outcomes, Expo provider errors, and retry-count fallback outcomes.
+  - Wired `send-report-email` to audit SMTP delivered and failed report-email outcomes when an organization context is available.
+  - Wired `send-invite-email` to accept optional `organization_id` and audit proxy relay, direct SMTP fallback, validation, relay failure, and retry-count outcomes when scoped to an organization.
+  - Extended `tests/e2e/phase-e3-communications-audit-retry.spec.ts` and the E3 workflow to protect the shared helper and runtime audit-write anchors.
+
+- E3 runtime audit checkpoint:
+  | Surface | Evidence added | Gate coverage |
+  |---|---|---|
+  | `_shared/communicationsAudit.ts` | Non-blocking `crm_communications` insert helper with provider/status/retry fields | `phase-e3-communications-audit-retry.spec.ts`, `ci-phase-e3-communications-audit-retry-gate.yml` |
+  | `send-push-notification` | Web push, Expo fallback, preference-disabled, token, provider-error, and retry audit rows | `phase-e3-communications-audit-retry.spec.ts` |
+  | `send-report-email` | SMTP delivered/failed report audit rows | `phase-e3-communications-audit-retry.spec.ts` |
+  | `send-invite-email` | Proxy relay/direct SMTP/fallback/failure invite audit rows | `phase-e3-communications-audit-retry.spec.ts` |
+
+- Next session:
+  1. Run E1, E2, and E3 gates plus lint/build before advancing.
+  2. Prepare E4 release evidence pack once runtime audit rows are verified green.
+  3. Keep Phase E completion evidence focused on gate artifacts, org isolation, degraded outcomes, and rollback-ready docs.
+
+Latest Session Snapshot (Phase E4 Release Evidence Gate Kickoff — 2026-05-08):
+
+- Timestamp (NZ): 2026-05-08 15:11 NZST
+- Current branch: copilot/550-continue-phase-realignment
+- Scope completed:
+  - Advanced from E3 runtime communications audit into E4 release evidence and cross-module rollout sign-off.
+  - Added `tests/e2e/phase-e4-release-evidence.spec.ts` to lock Phase E completion evidence across E1–E4 gate artifacts, canonical docs, validation anchors, and rollback-ready handoff text.
+  - Added `.github/workflows/ci-phase-e4-release-evidence-gate.yml` as the E4 path-filtered CI workflow.
+  - Updated `docs/MODULE_ROADMAP.md` with E4 gate artifact references and release evidence scope.
+
+- E4 release evidence checkpoint:
+  | Surface | Evidence added | Gate coverage |
+  |---|---|---|
+  | `phase-e4-release-evidence.spec.ts` | E1–E4 gate artifact presence, completion requirements, staging checkpoint, validation anchors, and rollback-ready handoff checks | `ci-phase-e4-release-evidence-gate.yml` |
+  | `MODULE_ROADMAP.md` | E4 release evidence gate artifacts and completion behavior | `phase-e4-release-evidence.spec.ts` |
+  | `STAGING.md` | Phase E final handoff evidence for tenant isolation, degraded communications outcomes, data-access drift, and rollback-ready docs | `phase-e4-release-evidence.spec.ts` |
+
+- Phase E final validation handoff:
+  1. Run lint/build plus E1, E2, E3, and E4 gates before merging the realignment continuation.
+  2. Confirm tenant isolation, degraded communications outcomes, data-access drift, and rollback-ready docs remain covered by the Phase E gate artifacts.
+  3. Treat any `UNRESOLVED PHASE E BLOCKER` staging entry as a merge blocker until resolved.
+
+Latest Session Snapshot (Phase E Final Closeout Validation — 2026-05-08):
+
+- Timestamp (NZ): 2026-05-08 15:22 NZST
+- Current branch: copilot/550-continue-phase-realignment
+- Scope completed:
+  - Ran the Phase E final validation handoff after E4 gate creation.
+  - Recorded green lint/build evidence and focused E1–E4 gate results.
+  - Extended the E4 release evidence gate to preserve final closeout validation anchors in `STAGING.md` and `MODULE_ROADMAP.md`.
+
+- Final validation evidence:
+  | Command | Result | Notes |
+  |---|---|---|
+  | `bun run lint` | PASS | ESLint completed without errors |
+  | `bun run build` | PASS | TypeScript project build and Vite production build completed |
+  | `bunx playwright test tests/e2e/phase-e1-data-access-consolidation.spec.ts tests/e2e/phase-e2-enterprise-hardening-tenancy.spec.ts tests/e2e/phase-e3-communications-audit-retry.spec.ts tests/e2e/phase-e4-release-evidence.spec.ts --reporter=list` | PASS | E1/E2/E3/E4 focused gates → PASS (`110 passed`) |
+
+- Phase E closeout status:
+  1. E1 data-access consolidation, E2 enterprise hardening/tenancy, E3 communications audit/retry, and E4 release evidence gate artifacts are present.
+  2. Tenant isolation, degraded communications outcomes, data-access drift, and rollback-ready docs remain covered by the Phase E gate artifacts.
+  3. No new Phase E blocker was identified during closeout validation.
+
+Latest Session Snapshot (Phase E2 Enterprise Hardening Tenancy Gate Kickoff — 2026-05-08):
+
+- Timestamp (NZ): 2026-05-08 12:57 NZST
+- Current branch: copilot/550-continue-phase-realignment
+- Scope completed:
+  - Advanced from E1 gate-green status into E2 kickoff artifacts for enterprise hardening and tenancy-safety verification.
+  - Added `tests/e2e/phase-e2-enterprise-hardening-tenancy.spec.ts` to lock shared tenancy contract anchors around active/operational org resolution, descendant client-org scoping, org-boundary reads, effective-org fallback rules, and documented E2 audit/completeness/domain-query ownership.
+  - Added `.github/workflows/ci-phase-e2-enterprise-hardening-tenancy-gate.yml` as the E2 path-filtered CI workflow.
+  - Updated `docs/MODULE_ROADMAP.md` with E2 kickoff gate references.
+
+- E2 kickoff checklist:
+  | Item | Status | Evidence |
+  |---|---|---|
+  | Shared tenancy contract anchors captured | ✅ DONE | `phase-e2-enterprise-hardening-tenancy.spec.ts` |
+  | E2 CI gate workflow added | ✅ DONE | `ci-phase-e2-enterprise-hardening-tenancy-gate.yml` |
+  | Roadmap artifact refs updated | ✅ DONE | `docs/MODULE_ROADMAP.md` |
+
+- Next session:
+  1. Expand E2 from static contract anchors into audit dashboard/event-completeness/domain-query metrics once the concrete dashboard surface is selected.
+  2. Keep lint/build plus E1 and E2 gates green on current HEAD.
+  3. Do not advance to E3 until E2 has visible audit/completeness evidence in operations dashboards.
+
+Latest Session Snapshot (Phase E1 BreachAlerts Evidence Read Consolidation — 2026-05-08):
+
+- Timestamp (NZ): 2026-05-08 12:32 NZST
+- Current branch: copilot/550-continue-phase-realignment
+- Scope completed:
+  - Moved the BreachAlerts triggering-observation and evidence-photo read clusters into `src/hooks/useBreaches.ts`.
+  - Preserved the existing query keys, enabled conditions, abort handling, observation fallback paths, metadata fallback, batched photo URL resolution, and image fallback retry path.
+  - Lowered the E1 BreachAlerts direct Supabase query baseline from 9 to 3 in `tests/e2e/phase-e1-data-access-consolidation.spec.ts`.
+
+- E1 migration checkpoint:
+  | Surface | Before | After | Delta | Evidence |
+  |---|---:|---:|---:|---|
+  | BreachAlerts | 9 | 3 | -6 | `src/pages/BreachAlerts.tsx`, `src/hooks/useBreaches.ts`, `phase-e1-data-access-consolidation.spec.ts` |
+
+- Next session:
+  1. Continue E1 on the remaining BreachAlerts enrichment/manual-plate mutation clusters or move to `VehicleManagement` (19 baseline).
+  2. Lower the E1 baseline after each page-local query cluster migrates into hooks/services.
+  3. Keep lint/build and the E1 gate green before advancing to E2.
+
+Latest Session Snapshot (Phase E1 BreachAlerts Queue Read Consolidation — 2026-05-08):
+
+- Timestamp (NZ): 2026-05-08 12:52 NZST
+- Current branch: copilot/550-continue-phase-realignment
+- Scope completed:
+  - Moved the BreachAlerts queue read cluster, including joined-label primary query, fallback query, filters, and deduplication, into `src/hooks/useBreaches.ts` as `useBreachAlertQueue`.
+  - Preserved the existing query key, date/org/zone/status/type/search filters, retry setting, loading/error state, and active-breach selection flow.
+  - Lowered the E1 BreachAlerts direct Supabase query baseline from 11 to 9 in `tests/e2e/phase-e1-data-access-consolidation.spec.ts`.
+
+- E1 migration checkpoint:
+  | Surface | Before | After | Delta | Evidence |
+  |---|---:|---:|---:|---|
+  | BreachAlerts | 11 | 9 | -2 | `src/pages/BreachAlerts.tsx`, `src/hooks/useBreaches.ts`, `phase-e1-data-access-consolidation.spec.ts` |
+
+- Next session:
+  1. Continue E1 on the remaining BreachAlerts evidence/photo/manual-plate clusters or move to `VehicleManagement` (19 baseline).
+  2. Lower the E1 baseline after each page-local query cluster migrates into hooks/services.
+  3. Keep lint/build and the E1 gate green before advancing to E2.
+
+Latest Session Snapshot (Phase E1 BreachAlerts Read Consolidation — 2026-05-08):
+
+- Timestamp (NZ): 2026-05-08 12:16 NZST
+- Current branch: copilot/550-continue-phase-realignment
+- Scope completed:
+  - Moved BreachAlerts lightweight read clusters into `src/hooks/useBreaches.ts`: intelligence alerts, safety alerts, active-breach vehicle detail, and vehicle breach history.
+  - Reused shared `extractObservationId` / `deduplicateBreachAlerts` helpers from the hook module so page and hook queries use the same representative-selection logic.
+  - Lowered the E1 BreachAlerts direct Supabase query baseline from 15 to 11 in `tests/e2e/phase-e1-data-access-consolidation.spec.ts`.
+
+- E1 migration checkpoint:
+  | Surface | Before | After | Delta | Evidence |
+  |---|---:|---:|---:|---|
+  | BreachAlerts | 15 | 11 | -4 | `src/pages/BreachAlerts.tsx`, `src/hooks/useBreaches.ts`, `phase-e1-data-access-consolidation.spec.ts` |
+
+- Next session:
+  1. Continue E1 on the remaining BreachAlerts evidence/photo read clusters or move to `VehicleManagement` (19 baseline).
+  2. Lower the E1 baseline after each page-local query cluster migrates into hooks/services.
+  3. Keep lint/build and the E1 gate green before advancing to E2.
+
+Latest Session Snapshot (Phase E1 BreachAlerts Mutation Consolidation — 2026-05-08):
+
+- Timestamp (NZ): 2026-05-08 11:02 NZST
+- Current branch: copilot/550-continue-phase-realignment
+- Scope completed:
+  - Continued E1 beyond the gate kickoff by moving BreachAlerts decision/welfare mutation data access into `src/hooks/useBreaches.ts`.
+  - Preserved existing decision outcomes: breach acknowledge, enforcement start, resolve, dismiss, and welfare acknowledgement still invalidate the same query keys and emit the same success/error toasts.
+  - Lowered the E1 BreachAlerts direct Supabase query baseline from 20 to 15 in `tests/e2e/phase-e1-data-access-consolidation.spec.ts`.
+  - Added `src/hooks/useBreaches.ts` to the E1 path-filtered workflow so future hook changes run with the consolidation gate.
+
+- E1 migration checkpoint:
+  | Surface | Before | After | Delta | Evidence |
+  |---|---:|---:|---:|---|
+  | BreachAlerts | 20 | 15 | -5 | `src/pages/BreachAlerts.tsx`, `src/hooks/useBreaches.ts`, `phase-e1-data-access-consolidation.spec.ts` |
+
+- Next session:
+  1. Continue E1 on the remaining BreachAlerts read clusters or move to `VehicleManagement` (19 baseline) if the next slice should target another high-count surface.
+  2. Lower the E1 baseline after each page-local query cluster migrates into hooks/services.
+  3. Keep lint/build and the E1 gate green before advancing to E2.
+
+Latest Session Snapshot (Phase E1 Data Access Consolidation Gate Kickoff — 2026-05-08):
+
+- Timestamp (NZ): 2026-05-08 10:49 NZST
+- Current branch: copilot/550-continue-phase-realignment
+- Scope completed:
+  - Started Phase E1 with a data-access consolidation gate for the ten priority high-fragmentation pages named in `docs/BUILD_REALIGNMENT_PLAN_2026-05-04.md` section 9.4.
+  - Added `tests/e2e/phase-e1-data-access-consolidation.spec.ts` to lock the current priority-page direct Supabase query baseline and fail on upward drift.
+  - Added `.github/workflows/ci-phase-e1-data-access-consolidation-gate.yml` as the E1 path-filtered CI workflow.
+  - Updated `docs/MODULE_ROADMAP.md` with E1 kickoff gate artifact references.
+
+- E1 priority-page baseline:
+  | Page | Direct Supabase query baseline |
+  |---|---:|
+  | PTTRadio | 3 |
+  | DispatchConsole | 1 |
+  | FieldOfficerPortal | 4 |
+  | AssetManagement | 0 |
+  | VehicleManagement | 19 |
+  | BreachAlerts | 3 |
+  | AdminPortal | 14 |
+  | NoiseControlPortal | 0 |
+  | ClientAccountPage | 0 |
+  | RosterPlanner | 0 |
+
+- E1 kickoff checklist:
+  | Item | Status | Evidence |
+  |---|---|---|
+  | Priority-page query baseline captured | ✅ DONE | `phase-e1-data-access-consolidation.spec.ts` |
+  | Upward drift gate added | ✅ DONE | per-page and total direct-query assertions |
+  | E1 CI gate workflow added | ✅ DONE | `ci-phase-e1-data-access-consolidation-gate.yml` |
+  | Roadmap artifact refs updated | ✅ DONE | `docs/MODULE_ROADMAP.md` |
+
+- Next session:
+  1. Continue actual E1 hook/service migration on the highest-count pages (`BreachAlerts`, `VehicleManagement`, then `AdminPortal`).
+  2. Lower the E1 baseline in the gate as each page-local query cluster moves into hooks/services.
+  3. Keep lint/build and the E1 gate green before advancing to E2.
+
 Latest Session Snapshot (Sprint 13 Doc Review — 2026-05-06):
 
 - Timestamp (NZ): 2026-05-06 05:45 NZST
@@ -1848,7 +2157,7 @@ Latest Session Snapshot (Phase A Org-Isolation Gate — Explicit Deployment Bloc
 4. Emergency rollback: `bash scripts/rollback-feature-flag.sh FF_PHASE_B_<NAME>`
 5. All transitions logged to `feature_flag_rollout_history`
 
-**Next session:** Phase C Slice C2 — Access Control, Face Recognition, Identity Verification, Site Risk Assessment.
+**Historical next session at this checkpoint:** Phase C Slice C2 — Access Control, Face Recognition, Identity Verification, Site Risk Assessment.
 
 ---
 

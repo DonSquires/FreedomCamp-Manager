@@ -1,6 +1,7 @@
 import { SMTPClient } from 'https://deno.land/x/denomailer@1.0.0/mod.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/withCors.ts';
+import { recordCommunicationAudit } from '../_shared/communicationsAudit.ts';
 
 /**
  * send-report-email
@@ -44,6 +45,15 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: getCorsHeaders(req) });
   }
 
+  let supabaseAdmin: ReturnType<typeof createClient> | null = null;
+  let reportAuditContext: {
+    organizationId?: string;
+    recipient?: string;
+    reportType?: string;
+    subject?: string;
+    userId?: string;
+  } = {};
+
   try {
     // ── Authenticate caller ──────────────────────────────────────────────────
     const authHeader = req.headers.get('Authorization');
@@ -54,7 +64,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    const supabaseAdmin = createClient(
+    supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
@@ -67,6 +77,24 @@ Deno.serve(async (req) => {
         { status: 401, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       );
     }
+
+    // ── Parse request ────────────────────────────────────────────────────────
+    const {
+      report_type = 'compliance',
+      recipient_email,
+      organization_id,
+      zone_id,
+      date_from,
+      date_to,
+    } = await req.json() as SendReportEmailRequest;
+
+    const toEmail = recipient_email?.trim() || user.email;
+    reportAuditContext = {
+      organizationId: organization_id,
+      recipient: toEmail,
+      reportType: report_type,
+      userId: user.id,
+    };
 
     // ── Validate SMTP configuration ──────────────────────────────────────────
     const smtpHost     = Deno.env.get('SMTP_HOST');
@@ -84,6 +112,17 @@ Deno.serve(async (req) => {
         !smtpFrom ? 'SMTP_FROM_EMAIL' : null,
       ].filter(Boolean).join(', ');
 
+      await recordCommunicationAudit(supabaseAdmin, {
+        organizationId: organization_id,
+        channel: 'email',
+        provider: 'smtp',
+        status: 'failed',
+        subject: `${report_type} report`,
+        toEmails: toEmail ? [toEmail] : undefined,
+        sentBy: user.id,
+        errorMessage: `SMTP_NOT_CONFIGURED: ${missing}`,
+        mergeData: { report_type },
+      });
       return new Response(
         JSON.stringify({
           error: `Email service not configured. Missing Supabase secrets: ${missing}. ` +
@@ -93,18 +132,17 @@ Deno.serve(async (req) => {
       );
     }
 
-    // ── Parse request ────────────────────────────────────────────────────────
-    const {
-      report_type = 'compliance',
-      recipient_email,
-      organization_id,
-      zone_id,
-      date_from,
-      date_to,
-    } = await req.json() as SendReportEmailRequest;
-
-    const toEmail = recipient_email?.trim() || user.email;
     if (!toEmail) {
+      await recordCommunicationAudit(supabaseAdmin, {
+        organizationId: organization_id,
+        channel: 'email',
+        provider: 'smtp',
+        status: 'failed',
+        subject: `${report_type} report`,
+        sentBy: user.id,
+        errorMessage: 'missing_recipient_email',
+        mergeData: { report_type },
+      });
       return new Response(
         JSON.stringify({ error: 'No recipient email address. Provide recipient_email in the request body.' }),
         { status: 400, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
@@ -112,6 +150,17 @@ Deno.serve(async (req) => {
     }
 
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(toEmail)) {
+      await recordCommunicationAudit(supabaseAdmin, {
+        organizationId: organization_id,
+        channel: 'email',
+        provider: 'smtp',
+        status: 'failed',
+        subject: `${report_type} report`,
+        toEmails: [toEmail],
+        sentBy: user.id,
+        errorMessage: 'invalid_recipient_email',
+        mergeData: { report_type },
+      });
       return new Response(
         JSON.stringify({ error: `Invalid email address: ${toEmail}` }),
         { status: 400, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
@@ -323,6 +372,7 @@ Deno.serve(async (req) => {
     });
 
     const subject = `${reportTitle} — ${formatDateNZ(reportDateFrom)} to ${formatDateNZ(reportDateTo)}`;
+    reportAuditContext.subject = subject;
     const fromAddr = `${smtpFromName} <${smtpFrom}>`;
 
     // ── Send via SMTP ────────────────────────────────────────────────────────
@@ -353,6 +403,17 @@ Deno.serve(async (req) => {
     }
 
     console.log(`✅ Report email sent to ${toEmail} via ${smtpHost}:${smtpPort}`);
+    await recordCommunicationAudit(supabaseAdmin, {
+      organizationId: organization_id,
+      channel: 'email',
+      provider: 'smtp',
+      status: 'delivered',
+      subject,
+      bodyText: `${reportTitle} for ${organizationName} / ${zoneName}`,
+      toEmails: [toEmail],
+      sentBy: user.id,
+      mergeData: { report_type, zone_id, date_from: reportDateFrom, date_to: reportDateTo },
+    });
 
     return new Response(
       JSON.stringify({ success: true, recipient: toEmail, subject }),
@@ -361,6 +422,19 @@ Deno.serve(async (req) => {
 
   } catch (error: any) {
     console.error('send-report-email error:', error);
+    if (supabaseAdmin) {
+      await recordCommunicationAudit(supabaseAdmin, {
+        organizationId: reportAuditContext.organizationId,
+        channel: 'email',
+        provider: 'smtp',
+        status: 'failed',
+        subject: reportAuditContext.subject ?? `${reportAuditContext.reportType ?? 'dashboard'} report`,
+        toEmails: reportAuditContext.recipient ? [reportAuditContext.recipient] : undefined,
+        sentBy: reportAuditContext.userId,
+        errorMessage: error.message || 'Failed to send report email',
+        mergeData: { report_type: reportAuditContext.reportType },
+      });
+    }
     return new Response(
       JSON.stringify({ error: error.message || 'Failed to send report email' }),
       { status: 500, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
@@ -602,4 +676,3 @@ function buildEmailHtml(data: {
 </body>
 </html>`;
 }
-
