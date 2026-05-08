@@ -29,6 +29,106 @@ interface VehicleEnrichmentDetails {
   colour?: string | null
 }
 
+interface BreachAlertQueueOptions {
+  effectiveOrganizationId?: string | null
+  zoneId?: string | null
+  statusFilter?: string
+  breachTypeFilter?: string
+  searchQuery?: string
+  dateFrom?: string | null
+  dateTo?: string | null
+  startDate?: string | null
+  endDate?: string | null
+}
+
+interface BreachIntelligenceAlertsOptions {
+  effectiveOrganizationId?: string | null
+  zoneId?: string | null
+  dateFrom?: string | null
+  dateTo?: string | null
+  startDate?: string | null
+  endDate?: string | null
+}
+
+/** Zone names that represent generic parent zones rather than specific locations. */
+const GENERIC_ZONE_NAMES = ['jurisdiction', 'general', 'other']
+
+/**
+ * Extract the observation id from a breach alert, checking both the FK column
+ * and the breach_details JSON blob.
+ */
+export function extractObservationId(alert: any): string | null {
+  const details = alert.breach_details || {}
+  return (
+    alert.observation_id ||
+    details.observation_id ||
+    details.triggering_observation_id ||
+    details.source_observation_id ||
+    null
+  )
+}
+
+/**
+ * From a bucket of duplicate alerts, pick the best representative.
+ * Prefers the alert whose zone name is the most specific.
+ */
+function pickBestRepresentative(bucket: any[]): any {
+  if (bucket.length === 1) return bucket[0]
+  const specific = bucket.find((a) => {
+    const zn = ((a.zones as any)?.name ?? '').toLowerCase()
+    return zn && !GENERIC_ZONE_NAMES.includes(zn)
+  })
+  return specific ?? bucket[0]
+}
+
+/**
+ * Deduplicate breach alerts by linked observation first, then by plate/type/minute bucket.
+ */
+export function deduplicateBreachAlerts(alerts: any[]): any[] {
+  if (!alerts || alerts.length === 0) return alerts
+
+  const obsBuckets = new Map<string, any[]>()
+  const noObsAlerts: any[] = []
+
+  for (const alert of alerts) {
+    const obsId = extractObservationId(alert)
+    if (obsId) {
+      const bucket = obsBuckets.get(obsId) ?? []
+      bucket.push(alert)
+      obsBuckets.set(obsId, bucket)
+    } else {
+      noObsAlerts.push(alert)
+    }
+  }
+
+  const result: any[] = []
+  for (const [, bucket] of obsBuckets) {
+    result.push(pickBestRepresentative(bucket))
+  }
+
+  const timeBuckets = new Map<string, any[]>()
+  for (const alert of noObsAlerts) {
+    const plate = (alert.plate_number ?? '').toLowerCase()
+    const type = alert.breach_type ?? ''
+    const ts = alert.created_at ? new Date(alert.created_at) : null
+    const minuteBucket = ts ? ts.toISOString().slice(0, 16) : 'unknown'
+    const key = `${plate}|${type}|${minuteBucket}`
+    const bucket = timeBuckets.get(key) ?? []
+    bucket.push(alert)
+    timeBuckets.set(key, bucket)
+  }
+
+  for (const [, bucket] of timeBuckets) {
+    result.push(pickBestRepresentative(bucket))
+  }
+
+  result.sort(
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+  )
+
+  return result
+}
+
 function deriveSeverityFromBreachType(breachType?: string): 'critical' | 'high' | 'medium' {
   const bt = String(breachType || '').toLowerCase()
   if (bt.includes('tow') || bt.includes('danger')) return 'critical'
@@ -239,6 +339,96 @@ export function useBreachStats(organizationId?: string | null) {
         high: highRes.count || 0,
       }
     },
+  })
+}
+
+export function useBreachIntelligenceAlerts({
+  effectiveOrganizationId,
+  zoneId,
+  dateFrom,
+  dateTo,
+  startDate,
+  endDate,
+}: BreachIntelligenceAlertsOptions) {
+  return useQuery({
+    queryKey: ['intelligence-alerts', effectiveOrganizationId, zoneId, dateFrom, dateTo],
+    queryFn: async ({ signal }) => {
+      let q = (supabase.from('breach_alerts') as any)
+        .select('id, plate_number, breach_type, created_at, status, zones!zone_id(name)')
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false })
+        .limit(50)
+        .abortSignal(signal)
+
+      if (effectiveOrganizationId) {
+        q = q.eq('organization_id', effectiveOrganizationId)
+      }
+      if (zoneId) q = q.eq('zone_id', zoneId)
+      if (startDate) q = q.gte('created_at', startDate)
+      if (endDate) q = q.lte('created_at', endDate)
+
+      const { data } = await q
+      return deduplicateBreachAlerts(data || []).slice(0, 10)
+    },
+  })
+}
+
+export function useBreachAlertQueue({
+  effectiveOrganizationId,
+  zoneId,
+  statusFilter = 'all',
+  breachTypeFilter = 'all',
+  searchQuery = '',
+  dateFrom,
+  dateTo,
+  startDate,
+  endDate,
+}: BreachAlertQueueOptions) {
+  return useQuery({
+    queryKey: ['breach-alerts', effectiveOrganizationId, zoneId, statusFilter, breachTypeFilter, searchQuery, dateFrom, dateTo],
+    queryFn: async ({ signal }) => {
+      const applyFilters = (query: any) => {
+        if (effectiveOrganizationId) query = query.eq('organization_id', effectiveOrganizationId)
+        if (zoneId) query = query.eq('zone_id', zoneId)
+        if (startDate) query = query.gte('created_at', startDate)
+        if (endDate) query = query.lte('created_at', endDate)
+        if (statusFilter !== 'all') query = query.eq('status', statusFilter)
+        if (breachTypeFilter !== 'all') query = query.eq('breach_type', breachTypeFilter)
+        if (searchQuery) query = query.ilike('plate_number', `%${searchQuery}%`)
+        return query
+      }
+
+      let primaryQuery = (supabase.from('breach_alerts') as any)
+        .select(`
+          *,
+          zones!zone_id(name),
+          organizations!organization_id(name)
+        `)
+        .order('created_at', { ascending: false })
+        .abortSignal(signal)
+
+      primaryQuery = applyFilters(primaryQuery)
+      const primary = await primaryQuery.limit(500)
+      if (!primary.error) return deduplicateBreachAlerts(primary.data || [])
+
+      let fallbackQuery = (supabase.from('breach_alerts') as any)
+        .select('*')
+        .order('created_at', { ascending: false })
+        .abortSignal(signal)
+
+      fallbackQuery = applyFilters(fallbackQuery)
+      const fallback = await fallbackQuery.limit(500)
+      if (fallback.error) throw fallback.error
+
+      return deduplicateBreachAlerts(
+        (fallback.data || []).map((row: any) => ({
+          ...row,
+          zones: null,
+          organizations: null,
+        }))
+      )
+    },
+    retry: 1,
   })
 }
 
