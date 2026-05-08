@@ -4,6 +4,7 @@ import { BrainCircuit, RefreshCw, AlertCircle, Loader2 } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 
 import { supabase } from '@/lib/supabase'
+import { useAuthStore } from '@/stores/authStore'
 import { AppLayout } from '@/components/features/AppLayout'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -44,6 +45,7 @@ const EVENT_COLOURS: Record<string, string> = {
 }
 
 export default function BobActionProposalEventLog() {
+  const { user } = useAuthStore()
   const [eventTypeFilter, setEventTypeFilter] = useState('all')
   const [actorQuery, setActorQuery] = useState('')
   const [proposalQuery, setProposalQuery] = useState('')
@@ -59,6 +61,7 @@ export default function BobActionProposalEventLog() {
         .order('created_at', { ascending: false })
         .limit(500)
 
+      if (user?.organization_id) q = q.eq('organization_id', user.organization_id)
       if (eventTypeFilter !== 'all') q = q.eq('event_type', eventTypeFilter)
       if (actorQuery.trim()) q = q.ilike('actor_id', `%${actorQuery.trim()}%`)
       if (proposalQuery.trim()) q = q.ilike('proposal_id', `%${proposalQuery.trim()}%`)

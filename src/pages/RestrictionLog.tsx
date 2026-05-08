@@ -4,6 +4,7 @@ import { Map, RefreshCw, AlertCircle, Loader2 } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 
 import { supabase } from '@/lib/supabase'
+import { useAuthStore } from '@/stores/authStore'
 import { AppLayout } from '@/components/features/AppLayout'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -40,6 +41,7 @@ function hasMetadata(value: unknown) {
 }
 
 export default function RestrictionLog() {
+  const { user } = useAuthStore()
   const [typeFilter, setTypeFilter] = useState('all')
   const [nameQuery, setNameQuery] = useState('')
   const [orgQuery, setOrgQuery] = useState('')
@@ -55,6 +57,7 @@ export default function RestrictionLog() {
         .order('updated_at', { ascending: false })
         .limit(500)
 
+      if (user?.organization_id) q = q.eq('organization_id', user.organization_id)
       if (typeFilter !== 'all') q = q.eq('restriction_type', typeFilter)
       if (nameQuery.trim()) q = q.ilike('name', `%${nameQuery.trim()}%`)
       if (orgQuery.trim()) q = q.ilike('organization_id', `%${orgQuery.trim()}%`)

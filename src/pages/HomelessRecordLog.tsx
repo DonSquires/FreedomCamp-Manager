@@ -4,6 +4,7 @@ import { Tent, RefreshCw, AlertCircle, Loader2 } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 
 import { supabase } from '@/lib/supabase'
+import { useAuthStore } from '@/stores/authStore'
 import { AppLayout } from '@/components/features/AppLayout'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -34,6 +35,7 @@ function fmtDate(ts: string | null) {
 }
 
 export default function HomelessRecordLog() {
+  const { user } = useAuthStore()
   const [statusFilter, setStatusFilter] = useState('all')
   const [sourceFilter, setSourceFilter] = useState('all')
   const [activeFilter, setActiveFilter] = useState('all')
@@ -50,6 +52,7 @@ export default function HomelessRecordLog() {
         .order('last_reported_at', { ascending: false })
         .limit(500)
 
+      if (user?.organization_id) q = q.eq('organization_id', user.organization_id)
       if (statusFilter !== 'all') q = q.eq('status', statusFilter)
       if (sourceFilter !== 'all') q = q.eq('source', sourceFilter)
       if (activeFilter === 'active') q = q.eq('is_active', true)
