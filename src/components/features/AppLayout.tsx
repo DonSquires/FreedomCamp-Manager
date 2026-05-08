@@ -242,6 +242,8 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/infringement-notices-log', icon: FileWarning, label: 'Infringement Notice Log', roles: ['admin', 'admin_officer', 'master'] },
       // Sprint 49: B-157
       { path: '/dispatch-jobs-log', icon: ClipboardList, label: 'Dispatch Job Log', roles: ['admin', 'admin_officer', 'master'] },
+      // Sprint 50: B-160
+      { path: '/breach-alerts-log', icon: AlertTriangle, label: 'Breach Alert Log', roles: ['admin', 'admin_officer', 'master'] },
     ],
   },
   {
@@ -323,6 +325,8 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/restrictions-log', icon: Ban, label: 'Restrictions Log', roles: ['admin', 'admin_officer', 'master'] },
       // Sprint 49: B-158
       { path: '/enforcement-actions-log', icon: Gavel, label: 'Enforcement Action Log', roles: ['admin', 'admin_officer', 'master'] },
+      // Sprint 50: B-162
+      { path: '/flagged-vehicles-log', icon: Flag, label: 'Flagged Vehicle Log', roles: ['admin', 'admin_officer', 'master'] },
     ],
   },
   {
@@ -406,6 +410,8 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/site-risk-assessments-log', icon: ClipboardCheck, label: 'Site Risk Assessment Log', roles: ['admin', 'admin_officer', 'master'] },
       // Sprint 49: B-159
       { path: '/observations-log', icon: Eye, label: 'Observation Log', roles: ['admin', 'admin_officer', 'master'] },
+      // Sprint 50: B-161
+      { path: '/canonical-vehicles-log', icon: Car, label: 'Canonical Vehicle Log', roles: ['admin', 'master'] },
     ],
   },
   {
