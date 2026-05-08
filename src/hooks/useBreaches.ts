@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase'
 import { toast } from 'sonner'
 import { useOperationalOrganization } from '@/hooks/useOperationalOrganization'
 import { useAuthStore } from '@/stores/authStore'
+import { isPhotoUrlExpired, parseStorageUrl } from '@/lib/photoUtils'
 import type { BreachAlert, BreachStatus, Severity } from '@/types'
 
 interface UseBreachesOptions {
@@ -41,6 +42,9 @@ interface ActiveBreachReference {
   id: string
   organization_id: string
   plate_number: string | null
+  observation_id?: string | null
+  breach_details?: Record<string, unknown> | null
+  created_at?: string | null
 }
 
 interface DeduplicatableBreachAlert {
@@ -179,6 +183,142 @@ function deriveSeverityFromBreachType(breachType?: string): 'critical' | 'high' 
 // Keep these in sync with deriveSeverityFromBreachType if rules change.
 const CRITICAL_BREACH_FILTER = 'breach_type.ilike.%tow%,breach_type.ilike.%danger%'
 const HIGH_BREACH_FILTER = 'breach_type.eq.consecutive_nights,breach_type.eq.monthly_limit,breach_type.ilike.%consecutive%'
+// Supabase relation selectors use FK constraint names. The `vehicle_observations_v2_*`
+// names are legacy constraint identifiers retained after table renames.
+const OBSERVATION_SELECT_FIELDS = 'observation_id, photo, photo_url, recorded_at, gps_latitude, gps_longitude, vehicle_make, vehicle_model, vehicle_year, vehicle_color, has_homeless_claim, homeless_claim_notes, officer_notes, zones!vehicle_observations_v2_zone_id_fkey(name)'
+const PHOTO_OBSERVATION_SELECT_FIELDS = 'observation_id, photo, photo_url, recorded_at, gps_latitude, gps_longitude, zones!vehicle_observations_v2_zone_id_fkey(name)'
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || ''
+
+async function resolveViaDownload(bucket: string, path: string): Promise<string | null> {
+  try {
+    const { data, error } = await supabase.storage.from(bucket).download(path)
+    if (error || !data) return null
+    return URL.createObjectURL(data)
+  } catch {
+    return null
+  }
+}
+
+export async function resolveEvidencePhotoUrl(rawUrl: string | null | undefined): Promise<string | null> {
+  if (!rawUrl) return null
+  const url = rawUrl.trim()
+  if (!url) return null
+
+  if (url.startsWith('data:')) {
+    return url
+  }
+
+  const maybeParsed = parseStorageUrl(url)
+  if (maybeParsed) {
+    if (url.includes('/storage/v1/object/sign/')) {
+      const { data, error } = await supabase.storage
+        .from(maybeParsed.bucket)
+        .createSignedUrl(maybeParsed.path, 60 * 60)
+
+      if (!error && data?.signedUrl) {
+        return data.signedUrl
+      }
+
+      const downloadedUrl = await resolveViaDownload(maybeParsed.bucket, maybeParsed.path)
+      if (downloadedUrl) {
+        return downloadedUrl
+      }
+
+      const { data: publicData } = supabase.storage.from(maybeParsed.bucket).getPublicUrl(maybeParsed.path)
+      return publicData.publicUrl || url
+    }
+
+    if (url.includes('/storage/v1/object/public/')) {
+      const { data, error } = await supabase.storage
+        .from(maybeParsed.bucket)
+        .createSignedUrl(maybeParsed.path, 60 * 60)
+
+      if (!error && data?.signedUrl) {
+        return data.signedUrl
+      }
+
+      const downloadedUrl = await resolveViaDownload(maybeParsed.bucket, maybeParsed.path)
+      if (downloadedUrl) {
+        return downloadedUrl
+      }
+
+      return url
+    }
+
+    if (isPhotoUrlExpired(url)) {
+      const { data, error } = await supabase.storage
+        .from(maybeParsed.bucket)
+        .createSignedUrl(maybeParsed.path, 60 * 60)
+
+      if (!error && data?.signedUrl) {
+        return data.signedUrl
+      }
+
+      const downloadedUrl = await resolveViaDownload(maybeParsed.bucket, maybeParsed.path)
+      if (downloadedUrl) {
+        return downloadedUrl
+      }
+    }
+
+    return url
+  }
+
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    return url
+  }
+
+  if (url.startsWith('/storage/v1/object/')) {
+    const absoluteStorageUrl = SUPABASE_URL ? `${SUPABASE_URL}${url}` : null
+    if (!absoluteStorageUrl) return null
+
+    const parsedAbsolute = parseStorageUrl(absoluteStorageUrl)
+    if (!parsedAbsolute) return absoluteStorageUrl
+
+    if (absoluteStorageUrl.includes('/storage/v1/object/sign/')) {
+      const { data, error } = await supabase.storage
+        .from(parsedAbsolute.bucket)
+        .createSignedUrl(parsedAbsolute.path, 60 * 60)
+
+      if (!error && data?.signedUrl) {
+        return data.signedUrl
+      }
+    }
+
+    return absoluteStorageUrl
+  }
+
+  const normalizedPath = url.replace(/^\/+/, '')
+
+  const bucketPrefixed = normalizedPath.match(/^(scans|evidence|incident-evidence)\/(.+)$/)
+  if (bucketPrefixed) {
+    const [, bucket, path] = bucketPrefixed
+    const { data: signedData, error } = await supabase.storage.from(bucket).createSignedUrl(path, 60 * 60)
+    if (!error && signedData?.signedUrl) {
+      return signedData.signedUrl
+    }
+
+    const downloadedUrl = await resolveViaDownload(bucket, path)
+    if (downloadedUrl) {
+      return downloadedUrl
+    }
+
+    const { data: publicData } = supabase.storage.from(bucket).getPublicUrl(path)
+    return publicData.publicUrl || null
+  }
+
+  const { data: signedData, error } = await supabase.storage.from('scans').createSignedUrl(normalizedPath, 60 * 60)
+  if (!error && signedData?.signedUrl) {
+    return signedData.signedUrl
+  }
+
+  const downloadedUrl = await resolveViaDownload('scans', normalizedPath)
+  if (downloadedUrl) {
+    return downloadedUrl
+  }
+
+  const { data: publicData } = supabase.storage.from('scans').getPublicUrl(normalizedPath)
+  return publicData.publicUrl || null
+}
 
 export function useBreaches(options: UseBreachesOptions = {}) {
   const { 
@@ -502,6 +642,157 @@ export function useBreachVehicleDetail(activeBreach: ActiveBreachReference | nul
         .abortSignal(signal)
         .single()
       return data
+    },
+    enabled: !!activeBreach?.plate_number,
+  })
+}
+
+export function useBreachTriggeringObservation(activeBreach: ActiveBreachReference | null) {
+  return useQuery({
+    queryKey: ['breach-triggering-obs', activeBreach?.id],
+    queryFn: async ({ signal }) => {
+      if (!activeBreach) return null
+      // Try to fetch via the breach's observation_id FK first, then breach_details
+      const observationId = extractObservationId(activeBreach)
+      if (observationId) {
+        const { data } = await (supabase.from('observations') as any)
+          .select(OBSERVATION_SELECT_FIELDS)
+          .eq('observation_id', observationId)
+          .abortSignal(signal)
+          .single()
+        return data || null
+      }
+
+      // Fallback: look for the most recent observation at or before the breach was created
+      const { data } = await (supabase.from('observations') as any)
+        .select(OBSERVATION_SELECT_FIELDS)
+        .eq('plate_number', activeBreach.plate_number)
+        .eq('organization_id', activeBreach.organization_id)
+        .lte('recorded_at', activeBreach.created_at)
+        .order('recorded_at', { ascending: false })
+        .limit(1)
+        .abortSignal(signal)
+        .single()
+      return data || null
+    },
+    enabled: !!activeBreach,
+  })
+}
+
+export function useBreachEvidencePhotos(activeBreach: ActiveBreachReference | null) {
+  return useQuery({
+    queryKey: ['breach-evidence-photos', activeBreach?.id, activeBreach?.plate_number, activeBreach?.created_at],
+    queryFn: async ({ signal }) => {
+      if (!activeBreach?.plate_number) return []
+
+      const normalizePhotos = async (rows: any[]) => {
+        if (signal.aborted) return []
+
+        const normalizedRows = (rows || []).map((row: any) => ({
+          ...row,
+          id: row.observation_id ?? row.id,
+        }))
+
+        const missingPhotoObservationIds = normalizedRows
+          .filter((row: any) => !row.photo && !row.photo_url && !!row.id)
+          .map((row: any) => row.id)
+
+        const fallbackPhotoByObservationId: Record<string, string> = {}
+        if (missingPhotoObservationIds.length > 0) {
+          const { data: metadataRows } = await (supabase.from('photo_metadata') as any)
+            .select('observation_id, bucket_name, storage_path, file_name, created_at')
+            .in('observation_id', missingPhotoObservationIds)
+            .order('created_at', { ascending: false })
+            .abortSignal(signal)
+
+          for (const meta of metadataRows || []) {
+            const observationId = meta.observation_id
+            if (!observationId || fallbackPhotoByObservationId[observationId]) continue
+
+            const candidate =
+              (meta.bucket_name && meta.storage_path ? `${meta.bucket_name}/${meta.storage_path}` : null)
+              || meta.storage_path
+              || meta.file_name
+              || null
+
+            if (candidate) {
+              fallbackPhotoByObservationId[observationId] = candidate
+            }
+          }
+        }
+
+        // Process photos in small batches to avoid saturating the HTTP connection pool.
+        const BATCH_SIZE = 3
+        const resolved: any[] = []
+        for (let i = 0; i < normalizedRows.length; i += BATCH_SIZE) {
+          if (signal.aborted) break
+          const batch = normalizedRows.slice(i, i + BATCH_SIZE)
+          const batchResults = await Promise.all(
+            batch.map(async (row: any) => {
+              if (signal.aborted) return null
+              const primary = await resolveEvidencePhotoUrl(row.photo ?? row.photo_url)
+              const fallback = primary
+                ? null
+                : await resolveEvidencePhotoUrl(fallbackPhotoByObservationId[row.id] ?? null)
+
+              return {
+                ...row,
+                display_url: primary ?? fallback,
+                fallback_urls: [row.photo_url, row.photo, fallbackPhotoByObservationId[row.id] ?? null]
+                  .map((v: any) => (typeof v === 'string' ? v.trim() : null))
+                  .filter((v: string | null): v is string => !!v)
+                  .filter((v: string) => v !== (primary ?? fallback)),
+              }
+            })
+          )
+          resolved.push(...batchResults.filter((r: any) => r !== null))
+        }
+
+        return resolved.filter((row: any) => !!row.display_url)
+      }
+
+      const observationId = extractObservationId(activeBreach)
+      if (observationId) {
+        const byId = await (supabase.from('observations') as any)
+          .select(PHOTO_OBSERVATION_SELECT_FIELDS)
+          .eq('observation_id', observationId)
+          .limit(1)
+          .abortSignal(signal)
+
+        const normalized = await normalizePhotos(byId.data || [])
+        if (normalized.length > 0) {
+          return normalized
+        }
+      }
+
+      if (signal.aborted) return []
+
+      const strictQuery = (supabase.from('observations') as any)
+        .select(PHOTO_OBSERVATION_SELECT_FIELDS)
+        .eq('plate_number', activeBreach.plate_number)
+        .eq('organization_id', activeBreach.organization_id)
+        .lte('recorded_at', activeBreach.created_at)
+        .order('recorded_at', { ascending: false })
+        .limit(12)
+        .abortSignal(signal)
+
+      const strict = await strictQuery
+      const strictNormalized = await normalizePhotos(strict.data || [])
+      if (strictNormalized.length > 0) {
+        return strictNormalized
+      }
+
+      if (signal.aborted) return []
+
+      // Fallback: ignore org/date constraints when data quality is inconsistent.
+      const fallback = await (supabase.from('observations') as any)
+        .select(PHOTO_OBSERVATION_SELECT_FIELDS)
+        .eq('plate_number', activeBreach.plate_number)
+        .order('recorded_at', { ascending: false })
+        .limit(12)
+        .abortSignal(signal)
+
+      return await normalizePhotos(fallback.data || [])
     },
     enabled: !!activeBreach?.plate_number,
   })

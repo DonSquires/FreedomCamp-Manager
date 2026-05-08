@@ -279,6 +279,25 @@ Latest Session Snapshot (Phase D3 Gate Artifacts + Phase E Kickoff Alignment —
   2. Carry forward E1→E4 checkpoints from `docs/MODULE_ROADMAP.md`.
   3. Maintain rollback-ready flag posture and org isolation evidence per slice.
 
+Latest Session Snapshot (Phase E1 BreachAlerts Evidence Read Consolidation — 2026-05-08):
+
+- Timestamp (NZ): 2026-05-08 12:32 NZST
+- Current branch: copilot/550-continue-phase-realignment
+- Scope completed:
+  - Moved the BreachAlerts triggering-observation and evidence-photo read clusters into `src/hooks/useBreaches.ts`.
+  - Preserved the existing query keys, enabled conditions, abort handling, observation fallback paths, metadata fallback, batched photo URL resolution, and image fallback retry path.
+  - Lowered the E1 BreachAlerts direct Supabase query baseline from 9 to 3 in `tests/e2e/phase-e1-data-access-consolidation.spec.ts`.
+
+- E1 migration checkpoint:
+  | Surface | Before | After | Delta | Evidence |
+  |---|---:|---:|---:|---|
+  | BreachAlerts | 9 | 3 | -6 | `src/pages/BreachAlerts.tsx`, `src/hooks/useBreaches.ts`, `phase-e1-data-access-consolidation.spec.ts` |
+
+- Next session:
+  1. Continue E1 on the remaining BreachAlerts enrichment/manual-plate mutation clusters or move to `VehicleManagement` (19 baseline).
+  2. Lower the E1 baseline after each page-local query cluster migrates into hooks/services.
+  3. Keep lint/build and the E1 gate green before advancing to E2.
+
 Latest Session Snapshot (Phase E1 BreachAlerts Queue Read Consolidation — 2026-05-08):
 
 - Timestamp (NZ): 2026-05-08 12:52 NZST
@@ -355,7 +374,7 @@ Latest Session Snapshot (Phase E1 Data Access Consolidation Gate Kickoff — 202
   | FieldOfficerPortal | 4 |
   | AssetManagement | 0 |
   | VehicleManagement | 19 |
-  | BreachAlerts | 9 |
+  | BreachAlerts | 3 |
   | AdminPortal | 14 |
   | NoiseControlPortal | 0 |
   | ClientAccountPage | 0 |

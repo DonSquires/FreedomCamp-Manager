@@ -1,13 +1,13 @@
 # Bob Failure Summary
 
-Generated: 2026-05-07T10:05:47.865Z
+Generated: 2026-05-08T00:39:46.266Z
 Window: last 24 hours
-Entries analyzed: 3
-Low-score entries: 1
+Entries analyzed: 0
+Low-score entries: 0
 
 ## Top Failure Reasons
 
-- Bob chat request failed (1)
+- none
 
 ## Top Hallucination Patterns
 
