@@ -279,6 +279,39 @@ Latest Session Snapshot (Phase D3 Gate Artifacts + Phase E Kickoff Alignment —
   2. Carry forward E1→E4 checkpoints from `docs/MODULE_ROADMAP.md`.
   3. Maintain rollback-ready flag posture and org isolation evidence per slice.
 
+Latest Session Snapshot (Sprint 44 — B-142 / B-143 / B-144 — 2026-05-08):
+
+- Timestamp (NZ): 2026-05-08 20:30 NZST
+- Current branch: copilot/continue-realignment-project
+- Scope completed:
+  - Continued Sprint catalog after Sprint 43 by adding Sprint 44 route entries B-142, B-143, B-144.
+  - Created `src/pages/AdminRecalculationLog.tsx` (B-142) — log viewer for `admin_recalculation_actions`; KPIs (Total Runs/Completed/Failed/Observations Processed); status/scope_type/date filters; duration, compliance_changed, drift_events_created, target orgs/zones, error message expand.
+  - Created `src/pages/ContractorDocumentLog.tsx` (B-143) — log viewer for `contractor_documents`; KPIs (Total/Current/Expiring Soon/Expired); document_type/currency/name/date filters; expiry highlighting with 30-day warning; document URL clickable link.
+  - Created `src/pages/ImportStagingLog.tsx` (B-144) — log viewer for `import_staging`; KPIs (Total Records/Imported/Failed/With Errors); status/batch_id/date filters; validation errors, confidence scores, raw data JSON expand.
+  - Updated `src/App.tsx` with lazy imports and protected routes for all three pages.
+  - Updated `src/navigation/routeManifest.ts` with Sprint 44 route entries (196 total).
+  - Updated `src/components/features/AppLayout.tsx` — Management group gains B-142/B-144; Records group gains B-143.
+  - Updated `src/pages/AdminPortal.tsx` — Reports & Analytics tile section gains B-142/B-143/B-144.
+  - Updated `docs/MODULE_ROADMAP.md` — Sprint 44 addendum + production status snapshot.
+
+- Sprint 44 checkpoint:
+  | Item | Status | Artifact |
+  |---|---|---|
+  | B-142 AdminRecalculationLog | ✅ DONE | `src/pages/AdminRecalculationLog.tsx`, route `/admin-recalculation-log` |
+  | B-143 ContractorDocumentLog | ✅ DONE | `src/pages/ContractorDocumentLog.tsx`, route `/contractor-documents-log` |
+  | B-144 ImportStagingLog | ✅ DONE | `src/pages/ImportStagingLog.tsx`, route `/import-staging-log` |
+  | routeManifest.ts updated | ✅ DONE | 3 entries added (196 total) |
+  | AppLayout.tsx updated | ✅ DONE | Management group (B-142/B-144) + Records group (B-143) |
+  | AdminPortal.tsx updated | ✅ DONE | 3 tiles in Reports & Analytics section |
+  | MODULE_ROADMAP.md updated | ✅ DONE | Sprint 44 addendum |
+  | lint | ✅ PASS | eslint 0 errors |
+  | build | ✅ PASS | built in 27s |
+  | build budget | ✅ PASS | 7951 kB / 8000 kB |
+
+- Next session:
+  1. Continue with Sprint 45 (B-145–B-147).
+  2. Keep E1–E4 gate artifacts green alongside Sprint 44 route additions.
+
 Latest Session Snapshot (Sprint 43 — B-139 / B-140 / B-141 — 2026-05-08):
 
 - Timestamp (NZ): 2026-05-08 19:30 NZST

@@ -1,9 +1,9 @@
 # Module Roadmap (Operator Navigation Map)
 
 Date: 2026-05-08 (verified against src/navigation/routeManifest.ts)
-Source of truth for routes: route manifest file src/navigation/routeManifest.ts (190 route manifest entries as of Sprint 42 completion; Sprint 43 adds 3 more → 193)
+Source of truth for routes: route manifest file src/navigation/routeManifest.ts (196 route manifest entries as of Sprint 44 completion)
 
- > **Last Verification**: 2026-05-08 — Role-gating and route docs reviewed through Sprint 43 (B-141). Production main includes Sprints 31-43.
+ > **Last Verification**: 2026-05-08 — Role-gating and route docs reviewed through Sprint 44 (B-144). Production main includes Sprints 31-44.
 
 ## How To Use
 
@@ -699,11 +699,30 @@ New admin routes added in Sprint 43 (B-139, B-140, B-141):
    - Role gate: admin, master
    - Viewer for import_batches; KPIs (Total Batches/Total Records/Successful Records/Failed Records); status/batch_name/date filters; enrichment stats (vehicles/plates/homeless/H&S) + error_summary + import_config expand
 
+## Sprint 44 Route Addendum (2026-05-08)
+
+New admin routes added in Sprint 44 (B-142, B-143, B-144):
+
+1. Admin Recalculation Log (B-142)
+   - Route: /admin-recalculation-log
+   - Role gate: admin, master
+   - Viewer for admin_recalculation_actions; KPIs (Total Runs/Completed/Failed/Observations Processed); status/scope_type/date filters; duration, compliance changes, drift events, error message, target orgs/zones expand
+
+2. Contractor Document Log (B-143)
+   - Route: /contractor-documents-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for contractor_documents; KPIs (Total/Current/Expiring Soon/Expired); document_type/currency/name/date filters; expiry highlighting; document URL link
+
+3. Import Staging Log (B-144)
+   - Route: /import-staging-log
+   - Role gate: admin, master
+   - Viewer for import_staging; KPIs (Total Records/Imported/Failed/With Errors); status/batch_id/date filters; validation errors, confidence scores, raw data JSON expand
+
 ## Production Status Snapshot (2026-05-08)
 
 - Branch: main
 - PR state (base main): 0 open
-- Consolidation status: Sprint 31 through Sprint 43 route work is merged to production main
+- Consolidation status: Sprint 31 through Sprint 44 route work is merged to production main
 
 ## Post-Sprint-42 Realignment Phases and Phase-Gate Progression (#548)
 

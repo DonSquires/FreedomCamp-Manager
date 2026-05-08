@@ -307,6 +307,9 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/feature-flags', icon: Settings, label: 'Feature Flags', roles: ['master'] },
       // Sprint 43: B-141
       { path: '/import-batches-log', icon: Upload, label: 'Import Batch Log', roles: ['admin', 'master'] },
+      // Sprint 44: B-142, B-144
+      { path: '/admin-recalculation-log', icon: RefreshCw, label: 'Recalculation Run Log', roles: ['admin', 'master'] },
+      { path: '/import-staging-log', icon: LayoutList, label: 'Import Staging Log', roles: ['admin', 'master'] },
     ],
   },
   {
@@ -376,6 +379,8 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/vehicle-monthly-stays-log', icon: CalendarRange, label: 'Vehicle Monthly Stays', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/radio-voice-consent-log', icon: ShieldCheck, label: 'Voice Consent Log', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/welfare-events-log', icon: HeartPulse, label: 'Welfare Events Log', roles: ['admin', 'admin_officer', 'master'] },
+      // Sprint 44: B-143
+      { path: '/contractor-documents-log', icon: Briefcase, label: 'Contractor Document Log', roles: ['admin', 'admin_officer', 'master'] },
     ],
   },
   {
