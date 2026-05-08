@@ -62,7 +62,7 @@ test.describe('Phase E1 — direct page-query reduction baseline', () => {
 
   test('roadmap documents the Phase E data movement gate', () => {
     const roadmap = fs.readFileSync(path.join(process.cwd(), 'docs', 'MODULE_ROADMAP.md'), 'utf8')
-    const baselineTable = roadmap.split('## Phase E1 Data-Access Consolidation Baseline (2026-05-08)')[1] ?? ''
+    const baselineTable = roadmap.split('## Phase E1 Data-Access Consolidation Baseline')[1] ?? ''
 
     expect(roadmap).toContain('Phase E — Data Movement Reduction and Enterprise Hardening')
     expect(roadmap).toContain('Target fragmentation pages show downward direct-query drift')
