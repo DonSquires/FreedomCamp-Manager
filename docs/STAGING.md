@@ -212,6 +212,7 @@ node --test ptt-server/test/radio-health-schema.test.js
 - [x] Lower BreachAlerts direct page Supabase baseline from 12 to 9 by moving alert queue and intelligence read clusters into `src/hooks/useBreaches.ts`.
 - [x] Lower BreachAlerts direct page Supabase baseline from 9 to 8 by moving safety alert reads into `src/hooks/useBreaches.ts`.
 - [x] Lower BreachAlerts direct page Supabase baseline from 8 to 6 by moving vehicle detail and history reads into `src/hooks/useBreaches.ts`.
+- [x] Lower BreachAlerts direct page Supabase baseline from 6 to 0 by moving triggering-observation and evidence-photo reads into `src/hooks/useBreaches.ts`.
 - [ ] Continue E1 by migrating the highest-count page query clusters into hooks/services and lowering the published baselines after each verified reduction.
 
 Evidence (2026-05-08 UTC):
