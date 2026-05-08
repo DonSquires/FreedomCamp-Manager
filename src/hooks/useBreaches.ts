@@ -76,7 +76,12 @@ const GENERIC_ZONE_NAMES = ['jurisdiction', 'general', 'other']
  * and the breach_details JSON blob.
  */
 export function extractObservationId(alert: BreachAlertLike): string | null {
-  const details = alert.breach_details || {}
+  const details =
+    alert.breach_details &&
+    typeof alert.breach_details === 'object' &&
+    !Array.isArray(alert.breach_details)
+      ? alert.breach_details
+      : {}
   return (
     alert.observation_id ||
     details.observation_id ||
@@ -141,7 +146,7 @@ export function deduplicateBreachAlerts<T extends BreachAlertLike>(alerts: T[]):
   }
 
   result.sort(
-    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+    (a, b) => (b.created_at ? new Date(b.created_at).getTime() : 0) - (a.created_at ? new Date(a.created_at).getTime() : 0),
   )
 
   return result
