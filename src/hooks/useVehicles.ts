@@ -261,3 +261,53 @@ export function useVehicleStats(organizationId?: string | null) {
     },
   })
 }
+
+export function useUpdateVehicleDetails() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({
+      plateNumber,
+      details,
+    }: {
+      plateNumber: string
+      details: { vehicle_make: string; vehicle_model: string; vehicle_year: number | null; vehicle_color: string }
+    }) => {
+      const { error } = await (supabase.from('canonical_vehicles') as any)
+        .update({
+          vehicle_make: details.vehicle_make,
+          vehicle_model: details.vehicle_model,
+          vehicle_year: details.vehicle_year ?? null,
+          vehicle_color: details.vehicle_color,
+        })
+        .eq('plate_number', plateNumber)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['vehicles'] })
+      toast.success('Vehicle details enrichment complete')
+    },
+    onError: () => {
+      toast.error('Failed to update vehicle data')
+    },
+  })
+}
+
+export function useToggleVehicleFlag() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ plateNumber, newFlagged }: { plateNumber: string; newFlagged: boolean }) => {
+      const { error } = await (supabase.from('canonical_vehicles') as any)
+        .update({ is_flagged: newFlagged, flagged_at: newFlagged ? new Date().toISOString() : null })
+        .eq('plate_number', plateNumber)
+      if (error) throw error
+      return { plateNumber, newFlagged }
+    },
+    onSuccess: ({ plateNumber, newFlagged }) => {
+      queryClient.invalidateQueries({ queryKey: ['vehicles'] })
+      toast.success(newFlagged ? `${plateNumber} flagged` : `${plateNumber} unflagged`)
+    },
+    onError: () => {
+      toast.error('Failed to update flag')
+    },
+  })
+}

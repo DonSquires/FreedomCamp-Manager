@@ -54,6 +54,12 @@ import { edgeFunctions } from '@/lib/edgeFunctions'
 import { formatDateTime } from '@/lib/utils'
 import { publishEmergencyAssistRequest } from '@/lib/emergencyAssistBridge'
 import { useOfflineQueue, useOfflineQueueStats } from '@/hooks/useOfflineQueue'
+import {
+  useInsertWelfareAlert,
+  useMarkNotificationRead,
+  useStartOfficerShift,
+  useEndOfficerShift,
+} from '@/hooks/useFieldOfficerMutations'
 import type { Database } from '@/types/database'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -266,6 +272,11 @@ export default function FieldOfficerPortal() {
   const employerOrganizationId = user?.employer_organization_id || user?.organization_id || null
   const routeTestOverride = useFieldOfficerRouteTestOverride()
 
+  const insertWelfareAlert = useInsertWelfareAlert()
+  const markNotificationReadMutation = useMarkNotificationRead()
+  const startOfficerShift = useStartOfficerShift()
+  const endOfficerShift = useEndOfficerShift()
+
   // ── Roster context ────────────────────────────────────────────────────────
   const { rosteredShift } = useRosteredShift()
 
@@ -371,7 +382,7 @@ export default function FieldOfficerPortal() {
         ? `${currentLocation.latitude.toFixed(5)}, ${currentLocation.longitude.toFixed(5)}`
         : null
 
-      await supabase.from('officer_welfare_alerts').insert({
+      await insertWelfareAlert.mutateAsync({
         officer_id:       user.id,
         organization_id:  user.organization_id,
         alert_type:       'sos',
@@ -491,9 +502,7 @@ export default function FieldOfficerPortal() {
   })
 
   async function markNotificationRead(notifId: string) {
-    await supabase.from('notifications')
-      .update({ read: true, read_at: new Date().toISOString() })
-      .eq('id', notifId)
+    await markNotificationReadMutation.mutateAsync(notifId)
     toast.dismiss()
   }
 
@@ -874,14 +883,13 @@ export default function FieldOfficerPortal() {
         gpsLng = pos.coords.longitude
       } catch { /* GPS optional */ }
 
-      const { data: shiftRow, error } = await (supabase.from('officer_shifts') as any).insert({
+      const shiftRow = await startOfficerShift.mutateAsync({
         officer_id:      user.id,
         organization_id: effectiveOrgId,
         parent_zone_id:  effectiveZoneId,
         gps_start_lat:   gpsLat,
         gps_start_lng:   gpsLng,
-      }).select('id').single()
-      if (error) throw error
+      })
 
       const effectiveOrgName = accessibleOrgs.find((org) => org.id === effectiveOrgId)?.name ?? null
       setOrganization(effectiveOrgId, effectiveOrgName)
@@ -925,7 +933,7 @@ export default function FieldOfficerPortal() {
     } finally {
       setIsStartingShift(false)
     }
-  }, [user, employerOrganizationId, zoneId, shiftOrgId, shiftZoneId, isServiceProviderMember, refetchShift, queryClient, accessibleOrgs, setOrganization])
+  }, [user, employerOrganizationId, zoneId, shiftOrgId, shiftZoneId, isServiceProviderMember, refetchShift, queryClient, accessibleOrgs, setOrganization, startOfficerShift])
 
   const handleEndShift = useCallback(async () => {
     if (!activeShift?.id) return
@@ -941,10 +949,7 @@ export default function FieldOfficerPortal() {
         gpsLng = pos.coords.longitude
       } catch { /* GPS optional */ }
 
-      const { error } = await (supabase.from('officer_shifts') as any)
-        .update({ ended_at: new Date().toISOString(), gps_end_lat: gpsLat, gps_end_lng: gpsLng })
-        .eq('id', activeShift.id)
-      if (error) throw error
+      await endOfficerShift.mutateAsync({ shiftId: activeShift.id, gps_end_lat: gpsLat, gps_end_lng: gpsLng })
 
       // Deactivate welfare push schedule
       if (user?.id) {
@@ -972,7 +977,7 @@ export default function FieldOfficerPortal() {
     } finally {
       setIsEndingShift(false)
     }
-  }, [activeShift, user, refetchShift, queryClient])
+  }, [activeShift, user, refetchShift, queryClient, endOfficerShift])
 
   // Shift duration ticker — re-render every 30s to update displayed duration
   const [, setShiftTick] = useState(0)

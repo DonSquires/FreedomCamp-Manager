@@ -11,9 +11,9 @@ type PhaseE1Target = {
 const PHASE_E1_TARGETS: PhaseE1Target[] = [
   { page: 'PTTRadio', baselineDirectSupabaseFromCalls: 3, reductionTarget: 'Hold at or below baseline while shared radio hooks remain the data boundary.' },
   { page: 'DispatchConsole', baselineDirectSupabaseFromCalls: 3, reductionTarget: 'Hold at or below baseline while dispatch contract hooks absorb new reads.' },
-  { page: 'FieldOfficerPortal', baselineDirectSupabaseFromCalls: 15, reductionTarget: 'Reduce by migrating patrol, welfare, and observation clusters into hooks/services.' },
+  { page: 'FieldOfficerPortal', baselineDirectSupabaseFromCalls: 11, reductionTarget: 'Reduce by migrating patrol, welfare, and observation clusters into hooks/services.' },
   { page: 'AssetManagement', baselineDirectSupabaseFromCalls: 0, reductionTarget: 'Keep page free of direct Supabase query clusters.' },
-  { page: 'VehicleManagement', baselineDirectSupabaseFromCalls: 16, reductionTarget: 'Reduce by moving vehicle, owner, and enforcement reads into hooks/services.' },
+  { page: 'VehicleManagement', baselineDirectSupabaseFromCalls: 14, reductionTarget: 'Reduce by moving vehicle, owner, and enforcement reads into hooks/services.' },
   { page: 'BreachAlerts', baselineDirectSupabaseFromCalls: 0, reductionTarget: 'Keep page free of direct Supabase query clusters after breach hook consolidation.' },
   { page: 'AdminPortal', baselineDirectSupabaseFromCalls: 16, reductionTarget: 'Reduce by consolidating admin summary reads behind shared dashboard hooks.' },
   { page: 'NoiseControlPortal', baselineDirectSupabaseFromCalls: 13, reductionTarget: 'Reduce by moving noise complaint and evidence reads into domain hooks.' },

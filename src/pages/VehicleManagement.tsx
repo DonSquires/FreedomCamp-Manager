@@ -24,7 +24,7 @@ import { HOMELESS_UI_STATUSES, isHomelessForUi, normalizeHomelessStatus } from '
 import { checkNZSCVCertification, enrichVehicleFromMotorWeb } from '@/lib/proxyServices'
 import { getObservationPhotoUrl, getVehiclePhotoUrl } from '@/lib/photoUtils'
 import { PhotoWithFallback } from '@/components/features/PhotoWithFallback'
-import { useVehicleDialogObservations } from '@/hooks/useVehicles'
+import { useVehicleDialogObservations, useUpdateVehicleDetails, useToggleVehicleFlag } from '@/hooks/useVehicles'
 import { toast } from 'sonner'
 
 interface Vehicle {
@@ -86,6 +86,9 @@ export default function VehicleManagement() {
   const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null)
   const [checkingNZSCV, setCheckingNZSCV] = useState(false)
   const [enrichingMotorWeb, setEnrichingMotorWeb] = useState(false)
+
+  const updateVehicleDetails = useUpdateVehicleDetails()
+  const toggleVehicleFlag = useToggleVehicleFlag()
   const [scrapingSales, setScrapingSales] = useState(false)
   const [nzscvResult, setNzscvResult] = useState<any>(null)
   // Photo lightbox state
@@ -722,17 +725,10 @@ export default function VehicleManagement() {
       const { data, error } = await enrichVehicleFromMotorWeb(plateNumber)
       if (error) { toast.error(error); return }
       if (data) {
-        const { error: updateError } = await (supabase.from('canonical_vehicles') as any)
-          .update({
-            vehicle_make: data.make,
-            vehicle_model: data.model,
-            vehicle_year: data.year ?? null,
-            vehicle_color: data.colour,
-          })
-          .eq('plate_number', plateNumber)
-        if (updateError) { toast.error('Failed to update vehicle data'); return }
-        toast.success('Vehicle details enrichment complete')
-        queryClient.invalidateQueries({ queryKey: ['vehicles'] })
+        await updateVehicleDetails.mutateAsync({
+          plateNumber,
+          details: { vehicle_make: data.make, vehicle_model: data.model, vehicle_year: data.year ?? null, vehicle_color: data.colour },
+        })
       }
     } catch (err: any) {
       toast.error(err.message || 'Failed to enrich vehicle details')
@@ -778,17 +774,7 @@ export default function VehicleManagement() {
   // ─── Flag / Unflag vehicle ─────────────────────────────────────────────────
   const handleToggleFlag = async (vehicle: Vehicle, e: React.MouseEvent) => {
     e.stopPropagation()
-    const newFlagged = !vehicle.is_flagged
-    try {
-      const { error } = await (supabase.from('canonical_vehicles') as any)
-        .update({ is_flagged: newFlagged, flagged_at: newFlagged ? new Date().toISOString() : null })
-        .eq('plate_number', vehicle.plate_number)
-      if (error) { toast.error('Failed to update flag'); return }
-      toast.success(newFlagged ? `${vehicle.plate_number} flagged` : `${vehicle.plate_number} unflagged`)
-      queryClient.invalidateQueries({ queryKey: ['vehicles'] })
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to update flag')
-    }
+    toggleVehicleFlag.mutate({ plateNumber: vehicle.plate_number, newFlagged: !vehicle.is_flagged })
   }
 
   // ─── Summary stats ────────────────────────────────────────────────────────

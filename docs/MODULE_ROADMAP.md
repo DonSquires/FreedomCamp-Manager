@@ -831,15 +831,15 @@ With Phase D delivery and gate evidence in place, the next execution phase is Ph
 
 Phase E1 starts with a static direct-query drift gate for the highest-fragmentation pages named in the build realignment plan. The baseline counts below are grounded in the current page files and are enforced by `tests/e2e/phase-e1-data-access-consolidation.spec.ts`; future hook/service migrations should lower the relevant baseline only after the page count drops.
 
-Reduction evidence: `BreachAlerts` has been lowered to 0 through breach hook consolidation, `VehicleManagement` has been lowered from 21 to 16 by moving dialog observation list reads, zone/org name enrichment, photo-column detection, and observation photo lookup into `src/hooks/useVehicles.ts`, and `AdminPortal` has been lowered from 20 to 16 by moving recent historical observations, welfare alerts, active patrol counts, and today roster reads into `src/hooks/useAdminPortalData.ts`.
+Reduction evidence: `BreachAlerts` has been lowered to 0 through breach hook consolidation, `VehicleManagement` has been lowered from 21 to 14 by moving dialog observation list reads, zone/org name enrichment, photo-column detection, observation photo lookup, MotorWeb update, and flag toggle into `src/hooks/useVehicles.ts`, and `AdminPortal` has been lowered from 20 to 16 by moving recent historical observations, welfare alerts, active patrol counts, and today roster reads into `src/hooks/useAdminPortalData.ts`. `FieldOfficerPortal` has been lowered from 15 to 11 by moving SOS welfare alert insert, notification mark-read, and officer shift start/end mutations into `src/hooks/useFieldOfficerMutations.ts`.
 
 | Target page | Current direct `supabase.from(...)` calls | Phase E1 target |
 | --- | ---: | --- |
 | PTTRadio | 3 | Hold at or below baseline while shared radio hooks remain the data boundary. |
 | DispatchConsole | 3 | Hold at or below baseline while dispatch contract hooks absorb new reads. |
-| FieldOfficerPortal | 15 | Reduce by migrating patrol, welfare, and observation clusters into hooks/services. |
+| FieldOfficerPortal | 11 | Reduce by migrating patrol, welfare, and observation clusters into hooks/services. |
 | AssetManagement | 0 | Keep page free of direct Supabase query clusters. |
-| VehicleManagement | 16 | Reduce by moving vehicle, owner, and enforcement reads into hooks/services. |
+| VehicleManagement | 14 | Reduce by moving vehicle, owner, and enforcement reads into hooks/services. |
 | BreachAlerts | 0 | Keep page free of direct Supabase query clusters after breach hook consolidation. |
 | AdminPortal | 16 | Reduce by consolidating admin summary reads behind shared dashboard hooks. |
 | NoiseControlPortal | 13 | Reduce by moving noise complaint and evidence reads into domain hooks. |
