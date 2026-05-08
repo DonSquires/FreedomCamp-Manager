@@ -93,4 +93,5 @@ RUN npm install --save-dev @playwright/test && \
 # - the container default command must start a long-running handler process
 # - the handler must stay alive and read jobs from RunPod
 # - do not use one-shot local test commands as container default
+# Build trigger note: lowercase GHCR tag fix rollout trigger.
 CMD ["python3", "-u", "handler.py"]
