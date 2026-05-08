@@ -731,3 +731,10 @@ Phase D closeout is now anchored to D3 transition-handshake-offline gate evidenc
 4. BreachAlerts triggering-observation and evidence-photo read clusters moved from `src/pages/BreachAlerts.tsx` into `src/hooks/useBreaches.ts`.
 5. BreachAlerts direct Supabase query baseline lowered from 20 to 3 in the E1 gate.
 6. Next priority targets remain BreachAlerts enrichment/manual-plate mutation clusters, VehicleManagement, and AdminPortal.
+
+### E2 kickoff gate artifacts
+
+1. Gate spec: `tests/e2e/phase-e2-enterprise-hardening-tenancy.spec.ts`.
+2. CI workflow: `.github/workflows/ci-phase-e2-enterprise-hardening-tenancy-gate.yml`.
+3. Baseline scope: tenancy/shared-contract anchors for active organization resolution, operational organization selection, descendant client-org scoping, boundary reads, and effective-org fallback rules.
+4. Gate behavior: fail when shared tenancy contracts lose authorized-org bounds, descendant scoping, parameter-scoped boundary reads, or documented E2 audit/completeness/domain-query ownership anchors.

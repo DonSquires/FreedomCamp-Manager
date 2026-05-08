@@ -279,6 +279,28 @@ Latest Session Snapshot (Phase D3 Gate Artifacts + Phase E Kickoff Alignment —
   2. Carry forward E1→E4 checkpoints from `docs/MODULE_ROADMAP.md`.
   3. Maintain rollback-ready flag posture and org isolation evidence per slice.
 
+Latest Session Snapshot (Phase E2 Enterprise Hardening Tenancy Gate Kickoff — 2026-05-08):
+
+- Timestamp (NZ): 2026-05-08 12:57 NZST
+- Current branch: copilot/550-continue-phase-realignment
+- Scope completed:
+  - Advanced from E1 gate-green status into E2 kickoff artifacts for enterprise hardening and tenancy-safety verification.
+  - Added `tests/e2e/phase-e2-enterprise-hardening-tenancy.spec.ts` to lock shared tenancy contract anchors around active/operational org resolution, descendant client-org scoping, org-boundary reads, effective-org fallback rules, and documented E2 audit/completeness/domain-query ownership.
+  - Added `.github/workflows/ci-phase-e2-enterprise-hardening-tenancy-gate.yml` as the E2 path-filtered CI workflow.
+  - Updated `docs/MODULE_ROADMAP.md` with E2 kickoff gate references.
+
+- E2 kickoff checklist:
+  | Item | Status | Evidence |
+  |---|---|---|
+  | Shared tenancy contract anchors captured | ✅ DONE | `phase-e2-enterprise-hardening-tenancy.spec.ts` |
+  | E2 CI gate workflow added | ✅ DONE | `ci-phase-e2-enterprise-hardening-tenancy-gate.yml` |
+  | Roadmap artifact refs updated | ✅ DONE | `docs/MODULE_ROADMAP.md` |
+
+- Next session:
+  1. Expand E2 from static contract anchors into audit dashboard/event-completeness/domain-query metrics once the concrete dashboard surface is selected.
+  2. Keep lint/build plus E1 and E2 gates green on current HEAD.
+  3. Do not advance to E3 until E2 has visible audit/completeness evidence in operations dashboards.
+
 Latest Session Snapshot (Phase E1 BreachAlerts Evidence Read Consolidation — 2026-05-08):
 
 - Timestamp (NZ): 2026-05-08 12:32 NZST
