@@ -217,7 +217,9 @@ node --test ptt-server/test/radio-health-schema.test.js
 - [x] Lower AdminPortal direct page Supabase baseline from 20 to 16 by moving recent historical observations, welfare alerts, active patrol count, and today roster reads into `src/hooks/useAdminPortalData.ts`.
 - [x] Lower VehicleManagement direct page Supabase baseline from 16 to 14 by moving MotorWeb enrichment update and flag-toggle mutations into `src/hooks/useVehicles.ts`.
 - [x] Lower FieldOfficerPortal direct page Supabase baseline from 15 to 11 by moving SOS welfare alert insert, notification mark-read, and officer shift start/end mutations into `src/hooks/useFieldOfficerMutations.ts`.
-- [ ] Continue E1 with remaining `AdminPortal` clusters (16 baseline), remaining `VehicleManagement` clusters (14 baseline), remaining `FieldOfficerPortal` multi-line clusters (11 baseline), then `NoiseControlPortal` (13 baseline), migrating page query clusters into hooks/services and lowering the published baselines after each verified reduction.
+- [x] Lower AdminPortal direct page Supabase baseline from 16 to 0 by extracting the primary dashboard useQuery into `useAdminPrimaryDashboard` hook in `src/hooks/useAdminPortalData.ts`.
+- [x] Lower NoiseControlPortal direct page Supabase baseline from 13 to 0 by extracting all reads and mutations into `src/hooks/useNoiseControl.ts`.
+- [ ] Continue E1 with remaining `VehicleManagement` clusters (14 baseline) and remaining `FieldOfficerPortal` multi-line clusters (11 baseline), migrating page query clusters into hooks/services and lowering the published baselines after each verified reduction.
 
 Evidence (2026-05-08 UTC):
 ```bash

@@ -15,8 +15,8 @@ const PHASE_E1_TARGETS: PhaseE1Target[] = [
   { page: 'AssetManagement', baselineDirectSupabaseFromCalls: 0, reductionTarget: 'Keep page free of direct Supabase query clusters.' },
   { page: 'VehicleManagement', baselineDirectSupabaseFromCalls: 14, reductionTarget: 'Reduce by moving vehicle, owner, and enforcement reads into hooks/services.' },
   { page: 'BreachAlerts', baselineDirectSupabaseFromCalls: 0, reductionTarget: 'Keep page free of direct Supabase query clusters after breach hook consolidation.' },
-  { page: 'AdminPortal', baselineDirectSupabaseFromCalls: 16, reductionTarget: 'Reduce by consolidating admin summary reads behind shared dashboard hooks.' },
-  { page: 'NoiseControlPortal', baselineDirectSupabaseFromCalls: 13, reductionTarget: 'Reduce by moving noise complaint and evidence reads into domain hooks.' },
+  { page: 'AdminPortal', baselineDirectSupabaseFromCalls: 0, reductionTarget: 'Primary dashboard useQuery extracted into useAdminPrimaryDashboard hook (16 → 0).' },
+  { page: 'NoiseControlPortal', baselineDirectSupabaseFromCalls: 0, reductionTarget: 'All reads and mutations extracted into useNoiseControl hooks (13 → 0).' },
   { page: 'ClientAccountPage', baselineDirectSupabaseFromCalls: 0, reductionTarget: 'Keep page free of direct Supabase query clusters.' },
   { page: 'RosterPlanner', baselineDirectSupabaseFromCalls: 0, reductionTarget: 'Keep page free of direct Supabase query clusters.' },
 ]
