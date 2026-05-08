@@ -515,6 +515,39 @@ Latest Session Snapshot (Sprint 43 — B-139 OfficerShiftLog / B-140 ImportBatch
 - Open blockers with owner:
   1. NONE.
 
+Latest Session Snapshot (Sprint 45 — B-145 LmrBridgeConfigLog / B-146 RadioVoiceProfileLog / B-147 ZoneDispatchRuleLog — 2026-05-08):
+
+- Timestamp (NZ): 2026-05-08 22:20 NZST
+- Current branch: copilot/continue-realignment-project-again
+- Scope completed:
+  - Added Sprint 45 route trio (B-145, B-146, B-147) following the established admin-log sprint pattern.
+  - Created `src/pages/LmrBridgeConfigLog.tsx` (B-145) — `/lmr-bridge-config-log` — `lmr_bridge_config` viewer with activation, direction, and channel coverage while avoiding gateway-token exposure.
+  - Created `src/pages/RadioVoiceProfileLog.tsx` (B-146) — `/radio-voice-profile-log` — `radio_voice_profiles` viewer with provider/model coverage and revocation audit detail.
+  - Created `src/pages/ZoneDispatchRuleLog.tsx` (B-147) — `/zone-dispatch-rule-log` — `zone_dispatch_resource_rules` viewer with scheduling, priority, and resource assignment detail.
+  - Added lazy imports and role-gated routes to `src/App.tsx`.
+  - Added Sprint 45 entries to `src/navigation/routeManifest.ts` (198 entries, up from 195).
+  - Added Sprint 45 Route Addendum to `docs/MODULE_ROADMAP.md`.
+
+- Sprint 45 checklist:
+  | Item | Status | Evidence |
+  |---|---|---|
+  | B-145 LmrBridgeConfigLog page | ✅ DONE | `src/pages/LmrBridgeConfigLog.tsx` |
+  | B-146 RadioVoiceProfileLog page | ✅ DONE | `src/pages/RadioVoiceProfileLog.tsx` |
+  | B-147 ZoneDispatchRuleLog page | ✅ DONE | `src/pages/ZoneDispatchRuleLog.tsx` |
+  | App.tsx imports + routes | ✅ DONE | `src/App.tsx` |
+  | Route manifest (198 entries) | ✅ DONE | `src/navigation/routeManifest.ts` |
+  | MODULE_ROADMAP Sprint 45 addendum | ✅ DONE | `docs/MODULE_ROADMAP.md` |
+
+- Validation evidence:
+  | Command | Result | Notes |
+  |---|---|---|
+  | `bun run lint` | PASS | 0 errors (1 pre-existing warning in FieldOfficerPortal.tsx) |
+  | `bun run build` | PASS | TypeScript + Vite build succeeded |
+  | `node scripts/check-build-budgets.mjs` | PASS | 7974.50/8000 kB |
+
+- Open blockers with owner:
+  1. NONE.
+
 Latest Session Snapshot (Sprint 44 — B-142 AdminRecalculationLog / B-143 ContractorDocumentLog / B-144 ImportStagingLog — 2026-05-08):
 
 - Timestamp (NZ): 2026-05-08 22:07 NZST

@@ -718,6 +718,25 @@ New admin routes added in Sprint 44 (B-142, B-143, B-144):
    - Role gate: admin, master
    - Viewer for import_staging; KPIs (Total/Imported/Enriched/With Errors); batch/status/error filters; raw payload and validation-error expand
 
+## Sprint 45 Route Addendum (2026-05-08)
+
+New admin routes added in Sprint 45 (B-145, B-146, B-147):
+
+1. LMR Bridge Config Log (B-145)
+   - Route: /lmr-bridge-config-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for lmr_bridge_config; KPIs (Total/Active/Inbound/Gateway Token Set); search/direction/status filters; safe token-state and notes expand
+
+2. Radio Voice Profile Log (B-146)
+   - Route: /radio-voice-profile-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for radio_voice_profiles; KPIs (Total/Active/Revoked/Unique Officers); officer/provider/status filters; profile/org audit expand
+
+3. Zone Dispatch Rule Log (B-147)
+   - Route: /zone-dispatch-rule-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for zone_dispatch_resource_rules; KPIs (Total/Active/Zones Covered/Scheduled Rules); zone/resource/job/day/status filters; priority and assignment expand
+
 ## Production Status Snapshot (2026-05-07)
 
 - Branch: main
