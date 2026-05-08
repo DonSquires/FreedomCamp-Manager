@@ -61,6 +61,15 @@ interface BroadcastForm {
   targetRole: 'all' | 'officer' | 'admin_officer' | 'admin'
 }
 
+interface CommunicationsMetrics {
+  deliveredNotifications: number
+  pendingNotifications: number
+  stalePendingNotifications: number
+  failedCommunications: number
+  retryBacklog: number
+  deliverySuccessRate: number
+}
+
 const PRIORITY_COLORS: Record<string, string> = {
   urgent: 'bg-red-100 text-red-800 border-red-200',
   high:   'bg-orange-100 text-orange-800 border-orange-200',
@@ -74,6 +83,21 @@ const TYPE_ICONS: Record<string, React.ReactNode> = {
   flagged_vehicle:          <AlertTriangle className="h-4 w-4 text-orange-500" />,
   welfare_alert:            <AlertTriangle className="h-4 w-4 text-yellow-500" />,
   system_alert:             <Info className="h-4 w-4 text-blue-500" />,
+}
+
+const emptyCommunicationsMetrics: CommunicationsMetrics = {
+  deliveredNotifications: 0,
+  pendingNotifications: 0,
+  stalePendingNotifications: 0,
+  failedCommunications: 0,
+  retryBacklog: 0,
+  deliverySuccessRate: 0,
+}
+
+async function countOrZero(query: any) {
+  const { count, error } = await query
+  if (error) return 0
+  return count ?? 0
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -124,6 +148,48 @@ export default function NotificationsCenter() {
     enabled: !!orgId && isAdmin,
   })
 
+  const { data: communicationsMetrics = emptyCommunicationsMetrics, isLoading: metricsLoading } = useQuery({
+    queryKey: ['e3-communications-delivery-metrics', orgId],
+    queryFn: async (): Promise<CommunicationsMetrics> => {
+      if (!orgId) return emptyCommunicationsMetrics
+
+      const staleCutoff = new Date(Date.now() - 15 * 60 * 1000).toISOString()
+
+      const notifications = (supabase as any).from('notifications')
+      const communications = (supabase as any).from('crm_communications')
+
+      const [
+        deliveredNotifications,
+        pendingNotifications,
+        stalePendingNotifications,
+        failedCommunications,
+        retryBacklog,
+      ] = await Promise.all([
+        countOrZero(notifications.select('id', { count: 'exact', head: true }).eq('organization_id', orgId).eq('delivered', true)),
+        countOrZero(notifications.select('id', { count: 'exact', head: true }).eq('organization_id', orgId).eq('delivered', false)),
+        countOrZero(notifications.select('id', { count: 'exact', head: true }).eq('organization_id', orgId).eq('delivered', false).lte('created_at', staleCutoff)),
+        countOrZero(communications.select('id', { count: 'exact', head: true }).eq('organization_id', orgId).in('status', ['failed', 'bounced', 'spam'])),
+        countOrZero(communications.select('id', { count: 'exact', head: true }).eq('organization_id', orgId).gt('retry_count', 0)),
+      ])
+
+      const deliveryTotal = deliveredNotifications + pendingNotifications
+      const deliverySuccessRate = deliveryTotal > 0
+        ? Math.round((deliveredNotifications / deliveryTotal) * 100)
+        : 0
+
+      return {
+        deliveredNotifications,
+        pendingNotifications,
+        stalePendingNotifications,
+        failedCommunications,
+        retryBacklog,
+        deliverySuccessRate,
+      }
+    },
+    enabled: !!orgId && isAdmin,
+    refetchInterval: 60000,
+  })
+
   // ── Broadcast mutation ──────────────────────────────────────────────────────
 
   const handleBroadcast = async () => {
@@ -165,6 +231,7 @@ export default function NotificationsCenter() {
         priority: broadcastForm.priority,
         read: false,
         delivered: false,
+        organization_id: orgId,
       }))
 
       const { error: insertErr } = await (supabase as any)
@@ -176,6 +243,7 @@ export default function NotificationsCenter() {
       setBroadcastForm({ title: '', body: '', priority: 'normal', targetRole: 'all' })
       queryClient.invalidateQueries({ queryKey: ['notifications'] })
       queryClient.invalidateQueries({ queryKey: ['notification-count'] })
+      queryClient.invalidateQueries({ queryKey: ['e3-communications-delivery-metrics'] })
     } catch (err: any) {
       toast.error(err.message || 'Failed to send broadcast')
     } finally {
@@ -355,7 +423,39 @@ export default function NotificationsCenter() {
           {/* ── Broadcast ──────────────────────────────────────────── */}
           {isAdmin && (
             <TabsContent value="broadcast">
-              <Card className="border-2 border-slate-200">
+              <div className="space-y-4">
+                <Card className="border-2 border-blue-100 bg-blue-50/40">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <MessageSquare className="h-5 w-5 text-blue-600" />
+                      E3 Communications Delivery Metrics
+                    </CardTitle>
+                    <CardDescription>
+                      Operations visibility for delivery success/failure, retry backlog, stale pending messages, and degraded fallback outcomes.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                      {[
+                        { label: 'Delivery success', value: `${communicationsMetrics.deliverySuccessRate}%`, helper: `${communicationsMetrics.deliveredNotifications} delivered` },
+                        { label: 'Pending delivery', value: communicationsMetrics.pendingNotifications, helper: 'Awaiting provider/device confirmation' },
+                        { label: 'Stale pending', value: communicationsMetrics.stalePendingNotifications, helper: 'Older than 15 minutes' },
+                        { label: 'Delivery failures', value: communicationsMetrics.failedCommunications, helper: 'Failed, bounced, or spam outcomes' },
+                        { label: 'Retry backlog', value: communicationsMetrics.retryBacklog, helper: 'Communications with retry_count > 0' },
+                      ].map(metric => (
+                        <div key={metric.label} className="rounded-xl border border-blue-100 bg-white p-3">
+                          <p className="text-xs font-medium text-muted-foreground">{metric.label}</p>
+                          <p className="mt-1 text-2xl font-semibold text-foreground">
+                            {metricsLoading ? '—' : metric.value}
+                          </p>
+                          <p className="mt-1 text-[11px] text-muted-foreground">{metric.helper}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="border-2 border-slate-200">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Send className="h-5 w-5" />
@@ -452,7 +552,8 @@ export default function NotificationsCenter() {
                     </Button>
                   </div>
                 </CardContent>
-              </Card>
+                </Card>
+              </div>
             </TabsContent>
           )}
 
