@@ -128,6 +128,7 @@ import {
   Eye,
   TicketX,
   UserX,
+  Truck,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { supabase } from '@/lib/supabase'
@@ -242,6 +243,10 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/notifications-log', icon: Bell, label: 'Notification Log', roles: ['admin', 'admin_officer', 'master'] },
       // Sprint 49: B-158
       { path: '/infringement-notices-log', icon: Receipt, label: 'Infringement Notice Log', roles: ['admin', 'admin_officer', 'master'] },
+      // Sprint 50: B-160
+      { path: '/dispatch-jobs-log', icon: Truck, label: 'Dispatch Job Log', roles: ['admin', 'admin_officer', 'master'] },
+      // Sprint 50: B-161
+      { path: '/enforcement-actions-log', icon: ShieldCheck, label: 'Enforcement Action Log', roles: ['admin', 'admin_officer', 'master'] },
     ],
   },
   {
@@ -406,6 +411,8 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/face-records-log', icon: Camera, label: 'Face Record Log', roles: ['admin', 'admin_officer', 'master'] },
       // Sprint 49: B-159
       { path: '/site-risk-assessments-log', icon: ShieldAlert, label: 'Site Risk Assessment Log', roles: ['admin', 'admin_officer', 'master'] },
+      // Sprint 50: B-162
+      { path: '/observations-log', icon: Eye, label: 'Observation Log', roles: ['admin', 'admin_officer', 'master'] },
     ],
   },
   {

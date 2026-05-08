@@ -337,7 +337,37 @@ Latest Session Snapshot (Sprint 49 — B-157 / B-158 / B-159 — 2026-05-08):
   1. Continue with Sprint 50 (B-160–B-162).
   2. Keep E1–E4 gate artifacts green alongside Sprint 49 route additions.
 
-Latest Session Snapshot (Sprint 48 — B-154 / B-155 / B-156 — 2026-05-08):
+Latest Session Snapshot (Sprint 50 — B-160 / B-161 / B-162 — 2026-05-08):
+
+- Timestamp (NZ): 2026-05-08 14:31 NZST
+- Current branch: copilot/continue-realignment-project-one-more-time
+- Scope completed:
+  - Continued Sprint catalog after Sprint 49 by adding Sprint 50 route entries B-160, B-161, B-162.
+  - Created `src/pages/DispatchJobLog.tsx` (B-160) — log viewer for `dispatch_jobs`; KPIs (Total/Completed/SLA Breached/Critical Priority); status/priority/title/date filters; assignment, SLA, zone, completion detail expand.
+  - Created `src/pages/EnforcementActionLog.tsx` (B-161) — log viewer for `enforcement_actions`; KPIs (Total/Completed/Pending/Action Types); status/action_type/plate/date filters; assignment, outcome, observation, compliance result detail expand.
+  - Created `src/pages/ObservationLog.tsx` (B-162) — log viewer for `observations`; KPIs (Total/Breaches/Compliant/With GPS); breach/compliance/plate/date filters; GPS, breach type, consecutive nights, incident, homeless claim detail expand.
+  - Updated `src/App.tsx` with lazy imports and protected routes for all three pages.
+  - Updated `src/navigation/routeManifest.ts` with Sprint 50 route entries (214 total).
+  - Updated `src/components/features/AppLayout.tsx` — Operations group gains B-160/B-161; Records group gains B-162.
+  - Updated `src/pages/AdminPortal.tsx` — Reports & Analytics tile section gains B-160/B-161/B-162.
+  - Updated `docs/MODULE_ROADMAP.md` — Sprint 50 addendum + production status snapshot.
+
+- Sprint 50 checkpoint:
+  | Item | Status | Artifact |
+  |---|---|---|
+  | B-160 DispatchJobLog | ✅ DONE | `src/pages/DispatchJobLog.tsx`, route `/dispatch-jobs-log` |
+  | B-161 EnforcementActionLog | ✅ DONE | `src/pages/EnforcementActionLog.tsx`, route `/enforcement-actions-log` |
+  | B-162 ObservationLog | ✅ DONE | `src/pages/ObservationLog.tsx`, route `/observations-log` |
+  | routeManifest.ts updated | ✅ DONE | 3 entries added (214 total) |
+  | AppLayout.tsx updated | ✅ DONE | Operations (B-160/B-161) + Records (B-162) |
+  | AdminPortal.tsx updated | ✅ DONE | 3 tiles in Reports & Analytics section |
+  | MODULE_ROADMAP.md updated | ✅ DONE | Sprint 50 addendum |
+
+- Next session:
+  1. Continue with Sprint 51 (B-163–B-165).
+  2. Keep E1–E4 gate artifacts green alongside Sprint 50 route additions.
+
+Latest Session Snapshot (Sprint 49 — B-157 / B-158 / B-159 — 2026-05-08):
 
 - Timestamp (NZ): 2026-05-08 23:35 NZST
 - Current branch: copilot/continue-realignment-project-another-one
