@@ -145,7 +145,7 @@ export default function RestrictionLog() {
                   <TableHead>Updated</TableHead>
                   <TableHead>Name</TableHead>
                   <TableHead>Type</TableHead>
-                  <TableHead>Organisation</TableHead>
+                  <TableHead>Organization</TableHead>
                   <TableHead>Metadata</TableHead>
                   <TableHead>Geom</TableHead>
                   <TableHead>Detail</TableHead>
@@ -177,7 +177,7 @@ export default function RestrictionLog() {
                             <div><span className="font-medium">Restriction ID:</span> {row.id}</div>
                             <div><span className="font-medium">Created:</span> {fmtDate(row.created_at)}</div>
                             <div><span className="font-medium">Updated:</span> {fmtDate(row.updated_at)}</div>
-                            <div><span className="font-medium">Organisation:</span> {row.organization_id}</div>
+                            <div><span className="font-medium">Organization:</span> {row.organization_id}</div>
                             <div><span className="font-medium">Type:</span> {row.restriction_type}</div>
                           </div>
                           <div>
