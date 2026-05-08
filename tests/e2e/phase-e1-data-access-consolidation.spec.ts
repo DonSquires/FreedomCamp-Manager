@@ -22,7 +22,7 @@ const PHASE_E1_TARGETS: PhaseE1Target[] = [
 ]
 
 // Phase E1 tracks the page-owned query clusters that use the project-standard `supabase.from(...)` pattern.
-// Destructured aliases are out of scope and should not be introduced in page components.
+// Destructured aliases such as `const { from } = supabase` are out of scope and should not be introduced in page components.
 const PAGE_DIRECT_QUERY_PATTERN = /\bsupabase\s*\.\s*from\s*\(/g
 
 function pagePath(page: string) {
@@ -62,11 +62,13 @@ test.describe('Phase E1 — direct page-query reduction baseline', () => {
 
   test('roadmap documents the Phase E data movement gate', () => {
     const roadmap = fs.readFileSync(path.join(process.cwd(), 'docs', 'MODULE_ROADMAP.md'), 'utf8')
+    const baselineTable = roadmap.split('## Phase E1 Data-Access Consolidation Baseline (2026-05-08)')[1] ?? ''
 
     expect(roadmap).toContain('Phase E — Data Movement Reduction and Enterprise Hardening')
     expect(roadmap).toContain('Target fragmentation pages show downward direct-query drift')
+    expect(baselineTable).toContain('| Target page | Current direct `supabase.from(...)` calls | Phase E1 target |')
     for (const target of PHASE_E1_TARGETS) {
-      expect(roadmap).toContain(target.page)
+      expect(baselineTable).toContain(`| ${target.page} | ${target.baselineDirectSupabaseFromCalls} |`)
     }
   })
 })
