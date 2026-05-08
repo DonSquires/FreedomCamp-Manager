@@ -1,9 +1,9 @@
 # Module Roadmap (Operator Navigation Map)
 
 Date: 2026-05-08 (verified against src/navigation/routeManifest.ts)
-Source of truth for routes: route manifest file src/navigation/routeManifest.ts (201 route manifest entries as of Sprint 46 completion)
+Source of truth for routes: route manifest file src/navigation/routeManifest.ts (204 route manifest entries as of Sprint 47 completion)
 
- > **Last Verification**: 2026-05-08 — Role-gating and route docs reviewed through Sprint 46 (B-150). Current branch includes Sprints 31-46; production main includes Sprints 31-45 until Sprint 46 merges.
+ > **Last Verification**: 2026-05-08 — Role-gating and route docs reviewed through Sprint 47 (B-153). Current branch includes Sprints 31-47; production main includes Sprints 31-45 until subsequent merges.
 
 ## How To Use
 
@@ -756,11 +756,30 @@ New admin routes added in Sprint 46 (B-148, B-149, B-150):
    - Role gate: admin, admin_officer, master
    - Viewer for restrictions; KPIs (Total/Types/With Metadata/Updated Last 30d); restriction_type/name filters; metadata expand while geometry stays map-only
 
+## Sprint 47 Route Addendum (2026-05-08)
+
+New admin routes added in Sprint 47 (B-151, B-152, B-153):
+
+1. Incident Log (B-151)
+   - Route: /incidents-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for incidents; KPIs (Total/Open/Critical/With Evidence); type/severity/status/plate+description search/date_from filters; location, reporter, zone, person_record, retention_hold, metadata expand
+
+2. Person Record Log (B-152)
+   - Route: /person-records-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for person_records; KPIs (Total/Of Interest/Trespass Issued/FCA Applies); name search/risk/trespass/FCA filters; DOB, vehicle association, trespass date, tent location, notes expand
+
+3. Notification Log (B-153)
+   - Route: /notifications-log
+   - Role gate: admin, master
+   - Viewer for notifications; KPIs (Total/Delivered/Read/Unread); type/priority/delivery/date_from filters; recipient user ID, body, delivery and read timestamps, data payload expand
+
 ## Production Status Snapshot (2026-05-08)
 
 - Branch: main
 - PR state (base main): 0 open
-- Consolidation status: Sprint 31 through Sprint 46 route work is aligned on the active branch; production main currently includes Sprints 31-45
+- Consolidation status: Sprint 31 through Sprint 47 route work is aligned on the active branch; production main currently includes Sprints 31-45
 
 ## Post-Sprint-42 Realignment Phases and Phase-Gate Progression (#548)
 
