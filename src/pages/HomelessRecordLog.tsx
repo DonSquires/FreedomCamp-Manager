@@ -87,14 +87,14 @@ export default function HomelessRecordLog() {
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
-            { label: 'Total Records', value: rows.length, colour: 'text-gray-700' },
-            { label: 'Active', value: activeCount, colour: 'text-green-700' },
-            { label: 'Inactive', value: inactiveCount, colour: 'text-slate-700' },
-            { label: 'Unique Plates', value: uniquePlates, colour: 'text-cyan-700' },
+            { label: 'Total Records', value: rows.length, color: 'text-gray-700' },
+            { label: 'Active', value: activeCount, color: 'text-green-700' },
+            { label: 'Inactive', value: inactiveCount, color: 'text-slate-700' },
+            { label: 'Unique Plates', value: uniquePlates, color: 'text-cyan-700' },
           ].map((kpi) => (
             <Card key={kpi.label}>
               <CardHeader className="pb-1 pt-3 px-4"><CardTitle className="text-xs text-muted-foreground">{kpi.label}</CardTitle></CardHeader>
-              <CardContent className="px-4 pb-3"><p className={`text-2xl font-bold ${kpi.colour}`}>{kpi.value}</p></CardContent>
+              <CardContent className="px-4 pb-3"><p className={`text-2xl font-bold ${kpi.color}`}>{kpi.value}</p></CardContent>
             </Card>
           ))}
         </div>

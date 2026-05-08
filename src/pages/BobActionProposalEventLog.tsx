@@ -93,14 +93,14 @@ export default function BobActionProposalEventLog() {
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
-            { label: 'Total Events', value: rows.length, colour: 'text-gray-700' },
-            { label: 'Reviewed', value: reviewedCount, colour: 'text-amber-700' },
-            { label: 'Failed', value: failedCount, colour: 'text-red-700' },
-            { label: 'With Notes', value: withNotesCount, colour: 'text-indigo-700' },
+            { label: 'Total Events', value: rows.length, color: 'text-gray-700' },
+            { label: 'Reviewed', value: reviewedCount, color: 'text-amber-700' },
+            { label: 'Failed', value: failedCount, color: 'text-red-700' },
+            { label: 'With Notes', value: withNotesCount, color: 'text-indigo-700' },
           ].map((kpi) => (
             <Card key={kpi.label}>
               <CardHeader className="pb-1 pt-3 px-4"><CardTitle className="text-xs text-muted-foreground">{kpi.label}</CardTitle></CardHeader>
-              <CardContent className="px-4 pb-3"><p className={`text-2xl font-bold ${kpi.colour}`}>{kpi.value}</p></CardContent>
+              <CardContent className="px-4 pb-3"><p className={`text-2xl font-bold ${kpi.color}`}>{kpi.value}</p></CardContent>
             </Card>
           ))}
         </div>
