@@ -183,7 +183,7 @@ export default function HomelessRecordLog() {
                         <TableCell colSpan={7} className="text-xs text-muted-foreground space-y-1 py-3">
                           <div className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-1">
                             <div><span className="font-medium">Record ID:</span> {row.id}</div>
-                            <div><span className="font-medium">Organisation:</span> {row.organization_id}</div>
+                            <div><span className="font-medium">Organization:</span> {row.organization_id}</div>
                             <div><span className="font-medium">Created:</span> {fmtDate(row.created_at)}</div>
                             <div><span className="font-medium">Updated:</span> {fmtDate(row.updated_at)}</div>
                             <div><span className="font-medium">Created by:</span> {row.created_by ?? '—'}</div>

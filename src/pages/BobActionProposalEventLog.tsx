@@ -150,7 +150,7 @@ export default function BobActionProposalEventLog() {
                   <TableHead>Event</TableHead>
                   <TableHead>Proposal</TableHead>
                   <TableHead>Actor</TableHead>
-                  <TableHead>Organisation</TableHead>
+                  <TableHead>Organization</TableHead>
                   <TableHead>Notes</TableHead>
                   <TableHead>Metadata</TableHead>
                 </TableRow>
@@ -189,7 +189,7 @@ export default function BobActionProposalEventLog() {
                             <div><span className="font-medium">Proposal ID:</span> {row.proposal_id}</div>
                             <div><span className="font-medium">Case ID:</span> {row.case_id ?? '—'}</div>
                             <div><span className="font-medium">Actor ID:</span> {row.actor_id ?? '—'}</div>
-                            <div><span className="font-medium">Organisation:</span> {row.organization_id}</div>
+                            <div><span className="font-medium">Organization:</span> {row.organization_id}</div>
                             <div><span className="font-medium">Created:</span> {fmtDate(row.created_at)}</div>
                           </div>
                           {row.notes && <div><span className="font-medium">Notes:</span> {row.notes}</div>}

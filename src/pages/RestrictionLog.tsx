@@ -79,7 +79,7 @@ export default function RestrictionLog() {
             <Map className="h-6 w-6 text-emerald-600" />
             <div>
               <h1 className="text-2xl font-bold">Restriction Log</h1>
-              <p className="text-sm text-muted-foreground">Spatial restriction records by type, organisation, and metadata payload</p>
+              <p className="text-sm text-muted-foreground">Spatial restriction records by type, organization, and metadata payload</p>
             </div>
           </div>
           <Button variant="outline" size="sm" onClick={() => refetch()}>
@@ -119,7 +119,7 @@ export default function RestrictionLog() {
           <Input
             value={orgQuery}
             onChange={(e) => setOrgQuery(e.target.value)}
-            placeholder="Search organisation ID…"
+            placeholder="Search organization ID…"
             className="w-56"
           />
           <input
