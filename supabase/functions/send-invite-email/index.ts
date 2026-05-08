@@ -109,7 +109,7 @@ serve(async (req) => {
   }
 
   let proxyBaseUrl: string | undefined;
-  let supabaseAdmin: any = null;
+  let supabaseAdmin: ReturnType<typeof createClient> | null = null;
   let inviteAuditContext: {
     organizationId?: string;
     email?: string;

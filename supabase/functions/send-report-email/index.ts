@@ -45,7 +45,7 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: getCorsHeaders(req) });
   }
 
-  let supabaseAdmin: any = null;
+  let supabaseAdmin: ReturnType<typeof createClient> | null = null;
   let reportAuditContext: {
     organizationId?: string;
     recipient?: string;

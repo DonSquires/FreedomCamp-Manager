@@ -19,7 +19,13 @@ export async function recordCommunicationAudit(
   supabase: any,
   params: CommunicationAuditParams,
 ) {
-  if (!params.organizationId) return;
+  if (!params.organizationId) {
+    console.warn('communications audit skipped: missing organization context', {
+      provider: params.provider,
+      status: params.status,
+    });
+    return;
+  }
 
   const now = new Date().toISOString();
   const { error } = await supabase
