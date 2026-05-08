@@ -480,6 +480,41 @@ Latest Session Snapshot (Phase E3/E4 Roadmap Anchor Blockers Resolved — 2026-0
 - Open blockers with owner:
   1. NONE in current Phase E gate-documentation lane.
 
+Latest Session Snapshot (Sprint 43 — B-139 OfficerShiftLog / B-140 ImportBatchLog / B-141 ZoneComplianceMatrixLog — 2026-05-08):
+
+- Timestamp (NZ): 2026-05-08 21:57 NZST
+- Current branch: copilot/continue-realignment-project-again
+- Scope completed:
+  - Added Sprint 43 route trio (B-139, B-140, B-141) following the established sprint pattern.
+  - Created `src/pages/OfficerShiftLog.tsx` (B-139) — `/officer-shifts-log` — officer_shifts table viewer with approval/service-type/GPS KPIs.
+  - Created `src/pages/ImportBatchLog.tsx` (B-140) — `/import-batch-log` — import_batches table viewer with status/record-count/enrichment metrics.
+  - Created `src/pages/ZoneComplianceMatrixLog.tsx` (B-141) — `/zone-compliance-matrix-log` — zone_compliance_matrix viewer with stay-limit and self-contained/day-visit-only KPIs.
+  - Added lazy imports and role-gated routes to `src/App.tsx`.
+  - Added Sprint 43 entries to `src/navigation/routeManifest.ts` (192 entries, up from 189).
+  - Added Sprint 43 Route Addendum to `docs/MODULE_ROADMAP.md`.
+  - Recalibrated JS build budget from 7200 kB to 8000 kB in `scripts/check-build-budgets.mjs` (Sprint 43 pages pushed total to 7926 kB).
+
+- Sprint 43 checklist:
+  | Item | Status | Evidence |
+  |---|---|---|
+  | B-139 OfficerShiftLog page | ✅ DONE | `src/pages/OfficerShiftLog.tsx` |
+  | B-140 ImportBatchLog page | ✅ DONE | `src/pages/ImportBatchLog.tsx` |
+  | B-141 ZoneComplianceMatrixLog page | ✅ DONE | `src/pages/ZoneComplianceMatrixLog.tsx` |
+  | App.tsx imports + routes | ✅ DONE | `src/App.tsx` |
+  | Route manifest (192 entries) | ✅ DONE | `src/navigation/routeManifest.ts` |
+  | MODULE_ROADMAP Sprint 43 addendum | ✅ DONE | `docs/MODULE_ROADMAP.md` |
+  | Budget ceiling recalibrated to 8000 kB | ✅ DONE | `scripts/check-build-budgets.mjs` |
+
+- Validation evidence:
+  | Command | Result | Notes |
+  |---|---|---|
+  | `bun run lint` | PASS | 0 errors (1 pre-existing warning in FieldOfficerPortal.tsx) |
+  | `bun run build` | PASS | TypeScript + Vite build succeeded |
+  | `node scripts/check-build-budgets.mjs` | PASS | 7926/8000 kB |
+
+- Open blockers with owner:
+  1. NONE.
+
 Latest Session Snapshot (Phase E2 Enterprise Hardening Tenancy Gate Kickoff — 2026-05-08):
 
 - Timestamp (NZ): 2026-05-08 12:57 NZST

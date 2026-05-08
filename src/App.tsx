@@ -271,6 +271,10 @@ const VehicleMigrationLog = lazy(() => import('@/pages/VehicleMigrationLog'))
 const ObservationDeletionLog = lazy(() => import('@/pages/ObservationDeletionLog'))
 const DispatchResourceLog = lazy(() => import('@/pages/DispatchResourceLog'))
 const RadioTranslationLog = lazy(() => import('@/pages/RadioTranslationLog'))
+// --- Sprint 43: B-139–B-141 ---
+const OfficerShiftLog = lazy(() => import('@/pages/OfficerShiftLog'))
+const ImportBatchLog = lazy(() => import('@/pages/ImportBatchLog'))
+const ZoneComplianceMatrixLog = lazy(() => import('@/pages/ZoneComplianceMatrixLog'))
 
 const NetworkStatusBar = lazy(() => import('@/components/features/NetworkStatusBar').then((m) => ({ default: m.NetworkStatusBar })))
 const PWAInstallPrompt = lazy(() => import('@/components/features/PWAInstallPrompt').then((m) => ({ default: m.PWAInstallPrompt })))
@@ -2445,6 +2449,10 @@ export default function App() {
           <Route path="/observation-deletions-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'master']}><ObservationDeletionLog /></RoleRoute></ProtectedRoute>} />
           <Route path="/dispatch-resources-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><DispatchResourceLog /></RoleRoute></ProtectedRoute>} />
           <Route path="/radio-translation-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><RadioTranslationLog /></RoleRoute></ProtectedRoute>} />
+          {/* Sprint 43: B-139–B-141 */}
+          <Route path="/officer-shifts-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><OfficerShiftLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/import-batch-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'master']}><ImportBatchLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/zone-compliance-matrix-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><ZoneComplianceMatrixLog /></RoleRoute></ProtectedRoute>} />
 
           {/* CRM – Accounts (Clients + Contractors) */}
           <Route

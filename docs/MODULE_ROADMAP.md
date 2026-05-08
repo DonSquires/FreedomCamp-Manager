@@ -680,6 +680,25 @@ New admin routes added in Sprint 42 (B-136, B-137, B-138):
    - Role gate: admin, admin_officer, master
    - Viewer for radio_translation_segments view; KPIs (Total/Low Confidence/Avg Confidence/Languages); language/provider/date/search filters
 
+## Sprint 43 Route Addendum (2026-05-08)
+
+New admin routes added in Sprint 43 (B-139, B-140, B-141):
+
+1. Officer Shift Log (B-139)
+   - Route: /officer-shifts-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for officer_shifts; KPIs (Total/Active/Pending Approval/GPS Tracked); officer/approval/service-type/date filters; GPS and feedback expand
+
+2. Import Batch Log (B-140)
+   - Route: /import-batch-log
+   - Role gate: admin, master
+   - Viewer for import_batches; KPIs (Total/Completed/Failed/Total Records); name/status/date filters; enrichment metrics expand
+
+3. Zone Compliance Matrix Log (B-141)
+   - Route: /zone-compliance-matrix-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for zone_compliance_matrix; KPIs (Total/Day-Visit Only/Self-Contained Required/Homeless Exemption); zone/day-visit/self-contained filters; stay-limit and allowed-days expand
+
 ## Production Status Snapshot (2026-05-07)
 
 - Branch: main
