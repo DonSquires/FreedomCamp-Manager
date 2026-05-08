@@ -149,8 +149,9 @@ Mandatory operational controls for Bob OpenAI research/training:
 
 1. Redact direct identifiers by default (full name, exact address, phone, email, DOB, document numbers) unless legal authority is explicitly recorded.
 2. Apply organisation-scoped filtering before export. Never bypass RLS intent for convenience.
-3. Log the legal basis and purpose in project documentation whenever new OpenAI research/training integrations are introduced.
-4. Keep production inference paths compliant with current deployment mode rules and provider lock controls.
+3. Every OpenAI request must carry a declared purpose field (`openai_purpose`) and that value must be constrained to `research` or `training` by policy.
+4. Log the legal basis and purpose in project documentation whenever new OpenAI research/training integrations are introduced.
+5. Keep production inference paths compliant with current deployment mode rules and provider lock controls.
 
 ---
 
