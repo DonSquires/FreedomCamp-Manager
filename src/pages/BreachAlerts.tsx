@@ -1,25 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { useQueryClient } from '@tanstack/react-query'
-import { supabase } from '@/lib/supabase'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
-import {
-  extractObservationId,
-  resolveEvidencePhotoUrl,
-  useAcknowledgeBreachAlert,
-  useAcknowledgeWelfareAlert,
-  useBreachAlertQueue,
-  useBreachEvidencePhotos,
-  useBreachIntelligenceAlerts,
-  useBreachSafetyAlerts,
-  useBreachTriggeringObservation,
-  useBreachVehicleDetail,
-  useBreachVehicleHistory,
-  useDismissBreachAlert,
-  useResolveBreachAlert,
-  useStartBreachEnforcement,
-} from '@/hooks/useBreaches'
 import { AsyncStateWrapper } from '@/components/features/AsyncStateWrapper'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -64,6 +47,25 @@ import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
 import { AdminFollowUpDrawer } from '@/components/features/AdminFollowUpDrawer'
 import { ListCardRow } from '@/components/features/ListCardRow'
 import { enrichVehicleFromMotorWeb } from '@/lib/proxyServices'
+import {
+  acknowledgeBreachAlert,
+  acknowledgeWelfareAlert,
+  deduplicateBreachAlerts,
+  dismissBreachAlert,
+  extractObservationId,
+  resolveBreachEvidencePhotoUrl,
+  resolveBreachAlert,
+  startBreachEnforcement,
+  useBreachAlertQueue,
+  useBreachEvidencePhotos,
+  useBreachIntelligenceAlerts,
+  useBreachSafetyAlerts,
+  useBreachTriggeringObservation,
+  useBreachVehicleDetails,
+  useBreachVehicleHistory,
+  updateBreachManualPlate,
+  updateCanonicalVehicleFromEnrichment,
+} from '@/hooks/useBreaches'
 
 // Schema-aligned BreachAlert type
 // breach_alerts table columns (from 20260218_rebuild_breach_alerts_system.sql):
@@ -90,6 +92,11 @@ interface BreachAlert {
   assigned_at: string | null
   assigned_by: string | null
   admin_review_notes: string | null
+}
+
+type BreachAlertListRow = BreachAlert & {
+  zones?: { name?: string | null } | null
+  organizations?: { name?: string | null } | null
 }
 
 function getBreachObservationId(breach: BreachAlert | null): string | null {
@@ -186,35 +193,33 @@ export default function BreachAlerts() {
     }
   }, [searchParams, setDateRange, setOrganization, setZone, user?.role])
 
-  // ── Intelligence Alerts: breach alerts requiring attention ─────────────────
   const { data: intelligenceAlerts } = useBreachIntelligenceAlerts({
-    organizationId: effectiveOrganizationId,
+    effectiveOrganizationId,
     zoneId,
-    startDate,
-    endDate,
     dateFrom,
     dateTo,
+    startDate,
+    endDate,
   })
 
-  // ── Safety Alerts: officer unexpected departures (welfare inactivity) ──────
   const { data: safetyAlerts } = useBreachSafetyAlerts({
-    organizationId: effectiveOrganizationId,
-    startDate,
-    endDate,
+    effectiveOrganizationId,
     dateFrom,
     dateTo,
+    startDate,
+    endDate,
   })
 
   const { data: breaches, isLoading, isError: breachesIsError, error: breachesError } = useBreachAlertQueue({
-    organizationId: effectiveOrganizationId,
+    effectiveOrganizationId,
     zoneId,
-    startDate,
-    endDate,
-    dateFrom,
-    dateTo,
     statusFilter,
     breachTypeFilter,
     searchQuery,
+    dateFrom,
+    dateTo,
+    startDate,
+    endDate,
   })
 
   useEffect(() => {
@@ -226,26 +231,77 @@ export default function BreachAlerts() {
   }, [breachesIsError, breachesError])
 
   // Derived: active breach from the list
-  const activeBreach = breaches?.find((b: any) => b.id === activeBreachId) || null
+  const activeBreach = (breaches?.find((b) => b.id === activeBreachId) ?? null) as BreachAlertListRow | null
 
-  // Fetch enriched vehicle data for the active breach
-  const { data: detailVehicle } = useBreachVehicleDetail(activeBreach)
+  const { data: detailVehicle } = useBreachVehicleDetails(activeBreach?.plate_number)
 
   const { data: triggeringObservation } = useBreachTriggeringObservation(activeBreach)
   const { data: evidencePhotos } = useBreachEvidencePhotos(activeBreach)
 
-  // Fetch vehicle breach history (rap sheet) – all previous breaches for this plate
-  // Includes observation_id + breach_details so deduplicateBreachAlerts can
-  // collapse duplicate alerts that were created for the same observation by
-  // different processing pipelines.
   const { data: vehicleHistory } = useBreachVehicleHistory(activeBreach)
 
-  const acknowledgeMutation = useAcknowledgeBreachAlert()
-  const enforcementMutation = useStartBreachEnforcement()
-  const clearResolveNotes = useCallback(() => setResolveNotes(''), [setResolveNotes])
-  const resolveMutation = useResolveBreachAlert({ onSuccess: clearResolveNotes })
-  const dismissMutation = useDismissBreachAlert()
-  const acknowledgeWelfareMutation = useAcknowledgeWelfareAlert()
+  // Acknowledge (was "notify") – correct status value per schema
+  const acknowledgeMutation = useMutation({
+    mutationFn: async (breachId: string) => {
+      await acknowledgeBreachAlert(breachId, user?.id)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['breach-alerts'] })
+      queryClient.invalidateQueries({ queryKey: ['intelligence-alerts'] })
+      toast.success('Breach acknowledged')
+    },
+    onError: () => toast.error('Failed to acknowledge breach'),
+  })
+
+  // Mark as enforcement started
+  const enforcementMutation = useMutation({
+    mutationFn: async (breachId: string) => {
+      await startBreachEnforcement(breachId, user?.id)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['breach-alerts'] })
+      toast.success('Enforcement started')
+    },
+    onError: () => toast.error('Failed to start enforcement'),
+  })
+
+  // Resolve breach – schema has no resolved_by column
+  const resolveMutation = useMutation({
+    mutationFn: async ({ breachId, notes }: { breachId: string; notes: string }) => {
+      await resolveBreachAlert({ breachId, notes })
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['breach-alerts'] })
+      queryClient.invalidateQueries({ queryKey: ['intelligence-alerts'] })
+      setResolveNotes('')
+      toast.success('Breach marked as resolved')
+    },
+    onError: () => toast.error('Failed to resolve breach'),
+  })
+
+  // Dismiss breach
+  const dismissMutation = useMutation({
+    mutationFn: async ({ breachId, reason }: { breachId: string; reason?: string }) => {
+      await dismissBreachAlert({ breachId, reason })
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['breach-alerts'] })
+      toast.success('Breach dismissed')
+    },
+    onError: () => toast.error('Failed to dismiss breach'),
+  })
+
+  // Welfare alert acknowledgement
+  const acknowledgeWelfareMutation = useMutation({
+    mutationFn: async (alertId: string) => {
+      await acknowledgeWelfareAlert(alertId, user?.id)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['safety-alerts'] })
+      toast.success('Welfare alert acknowledged')
+    },
+    onError: () => toast.error('Failed to acknowledge welfare alert'),
+  })
 
   // Vehicle details enrichment
   const handleEnrichVehicle = async (plateNumber: string) => {
@@ -258,17 +314,10 @@ export default function BreachAlerts() {
         return
       }
       if (data) {
-        const { error: updateError } = await (supabase.from('canonical_vehicles') as any)
-          .update({
-            vehicle_make: data.make,
-            vehicle_model: data.model,
-            vehicle_year: data.year ?? null,
-            vehicle_color: data.colour,
-          })
-          .eq('plate_number', plateNumber)
-
-        if (updateError) {
-          toast.error('Failed to save enriched vehicle data')
+        try {
+          await updateCanonicalVehicleFromEnrichment(plateNumber, data)
+        } catch (err: any) {
+          toast.error(err?.message || 'Failed to save enriched vehicle data')
           return
         }
         queryClient.invalidateQueries({ queryKey: ['breach-vehicle', plateNumber] })
@@ -335,17 +384,11 @@ export default function BreachAlerts() {
 
     setIsSavingManualPlate(true)
     try {
-      // Update the observation with the real plate
-      const { error: obsErr } = await (supabase.from('observations') as any)
-        .update({ plate_number: plate })
-        .eq('observation_id', observationId)
-      if (obsErr) throw obsErr
-
-      // Update the breach alert plate
-      const { error: breachErr } = await (supabase.from('breach_alerts') as any)
-        .update({ plate_number: plate })
-        .eq('id', activeBreach.id)
-      if (breachErr) throw breachErr
+      await updateBreachManualPlate({
+        breachId: activeBreach.id,
+        observationId,
+        plateNumber: plate,
+      })
 
       toast.success(`Plate updated to ${plate} — compliance re-evaluation will run shortly`)
       setManualPlateInput('')
@@ -498,7 +541,7 @@ export default function BreachAlerts() {
   const handleBulkAcknowledge = async () => {
     const ids = Array.from(selectedIds)
     const pendingIds = ids.filter(id => {
-      const b = breaches?.find((b: any) => b.id === id)
+      const b = breaches?.find((b: any) => b.id === id) as any
       return b?.status === 'pending'
     })
     if (pendingIds.length === 0) { toast.warning('No pending breaches selected'); return }
@@ -510,7 +553,7 @@ export default function BreachAlerts() {
   const handleBulkDismiss = async () => {
     const ids = Array.from(selectedIds)
     const dismissableIds = ids.filter(id => {
-      const b = breaches?.find((b: any) => b.id === id)
+      const b = breaches?.find((b: any) => b.id === id) as any
       return b && !['resolved', 'dismissed'].includes(b.status)
     })
     if (dismissableIds.length === 0) { toast.warning('No dismissable breaches selected'); return }
@@ -1077,7 +1120,7 @@ export default function BreachAlerts() {
 
                                 let idx = Number(target.dataset.fallbackIndex || '0')
                                 while (idx < urls.length) {
-                                  const nextResolved = await resolveEvidencePhotoUrl(urls[idx])
+                                  const nextResolved = await resolveBreachEvidencePhotoUrl(urls[idx])
                                   idx += 1
                                   target.dataset.fallbackIndex = String(idx)
                                   if (nextResolved) {

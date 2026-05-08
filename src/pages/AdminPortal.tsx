@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
-import { supabase } from '@/lib/supabase'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Badge } from '@/components/ui/badge'
@@ -14,9 +13,16 @@ import { ListCardRow } from '@/components/features/ListCardRow'
 import { ComplianceTrendChart, type TrendDataPoint } from '@/components/features/ComplianceTrendChart'
 import { SystemHealthIndicator } from '@/components/features/SystemHealthIndicator'
 import { nzDateToUTCStart, nzDateToUTCEnd, parseNZDate } from '@/lib/timezone'
+import {
+  useAdminActivePatrolCount,
+  useAdminPrimaryDashboard,
+  useAdminRecentHistoricalObservations,
+  useAdminTodayRosterShifts,
+  useAdminWelfareAlertCount,
+  HOMELESS_EXEMPT_STATUSES,
+} from '@/hooks/useAdminPortalData'
 import { format } from 'date-fns'
 import { HOMELESS_UI_STATUSES } from '@/lib/homelessStatus'
-const HOMELESS_EXEMPT_STATUSES = ['confirmed', 'claimed'] as const
 
 import { toast } from 'sonner'
 import {
@@ -136,346 +142,15 @@ export default function AdminPortal() {
   const startDate = normalizedDateFrom ? nzDateToUTCStart(normalizedDateFrom) : null
   const endDate = normalizedDateTo ? nzDateToUTCEnd(normalizedDateTo) : null
 
-  const { data, isLoading, isError, error } = useQuery({
-    queryKey: ['admin-primary-dashboard', effectiveOrganizationId, zoneId, dateFrom, dateTo],
-    queryFn: async () => {
-      const diagnostics: string[] = []
-
-      // ── Helper: apply org / zone / date filters to any query ──────────────
-      const applyFilters = (q: any) => {
-        if (effectiveOrganizationId) q = q.eq('organization_id', effectiveOrganizationId)
-        if (zoneId)                  q = q.eq('zone_id', zoneId)
-        if (startDate)               q = q.gte('recorded_at', startDate)
-        if (endDate)                 q = q.lte('recorded_at', endDate)
-        return q
-      }
-
-      const nzToday = new Date().toLocaleDateString('en-CA', { timeZone: 'Pacific/Auckland' })
-      const todayStart = nzDateToUTCStart(nzToday)
-      const rpcFrom = normalizedDateFrom ?? '1970-01-01'
-      const rpcTo   = normalizedDateTo   ?? new Date().toISOString().slice(0, 10)
-
-      // ── Build independent queries ─────────────────────────────────────────
-      // Groups 1+2: observation counts
-      const totalObsQ = applyFilters(supabase.from('observations').select('*', { count: 'exact', head: true }))
-      const compliantQ = applyFilters(supabase.from('observations').select('*', { count: 'exact', head: true }).eq('is_compliant', true))
-
-      // Group 3: active vehicles RPC
-      const summaryQ = (supabase.rpc as any)('get_observation_summary', {
-        p_start_date: rpcFrom,
-        p_end_date: rpcTo,
-        p_organization_id: effectiveOrganizationId ?? null,
-        p_zone_id: zoneId ?? null,
-      })
-
-      // Group 5: active breaches
-      let breachesQ = (supabase.from('breach_alerts') as any)
-        .select('observation_id')
-        .in('status', ['pending', 'acknowledged', 'enforcement_started'])
-        .not('observation_id', 'is', null)
-      if (effectiveOrganizationId) breachesQ = breachesQ.eq('organization_id', effectiveOrganizationId)
-      if (zoneId)                  breachesQ = breachesQ.eq('zone_id', zoneId)
-      if (startDate)               breachesQ = breachesQ.gte('created_at', startDate)
-      if (endDate)                 breachesQ = breachesQ.lte('created_at', endDate)
-
-      // Group 5b: active investigations
-      let investigationsQ = (supabase.from('investigation_jobs') as any)
-        .select('id', { count: 'exact', head: true })
-        .in('status', ['pending', 'assigned', 'in_progress', 'overdue'])
-      if (effectiveOrganizationId) investigationsQ = investigationsQ.eq('organization_id', effectiveOrganizationId)
-      if (zoneId) investigationsQ = investigationsQ.eq('associated_zone_id', zoneId)
-      if (startDate) investigationsQ = investigationsQ.gte('created_at', startDate)
-      if (endDate) investigationsQ = investigationsQ.lte('created_at', endDate)
-
-      // Group 7a: active officers
-      let activeOfficersQ = (supabase.from('user_profiles') as any)
-        .select('id', { count: 'exact', head: true })
-        .in('role', ['officer', 'admin_officer'])
-        .eq('is_active', true)
-        .gte('last_gps_update', new Date(Date.now() - 20 * 60 * 1000).toISOString())
-      if (effectiveOrganizationId) activeOfficersQ = activeOfficersQ.eq('organization_id', effectiveOrganizationId)
-
-      // Group 7b: checks today
-      let checksTodayQ = (supabase.from('observations') as any)
-        .select('observation_id', { count: 'exact', head: true })
-        .gte('recorded_at', todayStart)
-      if (effectiveOrganizationId) checksTodayQ = checksTodayQ.eq('organization_id', effectiveOrganizationId)
-      if (zoneId) checksTodayQ = checksTodayQ.eq('zone_id', zoneId)
-
-      // Group 7c: infringements issued today
-      let infringementsQ = (supabase.from('infringement_notices') as any)
-        .select('id', { count: 'exact', head: true })
-        .gte('issued_at', todayStart)
-      if (effectiveOrganizationId) infringementsQ = infringementsQ.eq('organization_id', effectiveOrganizationId)
-
-      // Group 7d: disputes pending
-      let disputesQ = (supabase.from('infringement_notices') as any)
-        .select('id', { count: 'exact', head: true })
-        .eq('status', 'disputed')
-      if (effectiveOrganizationId) disputesQ = disputesQ.eq('organization_id', effectiveOrganizationId)
-
-      // Group homeless: homeless_records (org-scoped) + canonical_homeless (cross-org canonical)
-      let homelessRecordsQ = (supabase.from('homeless_records') as any)
-        .select('plate_number, status')
-        .eq('is_active', true)
-        .in('status', HOMELESS_UI_STATUSES)
-      if (effectiveOrganizationId) homelessRecordsQ = homelessRecordsQ.eq('organization_id', effectiveOrganizationId)
-
-      const canonicalHomelessQ = supabase
-        .from('canonical_homeless')
-        .select('plate_number, status')
-        .in('status', HOMELESS_UI_STATUSES)
-
-      // ── Fire all independent queries in parallel ──────────────────────────
-      const [
-        totalObsRes,
-        compliantRes,
-        summaryRes,
-        breachesRes,
-        investigationsRes,
-        activeOfficersRes,
-        checksTodayRes,
-        infringementsRes,
-        disputesRes,
-        homelessRecordsRes,
-        canonicalHomelessRes,
-      ] = await Promise.all([
-        totalObsQ,
-        compliantQ,
-        summaryQ,
-        breachesQ,
-        investigationsQ,
-        activeOfficersQ,
-        checksTodayQ,
-        infringementsQ,
-        disputesQ,
-        homelessRecordsQ,
-        canonicalHomelessQ,
-      ])
-
-      // ── 1. Total observations ─────────────────────────────────────────────
-      if (totalObsRes.error) diagnostics.push(`observations_total: ${totalObsRes.error.message || 'unknown error'}`)
-      const totalObservations = totalObsRes.count
-
-      // ── 2. Compliant observations count ──────────────────────────────────
-      if (compliantRes.error) diagnostics.push(`observations_compliant: ${compliantRes.error.message || 'unknown error'}`)
-      const compliantCount = compliantRes.count
-
-      // ── 3. Active vehicles — unique plates in the date range ─────────────
-      // get_observation_summary returns COUNT(DISTINCT plate_number) server-side.
-      let activeVehicles = 0
-      if (!summaryRes.error && summaryRes.data && summaryRes.data[0]) {
-        activeVehicles = Number(summaryRes.data[0].unique_vehicles) || 0
-      } else {
-        // Fallback when RPC is unavailable in schema cache: count distinct plates directly.
-        // We page through results to avoid row limits while still keeping an exact count.
-        const uniquePlates = new Set<string>()
-        const pageSize = 1000
-        let offset = 0
-
-        while (true) {
-          let vehicleQuery = supabase
-            .from('observations')
-            .select('plate_number')
-            .not('plate_number', 'is', null)
-            .order('recorded_at', { ascending: false })
-            .range(offset, offset + pageSize - 1)
-
-          if (effectiveOrganizationId) vehicleQuery = vehicleQuery.eq('organization_id', effectiveOrganizationId)
-          if (zoneId) vehicleQuery = vehicleQuery.eq('zone_id', zoneId)
-          if (startDate) vehicleQuery = vehicleQuery.gte('recorded_at', startDate)
-          if (endDate) vehicleQuery = vehicleQuery.lte('recorded_at', endDate)
-
-          const { data: vehicleRows, error: vehicleErr } = await vehicleQuery
-          if (vehicleErr) {
-            diagnostics.push(`active_vehicles_fallback: ${vehicleErr.message || 'unknown error'}`)
-            break
-          }
-
-          const rows = vehicleRows ?? []
-          rows.forEach((r: any) => {
-            if (r?.plate_number) uniquePlates.add(String(r.plate_number).trim().toUpperCase())
-          })
-
-          if (rows.length < pageSize) break
-          offset += pageSize
-        }
-
-        activeVehicles = uniquePlates.size
-      }
-
-      // ── 4. Trend data rows (for the chart only — limited fetch is fine) ──
-      const trendRows: Array<{ plate_number: string | null; is_compliant: boolean | null; recorded_at: string }> = []
-      const trendPageSize = 1000
-      const trendMaxRows = 100000
-      let trendOffset = 0
-
-      while (trendOffset < trendMaxRows) {
-        const trendPageQuery = applyFilters(
-          supabase
-            .from('observations')
-            .select('plate_number, is_compliant, recorded_at')
-            .order('recorded_at', { ascending: true })
-            .range(trendOffset, trendOffset + trendPageSize - 1)
-        )
-
-        const { data: trendPageRows, error: trendErr } = await trendPageQuery
-        if (trendErr) {
-          diagnostics.push(`observations_trend: ${trendErr.message || 'unknown error'}`)
-          break
-        }
-
-        const rows = (trendPageRows ?? []) as Array<{ plate_number: string | null; is_compliant: boolean | null; recorded_at: string }>
-        trendRows.push(...rows)
-
-        if (rows.length < trendPageSize) break
-        trendOffset += trendPageSize
-      }
-
-      if (trendRows.length >= trendMaxRows) {
-        diagnostics.push(`observations_trend: capped at ${trendMaxRows} rows for dashboard performance`)
-      }
-
-      // ── Homeless plates ───────────────────────────────────────────────────
-      const homelessPlates = new Set<string>()
-      const homelessExemptPlates = new Set<string>()
-
-      if (homelessRecordsRes.error) {
-        diagnostics.push(`homeless_records_trend: ${homelessRecordsRes.error.message || 'unknown error'}`)
-      } else {
-        ;(homelessRecordsRes.data ?? []).forEach((row: any) => {
-          const plate = String(row?.plate_number ?? '').trim().toUpperCase()
-          if (plate) homelessPlates.add(plate)
-          const status = String(row?.status ?? '').trim().toLowerCase()
-          if (plate && HOMELESS_EXEMPT_STATUSES.includes(status as any)) homelessExemptPlates.add(plate)
-        })
-      }
-
-      if (canonicalHomelessRes.error) {
-        diagnostics.push(`canonical_homeless_trend: ${canonicalHomelessRes.error.message || 'unknown error'}`)
-      } else {
-        ;(canonicalHomelessRes.data ?? []).forEach((row: any) => {
-          const plate = String(row?.plate_number ?? '').trim().toUpperCase()
-          if (plate) homelessPlates.add(plate)
-          const status = String((row as any)?.status ?? '').trim().toLowerCase()
-          if (plate && HOMELESS_EXEMPT_STATUSES.includes(status as any)) homelessExemptPlates.add(plate)
-        })
-      }
-
-      // ── 5. Active breaches (distinct observation_id count to avoid duplicates) ─
-      let activeBreaches = 0
-      if (breachesRes.error) {
-        diagnostics.push(`breach_alerts_active: ${breachesRes.error.message || 'unknown error'}`)
-      } else {
-        activeBreaches = new Set((breachesRes.data ?? []).map((r: any) => r.observation_id)).size
-      }
-
-      // ── 5b. Active investigations count ──────────────────────────────────
-      if (investigationsRes.error) diagnostics.push(`investigation_jobs_active: ${investigationsRes.error.message || 'unknown error'}`)
-      const activeInvestigations = investigationsRes.count
-
-      // ── 7. Command snapshot metrics ──────────────────────────────────────
-      if (activeOfficersRes.error) diagnostics.push(`active_officers: ${activeOfficersRes.error.message || 'unknown error'}`)
-      const activeOfficers = activeOfficersRes.count
-
-      if (checksTodayRes.error) diagnostics.push(`checks_today: ${checksTodayRes.error.message || 'unknown error'}`)
-      const checksToday = checksTodayRes.count
-
-      if (infringementsRes.error) diagnostics.push(`infringements_issued: ${infringementsRes.error.message || 'unknown error'}`)
-      const infringementsIssued = infringementsRes.count
-
-      if (disputesRes.error) diagnostics.push(`disputes_pending: ${disputesRes.error.message || 'unknown error'}`)
-      const disputesPending = disputesRes.count
-
-      // Open dispute_intake submissions (new dispute intake system)
-      let openDisputeIntakeQuery = supabase
-        .from('dispute_intake')
-        .select('id', { count: 'exact', head: true })
-        .in('status', ['received', 'under_review', 'info_requested'])
-      if (effectiveOrganizationId) openDisputeIntakeQuery = openDisputeIntakeQuery.eq('organization_id', effectiveOrganizationId)
-      const { count: openDisputeIntake, error: disputeIntakeErr } = await openDisputeIntakeQuery
-      if (disputeIntakeErr) diagnostics.push(`open_dispute_intake: ${disputeIntakeErr.message || 'unknown error'}`)
-
-      // Vehicle discrepancies requiring review
-      let discrepanciesPendingQuery = (supabase.from('vehicle_discrepancies') as any)
-        .select('id', { count: 'exact', head: true })
-        .eq('requires_review', true)
-        .is('reviewed_at', null)
-      if (effectiveOrganizationId) discrepanciesPendingQuery = discrepanciesPendingQuery.eq('organization_id', effectiveOrganizationId)
-      const { count: discrepanciesPending, error: discrepanciesErr } = await discrepanciesPendingQuery
-      if (discrepanciesErr) diagnostics.push(`discrepancies_pending: ${discrepanciesErr.message || 'unknown error'}`)
-
-      // SCV certifications expiring within 30 days
-      const thirtyDaysFromNow = new Date()
-      thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30)
-      const { count: scvExpiringSoon, error: scvErr } = await supabase
-        .from('canonical_scv')
-        .select('plate_number', { count: 'exact', head: true })
-        .eq('is_self_contained', true)
-        .not('certificate_expiry', 'is', null)
-        .lte('certificate_expiry', thirtyDaysFromNow.toISOString())
-        .gt('certificate_expiry', new Date().toISOString())
-      if (scvErr) diagnostics.push(`scv_expiring_soon: ${scvErr.message || 'unknown error'}`)
-
-      // Active trespass notices (B-45 table)
-      let activeTrespassQ = (supabase as any)
-        .from('trespass_notices')
-        .select('id', { count: 'exact', head: true })
-        .eq('status', 'active')
-      if (effectiveOrganizationId) activeTrespassQ = activeTrespassQ.eq('organization_id', effectiveOrganizationId)
-      const { count: activeTrespassCount, error: trespassErr } = await activeTrespassQ
-      if (trespassErr) diagnostics.push(`active_trespass_notices: ${trespassErr.message || 'unknown error'}`)
-
-      // Radio transmissions today (B-48 table)
-      let radioTodayQ = (supabase as any)
-        .from('radio_transmissions')
-        .select('id', { count: 'exact', head: true })
-        .gte('started_at', todayStart)
-      if (effectiveOrganizationId) radioTodayQ = radioTodayQ.eq('org_id', effectiveOrganizationId)
-      const { count: radioTransmissionsToday, error: radioErr } = await radioTodayQ
-      if (radioErr) diagnostics.push(`radio_transmissions_today: ${radioErr.message || 'unknown error'}`)
-      // Count non-compliant observations where the plate belongs to a homeless vehicle.
-      // This is the exact number of "breaches" that are actually FC Act exempt.
-      let homelessExemptBreachCount = 0
-      const homelessPlateList = Array.from(homelessExemptPlates)
-      if (homelessPlateList.length > 0) {
-        const { count: exemptCount, error: exemptErr } = await applyFilters(
-          supabase
-            .from('observations')
-            .select('observation_id', { count: 'exact', head: true })
-            .eq('is_compliant', false)
-            .in('plate_number', homelessPlateList)
-        )
-        if (exemptErr) diagnostics.push(`homeless_exempt_breaches: ${exemptErr.message || 'unknown error'}`)
-        homelessExemptBreachCount = exemptCount ?? 0
-      }
-
-      return {
-        totalObservations: totalObservations ?? 0,
-        compliantCount:    compliantCount    ?? 0,
-        activeVehicles,
-        trendRows,
-        homelessPlates: Array.from(homelessPlates),
-        homelessExemptPlates: Array.from(homelessExemptPlates),
-        activeBreaches:            activeBreaches            ?? 0,
-        activeInvestigations:      activeInvestigations      ?? 0,
-        activeOfficers:            activeOfficers            ?? 0,
-        checksToday:               checksToday               ?? 0,
-        infringementsIssued:       infringementsIssued       ?? 0,
-        disputesPending:           disputesPending           ?? 0,
-        openDisputeIntake:         openDisputeIntake         ?? 0,
-        discrepanciesPending:      discrepanciesPending      ?? 0,
-        scvExpiringSoon:           scvExpiringSoon            ?? 0,
-        homelessExemptBreachCount,
-        activeTrespassCount:       activeTrespassCount        ?? 0,
-        radioTransmissionsToday:   radioTransmissionsToday    ?? 0,
-        diagnostics,
-      }
-    },
-    refetchOnWindowFocus: true,
-    refetchOnReconnect: true,
-    refetchOnMount: 'always',
-    staleTime: 15000,
+  const { data, isLoading, isError, error } = useAdminPrimaryDashboard({
+    organizationId: effectiveOrganizationId,
+    zoneId,
+    dateFrom,
+    dateTo,
+    startDate,
+    endDate,
+    normalizedDateFrom,
+    normalizedDateTo,
   })
 
   useEffect(() => {
@@ -500,74 +175,22 @@ export default function AdminPortal() {
     }
   }, [queryClient, effectiveOrganizationId, zoneId, dateFrom, dateTo])
 
-  const { data: recentHistoricalObservations = [] } = useQuery({
-    queryKey: ['admin-recent-historical-observations', effectiveOrganizationId, zoneId, startDate, endDate],
-    queryFn: async () => {
-      let q = (supabase.from('observations') as any)
-        .select('observation_id, plate_number, recorded_at, breach_type, is_compliant, zone:zones!zone_id(name)')
-        .order('recorded_at', { ascending: false })
-        .limit(8)
-
-      if (effectiveOrganizationId) q = q.eq('organization_id', effectiveOrganizationId)
-      if (zoneId) q = q.eq('zone_id', zoneId)
-      if (startDate) q = q.gte('recorded_at', startDate)
-      if (endDate) q = q.lte('recorded_at', endDate)
-
-      const { data: rows, error: rowsError } = await q
-      if (rowsError) throw rowsError
-      return (rows || []) as any[]
-    },
+  const { data: recentHistoricalObservations = [] } = useAdminRecentHistoricalObservations({
+    organizationId: effectiveOrganizationId,
+    zoneId,
+    startDate,
+    endDate,
     enabled: !!effectiveOrganizationId,
   })
 
   // Welfare alerts — Welfare First inspired: surface officer safety issues immediately
-  const { data: welfareAlertCount = 0 } = useQuery({
-    queryKey: ['admin-welfare-alert-count', effectiveOrganizationId],
-    queryFn: async () => {
-      let q = (supabase.from('officer_welfare_alerts') as any)
-        .select('id', { count: 'exact', head: true })
-        .in('status', ['pending', 'acknowledged'])
-      if (effectiveOrganizationId) q = q.eq('organization_id', effectiveOrganizationId)
-      const { count } = await q
-      return count ?? 0
-    },
-    staleTime: 1000 * 30,
-  })
+  const { data: welfareAlertCount = 0 } = useAdminWelfareAlertCount(effectiveOrganizationId)
 
   // Active patrols today — Wilsar inspired: show guard tour progress
-  const { data: activePatrolCount = 0 } = useQuery({
-    queryKey: ['admin-active-patrol-count', effectiveOrganizationId],
-    queryFn: async () => {
-      const nzToday = new Date().toLocaleDateString('en-CA', { timeZone: 'Pacific/Auckland' })
-      let q = (supabase.from('patrols') as any)
-        .select('id', { count: 'exact', head: true })
-        .eq('status', 'in_progress')
-        .eq('patrol_date', nzToday)
-      if (effectiveOrganizationId) q = q.eq('organization_id', effectiveOrganizationId)
-      const { count } = await q
-      return count ?? 0
-    },
-    staleTime: 1000 * 30,
-  })
+  const { data: activePatrolCount = 0 } = useAdminActivePatrolCount(effectiveOrganizationId)
 
   // Today's roster shifts — Deputy / InTime inspired: show who is on duty today
-  const { data: todayRosterShifts = [] } = useQuery({
-    queryKey: ['admin-today-roster', effectiveOrganizationId],
-    queryFn: async () => {
-      const nzToday = new Date().toLocaleDateString('en-CA', { timeZone: 'Pacific/Auckland' })
-      let q = (supabase.from('roster_shifts') as any)
-        .select(`id, start_time, end_time, status, position_title, service_type,
-          officer:user_profiles!roster_shifts_officer_id_fkey(first_name, last_name)`)
-        .eq('shift_date', nzToday)
-        .in('status', ['published', 'confirmed', 'in_progress'])
-        .order('start_time', { ascending: true })
-        .limit(8)
-      if (effectiveOrganizationId) q = q.eq('organization_id', effectiveOrganizationId)
-      const { data } = await q
-      return (data ?? []) as any[]
-    },
-    staleTime: 1000 * 60,
-  })
+  const { data: todayRosterShifts = [] } = useAdminTodayRosterShifts(effectiveOrganizationId)
 
   const metrics = useMemo(() => {
     const totalObservations = data?.totalObservations ?? 0

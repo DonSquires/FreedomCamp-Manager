@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { supabase } from '@/lib/supabase'
 import { edgeFunctions } from '@/lib/edgeFunctions'
 import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
@@ -19,46 +18,22 @@ import {
   MapPin, Clock, BarChart3, ZoomIn, Shield, Flag,
 } from 'lucide-react'
 import { formatDate, formatDateTime } from '@/lib/utils'
-import { nzDateToUTCStart, nzDateToUTCEnd } from '@/lib/timezone'
 import { HOMELESS_UI_STATUSES, isHomelessForUi, normalizeHomelessStatus } from '@/lib/homelessStatus'
 import { checkNZSCVCertification, enrichVehicleFromMotorWeb } from '@/lib/proxyServices'
-import { getObservationPhotoUrl, getVehiclePhotoUrl } from '@/lib/photoUtils'
+import { getObservationPhotoUrl } from '@/lib/photoUtils'
 import { PhotoWithFallback } from '@/components/features/PhotoWithFallback'
+import {
+  useVehicleDialogObservations,
+  useUpdateVehicleDetails,
+  useToggleVehicleFlag,
+  useVehicleListQuery,
+  type VehicleListItem,
+} from '@/hooks/useVehicles'
 import { toast } from 'sonner'
 
-interface Vehicle {
-  vehicle_id: string
-  source?: 'canonical' | 'observations'
-  plate_number: string
-  vehicle_make: string | null
-  vehicle_model: string | null
-  vehicle_year: number | null   // INTEGER (normalized in 20260411000003)
-  vehicle_color: string | null
-  self_contained: boolean
-  self_contained_expiry: string | null
-  homeless_status: string | null
-  is_exempt: boolean
-  is_flagged: boolean
-  flagged_reason: string | null
-  enforcement_count: number
-  last_enforcement_at: string | null
-  profile_photo: string | null
-  total_observations: number
-  total_breaches: number
-}
+type Vehicle = VehicleListItem
 
 type StatusFilter = 'all' | 'compliant' | 'breaches' | 'homeless' | 'exempt' | 'flagged'
-
-interface VehicleQueryDebug {
-  rawOrgId: string | null
-  resolvedOrgId: string | null
-  rawZoneId: string | null
-  resolvedZoneId: string | null
-  scopedObservationCount: number
-  primaryCanonicalCount: number
-  fallbackCanonicalCount: number
-  synthesizedCount: number
-}
 
 export default function VehicleManagement() {
   const { user } = useAuthStore()
@@ -85,13 +60,14 @@ export default function VehicleManagement() {
   const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null)
   const [checkingNZSCV, setCheckingNZSCV] = useState(false)
   const [enrichingMotorWeb, setEnrichingMotorWeb] = useState(false)
+
+  const updateVehicleDetails = useUpdateVehicleDetails()
+  const toggleVehicleFlag = useToggleVehicleFlag()
   const [scrapingSales, setScrapingSales] = useState(false)
   const [nzscvResult, setNzscvResult] = useState<any>(null)
   // Photo lightbox state
   const [enlargedPhoto, setEnlargedPhoto] = useState<string | null>(null)
   const [detailTab, setDetailTab] = useState('info')
-  const [vehicleQueryDebug, setVehicleQueryDebug] = useState<VehicleQueryDebug | null>(null)
-
   // Handle URL search params (status, search, dates, org, zone)
   useEffect(() => {
     const status = searchParams.get('status') as StatusFilter | null
@@ -112,519 +88,14 @@ export default function VehicleManagement() {
     if (qZoneId) setZone(qZoneId, null)
   }, [searchParams, setDateRange, setOrganization, setZone, user?.role])
 
-  // ─── Vehicle List Query ───────────────────────────────────────────────────
-  // Queries canonical_vehicles, scoped by org/zone via observations lookup.
-  // Counts are recalculated from observations scoped to current org/zone/date filters.
-  const { data: vehicles, isLoading, error: vehiclesError, refetch: refetchVehicles } = useQuery({
-    queryKey: ['vehicles', effectiveOrganizationId, zoneId, dateFrom, dateTo, statusFilter, searchQuery],
-    queryFn: async () => {
-      const debug: VehicleQueryDebug = {
-        rawOrgId: effectiveOrganizationId,
-        resolvedOrgId: null,
-        rawZoneId: zoneId,
-        resolvedZoneId: null,
-        scopedObservationCount: 0,
-        primaryCanonicalCount: 0,
-        fallbackCanonicalCount: 0,
-        synthesizedCount: 0,
-      }
-
-      try {
-
-      const isUuid = (value: string | null) =>
-        !!value && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
-
-      const isAllLike = (value: string | null) => {
-        if (!value) return true
-        const normalized = value.trim().toLowerCase()
-        return (
-          !normalized ||
-          normalized === '__all__' ||
-          normalized === 'all' ||
-          normalized === 'all zones' ||
-          normalized === 'all organisations' ||
-          normalized === 'null' ||
-          normalized === 'undefined'
-        )
-      }
-
-      const resolveScopeOrgId = async (rawOrgId: string | null) => {
-        if (isAllLike(rawOrgId)) return null
-        if (isUuid(rawOrgId)) return rawOrgId
-
-        const normalized = rawOrgId!.replace(/\s*\(current\)\s*$/i, '').trim()
-        if (!normalized) return null
-
-        const { data, error } = await (supabase.from('organizations') as any)
-          .select('id, name')
-          .ilike('name', `%${normalized}%`)
-          .limit(1)
-
-        if (error) throw error
-        return data?.[0]?.id ?? null
-      }
-
-      const resolveScopeZoneId = async (rawZoneId: string | null, scopeOrgId: string | null) => {
-        if (isAllLike(rawZoneId)) return null
-        if (isUuid(rawZoneId)) return rawZoneId
-
-        const normalized = rawZoneId!.trim()
-        if (!normalized) return null
-
-        let zoneQuery = (supabase.from('zones') as any)
-          .select('id, name, organization_id')
-          .eq('is_active', true)
-          .ilike('name', `%${normalized}%`)
-          .limit(1)
-
-        if (scopeOrgId) {
-          zoneQuery = zoneQuery.eq('organization_id', scopeOrgId)
-        }
-
-        const { data, error } = await zoneQuery
-        if (error) throw error
-        return data?.[0]?.id ?? null
-      }
-
-      const scopeOrgId = await resolveScopeOrgId(effectiveOrganizationId)
-      debug.resolvedOrgId = scopeOrgId
-      const scopeZoneId = await resolveScopeZoneId(zoneId, scopeOrgId)
-      debug.resolvedZoneId = scopeZoneId
-
-      const startISO = dateFrom ? nzDateToUTCStart(dateFrom) : null
-      const endISO = dateTo ? nzDateToUTCEnd(dateTo) : null
-
-      const applyObservationScope = (query: any) => {
-        if (scopeOrgId) query = query.eq('organization_id', scopeOrgId)
-        if (scopeZoneId) query = query.eq('zone_id', scopeZoneId)
-        if (startISO) query = query.gte('recorded_at', startISO)
-        if (endISO) query = query.lte('recorded_at', endISO)
-        return query
-      }
-
-      const normalizeVehicleRow = (row: any): Vehicle => {
-        const plate = String(row?.plate_number ?? '').trim()
-        return {
-          vehicle_id: row?.vehicle_id ?? `canonical:${plate}`,
-          source: 'canonical',
-          plate_number: plate,
-          vehicle_make: row?.vehicle_make ?? null,
-          vehicle_model: row?.vehicle_model ?? null,
-          vehicle_year: row?.vehicle_year ?? null,
-          vehicle_color: row?.vehicle_color ?? null,
-          self_contained: !!(row?.self_contained ?? false),
-          self_contained_expiry: row?.self_contained_expiry ?? null,
-          homeless_status: row?.homeless_status ?? null,
-          is_exempt: !!(row?.is_exempt ?? false),
-          is_flagged: !!(row?.is_flagged ?? false),
-          flagged_reason: row?.flagged_reason ?? null,
-          enforcement_count: Number(row?.enforcement_count ?? 0),
-          last_enforcement_at: row?.last_enforcement_at ?? null,
-          profile_photo: row?.profile_photo ?? null,
-          total_observations: Number(row?.total_observations ?? 0),
-          total_breaches: Number(row?.total_breaches ?? 0),
-        }
-      }
-
-      const fetchScopedPlates = async (scopeOrgId: string | null, scopeZoneId: string | null) => {
-        const obsQuery = applyObservationScope(supabase
-          .from('observations')
-          .select('plate_number')
-          .neq('plate_number', 'PROCESSING...')
-          .limit(10000))
-
-        const { data: matchingObs, error: obsError } = await obsQuery
-        if (obsError) throw obsError
-
-        if ((scopeOrgId || scopeZoneId) && debug.scopedObservationCount === 0) {
-          debug.scopedObservationCount = (matchingObs ?? []).length
-        }
-
-        return new Set(
-          (matchingObs ?? [])
-            .map((o: any) => o.plate_number)
-            .filter((p: any) => p && typeof p === 'string' && p.trim()) as string[]
-        )
-      }
-
-      const applyVehicleFilters = (query: any) => {
-        query = query.order('plate_number', { ascending: true })
-
-        if (searchQuery) {
-          query = query.or(
-            `plate_number.ilike.%${searchQuery}%,vehicle_make.ilike.%${searchQuery}%,vehicle_model.ilike.%${searchQuery}%`
-          )
-        }
-
-        return query
-      }
-
-      const applyStatusFilterInMemory = (rows: Vehicle[]) => {
-        if (statusFilter === 'compliant') {
-          return rows.filter((v) => v.total_breaches === 0)
-        }
-        if (statusFilter === 'breaches') {
-          // Exclude homeless vehicles – they are breach-exempt under the FC Act
-          return rows.filter((v) => v.total_breaches > 0 && !isHomelessForUi(v.homeless_status))
-        }
-        if (statusFilter === 'homeless') {
-          return rows.filter((v) => isHomelessForUi(v.homeless_status))
-        }
-        if (statusFilter === 'exempt') {
-          return rows.filter((v) => v.is_exempt)
-        }
-        if (statusFilter === 'flagged') {
-          return rows.filter((v) => v.is_flagged)
-        }
-        return rows
-      }
-
-      const pickObservationPhotoColumn = async () => {
-        // Prioritize 'photo' (live schema primary), then 'photo_url', then 'image_url'
-        const candidates: Array<'photo' | 'photo_url' | 'image_url'> = ['photo', 'photo_url', 'image_url']
-        for (const col of candidates) {
-          const { data, error } = await (supabase.from('observations') as any)
-            .select(`plate_number, ${col}`)
-            .not(col, 'is', null)
-            .limit(1)
-          if (!error && data && data.length > 0) return col
-        }
-        // Fallback: return the first column that exists even if all values are null
-        for (const col of candidates) {
-          const { error } = await (supabase.from('observations') as any)
-            .select(`plate_number, ${col}`)
-            .limit(1)
-          if (!error) return col
-        }
-        return null
-      }
-
-      const pickObservationSelfContainedColumn = async () => {
-        const candidates: Array<'self_contained' | 'is_self_contained'> = ['self_contained', 'is_self_contained']
-        for (const col of candidates) {
-          const { error } = await (supabase.from('observations') as any)
-            .select(`id, ${col}`)
-            .limit(1)
-          if (!error) return col
-        }
-        return null
-      }
-
-      let rows: Vehicle[] = []
-
-      // canonical_vehicles is a global registry without an organization_id
-      // column.  Org / zone / date filters are applied by first finding the
-      // plates that have observations in the current scope, then fetching the
-      // matching canonical records.
-      const hasScope = !!(scopeOrgId || scopeZoneId || startISO || endISO)
-
-      if (hasScope) {
-        const scopedPlates = await fetchScopedPlates(scopeOrgId, scopeZoneId)
-
-        if (scopedPlates.size > 0) {
-          const plateArr = Array.from(scopedPlates)
-          for (let i = 0; i < plateArr.length; i += 200) {
-            const chunk = plateArr.slice(i, i + 200)
-            const { data, error } = await applyVehicleFilters(
-              supabase.from('canonical_vehicles').select('*').in('plate_number', chunk)
-            )
-            if (error) throw error
-            rows.push(...((data ?? []) as any[]).map(normalizeVehicleRow))
-          }
-          debug.primaryCanonicalCount = rows.length
-        }
-      } else {
-        const { data, error } = await applyVehicleFilters(
-          supabase.from('canonical_vehicles').select('*')
-        )
-        if (error) throw error
-        rows = ((data ?? []) as any[]).map(normalizeVehicleRow)
-        debug.primaryCanonicalCount = rows.length
-      }
-
-      // Final fallback: if canonical records are unavailable for this scope,
-      // synthesize vehicle cards directly from observations.
-      if (rows.length === 0) {
-        const synthPhotoColumn = await pickObservationPhotoColumn()
-        const synthSelectParts = [
-          'plate_number',
-          'vehicle_make',
-          'vehicle_model',
-          'vehicle_year',
-          'vehicle_color',
-          'self_contained',
-          'is_compliant',
-          'recorded_at',
-        ]
-        if (synthPhotoColumn) synthSelectParts.push(synthPhotoColumn)
-
-        let synthQuery = (supabase.from('observations') as any)
-          .select(synthSelectParts.join(', '))
-          .neq('plate_number', 'PROCESSING...')
-          .order('recorded_at', { ascending: false })
-          .limit(10000)
-
-        synthQuery = applyObservationScope(synthQuery)
-
-        const synth = await synthQuery
-        if (synth.error) throw synth.error
-
-        const byPlate = new Map<string, Vehicle>()
-
-        for (const obs of (synth.data ?? []) as any[]) {
-          const plate = (obs.plate_number || '').trim()
-          if (!plate) continue
-
-          const existing = byPlate.get(plate)
-          const isBreach = obs.is_compliant === false
-
-          if (!existing) {
-            byPlate.set(plate, {
-              vehicle_id: `obs:${plate}`,
-              source: 'observations',
-              plate_number: plate,
-              vehicle_make: obs.vehicle_make ?? null,
-              vehicle_model: obs.vehicle_model ?? null,
-              vehicle_year: obs.vehicle_year ?? null,
-              vehicle_color: obs.vehicle_color ?? null,
-              self_contained: !!obs.self_contained,
-              self_contained_expiry: null,
-              homeless_status: null,
-              is_exempt: false,
-              is_flagged: false,
-              flagged_reason: null,
-              enforcement_count: 0,
-              last_enforcement_at: null,
-              profile_photo: getObservationPhotoUrl(obs),
-              total_observations: 1,
-              total_breaches: isBreach ? 1 : 0,
-            })
-            continue
-          }
-
-          existing.total_observations += 1
-          if (isBreach) existing.total_breaches += 1
-          if (!existing.profile_photo) {
-            existing.profile_photo = getObservationPhotoUrl(obs)
-          }
-          if (!existing.vehicle_make && obs.vehicle_make) existing.vehicle_make = obs.vehicle_make
-          if (!existing.vehicle_model && obs.vehicle_model) existing.vehicle_model = obs.vehicle_model
-          if (!existing.vehicle_year && obs.vehicle_year) existing.vehicle_year = obs.vehicle_year
-          if (!existing.vehicle_color && obs.vehicle_color) existing.vehicle_color = obs.vehicle_color
-          existing.self_contained = existing.self_contained || !!obs.self_contained
-        }
-
-        rows = Array.from(byPlate.values())
-  debug.synthesizedCount = rows.length
-
-        if (searchQuery) {
-          const term = searchQuery.toLowerCase()
-          rows = rows.filter((v) =>
-            v.plate_number.toLowerCase().includes(term) ||
-            (v.vehicle_make || '').toLowerCase().includes(term) ||
-            (v.vehicle_model || '').toLowerCase().includes(term)
-          )
-        }
-
-      }
-
-      if (rows.length === 0) {
-        setVehicleQueryDebug(debug)
-        return rows
-      }
-
-      // Recalculate per-vehicle totals from observations in current filter scope so
-      // KPI cards and list rows match the dashboard's org/zone/date context.
-      const metricsByPlate: Record<string, { total: number; breaches: number }> = {}
-      const metricPlates = Array.from(new Set(rows.map((v) => v.plate_number).filter(Boolean)))
-
-      for (let i = 0; i < metricPlates.length; i += 200) {
-        const chunk = metricPlates.slice(i, i + 200)
-        if (chunk.length === 0) continue
-
-        const metricQuery = applyObservationScope(
-          (supabase.from('observations') as any)
-            .select('plate_number, is_compliant')
-            .in('plate_number', chunk)
-            .neq('plate_number', 'PROCESSING...')
-            .limit(10000)
-        )
-
-        const { data: metricRows, error: metricError } = await metricQuery
-        if (metricError) throw metricError
-
-        for (const obs of metricRows ?? []) {
-          const plate = String(obs.plate_number ?? '').trim()
-          if (!plate) continue
-          if (!metricsByPlate[plate]) {
-            metricsByPlate[plate] = { total: 0, breaches: 0 }
-          }
-          metricsByPlate[plate].total += 1
-          if (obs.is_compliant === false) {
-            metricsByPlate[plate].breaches += 1
-          }
-        }
-      }
-
-      rows = rows
-        .map((v) => {
-          const metric = metricsByPlate[v.plate_number] ?? { total: 0, breaches: 0 }
-          return {
-            ...v,
-            total_observations: metric.total,
-            total_breaches: metric.breaches,
-          }
-        })
-        .filter((v) => v.total_observations > 0)
-
-      // Enrich rows with organization-scoped homeless status + exemption + self-contained
-      // data so KPI cards and filters stay accurate even on synthesized rows.
-      const uniquePlates = Array.from(
-        new Set(rows.map((v) => v.plate_number).filter((plate) => !!plate && plate.trim()))
-      )
-
-      if (uniquePlates.length > 0) {
-        const homelessByPlate: Record<string, string | null> = {}
-        const exemptByPlate: Record<string, boolean> = {}
-        const selfContainedByPlate: Record<string, boolean> = {}
-        const selfContainedColumn = await pickObservationSelfContainedColumn()
-
-        for (let i = 0; i < uniquePlates.length; i += 200) {
-          const chunk = uniquePlates.slice(i, i + 200)
-
-          let homelessQuery = (supabase.from('homeless_records') as any)
-            .select('plate_number, status, organization_id, is_active, last_reported_at')
-            .eq('is_active', true)
-            .in('plate_number', chunk)
-            .order('last_reported_at', { ascending: false })
-
-          if (scopeOrgId) {
-            homelessQuery = homelessQuery.eq('organization_id', scopeOrgId)
-          }
-
-          const { data: homelessRows } = await homelessQuery
-          for (const row of homelessRows ?? []) {
-            const plate = (row.plate_number || '').trim()
-            if (!plate || homelessByPlate[plate] !== undefined) continue
-            homelessByPlate[plate] = row.status ?? null
-          }
-
-          const { data: canonicalRows } = await (supabase.from('canonical_vehicles') as any)
-            .select('plate_number, self_contained, is_exempt, homeless_status')
-            .in('plate_number', chunk)
-
-          for (const row of canonicalRows ?? []) {
-            const plate = (row.plate_number || '').trim()
-            if (!plate) continue
-            if (homelessByPlate[plate] === undefined && row.homeless_status) {
-              homelessByPlate[plate] = row.homeless_status
-            }
-            if (row.is_exempt === true) {
-              exemptByPlate[plate] = true
-            }
-            if (row.self_contained === true) {
-              selfContainedByPlate[plate] = true
-            }
-          }
-
-          if (selfContainedColumn) {
-            const selfContainedObsQuery = applyObservationScope((supabase.from('observations') as any)
-              .select(`plate_number, ${selfContainedColumn}`)
-              .in('plate_number', chunk)
-              .eq(selfContainedColumn, true)
-              .limit(10000))
-
-            const { data: selfContainedObsRows } = await selfContainedObsQuery
-            for (const row of selfContainedObsRows ?? []) {
-              const plate = (row.plate_number || '').trim()
-              if (plate) selfContainedByPlate[plate] = true
-            }
-          }
-        }
-
-        rows = rows.map((v) => {
-          const enrichedHomelessStatus = homelessByPlate[v.plate_number] ?? v.homeless_status
-          const homelessStatusNormalized = normalizeHomelessStatus(enrichedHomelessStatus)
-
-          return {
-            ...v,
-            homeless_status: enrichedHomelessStatus,
-            is_exempt:
-              v.is_exempt ||
-              !!exemptByPlate[v.plate_number] ||
-              homelessStatusNormalized === 'confirmed',
-            self_contained: v.self_contained || !!selfContainedByPlate[v.plate_number],
-          }
-        })
-      }
-
-      // Backfill profile_photo from latest observation photo when missing
-      const missingPhotoPlates = rows
-        .filter((v) => !getVehiclePhotoUrl(v))
-        .map((v) => v.plate_number)
-
-      if (missingPhotoPlates.length === 0) {
-        setVehicleQueryDebug(debug)
-        return applyStatusFilterInMemory(rows)
-      }
-
-      // Chunk plate filters to avoid oversized query URLs.
-      const photoByPlate: Record<string, string> = {}
-      const backfillPhotoColumn = await pickObservationPhotoColumn()
-      if (!backfillPhotoColumn) {
-        setVehicleQueryDebug(debug)
-        return rows
-      }
-
-      // Build select clause: always include all known photo columns so
-      // getObservationPhotoUrl() can pick the best available URL.
-      const allPhotoCols = new Set(['photo', 'photo_url', backfillPhotoColumn])
-      const photoSelectCols = ['plate_number', ...allPhotoCols, 'recorded_at'].join(', ')
-
-      const plateChunks: string[][] = []
-      for (let i = 0; i < missingPhotoPlates.length; i += 200) {
-        plateChunks.push(missingPhotoPlates.slice(i, i + 200))
-      }
-
-      for (const chunk of plateChunks) {
-        let photoQuery = (supabase.from('observations') as any)
-          .select(photoSelectCols)
-          .in('plate_number', chunk)
-          .not(backfillPhotoColumn, 'is', null)
-          .order('recorded_at', { ascending: false })
-          .limit(Math.max(300, chunk.length * 4))
-
-        photoQuery = applyObservationScope(photoQuery)
-
-        const { data: latestPhotos } = await photoQuery
-
-        for (const row of latestPhotos ?? []) {
-          const plate = row.plate_number as string | null
-          if (!plate || photoByPlate[plate]) continue
-          const resolved = getObservationPhotoUrl(row as any)
-          if (resolved) photoByPlate[plate] = resolved
-        }
-      }
-
-      const finalRows = rows.map((v) => ({
-        ...v,
-        profile_photo: getVehiclePhotoUrl(v, photoByPlate[v.plate_number] ?? null),
-      }))
-
-      setVehicleQueryDebug(debug)
-      return applyStatusFilterInMemory(finalRows)
-      } catch (error: any) {
-        setVehicleQueryDebug(debug)
-        const message =
-          error?.message ||
-          error?.error_description ||
-          error?.details ||
-          (typeof error === 'string' ? error : null) ||
-          'Vehicle query failed'
-        throw new Error(message)
-      }
-    },
-    retry: 1,
+  // ─── Vehicle List Query ─────────────────────────────────────────────────────
+  const { data: vehicles, isLoading, error: vehiclesError, refetch: refetchVehicles } = useVehicleListQuery({
+    effectiveOrganizationId,
+    zoneId,
+    dateFrom,
+    dateTo,
+    statusFilter,
+    searchQuery,
   })
 
   // ─── Dialog: open & reset ────────────────────────────────────────────────
@@ -636,82 +107,13 @@ export default function VehicleManagement() {
   }
 
   // ─── Dialog: observations (org/zone/date filtered) ───────────────────────
-  const { data: dialogObservations = [], isLoading: loadingDialogObs } = useQuery({
-    queryKey: [
-      'vehicle-dialog-obs',
-      selectedVehicle?.plate_number,
-      effectiveOrganizationId,
-      zoneId,
-      dateFrom,
-      dateTo,
-    ],
-    queryFn: async () => {
-      let q = supabase
-        .from('observations')
-        .select('observation_id, recorded_at, is_compliant, breach_type, nights_stayed_this_month, organization_id, zone_id, recorded_by')
-        .eq('plate_number', selectedVehicle!.plate_number)
-        .order('recorded_at', { ascending: false })
-        .limit(100)
-
-      if (effectiveOrganizationId) q = q.eq('organization_id', effectiveOrganizationId)
-      if (zoneId) q = q.eq('zone_id', zoneId)
-      if (dateFrom) q = q.gte('recorded_at', nzDateToUTCStart(dateFrom))
-      if (dateTo) q = q.lte('recorded_at', nzDateToUTCEnd(dateTo))
-
-      const { data: baseRows, error: baseError } = await q
-      if (baseError) throw baseError
-
-      const obsRows = (baseRows || []) as any[]
-      if (obsRows.length === 0) return []
-
-      // Optional enrichment: zone/org names and photo fields vary by environment.
-      const zoneIds = Array.from(new Set(obsRows.map((o: any) => o.zone_id).filter(Boolean)))
-      const orgIds = Array.from(new Set(obsRows.map((o: any) => o.organization_id).filter(Boolean)))
-
-      let zoneNames: Record<string, string> = {}
-      if (zoneIds.length > 0) {
-        const { data: z } = await (supabase.from('zones') as any).select('id, name').in('id', zoneIds)
-        zoneNames = Object.fromEntries((z || []).map((row: any) => [row.id, row.name]))
-      }
-
-      let orgNames: Record<string, string> = {}
-      if (orgIds.length > 0) {
-        const { data: o } = await (supabase.from('organizations') as any).select('id, name').in('id', orgIds)
-        orgNames = Object.fromEntries((o || []).map((row: any) => [row.id, row.name]))
-      }
-
-      const photoColumn = await (async () => {
-        const candidates: Array<'photo_url' | 'image_url' | 'photo'> = ['photo_url', 'image_url', 'photo']
-        for (const col of candidates) {
-          const { error } = await (supabase.from('observations') as any).select(`observation_id, ${col}`).limit(1)
-          if (!error) return col
-        }
-        return null
-      })()
-
-      let photosById: Record<string, string | null> = {}
-      if (photoColumn) {
-        const ids = obsRows.map((o: any) => o.observation_id).filter(Boolean)
-        if (ids.length > 0) {
-          const { data: p } = await (supabase.from('observations') as any)
-            .select(`observation_id, ${photoColumn}`)
-            .in('observation_id', ids)
-          photosById = Object.fromEntries(
-            (p || []).map((row: any) => [row.observation_id, row[photoColumn] ?? null])
-          )
-        }
-      }
-
-      return obsRows.map((row: any) => ({
-        ...row,
-        zone: row.zone_id ? { id: row.zone_id, name: zoneNames[row.zone_id] || 'Unknown Zone' } : null,
-        org: row.organization_id
-          ? { name: orgNames[row.organization_id] || 'Unknown Org' }
-          : null,
-        photo_url: photosById[row.observation_id] ?? null,
-      }))
-    },
-    enabled: showDetailsDialog && !!selectedVehicle?.plate_number,
+  const { data: dialogObservations = [], isLoading: loadingDialogObs } = useVehicleDialogObservations({
+    plateNumber: selectedVehicle?.plate_number,
+    organizationId: effectiveOrganizationId,
+    zoneId,
+    dateFrom,
+    dateTo,
+    enabled: showDetailsDialog,
   })
 
   // ─── KPI computed from dialog observations ───────────────────────────────
@@ -790,17 +192,10 @@ export default function VehicleManagement() {
       const { data, error } = await enrichVehicleFromMotorWeb(plateNumber)
       if (error) { toast.error(error); return }
       if (data) {
-        const { error: updateError } = await (supabase.from('canonical_vehicles') as any)
-          .update({
-            vehicle_make: data.make,
-            vehicle_model: data.model,
-            vehicle_year: data.year ?? null,
-            vehicle_color: data.colour,
-          })
-          .eq('plate_number', plateNumber)
-        if (updateError) { toast.error('Failed to update vehicle data'); return }
-        toast.success('Vehicle details enrichment complete')
-        queryClient.invalidateQueries({ queryKey: ['vehicles'] })
+        await updateVehicleDetails.mutateAsync({
+          plateNumber,
+          details: { vehicle_make: data.make, vehicle_model: data.model, vehicle_year: data.year ?? null, vehicle_color: data.colour },
+        })
       }
     } catch (err: any) {
       toast.error(err.message || 'Failed to enrich vehicle details')
@@ -846,17 +241,7 @@ export default function VehicleManagement() {
   // ─── Flag / Unflag vehicle ─────────────────────────────────────────────────
   const handleToggleFlag = async (vehicle: Vehicle, e: React.MouseEvent) => {
     e.stopPropagation()
-    const newFlagged = !vehicle.is_flagged
-    try {
-      const { error } = await (supabase.from('canonical_vehicles') as any)
-        .update({ is_flagged: newFlagged, flagged_at: newFlagged ? new Date().toISOString() : null })
-        .eq('plate_number', vehicle.plate_number)
-      if (error) { toast.error('Failed to update flag'); return }
-      toast.success(newFlagged ? `${vehicle.plate_number} flagged` : `${vehicle.plate_number} unflagged`)
-      queryClient.invalidateQueries({ queryKey: ['vehicles'] })
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to update flag')
-    }
+    toggleVehicleFlag.mutate({ plateNumber: vehicle.plate_number, newFlagged: !vehicle.is_flagged })
   }
 
   // ─── Summary stats ────────────────────────────────────────────────────────

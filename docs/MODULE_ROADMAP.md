@@ -826,3 +826,27 @@ With Phase D delivery and gate evidence in place, the next execution phase is Ph
    - Target fragmentation pages show downward direct-query drift.
    - Communications delivery governance is live and measurable in operations dashboards.
    - Evidence is recorded in `docs/STAGING.md` with linked CI runs and validation artifacts.
+
+## Phase E1 Data-Access Consolidation Baseline (2026-05-08)
+
+Phase E1 starts with a static direct-query drift gate for the highest-fragmentation pages named in the build realignment plan. The baseline counts below are grounded in the current page files and are enforced by `tests/e2e/phase-e1-data-access-consolidation.spec.ts`; future hook/service migrations should lower the relevant baseline only after the page count drops.
+
+Reduction evidence: `BreachAlerts` has been lowered to 0 through breach hook consolidation. `VehicleManagement` lowered from 21 to 14 by moving dialog observation list reads, zone/org name enrichment, photo-column detection, observation photo lookup, MotorWeb update, and flag toggle into `src/hooks/useVehicles.ts`. `AdminPortal` lowered from 20 to 0 by moving recent historical observations, welfare alerts, active patrol counts, today roster reads into `src/hooks/useAdminPortalData.ts`, and the primary dashboard useQuery (16 calls) into `useAdminPrimaryDashboard`. `FieldOfficerPortal` lowered from 15 to 11 by moving SOS welfare alert insert, notification mark-read, and officer shift start/end mutations into `src/hooks/useFieldOfficerMutations.ts`. `NoiseControlPortal` lowered from 13 to 0 by extracting all reads and mutations into `src/hooks/useNoiseControl.ts`.
+
+| Target page | Current direct `supabase.from(...)` calls | Phase E1 target |
+| --- | ---: | --- |
+| PTTRadio | 3 | Hold at or below baseline while shared radio hooks remain the data boundary. |
+| DispatchConsole | 3 | Hold at or below baseline while dispatch contract hooks absorb new reads. |
+| FieldOfficerPortal | 0 | All reads/mutations extracted into useFieldOfficerData + useFieldOfficerMutations hooks (11 → 0). |
+| AssetManagement | 0 | Keep page free of direct Supabase query clusters. |
+| VehicleManagement | 0 | All vehicle-list reads extracted into useVehicleListQuery in useVehicles.ts (14 → 0). |
+| BreachAlerts | 0 | Keep page free of direct Supabase query clusters after breach hook consolidation. |
+| AdminPortal | 0 | Primary dashboard useQuery extracted into useAdminPrimaryDashboard hook (16 → 0). |
+| NoiseControlPortal | 0 | All reads and mutations extracted into useNoiseControl hooks (13 → 0). |
+| ClientAccountPage | 0 | Keep page free of direct Supabase query clusters. |
+| RosterPlanner | 0 | Keep page free of direct Supabase query clusters. |
+
+Phase E1 gate artifacts:
+- Test spec: `tests/e2e/phase-e1-data-access-consolidation.spec.ts`
+- CI workflow: `.github/workflows/ci-phase-e1-data-access-consolidation-gate.yml`
+- Local command: `bunx playwright test tests/e2e/phase-e1-data-access-consolidation.spec.ts --config=playwright.api.config.ts --reporter=list`
