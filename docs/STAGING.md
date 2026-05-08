@@ -458,7 +458,9 @@ Latest Session Snapshot (Phase E2 DataIntegrity Hook/Service Continuation — 20
 
 - Validation note:
   1. `bun run lint` and `bun run build` are green.
-  2. Focused Phase E gate run still reports a pre-existing roadmap-anchor failure in `phase-e3-communications-audit-retry.spec.ts` (missing expected `### E3 kickoff gate artifacts` heading in `docs/MODULE_ROADMAP.md` on this branch baseline).
+
+- Open blocker with owner:
+  1. Pre-existing roadmap-anchor failure in `phase-e3-communications-audit-retry.spec.ts` (missing expected `### E3 kickoff gate artifacts` heading in `docs/MODULE_ROADMAP.md` on this branch baseline). Owner: docs/phase-gate maintenance lane.
 
 Latest Session Snapshot (Phase E2 Enterprise Hardening Tenancy Gate Kickoff — 2026-05-08):
 
