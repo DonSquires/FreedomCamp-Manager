@@ -89,14 +89,14 @@ export default function RestrictionLog() {
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
-            { label: 'Total Restrictions', value: rows.length, colour: 'text-gray-700' },
-            { label: 'Unique Types', value: uniqueTypes, colour: 'text-blue-700' },
-            { label: 'Unique Orgs', value: uniqueOrgs, colour: 'text-indigo-700' },
-            { label: 'With Metadata', value: withMetadata, colour: 'text-emerald-700' },
+            { label: 'Total Restrictions', value: rows.length, color: 'text-gray-700' },
+            { label: 'Unique Types', value: uniqueTypes, color: 'text-blue-700' },
+            { label: 'Unique Orgs', value: uniqueOrgs, color: 'text-indigo-700' },
+            { label: 'With Metadata', value: withMetadata, color: 'text-emerald-700' },
           ].map((kpi) => (
             <Card key={kpi.label}>
               <CardHeader className="pb-1 pt-3 px-4"><CardTitle className="text-xs text-muted-foreground">{kpi.label}</CardTitle></CardHeader>
-              <CardContent className="px-4 pb-3"><p className={`text-2xl font-bold ${kpi.colour}`}>{kpi.value}</p></CardContent>
+              <CardContent className="px-4 pb-3"><p className={`text-2xl font-bold ${kpi.color}`}>{kpi.value}</p></CardContent>
             </Card>
           ))}
         </div>
