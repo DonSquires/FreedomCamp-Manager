@@ -3,8 +3,8 @@ import { supabase } from '@/lib/supabase'
 import { toast } from 'sonner'
 import { useOperationalOrganization } from '@/hooks/useOperationalOrganization'
 import { useAuthStore } from '@/stores/authStore'
-import type { BreachAlert, BreachStatus, Severity } from '@/types'
 import { isPhotoUrlExpired, parseStorageUrl } from '@/lib/photoUtils'
+import type { BreachAlert, BreachStatus, Severity } from '@/types'
 
 interface UseBreachesOptions {
   organizationId?: string | null
