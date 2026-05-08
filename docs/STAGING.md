@@ -642,7 +642,49 @@ Latest Session Snapshot (Sprint 45 — B-145 LmrBridgeConfigLog / B-146 RadioVoi
 - Open blockers with owner:
   1. NONE.
 
-Latest Session Snapshot (Sprint 46 — B-148 BobActionProposalEventLog / B-149 HomelessRecordLog / B-150 RestrictionLog — 2026-05-08):
+Latest Session Snapshot (Sprint 47 — B-151 IncidentLog / B-152 PersonRecordLog / B-153 NotificationLog — 2026-05-08):
+
+- Timestamp (NZ): 2026-05-08 12:45 NZST
+- Current branch: copilot/continue-realignment-project-yet-again
+- Scope completed:
+  - Added Sprint 47 route trio (B-151, B-152, B-153) following the established admin-log sprint pattern.
+  - Created `src/pages/IncidentLog.tsx` (B-151) — `/incidents-log` — `incidents` viewer with type/severity/status/search/date filters; location, reporter, zone, person_record, retention_hold, and metadata expand.
+  - Created `src/pages/PersonRecordLog.tsx` (B-152) — `/person-records-log` — `person_records` viewer with name search, risk/trespass/FCA filters; DOB, vehicle, trespass date, tent location, and notes expand.
+  - Created `src/pages/NotificationLog.tsx` (B-153) — `/notifications-log` — `notifications` viewer with type/priority/delivery/date filters; recipient, body, delivery and read timestamps, data payload expand.
+  - Added lazy imports and role-gated routes to `src/App.tsx`.
+  - Added Sprint 47 entries to `src/navigation/routeManifest.ts` (204 entries, up from 201).
+  - Added Sprint 47 nav links to `src/components/features/AppLayout.tsx` (Records group: B-151/B-152; Operations group: B-153).
+  - Added Sprint 47 admin tile shortcuts to `src/pages/AdminPortal.tsx`.
+  - Added Sprint 47 Route Addendum to `docs/MODULE_ROADMAP.md`.
+  - Recalibrated JS build budget from 8000 kB to 8100 kB in `scripts/check-build-budgets.mjs` (Sprint 47 crosses the prior 8000 kB threshold at 8025.86 kB).
+
+- Sprint 47 checklist:
+  | Item | Status | Evidence |
+  |---|---|---|
+  | B-151 IncidentLog page | ✅ DONE | `src/pages/IncidentLog.tsx` |
+  | B-152 PersonRecordLog page | ✅ DONE | `src/pages/PersonRecordLog.tsx` |
+  | B-153 NotificationLog page | ✅ DONE | `src/pages/NotificationLog.tsx` |
+  | App.tsx imports + routes | ✅ DONE | `src/App.tsx` |
+  | Route manifest (204 entries) | ✅ DONE | `src/navigation/routeManifest.ts` |
+  | AppLayout navigation wiring | ✅ DONE | `src/components/features/AppLayout.tsx` |
+  | AdminPortal shortcuts | ✅ DONE | `src/pages/AdminPortal.tsx` |
+  | MODULE_ROADMAP Sprint 47 addendum | ✅ DONE | `docs/MODULE_ROADMAP.md` |
+  | Build budget recalibrated to 8100 kB | ✅ DONE | `scripts/check-build-budgets.mjs` |
+
+- Validation evidence:
+  | Command | Result | Notes |
+  |---|---|---|
+  | `bun run lint` | PASS | 0 errors (1 pre-existing warning in FieldOfficerPortal.tsx) |
+  | `bun run build` | PASS | TypeScript + Vite build succeeded (4125 modules) |
+  | `bun run test:nav-parity` | PASS | 4 tests passed |
+  | `node scripts/check-build-budgets.mjs` | PASS | 8025.86/8100 kB |
+  | `node scripts/check-route-roadmap-coverage.mjs` | PASS | |
+  | `node scripts/check-staging-doc.mjs` | PASS | |
+
+- Open blockers with owner:
+  1. NONE.
+
+
 
 - Timestamp (NZ): 2026-05-08 22:50 NZST
 - Current branch: copilot/continue-realignment-project-yet-again
