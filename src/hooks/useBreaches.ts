@@ -58,6 +58,12 @@ interface BreachSafetyAlertsOptions {
   endDate?: string | null
 }
 
+type ActiveBreachVehicleContext = {
+  id?: string
+  organization_id?: string | null
+  plate_number?: string | null
+}
+
 type BreachAlertLike = {
   id?: string
   observation_id?: string | null
@@ -481,6 +487,41 @@ export function useBreachSafetyAlerts({
       const { data } = await q
       return data || []
     },
+  })
+}
+
+export function useBreachVehicleDetails(plateNumber?: string | null) {
+  return useQuery({
+    queryKey: ['breach-vehicle', plateNumber],
+    queryFn: async ({ signal }) => {
+      if (!plateNumber) return null
+      const { data } = await (supabase.from('canonical_vehicles') as any)
+        .select('*')
+        .eq('plate_number', plateNumber)
+        .abortSignal(signal)
+        .single()
+      return data
+    },
+    enabled: !!plateNumber,
+  })
+}
+
+export function useBreachVehicleHistory(activeBreach?: ActiveBreachVehicleContext | null) {
+  return useQuery({
+    queryKey: ['breach-history', activeBreach?.plate_number],
+    queryFn: async ({ signal }) => {
+      if (!activeBreach?.plate_number) return []
+      const { data } = await (supabase.from('breach_alerts') as any)
+        .select('id, breach_type, status, created_at, resolved_at, observation_id, breach_details, zones!zone_id(name)')
+        .eq('organization_id', activeBreach.organization_id)
+        .eq('plate_number', activeBreach.plate_number)
+        .neq('id', activeBreach.id)
+        .order('created_at', { ascending: false })
+        .limit(50)
+        .abortSignal(signal)
+      return deduplicateBreachAlerts(data || [])
+    },
+    enabled: !!activeBreach?.plate_number,
   })
 }
 

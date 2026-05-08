@@ -60,6 +60,8 @@ import {
   useBreachAlertQueue,
   useBreachIntelligenceAlerts,
   useBreachSafetyAlerts,
+  useBreachVehicleDetails,
+  useBreachVehicleHistory,
   updateBreachManualPlate,
   updateCanonicalVehicleFromEnrichment,
 } from '@/hooks/useBreaches'
@@ -361,20 +363,7 @@ export default function BreachAlerts() {
   // Derived: active breach from the list
   const activeBreach = breaches?.find((b: any) => b.id === activeBreachId) || null
 
-  // Fetch enriched vehicle data for the active breach
-  const { data: detailVehicle } = useQuery({
-    queryKey: ['breach-vehicle', activeBreach?.plate_number],
-    queryFn: async ({ signal }) => {
-      if (!activeBreach?.plate_number) return null
-      const { data } = await (supabase.from('canonical_vehicles') as any)
-        .select('*')
-        .eq('plate_number', activeBreach.plate_number)
-        .abortSignal(signal)
-        .single()
-      return data
-    },
-    enabled: !!activeBreach?.plate_number,
-  })
+  const { data: detailVehicle } = useBreachVehicleDetails(activeBreach?.plate_number)
 
   // Fetch the specific observation that triggered this breach
   const { data: triggeringObservation } = useQuery({
@@ -524,26 +513,7 @@ export default function BreachAlerts() {
     enabled: !!activeBreach?.plate_number,
   })
 
-  // Fetch vehicle breach history (rap sheet) – all previous breaches for this plate
-  // Includes observation_id + breach_details so deduplicateBreachAlerts can
-  // collapse duplicate alerts that were created for the same observation by
-  // different processing pipelines.
-  const { data: vehicleHistory } = useQuery({
-    queryKey: ['breach-history', activeBreach?.plate_number],
-    queryFn: async ({ signal }) => {
-      if (!activeBreach?.plate_number) return []
-      const { data } = await (supabase.from('breach_alerts') as any)
-        .select('id, breach_type, status, created_at, resolved_at, observation_id, breach_details, zones!zone_id(name)')
-        .eq('organization_id', activeBreach.organization_id)
-        .eq('plate_number', activeBreach.plate_number)
-        .neq('id', activeBreach.id)
-        .order('created_at', { ascending: false })
-        .limit(50)
-        .abortSignal(signal)
-      return deduplicateBreachAlerts(data || [])
-    },
-    enabled: !!activeBreach?.plate_number,
-  })
+  const { data: vehicleHistory } = useBreachVehicleHistory(activeBreach)
 
   // Acknowledge (was "notify") – correct status value per schema
   const acknowledgeMutation = useMutation({
