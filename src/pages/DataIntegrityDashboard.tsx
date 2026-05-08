@@ -101,13 +101,16 @@ export default function DataIntegrityDashboard() {
       })
 
       // 2. Observations with GPS
-      let gpsQuery = supabase
-        .from('observations')
-        .select('observation_id', { count: 'exact', head: true })
+      const scopedGpsQuery = orgFilter
+        ? supabase
+          .from('observations')
+          .select('observation_id', { count: 'exact', head: true })
+          .eq('organization_id', orgFilter)
+        : supabase
+          .from('observations')
+          .select('observation_id', { count: 'exact', head: true })
 
-      if (orgFilter) gpsQuery = gpsQuery.eq('organization_id', orgFilter)
-      gpsQuery = gpsQuery.or('gps_latitude.is.null,gps_longitude.is.null')
-      const { count: obsWithoutGPS } = await gpsQuery
+      const { count: obsWithoutGPS } = await scopedGpsQuery.or('gps_latitude.is.null,gps_longitude.is.null')
 
       checks.push({
         id: 'obs-gps',
