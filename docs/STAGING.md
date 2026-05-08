@@ -677,7 +677,7 @@ Latest Session Snapshot (Sprint 51 — B-163 CanonicalScvLog / B-164 OfficerAvai
   | `bun run test:nav-parity` | PASS | navigation registry parity passed |
   | `bun run lint:route-roadmap` | PASS | route roadmap coverage passed |
   | `bun run lint:staging-doc` | PASS | staging doc consistency passed |
-  | `bun run build:budget` | PASS | within JS budget (8200 kB cap) |
+  | `bun run build:budget` | PASS | 8136.26/8200 kB |
 
 - Open blockers with owner:
   1. NONE.
