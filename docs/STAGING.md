@@ -344,6 +344,31 @@ Latest Session Snapshot (Phase E3 Communications Metrics Continuation — 2026-0
   2. Add provider-level degraded fallback audit rows once the shared write contract is selected.
   3. Keep lint/build plus E1, E2, and E3 gates green before preparing E4 release evidence.
 
+Latest Session Snapshot (Phase E3 Runtime Communications Audit Continuation — 2026-05-08):
+
+- Timestamp (NZ): 2026-05-08 14:49 NZST
+- Current branch: copilot/550-continue-phase-realignment
+- Scope completed:
+  - Continued E3 beyond dashboard metrics by selecting a shared non-blocking audit helper for provider-level delivery outcomes.
+  - Added `supabase/functions/_shared/communicationsAudit.ts` to write `crm_communications` rows without blocking the original delivery response if audit insertion fails.
+  - Wired `send-push-notification` to audit web-push delivery, Expo fallback delivery, disabled preferences, invalid/no-token outcomes, Expo provider errors, and retry-count fallback outcomes.
+  - Wired `send-report-email` to audit SMTP delivered and failed report-email outcomes when an organization context is available.
+  - Wired `send-invite-email` to accept optional `organization_id` and audit proxy relay, direct SMTP fallback, validation, relay failure, and retry-count outcomes when scoped to an organization.
+  - Extended `tests/e2e/phase-e3-communications-audit-retry.spec.ts` and the E3 workflow to protect the shared helper and runtime audit-write anchors.
+
+- E3 runtime audit checkpoint:
+  | Surface | Evidence added | Gate coverage |
+  |---|---|---|
+  | `_shared/communicationsAudit.ts` | Non-blocking `crm_communications` insert helper with provider/status/retry fields | `phase-e3-communications-audit-retry.spec.ts`, `ci-phase-e3-communications-audit-retry-gate.yml` |
+  | `send-push-notification` | Web push, Expo fallback, preference-disabled, token, provider-error, and retry audit rows | `phase-e3-communications-audit-retry.spec.ts` |
+  | `send-report-email` | SMTP delivered/failed report audit rows | `phase-e3-communications-audit-retry.spec.ts` |
+  | `send-invite-email` | Proxy relay/direct SMTP/fallback/failure invite audit rows | `phase-e3-communications-audit-retry.spec.ts` |
+
+- Next session:
+  1. Run E1, E2, and E3 gates plus lint/build before advancing.
+  2. Prepare E4 release evidence pack once runtime audit rows are verified green.
+  3. Keep Phase E completion evidence focused on gate artifacts, org isolation, degraded outcomes, and rollback-ready docs.
+
 Latest Session Snapshot (Phase E2 Enterprise Hardening Tenancy Gate Kickoff — 2026-05-08):
 
 - Timestamp (NZ): 2026-05-08 12:57 NZST

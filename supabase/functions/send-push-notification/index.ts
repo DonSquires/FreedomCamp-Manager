@@ -13,6 +13,7 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3';
 import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/withCors.ts';
+import { recordCommunicationAudit } from '../_shared/communicationsAudit.ts';
 
 const EXPO_PUSH_API = 'https://exp.host/--/api/v2/push/send';
 
@@ -185,7 +186,7 @@ Deno.serve(async (req) => {
 
     const { data: profile, error: profileError } = await supabase
       .from('user_profiles')
-      .select('push_token, push_subscription, notification_preferences, first_name, last_name')
+      .select('push_token, push_subscription, notification_preferences, first_name, last_name, organization_id')
       .eq('id', payload.user_id)
       .single();
 
@@ -199,6 +200,16 @@ Deno.serve(async (req) => {
     const prefs = profile.notification_preferences ?? {};
     const notifType = payload.data?.notification_type;
     if (notifType && prefs[notifType] === false) {
+      await recordCommunicationAudit(supabase, {
+        organizationId: profile.organization_id,
+        channel: 'push_notification',
+        provider: 'user_preferences',
+        status: 'failed',
+        subject: payload.title,
+        bodyText: payload.body,
+        errorMessage: 'disabled_by_user',
+        mergeData: { user_id: payload.user_id, notification_type: notifType },
+      });
       return new Response(
         JSON.stringify({ success: false, reason: 'disabled_by_user' }),
         { status: 200, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
@@ -206,6 +217,7 @@ Deno.serve(async (req) => {
     }
 
     // ── Route: Web Push (preferred) ───────────────────────────────────────────
+    let webPushFallbackReason: string | null = null;
     const webSub = profile.push_subscription as { endpoint: string; keys: { p256dh: string; auth: string } } | null;
     if (webSub?.endpoint && webSub?.keys) {
       const vapidPublicKey  = Deno.env.get('VAPID_PUBLIC_KEY')  ?? '';
@@ -214,6 +226,7 @@ Deno.serve(async (req) => {
 
       if (!vapidPublicKey || !vapidPrivateKey) {
         console.warn('VAPID keys not set, cannot send web push');
+        webPushFallbackReason = 'vapid_not_configured';
       } else {
         const pushPayload = {
           title:   payload.title,
@@ -227,6 +240,15 @@ Deno.serve(async (req) => {
 
         const resp = await sendWebPush(webSub, pushPayload, vapidPublicKey, vapidPrivateKey, vapidSubject);
         if (resp.ok || resp.status === 201) {
+          await recordCommunicationAudit(supabase, {
+            organizationId: profile.organization_id,
+            channel: 'push_notification',
+            provider: 'web_push',
+            status: 'delivered',
+            subject: payload.title,
+            bodyText: payload.body,
+            mergeData: { user_id: payload.user_id, notification_type: notifType },
+          });
           return new Response(
             JSON.stringify({ success: true, channel: 'web_push' }),
             { status: 200, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
@@ -238,12 +260,24 @@ Deno.serve(async (req) => {
             .update({ push_subscription: null })
             .eq('id', payload.user_id);
         }
+        webPushFallbackReason = `web_push_failed_status_${resp.status}`;
         console.warn(`Web push failed (${resp.status}), falling back to Expo`);
       }
     }
 
     // ── Route: Expo Push Token (fallback) ─────────────────────────────────────
     if (!profile.push_token) {
+      await recordCommunicationAudit(supabase, {
+        organizationId: profile.organization_id,
+        channel: 'push_notification',
+        provider: 'expo',
+        status: 'failed',
+        subject: payload.title,
+        bodyText: payload.body,
+        errorMessage: webPushFallbackReason ?? 'no_push_token',
+        retryCount: webPushFallbackReason ? 1 : 0,
+        mergeData: { user_id: payload.user_id, notification_type: notifType },
+      });
       return new Response(
         JSON.stringify({ success: false, reason: 'no_push_token' }),
         { status: 200, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
@@ -252,6 +286,17 @@ Deno.serve(async (req) => {
 
     if (!profile.push_token.startsWith('ExponentPushToken[') &&
         !profile.push_token.startsWith('ExpoPushToken[')) {
+      await recordCommunicationAudit(supabase, {
+        organizationId: profile.organization_id,
+        channel: 'push_notification',
+        provider: 'expo',
+        status: 'failed',
+        subject: payload.title,
+        bodyText: payload.body,
+        errorMessage: webPushFallbackReason ?? 'invalid_token',
+        retryCount: webPushFallbackReason ? 1 : 0,
+        mergeData: { user_id: payload.user_id, notification_type: notifType },
+      });
       return new Response(
         JSON.stringify({ success: false, reason: 'invalid_token' }),
         { status: 200, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
@@ -279,16 +324,39 @@ Deno.serve(async (req) => {
     const data = responseData.data?.[0];
     if (data?.status === 'error') {
       if (data.details?.error === 'DeviceNotRegistered') {
-        await supabase.from('user_profiles')
-          .update({ push_token: null, push_token_updated_at: null })
-          .eq('id', payload.user_id);
+          await supabase.from('user_profiles')
+            .update({ push_token: null, push_token_updated_at: null })
+            .eq('id', payload.user_id);
       }
+      await recordCommunicationAudit(supabase, {
+        organizationId: profile.organization_id,
+        channel: 'push_notification',
+        provider: 'expo',
+        status: 'failed',
+        subject: payload.title,
+        bodyText: payload.body,
+        errorMessage: data.details?.error || 'expo_error',
+        retryCount: webPushFallbackReason ? 1 : 0,
+        mergeData: { user_id: payload.user_id, notification_type: notifType, web_push_fallback_reason: webPushFallbackReason },
+      });
       return new Response(
         JSON.stringify({ success: false, reason: 'expo_error', expo_error: data.details }),
         { status: 200, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       );
     }
 
+    await recordCommunicationAudit(supabase, {
+      organizationId: profile.organization_id,
+      channel: 'push_notification',
+      provider: 'expo',
+      status: 'delivered',
+      subject: payload.title,
+      bodyText: payload.body,
+      externalMessageId: data?.id,
+      retryCount: webPushFallbackReason ? 1 : 0,
+      errorMessage: webPushFallbackReason,
+      mergeData: { user_id: payload.user_id, notification_type: notifType },
+    });
     return new Response(
       JSON.stringify({ success: true, channel: 'expo', ticket_id: data?.id }),
       { status: 200, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }

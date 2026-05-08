@@ -1,6 +1,8 @@
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { SMTPClient } from 'https://deno.land/x/denomailer@1.0.0/mod.ts';
 import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/withCors.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { recordCommunicationAudit } from '../_shared/communicationsAudit.ts';
 
 const safeErrorText = (value: unknown) => String(value ?? '').replace(/[\r\n]+/g, ' ').slice(0, 500);
 
@@ -107,17 +109,38 @@ serve(async (req) => {
   }
 
   let proxyBaseUrl: string | undefined;
+  let supabaseAdmin: any = null;
+  let inviteAuditContext: {
+    organizationId?: string;
+    email?: string;
+    firstName?: string;
+  } = {};
 
   try {
+    supabaseAdmin = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
     proxyBaseUrl =
       Deno.env.get('PROXY_BASE_URL') ||
       Deno.env.get('RAILWAY_PROXY_URL') ||
       Deno.env.get('NZSCV_PROXY_URL');
     const proxySecret = Deno.env.get('PROXY_SECRET') || Deno.env.get('NZSCV_PROXY_SECRET');
 
-    const { email, first_name, invite_url } = await req.json();
+    const { email, first_name, invite_url, organization_id } = await req.json();
+    inviteAuditContext = { organizationId: organization_id, email, firstName: first_name };
 
     if (!email || !invite_url) {
+      await recordCommunicationAudit(supabaseAdmin, {
+        organizationId: organization_id,
+        channel: 'email',
+        provider: 'invite_validation',
+        status: 'failed',
+        subject: "You've been invited to FieldOps Manager",
+        toEmails: email ? [email] : undefined,
+        errorMessage: 'INVALID_PAYLOAD',
+        mergeData: { first_name },
+      });
       return new Response(
         JSON.stringify({ error: 'email and invite_url are required', code: 'INVALID_PAYLOAD' }),
         { status: 400, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
@@ -146,6 +169,17 @@ serve(async (req) => {
           firstName: first_name,
           inviteUrl: invite_url,
         });
+        await recordCommunicationAudit(supabaseAdmin, {
+          organizationId: organization_id,
+          channel: 'email',
+          provider: 'direct_smtp',
+          status: 'delivered',
+          subject: "You've been invited to FieldOps Manager",
+          toEmails: [email],
+          retryCount: 1,
+          errorMessage: 'proxy_relay_unreachable',
+          mergeData: { first_name },
+        });
         return new Response(
           JSON.stringify({ message: 'Invite email sent' }),
           { status: 200, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
@@ -167,6 +201,17 @@ serve(async (req) => {
             firstName: first_name,
             inviteUrl: invite_url,
           });
+          await recordCommunicationAudit(supabaseAdmin, {
+            organizationId: organization_id,
+            channel: 'email',
+            provider: 'direct_smtp',
+            status: 'delivered',
+            subject: "You've been invited to FieldOps Manager",
+            toEmails: [email],
+            retryCount: 1,
+            errorMessage: 'SMTP_NOT_CONFIGURED',
+            mergeData: { first_name, relay_code: relayCode },
+          });
           return new Response(
             JSON.stringify({ message: 'Invite email sent' }),
             { status: 200, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
@@ -178,6 +223,17 @@ serve(async (req) => {
             email,
             firstName: first_name,
             inviteUrl: invite_url,
+          });
+          await recordCommunicationAudit(supabaseAdmin, {
+            organizationId: organization_id,
+            channel: 'email',
+            provider: 'direct_smtp',
+            status: 'delivered',
+            subject: "You've been invited to FieldOps Manager",
+            toEmails: [email],
+            retryCount: 1,
+            errorMessage: relayCode,
+            mergeData: { first_name, relay_status: relayResponse.status },
           });
           return new Response(
             JSON.stringify({ message: 'Invite email sent' }),
@@ -196,6 +252,16 @@ serve(async (req) => {
           code: relayCode,
           message: safeErrorText(relayMessage),
         });
+        await recordCommunicationAudit(supabaseAdmin, {
+          organizationId: organization_id,
+          channel: 'email',
+          provider: 'proxy_relay',
+          status: 'failed',
+          subject: "You've been invited to FieldOps Manager",
+          toEmails: [email],
+          errorMessage: relayMessage,
+          mergeData: { first_name, relay_status: relayResponse.status, relay_code: relayCode },
+        });
 
         return new Response(
           JSON.stringify({
@@ -209,6 +275,15 @@ serve(async (req) => {
       }
 
       console.log(`Invite email relayed successfully for ${email}`);
+      await recordCommunicationAudit(supabaseAdmin, {
+        organizationId: organization_id,
+        channel: 'email',
+        provider: 'proxy_relay',
+        status: 'delivered',
+        subject: "You've been invited to FieldOps Manager",
+        toEmails: [email],
+        mergeData: { first_name },
+      });
       return new Response(
         JSON.stringify({ message: 'Invite email sent' }),
         { status: 200, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
@@ -218,6 +293,15 @@ serve(async (req) => {
     await sendInviteDirectSmtp({ email, firstName: first_name, inviteUrl: invite_url });
 
     console.log(`Invite email sent directly for ${email}`);
+    await recordCommunicationAudit(supabaseAdmin, {
+      organizationId: organization_id,
+      channel: 'email',
+      provider: 'direct_smtp',
+      status: 'delivered',
+      subject: "You've been invited to FieldOps Manager",
+      toEmails: [email],
+      mergeData: { first_name },
+    });
     return new Response(
       JSON.stringify({ message: 'Invite email sent' }),
       { status: 200, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
@@ -236,6 +320,18 @@ serve(async (req) => {
       raw: rawMessage,
       stack: safeErrorText(error?.stack),
     });
+    if (supabaseAdmin) {
+      await recordCommunicationAudit(supabaseAdmin, {
+        organizationId: inviteAuditContext.organizationId,
+        channel: 'email',
+        provider: 'invite_delivery',
+        status: 'failed',
+        subject: "You've been invited to FieldOps Manager",
+        toEmails: inviteAuditContext.email ? [inviteAuditContext.email] : undefined,
+        errorMessage: rawMessage,
+        mergeData: { first_name: inviteAuditContext.firstName, code },
+      });
+    }
 
     return new Response(
       JSON.stringify({ error: message, code, relayHost: proxyBaseUrl ?? 'missing' }),

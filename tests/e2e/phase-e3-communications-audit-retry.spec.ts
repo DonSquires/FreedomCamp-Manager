@@ -15,6 +15,7 @@ const contractPaths = {
   reportEmailFunction: 'supabase/functions/send-report-email/index.ts',
   inviteEmailFunction: 'supabase/functions/send-invite-email/index.ts',
   fetchWithRetry: 'supabase/functions/_shared/fetchWithRetry.ts',
+  communicationsAudit: 'supabase/functions/_shared/communicationsAudit.ts',
   communicationsMigration: 'supabase/migrations/20260506000001_platform_enhancements_complete.sql',
 }
 
@@ -74,11 +75,18 @@ test.describe('Phase E3 — Communications audit and retry governance gate', () 
   test('push delivery keeps web/expo degradation paths and token cleanup outcomes', () => {
     const pushFunction = source(contractPaths.pushFunction)
     const pushClient = source(contractPaths.pushNotificationsClient)
+    const auditHelper = source(contractPaths.communicationsAudit)
 
     expect(pushFunction).toContain('Unified Push Notification Service')
+    expect(pushFunction).toContain("import { recordCommunicationAudit } from '../_shared/communicationsAudit.ts'")
+    expect(pushFunction).toContain('organization_id')
     expect(pushFunction).toContain('VAPID Web Push')
     expect(pushFunction).toContain('Expo Push API')
     expect(pushFunction).toContain('sendWebPush')
+    expect(pushFunction).toContain("provider: 'web_push'")
+    expect(pushFunction).toContain("provider: 'expo'")
+    expect(pushFunction).toContain('webPushFallbackReason')
+    expect(pushFunction).toContain('retryCount: webPushFallbackReason ? 1 : 0')
     expect(pushFunction).toContain("JSON.stringify({ success: true, channel: 'web_push' })")
     expect(pushFunction).toContain('console.warn(`Web push failed (${resp.status}), falling back to Expo`)')
     expect(pushFunction).toContain("JSON.stringify({ success: false, reason: 'no_push_token' })")
@@ -89,6 +97,13 @@ test.describe('Phase E3 — Communications audit and retry governance gate', () 
 
     expect(pushClient).toContain('sendPushNotification')
     expect(pushClient).toContain('edgeFunctions.sendPushNotification')
+
+    expect(auditHelper).toContain("from('crm_communications')")
+    expect(auditHelper).toContain('organization_id: params.organizationId')
+    expect(auditHelper).toContain("direction: 'outbound'")
+    expect(auditHelper).toContain('external_provider: params.provider')
+    expect(auditHelper).toContain('retry_count: params.retryCount ?? 0')
+    expect(auditHelper).toContain('communications audit insert failed')
   })
 
   test('email delivery keeps bounded SMTP validation and fallback paths', () => {
@@ -97,16 +112,25 @@ test.describe('Phase E3 — Communications audit and retry governance gate', () 
     const edgeClient = source(contractPaths.edgeFunctionsClient)
 
     expect(reportEmail).toContain('SMTP_HOST')
+    expect(reportEmail).toContain("import { recordCommunicationAudit } from '../_shared/communicationsAudit.ts'")
     expect(reportEmail).toContain('recipient_email')
     expect(reportEmail).toContain('Invalid email address')
     expect(reportEmail).toContain("if (organization_id) obsQuery = obsQuery.eq('organization_id', organization_id)")
     expect(reportEmail).toContain('Promise.all([obsQuery, enfQuery, matrixQuery])')
+    expect(reportEmail).toContain("provider: 'smtp'")
+    expect(reportEmail).toContain("status: 'delivered'")
+    expect(reportEmail).toContain("status: 'failed'")
 
     expect(inviteEmail).toContain('safeErrorText')
+    expect(inviteEmail).toContain("import { recordCommunicationAudit } from '../_shared/communicationsAudit.ts'")
+    expect(inviteEmail).toContain('organization_id')
     expect(inviteEmail).toContain('sendInviteDirectSmtp')
     expect(inviteEmail).toContain('DIRECT_SMTP_NOT_CONFIGURED')
     expect(inviteEmail).toContain('SMTP_NOT_CONFIGURED')
     expect(inviteEmail).toContain('INVITE_RELAY_FAILED')
+    expect(inviteEmail).toContain("provider: 'proxy_relay'")
+    expect(inviteEmail).toContain("provider: 'direct_smtp'")
+    expect(inviteEmail).toContain('retryCount: 1')
 
     expect(edgeClient).toContain('sendReportEmail')
     expect(edgeClient).toContain("callEdgeFunction('send-report-email'")
@@ -145,10 +169,12 @@ test.describe('Phase E3 — Communications audit and retry governance gate', () 
     expect(roadmap).toContain('.github/workflows/ci-phase-e3-communications-audit-retry-gate.yml')
     expect(roadmap).toContain('communications delivery audit, retry governance, degraded push/email outcomes, and operations visibility anchors')
     expect(roadmap).toContain('NotificationsCenter.tsx` now exposes an admin-only **E3 Communications Delivery Metrics** card')
+    expect(roadmap).toContain('Runtime push/report/invite delivery attempts now write non-blocking `crm_communications` audit rows')
 
     expect(staging).toContain('Phase E3 Communications Audit and Retry Gate Kickoff')
     expect(staging).toContain('E3 communications audit/retry checkpoint')
     expect(staging).toContain('Phase E3 Communications Metrics Continuation')
+    expect(staging).toContain('Phase E3 Runtime Communications Audit Continuation')
     expect(staging).toContain('send-push-notification')
     expect(staging).toContain('send-report-email')
     expect(staging).toContain('send-invite-email')

@@ -757,3 +757,11 @@ Phase D closeout is now anchored to D3 transition-handshake-offline gate evidenc
 1. `src/pages/NotificationsCenter.tsx` now exposes an admin-only **E3 Communications Delivery Metrics** card in the Broadcast surface for org-scoped delivery success, pending delivery, stale pending, delivery failure, and retry backlog visibility.
 2. New broadcast notification rows now persist `organization_id` so org-scoped delivery metrics can include broadcasts instead of leaving them unscoped.
 3. The E3 gate now watches the visible metrics anchors and fails if the dashboard loses `crm_communications` failure/retry counts or stale pending notification checks.
+
+### E3 runtime communications audit progress
+
+1. Runtime push/report/invite delivery attempts now write non-blocking `crm_communications` audit rows through `supabase/functions/_shared/communicationsAudit.ts` when an organization context is available.
+2. `send-push-notification` records web-push, Expo fallback, disabled preference, invalid/no-token, provider error, and retry-count outcomes without blocking the original response path if audit insertion fails.
+3. `send-report-email` records SMTP delivered and failed report-email outcomes, including invalid recipient and SMTP configuration failures when scoped to an organization.
+4. `send-invite-email` accepts optional `organization_id` and records proxy relay, direct SMTP fallback, relay failure, validation failure, and retry-count outcomes when scoped to an organization.
+5. The E3 gate and workflow now watch the shared audit helper and runtime audit-write anchors.
