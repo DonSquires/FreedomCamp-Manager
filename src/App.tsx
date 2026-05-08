@@ -315,6 +315,10 @@ const CanonicalPersonZonesLog = lazy(() => import('@/pages/CanonicalPersonZonesL
 const PricingRuleLog = lazy(() => import('@/pages/PricingRuleLog'))
 const ZoneLegalConfigLog = lazy(() => import('@/pages/ZoneLegalConfigLog'))
 const ZoneSignageEvidenceLog = lazy(() => import('@/pages/ZoneSignageEvidenceLog'))
+// Sprint 54: B-172–B-174
+const BreachAlertLog = lazy(() => import('@/pages/BreachAlertLog'))
+const FixedCameraLog = lazy(() => import('@/pages/FixedCameraLog'))
+const FlaggedVehicleLog = lazy(() => import('@/pages/FlaggedVehicleLog'))
 
 const NetworkStatusBar = lazy(() => import('@/components/features/NetworkStatusBar').then((m) => ({ default: m.NetworkStatusBar })))
 const PWAInstallPrompt = lazy(() => import('@/components/features/PWAInstallPrompt').then((m) => ({ default: m.PWAInstallPrompt })))
@@ -2533,6 +2537,10 @@ export default function App() {
           <Route path="/pricing-rules-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><PricingRuleLog /></RoleRoute></ProtectedRoute>} />
           <Route path="/zone-legal-config-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><ZoneLegalConfigLog /></RoleRoute></ProtectedRoute>} />
           <Route path="/zone-signage-evidence-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><ZoneSignageEvidenceLog /></RoleRoute></ProtectedRoute>} />
+          {/* Sprint 54: B-172–B-174 */}
+          <Route path="/breach-alerts-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><BreachAlertLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/fixed-cameras-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><FixedCameraLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/flagged-vehicles-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><FlaggedVehicleLog /></RoleRoute></ProtectedRoute>} />
 
           {/* CRM – Accounts (Clients + Contractors) */}
           <Route

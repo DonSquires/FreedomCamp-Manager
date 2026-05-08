@@ -1,9 +1,9 @@
 # Module Roadmap (Operator Navigation Map)
 
 Date: 2026-05-08 (verified against src/navigation/routeManifest.ts)
-Source of truth for routes: route manifest file src/navigation/routeManifest.ts (223 route manifest entries as of Sprint 53 completion)
+Source of truth for routes: route manifest file src/navigation/routeManifest.ts (226 route manifest entries as of Sprint 54 completion)
 
- > **Last Verification**: 2026-05-09 — Role-gating and route docs reviewed through Sprint 53 (B-171). Production main includes Sprints 31-49.
+ > **Last Verification**: 2026-05-09 — Role-gating and route docs reviewed through Sprint 54 (B-174). Production main includes Sprints 31-49.
 
 ## How To Use
 
@@ -889,11 +889,30 @@ New admin routes added in Sprint 53 (B-169, B-170, B-171):
    - Role gate: admin, admin_officer, master
    - Viewer for zone_signage_evidence; KPIs (Total/Current/With Photo/With GPS); current/signage type/zone filters; capture and geolocation detail expand
 
+## Sprint 54 Route Addendum (2026-05-09)
+
+New admin routes added in Sprint 54 (B-172, B-173, B-174):
+
+1. Breach Alert Log (B-172)
+   - Route: /breach-alerts-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for breach_alerts; KPIs (Total/Open/Resolved/Notified); status/notification/plate filters; assignment and resolution detail expand
+
+2. Fixed Camera Log (B-173)
+   - Route: /fixed-cameras-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for fixed_cameras; KPIs (Total/Online-Active/With Stream/With Snapshot); status/type/search filters; location and endpoint detail expand
+
+3. Flagged Vehicle Log (B-174)
+   - Route: /flagged-vehicles-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for flagged_vehicles; KPIs (Total/Active/High Priority/Confirmed Homeless); active/priority/plate filters; contact and reason detail expand
+
 ## Production Status Snapshot (2026-05-08)
 
 - Branch: main
 - PR state (base main): 0 open
-- Consolidation status: Sprint 31 through Sprint 49 route work is merged to production main; Sprints 50–53 in progress
+- Consolidation status: Sprint 31 through Sprint 49 route work is merged to production main; Sprints 50–54 in progress
 
 ## Post-Sprint-42 Realignment Phases and Phase-Gate Progression (#548)
 

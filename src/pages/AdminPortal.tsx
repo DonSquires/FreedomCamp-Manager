@@ -1254,6 +1254,10 @@ export default function AdminPortal() {
                     { path: '/pricing-rules-log',              label: 'Pricing Rules',   Icon: BadgeDollarSign,color: 'text-green-700', bg: 'bg-green-50 dark:bg-green-900/20' },
                     { path: '/zone-legal-config-log',          label: 'Zone Legal',      Icon: Scale,        color: 'text-rose-700',   bg: 'bg-rose-50 dark:bg-rose-900/20' },
                     { path: '/zone-signage-evidence-log',      label: 'Signage Evid.',   Icon: Camera,       color: 'text-orange-700', bg: 'bg-orange-50 dark:bg-orange-900/20' },
+                    // Sprint 54: B-172–B-174
+                    { path: '/breach-alerts-log',              label: 'Breach Alerts',   Icon: AlertTriangle,color: 'text-amber-700',  bg: 'bg-amber-50 dark:bg-amber-900/20' },
+                    { path: '/fixed-cameras-log',              label: 'Fixed Cameras',   Icon: Camera,       color: 'text-sky-700',    bg: 'bg-sky-50 dark:bg-sky-900/20' },
+                    { path: '/flagged-vehicles-log',           label: 'Flagged Veh.',    Icon: Car,          color: 'text-indigo-700', bg: 'bg-indigo-50 dark:bg-indigo-900/20' },
                   ].map(({ path, label, Icon, color, bg }) => (
                     <button key={path} onClick={() => navigate(path)} aria-label={`Open ${label}`} className={`${moduleTileClass} ${bg}`}>
                       <Icon className={`h-5 w-5 ${color}`} />
