@@ -279,6 +279,10 @@ const ImportBatchLog = lazy(() => import('@/pages/ImportBatchLog'))
 const AdminRecalculationLog = lazy(() => import('@/pages/AdminRecalculationLog'))
 const ContractorDocumentLog = lazy(() => import('@/pages/ContractorDocumentLog'))
 const ImportStagingLog = lazy(() => import('@/pages/ImportStagingLog'))
+// Sprint 45: B-145–B-147
+const LmrBridgeConfigLog = lazy(() => import('@/pages/LmrBridgeConfigLog'))
+const RadioVoiceProfileLog = lazy(() => import('@/pages/RadioVoiceProfileLog'))
+const ZoneDispatchRuleLog = lazy(() => import('@/pages/ZoneDispatchRuleLog'))
 
 const NetworkStatusBar = lazy(() => import('@/components/features/NetworkStatusBar').then((m) => ({ default: m.NetworkStatusBar })))
 const PWAInstallPrompt = lazy(() => import('@/components/features/PWAInstallPrompt').then((m) => ({ default: m.PWAInstallPrompt })))
@@ -2461,6 +2465,10 @@ export default function App() {
           <Route path="/admin-recalculation-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'master']}><AdminRecalculationLog /></RoleRoute></ProtectedRoute>} />
           <Route path="/contractor-documents-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><ContractorDocumentLog /></RoleRoute></ProtectedRoute>} />
           <Route path="/import-staging-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'master']}><ImportStagingLog /></RoleRoute></ProtectedRoute>} />
+          {/* Sprint 45: B-145–B-147 */}
+          <Route path="/lmr-bridge-config-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'master']}><LmrBridgeConfigLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/radio-voice-profiles-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><RadioVoiceProfileLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/zone-dispatch-rules-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'master']}><ZoneDispatchRuleLog /></RoleRoute></ProtectedRoute>} />
 
           {/* CRM – Accounts (Clients + Contractors) */}
           <Route

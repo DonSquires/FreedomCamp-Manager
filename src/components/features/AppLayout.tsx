@@ -310,6 +310,9 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       // Sprint 44: B-142, B-144
       { path: '/admin-recalculation-log', icon: RefreshCw, label: 'Recalculation Run Log', roles: ['admin', 'master'] },
       { path: '/import-staging-log', icon: LayoutList, label: 'Import Staging Log', roles: ['admin', 'master'] },
+      // Sprint 45: B-145, B-147
+      { path: '/lmr-bridge-config-log', icon: Radio, label: 'LMR Bridge Config Log', roles: ['admin', 'master'] },
+      { path: '/zone-dispatch-rules-log', icon: Waypoints, label: 'Zone Dispatch Rule Log', roles: ['admin', 'master'] },
     ],
   },
   {
@@ -381,6 +384,8 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/welfare-events-log', icon: HeartPulse, label: 'Welfare Events Log', roles: ['admin', 'admin_officer', 'master'] },
       // Sprint 44: B-143
       { path: '/contractor-documents-log', icon: Briefcase, label: 'Contractor Document Log', roles: ['admin', 'admin_officer', 'master'] },
+      // Sprint 45: B-146
+      { path: '/radio-voice-profiles-log', icon: Mic, label: 'Radio Voice Profile Log', roles: ['admin', 'admin_officer', 'master'] },
     ],
   },
   {

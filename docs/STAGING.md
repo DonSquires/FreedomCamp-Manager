@@ -279,6 +279,36 @@ Latest Session Snapshot (Phase D3 Gate Artifacts + Phase E Kickoff Alignment —
   2. Carry forward E1→E4 checkpoints from `docs/MODULE_ROADMAP.md`.
   3. Maintain rollback-ready flag posture and org isolation evidence per slice.
 
+Latest Session Snapshot (Sprint 45 — B-145 / B-146 / B-147 — 2026-05-08):
+
+- Timestamp (NZ): 2026-05-08 20:45 NZST
+- Current branch: copilot/continue-realignment-project
+- Scope completed:
+  - Continued Sprint catalog after Sprint 44 by adding Sprint 45 route entries B-145, B-146, B-147.
+  - Created `src/pages/LmrBridgeConfigLog.tsx` (B-145) — log viewer for `lmr_bridge_config`; KPIs (Total/Active/Inactive/With Token); active/direction/label filters; masked gateway token in detail row.
+  - Created `src/pages/RadioVoiceProfileLog.tsx` (B-146) — log viewer for `radio_voice_profiles`; KPIs (Total/Active/Revoked/Providers); provider/status/officer/date filters.
+  - Created `src/pages/ZoneDispatchRuleLog.tsx` (B-147) — log viewer for `zone_dispatch_resource_rules`; KPIs (Total/Active/Unique Zones/Scheduled Rules); status/job type/org/date filters.
+  - Updated `src/App.tsx` with lazy imports and protected routes for all three pages.
+  - Updated `src/navigation/routeManifest.ts` with Sprint 45 route entries (199 total).
+  - Updated `src/components/features/AppLayout.tsx` — Management group gains B-145/B-147; Records group gains B-146.
+  - Updated `src/pages/AdminPortal.tsx` — Reports & Analytics tile section gains B-145/B-146/B-147.
+  - Updated `docs/MODULE_ROADMAP.md` — Sprint 45 addendum + production status snapshot.
+
+- Sprint 45 checkpoint:
+  | Item | Status | Artifact |
+  |---|---|---|
+  | B-145 LmrBridgeConfigLog | ✅ DONE | `src/pages/LmrBridgeConfigLog.tsx`, route `/lmr-bridge-config-log` |
+  | B-146 RadioVoiceProfileLog | ✅ DONE | `src/pages/RadioVoiceProfileLog.tsx`, route `/radio-voice-profiles-log` |
+  | B-147 ZoneDispatchRuleLog | ✅ DONE | `src/pages/ZoneDispatchRuleLog.tsx`, route `/zone-dispatch-rules-log` |
+  | routeManifest.ts updated | ✅ DONE | 3 entries added (199 total) |
+  | AppLayout.tsx updated | ✅ DONE | Management group (B-145/B-147) + Records group (B-146) |
+  | AdminPortal.tsx updated | ✅ DONE | 3 tiles in Reports & Analytics section |
+  | MODULE_ROADMAP.md updated | ✅ DONE | Sprint 45 addendum |
+
+- Next session:
+  1. Continue with Sprint 46 (B-148–B-150).
+  2. Keep E1–E4 gate artifacts green alongside Sprint 45 route additions.
+
 Latest Session Snapshot (Sprint 44 — B-142 / B-143 / B-144 — 2026-05-08):
 
 - Timestamp (NZ): 2026-05-08 20:30 NZST
