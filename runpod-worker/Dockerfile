@@ -3,6 +3,7 @@ FROM python:3.12-slim-bookworm
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Serverless-first worker image:
+# Build trigger note: keep this file change-safe so workflow path triggers can republish GHCR image.
 # - no CUDA base
 # - no local Ollama install
 # - no baked Ollama models
