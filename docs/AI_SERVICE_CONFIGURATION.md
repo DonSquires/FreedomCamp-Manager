@@ -49,6 +49,34 @@ For Bob service environment variables (set in RunPod pod `.env`):
 | `TABULAR_NLP_PROVIDER` | `ollama` or `openai` |
 | `OLLAMA_BASE_URL` | External or internal Ollama URL |
 | `OPENAI_API_KEY` | Required if using `openai` providers |
+| `ALLOW_OPENAI_RUNTIME` | `true` to allow OpenAI runtime calls for approved purposes |
+| `OPENAI_ALLOWED_PURPOSES` | `research,training` (policy allowlist) |
+| `OPENAI_REFERENCE_GATE_ENABLED` | Keep `true` to enforce policy gate |
+| `ALLOW_OPENAI_REFERENCE_PROVIDER` | `false` by default (use purpose-gated access instead) |
+
+### OpenAI Through Bob Policy (Training/Research Only)
+
+OpenAI calls are policy-gated in the RunPod worker. To use OpenAI through Bob:
+
+1. Keep `OPENAI_REFERENCE_GATE_ENABLED=true`
+2. Set `ALLOW_OPENAI_RUNTIME=true`
+3. Set `OPENAI_ALLOWED_PURPOSES=research,training`
+4. Provide `OPENAI_API_KEY`
+5. Include `openai_purpose` in request payload (`research` or `training`)
+
+Example payload:
+
+```json
+{
+  "input": {
+    "action": "chat",
+    "provider": "openai",
+    "model": "gpt-4o-mini",
+    "openai_purpose": "research",
+    "message": "Summarize latest training outcomes"
+  }
+}
+```
 
 ## Required Secrets by Feature
 
