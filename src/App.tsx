@@ -283,6 +283,10 @@ const ImportStagingLog = lazy(() => import('@/pages/ImportStagingLog'))
 const LmrBridgeConfigLog = lazy(() => import('@/pages/LmrBridgeConfigLog'))
 const RadioVoiceProfileLog = lazy(() => import('@/pages/RadioVoiceProfileLog'))
 const ZoneDispatchRuleLog = lazy(() => import('@/pages/ZoneDispatchRuleLog'))
+// --- Sprint 46: B-148–B-150 ---
+const BobActionProposalEventLog = lazy(() => import('@/pages/BobActionProposalEventLog'))
+const HomelessRecordLog = lazy(() => import('@/pages/HomelessRecordLog'))
+const RestrictionLog = lazy(() => import('@/pages/RestrictionLog'))
 
 const NetworkStatusBar = lazy(() => import('@/components/features/NetworkStatusBar').then((m) => ({ default: m.NetworkStatusBar })))
 const PWAInstallPrompt = lazy(() => import('@/components/features/PWAInstallPrompt').then((m) => ({ default: m.PWAInstallPrompt })))
@@ -2469,6 +2473,10 @@ export default function App() {
           <Route path="/lmr-bridge-config-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><LmrBridgeConfigLog /></RoleRoute></ProtectedRoute>} />
           <Route path="/radio-voice-profile-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><RadioVoiceProfileLog /></RoleRoute></ProtectedRoute>} />
           <Route path="/zone-dispatch-rule-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><ZoneDispatchRuleLog /></RoleRoute></ProtectedRoute>} />
+          {/* Sprint 46: B-148–B-150 */}
+          <Route path="/bob-action-proposal-event-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'master']}><BobActionProposalEventLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/homeless-records-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><HomelessRecordLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/restrictions-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><RestrictionLog /></RoleRoute></ProtectedRoute>} />
 
           {/* CRM – Accounts (Clients + Contractors) */}
           <Route

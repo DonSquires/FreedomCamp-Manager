@@ -548,7 +548,40 @@ Latest Session Snapshot (Sprint 45 — B-145 LmrBridgeConfigLog / B-146 RadioVoi
 - Open blockers with owner:
   1. NONE.
 
-Latest Session Snapshot (Sprint 44 — B-142 AdminRecalculationLog / B-143 ContractorDocumentLog / B-144 ImportStagingLog — 2026-05-08):
+Latest Session Snapshot (Sprint 46 — B-148 BobActionProposalEventLog / B-149 HomelessRecordLog / B-150 RestrictionLog — 2026-05-08):
+
+- Timestamp (NZ): 2026-05-08 22:50 NZST
+- Current branch: copilot/continue-realignment-project-again
+- Scope completed:
+  - Added Sprint 46 route trio (B-148, B-149, B-150) following the established admin-log sprint pattern.
+  - Created `src/pages/BobActionProposalEventLog.tsx` (B-148) — `/bob-action-proposal-event-log` — `bob_action_proposal_events` viewer with event-type classification, proposal/case cross-reference, and metadata expand.
+  - Created `src/pages/HomelessRecordLog.tsx` (B-149) — `/homeless-records-log` — `homeless_records` viewer with plate/status/source/active filters and creator/updater audit detail.
+  - Created `src/pages/RestrictionLog.tsx` (B-150) — `/restrictions-log` — `restrictions` viewer with type classification, metadata JSON expand, and note that geometry is spatial-only (not rendered inline).
+  - Added lazy imports and role-gated routes to `src/App.tsx`.
+  - Added Sprint 46 entries to `src/navigation/routeManifest.ts` (201 entries, up from 198).
+  - Added Sprint 46 Route Addendum to `docs/MODULE_ROADMAP.md`.
+
+- Sprint 46 checklist:
+  | Item | Status | Evidence |
+  |---|---|---|
+  | B-148 BobActionProposalEventLog page | ✅ DONE | `src/pages/BobActionProposalEventLog.tsx` |
+  | B-149 HomelessRecordLog page | ✅ DONE | `src/pages/HomelessRecordLog.tsx` |
+  | B-150 RestrictionLog page | ✅ DONE | `src/pages/RestrictionLog.tsx` |
+  | App.tsx imports + routes | ✅ DONE | `src/App.tsx` |
+  | Route manifest (201 entries) | ✅ DONE | `src/navigation/routeManifest.ts` |
+  | MODULE_ROADMAP Sprint 46 addendum | ✅ DONE | `docs/MODULE_ROADMAP.md` |
+
+- Validation evidence:
+  | Command | Result | Notes |
+  |---|---|---|
+  | `bun run lint` | PASS | 0 errors (1 pre-existing warning in FieldOfficerPortal.tsx) |
+  | `bun run build` | PASS | TypeScript + Vite build succeeded |
+  | `node scripts/check-build-budgets.mjs` | PASS | 7974.50/8000 kB |
+
+- Open blockers with owner:
+  1. NONE.
+
+Latest Session Snapshot (Sprint 45 — B-145 LmrBridgeConfigLog / B-146 RadioVoiceProfileLog / B-147 ZoneDispatchRuleLog — 2026-05-08):
 
 - Timestamp (NZ): 2026-05-08 22:07 NZST
 - Current branch: copilot/continue-realignment-project-again

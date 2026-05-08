@@ -737,6 +737,25 @@ New admin routes added in Sprint 45 (B-145, B-146, B-147):
    - Role gate: admin, admin_officer, master
    - Viewer for zone_dispatch_resource_rules; KPIs (Total/Active/Zones Covered/Scheduled Rules); zone/resource/job/day/status filters; priority and assignment expand
 
+## Sprint 46 Route Addendum (2026-05-08)
+
+New admin routes added in Sprint 46 (B-148, B-149, B-150):
+
+1. Bob Action Proposal Event Log (B-148)
+   - Route: /bob-action-proposal-event-log
+   - Role gate: admin, master
+   - Viewer for bob_action_proposal_events; KPIs (Total/Unique Proposals/Case-Linked/With Notes); proposal/event-type/date filters; metadata and notes expand
+
+2. Homeless Record Log (B-149)
+   - Route: /homeless-records-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for homeless_records; KPIs (Total/Active/Inactive/Unique Plates); plate/status/source/active filters; creator/updater and notes expand
+
+3. Restriction Log (B-150)
+   - Route: /restrictions-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for restrictions; KPIs (Total/Types/With Metadata/Updated Last 30d); name/type filters; metadata JSON expand (geometry omitted from table, noted as spatial)
+
 ## Production Status Snapshot (2026-05-07)
 
 - Branch: main
