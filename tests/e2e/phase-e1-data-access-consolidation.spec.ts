@@ -21,6 +21,8 @@ const PHASE_E1_TARGETS: PhaseE1Target[] = [
   { page: 'RosterPlanner', baselineDirectSupabaseFromCalls: 0, reductionTarget: 'Keep page free of direct Supabase query clusters.' },
 ]
 
+// Phase E1 tracks the page-owned query clusters that use the project-standard `supabase.from(...)` pattern.
+// Destructured aliases are out of scope and should not be introduced in page components.
 const PAGE_DIRECT_QUERY_PATTERN = /\bsupabase\s*\.\s*from\s*\(/g
 
 function pagePath(page: string) {
