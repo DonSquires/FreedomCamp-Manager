@@ -50,6 +50,24 @@ interface BreachIntelligenceAlertsOptions {
   endDate?: string | null
 }
 
+interface BreachSafetyAlertsOptions {
+  effectiveOrganizationId?: string | null
+  dateFrom?: string | null
+  dateTo?: string | null
+  startDate?: string | null
+  endDate?: string | null
+}
+
+type BreachAlertLike = {
+  id?: string
+  observation_id?: string | null
+  breach_details?: Record<string, any> | null
+  plate_number?: string | null
+  breach_type?: string | null
+  created_at?: string | null
+  zones?: { name?: string | null } | null
+}
+
 /** Zone names that represent generic parent zones rather than specific locations. */
 const GENERIC_ZONE_NAMES = ['jurisdiction', 'general', 'other']
 
@@ -57,7 +75,7 @@ const GENERIC_ZONE_NAMES = ['jurisdiction', 'general', 'other']
  * Extract the observation id from a breach alert, checking both the FK column
  * and the breach_details JSON blob.
  */
-export function extractObservationId(alert: any): string | null {
+export function extractObservationId(alert: BreachAlertLike): string | null {
   const details = alert.breach_details || {}
   return (
     alert.observation_id ||
@@ -72,7 +90,7 @@ export function extractObservationId(alert: any): string | null {
  * From a bucket of duplicate alerts, pick the best representative.
  * Prefers the alert whose zone name is the most specific.
  */
-function pickBestRepresentative(bucket: any[]): any {
+function pickBestRepresentative<T extends BreachAlertLike>(bucket: T[]): T {
   if (bucket.length === 1) return bucket[0]
   const specific = bucket.find((a) => {
     const zn = ((a.zones as any)?.name ?? '').toLowerCase()
@@ -84,11 +102,11 @@ function pickBestRepresentative(bucket: any[]): any {
 /**
  * Deduplicate breach alerts by linked observation first, then by plate/type/minute bucket.
  */
-export function deduplicateBreachAlerts(alerts: any[]): any[] {
+export function deduplicateBreachAlerts<T extends BreachAlertLike>(alerts: T[]): T[] {
   if (!alerts || alerts.length === 0) return alerts
 
-  const obsBuckets = new Map<string, any[]>()
-  const noObsAlerts: any[] = []
+  const obsBuckets = new Map<string, T[]>()
+  const noObsAlerts: T[] = []
 
   for (const alert of alerts) {
     const obsId = extractObservationId(alert)
@@ -101,12 +119,12 @@ export function deduplicateBreachAlerts(alerts: any[]): any[] {
     }
   }
 
-  const result: any[] = []
+  const result: T[] = []
   for (const [, bucket] of obsBuckets) {
     result.push(pickBestRepresentative(bucket))
   }
 
-  const timeBuckets = new Map<string, any[]>()
+  const timeBuckets = new Map<string, T[]>()
   for (const alert of noObsAlerts) {
     const plate = (alert.plate_number ?? '').toLowerCase()
     const type = alert.breach_type ?? ''
@@ -429,6 +447,35 @@ export function useBreachAlertQueue({
       )
     },
     retry: 1,
+  })
+}
+
+export function useBreachSafetyAlerts({
+  effectiveOrganizationId,
+  dateFrom,
+  dateTo,
+  startDate,
+  endDate,
+}: BreachSafetyAlertsOptions) {
+  return useQuery({
+    queryKey: ['safety-alerts', effectiveOrganizationId, dateFrom, dateTo],
+    queryFn: async ({ signal }) => {
+      let q = (supabase.from('officer_welfare_alerts') as any)
+        .select('id, officer_name, alert_type, status, created_at, gps_latitude, gps_longitude')
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false })
+        .limit(10)
+        .abortSignal(signal)
+
+      if (effectiveOrganizationId) {
+        q = q.eq('organization_id', effectiveOrganizationId)
+      }
+      if (startDate) q = q.gte('created_at', startDate)
+      if (endDate) q = q.lte('created_at', endDate)
+
+      const { data } = await q
+      return data || []
+    },
   })
 }
 

@@ -14,7 +14,7 @@ const PHASE_E1_TARGETS: PhaseE1Target[] = [
   { page: 'FieldOfficerPortal', baselineDirectSupabaseFromCalls: 15, reductionTarget: 'Reduce by migrating patrol, welfare, and observation clusters into hooks/services.' },
   { page: 'AssetManagement', baselineDirectSupabaseFromCalls: 0, reductionTarget: 'Keep page free of direct Supabase query clusters.' },
   { page: 'VehicleManagement', baselineDirectSupabaseFromCalls: 21, reductionTarget: 'Reduce by moving vehicle, owner, and enforcement reads into hooks/services.' },
-  { page: 'BreachAlerts', baselineDirectSupabaseFromCalls: 9, reductionTarget: 'Continue reducing by moving evidence and detail reads into breach hooks/services.' },
+  { page: 'BreachAlerts', baselineDirectSupabaseFromCalls: 8, reductionTarget: 'Continue reducing by moving remaining evidence and detail reads into breach hooks/services.' },
   { page: 'AdminPortal', baselineDirectSupabaseFromCalls: 20, reductionTarget: 'Reduce by consolidating admin summary reads behind shared dashboard hooks.' },
   { page: 'NoiseControlPortal', baselineDirectSupabaseFromCalls: 13, reductionTarget: 'Reduce by moving noise complaint and evidence reads into domain hooks.' },
   { page: 'ClientAccountPage', baselineDirectSupabaseFromCalls: 0, reductionTarget: 'Keep page free of direct Supabase query clusters.' },

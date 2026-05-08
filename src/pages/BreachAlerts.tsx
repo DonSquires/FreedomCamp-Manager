@@ -59,6 +59,7 @@ import {
   startBreachEnforcement,
   useBreachAlertQueue,
   useBreachIntelligenceAlerts,
+  useBreachSafetyAlerts,
   updateBreachManualPlate,
   updateCanonicalVehicleFromEnrichment,
 } from '@/hooks/useBreaches'
@@ -329,26 +330,12 @@ export default function BreachAlerts() {
     endDate,
   })
 
-  // ── Safety Alerts: officer unexpected departures (welfare inactivity) ──────
-  const { data: safetyAlerts } = useQuery({
-    queryKey: ['safety-alerts', effectiveOrganizationId, dateFrom, dateTo],
-    queryFn: async ({ signal }) => {
-      let q = (supabase.from('officer_welfare_alerts') as any)
-        .select('id, officer_name, alert_type, status, created_at, gps_latitude, gps_longitude')
-        .eq('status', 'pending')
-        .order('created_at', { ascending: false })
-        .limit(10)
-        .abortSignal(signal)
-
-      if (effectiveOrganizationId) {
-        q = q.eq('organization_id', effectiveOrganizationId)
-      }
-      if (startDate) q = q.gte('created_at', startDate)
-      if (endDate) q = q.lte('created_at', endDate)
-
-      const { data } = await q
-      return data || []
-    },
+  const { data: safetyAlerts } = useBreachSafetyAlerts({
+    effectiveOrganizationId,
+    dateFrom,
+    dateTo,
+    startDate,
+    endDate,
   })
 
   const { data: breaches, isLoading, isError: breachesIsError, error: breachesError } = useBreachAlertQueue({
@@ -361,7 +348,7 @@ export default function BreachAlerts() {
     dateTo,
     startDate,
     endDate,
-  })
+  }) as any
 
   useEffect(() => {
     if (!breachesIsError) return
