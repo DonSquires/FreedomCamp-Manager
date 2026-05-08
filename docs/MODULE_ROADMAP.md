@@ -903,6 +903,37 @@ With Phase D delivery and gate evidence in place, the next execution phase is Ph
    - Communications delivery governance is live and measurable in operations dashboards.
    - Evidence is recorded in `docs/STAGING.md` with linked CI runs and validation artifacts.
 
+### Phase E kickoff order (E1 → E4)
+
+1. E1 — Direct page-query reduction baseline and targets.
+2. E2 — Hook/service migration for highest-fragmentation surfaces.
+3. E3 — Audit dashboard completeness for operational and contract events.
+4. E4 — Final release evidence pack and cross-module rollout sign-off.
+
+Phase E release criteria:
+- E1–E4 gate suites and CI workflows all present and passing.
+- No unresolved blockers in staging handoff logs for tenant isolation, replay safety, or rollout rollback.
+- Canonical docs (`STAGING.md`, `MODULE_ROADMAP.md`) updated with final evidence references.
+
+### E3 kickoff gate artifacts
+
+- `tests/e2e/phase-e3-communications-audit-retry.spec.ts`
+- `.github/workflows/ci-phase-e3-communications-audit-retry-gate.yml`
+- E3 gate scope covers communications delivery audit, retry governance, degraded push/email outcomes, and operations visibility anchors.
+- `NotificationsCenter.tsx` now exposes an admin-only **E3 Communications Delivery Metrics** card.
+- Runtime push/report/invite delivery attempts now write non-blocking `crm_communications` audit rows.
+
+### E4 release evidence gate artifacts
+
+- `tests/e2e/phase-e4-release-evidence.spec.ts`
+- `.github/workflows/ci-phase-e4-release-evidence-gate.yml`
+- Phase E release evidence pack locks E1–E3 gate coverage and final rollout readiness evidence.
+
+### Phase E closeout validation status
+
+- Phase E final validation is recorded as green.
+- E1, E2, E3, and E4 focused gates: PASS (`110 passed`).
+
 ## Phase E1 Data-Access Consolidation Baseline (2026-05-08)
 
 Phase E1 starts with a static direct-query drift gate for the highest-fragmentation pages named in the build realignment plan. The baseline counts below are grounded in the current page files and are enforced by `tests/e2e/phase-e1-data-access-consolidation.spec.ts`; future hook/service migrations should lower the relevant baseline only after the page count drops.
