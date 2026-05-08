@@ -24,6 +24,7 @@ const PHASE_E1_TARGETS: PhaseE1Target[] = [
 // Phase E1 tracks the page-owned query clusters that use the project-standard `supabase.from(...)` pattern.
 // Destructured aliases such as `const { from } = supabase` are out of scope and should not be introduced in page components.
 const PAGE_DIRECT_QUERY_PATTERN = /\bsupabase\s*\.\s*from\s*\(/g
+const DESTRUCTURED_SUPABASE_FROM_PATTERN = /\bconst\s*\{[^}]*\bfrom\b[^}]*\}\s*=\s*supabase\b/g
 
 function pagePath(page: string) {
   return path.join(process.cwd(), 'src', 'pages', `${page}.tsx`)
@@ -52,6 +53,12 @@ test.describe('Phase E1 — direct page-query reduction baseline', () => {
       expect(countDirectPageQueries(target.page)).toBeLessThanOrEqual(target.baselineDirectSupabaseFromCalls)
     })
   }
+
+  test('target pages do not bypass the gate with destructured Supabase aliases', () => {
+    for (const target of PHASE_E1_TARGETS) {
+      expect(readPage(target.page).match(DESTRUCTURED_SUPABASE_FROM_PATTERN) ?? []).toHaveLength(0)
+    }
+  })
 
   test('aggregate Phase E1 target-page direct queries do not drift upward', () => {
     const currentTotal = PHASE_E1_TARGETS.reduce((total, target) => total + countDirectPageQueries(target.page), 0)
