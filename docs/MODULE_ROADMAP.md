@@ -1,9 +1,9 @@
 # Module Roadmap (Operator Navigation Map)
 
 Date: 2026-05-08 (verified against src/navigation/routeManifest.ts)
-Source of truth for routes: route manifest file src/navigation/routeManifest.ts (240 route manifest entries as of Sprint 62 completion)
+Source of truth for routes: route manifest file src/navigation/routeManifest.ts (249 route manifest entries as of Sprint 63 completion)
 
- > **Last Verification**: 2026-05-08 — Role-gating and route docs reviewed through Sprint 62 (B-200). Production main includes Sprints 31-62.
+ > **Last Verification**: 2026-05-08 — Role-gating and route docs reviewed through Sprint 63 (B-209). Production main includes Sprints 31-63.
 
 ## How To Use
 
@@ -1065,11 +1065,60 @@ New manifest entries added in Sprint 62 (B-195, B-196, B-197, B-198, B-199, B-20
    - Role gate: officer, admin_officer, admin, master, grand_master
    - navGroup: Specialist Services
 
+## Sprint 63 Route Addendum (2026-05-08)
+
+New manifest entries added in Sprint 63 (B-201 through B-209):
+
+1. Access Permissions (B-201)
+   - Route: /access-permissions
+   - Role gate: admin, admin_officer, master
+   - navGroup: Records
+
+2. Asset Management (B-202)
+   - Route: /asset-management
+   - Role gate: admin, admin_officer, master, grand_master
+   - navGroup: Roster & Workforce
+
+3. Biosecurity (CNG) (B-203)
+   - Route: /biosecurity-officer
+   - Role gate: officer, admin_officer, admin, master
+   - navGroup: Specialist Services
+
+4. Canonical Persons (B-204)
+   - Route: /canonical-persons
+   - Role gate: admin, admin_officer, master
+   - navGroup: Records
+
+5. Case Bridge (B-205)
+   - Route: /case-bridge
+   - Role gate: admin, admin_officer, master, grand_master
+   - navGroup: Roster & Workforce
+
+6. Dispatch LOI Browser (B-206)
+   - Route: /loi-browser
+   - Role gate: admin, admin_officer, master
+   - navGroup: Records
+
+7. Smoke Complaints (OOH) (B-207)
+   - Route: /smoke-officer
+   - Role gate: officer, admin_officer, admin, master
+   - navGroup: Specialist Services
+
+8. Trespass Notices (B-208)
+   - Route: /trespass-notices
+   - Role gate: admin, admin_officer, master
+   - navGroup: Records
+
+9. Voice Profiles & Consent (B-209)
+   - Route: /voice-profiles
+   - Role gate: admin, admin_officer, master
+   - navGroup: Operations
+
 ## Production Status Snapshot (2026-05-08)
 
 - Branch: main
 - PR state (base main): 0 open
-- Consolidation status: Sprint 31 through Sprint 62 route work is merged to production main
+- Consolidation status: Sprint 31 through Sprint 63 route work is merged to production main
 
 ## Post-Sprint-42 Realignment Phases and Phase-Gate Progression (#548)
 

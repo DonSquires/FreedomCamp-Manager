@@ -806,6 +806,41 @@ Latest Session Snapshot (Sprint 52 — B-166 ClientSiteLog / B-167 ParkingPermit
 - Open blockers with owner:
   1. NONE.
 
+Latest Session Snapshot (Sprint 63 — B-201–B-209 — 2026-05-09):
+
+- Timestamp (NZ): 2026-05-09 11:18 NZST
+- Current branch: copilot/continue-realignment-project-yet-again
+- Scope completed:
+  - Added Sprint 63 manifest entries (B-201–B-209): `/access-permissions`, `/asset-management`, `/biosecurity-officer`, `/canonical-persons`, `/case-bridge`, `/loi-browser`, `/smoke-officer`, `/trespass-notices`, `/voice-profiles`.
+  - Used existing `src/App.tsx`, `src/components/features/AppLayout.tsx`, and `src/pages/AdminPortal.tsx` role/navigation wiring as source of truth; no route component changes were required.
+  - Updated `docs/MODULE_ROADMAP.md` with Sprint 63 addendum and route-count/verification snapshot.
+
+- Sprint 63 checklist:
+  | Item | Status | Evidence |
+  |---|---|---|
+  | B-201 `/access-permissions` manifest entry | ✅ DONE | `src/navigation/routeManifest.ts` |
+  | B-202 `/asset-management` manifest entry | ✅ DONE | `src/navigation/routeManifest.ts` |
+  | B-203 `/biosecurity-officer` manifest entry | ✅ DONE | `src/navigation/routeManifest.ts` |
+  | B-204 `/canonical-persons` manifest entry | ✅ DONE | `src/navigation/routeManifest.ts` |
+  | B-205 `/case-bridge` manifest entry | ✅ DONE | `src/navigation/routeManifest.ts` |
+  | B-206 `/loi-browser` manifest entry | ✅ DONE | `src/navigation/routeManifest.ts` |
+  | B-207 `/smoke-officer` manifest entry | ✅ DONE | `src/navigation/routeManifest.ts` |
+  | B-208 `/trespass-notices` manifest entry | ✅ DONE | `src/navigation/routeManifest.ts` |
+  | B-209 `/voice-profiles` manifest entry | ✅ DONE | `src/navigation/routeManifest.ts` |
+  | Route manifest (249 entries) | ✅ DONE | `src/navigation/routeManifest.ts` |
+  | MODULE_ROADMAP Sprint 63 addendum | ✅ DONE | `docs/MODULE_ROADMAP.md` |
+
+- Validation evidence:
+  | Command | Result | Notes |
+  |---|---|---|
+  | `bun run lint` | PASS | ESLint completed without errors |
+  | `bun run build` | PASS | TypeScript + Vite build succeeded |
+  | `bun run test:nav-parity` | PASS | navigation registry parity passed |
+  | `bun run build:budget` | PASS | under 8300 kB |
+
+- Open blockers with owner:
+  1. NONE.
+
 Latest Session Snapshot (Sprint 62 — B-195–B-200 + manifest normalization — 2026-05-09):
 
 - Timestamp (NZ): 2026-05-09 10:58 NZST
