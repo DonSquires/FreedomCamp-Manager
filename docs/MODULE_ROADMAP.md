@@ -1,9 +1,9 @@
 # Module Roadmap (Operator Navigation Map)
 
 Date: 2026-05-08 (verified against src/navigation/routeManifest.ts)
-Source of truth for routes: route manifest file src/navigation/routeManifest.ts (207 route manifest entries as of Sprint 48 completion)
+Source of truth for routes: route manifest file src/navigation/routeManifest.ts (210 route manifest entries as of Sprint 49 completion)
 
- > **Last Verification**: 2026-05-08 — Role-gating and route docs reviewed through Sprint 48 (B-156). Current branch includes Sprints 31-48; production main includes Sprints 31-45 until subsequent merges.
+ > **Last Verification**: 2026-05-08 — Role-gating and route docs reviewed through Sprint 49 (B-159). Current branch includes Sprints 31-49; production main includes Sprints 31-45 until subsequent merges.
 
 ## How To Use
 
@@ -794,11 +794,30 @@ New admin routes added in Sprint 48 (B-154, B-155, B-156):
    - Role gate: admin, admin_officer, master
    - Viewer for site_risk_assessments; KPIs (Total/High+Critical/Completed/Reviewed); site name search/risk_level/status/request_type/date_from filters; hazard checklist (18 fields), controls, PPE, GPS, safety indicators, reviewer expand
 
+## Sprint 49 Route Addendum (2026-05-08)
+
+New admin routes added in Sprint 49 (B-157, B-158, B-159):
+
+1. Dispatch Job Log (B-157)
+   - Route: /dispatch-jobs-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for dispatch_jobs; KPIs (Total/Active/Completed/SLA Breached); job#/title/address search, status/job_type/priority/date_from filters; caller, client site, case, breach alert, escalation, lifecycle timestamps, GPS expand
+
+2. Enforcement Action Log (B-158)
+   - Route: /enforcement-actions-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for enforcement_actions; KPIs (Total/Pending/Completed/Assigned); plate+notes search, status/action_type/date_from filters; breach status, observation, vehicle record, compliance result, assignment/completion metadata expand
+
+3. Observation Log (B-159)
+   - Route: /observations-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for observations; KPIs (Total/Breaches/Compliant/With Photo); plate search, breach_type/compliance/date_from filters; processing state, GPS, incident link, nights stayed, notes, photo link expand
+
 ## Production Status Snapshot (2026-05-08)
 
 - Branch: main
 - PR state (base main): 0 open
-- Consolidation status: Sprint 31 through Sprint 48 route work is aligned on the active branch; production main currently includes Sprints 31-45
+- Consolidation status: Sprint 31 through Sprint 49 route work is aligned on the active branch; production main currently includes Sprints 31-45
 
 ## Post-Sprint-42 Realignment Phases and Phase-Gate Progression (#548)
 

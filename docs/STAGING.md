@@ -642,6 +642,46 @@ Latest Session Snapshot (Sprint 45 — B-145 LmrBridgeConfigLog / B-146 RadioVoi
 - Open blockers with owner:
   1. NONE.
 
+Latest Session Snapshot (Sprint 49 — B-157 DispatchJobLog / B-158 EnforcementActionLog / B-159 ObservationLog — 2026-05-08):
+
+- Timestamp (NZ): 2026-05-08 13:10 NZST
+- Current branch: copilot/continue-realignment-project-yet-again
+- Scope completed:
+  - Added Sprint 49 route trio (B-157, B-158, B-159) following the established admin-log sprint pattern.
+  - Created `src/pages/DispatchJobLog.tsx` (B-157) — `/dispatch-jobs-log` — `dispatch_jobs` viewer with job#/title/address search, status/job_type/priority/date filters; caller, client site, case/breach/investigation cross-refs, lifecycle timestamps, GPS, SLA expand.
+  - Created `src/pages/EnforcementActionLog.tsx` (B-158) — `/enforcement-actions-log` — `enforcement_actions` viewer with plate+notes search, status/action_type/date filters; breach status, observation, vehicle/compliance links, assignment/completion metadata expand.
+  - Created `src/pages/ObservationLog.tsx` (B-159) — `/observations-log` — `observations` viewer with plate search, breach_type/compliance/date filters; processing state, GPS, incident link, nights stayed, notes, vehicle summary, photo link expand.
+  - Added lazy imports and role-gated routes to `src/App.tsx`.
+  - Added Sprint 49 entries to `src/navigation/routeManifest.ts` (210 entries, up from 207).
+  - Added Sprint 49 nav links to `src/components/features/AppLayout.tsx` (Operations: B-157; Management: B-158; Records: B-159).
+  - Added Sprint 49 admin tile shortcuts to `src/pages/AdminPortal.tsx`.
+  - Added Sprint 49 Route Addendum to `docs/MODULE_ROADMAP.md`.
+
+- Sprint 49 checklist:
+  | Item | Status | Evidence |
+  |---|---|---|
+  | B-157 DispatchJobLog page | ✅ DONE | `src/pages/DispatchJobLog.tsx` |
+  | B-158 EnforcementActionLog page | ✅ DONE | `src/pages/EnforcementActionLog.tsx` |
+  | B-159 ObservationLog page | ✅ DONE | `src/pages/ObservationLog.tsx` |
+  | App.tsx imports + routes | ✅ DONE | `src/App.tsx` |
+  | Route manifest (210 entries) | ✅ DONE | `src/navigation/routeManifest.ts` |
+  | AppLayout navigation wiring | ✅ DONE | `src/components/features/AppLayout.tsx` |
+  | AdminPortal shortcuts | ✅ DONE | `src/pages/AdminPortal.tsx` |
+  | MODULE_ROADMAP Sprint 49 addendum | ✅ DONE | `docs/MODULE_ROADMAP.md` |
+
+- Validation evidence:
+  | Command | Result | Notes |
+  |---|---|---|
+  | `bun run lint` | PASS | 0 errors (1 pre-existing warning in `src/pages/FieldOfficerPortal.tsx`) |
+  | `bun run build` | PASS | TypeScript + Vite build succeeded |
+  | `bun run test:nav-parity` | PASS | navigation registry parity passed |
+  | `bun run lint:route-roadmap` | PASS | route roadmap coverage passed |
+  | `bun run lint:staging-doc` | PASS | staging doc consistency passed |
+  | `bun run build:budget` | PASS | within JS budget |
+
+- Open blockers with owner:
+  1. NONE.
+
 Latest Session Snapshot (Sprint 48 — B-154 FaceRecordLog / B-155 InfringementNoticeLog / B-156 SiteRiskAssessmentLog — 2026-05-08):
 
 - Timestamp (NZ): 2026-05-08 12:55 NZST

@@ -295,6 +295,10 @@ const NotificationLog = lazy(() => import('@/pages/NotificationLog'))
 const FaceRecordLog = lazy(() => import('@/pages/FaceRecordLog'))
 const InfringementNoticeLog = lazy(() => import('@/pages/InfringementNoticeLog'))
 const SiteRiskAssessmentLog = lazy(() => import('@/pages/SiteRiskAssessmentLog'))
+// Sprint 49: B-157–B-159
+const DispatchJobLog = lazy(() => import('@/pages/DispatchJobLog'))
+const EnforcementActionLog = lazy(() => import('@/pages/EnforcementActionLog'))
+const ObservationLog = lazy(() => import('@/pages/ObservationLog'))
 
 const NetworkStatusBar = lazy(() => import('@/components/features/NetworkStatusBar').then((m) => ({ default: m.NetworkStatusBar })))
 const PWAInstallPrompt = lazy(() => import('@/components/features/PWAInstallPrompt').then((m) => ({ default: m.PWAInstallPrompt })))
@@ -2493,6 +2497,10 @@ export default function App() {
           <Route path="/face-records-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'master']}><FaceRecordLog /></RoleRoute></ProtectedRoute>} />
           <Route path="/infringement-notices-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><InfringementNoticeLog /></RoleRoute></ProtectedRoute>} />
           <Route path="/site-risk-assessments-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><SiteRiskAssessmentLog /></RoleRoute></ProtectedRoute>} />
+          {/* Sprint 49: B-157–B-159 */}
+          <Route path="/dispatch-jobs-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><DispatchJobLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/enforcement-actions-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><EnforcementActionLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/observations-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><ObservationLog /></RoleRoute></ProtectedRoute>} />
 
           {/* CRM – Accounts (Clients + Contractors) */}
           <Route
