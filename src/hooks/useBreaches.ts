@@ -74,7 +74,19 @@ type BreachAlertLike = {
   zones?: { name?: string | null } | null
 }
 
-type BreachAlertQueueRow = BreachAlertLike & Record<string, any>
+type BreachAlertQueueRow = BreachAlertLike & {
+  organization_id?: string | null
+  zone_id?: string | null
+  status?: string | null
+  resolved_at?: string | null
+  due_date?: string | null
+  resolution_notes?: string | null
+  assigned_to?: string | null
+  assigned_at?: string | null
+  assigned_by?: string | null
+  admin_review_notes?: string | null
+  organizations?: { name?: string | null } | null
+}
 
 /** Zone names that represent generic parent zones rather than specific locations. */
 const GENERIC_ZONE_NAMES = ['jurisdiction', 'general', 'other']

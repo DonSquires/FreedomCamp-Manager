@@ -361,7 +361,10 @@ export default function BreachAlerts() {
   }, [breachesIsError, breachesError])
 
   // Derived: active breach from the list
-  const activeBreach = (breaches?.find((b: any) => b.id === activeBreachId) as any) || null
+  const activeBreach = (breaches?.find((b: any) => b.id === activeBreachId) ?? null) as (BreachAlert & {
+    zones?: any
+    organizations?: any
+  }) | null
 
   const { data: detailVehicle } = useBreachVehicleDetails(activeBreach?.plate_number)
 
