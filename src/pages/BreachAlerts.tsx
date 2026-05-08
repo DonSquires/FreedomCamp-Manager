@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
 import { AsyncStateWrapper } from '@/components/features/AsyncStateWrapper'
@@ -48,13 +47,13 @@ import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
 import { AdminFollowUpDrawer } from '@/components/features/AdminFollowUpDrawer'
 import { ListCardRow } from '@/components/features/ListCardRow'
 import { enrichVehicleFromMotorWeb } from '@/lib/proxyServices'
-import { isPhotoUrlExpired, parseStorageUrl } from '@/lib/photoUtils'
 import {
   acknowledgeBreachAlert,
   acknowledgeWelfareAlert,
   deduplicateBreachAlerts,
   dismissBreachAlert,
   extractObservationId,
+  resolveBreachEvidencePhotoUrl,
   resolveBreachAlert,
   startBreachEnforcement,
   useBreachAlertQueue,
@@ -95,18 +94,6 @@ interface BreachAlert {
   admin_review_notes: string | null
 }
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || ''
-
-async function resolveViaDownload(bucket: string, path: string): Promise<string | null> {
-  try {
-    const { data, error } = await supabase.storage.from(bucket).download(path)
-    if (error || !data) return null
-    return URL.createObjectURL(data)
-  } catch {
-    return null
-  }
-}
-
 function getBreachObservationId(breach: BreachAlert | null): string | null {
   if (!breach) return null
   return extractObservationId(breach)
@@ -123,127 +110,6 @@ function getBreachDisplayTimestamp(breach: BreachAlert | null): string | null {
     breach.created_at ||
     null
   )
-}
-
-async function resolveEvidencePhotoUrl(rawUrl: string | null | undefined): Promise<string | null> {
-  if (!rawUrl) return null
-  const url = rawUrl.trim()
-  if (!url) return null
-
-  if (url.startsWith('data:')) {
-    return url
-  }
-
-  const maybeParsed = parseStorageUrl(url)
-  if (maybeParsed) {
-    if (url.includes('/storage/v1/object/sign/')) {
-      const { data, error } = await supabase.storage
-        .from(maybeParsed.bucket)
-        .createSignedUrl(maybeParsed.path, 60 * 60)
-
-      if (!error && data?.signedUrl) {
-        return data.signedUrl
-      }
-
-      const downloadedUrl = await resolveViaDownload(maybeParsed.bucket, maybeParsed.path)
-      if (downloadedUrl) {
-        return downloadedUrl
-      }
-
-      const { data: publicData } = supabase.storage.from(maybeParsed.bucket).getPublicUrl(maybeParsed.path)
-      return publicData.publicUrl || url
-    }
-
-    if (url.includes('/storage/v1/object/public/')) {
-      const { data, error } = await supabase.storage
-        .from(maybeParsed.bucket)
-        .createSignedUrl(maybeParsed.path, 60 * 60)
-
-      if (!error && data?.signedUrl) {
-        return data.signedUrl
-      }
-
-      const downloadedUrl = await resolveViaDownload(maybeParsed.bucket, maybeParsed.path)
-      if (downloadedUrl) {
-        return downloadedUrl
-      }
-
-      return url
-    }
-
-    if (isPhotoUrlExpired(url)) {
-      const { data, error } = await supabase.storage
-        .from(maybeParsed.bucket)
-        .createSignedUrl(maybeParsed.path, 60 * 60)
-
-      if (!error && data?.signedUrl) {
-        return data.signedUrl
-      }
-
-      const downloadedUrl = await resolveViaDownload(maybeParsed.bucket, maybeParsed.path)
-      if (downloadedUrl) {
-        return downloadedUrl
-      }
-    }
-
-    return url
-  }
-
-  if (url.startsWith('http://') || url.startsWith('https://')) {
-    return url
-  }
-
-  if (url.startsWith('/storage/v1/object/')) {
-    const absoluteStorageUrl = SUPABASE_URL ? `${SUPABASE_URL}${url}` : null
-    if (!absoluteStorageUrl) return null
-
-    const parsedAbsolute = parseStorageUrl(absoluteStorageUrl)
-    if (!parsedAbsolute) return absoluteStorageUrl
-
-    if (absoluteStorageUrl.includes('/storage/v1/object/sign/')) {
-      const { data, error } = await supabase.storage
-        .from(parsedAbsolute.bucket)
-        .createSignedUrl(parsedAbsolute.path, 60 * 60)
-
-      if (!error && data?.signedUrl) {
-        return data.signedUrl
-      }
-    }
-
-    return absoluteStorageUrl
-  }
-
-  const normalizedPath = url.replace(/^\/+/, '')
-
-  const bucketPrefixed = normalizedPath.match(/^(scans|evidence|incident-evidence)\/(.+)$/)
-  if (bucketPrefixed) {
-    const [, bucket, path] = bucketPrefixed
-    const { data: signedData, error } = await supabase.storage.from(bucket).createSignedUrl(path, 60 * 60)
-    if (!error && signedData?.signedUrl) {
-      return signedData.signedUrl
-    }
-
-    const downloadedUrl = await resolveViaDownload(bucket, path)
-    if (downloadedUrl) {
-      return downloadedUrl
-    }
-
-    const { data: publicData } = supabase.storage.from(bucket).getPublicUrl(path)
-    return publicData.publicUrl || null
-  }
-
-  const { data: signedData, error } = await supabase.storage.from('scans').createSignedUrl(normalizedPath, 60 * 60)
-  if (!error && signedData?.signedUrl) {
-    return signedData.signedUrl
-  }
-
-  const downloadedUrl = await resolveViaDownload('scans', normalizedPath)
-  if (downloadedUrl) {
-    return downloadedUrl
-  }
-
-  const { data: publicData } = supabase.storage.from('scans').getPublicUrl(normalizedPath)
-  return publicData.publicUrl || null
 }
 
 function formatVehicleDescription(make: string | null, model: string | null, year: number | null, color: string | null): string {
@@ -368,7 +234,7 @@ export default function BreachAlerts() {
   const { data: detailVehicle } = useBreachVehicleDetails(activeBreach?.plate_number)
 
   const { data: triggeringObservation } = useBreachTriggeringObservation(activeBreach)
-  const { data: evidencePhotos } = useBreachEvidencePhotos(activeBreach, resolveEvidencePhotoUrl)
+  const { data: evidencePhotos } = useBreachEvidencePhotos(activeBreach)
 
   const { data: vehicleHistory } = useBreachVehicleHistory(activeBreach)
 
@@ -1252,7 +1118,7 @@ export default function BreachAlerts() {
 
                                 let idx = Number(target.dataset.fallbackIndex || '0')
                                 while (idx < urls.length) {
-                                  const nextResolved = await resolveEvidencePhotoUrl(urls[idx])
+                                  const nextResolved = await resolveBreachEvidencePhotoUrl(urls[idx])
                                   idx += 1
                                   target.dataset.fallbackIndex = String(idx)
                                   if (nextResolved) {
