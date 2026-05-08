@@ -354,8 +354,7 @@ Deno.serve(async (req) => {
       bodyText: payload.body,
       externalMessageId: data?.id,
       retryCount: webPushFallbackReason ? 1 : 0,
-      errorMessage: webPushFallbackReason,
-      mergeData: { user_id: payload.user_id, notification_type: notifType },
+      mergeData: { user_id: payload.user_id, notification_type: notifType, web_push_fallback_reason: webPushFallbackReason },
     });
     return new Response(
       JSON.stringify({ success: true, channel: 'expo', ticket_id: data?.id }),

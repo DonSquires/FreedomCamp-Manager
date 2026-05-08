@@ -177,8 +177,7 @@ serve(async (req) => {
           subject: "You've been invited to FieldOps Manager",
           toEmails: [email],
           retryCount: 1,
-          errorMessage: 'proxy_relay_unreachable',
-          mergeData: { first_name },
+          mergeData: { first_name, fallback_reason: 'proxy_relay_unreachable' },
         });
         return new Response(
           JSON.stringify({ message: 'Invite email sent' }),
@@ -209,8 +208,7 @@ serve(async (req) => {
             subject: "You've been invited to FieldOps Manager",
             toEmails: [email],
             retryCount: 1,
-            errorMessage: 'SMTP_NOT_CONFIGURED',
-            mergeData: { first_name, relay_code: relayCode },
+            mergeData: { first_name, relay_code: relayCode, fallback_reason: 'SMTP_NOT_CONFIGURED' },
           });
           return new Response(
             JSON.stringify({ message: 'Invite email sent' }),
@@ -232,8 +230,7 @@ serve(async (req) => {
             subject: "You've been invited to FieldOps Manager",
             toEmails: [email],
             retryCount: 1,
-            errorMessage: relayCode,
-            mergeData: { first_name, relay_status: relayResponse.status },
+            mergeData: { first_name, relay_status: relayResponse.status, relay_code: relayCode, fallback_reason: relayCode },
           });
           return new Response(
             JSON.stringify({ message: 'Invite email sent' }),
