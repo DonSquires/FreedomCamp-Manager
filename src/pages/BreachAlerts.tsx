@@ -777,8 +777,8 @@ export default function BreachAlerts() {
       if (data) {
         try {
           await updateCanonicalVehicleFromEnrichment(plateNumber, data)
-        } catch {
-          toast.error('Failed to save enriched vehicle data')
+        } catch (err: any) {
+          toast.error(err?.message || 'Failed to save enriched vehicle data')
           return
         }
         queryClient.invalidateQueries({ queryKey: ['breach-vehicle', plateNumber] })

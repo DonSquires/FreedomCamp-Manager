@@ -247,6 +247,7 @@ export async function acknowledgeBreachAlert(breachId: string, userId?: string |
     .update({
       status: 'acknowledged',
       notified_at: new Date().toISOString(),
+      // Service/admin automation can acknowledge without a user-bound actor.
       notified_by: userId,
     })
     .eq('id', breachId)
@@ -287,6 +288,7 @@ export async function dismissBreachAlert({ breachId, reason }: { breachId: strin
 
 export async function acknowledgeWelfareAlert(alertId: string, userId?: string | null) {
   const { error } = await (supabase.from('officer_welfare_alerts') as any)
+    // Service/admin automation can acknowledge without a user-bound actor.
     .update({ status: 'acknowledged', acknowledged_by: userId, acknowledged_at: new Date().toISOString() })
     .eq('id', alertId)
 
