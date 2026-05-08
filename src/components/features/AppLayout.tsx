@@ -253,6 +253,12 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       // Sprint 53: B-169–B-170
       { path: '/officer-shifts-log', icon: CalendarClock, label: 'Officer Shift Log', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/open-shifts-log', icon: CalendarDays, label: 'Open Shift Log', roles: ['admin', 'admin_officer', 'master'] },
+      // Sprint 54: B-172
+      { path: '/pricing-rules-log', icon: DollarSign, label: 'Pricing Rule Log', roles: ['admin', 'admin_officer', 'master'] },
+      // Sprint 55: B-175–B-177
+      { path: '/fixed-cameras-log', icon: Camera, label: 'Fixed Camera Log', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/officer-skills-log', icon: GraduationCap, label: 'Officer Skills Log', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/patrol-checkpoints-log', icon: Navigation2, label: 'Patrol Checkpoint Log', roles: ['admin', 'admin_officer', 'master'] },
     ],
   },
   {
@@ -338,6 +344,10 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/admin/video-generation', icon: BrainCircuit, label: 'Video Generation Suite', roles: ['admin', 'admin_officer', 'master'] },
       // Sprint 53: B-171
       { path: '/zone-compliance-matrix-log', icon: ShieldCheck, label: 'Zone Compliance Matrix Log', roles: ['admin', 'master'] },
+      // Sprint 54: B-173
+      { path: '/zone-legal-config-log', icon: Scale, label: 'Zone Legal Config Log', roles: ['admin', 'master'] },
+      // Sprint 56: B-179
+      { path: '/parking-zones-log', icon: ParkingSquare, label: 'Parking Zone Log', roles: ['admin', 'master'] },
     ],
   },
   {
@@ -428,6 +438,11 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/canonical-homeless-log', icon: Users, label: 'Canonical Homeless Log', roles: ['admin', 'admin_officer', 'master'] },
       // Sprint 52: B-167
       { path: '/canonical-vehicles-log', icon: Car, label: 'Canonical Vehicle Log', roles: ['admin', 'admin_officer', 'master'] },
+      // Sprint 54: B-174
+      { path: '/zone-signage-evidence-log', icon: Camera, label: 'Zone Signage Evidence Log', roles: ['admin', 'admin_officer', 'master'] },
+      // Sprint 56: B-178, B-180
+      { path: '/contractor-profiles-log', icon: Briefcase, label: 'Contractor Profile Log', roles: ['admin', 'master'] },
+      { path: '/canonical-persons-log', icon: PersonStanding, label: 'Canonical Persons Log', roles: ['admin', 'admin_officer', 'master'] },
     ],
   },
   {

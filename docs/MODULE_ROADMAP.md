@@ -1,9 +1,9 @@
 # Module Roadmap (Operator Navigation Map)
 
 Date: 2026-05-08 (verified against src/navigation/routeManifest.ts)
-Source of truth for routes: route manifest file src/navigation/routeManifest.ts (224 route manifest entries as of Sprint 53 completion)
+Source of truth for routes: route manifest file src/navigation/routeManifest.ts (233 route manifest entries as of Sprint 56 completion)
 
- > **Last Verification**: 2026-05-08 — Role-gating and route docs reviewed through Sprint 53 (B-171). Production main includes Sprints 31-53.
+ > **Last Verification**: 2026-05-08 — Role-gating and route docs reviewed through Sprint 56 (B-180). Production main includes Sprints 31-56.
 
 ## How To Use
 
@@ -889,11 +889,68 @@ New admin routes added in Sprint 53 (B-169, B-170, B-171):
    - Role gate: admin, admin_officer, master
    - Viewer for zone_compliance_matrix; KPIs (Total/Self-Contained Only/Night Cap Set/Monthly Cap Set); day-limit/self-contained/date filters; max nights, monthly limits, allowed days, and zone policy detail expand
 
+## Sprint 54 Route Addendum (2026-05-08)
+
+New admin routes added in Sprint 54 (B-172, B-173, B-174):
+
+1. Pricing Rule Log (B-172)
+   - Route: /pricing-rules-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for pricing_rules; KPIs (Total/Active/With Zone/With Flat Override); active/day/date filters; multiplier, overrides, and notes detail expand
+
+2. Zone Legal Config Log (B-173)
+   - Route: /zone-legal-config-log
+   - Role gate: admin, master
+   - Viewer for zone_legal_config; KPIs (Total/With Fine/With Max Stay/With Authority); enforcement/date filters; legal descriptors and breach template detail expand
+
+3. Zone Signage Evidence Log (B-174)
+   - Route: /zone-signage-evidence-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for zone_signage_evidence; KPIs (Total/Current/With GPS/With Notes); signage/current/date filters; photo hash/location and capture metadata detail expand
+
+## Sprint 55 Route Addendum (2026-05-08)
+
+New admin routes added in Sprint 55 (B-175, B-176, B-177):
+
+1. Fixed Camera Log (B-175)
+   - Route: /fixed-cameras-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for fixed_cameras; KPIs (Total/Online/With Zone/With Stream); status/type/date filters; stream/snapshot and location detail expand
+
+2. Officer Skills Log (B-176)
+   - Route: /officer-skills-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for officer_skills; KPIs (Total/Verified/Expiring Soon/Expired); category/verification/date filters; credential and verification metadata detail expand
+
+3. Patrol Checkpoint Log (B-177)
+   - Route: /patrol-checkpoints-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for patrol_checkpoints; KPIs (Total/Active/Required on Patrol/With NFC); active/required/date filters; radius/location and assignment metadata detail expand
+
+## Sprint 56 Route Addendum (2026-05-08)
+
+New admin routes added in Sprint 56 (B-178, B-179, B-180):
+
+1. Contractor Profile Log (B-178)
+   - Route: /contractor-profiles-log
+   - Role gate: admin, master
+   - Viewer for contractor_profiles; KPIs (Total/HS Policy Verified/Insurance Verified/Both Verified); compliance/date filters; contact/accounts and policy expiry detail expand
+
+2. Parking Zone Log (B-179)
+   - Route: /parking-zones-log
+   - Role gate: admin, master
+   - Viewer for parking_zones; KPIs (Total/Active/With Fine/With Cameras); active/date filters; limits, enforcement windows, and camera assignment detail expand
+
+3. Canonical Persons Log (B-180)
+   - Route: /canonical-persons-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for canonical_persons; KPIs (Total/Identified/Partial/Minor); identity/minor/date filters; descriptors and lifecycle metadata detail expand
+
 ## Production Status Snapshot (2026-05-08)
 
 - Branch: main
 - PR state (base main): 0 open
-- Consolidation status: Sprint 31 through Sprint 53 route work is merged to production main
+- Consolidation status: Sprint 31 through Sprint 56 route work is merged to production main
 
 ## Post-Sprint-42 Realignment Phases and Phase-Gate Progression (#548)
 

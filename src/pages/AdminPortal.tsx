@@ -100,6 +100,7 @@ import {
   Table2,
   Briefcase,
   Bell,
+  PersonStanding,
 } from 'lucide-react'
 
 type DrillConfig = {
@@ -1253,6 +1254,18 @@ export default function AdminPortal() {
                     { path: '/officer-shifts-log',             label: 'Officer Shifts',  Icon: Clock,        color: 'text-indigo-600', bg: 'bg-indigo-50 dark:bg-indigo-900/20' },
                     { path: '/open-shifts-log',                label: 'Open Shifts Log', Icon: CalendarClock,color: 'text-teal-600',   bg: 'bg-teal-50 dark:bg-teal-900/20' },
                     { path: '/zone-compliance-matrix-log',     label: 'Zone Compliance', Icon: ShieldCheck,  color: 'text-green-600',  bg: 'bg-green-50 dark:bg-green-900/20' },
+                    // Sprint 54: B-172–B-174
+                    { path: '/pricing-rules-log',              label: 'Pricing Rules',   Icon: BadgeDollarSign, color: 'text-emerald-600', bg: 'bg-emerald-50 dark:bg-emerald-900/20' },
+                    { path: '/zone-legal-config-log',          label: 'Zone Legal Config', Icon: Scale,      color: 'text-slate-600',   bg: 'bg-slate-50 dark:bg-slate-900/20' },
+                    { path: '/zone-signage-evidence-log',      label: 'Signage Evidence', Icon: Camera,      color: 'text-indigo-600',  bg: 'bg-indigo-50 dark:bg-indigo-900/20' },
+                    // Sprint 55: B-175–B-177
+                    { path: '/fixed-cameras-log',              label: 'Fixed Cameras',   Icon: Camera,       color: 'text-cyan-600',    bg: 'bg-cyan-50 dark:bg-cyan-900/20' },
+                    { path: '/officer-skills-log',             label: 'Officer Skills',  Icon: GraduationCap,color: 'text-blue-600',    bg: 'bg-blue-50 dark:bg-blue-900/20' },
+                    { path: '/patrol-checkpoints-log',         label: 'Patrol Checkpts', Icon: Navigation,   color: 'text-violet-600',  bg: 'bg-violet-50 dark:bg-violet-900/20' },
+                    // Sprint 56: B-178–B-180
+                    { path: '/contractor-profiles-log',        label: 'Contractor Profiles', Icon: Briefcase,color: 'text-orange-600',  bg: 'bg-orange-50 dark:bg-orange-900/20' },
+                    { path: '/parking-zones-log',              label: 'Parking Zones',   Icon: ParkingSquare,color: 'text-teal-600',    bg: 'bg-teal-50 dark:bg-teal-900/20' },
+                    { path: '/canonical-persons-log',          label: 'Canonical Persons', Icon: PersonStanding, color: 'text-rose-600', bg: 'bg-rose-50 dark:bg-rose-900/20' },
                   ].map(({ path, label, Icon, color, bg }) => (
                     <button key={path} onClick={() => navigate(path)} aria-label={`Open ${label}`} className={`${moduleTileClass} ${bg}`}>
                       <Icon className={`h-5 w-5 ${color}`} />

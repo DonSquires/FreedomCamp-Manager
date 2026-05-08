@@ -7,7 +7,7 @@
  *
  * Route: /canonical-persons-log — admin/admin_officer/master
  */
-import { useState } from 'react'
+import { Fragment, useState } from 'react'
 import { format, parseISO } from 'date-fns'
 import { PersonStanding, RefreshCw, AlertCircle, Loader2 } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
@@ -37,6 +37,7 @@ import {
 import type { Database } from '@/types/database'
 
 type CanonicalPersonRow = Database['public']['Tables']['canonical_persons']['Row']
+type IdentityFilter = NonNullable<CanonicalPersonRow['identity_status']> | 'all'
 
 function fmtDate(ts: string | null) {
   if (!ts) return '—'
@@ -76,7 +77,7 @@ export default function CanonicalPersonsLog() {
   const orgId = user?.organization_id
 
   const [search, setSearch] = useState('')
-  const [identityFilter, setIdentityFilter] = useState('all')
+  const [identityFilter, setIdentityFilter] = useState<IdentityFilter>('all')
   const [minorFilter, setMinorFilter] = useState('all')
   const [dateFrom, setDateFrom] = useState('')
   const [expanded, setExpanded] = useState<string | null>(null)
@@ -139,7 +140,10 @@ export default function CanonicalPersonsLog() {
 
         <div className="flex flex-wrap gap-3">
           <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search full name…" className="w-52" />
-          <Select value={identityFilter} onValueChange={setIdentityFilter}>
+          <Select
+            value={identityFilter}
+            onValueChange={(value) => setIdentityFilter(value as IdentityFilter)}
+          >
             <SelectTrigger className="w-48"><SelectValue placeholder="Identity status" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All statuses</SelectItem>
@@ -186,13 +190,12 @@ export default function CanonicalPersonsLog() {
               </TableHeader>
               <TableBody>
                 {rows.map(row => (
-                  <>
+                  <Fragment key={row.id}>
                     <TableRow
-                      key={row.id}
                       className="cursor-pointer hover:bg-muted/40"
                       onClick={() => setExpanded(expanded === row.id ? null : row.id)}
                     >
-                      <TableCell className="font-medium">{row.full_name ?? `${row.first_name ?? ''} ${row.last_name ?? ''}`.trim() || '—'}</TableCell>
+                      <TableCell className="font-medium">{row.full_name ?? (`${row.first_name ?? ''} ${row.last_name ?? ''}`.trim() || '—')}</TableCell>
                       <TableCell className="text-sm">{fmtDateShort(row.date_of_birth)}</TableCell>
                       <TableCell className="text-sm">{row.gender ?? '—'}</TableCell>
                       <TableCell className="text-sm">{row.ethnicity ?? '—'}</TableCell>
@@ -220,7 +223,7 @@ export default function CanonicalPersonsLog() {
                         </TableCell>
                       </TableRow>
                     )}
-                  </>
+                  </Fragment>
                 ))}
               </TableBody>
             </Table>

@@ -806,6 +806,50 @@ Latest Session Snapshot (Sprint 52 — B-166 ClientSiteLog / B-167 ParkingPermit
 - Open blockers with owner:
   1. NONE.
 
+Latest Session Snapshot (Sprint 54–56 — B-172–B-180 — 2026-05-09):
+
+- Timestamp (NZ): 2026-05-09 10:15 NZST
+- Current branch: copilot/continue-realignment-project-yet-again
+- Scope completed:
+  - Fixed build blockers in `src/pages/CanonicalPersonsLog.tsx` (identity filter typing + nullish precedence expression).
+  - Added Sprint 54 lazy imports and protected routes in `src/App.tsx` for `/pricing-rules-log`, `/zone-legal-config-log`, `/zone-signage-evidence-log`.
+  - Added Sprint 55 lazy imports and protected routes in `src/App.tsx` for `/fixed-cameras-log`, `/officer-skills-log`, `/patrol-checkpoints-log`.
+  - Added Sprint 56 lazy imports and protected routes in `src/App.tsx` for `/contractor-profiles-log`, `/parking-zones-log`, `/canonical-persons-log`.
+  - Updated `src/navigation/routeManifest.ts` with Sprint 54–56 route entries (233 total).
+  - Updated `src/components/features/AppLayout.tsx` — Operations gains B-172/B-175/B-176/B-177; Management gains B-173/B-179; Records gains B-174/B-178/B-180.
+  - Updated `src/pages/AdminPortal.tsx` — Reports & Analytics tile section gains Sprint 54–56 shortcuts.
+  - Updated `docs/MODULE_ROADMAP.md` — route-count/verification snapshot + Sprint 54/55/56 addenda.
+
+- Sprint 54–56 checklist:
+  | Item | Status | Evidence |
+  |---|---|---|
+  | B-172 PricingRuleLog route wiring | ✅ DONE | `src/App.tsx`, `/pricing-rules-log` |
+  | B-173 ZoneLegalConfigLog route wiring | ✅ DONE | `src/App.tsx`, `/zone-legal-config-log` |
+  | B-174 ZoneSignageEvidenceLog route wiring | ✅ DONE | `src/App.tsx`, `/zone-signage-evidence-log` |
+  | B-175 FixedCameraLog route wiring | ✅ DONE | `src/App.tsx`, `/fixed-cameras-log` |
+  | B-176 OfficerSkillsLog route wiring | ✅ DONE | `src/App.tsx`, `/officer-skills-log` |
+  | B-177 PatrolCheckpointLog route wiring | ✅ DONE | `src/App.tsx`, `/patrol-checkpoints-log` |
+  | B-178 ContractorProfileLog route wiring | ✅ DONE | `src/App.tsx`, `/contractor-profiles-log` |
+  | B-179 ParkingZoneLog route wiring | ✅ DONE | `src/App.tsx`, `/parking-zones-log` |
+  | B-180 CanonicalPersonsLog route wiring | ✅ DONE | `src/App.tsx`, `/canonical-persons-log` |
+  | Route manifest (233 entries) | ✅ DONE | `src/navigation/routeManifest.ts` |
+  | AppLayout navigation wiring | ✅ DONE | `src/components/features/AppLayout.tsx` |
+  | AdminPortal shortcuts | ✅ DONE | `src/pages/AdminPortal.tsx` |
+  | MODULE_ROADMAP Sprint 54–56 addenda | ✅ DONE | `docs/MODULE_ROADMAP.md` |
+
+- Validation evidence:
+  | Command | Result | Notes |
+  |---|---|---|
+  | `bun run lint` | PASS | ESLint completed without errors |
+  | `bun run build` | PASS | TypeScript + Vite build succeeded |
+  | `bun run test:nav-parity` | PASS | navigation registry parity passed |
+  | `node scripts/check-route-roadmap-coverage.mjs` | PASS | changed routes are represented in `docs/MODULE_ROADMAP.md` |
+  | `bun run lint:staging-doc` | PASS | staging doc consistency passed |
+  | `bun run build:budget` | PASS | under 8300 kB |
+
+- Open blockers with owner:
+  1. NONE.
+
 Latest Session Snapshot (Sprint 52–53 — B-166–B-171 — 2026-05-09):
 
 - Timestamp (NZ): 2026-05-09 09:50 NZST
