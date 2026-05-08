@@ -1,5 +1,6 @@
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
+import { toast } from 'sonner'
 
 interface WelfareAlertPayload {
   officer_id: string
@@ -67,6 +68,72 @@ export function useEndOfficerShift() {
         .update({ ended_at: new Date().toISOString(), gps_end_lat, gps_end_lng })
         .eq('id', shiftId)
       if (error) throw error
+    },
+  })
+}
+
+// ─── useIssueEnforcementAction ────────────────────────────────────────────────
+
+interface IssueEnforcementActionPayload {
+  observationId: string
+  zoneId: string
+  plateNumber: string
+  actionType: 'warning' | 'notice_to_vacate'
+  organizationId: string | null
+  createdBy: string | null
+}
+
+export function useIssueEnforcementAction() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({
+      observationId,
+      zoneId,
+      plateNumber,
+      actionType,
+      organizationId,
+      createdBy,
+    }: IssueEnforcementActionPayload) => {
+      const { error } = await (supabase
+        .from('enforcement_actions') as any)
+        .insert({
+          organization_id: organizationId,
+          created_by: createdBy,
+          zone_id: zoneId,
+          plate_number: plateNumber,
+          action_type: actionType,
+          observation_id: observationId,
+          status: 'pending',
+        })
+      if (error) throw error
+    },
+    onSuccess: (_, variables) => {
+      toast.success(
+        variables.actionType === 'warning'
+          ? '⚠️ Warning issued'
+          : '📋 Notice to Vacate issued'
+      )
+      queryClient.invalidateQueries({ queryKey: ['enforcement-actions'] })
+    },
+    onError: (err: any) => {
+      toast.error(err.message || 'Failed to issue enforcement action')
+    },
+  })
+}
+
+// ─── useDeactivateWelfarePushSchedule ─────────────────────────────────────────
+
+export function useDeactivateWelfarePushSchedule() {
+  return useMutation({
+    mutationFn: async (officerId: string) => {
+      const { error } = await supabase
+        .from('welfare_push_schedule' as any)
+        .update({ is_active: false })
+        .eq('officer_id', officerId)
+        .eq('is_active', true)
+      if (error) {
+        // non-critical: shift has ended even if schedule cleanup fails
+      }
     },
   })
 }

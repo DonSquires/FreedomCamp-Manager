@@ -59,7 +59,19 @@ import {
   useMarkNotificationRead,
   useStartOfficerShift,
   useEndOfficerShift,
+  useIssueEnforcementAction,
+  useDeactivateWelfarePushSchedule,
 } from '@/hooks/useFieldOfficerMutations'
+import {
+  useAccessibleOrgsForShift,
+  useShiftZones,
+  useOfficerUnreadNotifications,
+  useOrgWorkflow,
+  useManualZones,
+  useMyRecentScans,
+  useOfficerActiveShift,
+  fetchWelfareIntervalMinutes,
+} from '@/hooks/useFieldOfficerData'
 import type { Database } from '@/types/database'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -83,8 +95,6 @@ const CAPTURE_TOAST_DURATION_MS = 5000
 
 /** Service types an officer can select — determines which tools are shown. */
 type ServiceType = 'freedom_camping' | 'guarding' | 'parking' | 'noise' | 'biosecurity_inspection' | 'smoke_complaint_ooh'
-type ZoneOption = { zone_id: string; name: string }
-type ZoneRow = Pick<Database['public']['Tables']['zones']['Row'], 'id' | 'name'>
 
 const SERVICE_TYPE_CONFIG: Record<ServiceType, {
   label: string
@@ -276,6 +286,7 @@ export default function FieldOfficerPortal() {
   const markNotificationReadMutation = useMarkNotificationRead()
   const startOfficerShift = useStartOfficerShift()
   const endOfficerShift = useEndOfficerShift()
+  const deactivateWelfarePushSchedule = useDeactivateWelfarePushSchedule()
 
   // ── Roster context ────────────────────────────────────────────────────────
   const { rosteredShift } = useRosteredShift()
@@ -424,51 +435,17 @@ export default function FieldOfficerPortal() {
     (user?.extra_organization_ids?.length ?? 0) > 0
 
   // Fetch organizations accessible to this user for shift selection
-  const { data: accessibleOrgs = [] } = useQuery({
-    queryKey: ['accessible-orgs-for-shift', user?.id],
-    queryFn: async () => {
-      if (!user?.id) return []
-
-      const orgIds = new Set<string>()
-      if (employerOrganizationId) orgIds.add(employerOrganizationId)
-      if (user.organization_id) orgIds.add(user.organization_id)
-      user.authorized_work_locations?.forEach(id => orgIds.add(id))
-      user.extra_organization_ids?.forEach(id => orgIds.add(id))
-
-      if (orgIds.size === 0) return []
-
-      const { data, error } = await supabase
-        .from('organizations')
-        .select('id, name, organization_type')
-        .in('id', Array.from(orgIds))
-        .eq('is_active', true)
-        .order('name')
-
-      if (error) return []
-      return data as { id: string; name: string; organization_type: string }[]
-    },
-    enabled: !!user?.id && isServiceProviderMember,
-    staleTime: 5 * 60_000,
+  const { data: accessibleOrgs = [] } = useAccessibleOrgsForShift({
+    userId: user?.id,
+    employerOrganizationId,
+    organizationId: user?.organization_id,
+    authorizedWorkLocations: user?.authorized_work_locations,
+    extraOrganizationIds: user?.extra_organization_ids,
+    isServiceProviderMember,
   })
 
   // Fetch zones for the selected shift organization
-  const { data: shiftZones = [] } = useQuery({
-    queryKey: ['shift-zones', shiftOrgId],
-    queryFn: async () => {
-      if (!shiftOrgId) return []
-      const { data, error } = await supabase
-        .from('zones')
-        .select('id, name')
-        .eq('organization_id', shiftOrgId)
-        .eq('is_active', true)
-        .order('name')
-
-      if (error) return []
-      return data as { id: string; name: string }[]
-    },
-    enabled: !!shiftOrgId,
-    staleTime: 5 * 60_000,
-  })
+  const { data: shiftZones = [] } = useShiftZones(shiftOrgId)
 
   // Reset zone when organization changes
   useEffect(() => {
@@ -483,23 +460,7 @@ export default function FieldOfficerPortal() {
   }, [employerOrganizationId, shiftOrgId])
 
   // ── Unread notifications ──────────────────────────────────────────────────
-  const { data: unreadNotifications = [] } = useQuery({
-    queryKey: ['officer-unread-notifications', user?.id],
-    queryFn: async () => {
-      if (!user?.id) return []
-      const { data } = await supabase
-        .from('notifications')
-        .select('id, title, body, priority, created_at')
-        .eq('user_id', user.id)
-        .eq('read', false)
-        .in('priority', ['high', 'urgent'])
-        .order('created_at', { ascending: false })
-        .limit(5)
-      return data ?? []
-    },
-    enabled: !!user?.id,
-    refetchInterval: 60_000,
-  })
+  const { data: unreadNotifications = [] } = useOfficerUnreadNotifications(user?.id)
 
   async function markNotificationRead(notifId: string) {
     await markNotificationReadMutation.mutateAsync(notifId)
@@ -629,57 +590,10 @@ export default function FieldOfficerPortal() {
   const displayZone = zoneName || (zoneId ? `${zoneId.substring(0, 8)}...` : 'Scanning Geofence...')
 
   // ── Fetch org enforcement_workflow ────────────────────────────────────────
-  const { data: orgWorkflow } = useQuery({
-    queryKey: ['org-workflow', user?.organization_id],
-    queryFn: async () => {
-      if (!user?.organization_id) return 'admin_first'
-      const { data, error } = await supabase
-        .from('organizations')
-        .select('enforcement_workflow')
-        .eq('id', user.organization_id)
-        .single()
-      if (error) return 'admin_first'
-      return ((data as any)?.enforcement_workflow as string) || 'admin_first'
-    },
-    enabled: !!user?.organization_id,
-    staleTime: 1000 * 60 * 2,
-    refetchOnWindowFocus: true,
-    refetchOnReconnect: true,
-    refetchOnMount: 'always',
-  })
+  const { data: orgWorkflow } = useOrgWorkflow(user?.organization_id)
 
   // ── Zones for manual fallback entry ───────────────────────────────────────
-  const { data: manualZones = [] } = useQuery({
-    queryKey: ['manual-zones', user?.organization_id],
-    queryFn: async () => {
-      if (!user?.organization_id) return []
-
-      const fetchOrgScoped = async () => {
-        const { data, error } = await supabase
-          .from('zones')
-          .select('id, name')
-          .eq('organization_id', user.organization_id)
-          .order('name', { ascending: true })
-        if (error) return []
-        return ((data ?? []) as ZoneRow[]).map((z): ZoneOption => ({ zone_id: z.id, name: z.name }))
-      }
-
-      const orgZones = await fetchOrgScoped()
-      if (orgZones.length > 0) return orgZones
-
-      // Fallback: under RLS this still returns only zones visible to the user.
-      const { data: fallback, error: fallbackError } = await supabase
-        .from('zones')
-        .select('id, name')
-        .order('name', { ascending: true })
-        .limit(50)
-      if (fallbackError) return []
-      return ((fallback ?? []) as ZoneRow[]).map((z): ZoneOption => ({ zone_id: z.id, name: z.name }))
-    },
-    enabled: !!user?.organization_id,
-    staleTime: 5 * 60_000,
-    gcTime: 10 * 60_000,
-  })
+  const { data: manualZones = [] } = useManualZones(user?.organization_id)
 
   useEffect(() => {
     if (!manualZoneId && manualZones.length > 0) {
@@ -688,57 +602,7 @@ export default function FieldOfficerPortal() {
   }, [manualZoneId, manualZones])
 
   // ── Fetch officer's recent observations ───────────────────────────────────
-  const { data: recentScans = [], refetch: refetchScans } = useQuery({
-    queryKey: ['my-recent-scans', user?.id],
-    queryFn: async () => {
-      if (!user?.id) return []
-      const historyCutoffIso = new Date(Date.now() - (24 * 60 * 60 * 1000)).toISOString()
-
-      // Live schema: PK is observation_id, photo cols are photo + photo_url, no processing_status
-      const selectCandidates = [
-        [
-          'observation_id, plate_number, recorded_at, is_compliant',
-          'photo, photo_url, zone_id, breach_type, consecutive_nights, nights_stayed_this_month',
-          'zone:zones!zone_id(name)',
-          'vehicle:canonical_vehicles!plate_number(homeless_status, is_exempt)',
-        ].join(', '),
-        // Minimal fallback
-        [
-          'observation_id, plate_number, recorded_at, is_compliant',
-          'photo, photo_url, zone_id, breach_type',
-          'zone:zones!zone_id(name)',
-        ].join(', '),
-      ]
-
-      for (const selectClause of selectCandidates) {
-        const { data, error } = await supabase
-          .from('observations')
-          .select(selectClause)
-          .eq('recorded_by', user.id)
-          .gte('recorded_at', historyCutoffIso)
-          .order('recorded_at', { ascending: false })
-          .limit(20)
-
-        if (error) continue
-
-        const rows = (data || []).map((row: any) => ({
-          ...row,
-          id: row.observation_id ?? row.id,
-          // No processing_status in live schema — use plate_number to infer ALPR state
-          photo_url: row.photo ?? row.photo_url ?? null,
-        }))
-
-        return rows as any[]
-      }
-
-      return []
-    },
-    enabled: !!user?.id,
-    refetchOnWindowFocus: true,
-    refetchOnReconnect: true,
-    refetchOnMount: 'always',
-    refetchInterval: 15000,  // auto-refresh every 15 s so AI results appear
-  })
+  const { data: recentScans = [], refetch: refetchScans } = useMyRecentScans(user?.id)
 
   useEffect(() => {
     const refreshPortalData = () => {
@@ -764,38 +628,22 @@ export default function FieldOfficerPortal() {
   }, [queryClient, user?.id, user?.organization_id])
 
   // ── Enforcement action mutation ────────────────────────────────────────────
-  const issueAction = useMutation({
-    mutationFn: async ({ observationId, zoneId: obsZoneId, plateNumber, actionType }: {
-      observationId: string
-      zoneId: string
-      plateNumber: string
-      actionType: 'warning' | 'notice_to_vacate'
-    }) => {
-      const { error } = await (supabase
-        .from('enforcement_actions') as any)
-        .insert({
-          organization_id: (activeShift as any)?.organization_id || shiftOrgId || employerOrganizationId,
-          created_by: user?.id,
-          zone_id: obsZoneId,
-          plate_number: plateNumber,
-          action_type: actionType,
-          observation_id: observationId,
-          status: 'pending',
-        })
-      if (error) throw error
-    },
-    onSuccess: (_, variables) => {
-      toast.success(
-        variables.actionType === 'warning'
-          ? '⚠️ Warning issued'
-          : '📋 Notice to Vacate issued'
-      )
-      queryClient.invalidateQueries({ queryKey: ['enforcement-actions'] })
-    },
-    onError: (err: any) => {
-      toast.error(err.message || 'Failed to issue enforcement action')
-    },
-  })
+  const issueEnforcementAction = useIssueEnforcementAction()
+  const issueAction = {
+    mutateAsync: (params: { observationId: string; zoneId: string; plateNumber: string; actionType: 'warning' | 'notice_to_vacate' }) =>
+      issueEnforcementAction.mutateAsync({
+        ...params,
+        organizationId: (activeShift as any)?.organization_id || shiftOrgId || employerOrganizationId,
+        createdBy: user?.id ?? null,
+      }),
+    mutate: (params: { observationId: string; zoneId: string; plateNumber: string; actionType: 'warning' | 'notice_to_vacate' }) =>
+      issueEnforcementAction.mutate({
+        ...params,
+        organizationId: (activeShift as any)?.organization_id || shiftOrgId || employerOrganizationId,
+        createdBy: user?.id ?? null,
+      }),
+    isPending: issueEnforcementAction.isPending,
+  }
 
   // Auto-monitor geofence and manage patrol
   useEffect(() => {
@@ -842,24 +690,7 @@ export default function FieldOfficerPortal() {
 
   // ── Shift management — explicit Start/End (not auto-start) ──────────────
   // Fetch active shift for current officer
-  const { data: activeShift, refetch: refetchShift } = useQuery({
-    queryKey: ['officer-active-shift', user?.id],
-    queryFn: async () => {
-      if (!user?.id) return null
-      const { data, error } = await (supabase
-        .from('officer_shifts') as any)
-        .select('id, organization_id, started_at, parent_zone_id, gps_start_lat, gps_start_lng')
-        .eq('officer_id', user.id)
-        .is('ended_at', null)
-        .order('started_at', { ascending: false })
-        .limit(1)
-        .maybeSingle()
-      if (error) return null
-      return data as { id: string; organization_id: string; started_at: string; parent_zone_id: string | null; gps_start_lat: number | null; gps_start_lng: number | null } | null
-    },
-    enabled: !!user?.id,
-    refetchInterval: 300000,
-  })
+  const { data: activeShift, refetch: refetchShift } = useOfficerActiveShift(user?.id)
 
   const [isStartingShift, setIsStartingShift] = useState(false)
   const [isEndingShift,   setIsEndingShift]   = useState(false)
@@ -898,14 +729,7 @@ export default function FieldOfficerPortal() {
       // Fetch the officer's configured interval so the server-side schedule matches the UI.
       let welfareIntervalMinutes = 30
       try {
-        const { data: welfareSettings } = await supabase
-          .from('officer_welfare_settings')
-          .select('check_in_interval_minutes')
-          .eq('user_id', user.id)
-          .maybeSingle()
-        if ((welfareSettings as any)?.check_in_interval_minutes) {
-          welfareIntervalMinutes = (welfareSettings as any).check_in_interval_minutes
-        }
+        welfareIntervalMinutes = await fetchWelfareIntervalMinutes(user.id)
       } catch { /* non-critical */ }
 
       await (supabase.rpc as any)('upsert_welfare_push_schedule', {
@@ -953,14 +777,7 @@ export default function FieldOfficerPortal() {
 
       // Deactivate welfare push schedule
       if (user?.id) {
-          const { error: deactivateError } = await supabase
-          .from('welfare_push_schedule' as any)
-          .update({ is_active: false })
-          .eq('officer_id', user.id)
-          .eq('is_active', true)
-          if (deactivateError) {
-            // non-critical: shift has ended even if schedule cleanup fails
-          }
+        await deactivateWelfarePushSchedule.mutateAsync(user.id).catch(() => { /* non-critical */ })
       }
 
       // Notify service worker to dismiss welfare notifications
