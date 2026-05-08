@@ -245,6 +245,8 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       // Sprint 50: B-160–B-161
       { path: '/dispatch-jobs-log', icon: ClipboardList, label: 'Dispatch Job Log', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/enforcement-actions-log', icon: ShieldAlert, label: 'Enforcement Action Log', roles: ['admin', 'admin_officer', 'master'] },
+      // Sprint 51: B-164
+      { path: '/officer-availability-log', icon: CalendarCheck2, label: 'Officer Availability Log', roles: ['admin', 'admin_officer', 'master'] },
     ],
   },
   {
@@ -413,6 +415,9 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/site-risk-assessments-log', icon: ShieldAlert, label: 'Site Risk Assessment Log', roles: ['admin', 'admin_officer', 'master'] },
       // Sprint 50: B-162
       { path: '/observations-log', icon: Eye, label: 'Observation Log', roles: ['admin', 'admin_officer', 'master'] },
+      // Sprint 51: B-163–B-165
+      { path: '/canonical-scv-log', icon: ShieldCheck, label: 'Canonical SCV Log', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/canonical-homeless-log', icon: Users, label: 'Canonical Homeless Log', roles: ['admin', 'admin_officer', 'master'] },
     ],
   },
   {

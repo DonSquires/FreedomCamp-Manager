@@ -888,6 +888,42 @@ Latest Session Snapshot (Sprint 50 — B-160 BreachAlertLog / B-161 CanonicalVeh
 - Open blockers with owner:
   1. NONE.
 
+Latest Session Snapshot (Sprint 51 — B-163 CanonicalScvLog / B-164 OfficerAvailabilityLog / B-165 CanonicalHomelessLog — 2026-05-09):
+
+- Timestamp (NZ): 2026-05-09 09:34 NZST
+- Current branch: copilot/continue-realignment-project-yet-again
+- Scope completed:
+  - Completed Sprint 51 by wiring the existing `CanonicalScvLog`, `OfficerAvailabilityLog`, and `CanonicalHomelessLog` pages into the admin route catalog.
+  - Added lazy imports and protected routes to `src/App.tsx` for `/canonical-scv-log`, `/officer-availability-log`, and `/canonical-homeless-log`.
+  - Updated `src/navigation/routeManifest.ts` with Sprint 51 route entries (218 total).
+  - Updated `src/components/features/AppLayout.tsx` — Operations group gains B-164; Records group gains B-163/B-165.
+  - Updated `src/pages/AdminPortal.tsx` — Reports & Analytics tile section gains Sprint 51 shortcuts.
+  - Updated `docs/MODULE_ROADMAP.md` — Sprint 51 addendum + route-count/verification snapshot.
+
+- Sprint 51 checklist:
+  | Item | Status | Evidence |
+  |---|---|---|
+  | B-163 CanonicalScvLog route wiring | ✅ DONE | `src/App.tsx`, `/canonical-scv-log` |
+  | B-164 OfficerAvailabilityLog route wiring | ✅ DONE | `src/App.tsx`, `/officer-availability-log` |
+  | B-165 CanonicalHomelessLog route wiring | ✅ DONE | `src/App.tsx`, `/canonical-homeless-log` |
+  | Route manifest (218 entries) | ✅ DONE | `src/navigation/routeManifest.ts` |
+  | AppLayout navigation wiring | ✅ DONE | `src/components/features/AppLayout.tsx` |
+  | AdminPortal shortcuts | ✅ DONE | `src/pages/AdminPortal.tsx` |
+  | MODULE_ROADMAP Sprint 51 addendum | ✅ DONE | `docs/MODULE_ROADMAP.md` |
+
+- Validation evidence:
+  | Command | Result | Notes |
+  |---|---|---|
+  | `bun run lint` | PASS | ESLint completed without errors |
+  | `bun run build` | PASS | TypeScript + Vite build succeeded |
+  | `bun run test:nav-parity` | PASS | navigation registry parity passed |
+  | `node scripts/check-route-roadmap-coverage.mjs` | PASS | changed routes are represented in `docs/MODULE_ROADMAP.md` |
+  | `bun run lint:staging-doc` | PASS | staging doc consistency passed |
+  | `bun run build:budget` | PASS | 8116.45/8200 kB |
+
+- Open blockers with owner:
+  1. NONE.
+
 Latest Session Snapshot (Sprint 50 — B-160 DispatchJobLog / B-161 EnforcementActionLog / B-162 ObservationLog — 2026-05-09):
 
 - Timestamp (NZ): 2026-05-09 09:20 NZST
