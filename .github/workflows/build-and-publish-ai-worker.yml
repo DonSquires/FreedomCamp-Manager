@@ -9,7 +9,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository_owner }}/freedomcamp-manager-ai
+  IMAGE_NAME: donsquires/freedomcamp-manager-ai
 
 jobs:
   build-push:
