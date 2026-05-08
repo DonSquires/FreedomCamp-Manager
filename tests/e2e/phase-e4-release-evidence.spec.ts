@@ -44,6 +44,9 @@ test.describe('Phase E4 — Release evidence and rollout sign-off gate', () => {
     expect(roadmap).toContain('tests/e2e/phase-e4-release-evidence.spec.ts')
     expect(roadmap).toContain('.github/workflows/ci-phase-e4-release-evidence-gate.yml')
     expect(roadmap).toContain('Phase E release evidence pack locks E1–E3 gate coverage')
+    expect(roadmap).toContain('### Phase E closeout validation status')
+    expect(roadmap).toContain('Phase E final validation is recorded as green')
+    expect(roadmap).toContain('E1, E2, E3, and E4 focused gates: PASS (`110 passed`)')
   })
 
   test('staging records E4 release evidence and rollback-ready handoff', () => {
@@ -54,6 +57,10 @@ test.describe('Phase E4 — Release evidence and rollout sign-off gate', () => {
     expect(staging).toContain('lint/build plus E1, E2, E3, and E4 gates')
     expect(staging).toContain('tenant isolation, degraded communications outcomes, data-access drift, and rollback-ready docs')
     expect(staging).toContain('Treat any `UNRESOLVED PHASE E BLOCKER` staging entry as a merge blocker until resolved.')
+    expect(staging).toContain('Phase E Final Closeout Validation')
+    expect(staging).toContain('`bun run lint` → PASS')
+    expect(staging).toContain('`bun run build` → PASS')
+    expect(staging).toContain('E1/E2/E3/E4 focused gates → PASS (`110 passed`)')
   })
 
   test('release evidence includes all prior Phase E slice gates and workflows', () => {
