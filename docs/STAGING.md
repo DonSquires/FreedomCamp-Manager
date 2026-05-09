@@ -5878,11 +5878,29 @@ Re-validation snapshot (2026-05-09, live DNS check from workspace shell):
 Updated verification note (2026-05-09, post-tooling install):
 
 1. Supabase secret coverage is now verified via CLI (`SMTP_*` and `REPORT_EMAIL_*` keys present).
-2. `WORKER_RESOURCE_LIMIT` runtime confirmation remains open because Supabase CLI v2.98.2 does not expose Edge Function log retrieval in this environment; runtime confirmation requires Dashboard logs or function-level telemetry export.
+2. Runtime smoke test now confirmed from this session via `scripts/run-send-report-email-smoke.sh`:
+  - `send-report-email` returned HTTP `200`
+  - Response: `{ "success": true, "recipient": "reports@fcmanager.co.nz" ... }`
+  - Temporary auth user cleanup returned HTTP `200`
+3. `WORKER_RESOURCE_LIMIT` was not reproduced in this end-to-end path.
 
 Required actions to close the audit section:
 
 1. Remove `mx3.zoho.com` from DNS so only Hostinger MX records remain.
 2. Keep Hostinger SPF and DKIM in place.
 3. Harden DMARC to at least `p=quarantine` after delivery confidence window.
-4. Re-run `supabase secrets list` and an end-to-end `send-report-email` delivery test using valid secret access.
+4. Re-run `scripts/email-dns-audit.sh` after DNS changes and ensure it exits with zero failures.
+
+Operational verification command (added 2026-05-09):
+
+```bash
+bash scripts/email-dns-audit.sh
+```
+
+Latest output snapshot (2026-05-09):
+
+1. FAIL: Legacy MX still present (`mx3.zoho.com.`)
+2. WARN: DMARC still `p=none`
+3. PASS: Hostinger MX (`mx1`/`mx2`) present
+4. PASS: SPF Hostinger include present
+5. PASS: Hostinger DKIM selector present
