@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test'
+import { test, expect, type Locator, type Page } from '@playwright/test'
 import { loginAs } from './auth'
 
 /**
@@ -15,6 +15,53 @@ import { loginAs } from './auth'
  */
 
 const LIVE_CLIENT_ORG = process.env.PLAYWRIGHT_LIVE_CLIENT_ORG?.trim() || 'Nelson City Council'
+const PATROL_DISPATCH_JOB_TYPES = [/patrol/i, /permanent patrol/i, /casual patrol/i]
+
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+async function chooseOptionByComboboxIndex(scope: Locator, index: number, optionName: RegExp) {
+  await scope.getByRole('combobox').nth(index).click()
+  await scope.page().getByRole('option', { name: optionName }).first().click()
+}
+
+async function createAndDispatchJobToPatrolRoute(
+  page: Page,
+  jobTypeLabel: RegExp,
+  title: string,
+  clientSitePattern: RegExp,
+) {
+  await page.getByRole('button', { name: /new job/i }).click()
+  const formDialog = page.getByRole('dialog').filter({ hasText: /new dispatch job/i }).first()
+  await expect(formDialog).toBeVisible({ timeout: 10000 })
+
+  await chooseOptionByComboboxIndex(formDialog, 0, jobTypeLabel)
+  await chooseOptionByComboboxIndex(formDialog, 3, clientSitePattern)
+  await formDialog.locator('input[placeholder*="Brief job description"]').first().fill(title)
+  await formDialog.getByRole('button', { name: /^create job$/i }).click()
+  await expect(page.getByText(/job created/i).first()).toBeVisible({ timeout: 15000 })
+
+  await page.getByText(title, { exact: false }).first().click()
+  const jobDialog = page
+    .getByRole('dialog')
+    .filter({ hasText: new RegExp(escapeRegex(title), 'i') })
+    .first()
+  await expect(jobDialog).toBeVisible({ timeout: 10000 })
+
+  const suggestedOfficer = jobDialog.locator('button').filter({ hasText: /#1/ }).first()
+  if (await suggestedOfficer.isVisible({ timeout: 3000 }).catch(() => false)) {
+    await suggestedOfficer.click()
+  }
+
+  const dispatchButton = jobDialog.getByRole('button', { name: /^dispatch$/i })
+  await expect(dispatchButton).toBeVisible({ timeout: 8000 })
+  await expect(dispatchButton).toBeEnabled({ timeout: 8000 })
+  await dispatchButton.click()
+
+  await expect(jobDialog.getByText(/status/i).filter({ hasText: /dispatched/i })).toBeVisible({ timeout: 10000 })
+  await jobDialog.getByRole('button', { name: /^close$/i }).click()
+}
 
 test.use({ screenshot: 'on', video: 'on' })
 
@@ -62,6 +109,57 @@ test.describe('CRM ↔ Business Management Crossover', () => {
     }
 
     await page.screenshot({ path: testInfo.outputPath('03-account-detail-full.png'), fullPage: true })
+  })
+
+  test('CRM client to client-site flow can dispatch 3 patrol jobs for Nelson City Council', async ({ page }, testInfo) => {
+    await loginAs(page, 'master')
+    await page.goto('/crm')
+    await page.waitForLoadState('networkidle').catch(() => undefined)
+
+    const orgPattern = new RegExp(escapeRegex(LIVE_CLIENT_ORG), 'i')
+    const clientAccountCard = page
+      .locator('[data-slot="card"], [role="row"], .cursor-pointer, .rounded-xl, .rounded-lg')
+      .filter({ hasText: orgPattern })
+      .first()
+
+    await expect(clientAccountCard).toBeVisible({ timeout: 10000 })
+    const sitesAction = clientAccountCard.getByRole('button', { name: /^sites$/i }).first()
+    if (await sitesAction.isVisible({ timeout: 4000 }).catch(() => false)) {
+      await sitesAction.click()
+    } else {
+      await clientAccountCard.click()
+      await page.getByRole('button', { name: /client sites|sites/i }).first().click()
+    }
+
+    await expect(page).toHaveURL(/\/client-sites/)
+    await page.waitForLoadState('networkidle').catch(() => undefined)
+
+    const siteRows = page.locator('tbody tr')
+    await expect(siteRows.first()).toBeVisible({ timeout: 10000 })
+    const firstSiteName = (await siteRows.first().locator('td').first().textContent() || '').trim()
+    expect(firstSiteName.length).toBeGreaterThan(0)
+
+    await page.screenshot({ path: testInfo.outputPath('ncc-client-sites.png'), fullPage: true })
+
+    await page.goto('/dispatch')
+    await page.waitForLoadState('networkidle').catch(() => undefined)
+
+    const siteRegex = new RegExp(escapeRegex(firstSiteName), 'i')
+    const createdTitles: string[] = []
+    for (let i = 0; i < PATROL_DISPATCH_JOB_TYPES.length; i += 1) {
+      const title = `NCC Patrol Route Job ${i + 1} ${Date.now()}`
+      createdTitles.push(title)
+      await createAndDispatchJobToPatrolRoute(page, PATROL_DISPATCH_JOB_TYPES[i], title, siteRegex)
+    }
+
+    await page.goto('/dispatch-monitor')
+    await page.waitForLoadState('networkidle').catch(() => undefined)
+
+    for (const title of createdTitles) {
+      await expect(page.getByText(title, { exact: false }).first()).toBeVisible({ timeout: 10000 })
+    }
+
+    await page.screenshot({ path: testInfo.outputPath('ncc-patrol-route-dispatches.png'), fullPage: true })
   })
 
   test('Business Management section shows site context for roster shifts', async ({ page }, testInfo) => {
