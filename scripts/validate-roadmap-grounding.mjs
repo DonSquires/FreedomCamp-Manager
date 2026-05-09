@@ -55,7 +55,10 @@ function parseArgs(argv) {
 
 function extractRoadmapRoutes(markdown) {
   const routes = new Set()
-  const regex = /\/(?:[a-z0-9_-]|[:/])+/gi
+  // Only match route paths that are NOT embedded inside slash-delimited word lists
+  // (e.g. "status/alarm_type/date" filter descriptions) or file paths (src/navigation/...).
+  // Negative lookbehind ensures the leading / is not preceded by a word character.
+  const regex = /(?<![a-zA-Z0-9_])\/[a-z][a-z0-9_-]*(?:\/(?:[a-z][a-z0-9_-]*|:[a-z][a-zA-Z0-9_-]*))*/g
   const ignore = new Set(['/'])
 
   let match

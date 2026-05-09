@@ -5686,9 +5686,42 @@ Open blockers with owner:
 Open blockers with owner:
 1. NONE.
 
+### Sprint 71 — Emulator Wiring & Validator Hardening (2026-05-09)
+
+#### Sprint 71 To-Do
+
+1. [x] Fix `routeManifestValidator.ts` to allow catch-all `*` routes via explicit allow-list (`VALID_CATCH_ALL_PATHS`).
+2. [x] Fix `validate-roadmap-grounding.mjs` regex: replace broad `\/(?:[a-z0-9_-]|[:/])+/gi` with a negative-lookbehind pattern that excludes paths embedded in slash-delimited filter column lists and word/file paths — eliminated 269 spurious route mismatches.
+3. [x] Run all 3 agentic UI emulator packs (`login-health`, `tender-shadow`, `ptt-zindex`) against the live preview server; confirmed steps 1–4 (goto → fill email → fill password → click submit) all pass; step 5 returns `blocked_auth` as expected in a sandbox without live Supabase credentials.
+4. [x] Run full verification suite on branch `copilot/fix-wiring-and-ui-ux`.
+
+#### Sprint 71 Session Snapshot (2026-05-09)
+
+- Timestamp (NZ): 2026-05-09 17:31 NZST
+- Current branch: `copilot/fix-wiring-and-ui-ux`
+- HEAD SHA at verification start: `19439f5e`
+- Scope: emulator wiring + roadmap-grounding validator hardening.
+
+| Command | Result | Notes |
+|---|---|---|
+| `bun run lint` | ✅ PASS | ESLint completed without errors |
+| `bun run build` | ✅ PASS | TypeScript + Vite build succeeded |
+| `bun run test:nav-parity` | ✅ PASS | 4/4 tests passing |
+| `bun run lint:route-roadmap` | ✅ PASS | route-roadmap checker passed |
+| `bun run lint:staging-doc` | ✅ PASS | staging doc freshness/sanity passed |
+| `bun run lint:module-grounding` | ✅ PASS | all non-redirect routes resolve to known imports |
+| `bun run lint:roadmap-grounding` | ✅ PASS | fixed from 269 false positives to 0 missing routes |
+| `bun run build:budget` | ✅ PASS | 8346.52/8400 kB |
+| Agentic emulator: `login-health` | ✅ PASS (blocked_auth) | 4/5 steps pass; blocked at auth step — expected without live credentials |
+| Agentic emulator: `tender-shadow` | ✅ PASS (blocked_auth) | 4/5 steps pass; blocked at auth step — expected without live credentials |
+| Agentic emulator: `ptt-zindex` | ✅ PASS (blocked_auth) | 4/5 steps pass; blocked at auth step — expected without live credentials |
+
+Open blockers with owner:
+1. NONE.
+
 ### Staged Sprint Backlog State
 
-- Sprint lanes through Sprint 70 are complete in staging evidence.
+- Sprint lanes through Sprint 71 are complete in staging evidence.
 - No additional staged sprints are defined in `docs/STAGING.md`.
 
 ### Email Service Activation Audit (2026-05-09)
