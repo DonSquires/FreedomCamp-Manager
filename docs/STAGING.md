@@ -5891,6 +5891,12 @@ Required actions to close the audit section:
 3. Harden DMARC to at least `p=quarantine` after delivery confidence window.
 4. Re-run `scripts/email-dns-audit.sh` after DNS changes and ensure it exits with zero failures.
 
+Execution status note:
+
+1. DNS is currently hosted on `dns*.iwantmyname.com` authoritative nameservers.
+2. Registrar/API credentials for iwantmyname are not available in this session, so direct DNS mutation cannot be executed from this environment.
+3. Use `scripts/email-dns-remediation-plan.sh` to print exact change actions for DNS operator handoff.
+
 Operational verification command (added 2026-05-09):
 
 ```bash
