@@ -24,6 +24,15 @@ export interface ForwardGeocodingResult extends GeocodingResult {
   longitude: number
 }
 
+const nominatimEnabledByDefault = import.meta.env.DEV
+const nominatimEnabled = String(import.meta.env.VITE_ENABLE_NOMINATIM ?? String(nominatimEnabledByDefault)).toLowerCase() === 'true'
+
+function shouldUseNominatim(): boolean {
+  if (!nominatimEnabled) return false
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return false
+  return true
+}
+
 // ── Google Maps Geocoding ──────────────────────────────────────────────────
 
 /**
@@ -218,6 +227,8 @@ export async function reverseGeocode(
   const googleResult = await reverseGeocodeGoogle(latitude, longitude)
   if (googleResult) return googleResult
 
+  if (!shouldUseNominatim()) return null
+
   return reverseGeocodeNominatim(latitude, longitude)
 }
 
@@ -239,6 +250,8 @@ export async function forwardGeocode(
 
   const googleResult = await forwardGeocodeGoogle(query)
   if (googleResult) return googleResult
+
+  if (!shouldUseNominatim()) return null
 
   return forwardGeocodeNominatim(query)
 }
@@ -300,6 +313,10 @@ export async function batchReverseGeocode(
   if (hasGoogleKey) {
     // Google allows concurrent requests
     return Promise.all(coordinates.map(c => reverseGeocode(c.lat, c.lng)))
+  }
+
+  if (!shouldUseNominatim()) {
+    return coordinates.map(() => null)
   }
 
   // Nominatim requires ≤1 req/s
