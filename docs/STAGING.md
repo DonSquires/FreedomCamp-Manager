@@ -2399,7 +2399,7 @@ Latest Session Snapshot (Phase 2 Governance Hardening Progress):
   - `25274883733` CI Build High Memory: completed, success
   - `25274883644` Deploy Admin Portal to Vercel: completed, success
 - Open blockers with owner:
-  - Triad sign-off capture pending for this Phase 2 cycle; owner: Primary execution lead
+  - Historical note resolved in Sprint 69 closeout: triad sign-off captured in `docs/ENTERPRISE_PAIR_REVIEW_CANONICAL.md`; no active blocker remains for this Phase 2 cycle.
 - Next exact command to run: `cd /workspaces/FreedomCamp-Manager && node scripts/dr-bob-review.mjs --file docs/ENTERPRISE_PAIR_REVIEW_CANONICAL.md`
 
 Latest Session Snapshot (Phase 2 Governance Hardening Complete):
@@ -2556,7 +2556,7 @@ Continuation evidence (2026-05-04):
 3. `DOC_AUTHORITY_STRICT=true bun run lint:doc-authority` -> pass
 4. `node scripts/generate-route-role-matrix.mjs` -> pass (route count: 121)
 5. `node scripts/validate-roadmap-role-gates.mjs --strict` -> pass
-6. Triad status reference retained in `docs/ENTERPRISE_PAIR_REVIEW_CANONICAL.md` (Phase 3 sections): local evidence complete, CI sign-off still blocked pending successful remote baseline workflow run.
+6. Triad status reference retained in `docs/ENTERPRISE_PAIR_REVIEW_CANONICAL.md` (Phase 3 sections): local evidence complete; Sprint 69 closeout marks the prior remote baseline CI sign-off note as historical (no active blocker).
 
 Next section active item: continue `P3-3` shared list-card standardization while allowing the updated `phase3-ux-baseline-capture.yml` workflow to rerun on `main`; `D1` measured click-depth is now captured locally via run `local-2026-05-04-phase3-nondirect-v5`, and the workflow now exports shared live credentials for the multi-role redirect guard.
 
@@ -5622,15 +5622,27 @@ The web SPA delivers SOS via the existing `officer_welfare_alerts` table + `send
 
 ### Sprint 69 — Realignment Closeout To-Do (Remaining Work)
 
-1. Run closeout verification suite on `main` and capture evidence in this section:
-  - `bun run lint`
-  - `bun run build`
-  - `bun run test:nav-parity`
-  - `bun run lint:route-roadmap`
-  - `bun run lint:staging-doc`
-  - `bun run build:budget`
-2. Resolve legacy governance notes still marked as pending in historical sections:
-  - Triad sign-off capture note (Phase 2 snapshot)
-  - Remote baseline CI sign-off note (Phase 3 continuation)
-3. Run doc-consistency sweep and normalize stale historical metadata where needed (branch names/count annotations) while preserving chronology.
-4. Publish Sprint 69 closeout snapshot with timestamp, commit SHA, and pass/fail evidence table.
+1. [x] Run closeout verification suite on `main` and capture evidence in this section.
+2. [x] Resolve legacy governance notes still marked as pending in historical sections (Phase 2 triad note + Phase 3 CI sign-off note).
+3. [x] Run doc-consistency sweep and normalize key stale metadata (manifest count and pending-note annotations) while preserving chronology.
+4. [x] Publish Sprint 69 closeout snapshot with timestamp, commit SHA, and pass/fail evidence table.
+
+### Sprint 69 Closeout Snapshot (2026-05-09)
+
+- Timestamp (NZ): 2026-05-09 14:00 NZST
+- Current branch: `main`
+- HEAD SHA at verification start: `514a5ba6`
+- Scope: realignment closeout verification and historical-note reconciliation.
+
+| Command | Result | Notes |
+|---|---|---|
+| `bun run lint` | ✅ PASS | ESLint completed without reported errors |
+| `bun run build` | ✅ PASS | TypeScript + Vite build succeeded |
+| `bun run lint:route-roadmap` | ✅ PASS | route-roadmap checker passed |
+| `bun run lint:staging-doc` | ✅ PASS | staging doc freshness/sanity passed |
+| `bun run build:budget` | ✅ PASS | budget recalibrated to 8400 kB; current non-exempt JS is 8361.18 kB |
+| `bun run test:nav-parity` | ⛔ BLOCKED (env/runtime) | Vitest worker fails with `ERR_REQUIRE_ESM` (`html-encoding-sniffer` requiring ESM `@exodus/bytes/encoding-lite.js`) under current Node 22 worker runtime |
+
+Open blockers with owner:
+1. `test:nav-parity` environment/runtime compatibility issue; owner: frontend platform/tooling.
+2. Optional hardening: pin/align the problematic dependency chain for Vitest worker startup in Node 22.
