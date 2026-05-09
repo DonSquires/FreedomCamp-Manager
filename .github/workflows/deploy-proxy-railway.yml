@@ -178,12 +178,15 @@ jobs:
               variables: { serviceId: $serviceId, variables: $variables }
             }')
 
-          RESPONSE=$(curl -fsSL https://backboard.railway.app/graphql/v2 \
+          HTTP_STATUS=$(curl -sS -o /tmp/railway-vars-response.json -w "%{http_code}" https://backboard.railway.app/graphql/v2 \
             -H "Authorization: Bearer $RAILWAY_TOKEN" \
             -H "Content-Type: application/json" \
-            --data "$MUTATION")
+            --data "$MUTATION" || echo "000")
+          RESPONSE=$(cat /tmp/railway-vars-response.json 2>/dev/null || echo '{}')
 
-          if echo "$RESPONSE" | jq -e '.errors | length > 0' >/dev/null 2>&1; then
+          if [ "$HTTP_STATUS" != "200" ]; then
+            echo "::warning::Railway variables sync returned HTTP $HTTP_STATUS; continuing deploy."
+          elif echo "$RESPONSE" | jq -e '.errors | length > 0' >/dev/null 2>&1; then
             echo "::warning::Railway variables may not have been set: $(echo "$RESPONSE" | jq -r '.errors[0].message')"
           else
             echo "✅ Railway environment variables updated."
