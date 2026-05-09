@@ -618,8 +618,11 @@ function RoleRoute({
 
   if (!user) return <Navigate to="/login" replace />
 
+  // grand_master is the platform owner — bypasses all role restrictions
+  if (user.role === 'grand_master') return <>{children}</>
+
   const activeFeatureFlags = new Set<string>()
-  if (user.role === 'master' || user.role === 'grand_master') {
+  if (user.role === 'master') {
     activeFeatureFlags.add('enable_internal_tools')
   }
 
@@ -637,9 +640,6 @@ function RoleRoute({
   ) {
     return <AccessDenied requiredRoles={manifestEntry.rolesAllowed} currentRole={user.role} />
   }
-
-  // grand_master is the platform owner — bypasses all role restrictions
-  if (user.role === 'grand_master') return <>{children}</>
 
   if (!allowedRoles.includes(user.role)) {
     return <AccessDenied requiredRoles={allowedRoles} currentRole={user.role} />

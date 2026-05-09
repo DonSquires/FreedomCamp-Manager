@@ -94,6 +94,10 @@ export function isRouteVisibleForRole(
   const entry = entries.find((e) => e.path === path)
   if (!entry) return true // not in manifest yet — allow (backward compat)
   if (entry.visibilityMode === 'hidden') return false
+  if (role === 'grand_master') {
+    if (entry.featureFlag && featureFlagsActive && !featureFlagsActive.has(entry.featureFlag)) return false
+    return true
+  }
   // Internal routes are only surfaced to master / grand_master roles
   if (entry.visibilityMode === 'internal' && role !== 'master' && role !== 'grand_master') return false
   if (!role) return false

@@ -42,10 +42,12 @@ load_env_if_missing() {
   done < "$file_path"
 }
 
-# Load local .env values (without overwriting already injected env vars).
-if [[ -f .env ]]; then
-  load_env_if_missing ./.env
-fi
+# Load local env values (without overwriting already injected env vars).
+for env_file in .env .env.local .env.playwright.local; do
+  if [[ -f "$env_file" ]]; then
+    load_env_if_missing "./$env_file"
+  fi
+done
 
 set_if_missing() {
   local target="$1"
@@ -69,6 +71,19 @@ set_if_missing_chain() {
       return
     fi
   done
+}
+
+set_alias_pair_if_missing() {
+  local canonical="$1"
+  local legacy="$2"
+
+  if [[ -z "${!canonical:-}" && -n "${!legacy:-}" ]]; then
+    export "$canonical=${!legacy}"
+  fi
+
+  if [[ -z "${!legacy:-}" && -n "${!canonical:-}" ]]; then
+    export "$legacy=${!canonical}"
+  fi
 }
 
 # Supabase URL fallback from project ref.
@@ -98,6 +113,17 @@ set_if_missing PLAYWRIGHT_CLIENT_VIEWER_PASSWORD TEST_CLIENT_PASSWORD
 set_if_missing PLAYWRIGHT_CLIENT_STAFF_EMAIL TEST_CLIENT_OFFICER_EMAIL
 set_if_missing PLAYWRIGHT_CLIENT_STAFF_PASSWORD TEST_CLIENT_OFFICER_PASSWORD
 
+# Keep canonical role-pair names and legacy aliases synchronized.
+set_alias_pair_if_missing PLAYWRIGHT_ADMIN_ORG1_EMAIL PLAYWRIGHT_ADMIN_EMAIL
+set_alias_pair_if_missing PLAYWRIGHT_ADMIN_ORG1_PASSWORD PLAYWRIGHT_ADMIN_PASSWORD
+set_alias_pair_if_missing PLAYWRIGHT_OFFICER_ORG1_EMAIL PLAYWRIGHT_OFFICER_EMAIL
+set_alias_pair_if_missing PLAYWRIGHT_OFFICER_ORG1_PASSWORD PLAYWRIGHT_OFFICER_PASSWORD
+
+# Supabase helpers for tests that read either generic or Playwright-prefixed keys.
+set_alias_pair_if_missing PLAYWRIGHT_SUPABASE_SERVICE_ROLE_KEY SUPABASE_SERVICE_ROLE_KEY
+set_alias_pair_if_missing PLAYWRIGHT_SUPABASE_URL VITE_SUPABASE_URL
+set_alias_pair_if_missing PLAYWRIGHT_SUPABASE_ANON_KEY VITE_SUPABASE_ANON_KEY
+
 # Control plane URL fallback for radio floor/SFU tests.
 set_if_missing_chain PTT_SERVER_URL VITE_PTT_SERVER_URL RADIO_CONTROL_PLANE_URL PTT_API_CODESPACE
 
@@ -110,6 +136,10 @@ print_status() {
   local vars=(
     VITE_SUPABASE_URL
     VITE_SUPABASE_ANON_KEY
+    PLAYWRIGHT_SUPABASE_URL
+    PLAYWRIGHT_SUPABASE_ANON_KEY
+    PLAYWRIGHT_SUPABASE_SERVICE_ROLE_KEY
+    SUPABASE_SERVICE_ROLE_KEY
     PTT_SERVER_URL
     PLAYWRIGHT_MASTER_EMAIL
     PLAYWRIGHT_MASTER_PASSWORD

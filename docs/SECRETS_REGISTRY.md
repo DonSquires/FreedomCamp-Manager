@@ -244,6 +244,13 @@ The `deploy-frontend.yml` workflow blocks preview deployments that use productio
 | `API_TEST_BEARER_TOKEN` | Optional | `build-plan-crossover-gates.yml` | Bearer token for API integration tests |
 | `API_TEST_EMAIL` | Optional | `build-plan-crossover-gates.yml` | Test user email |
 | `API_TEST_PASSWORD` | Optional | `build-plan-crossover-gates.yml` | Test user password |
+| `PLAYWRIGHT_MASTER_EMAIL` | Optional | E2E workflows | Master/grand-master Playwright login |
+| `PLAYWRIGHT_MASTER_PASSWORD` | Optional | E2E workflows | Master/grand-master Playwright password |
+| `PLAYWRIGHT_ADMIN_ORG1_EMAIL` | Optional | E2E workflows | Org 1 admin Playwright login (canonical) |
+| `PLAYWRIGHT_ADMIN_ORG1_PASSWORD` | Optional | E2E workflows | Org 1 admin Playwright password (canonical) |
+| `PLAYWRIGHT_OFFICER_ORG1_EMAIL` | Optional | E2E workflows | Org 1 officer Playwright login (canonical) |
+| `PLAYWRIGHT_OFFICER_ORG1_PASSWORD` | Optional | E2E workflows | Org 1 officer Playwright password (canonical) |
+| `PLAYWRIGHT_SUPABASE_SERVICE_ROLE_KEY` | Optional | E2E cleanup helpers | Service-role key alias for Playwright teardown paths |
 
 ---
 
