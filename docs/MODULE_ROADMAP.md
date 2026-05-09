@@ -1,9 +1,9 @@
 # Module Roadmap (Operator Navigation Map)
 
-Date: 2026-05-08 (verified against src/navigation/routeManifest.ts)
-Source of truth for routes: route manifest file src/navigation/routeManifest.ts (211 route manifest entries as of Sprint 49 completion)
+Date: 2026-05-09 (verified against src/navigation/routeManifest.ts)
+Source of truth for routes: route manifest file src/navigation/routeManifest.ts (265 route manifest entries after App-router parity backfill)
 
- > **Last Verification**: 2026-05-08 — Role-gating and route docs reviewed through Sprint 49 (B-159). Production main includes Sprints 31-49.
+ > **Last Verification**: 2026-05-09 — App.tsx to routeManifest parity backfill applied for 54 previously-missing routes.
 
 ## How To Use
 
