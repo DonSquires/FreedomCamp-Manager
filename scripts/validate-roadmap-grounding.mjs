@@ -58,6 +58,9 @@ function extractRoadmapRoutes(markdown) {
   // Only match route paths that are NOT embedded inside slash-delimited word lists
   // (e.g. "status/alarm_type/date" filter descriptions) or file paths (src/navigation/...).
   // Negative lookbehind ensures the leading / is not preceded by a word character.
+  //
+  // Matches:  /admin/users   /crm   /crm/client/:orgId
+  // Excludes: status/alarm_type   src/navigation/routes.ts   word/word/word
   const regex = /(?<![a-zA-Z0-9_])\/[a-z][a-z0-9_-]*(?:\/(?:[a-z][a-z0-9_-]*|:[a-z][a-zA-Z0-9_-]*))*/g
   const ignore = new Set(['/'])
 

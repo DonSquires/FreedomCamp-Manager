@@ -33,6 +33,9 @@ test.use({ screenshot: 'on' })
 
 const ADMIN_ROLES = new Set(['admin', 'admin_officer', 'master', 'grand_master'])
 
+/** Matches route paths containing a dynamic parameter segment (e.g. `/crm/client/:orgId`). */
+const HAS_ROUTE_PARAM = /:[^/]+/
+
 type CollectedRoute = { path: string; label: string }
 
 function collectRoutesForRoles(allowedRoles: Set<string>): CollectedRoute[] {
@@ -43,7 +46,7 @@ function collectRoutesForRoles(allowedRoles: Set<string>): CollectedRoute[] {
     for (const route of module.routes) {
       if (seen.has(route.path)) continue
       // Skip parameterised routes — they need real DB IDs
-      if (/:[^/]+/.test(route.path)) continue
+      if (HAS_ROUTE_PARAM.test(route.path)) continue
       if (!route.path.startsWith('/')) continue
 
       const hasRole = route.roles.some((r) => allowedRoles.has(r))
@@ -67,7 +70,7 @@ const adminRoutes = collectRoutesForRoles(ADMIN_ROLES)
 /** Officer-only routes (officer-portal surfaces). */
 const officerOnlyRoutes = Object.values(SERVICE_MODULES)
   .flatMap((m) => m.routes)
-  .filter((r) => r.officerOnly && r.path.startsWith('/') && !/:[^/]+/.test(r.path))
+  .filter((r) => r.officerOnly && r.path.startsWith('/') && !HAS_ROUTE_PARAM.test(r.path))
   .reduce<CollectedRoute[]>((acc, r) => {
     if (!acc.find((x) => x.path === r.path)) {
       acc.push({ path: r.path, label: r.label })

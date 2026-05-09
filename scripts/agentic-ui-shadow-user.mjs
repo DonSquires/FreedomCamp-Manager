@@ -217,7 +217,6 @@ function buildPackPlan(pack) {
       ...baseLogin,
       { type: 'ensurePortalSelectionResolved', url: '/crm', note: 'Bypass portal-selection for admin/officer dual-role accounts' },
       { type: 'goto', url: '/crm', note: 'Open CRM dashboard' },
-      { type: 'ensurePortalSelectionResolved', url: '/crm', note: 'Recover if CRM redirects back to portal selection' },
       { type: 'expectVisibleAny', value: 'text=/CRM|Customer|Accounts|Contacts|Dashboard|Portal Selection|Choose Portal|Select Portal|Admin Portal|FieldOps Manager/i', note: 'Verify CRM or valid fallback state is visible' },
       { type: 'goto', url: '/accounts', note: 'Navigate to accounts list' },
       { type: 'expectVisibleAny', value: 'text=/Accounts|Clients|No accounts|No clients|Portal Selection|Choose Portal|Admin Portal|FieldOps Manager/i', note: 'Verify accounts list or valid fallback state' },
