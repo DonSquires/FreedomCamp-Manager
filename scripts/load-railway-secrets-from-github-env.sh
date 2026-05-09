@@ -84,7 +84,8 @@ set_if_present RAILWAY_OLLAMA_SERVICE_ID RAILWAY_OLLAMA_SERVICE_ID || true
 
 # Core project credentials
 # Canonical: RAILWAY_TOKEN  |  @deprecated alias: RAILWAY_CORE_TOKEN
-set_if_present RAILWAY_TOKEN RAILWAY_TOKEN RAILWAY_CORE_TOKEN || true
+# Fallback: RAILWAY_BOB_TOKEN for shared-project setups where one token has deploy scope.
+set_if_present RAILWAY_TOKEN RAILWAY_TOKEN RAILWAY_CORE_TOKEN RAILWAY_BOB_TOKEN || true
 set_if_present RAILWAY_INFERENCE_SERVICE_ID RAILWAY_INFERENCE_SERVICE_ID || true
 set_if_present RAILWAY_PROXY_SERVICE_ID RAILWAY_PROXY_SERVICE_ID || true
 set_if_present RAILWAY_PTT_SERVICE_ID RAILWAY_PTT_SERVICE_ID || true

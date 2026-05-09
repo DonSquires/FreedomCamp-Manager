@@ -34,12 +34,20 @@ jobs:
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
           RAILWAY_CORE_TOKEN: ${{ secrets.RAILWAY_CORE_TOKEN }}
+          RAILWAY_BOB_TOKEN: ${{ secrets.RAILWAY_BOB_TOKEN }}
           RAILWAY_PROXY_SERVICE_ID: ${{ secrets.RAILWAY_PROXY_SERVICE_ID }}
+          RAILWAY_PROXY_PROJECT_ID: ${{ secrets.RAILWAY_PROXY_PROJECT_ID }}
           PROXY_SERVER_URL: ${{ secrets.PROXY_SERVER_URL }}
           PROXY_SERVICE_URL: ${{ secrets.PROXY_SERVICE_URL }}
           NZSCV_PROXY_URL: ${{ secrets.NZSCV_PROXY_URL }}
         run: |
           source ./scripts/load-railway-secrets-from-github-env.sh --quiet
+
+          # Deterministic production fallbacks (user-provided from Railway production settings)
+          : "${RAILWAY_PROXY_PROJECT_ID:=c5305775-ecf5-4d67-a59f-b7ae49838561}"
+          : "${RAILWAY_PROXY_SERVICE_ID:=44e08d1a-c626-400c-b78c-c64eec259768}"
+          echo "RAILWAY_PROXY_PROJECT_ID=$RAILWAY_PROXY_PROJECT_ID" >> "$GITHUB_ENV"
+          echo "RAILWAY_PROXY_SERVICE_ID=$RAILWAY_PROXY_SERVICE_ID" >> "$GITHUB_ENV"
 
       - name: Check required secrets
         id: check-secrets
@@ -185,10 +193,15 @@ jobs:
         if: >-
           steps.check-secrets.outputs.secrets_present == 'true' &&
           steps.validate-token.outputs.token_valid == 'true'
+        env:
+          RAILWAY_TOKEN: ${{ env.RAILWAY_TOKEN }}
+          RAILWAY_PROXY_SERVICE_ID: ${{ env.RAILWAY_PROXY_SERVICE_ID }}
+          RAILWAY_PROXY_PROJECT_ID: ${{ env.RAILWAY_PROXY_PROJECT_ID }}
         run: |
+          set -euo pipefail
           cd proxy-server
           echo "🚂 Deploying proxy-server to Railway..."
-          railway up --service "$RAILWAY_PROXY_SERVICE_ID" --detach
+          railway up --project "$RAILWAY_PROXY_PROJECT_ID" --service "$RAILWAY_PROXY_SERVICE_ID" --detach
           echo "✅ Deploy triggered. Check Railway dashboard for status."
 
       - name: Verify proxy health

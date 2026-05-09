@@ -108,6 +108,8 @@ NZSCV API requires **IP whitelisting**. Supabase Edge Functions use dynamic IPs,
    - Copy the IP address
    - Provide this to NZSCV
 
+Production note: In this repository, proxy CI deploys target the production Proxy project/service IDs and should be verified at `/health` after each push to `main`.
+
 ---
 
 ### Option 3: Fly.io ($1.94/month for IPv4)
