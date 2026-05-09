@@ -9,6 +9,7 @@ import {
   getLiveSessionPttSnapshot,
   recordLiveSessionDiagnostic,
 } from '@/lib/liveSessionDiagnostics'
+import { getGeocodingRuntimeStatus } from '@/lib/geocoding'
 
 const FLUSH_INTERVAL_MS = 15_000
 
@@ -89,9 +90,15 @@ export function useLiveSessionDiagnostics() {
     if (!user?.id || sessionStartedRef.current) return
 
     sessionStartedRef.current = true
+    const geocodingStatus = getGeocodingRuntimeStatus()
     recordLiveSessionDiagnostic('session_started', {
       role: user.role,
       organization_id: user.organization_id ?? null,
+    }, `${location.pathname}${location.search}`, getDocumentTitle())
+    recordLiveSessionDiagnostic('geocoding_runtime_config', {
+      google_geocoding_enabled: geocodingStatus.googleGeocodingEnabled,
+      nominatim_enabled: geocodingStatus.nominatimEnabled,
+      nominatim_allowed: geocodingStatus.nominatimAllowed,
     }, `${location.pathname}${location.search}`, getDocumentTitle())
     void flush('session-start')
   }, [flush, location.pathname, location.search, user?.id, user?.organization_id, user?.role])

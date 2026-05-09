@@ -24,6 +24,8 @@ export interface ForwardGeocodingResult extends GeocodingResult {
   longitude: number
 }
 
+const googleMapsApiKey = String(import.meta.env.VITE_GOOGLE_MAPS_API_KEY ?? '').trim()
+const googleGeocodingEnabled = googleMapsApiKey.length > 0
 const nominatimEnabledByDefault = import.meta.env.DEV
 const nominatimEnabled = String(import.meta.env.VITE_ENABLE_NOMINATIM ?? String(nominatimEnabledByDefault)).toLowerCase() === 'true'
 
@@ -31,6 +33,18 @@ function shouldUseNominatim(): boolean {
   if (!nominatimEnabled) return false
   if (typeof navigator !== 'undefined' && navigator.onLine === false) return false
   return true
+}
+
+export function getGeocodingRuntimeStatus(): {
+  googleGeocodingEnabled: boolean
+  nominatimEnabled: boolean
+  nominatimAllowed: boolean
+} {
+  return {
+    googleGeocodingEnabled,
+    nominatimEnabled,
+    nominatimAllowed: shouldUseNominatim(),
+  }
 }
 
 // ── Google Maps Geocoding ──────────────────────────────────────────────────
@@ -43,13 +57,12 @@ async function reverseGeocodeGoogle(
   latitude: number,
   longitude: number,
 ): Promise<GeocodingResult | null> {
-  const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string | undefined
-  if (!apiKey) return null
+  if (!googleGeocodingEnabled) return null
 
   try {
     const url =
       `https://maps.googleapis.com/maps/api/geocode/json` +
-      `?latlng=${latitude},${longitude}&key=${encodeURIComponent(apiKey)}&result_type=street_address|premise|route`
+      `?latlng=${latitude},${longitude}&key=${encodeURIComponent(googleMapsApiKey)}&result_type=street_address|premise|route`
 
     const response = await fetch(url)
     if (!response.ok) throw new Error(`Google geocode HTTP ${response.status}`)
@@ -127,13 +140,12 @@ async function reverseGeocodeNominatim(
 // ── Forward geocoding (address -> coordinates) ─────────────────────────────
 
 async function forwardGeocodeGoogle(query: string): Promise<ForwardGeocodingResult | null> {
-  const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string | undefined
-  if (!apiKey) return null
+  if (!googleGeocodingEnabled) return null
 
   try {
     const url =
       `https://maps.googleapis.com/maps/api/geocode/json` +
-      `?address=${encodeURIComponent(query)}&key=${encodeURIComponent(apiKey)}&components=country:NZ`
+      `?address=${encodeURIComponent(query)}&key=${encodeURIComponent(googleMapsApiKey)}&components=country:NZ`
 
     const response = await fetch(url)
     if (!response.ok) throw new Error(`Google geocode HTTP ${response.status}`)
