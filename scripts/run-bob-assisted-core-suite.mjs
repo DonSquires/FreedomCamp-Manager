@@ -13,6 +13,7 @@ function run(command, args) {
         ...process.env,
         PLAYWRIGHT_ALLOW_SHARED_CREDENTIAL_FALLBACK: process.env.PLAYWRIGHT_ALLOW_SHARED_CREDENTIAL_FALLBACK || '1',
         PLAYWRIGHT_SKIP_ROLE_ASSERTIONS: process.env.PLAYWRIGHT_SKIP_ROLE_ASSERTIONS || '1',
+        PLAYWRIGHT_REUSE_EXISTING_SERVER: process.env.PLAYWRIGHT_REUSE_EXISTING_SERVER || '1',
       },
     })
 
@@ -44,6 +45,8 @@ async function main() {
     'import data page loads',
     'intel approvals page loads',
     'compliance page loads',
+    'CRM.*Business Management Crossover',
+    'Client Portal Isolation',
   ].join('|')
 
   const opsExit = await run(bobAssist, [

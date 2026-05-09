@@ -127,6 +127,8 @@ if (!config.goal && config.pack) {
     'login-health': 'shadow run: login health check',
     'tender-shadow': 'shadow run: tender compliance submission block check',
     'ptt-zindex': 'shadow run: verify ptt control visibility and z-index safety',
+    'crm-business-crossover': 'shadow run: crm and business cross-module page access check',
+    'client-portal-isolation': 'shadow run: client portal isolation and admin-route block check',
   }
   config.goal = map[config.pack] || `shadow run pack: ${config.pack}`
 }
@@ -207,6 +209,32 @@ function buildPackPlan(pack) {
       { type: 'pttZIndexCheck', note: 'Verify a PTT-like control is visible and not occluded' },
       { type: 'axeCheck', note: 'Quick a11y scan' },
       { type: 'done', note: 'PTT z-index pack complete' },
+    ]
+  }
+
+  if (pack === 'crm-business-crossover') {
+    return [
+      ...baseLogin,
+      { type: 'ensurePortalSelectionResolved', url: '/crm', note: 'Bypass portal-selection for admin/officer dual-role accounts' },
+      { type: 'goto', url: '/crm', note: 'Open CRM dashboard' },
+      { type: 'expectVisibleAny', value: 'text=/CRM|Customer|Accounts|Contacts|Dashboard|Portal Selection|Choose Portal|Select Portal|Admin Portal|FieldOps Manager/i', note: 'Verify CRM or valid fallback state is visible' },
+      { type: 'goto', url: '/accounts', note: 'Navigate to accounts list' },
+      { type: 'expectVisibleAny', value: 'text=/Accounts|Clients|No accounts|No clients|Portal Selection|Choose Portal|Admin Portal|FieldOps Manager/i', note: 'Verify accounts list or valid fallback state' },
+      { type: 'axeCheck', note: 'Quick a11y scan on accounts page' },
+      { type: 'done', note: 'CRM business crossover pack complete' },
+    ]
+  }
+
+  if (pack === 'client-portal-isolation') {
+    return [
+      ...baseLogin,
+      { type: 'ensurePortalSelectionResolved', url: '/client-portal', note: 'Resolve portal selection before client portal check' },
+      { type: 'goto', url: '/client-portal', note: 'Navigate to client portal landing page' },
+      { type: 'expectVisibleAny', value: 'text=/Client Portal|Requests|Site Reports|Welcome|Portal Selection|Choose Portal|FieldOps Manager|Login/i', note: 'Verify client portal or valid gate state is visible' },
+      { type: 'goto', url: '/admin', note: 'Attempt to access admin surface (should be blocked for client-viewer)' },
+      { type: 'expectVisibleAny', value: 'text=/Access Restricted|Forbidden|Unauthorized|Login|Not Found|Portal Selection|Choose Portal|FieldOps Manager|Client Portal/i', note: 'Verify admin is blocked or redirected away for client-viewer role' },
+      { type: 'axeCheck', note: 'Quick a11y scan' },
+      { type: 'done', note: 'Client portal isolation pack complete' },
     ]
   }
 

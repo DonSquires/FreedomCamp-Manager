@@ -56,6 +56,8 @@ const TEST_SUITES = {
     'tests/e2e/module-route-access.spec.ts',
     'tests/e2e/module-e2e-comprehensive.spec.ts',
     'tests/e2e/ui-comprehensive.spec.ts',
+    'tests/e2e/crm-business-crossover.spec.ts',
+    'tests/e2e/client-portal-isolation.spec.ts',
   ],
 }
 
