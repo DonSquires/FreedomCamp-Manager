@@ -5872,7 +5872,7 @@ Re-validation snapshot (2026-05-09, live DNS check from workspace shell):
 1. `MX` is fully migrated: only `mx1.hostinger.com` and `mx2.hostinger.com` are present; legacy `mx3.zoho.com` is no longer published.
 2. `SPF` is correct: `v=spf1 include:_spf.mail.hostinger.com ~all`.
 3. `DKIM` hostinger selector is present: `hostingermail-a._domainkey.fcmanager.co.nz -> hostingermail-a.dkim.mail.hostinger.com`.
-4. `DMARC` record is currently missing at `_dmarc.fcmanager.co.nz` and must be re-added with enforcement policy.
+4. `DMARC` record is now published at `_dmarc.fcmanager.co.nz` with enforcement policy `p=quarantine`.
 5. Supabase SMTP and report-email control secrets are confirmed present via `supabase secrets list` for project `kxwjcupuxnnbnzcgmkoi`.
 
 Updated verification note (2026-05-09, post-tooling install):
@@ -5884,11 +5884,15 @@ Updated verification note (2026-05-09, post-tooling install):
   - Temporary auth user cleanup returned HTTP `200`
 3. `WORKER_RESOURCE_LIMIT` was not reproduced in this end-to-end path.
 
-Required actions to close the audit section:
+Closeout actions completed:
 
 1. Keep Hostinger SPF and DKIM in place.
-2. Add `_dmarc` TXT with at least `p=quarantine`.
-3. Re-run `scripts/email-dns-audit.sh` after DNS changes and ensure it exits with zero failures.
+2. Keep `_dmarc` TXT published with at least `p=quarantine`.
+3. Re-run `scripts/email-dns-audit.sh` periodically as an operational guard.
+
+Hardening follow-up (recommended):
+
+1. Update DMARC aggregate-report tag to explicit `rua=mailto:admin@fcmanager.co.nz` if aggregate reports are required.
 
 Execution status note:
 
@@ -5905,6 +5909,7 @@ bash scripts/email-dns-audit.sh
 Latest output snapshot (2026-05-09):
 
 1. PASS: Hostinger MX (`mx1`/`mx2`) present and legacy Zoho MX removed
-2. FAIL: DMARC TXT missing at `_dmarc.fcmanager.co.nz`
+2. PASS: DMARC TXT published at `_dmarc.fcmanager.co.nz` with `p=quarantine`
 3. PASS: SPF Hostinger include present
 4. PASS: Hostinger DKIM selector present
+5. PASS: `scripts/email-dns-audit.sh` summary `failures=0 warnings=0`
