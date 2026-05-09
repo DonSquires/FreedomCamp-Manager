@@ -60,6 +60,11 @@ import {
 } from '@/lib/bobLearningMemory'
 import { classifyBobCommand, evaluateBobCommandPolicy, type BobCommand } from '@/lib/bobCommandBus'
 import { radioTranslationService } from '@/lib/radio/radioTranslationService'
+import {
+  publishTrainingComposerPacket,
+  type ReferenceVerification,
+  type TrainingModuleDraft,
+} from '@/lib/trainingComposerBridge'
 
 type ChatMessage = {
   id: string
@@ -364,6 +369,63 @@ function normalize(input: string): string {
   return input.trim().toLowerCase()
 }
 
+function isVideoGenerationRequest(input: string): boolean {
+  const normalized = normalize(input)
+  if (!normalized) return false
+
+  return /\bbriefing\s+video\b/.test(normalized)
+    || (/\bvideo\b/.test(normalized) && /\b(generate|create|make|build|produce|render)\b/.test(normalized))
+}
+
+function isTrainingAuthoringRequest(input: string): boolean {
+  const normalized = normalize(input)
+  if (!normalized) return false
+
+  const hasTrainingWord = /\b(training|course|lesson|module|learning|induction|assessment|quiz|syllabus)\b/.test(normalized)
+  const hasAuthoringVerb = /\b(create|build|generate|design|compose|draft|write|structure)\b/.test(normalized)
+  const hasTutorSignal = /\bbob\b/.test(normalized) && /\b(teach|tutor|train)\b/.test(normalized)
+
+  return (hasTrainingWord && hasAuthoringVerb) || hasTutorSignal
+}
+
+function extractJsonObject(text: string): Record<string, any> | null {
+  const direct = String(text || '').trim()
+  if (!direct) return null
+
+  const fenced = direct.match(/```(?:json)?\s*([\s\S]*?)\s*```/i)
+  const candidate = fenced?.[1] || direct
+
+  try {
+    return JSON.parse(candidate)
+  } catch {
+    const start = candidate.indexOf('{')
+    const end = candidate.lastIndexOf('}')
+    if (start >= 0 && end > start) {
+      try {
+        return JSON.parse(candidate.slice(start, end + 1))
+      } catch {
+        return null
+      }
+    }
+
+    return null
+  }
+}
+
+function asStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  return value.map((item) => String(item || '').trim()).filter(Boolean)
+}
+
+function canAuthorTraining(user: { role?: string | null; job_title?: string | null } | null | undefined): boolean {
+  const role = String(user?.role || '').trim().toLowerCase()
+  const title = String(user?.job_title || '').trim().toLowerCase()
+  const isSupervisor = ['admin', 'admin_officer', 'master', 'grand_master'].includes(role)
+  return role === 'grand_master'
+    || role === 'master'
+    || (isSupervisor && /\bowner\b|training manager|learning manager|training lead/.test(title))
+}
+
 function buildMapDirectionsUrl(from: string, to: string, mode: string) {
   const travelMode = mode || 'driving'
   return `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(from)}&destination=${encodeURIComponent(to)}&travelmode=${encodeURIComponent(travelMode)}`
@@ -534,6 +596,7 @@ export default function BobAssistantStudio() {
   const user = useAuthStore((state) => state.user)
   const { organizationId } = useGlobalFiltersStore()
   const isGrandMaster = user?.role === 'grand_master'
+  const isTrainingAuthor = canAuthorTraining(user)
   const bobActionApproval = useBobActionApproval()
   const pttConnectionStatus = usePTTStore((state) => state.connectionStatus)
   const pttChannelId = usePTTStore((state) => state.channelId)
@@ -1387,6 +1450,198 @@ export default function BobAssistantStudio() {
         setThinking(false)
       }
       return
+    }
+
+    if (isVideoGenerationRequest(message)) {
+      const orgId = user?.organization_id ?? null
+
+      try {
+        const { data, error } = await withPromiseTimeout(
+          supabase.functions.invoke('ask-bob', {
+            body: {
+              prompt: message,
+              organization_id: orgId || undefined,
+            },
+          }),
+          BOB_CHAT_RESPONSE_TIMEOUT_MS,
+          `Bob video request timeout after ${Math.round(BOB_CHAT_RESPONSE_TIMEOUT_MS / 1000)}s`,
+        )
+
+        if (error || !data) {
+          throw new Error(error || 'ask-bob returned an empty response')
+        }
+
+        const replyText = String((data as any)?.answer || '').trim()
+        if (!replyText) {
+          throw new Error('ask-bob returned an empty video response')
+        }
+
+        const bobMsg: ChatMessage = {
+          id: crypto.randomUUID(),
+          role: 'assistant',
+          text: replyText,
+          createdAt: new Date().toISOString(),
+        }
+
+        setChat((prev) => [...prev, bobMsg])
+        setBobDegraded(false)
+        clearBobServiceOutage()
+
+        if ((data as any)?.action?.proposal_id) {
+          toast.success('Bob created a video approval proposal')
+        }
+
+        void loadPendingApprovals()
+
+        void (async () => {
+          try {
+            await Promise.all([
+              persistBobLearningRemote({
+                userId: learningUserId,
+                organizationId: orgId,
+                route: '/bob-assistant',
+                source: collaborationPacket?.source ?? 'bob-studio',
+                userMessage: message,
+                assistantReply: replyText,
+              }),
+              persistConversationTurnRemote({
+                userId: learningUserId,
+                organizationId: orgId,
+                route: '/bob-assistant',
+                source: collaborationPacket?.source ?? 'bob-studio',
+                userMessage: message,
+                assistantReply: replyText,
+              }),
+            ])
+          } catch {
+            // Best effort only: chat response should not fail on memory writes.
+          }
+        })()
+      } catch (err: any) {
+        pushAssistantReply(`Bob video request failed: ${String(err?.message ?? err)}`)
+        toast.error(err?.message || 'Could not route the video request to Bob')
+      } finally {
+        setThinking(false)
+      }
+      return
+    }
+
+    if (isTrainingAuthoringRequest(message)) {
+      if (!isTrainingAuthor) {
+        pushAssistantReply('Training authoring is restricted to master-level users or users titled Owner or Training Manager.')
+        setThinking(false)
+        return
+      }
+
+      try {
+        const authorName = user?.full_name || user?.email || 'Unknown author'
+        const { data, error } = await withPromiseTimeout(
+          edgeFunctions.aiChat({
+            provider: 'auto',
+            messages: [
+              {
+                role: 'system',
+                content: 'You are a strict JSON generator for structured training modules that will be reviewed inside Bob Classroom Tutor.',
+              },
+              {
+                role: 'user',
+                content: [
+                  'Create a structured interactive training module from the source material below.',
+                  'This module is for FieldOps Manager and must support picture, video, and interactive learning activities, with Bob acting as tutor on incorrect answers.',
+                  `Author role: ${String(user?.role || 'unknown')}.`,
+                  `Author title: ${String(user?.job_title || 'unknown')}.`,
+                  `Author name: ${authorName}.`,
+                  `Organization ID: ${String(user?.organization_id || 'unknown')}.`,
+                  `Source material and request:\n${message}`,
+                  'Return strict JSON only with keys:',
+                  '{"topic":string,"source_text":string,"legal_reference_text":string,"training_draft":{"title":string,"audience":string,"objectives":string[],"lesson_plan":[{"step":number,"title":string,"instruction":string,"media_type":"picture|video|interactive|mixed","media_prompt":string,"interactive_activity":string}],"assessments":[{"question":string,"answer_guide":string,"difficulty":"beginner|intermediate|advanced"}],"legal_references":[{"title":string,"section":string,"summary":string,"source":string,"verification_status":"verified|needs_review"}],"best_practices":string[],"fact_check_notes":string[]},"reference_verification":{"verified":string[],"needs_review":string[],"legal_risks":string[],"recommendations":string[]}}',
+                ].join(' '),
+              },
+            ],
+          }),
+          BOB_CHAT_RESPONSE_TIMEOUT_MS,
+          `Bob training authoring timeout after ${Math.round(BOB_CHAT_RESPONSE_TIMEOUT_MS / 1000)}s`,
+        )
+
+        if (error || !data?.response) {
+          throw new Error(error || 'Bob returned no training content')
+        }
+
+        const parsed = extractJsonObject(String(data.response || ''))
+        if (!parsed?.training_draft?.title) {
+          throw new Error('Could not parse Bob training module JSON')
+        }
+
+        const trainingDraft: TrainingModuleDraft = {
+          title: String(parsed.training_draft?.title || ''),
+          audience: String(parsed.training_draft?.audience || ''),
+          objectives: asStringArray(parsed.training_draft?.objectives),
+          lesson_plan: Array.isArray(parsed.training_draft?.lesson_plan)
+            ? parsed.training_draft.lesson_plan.map((item: any, index: number) => ({
+                step: Number(item?.step || index + 1),
+                title: String(item?.title || ''),
+                instruction: String(item?.instruction || ''),
+                media_type: ['picture', 'video', 'interactive', 'mixed'].includes(String(item?.media_type || ''))
+                  ? String(item.media_type) as TrainingModuleDraft['lesson_plan'][number]['media_type']
+                  : 'mixed',
+                media_prompt: String(item?.media_prompt || ''),
+                interactive_activity: String(item?.interactive_activity || ''),
+              }))
+            : [],
+          assessments: Array.isArray(parsed.training_draft?.assessments)
+            ? parsed.training_draft.assessments.map((item: any) => ({
+                question: String(item?.question || ''),
+                answer_guide: String(item?.answer_guide || ''),
+                difficulty: ['beginner', 'intermediate', 'advanced'].includes(String(item?.difficulty || ''))
+                  ? String(item.difficulty) as TrainingModuleDraft['assessments'][number]['difficulty']
+                  : 'beginner',
+              }))
+            : [],
+          legal_references: Array.isArray(parsed.training_draft?.legal_references)
+            ? parsed.training_draft.legal_references.map((item: any) => ({
+                title: String(item?.title || ''),
+                section: String(item?.section || ''),
+                summary: String(item?.summary || ''),
+                source: String(item?.source || ''),
+                verification_status: String(item?.verification_status || '') === 'verified' ? 'verified' : 'needs_review',
+              }))
+            : [],
+          best_practices: asStringArray(parsed.training_draft?.best_practices),
+          fact_check_notes: asStringArray(parsed.training_draft?.fact_check_notes),
+        }
+
+        const referenceVerification: ReferenceVerification = {
+          verified: asStringArray(parsed.reference_verification?.verified),
+          needs_review: asStringArray(parsed.reference_verification?.needs_review),
+          legal_risks: asStringArray(parsed.reference_verification?.legal_risks),
+          recommendations: asStringArray(parsed.reference_verification?.recommendations),
+        }
+
+        publishTrainingComposerPacket({
+          title: trainingDraft.title || `Training Module: ${String(parsed.topic || 'Untitled')}`,
+          topic: String(parsed.topic || trainingDraft.title || 'general'),
+          sourceText: String(parsed.source_text || message),
+          legalReferenceText: String(parsed.legal_reference_text || ''),
+          audience: trainingDraft.audience,
+          trainingDraft,
+          referenceVerification,
+          createdBy: user?.id || null,
+          source: 'bob-assistant',
+        })
+
+        pushAssistantReply('I structured this training in Bob Assistant and sent it into Bob Classroom Tutor for review, legal verification, library save, and assignment automation.')
+        toast.success('Structured training created and opened in Bob Classroom Tutor')
+        setBobDegraded(false)
+        clearBobServiceOutage()
+        setThinking(false)
+        navigate('/officer-skills?tab=classroom')
+        return
+      } catch (err: any) {
+        pushAssistantReply(`Bob training authoring failed: ${String(err?.message ?? err)}`)
+        toast.error(err?.message || 'Could not create structured training from Bob Assistant')
+        setThinking(false)
+        return
+      }
     }
 
     const buildRequestBody = () => {

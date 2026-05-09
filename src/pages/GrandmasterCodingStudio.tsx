@@ -13,6 +13,11 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
 import { edgeFunctions } from '@/lib/edgeFunctions'
 import {
+  filterTrainingMarketKnowledgeRequests,
+  TRAINING_MARKET_RESEARCH_PRESETS,
+  type TrainingMarketResearchPreset,
+} from '@/lib/trainingMarketResearch'
+import {
   BrainCircuit, CheckCircle2, ChevronDown, ChevronRight, Clock, Code2,
   FileCode2, Loader2, RefreshCw, Send, ShieldCheck, Sparkles, Trash2,
   XCircle, Activity, BookOpen, HelpCircle, AlertTriangle, SkipForward,
@@ -372,16 +377,25 @@ export default function GrandmasterCodingStudio() {
     }
   }, [])
 
+  const queueKnowledgeQuestion = useCallback(async (question: string, category?: string) => {
+    const trimmedQuestion = question.trim()
+    if (!trimmedQuestion) throw new Error('Question is required')
+
+    const { data, error } = await edgeFunctions.grandmasterStudio({
+      action: 'ask_copilot_submit',
+      question: trimmedQuestion,
+      category: category && category !== 'general' ? category : undefined,
+    })
+
+    if (error) throw new Error(String(error))
+    return data
+  }, [])
+
   const submitAsk = useCallback(async () => {
     if (!askQuestion.trim()) { toast.error('Question is required'); return }
     setAskLoading(true)
     try {
-      const { data, error } = await edgeFunctions.grandmasterStudio({
-        action: 'ask_copilot_submit',
-        question: askQuestion.trim(),
-        category: askCategory !== 'general' ? askCategory : undefined,
-      })
-      if (error) throw new Error(String(error))
+      await queueKnowledgeQuestion(askQuestion, askCategory)
       toast.success('Question queued — Copilot will research and answer hourly')
       setAskQuestion('')
       loadKnowledge()
@@ -390,7 +404,25 @@ export default function GrandmasterCodingStudio() {
     } finally {
       setAskLoading(false)
     }
-  }, [askQuestion, askCategory, loadKnowledge])
+  }, [askQuestion, askCategory, loadKnowledge, queueKnowledgeQuestion])
+
+  const applyTrainingResearchPreset = useCallback((preset: TrainingMarketResearchPreset) => {
+    setAskQuestion(preset.question)
+    setAskCategory(preset.category)
+  }, [])
+
+  const queueTrainingResearchPreset = useCallback(async (preset: TrainingMarketResearchPreset) => {
+    setAskLoading(true)
+    try {
+      await queueKnowledgeQuestion(preset.question, preset.category)
+      toast.success(`${preset.title} queued — Copilot will research and feed Bob intel`)
+      loadKnowledge()
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to queue training market research')
+    } finally {
+      setAskLoading(false)
+    }
+  }, [loadKnowledge, queueKnowledgeQuestion])
 
   const loadIntelState = useCallback(async () => {
     setIntelLoading(true)
@@ -429,6 +461,8 @@ export default function GrandmasterCodingStudio() {
       setBulletinLoading(false)
     }
   }, [bulletinTitle, bulletinSummary, bulletinType, loadIntelState])
+
+  const trainingMarketRequests = filterTrainingMarketKnowledgeRequests(knowledgeRequests).slice(0, 6)
 
   const loadHealth = useCallback(async () => {
     setHealthLoading(true)
@@ -778,6 +812,61 @@ export default function GrandmasterCodingStudio() {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
+                <Newspaper className="h-4 w-4" /> Training Market Research Workflow
+              </CardTitle>
+              <CardDescription>
+                Queue competitor and LMS research using the existing owner research loop. The hourly Copilot workflow researches the request and injects the result into Bob's intel feed.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-3 md:grid-cols-2">
+                {TRAINING_MARKET_RESEARCH_PRESETS.map((preset) => (
+                  <div key={preset.id} className="rounded-md border p-3 space-y-3">
+                    <div>
+                      <p className="text-sm font-medium">{preset.title}</p>
+                      <p className="text-xs text-muted-foreground mt-1">{preset.description}</p>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm" onClick={() => applyTrainingResearchPreset(preset)}>
+                        Load Prompt
+                      </Button>
+                      <Button size="sm" onClick={() => queueTrainingResearchPreset(preset)} disabled={askLoading}>
+                        Queue Now
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {trainingMarketRequests.length > 0 && (
+                <div className="space-y-2">
+                  <Label className="text-primary">Recent Training Market Research</Label>
+                  <div className="space-y-2">
+                    {trainingMarketRequests.map((request) => (
+                      <div key={request.id} className="rounded-md border p-3">
+                        <div className="flex flex-wrap items-center gap-2 mb-1">
+                          {request.status === 'answered'
+                            ? <Badge className="bg-green-100 text-green-700 border-green-300">Answered</Badge>
+                            : request.status === 'skipped'
+                            ? <Badge variant="outline">Skipped</Badge>
+                            : <Badge variant="outline" className="text-yellow-600 border-yellow-400">Pending</Badge>}
+                          <Badge variant="secondary">{request.category || 'general'}</Badge>
+                        </div>
+                        <p className="text-sm font-medium leading-snug">{request.question}</p>
+                        {request.answer && (
+                          <p className="text-xs text-muted-foreground mt-2 line-clamp-3">{request.answer}</p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
                 <HelpCircle className="h-4 w-4" /> Queue a Research Question
               </CardTitle>
               <CardDescription>
@@ -804,7 +893,7 @@ export default function GrandmasterCodingStudio() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {['general', 'supabase', 'runpod', 'github', 'vercel', 'expo', 'domain', 'email', 'ptt', 'coding'].map((c) => (
+                      {['general', 'training_market', 'supabase', 'runpod', 'github', 'vercel', 'expo', 'domain', 'email', 'ptt', 'coding'].map((c) => (
                         <SelectItem key={c} value={c} className="capitalize">{c}</SelectItem>
                       ))}
                     </SelectContent>

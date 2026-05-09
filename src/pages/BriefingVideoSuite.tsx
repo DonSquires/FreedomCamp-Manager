@@ -86,7 +86,7 @@ export default function BriefingVideoSuite() {
         .limit(200))
 
       if (error) throw error
-      return (data ?? []) as VideoPackRow[]
+      return (data ?? []) as unknown as VideoPackRow[]
     },
   })
 

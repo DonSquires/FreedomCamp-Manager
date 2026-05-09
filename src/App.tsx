@@ -2385,7 +2385,7 @@ export default function App() {
             path="/officer-skills"
             element={
               <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'grand_master']}>
                   <OfficerSkills />
                 </RoleRoute>
               </ProtectedRoute>
