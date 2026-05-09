@@ -1,9 +1,9 @@
 # Module Roadmap (Operator Navigation Map)
 
 Date: 2026-05-08 (verified against src/navigation/routeManifest.ts)
-Source of truth for routes: route manifest file src/navigation/routeManifest.ts (275 route manifest entries as of Sprint 66 completion)
+Source of truth for routes: route manifest file src/navigation/routeManifest.ts (286 route manifest entries as of Sprint 67 completion)
 
- > **Last Verification**: 2026-05-08 — Role-gating and route docs reviewed through Sprint 66 (B-235). Production main includes Sprints 31-66.
+ > **Last Verification**: 2026-05-09 — Role-gating and route docs reviewed through Sprint 67 (B-246). Production main includes Sprints 31-67.
 
 ## How To Use
 
@@ -1256,11 +1256,70 @@ New manifest entries added in Sprint 66 (B-226 through B-235):
    - Role gate: officer, admin_officer
    - navGroup: Officer
 
+## Sprint 67 Route Addendum (2026-05-09)
+
+New manifest entries added in Sprint 67 (B-236 through B-246):
+
+1. Admin Dispatch Alias (B-236)
+   - Route: /admin/dispatch
+   - Role gate: admin, admin_officer, master
+   - navGroup: none
+
+2. Admin Enforcement Alias (B-237)
+   - Route: /admin/enforcement
+   - Role gate: admin, admin_officer, master, officer
+   - navGroup: none
+
+3. Bob Alias (B-238)
+   - Route: /bob
+   - Role gate: admin, admin_officer, master, officer, grand_master
+   - navGroup: none
+
+4. Bob Assistant Studio Alias (B-239)
+   - Route: /bob/assistant-studio
+   - Role gate: admin, admin_officer, master, officer, grand_master
+   - navGroup: none
+
+5. Field Alias (B-240)
+   - Route: /field
+   - Role gate: authenticated users and client personas
+   - navGroup: none
+
+6. Messages (B-241)
+   - Route: /messages
+   - Role gate: authenticated users and client personas
+   - navGroup: none
+
+7. Vehicle Detail Route (B-242)
+   - Route: /vehicles/:id
+   - Role gate: authenticated users and client personas
+   - navGroup: none
+
+8. Client Portal (B-243)
+   - Route: /client-portal
+   - Role gate: client_viewer, client_officer, client_admin, admin, admin_officer, master, grand_master
+   - navGroup: none
+
+9. CRM Contractor Detail (B-244)
+   - Route: /crm/contractor/:orgId
+   - Role gate: admin, admin_officer, master, grand_master
+   - navGroup: none
+
+10. CRM Client Detail (B-245)
+   - Route: /crm/client/:orgId
+   - Role gate: admin, admin_officer, master, grand_master
+   - navGroup: none
+
+11. Tender Workspace Detail (B-246)
+   - Route: /tender-workspace/:id
+   - Role gate: admin, master, grand_master
+   - navGroup: none
+
 ## Production Status Snapshot (2026-05-08)
 
 - Branch: main
 - PR state (base main): 0 open
-- Consolidation status: Sprint 31 through Sprint 66 route work is merged to production main
+- Consolidation status: Sprint 31 through Sprint 67 route work is merged to production main
 
 ## Post-Sprint-42 Realignment Phases and Phase-Gate Progression (#548)
 

@@ -8,6 +8,8 @@ export type AppRole =
   | 'nzscv_monitor'
   | 'grand_master'
   | 'client_viewer'
+  | 'client_officer'
+  | 'client_admin'
 
 export type VisibilityMode = 'production' | 'internal' | 'hidden'
 
@@ -1663,6 +1665,18 @@ export const routeManifest: RouteManifestEntry[] = [
   { routeId: 'admin.bob-ui-review', path: '/bob-ui-review', shell: 'admin', rolesAllowed: ['admin', 'admin_officer', 'master', 'grand_master'], navGroup: 'Bob', navLabel: 'UI Review', visibilityMode: 'production', featureFlag: null, mobilePriority: 3, preloadPolicy: 'none' },
   { routeId: 'admin.job-map', path: '/job-map', shell: 'admin', rolesAllowed: ['admin', 'admin_officer', 'master', 'officer'], navGroup: 'Live Ops', navLabel: 'Job Map', visibilityMode: 'production', featureFlag: null, mobilePriority: null, preloadPolicy: 'none' },
   { routeId: 'officer.field-dispatch', path: '/field-officer/dispatch', shell: 'officer', rolesAllowed: ['officer', 'admin_officer'], permissionArea: 'field_officer', navGroup: 'Officer', navLabel: 'Patrol Dispatch', visibilityMode: 'production', featureFlag: null, mobilePriority: null, preloadPolicy: 'none' },
+  // --- Sprint 67: B-236–B-246 ---
+  { routeId: 'admin.dispatch-alias', path: '/admin/dispatch', shell: 'admin', rolesAllowed: ['admin', 'admin_officer', 'master'], navGroup: null, navLabel: null, visibilityMode: 'production', featureFlag: null, mobilePriority: null, preloadPolicy: 'none' },
+  { routeId: 'admin.enforcement-alias', path: '/admin/enforcement', shell: 'admin', rolesAllowed: ['admin', 'admin_officer', 'master', 'officer'], navGroup: null, navLabel: null, visibilityMode: 'production', featureFlag: null, mobilePriority: null, preloadPolicy: 'none' },
+  { routeId: 'shared.bob-alias', path: '/bob', shell: 'shared', rolesAllowed: ['admin', 'admin_officer', 'master', 'officer', 'grand_master'], navGroup: null, navLabel: null, visibilityMode: 'production', featureFlag: null, mobilePriority: null, preloadPolicy: 'none' },
+  { routeId: 'shared.bob-assistant-studio-alias', path: '/bob/assistant-studio', shell: 'shared', rolesAllowed: ['admin', 'admin_officer', 'master', 'officer', 'grand_master'], navGroup: null, navLabel: null, visibilityMode: 'production', featureFlag: null, mobilePriority: null, preloadPolicy: 'none' },
+  { routeId: 'shared.field-alias', path: '/field', shell: 'shared', rolesAllowed: ['master', 'admin', 'officer', 'admin_officer', 'nzscv_monitor', 'grand_master', 'client_viewer', 'client_officer', 'client_admin'], navGroup: null, navLabel: null, visibilityMode: 'production', featureFlag: null, mobilePriority: null, preloadPolicy: 'none' },
+  { routeId: 'shared.messages', path: '/messages', shell: 'shared', rolesAllowed: ['master', 'admin', 'officer', 'admin_officer', 'nzscv_monitor', 'grand_master', 'client_viewer', 'client_officer', 'client_admin'], navGroup: null, navLabel: null, visibilityMode: 'production', featureFlag: null, mobilePriority: null, preloadPolicy: 'none' },
+  { routeId: 'shared.vehicle-detail', path: '/vehicles/:id', shell: 'shared', rolesAllowed: ['master', 'admin', 'officer', 'admin_officer', 'nzscv_monitor', 'grand_master', 'client_viewer', 'client_officer', 'client_admin'], navGroup: null, navLabel: null, visibilityMode: 'production', featureFlag: null, mobilePriority: null, preloadPolicy: 'none' },
+  { routeId: 'admin.client-portal', path: '/client-portal', shell: 'shared', rolesAllowed: ['client_viewer', 'client_officer', 'client_admin', 'admin', 'admin_officer', 'master', 'grand_master'], navGroup: null, navLabel: null, visibilityMode: 'production', featureFlag: null, mobilePriority: null, preloadPolicy: 'none' },
+  { routeId: 'admin.crm-contractor-detail', path: '/crm/contractor/:orgId', shell: 'admin', rolesAllowed: ['admin', 'admin_officer', 'master', 'grand_master'], navGroup: null, navLabel: null, visibilityMode: 'production', featureFlag: null, mobilePriority: null, preloadPolicy: 'none' },
+  { routeId: 'admin.crm-client-detail', path: '/crm/client/:orgId', shell: 'admin', rolesAllowed: ['admin', 'admin_officer', 'master', 'grand_master'], navGroup: null, navLabel: null, visibilityMode: 'production', featureFlag: null, mobilePriority: null, preloadPolicy: 'none' },
+  { routeId: 'admin.tender-workspace-detail', path: '/tender-workspace/:id', shell: 'admin', rolesAllowed: ['admin', 'master', 'grand_master'], navGroup: null, navLabel: null, visibilityMode: 'production', featureFlag: null, mobilePriority: null, preloadPolicy: 'none' },
   // --- Briefing video suite ---
   { routeId: 'admin.video-generation-suite', path: '/admin/video-generation', shell: 'admin', rolesAllowed: ['admin', 'admin_officer', 'master'], navGroup: 'Bob', navLabel: 'Video Generation Suite', visibilityMode: 'production', featureFlag: null, mobilePriority: null, preloadPolicy: 'none' },
 ]

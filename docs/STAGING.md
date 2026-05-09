@@ -4,6 +4,42 @@ Date: 2026-05-05
 Owner: GitHub Copilot (GPT-5.3-Codex)
 Status: Active staging checklist
 
+Latest Session Snapshot (Sprint 67 — B-236–B-246 — 2026-05-09):
+
+- Timestamp (NZ): 2026-05-09 12:09 NZST
+- Current branch: copilot/continue-realignment-project-yet-again
+- Scope completed:
+  - Added Sprint 67 manifest entries (B-236–B-246): `/admin/dispatch`, `/admin/enforcement`, `/bob`, `/bob/assistant-studio`, `/field`, `/messages`, `/vehicles/:id`, `/client-portal`, `/crm/contractor/:orgId`, `/crm/client/:orgId`, `/tender-workspace/:id`.
+  - Extended route manifest `AppRole` typing to include `client_officer` and `client_admin` so client-role route gates can be represented without type escapes.
+  - Updated `docs/MODULE_ROADMAP.md` with Sprint 67 addendum and manifest count progression.
+
+- Sprint 67 checklist:
+  | Item | Status | Evidence |
+  |---|---|---|
+  | B-236 `/admin/dispatch` manifest entry | ✅ DONE | `src/navigation/routeManifest.ts` |
+  | B-237 `/admin/enforcement` manifest entry | ✅ DONE | `src/navigation/routeManifest.ts` |
+  | B-238 `/bob` and B-239 `/bob/assistant-studio` alias entries | ✅ DONE | `src/navigation/routeManifest.ts` |
+  | B-240 `/field` alias entry | ✅ DONE | `src/navigation/routeManifest.ts` |
+  | B-241 `/messages` and B-242 `/vehicles/:id` entries | ✅ DONE | `src/navigation/routeManifest.ts` |
+  | B-243 `/client-portal` entry | ✅ DONE | `src/navigation/routeManifest.ts` |
+  | B-244 `/crm/contractor/:orgId` and B-245 `/crm/client/:orgId` entries | ✅ DONE | `src/navigation/routeManifest.ts` |
+  | B-246 `/tender-workspace/:id` entry | ✅ DONE | `src/navigation/routeManifest.ts` |
+  | Route manifest (286 entries) | ✅ DONE | `src/navigation/routeManifest.ts` |
+  | MODULE_ROADMAP Sprint 67 addendum | ✅ DONE | `docs/MODULE_ROADMAP.md` |
+
+- Validation evidence:
+  | Command | Result | Notes |
+  |---|---|---|
+  | `bun run lint` | PASS | ESLint completed without errors |
+  | `bun run build` | PASS | TypeScript + Vite build succeeded |
+  | `bun run test:nav-parity` | PASS | navigation registry parity passed |
+  | `bun run lint:route-roadmap` | PASS | roadmap parity check passed |
+  | `bun run lint:staging-doc` | PASS | staging-doc freshness/sanity check passed |
+  | `bun run build:budget` | PASS | under 8300 kB |
+
+- Open blockers with owner:
+  1. NONE.
+
 Latest Session Snapshot (Sprint 66 — B-226–B-235 — 2026-05-09):
 
 - Timestamp (NZ): 2026-05-09 11:56 NZST
