@@ -67,7 +67,7 @@ export async function insertDispatchOfficerNotification({
   jobAddress,
   priority,
 }: DispatchOfficerNotificationInput) {
-  await supabase.from('notifications').insert({
+  const { error } = await supabase.from('notifications').insert({
     user_id: officerId,
     organization_id: organizationId,
     type: 'investigation_assigned',
@@ -76,4 +76,9 @@ export async function insertDispatchOfficerNotification({
     priority: priority ?? 'normal',
     data: { dispatch_job_id: jobId, job_number: jobNumber },
   })
+
+  return {
+    ok: !error,
+    error,
+  }
 }

@@ -24,10 +24,12 @@ export function usePTTTranslationPrefs() {
   const saveInterpreterTargetLanguagePreference = useCallback(async (userId?: string | null, targetLanguage?: string) => {
     if (!userId) return
 
-    const { data } = await (supabase.from('user_profiles') as any)
+    const { data, error: selectError } = await (supabase.from('user_profiles') as any)
       .select('notification_preferences')
       .eq('id', userId)
       .single()
+
+    if (selectError) return selectError
 
     const currentPrefs = (data?.notification_preferences as Record<string, any> | null) ?? {}
     const nextPrefs = {
@@ -40,9 +42,11 @@ export function usePTTTranslationPrefs() {
       },
     }
 
-    await (supabase.from('user_profiles') as any)
+    const { error: updateError } = await (supabase.from('user_profiles') as any)
       .update({ notification_preferences: nextPrefs } as never)
       .eq('id', userId)
+
+    return updateError
   }, [])
 
   return {

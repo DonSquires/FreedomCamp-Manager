@@ -1070,8 +1070,8 @@ Reduction evidence: `BreachAlerts` has been lowered to 0 through breach hook con
 
 | Target page | Current direct `supabase.from(...)` calls | Phase E1 target |
 | --- | ---: | --- |
-| PTTRadio | 3 | Hold at or below baseline while shared radio hooks remain the data boundary. |
-| DispatchConsole | 3 | Hold at or below baseline while dispatch contract hooks absorb new reads. |
+| PTTRadio | 0 | Interpreter translation preference reads/writes extracted into usePTTTranslationPrefs hook (3 → 0). |
+| DispatchConsole | 2 | Client-site/zone lookups and dispatch notification insert extracted into useDispatchConsoleData (3 → 2). |
 | FieldOfficerPortal | 0 | All reads/mutations extracted into useFieldOfficerData + useFieldOfficerMutations hooks (11 → 0). |
 | AssetManagement | 0 | Keep page free of direct Supabase query clusters. |
 | VehicleManagement | 0 | All vehicle-list reads extracted into useVehicleListQuery in useVehicles.ts (14 → 0). |

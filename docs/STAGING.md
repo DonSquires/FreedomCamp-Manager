@@ -307,6 +307,31 @@ Latest Session Snapshot (Phase D3 Gate Artifacts + Phase E Kickoff Alignment —
   2. Carry forward E1→E4 checkpoints from `docs/MODULE_ROADMAP.md`.
   3. Maintain rollback-ready flag posture and org isolation evidence per slice.
 
+Latest Session Snapshot (Phase E1 Multi-Worker Consolidation — PTTRadio + DispatchConsole — 2026-05-09):
+
+- Timestamp (NZ): 2026-05-09 01:45 NZST
+- Current branch: copilot/realignment-project-multiple-workers
+- Scope completed:
+  - Used two workers to continue Phase E1 data-movement reduction in parallel.
+  - Worker A extracted DispatchConsole page-owned data access into `src/hooks/useDispatchConsoleData.ts`.
+  - Worker B extracted PTTRadio interpreter translation preference reads/writes into `src/hooks/usePTTTranslationPrefs.ts`.
+  - Updated Phase E1 gate baseline in `tests/e2e/phase-e1-data-access-consolidation.spec.ts`:
+    - `PTTRadio`: `3 → 0`
+    - `DispatchConsole`: `3 → 2`
+  - Updated baseline table in `docs/MODULE_ROADMAP.md` to match the new grounded counts.
+
+- Validation evidence:
+  | Command | Result | Notes |
+  |---|---|---|
+  | `bun run lint` | PASS | 0 errors |
+  | `bun run build` | PASS | TypeScript + Vite build succeeded |
+  | `bun run build:budget` | PASS | 8203.97/8300 kB |
+  | `bun run test:nav-parity` | PASS | 4 tests passed |
+  | `bun run test:e2e -- phase-e1-data-access-consolidation.spec.ts` | PASS | Phase E1 direct-query gate passed with lowered baselines |
+
+- Open blockers with owner:
+  1. NONE.
+
 Latest Session Snapshot (Sprints 51–54 — B-161–B-171 — 2026-05-09):
 
 - Timestamp (NZ): 2026-05-09 01:30 NZST

@@ -391,7 +391,7 @@ export default function DispatchConsole() {
 
       // Notify the officer
       const job = jobs.find(j => j.id === jobId)
-      await insertDispatchOfficerNotification({
+      const notificationResult = await insertDispatchOfficerNotification({
         officerId,
         organizationId: orgId,
         jobId,
@@ -400,6 +400,9 @@ export default function DispatchConsole() {
         jobAddress: job?.address,
         priority: job?.priority,
       })
+      if (!notificationResult.ok) {
+        toast.error('Job dispatched, but officer notification failed.')
+      }
     },
     onSuccess: () => {
       toast.success('Job dispatched')
