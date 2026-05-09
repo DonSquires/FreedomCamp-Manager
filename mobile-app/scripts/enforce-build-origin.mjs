@@ -6,9 +6,10 @@ if (!profile) {
   process.exit(0)
 }
 
-if (profile === 'production' && !allowDirectProduction) {
+if (profile === 'production' && !allowDirectProduction && !ciApproved) {
   console.error('\n[release-policy] Direct EAS production builds are blocked for this repository.')
-  console.error('[release-policy] Use the GitHub workflow ".github/workflows/deploy-mobile.yml" with profile "production_ci".')
+  console.error('[release-policy] Use the GitHub workflow ".github/workflows/deploy-mobile.yml" (recommended)')
+  console.error('[release-policy] or ensure CI_RELEASE_APPROVED=true is set in the production profile env.')
   console.error('[release-policy] Override only for emergency with ALLOW_DIRECT_EAS_PRODUCTION=true.\n')
   process.exit(1)
 }
