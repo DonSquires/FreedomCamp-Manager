@@ -1,19 +1,10 @@
 {
-  "os": "Ubuntu 24.04.4 LTS",
-  "node_version": "v22.22.2",
-  "bun_version": "1.3.13",
-  "toolchain_ready": true,
+  "os": "Alpine Linux v3.23",
+  "node_version": "not installed",
+  "bun_version": "not installed",
+  "toolchain_ready": false,
   "modules": ["messaging"],
-  "lockfiles": ["bun.lock"],
-  "generated_at": "2026-05-09T02:20:00Z",
-  "source": "scripts/system-check.sh",
-  "main_head_commit": "0fb259c7",
-  "sprints_on_main": "31-70",
-  "route_manifest_entries": 350,
-  "route_manifest_unique_paths": 286,
-  "build_status": "PASS",
-  "open_prs": 0,
-  "enterprise_grade_status": "COMPLETE",
-  "enterprise_grade_completed_at": "2026-05-09T02:30:00Z",
-  "last_consolidation": "2026-05-09 — merged copilot/realignment-project-multiple-workers, copilot/continue-realignment-project-yet-again, copilot/continue-realignment-project-one-more-time into main"
+  "lockfiles": ["bun.lock","package-lock.json"],
+  "generated_at": "2026-05-09T08:31:08Z",
+  "source": "scripts/system-check.sh"
 }

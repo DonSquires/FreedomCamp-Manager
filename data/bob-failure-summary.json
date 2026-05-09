@@ -1,12 +1,21 @@
 {
-  "generatedAt": "2026-05-08T21:10:44.003Z",
+  "generatedAt": "2026-05-09T08:31:48.408Z",
   "windowHours": 24,
-  "totalEntries": 0,
+  "totalEntries": 3,
   "lowScoreCount": 0,
   "topFailureReasons": [],
   "topHallucinationPatterns": [],
   "repeatedHallucinations": [],
-  "topFlaggedArtifacts": [],
+  "topFlaggedArtifacts": [
+    {
+      "name": "/workspaces/FreedomCamp-Manager/docs/INSTRUCTION_MANUAL.md",
+      "count": 1
+    },
+    {
+      "name": "/workspaces/FreedomCamp-Manager/spec.md",
+      "count": 1
+    }
+  ],
   "recommendations": [
     "No repeated failure mode crossed the automatic threshold in this window."
   ]

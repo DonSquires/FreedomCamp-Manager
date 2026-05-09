@@ -5866,3 +5866,23 @@ Open blockers with owner:
 7. ✅ Live delivery confirmed — test email to `don.squires@firstsecurity.co.nz` received, queue ID `4gCH6G0H15z406Y`, sender displayed as `reports@fcmanager.co.nz`.
 
 **Pending (post-password rotation):** Re-push `SMTP_PASSWORD` after user rotates `donotreply@fcmanager.co.nz` password in hPanel. DMARC policy to be hardened from `p=none` → `p=quarantine` after 30-day clean delivery period.
+
+Re-validation snapshot (2026-05-09, live DNS check from workspace shell):
+
+1. `MX` is not fully migrated yet: `mx1.hostinger.com` and `mx2.hostinger.com` are present, but legacy `mx3.zoho.com` is still published.
+2. `SPF` is correct: `v=spf1 include:_spf.mail.hostinger.com ~all`.
+3. `DKIM` hostinger selector is present: `hostingermail-a._domainkey.fcmanager.co.nz -> hostingermail-a.dkim.mail.hostinger.com`.
+4. `DMARC` is currently `v=DMARC1; p=none` (not yet hardened).
+5. Supabase SMTP and report-email control secrets are confirmed present via `supabase secrets list` for project `kxwjcupuxnnbnzcgmkoi`.
+
+Updated verification note (2026-05-09, post-tooling install):
+
+1. Supabase secret coverage is now verified via CLI (`SMTP_*` and `REPORT_EMAIL_*` keys present).
+2. `WORKER_RESOURCE_LIMIT` runtime confirmation remains open because Supabase CLI v2.98.2 does not expose Edge Function log retrieval in this environment; runtime confirmation requires Dashboard logs or function-level telemetry export.
+
+Required actions to close the audit section:
+
+1. Remove `mx3.zoho.com` from DNS so only Hostinger MX records remain.
+2. Keep Hostinger SPF and DKIM in place.
+3. Harden DMARC to at least `p=quarantine` after delivery confidence window.
+4. Re-run `supabase secrets list` and an end-to-end `send-report-email` delivery test using valid secret access.

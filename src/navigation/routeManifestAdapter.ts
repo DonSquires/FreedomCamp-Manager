@@ -98,8 +98,8 @@ export function isRouteVisibleForRole(
     if (entry.featureFlag && featureFlagsActive && !featureFlagsActive.has(entry.featureFlag)) return false
     return true
   }
-  // Internal routes are only surfaced to master / grand_master roles
-  if (entry.visibilityMode === 'internal' && role !== 'master' && role !== 'grand_master') return false
+  // Internal routes are only surfaced to master when not in the grand_master bypass path.
+  if (entry.visibilityMode === 'internal' && role !== 'master') return false
   if (!role) return false
   if (!entry.rolesAllowed.includes(role)) return false
   // Feature-flag gate: hide if a flag is required and the caller supplied the active set without it
