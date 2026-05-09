@@ -167,6 +167,8 @@ const SMTP_USERNAME = process.env.SMTP_USERNAME;
 const SMTP_PASSWORD = process.env.SMTP_PASSWORD;
 const SMTP_FROM_EMAIL = process.env.SMTP_FROM_EMAIL;
 const SMTP_FROM_NAME = process.env.SMTP_FROM_NAME || 'FieldOps Manager';
+const SMTP_REPORTS_FROM_EMAIL = process.env.SMTP_REPORTS_FROM_EMAIL || SMTP_FROM_EMAIL;
+const SMTP_REPORTS_FROM_NAME = process.env.SMTP_REPORTS_FROM_NAME || 'FieldOps Reports';
 const SITE_URL = process.env.SITE_URL || 'https://fcmanager.co.nz';
 
 // Dispute flow — Supabase, Runpod, and Postal credentials
@@ -483,6 +485,84 @@ app.post('/api/email/send-invite', rateLimitMiddleware, async (req, res) => {
     console.error('❌ Invite email error:', message);
     return res.status(500).json({
       error: 'Failed to send invite email',
+      code: 'SMTP_SEND_FAILED',
+      details: message,
+    });
+  }
+});
+
+// Report email relay endpoint (called by Supabase Edge Functions)
+app.post('/api/email/send-report', rateLimitMiddleware, async (req, res) => {
+  try {
+    const authResult = checkProxyAuth(req);
+    if (authResult) {
+      console.warn('🚫 Unauthorized report email request');
+      return res.status(authResult.status).json(authResult.body);
+    }
+
+    if (!SMTP_HOST || !SMTP_USERNAME || !SMTP_PASSWORD || !SMTP_REPORTS_FROM_EMAIL) {
+      return res.status(503).json({
+        error: 'Email service not configured',
+        code: 'SMTP_NOT_CONFIGURED',
+        message: 'Set SMTP_HOST, SMTP_USERNAME, SMTP_PASSWORD, SMTP_REPORTS_FROM_EMAIL on proxy server.',
+      });
+    }
+
+    const {
+      recipient_email,
+      subject,
+      html,
+      text,
+      from_email,
+      from_name,
+      report_type,
+    } = req.body || {};
+
+    if (!recipient_email || !EMAIL_REGEX.test(String(recipient_email))) {
+      return res.status(400).json({
+        error: 'recipient_email is required and must be valid',
+        code: 'INVALID_RECIPIENT',
+      });
+    }
+
+    if (!subject || !html) {
+      return res.status(400).json({
+        error: 'subject and html are required',
+        code: 'INVALID_PAYLOAD',
+      });
+    }
+
+    const effectiveFromEmail = from_email || SMTP_REPORTS_FROM_EMAIL;
+    const effectiveFromName = from_name || SMTP_REPORTS_FROM_NAME;
+
+    const transporter = nodemailer.createTransport({
+      host: SMTP_HOST,
+      port: SMTP_PORT,
+      secure: SMTP_PORT === 465,
+      auth: {
+        user: SMTP_USERNAME,
+        pass: SMTP_PASSWORD,
+      },
+      connectionTimeout: 15000,
+      greetingTimeout: 15000,
+      socketTimeout: 20000,
+    });
+
+    await transporter.sendMail({
+      from: `${effectiveFromName} <${effectiveFromEmail}>`,
+      to: recipient_email,
+      subject,
+      html,
+      text: text || `FieldOps report (${report_type || 'dashboard'}) attached in HTML body.`,
+    });
+
+    console.log('✅ Report email relayed:', recipient_email);
+    return res.status(200).json({ success: true, delivery: 'proxy_relay' });
+  } catch (error) {
+    const message = String(error?.message || error || 'Unknown SMTP error').slice(0, 400);
+    console.error('❌ Report relay error:', message);
+    return res.status(500).json({
+      error: 'Failed to relay report email',
       code: 'SMTP_SEND_FAILED',
       details: message,
     });
@@ -957,6 +1037,7 @@ app.get('/api/info', (req, res) => {
       nzscvVehicleInfo: 'POST /api/nzscv/vehicle-info',
       motorwebOwnerCheck: 'GET /motorweb/currentOwnerCheck?plateOrVin=ABC123&specificReason=...',
       sendInviteEmail: 'POST /api/email/send-invite',
+      sendReportEmail: 'POST /api/email/send-report',
       disputeLookup: 'POST /api/disputes/lookup',
       disputeSubmit: 'POST /api/disputes/submit',
     },

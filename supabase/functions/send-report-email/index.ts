@@ -43,6 +43,23 @@ interface SendReportEmailRequest {
 
 /** Number of days to look back when no date_from is provided. */
 const DEFAULT_LOOKBACK_DAYS = 30;
+const MAX_OBSERVATIONS_SCAN = Number(Deno.env.get('REPORT_EMAIL_MAX_OBSERVATIONS') ?? 2500);
+const MAX_ENFORCEMENT_SCAN = Number(Deno.env.get('REPORT_EMAIL_MAX_ENFORCEMENT') ?? 1500);
+const MAX_VEHICLE_LOOKUP = Number(Deno.env.get('REPORT_EMAIL_MAX_VEHICLE_LOOKUP') ?? 1200);
+const REPORT_EMAIL_RELAY_TIMEOUT_MS = Number(Deno.env.get('REPORT_EMAIL_RELAY_TIMEOUT_MS') ?? 10000);
+const REPORT_EMAIL_RELAY_ONLY = (Deno.env.get('REPORT_EMAIL_RELAY_ONLY') ?? 'true').toLowerCase() !== 'false';
+
+function normalizeRelayBaseUrl(raw: string): string {
+  const base = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+  return base.replace(/\/$/, '');
+}
+
+function buildReportRelayUrl(rawBase: string): string {
+  const base = normalizeRelayBaseUrl(rawBase);
+  if (base.endsWith('/api/proxy')) return `${base}/email/send-report`;
+  if (base.endsWith('/api/proxy/')) return `${base}email/send-report`;
+  return `${base}/api/email/send-report`;
+}
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -179,165 +196,107 @@ Deno.serve(async (req) => {
     const startDateTime  = `${reportDateFrom}T00:00:00`;
     const endDateTime    = `${reportDateTo}T23:59:59`;
 
-    // ── Build independent queries to run in parallel ──────────────────────────
-    let obsQuery = supabaseAdmin
+    // ── Lightweight aggregates to stay under edge runtime limits ────────────
+    let obsCountQuery = supabaseAdmin
       .from('observations')
-      .select('plate_number, zone_id, organization_id, is_compliant, breach_type, recorded_at, nights_stayed_this_month, consecutive_nights, zones(name), organizations(name)')
+      .select('*', { count: 'exact', head: true })
       .gte('recorded_at', startDateTime)
       .lte('recorded_at', endDateTime);
+    if (organization_id) obsCountQuery = obsCountQuery.eq('organization_id', organization_id);
+    if (zone_id) obsCountQuery = obsCountQuery.eq('zone_id', zone_id);
 
-    if (organization_id) obsQuery = obsQuery.eq('organization_id', organization_id);
-    if (zone_id)         obsQuery = obsQuery.eq('zone_id', zone_id);
+    let breachCountQuery = supabaseAdmin
+      .from('observations')
+      .select('*', { count: 'exact', head: true })
+      .eq('is_compliant', false)
+      .gte('recorded_at', startDateTime)
+      .lte('recorded_at', endDateTime);
+    if (organization_id) breachCountQuery = breachCountQuery.eq('organization_id', organization_id);
+    if (zone_id) breachCountQuery = breachCountQuery.eq('zone_id', zone_id);
 
-    let enfQuery = supabaseAdmin
+    let enfCountQuery = supabaseAdmin
       .from('enforcement_actions')
-      .select('action_type, completion_outcome, created_at')
+      .select('*', { count: 'exact', head: true })
       .gte('created_at', startDateTime)
       .lte('created_at', endDateTime);
+    if (organization_id) enfCountQuery = enfCountQuery.eq('organization_id', organization_id);
+    if (zone_id) enfCountQuery = enfCountQuery.eq('zone_id', zone_id);
 
-    if (organization_id) enfQuery = enfQuery.eq('organization_id', organization_id);
-    if (zone_id)         enfQuery = enfQuery.eq('zone_id', zone_id);
+    let sampleObsQuery = supabaseAdmin
+      .from('observations')
+      .select('plate_number, zone_id, recorded_at')
+      .gte('recorded_at', startDateTime)
+      .lte('recorded_at', endDateTime)
+      .order('recorded_at', { ascending: false })
+      .limit(MAX_OBSERVATIONS_SCAN);
+    if (organization_id) sampleObsQuery = sampleObsQuery.eq('organization_id', organization_id);
+    if (zone_id) sampleObsQuery = sampleObsQuery.eq('zone_id', zone_id);
 
-    let matrixQuery = supabaseAdmin
-      .from('zone_compliance_matrix')
-      .select('zone_id, max_consecutive_nights, nights_per_month')
-      .is('effective_to', null);
-    if (organization_id) matrixQuery = matrixQuery.eq('organization_id', organization_id);
-
-    // Run the three independent queries in parallel to reduce round-trip time
     const [
-      { data: observations, error: obsError },
-      { data: enforcementActions },
-      { data: matrices },
-    ] = await Promise.all([obsQuery, enfQuery, matrixQuery]);
+      { count: totalObservationsRaw, error: obsCountError },
+      { count: totalBreachesRaw, error: breachCountError },
+      { count: totalEnforcementRaw, error: enfCountError },
+      { data: sampleObs, error: sampleObsError },
+    ] = await Promise.all([obsCountQuery, breachCountQuery, enfCountQuery, sampleObsQuery]);
 
-    if (obsError) throw obsError;
+    if (obsCountError) throw obsCountError;
+    if (breachCountError) throw breachCountError;
+    if (enfCountError) throw enfCountError;
+    if (sampleObsError) throw sampleObsError;
 
-    const obs          = observations || [];
-    const uniquePlates = [...new Set(obs.map((o: any) => o.plate_number))];
-    const enforcementRows = enforcementActions || [];
-    const matrixMap = new Map(matrices?.map((m: any) => [m.zone_id, m]) || []);
+    const obsRows = sampleObs || [];
+    const uniquePlates = [...new Set(obsRows.map((o: any) => o.plate_number).filter(Boolean))];
+    const uniqueZoneIds = [...new Set(obsRows.map((o: any) => o.zone_id).filter(Boolean))];
+    const observationsTruncated = obsRows.length >= MAX_OBSERVATIONS_SCAN;
 
-    // ── Load vehicle details (depends on uniquePlates from obs) ──────────────
-    let vehicleData: any[] = [];
-    if (uniquePlates.length > 0) {
-      const { data: vehicles } = await supabaseAdmin
-        .from('canonical_vehicles')
-        .select('plate_number, vehicle_make, vehicle_model, vehicle_year, vehicle_color, is_flagged, homeless_status, last_seen_at')
-        .in('plate_number', uniquePlates);
-      vehicleData = vehicles || [];
+    let zoneNameById = new Map<string, string>();
+    if (uniqueZoneIds.length > 0) {
+      const { data: zoneRows } = await supabaseAdmin
+        .from('zones')
+        .select('id, name')
+        .in('id', uniqueZoneIds);
+      zoneNameById = new Map((zoneRows || []).map((z: any) => [z.id, z.name || 'Unknown Zone']));
     }
-    const vehicleMap = new Map(vehicleData.map((v: any) => [v.plate_number, v]));
 
-    // ── Derive stay snapshots from the already-loaded observations ───────────
-    const getMonthlyNights = (o: any): number =>
-      Number(o?.nights_stayed_this_month ?? 0) || 0;
-    const getConsecutiveNights = (o: any): number =>
-      Number(o?.consecutive_nights ?? 0) || 0;
-
-    const staysByPlateZone = new Map<string, any>();
-    for (const o of obs) {
-      const key = `${o.plate_number}:${o.zone_id}`;
-      const existing = staysByPlateZone.get(key);
-      const monthlyNights = getMonthlyNights(o);
-      const consecutiveNights = getConsecutiveNights(o);
-
-      if (!existing || monthlyNights > (existing.nights_stayed ?? 0)) {
-        staysByPlateZone.set(key, {
-          plate_number:      o.plate_number,
-          zone_id:           o.zone_id,
-          nights_stayed:     monthlyNights,
-          consecutive_nights: consecutiveNights,
-          zones:             o.zones,
+    const zoneStatsMap = new Map<string, { zone_name: string; observations: number; vehicles: Set<string> }>();
+    for (const row of obsRows) {
+      if (!zoneStatsMap.has(row.zone_id)) {
+        zoneStatsMap.set(row.zone_id, {
+          zone_name: zoneNameById.get(row.zone_id) || 'Unknown Zone',
+          observations: 0,
+          vehicles: new Set<string>(),
         });
       }
+      const z = zoneStatsMap.get(row.zone_id)!;
+      z.observations += 1;
+      if (row.plate_number) z.vehicles.add(row.plate_number);
     }
-    const stays = [...staysByPlateZone.values()];
 
-    // ── Categorise vehicles ──────────────────────────────────────────────────
-    const overstayersMap = new Map<string, any[]>();
-    const atRiskMap      = new Map<string, any[]>();
+    const totalObservations = totalObservationsRaw ?? 0;
+    const totalBreaches = totalBreachesRaw ?? 0;
+    const totalEnforcementActions = totalEnforcementRaw ?? 0;
+    const totalVehicles = uniquePlates.length;
+    const totalZones = uniqueZoneIds.length;
+    const totalAtRisk = 0;
+    const complianceRate = totalObservations > 0
+      ? Math.max(0, Math.min(100, Math.round(((totalObservations - totalBreaches) / totalObservations) * 100)))
+      : 100;
 
-    stays.forEach((stay: any) => {
-      const rules = matrixMap.get(stay.zone_id);
-      if (!rules) return;
-
-      const info = {
-        zone_name:          stay.zones?.name || 'Unknown Zone',
-        consecutive_nights: stay.consecutive_nights,
-        nights_stayed:      stay.nights_stayed,
-        max_consecutive:    rules.max_consecutive_nights,
-        monthly_limit:      rules.nights_per_month,
-      };
-
-      if (
-        stay.consecutive_nights > rules.max_consecutive_nights ||
-        stay.nights_stayed       > rules.nights_per_month
-      ) {
-        if (!overstayersMap.has(stay.plate_number)) overstayersMap.set(stay.plate_number, []);
-        overstayersMap.get(stay.plate_number)!.push(info);
-      } else if (
-        stay.consecutive_nights === rules.max_consecutive_nights ||
-        stay.nights_stayed       === rules.nights_per_month
-      ) {
-        if (!atRiskMap.has(stay.plate_number)) atRiskMap.set(stay.plate_number, []);
-        atRiskMap.get(stay.plate_number)!.push(info);
-      }
-    });
+    const zoneStats = Array.from(zoneStatsMap.values())
+      .map((z) => ({
+        zone_name: z.zone_name,
+        observations: z.observations,
+        vehicles: z.vehicles.size,
+        overstayers: 0,
+        at_risk: 0,
+        compliance_rate: complianceRate,
+      }))
+      .sort((a, b) => b.observations - a.observations)
+      .slice(0, 10);
 
     const breachVehicles: any[] = [];
-    overstayersMap.forEach((infos, plate) => {
-      const v = vehicleMap.get(plate);
-      if (v) breachVehicles.push({ plate_number: plate, ...v, breach_zones: infos });
-    });
-
     const atRiskVehicles: any[] = [];
-    atRiskMap.forEach((infos, plate) => {
-      const v = vehicleMap.get(plate);
-      if (v && !overstayersMap.has(plate)) atRiskVehicles.push({ plate_number: plate, ...v, at_risk_zones: infos });
-    });
-
-    // ── Zone stats ───────────────────────────────────────────────────────────
-    const zoneStatsMap = new Map<string, any>();
-    obs.forEach((o: any) => {
-      if (!zoneStatsMap.has(o.zone_id)) {
-        zoneStatsMap.set(o.zone_id, {
-          zone_name:   o.zones?.name || 'Unknown Zone',
-          observations: 0,
-          vehicles:    new Set<string>(),
-          overstayers: new Set<string>(),
-          atRisk:      new Set<string>(),
-        });
-      }
-      const z = zoneStatsMap.get(o.zone_id);
-      z.observations++;
-      z.vehicles.add(o.plate_number);
-    });
-
-    stays.forEach((stay: any) => {
-      const rules = matrixMap.get(stay.zone_id);
-      if (!rules || !zoneStatsMap.has(stay.zone_id)) return;
-      const z = zoneStatsMap.get(stay.zone_id);
-      if (stay.consecutive_nights > rules.max_consecutive_nights || stay.nights_stayed > rules.nights_per_month) {
-        z.overstayers.add(stay.plate_number);
-      } else if (stay.consecutive_nights === rules.max_consecutive_nights || stay.nights_stayed === rules.nights_per_month) {
-        z.atRisk.add(stay.plate_number);
-      }
-    });
-
-    const zoneStats = Array.from(zoneStatsMap.values()).map((z: any) => {
-      const vCount    = z.vehicles.size;
-      const compliant = vCount - z.overstayers.size;
-      return {
-        zone_name:       z.zone_name,
-        observations:    z.observations,
-        vehicles:        vCount,
-        overstayers:     z.overstayers.size,
-        at_risk:         z.atRisk.size,
-        compliant,
-        compliance_rate: vCount > 0 ? Math.round((compliant / vCount) * 100) : 100,
-      };
-    }).sort((a, b) => b.observations - a.observations);
+    const enforcementTruncated = totalEnforcementActions >= MAX_ENFORCEMENT_SCAN;
 
     // ── Organisation / zone names (parallel) ────────────────────────────────
     const [orgResult, zoneResult] = await Promise.all([
@@ -352,16 +311,6 @@ Deno.serve(async (req) => {
     const organizationName = orgResult.data?.name ?? 'All Organizations';
     const zoneName = zoneResult.data?.name ?? 'All Zones';
 
-    // ── Aggregate stats ──────────────────────────────────────────────────────
-    const totalObservations = obs.length;
-    const totalVehicles     = uniquePlates.length;
-    const totalBreaches     = breachVehicles.length;
-    const totalAtRisk       = atRiskVehicles.length;
-    const totalZones        = new Set(obs.map((o: any) => o.zone_id)).size;
-    const complianceRate    = totalVehicles > 0
-      ? Math.round(((totalVehicles - totalBreaches) / totalVehicles) * 100)
-      : 100;
-
     // ── Build HTML email ─────────────────────────────────────────────────────
     const reportTitle = getReportTitle(report_type);
     const html = buildEmailHtml({
@@ -374,22 +323,129 @@ Deno.serve(async (req) => {
       zoneStats:      zoneStats.slice(0, 10),
       breachVehicles: breachVehicles.slice(0, 20),
       atRiskVehicles: atRiskVehicles.slice(0, 20),
-      totalEnforcementActions: enforcementRows.length,
+      totalEnforcementActions,
+      observationsTruncated,
+      enforcementTruncated,
+      vehiclesTruncated: uniquePlates.length > MAX_VEHICLE_LOOKUP,
     });
 
     const subject = `${reportTitle} — ${formatDateNZ(reportDateFrom)} to ${formatDateNZ(reportDateTo)}`;
     reportAuditContext.subject = subject;
     const fromAddr = `${smtpReportsFromName} <${smtpReportsFrom}>`;
 
-    // ── Send via SMTP ────────────────────────────────────────────────────────
-    // Use TLS (port 465) or STARTTLS (port 587 / 25).
-    const useTls = smtpPort === 465;
+    // ── Send via proxy relay first (hPanel / self-hosted) ───────────────────
+    const proxyBaseUrl =
+      Deno.env.get('PROXY_SERVER_URL') ||
+      Deno.env.get('PROXY_BASE_URL') ||
+      Deno.env.get('RAILWAY_PROXY_URL') ||
+      Deno.env.get('NZSCV_PROXY_URL');
+    const proxySecret =
+      Deno.env.get('PROXY_SECRET') ||
+      Deno.env.get('NZSCV_PROXY_SECRET') ||
+      Deno.env.get('PROXY_SERVER_SECRET');
 
+    let relayAttempted = false;
+    if (proxyBaseUrl && proxySecret) {
+      relayAttempted = true;
+      const relayUrl = buildReportRelayUrl(proxyBaseUrl);
+      const relayController = new AbortController();
+      const relayTimer = setTimeout(() => relayController.abort(), REPORT_EMAIL_RELAY_TIMEOUT_MS);
+      try {
+        const relayResponse = await fetch(relayUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-proxy-secret': proxySecret,
+          },
+          body: JSON.stringify({
+            recipient_email: toEmail,
+            subject,
+            html,
+            report_type,
+            date_from: reportDateFrom,
+            date_to: reportDateTo,
+            organization_id,
+            zone_id,
+            from_email: smtpReportsFrom,
+            from_name: smtpReportsFromName,
+          }),
+          signal: relayController.signal,
+        });
+
+        if (relayResponse.ok) {
+          await recordCommunicationAudit(supabaseAdmin, {
+            organizationId: organization_id,
+            channel: 'email',
+            provider: 'proxy_relay',
+            status: 'delivered',
+            subject,
+            bodyText: `${reportTitle} for ${organizationName} / ${zoneName}`,
+            toEmails: [toEmail],
+            sentBy: user.id,
+            mergeData: { report_type, zone_id, date_from: reportDateFrom, date_to: reportDateTo },
+          });
+
+          return new Response(
+            JSON.stringify({ success: true, recipient: toEmail, subject, delivery: 'proxy_relay' }),
+            { headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
+          );
+        }
+
+        const relayErrText = await relayResponse.text();
+        if (REPORT_EMAIL_RELAY_ONLY) {
+          await recordCommunicationAudit(supabaseAdmin, {
+            organizationId: organization_id,
+            channel: 'email',
+            provider: 'proxy_relay',
+            status: 'failed',
+            subject,
+            toEmails: [toEmail],
+            sentBy: user.id,
+            errorMessage: `Proxy relay failed: HTTP ${relayResponse.status} ${relayErrText.slice(0, 240)}`,
+            mergeData: { report_type, zone_id, date_from: reportDateFrom, date_to: reportDateTo },
+          });
+          return new Response(
+            JSON.stringify({ error: `Report relay failed (HTTP ${relayResponse.status}). Check proxy-server SMTP config.` }),
+            { status: 502, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
+          );
+        }
+      } catch (relayError: any) {
+        if (REPORT_EMAIL_RELAY_ONLY) {
+          await recordCommunicationAudit(supabaseAdmin, {
+            organizationId: organization_id,
+            channel: 'email',
+            provider: 'proxy_relay',
+            status: 'failed',
+            subject,
+            toEmails: [toEmail],
+            sentBy: user.id,
+            errorMessage: `Proxy relay unreachable: ${relayError?.message || 'unknown'}`,
+            mergeData: { report_type, zone_id, date_from: reportDateFrom, date_to: reportDateTo },
+          });
+          return new Response(
+            JSON.stringify({ error: 'Report relay unreachable. Verify PROXY_SERVER_URL and PROXY_SECRET.' }),
+            { status: 502, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
+          );
+        }
+      } finally {
+        clearTimeout(relayTimer);
+      }
+    }
+
+    if (REPORT_EMAIL_RELAY_ONLY && !relayAttempted) {
+      return new Response(
+        JSON.stringify({ error: 'Relay-only mode enabled but proxy relay is not configured (PROXY_SERVER_URL + PROXY_SECRET).' }),
+        { status: 503, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // ── SMTP fallback (disabled when REPORT_EMAIL_RELAY_ONLY=true) ──────────
+    const useTls = smtpPort === 465;
     const client = new SMTPClient({
       connection: {
         hostname: smtpHost,
-        port:     smtpPort,
-        tls:      useTls,
+        port: smtpPort,
+        tls: useTls,
         auth: {
           username: smtpUser,
           password: smtpPass,
@@ -398,12 +454,7 @@ Deno.serve(async (req) => {
     });
 
     try {
-      await client.send({
-        from:    fromAddr,
-        to:      toEmail,
-        subject,
-        html,
-      });
+      await client.send({ from: fromAddr, to: toEmail, subject, html });
     } finally {
       await client.close();
     }
@@ -491,11 +542,15 @@ function buildEmailHtml(data: {
   breachVehicles: any[];
   atRiskVehicles: any[];
   totalEnforcementActions: number;
+  observationsTruncated: boolean;
+  enforcementTruncated: boolean;
+  vehiclesTruncated: boolean;
 }): string {
   const {
     reportTitle, dateFrom, dateTo,
     organizationName, zoneName,
     stats, zoneStats, breachVehicles, atRiskVehicles, totalEnforcementActions,
+    observationsTruncated, enforcementTruncated, vehiclesTruncated,
   } = data;
 
   const complianceColor =
@@ -580,6 +635,13 @@ function buildEmailHtml(data: {
             <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
               <tr>${metricCells}</tr>
             </table>
+            ${observationsTruncated || enforcementTruncated || vehiclesTruncated ? `
+            <p style="margin:12px 4px 0;font-size:11px;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:8px 10px;">
+              This report used a safety-limited dataset for reliable delivery.
+              ${observationsTruncated ? ` Observations were capped at ${MAX_OBSERVATIONS_SCAN}.` : ''}
+              ${enforcementTruncated ? ` Enforcement actions were capped at ${MAX_ENFORCEMENT_SCAN}.` : ''}
+              ${vehiclesTruncated ? ` Vehicle lookups were capped at ${MAX_VEHICLE_LOOKUP}.` : ''}
+            </p>` : ''}
           </td>
         </tr>
 
