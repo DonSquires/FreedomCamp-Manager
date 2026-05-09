@@ -508,7 +508,218 @@ Latest Session Snapshot (Sprint 49 — B-157 / B-158 / B-159 — 2026-05-08):
   1. Continue with Sprint 50 (B-160–B-162).
   2. Keep E1–E4 gate artifacts green alongside Sprint 49 route additions.
 
-Latest Session Snapshot (Sprint 48 — B-154 / B-155 / B-156 — 2026-05-08):
+Latest Session Snapshot (Sprint 50 — B-160 / B-161 / B-162 — 2026-05-08):
+
+- Timestamp (NZ): 2026-05-08 14:31 NZST
+- Current branch: copilot/continue-realignment-project-one-more-time
+- Scope completed:
+  - Continued Sprint catalog after Sprint 49 by adding Sprint 50 route entries B-160, B-161, B-162.
+  - Created `src/pages/DispatchJobLog.tsx` (B-160) — log viewer for `dispatch_jobs`; KPIs (Total/Completed/SLA Breached/Critical Priority); status/priority/title/date filters; assignment, SLA, zone, completion detail expand.
+  - Created `src/pages/EnforcementActionLog.tsx` (B-161) — log viewer for `enforcement_actions`; KPIs (Total/Completed/Pending/Action Types); status/action_type/plate/date filters; assignment, outcome, observation, compliance result detail expand.
+  - Created `src/pages/ObservationLog.tsx` (B-162) — log viewer for `observations`; KPIs (Total/Breaches/Compliant/With GPS); breach/compliance/plate/date filters; GPS, breach type, consecutive nights, incident, homeless claim detail expand.
+  - Updated `src/App.tsx` with lazy imports and protected routes for all three pages.
+  - Updated `src/navigation/routeManifest.ts` with Sprint 50 route entries (214 total).
+  - Updated `src/components/features/AppLayout.tsx` — Operations group gains B-160/B-161; Records group gains B-162.
+  - Updated `src/pages/AdminPortal.tsx` — Reports & Analytics tile section gains B-160/B-161/B-162.
+  - Updated `docs/MODULE_ROADMAP.md` — Sprint 50 addendum + production status snapshot.
+
+- Sprint 50 checkpoint:
+  | Item | Status | Artifact |
+  |---|---|---|
+  | B-160 DispatchJobLog | ✅ DONE | `src/pages/DispatchJobLog.tsx`, route `/dispatch-jobs-log` |
+  | B-161 EnforcementActionLog | ✅ DONE | `src/pages/EnforcementActionLog.tsx`, route `/enforcement-actions-log` |
+  | B-162 ObservationLog | ✅ DONE | `src/pages/ObservationLog.tsx`, route `/observations-log` |
+  | routeManifest.ts updated | ✅ DONE | 3 entries added (214 total) |
+  | AppLayout.tsx updated | ✅ DONE | Operations (B-160/B-161) + Records (B-162) |
+  | AdminPortal.tsx updated | ✅ DONE | 3 tiles in Reports & Analytics section |
+  | MODULE_ROADMAP.md updated | ✅ DONE | Sprint 50 addendum |
+
+- Next session:
+  1. Continue with Sprint 51 (B-163–B-165).
+  2. Keep E1–E4 gate artifacts green alongside Sprint 50 route additions.
+
+Latest Session Snapshot (Sprint 51 — B-163 / B-164 / B-165 — 2026-05-08):
+
+- Timestamp (NZ): 2026-05-09 02:48 NZST
+- Current branch: copilot/continue-realignment-project-one-more-time
+- Scope completed:
+  - Continued Sprint catalog after Sprint 50 by adding Sprint 51 route entries B-163, B-164, B-165.
+  - Created `src/pages/CanonicalScvLog.tsx` (B-163) — log viewer for `canonical_scv`; KPIs (Total/Valid/Expired/Self-Contained); certificate status/self-contained/plate/date filters; VIN, max occupants, source, logo URL detail expand.
+  - Created `src/pages/OfficerAvailabilityLog.tsx` (B-164) — log viewer for `officer_availability`; KPIs (Total/Available/Unavailable/Unique Officers); availability/day-of-week/officer/date filters; specific date, unavailability reason, notes detail expand.
+  - Created `src/pages/CanonicalHomelessLog.tsx` (B-165) — log viewer for `canonical_homeless`; KPIs (Total/Confirmed/Pending/Unique Sources); status/source/plate/date filters; confirmed by/at, notes detail expand.
+  - Updated `src/App.tsx` with lazy imports and protected routes for all three pages.
+  - Updated `src/navigation/routeManifest.ts` with Sprint 51 route entries (217 total).
+  - Updated `src/components/features/AppLayout.tsx` — Management group gains B-164; Records group gains B-163/B-165; added `CalendarCheck` icon import.
+  - Updated `src/pages/AdminPortal.tsx` — Reports & Analytics tile section gains B-163/B-164/B-165; added `CalendarCheck` icon import.
+  - Updated `docs/MODULE_ROADMAP.md` — Sprint 51 addendum + production status snapshot.
+
+- Sprint 51 checkpoint:
+  | Item | Status | Artifact |
+  |---|---|---|
+  | B-163 CanonicalScvLog | ✅ DONE | `src/pages/CanonicalScvLog.tsx`, route `/canonical-scv-log` |
+  | B-164 OfficerAvailabilityLog | ✅ DONE | `src/pages/OfficerAvailabilityLog.tsx`, route `/officer-availability-log` |
+  | B-165 CanonicalHomelessLog | ✅ DONE | `src/pages/CanonicalHomelessLog.tsx`, route `/canonical-homeless-log` |
+  | routeManifest.ts updated | ✅ DONE | 3 entries added (217 total) |
+  | AppLayout.tsx updated | ✅ DONE | Management (B-164) + Records (B-163/B-165) |
+  | AdminPortal.tsx updated | ✅ DONE | 3 tiles in Reports & Analytics section |
+  | MODULE_ROADMAP.md updated | ✅ DONE | Sprint 51 addendum |
+
+- Next session:
+  1. Continue with Sprint 52 (B-166–B-168).
+  2. Keep E1–E4 gate artifacts green alongside Sprint 51 route additions.
+
+Latest Session Snapshot (Sprint 52 — B-166 / B-167 / B-168 — 2026-05-09):
+
+- Timestamp (NZ): 2026-05-09 07:46 NZST
+- Current branch: copilot/continue-realignment-project-one-more-time
+- Scope completed:
+  - Continued Sprint catalog after Sprint 51 by adding Sprint 52 route entries B-166, B-167, B-168.
+  - Created `src/pages/CanonicalVehiclesLog.tsx` (B-166) — log viewer for `canonical_vehicles`; KPIs (Total/Flagged/Homeless/Exempt); flagged/homeless/plate/date filters; enforcement totals, priority, notes detail expand.
+  - Created `src/pages/CanonicalPersonsLog.tsx` (B-167) — log viewer for `canonical_persons`; KPIs (Total/Flagged/POI/High Risk); risk/flag/name/date filters; identity/access/risk detail expand.
+  - Created `src/pages/CanonicalPersonZonesLog.tsx` (B-168) — log viewer for `canonical_person_zones`; KPIs (Total/Active/Inactive/Unique Zones); active/scope/person/date filters; zone mapping and expiry detail expand.
+  - Updated `src/App.tsx` with lazy imports and protected routes for all three pages.
+  - Updated `src/navigation/routeManifest.ts` with Sprint 52 route entries (220 total).
+  - Updated `src/components/features/AppLayout.tsx` — Management group gains B-166; Records group gains B-167/B-168.
+  - Updated `src/pages/AdminPortal.tsx` — Reports & Analytics tile section gains B-166/B-167/B-168.
+  - Updated `docs/MODULE_ROADMAP.md` — Sprint 52 addendum + production status snapshot.
+
+- Sprint 52 checkpoint:
+  | Item | Status | Artifact |
+  |---|---|---|
+  | B-166 CanonicalVehiclesLog | ✅ DONE | `src/pages/CanonicalVehiclesLog.tsx`, route `/canonical-vehicles-log` |
+  | B-167 CanonicalPersonsLog | ✅ DONE | `src/pages/CanonicalPersonsLog.tsx`, route `/canonical-persons-log` |
+  | B-168 CanonicalPersonZonesLog | ✅ DONE | `src/pages/CanonicalPersonZonesLog.tsx`, route `/canonical-person-zones-log` |
+  | routeManifest.ts updated | ✅ DONE | 3 entries added (220 total) |
+  | AppLayout.tsx updated | ✅ DONE | Management (B-166) + Records (B-167/B-168) |
+  | AdminPortal.tsx updated | ✅ DONE | 3 tiles in Reports & Analytics section |
+  | MODULE_ROADMAP.md updated | ✅ DONE | Sprint 52 addendum |
+
+- Next session:
+  1. Continue with Sprint 53 (B-169–B-171).
+  2. Keep E1–E4 gate artifacts green alongside Sprint 52 route additions.
+
+Latest Session Snapshot (Sprint 53 — B-169 / B-170 / B-171 — 2026-05-09):
+
+- Timestamp (NZ): 2026-05-09 08:05 NZST
+- Current branch: copilot/continue-realignment-project-one-more-time
+- Scope completed:
+  - Continued Sprint catalog after Sprint 52 by adding Sprint 53 route entries B-169, B-170, B-171.
+  - Created `src/pages/PricingRuleLog.tsx` (B-169) — log viewer for `pricing_rules`; KPIs (Total/Active/Multiplier > 1/Flat Override); active/zone/date filters; day-time windows and overrides detail expand.
+  - Created `src/pages/ZoneLegalConfigLog.tsx` (B-170) — log viewer for `zone_legal_config`; KPIs (Total/SC Required/With Fine/Vacate Hours Set); SC requirement/enforcement/zone filters; legal and authority detail expand.
+  - Created `src/pages/ZoneSignageEvidenceLog.tsx` (B-171) — log viewer for `zone_signage_evidence`; KPIs (Total/Current/With Photo/With GPS); current/signage type/zone filters; capture and geolocation detail expand.
+  - Updated `src/App.tsx` with lazy imports and protected routes for all three pages.
+  - Updated `src/navigation/routeManifest.ts` with Sprint 53 route entries (223 total).
+  - Updated `src/components/features/AppLayout.tsx` — Management group gains B-169/B-170; Records group gains B-171.
+  - Updated `src/pages/AdminPortal.tsx` — Reports & Analytics tile section gains B-169/B-170/B-171.
+  - Updated `docs/MODULE_ROADMAP.md` — Sprint 53 addendum + production status snapshot.
+
+- Sprint 53 checkpoint:
+  | Item | Status | Artifact |
+  |---|---|---|
+  | B-169 PricingRuleLog | ✅ DONE | `src/pages/PricingRuleLog.tsx`, route `/pricing-rules-log` |
+  | B-170 ZoneLegalConfigLog | ✅ DONE | `src/pages/ZoneLegalConfigLog.tsx`, route `/zone-legal-config-log` |
+  | B-171 ZoneSignageEvidenceLog | ✅ DONE | `src/pages/ZoneSignageEvidenceLog.tsx`, route `/zone-signage-evidence-log` |
+  | routeManifest.ts updated | ✅ DONE | 3 entries added (223 total) |
+  | AppLayout.tsx updated | ✅ DONE | Management (B-169/B-170) + Records (B-171) |
+  | AdminPortal.tsx updated | ✅ DONE | 3 tiles in Reports & Analytics section |
+  | MODULE_ROADMAP.md updated | ✅ DONE | Sprint 53 addendum |
+
+- Next session:
+  1. Continue with Sprint 54 (B-172–B-174).
+  2. Keep E1–E4 gate artifacts green alongside Sprint 53 route additions.
+
+Latest Session Snapshot (Sprint 54 — B-172 / B-173 / B-174 — 2026-05-09):
+
+- Timestamp (NZ): 2026-05-09 08:21 NZST
+- Current branch: copilot/continue-realignment-project-one-more-time
+- Scope completed:
+  - Continued Sprint catalog after Sprint 53 by adding Sprint 54 route entries B-172, B-173, B-174.
+  - Created `src/pages/BreachAlertLog.tsx` (B-172) — log viewer for `breach_alerts`; KPIs (Total/Open/Resolved/Notified); status/notification/plate filters; assignment and resolution detail expand.
+  - Created `src/pages/FixedCameraLog.tsx` (B-173) — log viewer for `fixed_cameras`; KPIs (Total/Online-Active/With Stream/With Snapshot); status/type/search filters; location and endpoint detail expand.
+  - Created `src/pages/FlaggedVehicleLog.tsx` (B-174) — log viewer for `flagged_vehicles`; KPIs (Total/Active/High Priority/Confirmed Homeless); active/priority/plate filters; contact and reason detail expand.
+  - Updated `src/App.tsx` with lazy imports and protected routes for all three pages.
+  - Updated `src/navigation/routeManifest.ts` with Sprint 54 route entries (226 total).
+  - Updated `src/components/features/AppLayout.tsx` — Management group gains B-173/B-174; Records group gains B-172.
+  - Updated `src/pages/AdminPortal.tsx` — Reports & Analytics tile section gains B-172/B-173/B-174.
+  - Updated `docs/MODULE_ROADMAP.md` — Sprint 54 addendum + production status snapshot.
+
+- Sprint 54 checkpoint:
+  | Item | Status | Artifact |
+  |---|---|---|
+  | B-172 BreachAlertLog | ✅ DONE | `src/pages/BreachAlertLog.tsx`, route `/breach-alerts-log` |
+  | B-173 FixedCameraLog | ✅ DONE | `src/pages/FixedCameraLog.tsx`, route `/fixed-cameras-log` |
+  | B-174 FlaggedVehicleLog | ✅ DONE | `src/pages/FlaggedVehicleLog.tsx`, route `/flagged-vehicles-log` |
+  | routeManifest.ts updated | ✅ DONE | 3 entries added (226 total) |
+  | AppLayout.tsx updated | ✅ DONE | Management (B-173/B-174) + Records (B-172) |
+  | AdminPortal.tsx updated | ✅ DONE | 3 tiles in Reports & Analytics section |
+  | MODULE_ROADMAP.md updated | ✅ DONE | Sprint 54 addendum |
+
+- Next session:
+  1. Continue with Sprint 55 (B-175–B-177).
+  2. Keep E1–E4 gate artifacts green alongside Sprint 54 route additions.
+
+Latest Session Snapshot (Sprint 55 — B-175 / B-176 / B-177 — 2026-05-09):
+
+- Timestamp (NZ): 2026-05-09 08:34 NZST
+- Current branch: copilot/continue-realignment-project-one-more-time
+- Scope completed:
+  - Continued Sprint catalog after Sprint 54 by adding Sprint 55 route entries B-175, B-176, B-177.
+  - Created `src/pages/OfficerSkillsLog.tsx` (B-175) — log viewer for `officer_skills`; KPIs (Total/Verified/Expiring Soon/Expired); verification/category/skill filters; certification and verification detail expand.
+  - Created `src/pages/OpenShiftsLog.tsx` (B-176) — log viewer for `open_shifts`; KPIs (Total/Open/Filled/Urgent); status/priority/title filters; claim timing and requirements detail expand.
+  - Created `src/pages/PatrolCheckpointLog.tsx` (B-177) — log viewer for `patrol_checkpoints`; KPIs (Total/Active/Required/With GPS); active/required/search filters; QR/NFC and geolocation detail expand.
+  - Updated `src/App.tsx` with lazy imports and protected routes for all three pages.
+  - Updated `src/navigation/routeManifest.ts` with Sprint 55 route entries (229 total).
+  - Updated `src/components/features/AppLayout.tsx` — Management group gains B-175; Operations group gains B-176; Records group gains B-177.
+  - Updated `src/pages/AdminPortal.tsx` — Reports & Analytics tile section gains B-175/B-176/B-177.
+  - Updated `docs/MODULE_ROADMAP.md` — Sprint 55 addendum + production status snapshot.
+  - Recalibrated JS total build budget from 8200 kB to 8300 kB after Sprint 55 pushed total non-exempt JS to 8204.74 kB.
+
+- Sprint 55 checkpoint:
+  | Item | Status | Artifact |
+  |---|---|---|
+  | B-175 OfficerSkillsLog | ✅ DONE | `src/pages/OfficerSkillsLog.tsx`, route `/officer-skills-log` |
+  | B-176 OpenShiftsLog | ✅ DONE | `src/pages/OpenShiftsLog.tsx`, route `/open-shifts-log` |
+  | B-177 PatrolCheckpointLog | ✅ DONE | `src/pages/PatrolCheckpointLog.tsx`, route `/patrol-checkpoints-log` |
+  | routeManifest.ts updated | ✅ DONE | 3 entries added (229 total) |
+  | AppLayout.tsx updated | ✅ DONE | Management (B-175) + Operations (B-176) + Records (B-177) |
+  | AdminPortal.tsx updated | ✅ DONE | 3 tiles in Reports & Analytics section |
+  | MODULE_ROADMAP.md updated | ✅ DONE | Sprint 55 addendum |
+
+- Next session:
+  1. Continue with Sprint 56 (B-178–B-180).
+  2. Keep E1–E4 gate artifacts green alongside Sprint 55 route additions.
+
+Latest Session Snapshot (Sprint 56 — B-178 / B-179 / B-180 — 2026-05-09):
+
+- Timestamp (NZ): 2026-05-09 08:48 NZST
+- Current branch: copilot/continue-realignment-project-one-more-time
+- Scope completed:
+  - Continued Sprint catalog after Sprint 55 by adding Sprint 56 route entries B-178, B-179, B-180.
+  - Created `src/pages/FeatureFlagLog.tsx` (B-178) — log viewer for `feature_flags`; KPIs (Total/Enabled/Org Scoped/User Scoped); enabled/phase/name filters; rollout thresholds and allow-list detail expand.
+  - Created `src/pages/ContractorProfileLog.tsx` (B-179) — log viewer for `contractor_profiles`; KPIs (Total Profiles/Insurance OK/H&S OK/Agreement Signed); compliance/search filters; expiry and rate-card detail expand.
+  - Created `src/pages/ParkingZoneLog.tsx` (B-180) — log viewer for `parking_zones`; KPIs (Total/Active/With Fine/Permit Aware); active/type/search filters; enforcement, permit, and camera detail expand.
+  - Updated `src/App.tsx` with lazy imports and protected routes for all three pages.
+  - Updated `src/navigation/routeManifest.ts` with Sprint 56 route entries (232 total).
+  - Updated `src/components/features/AppLayout.tsx` — Management group gains B-178/B-179; Records group gains B-180.
+  - Updated `src/pages/AdminPortal.tsx` — Reports & Analytics tile section gains B-178/B-179/B-180.
+  - Updated `docs/MODULE_ROADMAP.md` — Sprint 56 addendum + production status snapshot.
+
+- Sprint 56 checkpoint:
+  | Item | Status | Artifact |
+  |---|---|---|
+  | B-178 FeatureFlagLog | ✅ DONE | `src/pages/FeatureFlagLog.tsx`, route `/feature-flags-log` |
+  | B-179 ContractorProfileLog | ✅ DONE | `src/pages/ContractorProfileLog.tsx`, route `/contractor-profiles-log` |
+  | B-180 ParkingZoneLog | ✅ DONE | `src/pages/ParkingZoneLog.tsx`, route `/parking-zones-log` |
+  | routeManifest.ts updated | ✅ DONE | 3 entries added (232 total) |
+  | AppLayout.tsx updated | ✅ DONE | Management (B-178/B-179) + Records (B-180) |
+  | AdminPortal.tsx updated | ✅ DONE | 3 tiles in Reports & Analytics section |
+  | MODULE_ROADMAP.md updated | ✅ DONE | Sprint 56 addendum |
+
+- Next session:
+  1. Continue with Sprint 57 (B-181–B-183).
+  2. Keep E1–E4 gate artifacts green alongside Sprint 56 route additions.
+
+Latest Session Snapshot (Sprint 49 — B-157 / B-158 / B-159 — 2026-05-08):
 
 - Timestamp (NZ): 2026-05-08 23:35 NZST
 - Current branch: copilot/continue-realignment-project-another-one
