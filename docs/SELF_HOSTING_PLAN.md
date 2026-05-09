@@ -33,7 +33,7 @@
 | AI inference service (`Bob` + Ollama) | RunPod serverless pod |
 | NZSCV / MotorWeb proxy | Railway |
 | PTT / TURN server | Hostinger hPanel VPS |
-| Email | External SMTP (SendGrid / Zoho) |
+| Email | Hostinger hPanel SMTP (primary, domain-owned mailboxes) |
 
 ### Target (Self-Hosted) Stack
 
@@ -928,7 +928,7 @@ If full data sovereignty is required in future, consider [Supabase self-hosted](
 | NZSCV proxy | Railway ~$5–20/mo | ✅ Included in VPS |
 | Bob / Ollama | RunPod ~$20–80/mo (GPU hours) | ✅ CPU-only on VPS (slower) or keep GPU pod for heavy workloads |
 | PTT server | Already on hPanel | ✅ Unchanged |
-| Email | SendGrid / Zoho ~$5–15/mo | ✅ Included in Hostinger plan |
+| Email | Legacy third-party SMTP (optional transitional) | ✅ Included in Hostinger plan |
 | **Total saved** | **~$50–130/mo** | |
 
 > **GPU note:** Running Ollama on a CPU-only VPS is fine for `qwen2.5:7b` (~4GB RAM, ~2–4 tokens/sec). For `qwen2.5:32b` a GPU pod (RunPod or equivalent) is recommended and can be kept in the stack as a hybrid option — Ollama on VPS handles low-traffic chat, GPU pod handles heavy concurrent requests.

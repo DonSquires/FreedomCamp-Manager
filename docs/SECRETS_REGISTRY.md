@@ -310,7 +310,7 @@ These are available as `Deno.env.get('SECRET_NAME')` inside all Edge Functions. 
 
 | Secret | Required | Notes |
 |---|---|---|
-| `SMTP_HOST` | Required for email | e.g. `smtp.zoho.com` |
+| `SMTP_HOST` | Required for email | production: `smtp.hostinger.com` |
 | `SMTP_PORT` | Optional | Default: `465` |
 | `SMTP_USERNAME` | Required for email | Full mailbox email address |
 | `SMTP_PASSWORD` | Required for email | App-specific password |
@@ -399,7 +399,7 @@ Railway project: **Core** | Public URL set in `PROXY_SERVER_URL` GitHub secret
 | `MOTORWEB_API_KEY` | Required for MotorWeb | MotorWeb API key |
 | `MOTORWEB_ID_KEY` | Required for MotorWeb | MotorWeb identifier |
 | `MOTORWEB_BASE_URL` | Optional | Default: `https://robot.motorweb.co.nz` |
-| `SMTP_HOST` | Required for invite email | e.g. `smtp.zoho.com` |
+| `SMTP_HOST` | Required for invite email | production: `smtp.hostinger.com` |
 | `SMTP_PORT` | Optional | Default: `465` |
 | `SMTP_USERNAME` | Required for invite email | Full mailbox email address |
 | `SMTP_PASSWORD` | Required for invite email | App-specific password |

@@ -5690,3 +5690,21 @@ Open blockers with owner:
 
 - Sprint lanes through Sprint 70 are complete in staging evidence.
 - No additional staged sprints are defined in `docs/STAGING.md`.
+
+### Email Service Activation Audit (2026-05-09)
+
+Direction confirmed: hPanel/Hostinger SMTP is the canonical production email provider.
+
+Current observed state from live checks:
+
+1. Supabase SMTP secrets exist (`SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM_EMAIL`, `SMTP_FROM_NAME`).
+2. DNS currently resolves to legacy Zoho MX/SPF values (not hPanel MX/SPF), and `default._domainkey` TXT was not found.
+3. Live `send-report-email` invocation reached the function but returned `WORKER_RESOURCE_LIMIT`.
+
+Closeout checklist:
+
+1. Migrate DNS mail routing to hPanel values from hPanel DNS panel (MX/SPF/DKIM/DMARC).
+2. Remove legacy Zoho DNS records.
+3. Ensure Supabase Auth custom SMTP and Edge Function SMTP both use hPanel mailbox credentials.
+4. Re-run authenticated live `send-report-email` invocation until success response and inbox receipt are confirmed.
+5. Record final pass evidence and clear this section.

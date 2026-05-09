@@ -1,5 +1,13 @@
 # Email Setup — SMTP Secrets for FieldOps Manager
 
+## Canonical Provider Policy
+
+For production, the canonical provider is Hostinger hPanel SMTP for domain `fcmanager.co.nz`.
+
+- Primary SMTP host: `smtp.hostinger.com`
+- Primary sender mailbox: `noreply@fcmanager.co.nz`
+- Legacy providers (Zoho/SendGrid/other) are transitional only and should be removed from DNS and secrets once hPanel is active.
+
 ## Overview
 
 Three Supabase Edge Functions send email via SMTP:
@@ -33,7 +41,7 @@ URLs before checking the Edge Function SMTP secrets below.
 
 | Secret | Required | Default | Description |
 |---|---|---|---|
-| `SMTP_HOST` | **Yes** | — | SMTP server hostname (e.g. `smtp.sendgrid.net`) |
+| `SMTP_HOST` | **Yes** | — | SMTP server hostname (production: `smtp.hostinger.com`) |
 | `SMTP_PORT` | No | `587` | SMTP port. Use `587` for STARTTLS or `465` for implicit TLS |
 | `SMTP_USERNAME` | **Yes** | — | SMTP authentication username |
 | `SMTP_PASSWORD` | **Yes** | — | SMTP authentication password or API key |
@@ -60,11 +68,11 @@ Setting `SMTP_FROM_NAME` overrides all of these with a single value.
 
 ```bash
 supabase secrets set \
-  SMTP_HOST=smtp.sendgrid.net \
-  SMTP_PORT=587 \
-  SMTP_USERNAME=apikey \
-  SMTP_PASSWORD=SG.xxxxxxxx \
-  SMTP_FROM_EMAIL=noreply@yourdomain.co.nz \
+  SMTP_HOST=smtp.hostinger.com \
+  SMTP_PORT=465 \
+  SMTP_USERNAME=noreply@fcmanager.co.nz \
+  SMTP_PASSWORD=<hpanel_mailbox_password> \
+  SMTP_FROM_EMAIL=noreply@fcmanager.co.nz \
   SMTP_FROM_NAME="FieldOps Manager"
 ```
 
@@ -76,7 +84,10 @@ supabase secrets set \
 
 ---
 
-## Provider Examples
+## Provider Examples (Legacy / Optional)
+
+The examples below are supported by code, but are not the default production direction.
+Prefer hPanel SMTP unless an explicit architecture decision overrides this.
 
 ### SendGrid
 
@@ -132,6 +143,19 @@ You can also check which secrets are set:
 supabase secrets list
 ```
 
+### hPanel Migration Checklist (from legacy providers)
+
+1. Create mailbox in hPanel: `noreply@fcmanager.co.nz`.
+2. Set Supabase Edge Function SMTP secrets to hPanel values.
+3. Set Supabase Auth custom SMTP to same hPanel mailbox.
+4. Update DNS to hPanel mail routing:
+  - MX: `mx1.hostinger.com`, `mx2.hostinger.com` (or exact hPanel-provided values)
+  - SPF include for Hostinger mail
+  - DKIM TXT from hPanel
+  - DMARC policy (`p=quarantine` or stricter once stable)
+5. Remove legacy provider DNS entries (for example Zoho MX/SPF).
+6. Run live send test using `send-report-email` and verify inbox delivery.
+
 ---
 
 ## TLS Behaviour
@@ -152,5 +176,6 @@ The edge functions automatically choose the TLS mode based on the port:
 | `503 — Email service not configured. Missing Supabase secrets: …` | One or more required SMTP secrets are not set |
 | `SMTP timeout` | Firewall blocking outbound port 587/465, or wrong hostname |
 | `Authentication failed` | Wrong `SMTP_USERNAME` or `SMTP_PASSWORD` |
+| `WORKER_RESOURCE_LIMIT` | Edge Function runtime resource limit; check function logs, retry, and scale/runtime settings |
 | Emails arrive in spam | Missing SPF/DKIM/DMARC DNS records for the sending domain |
 | `certificate unknown` or TLS errors | Try switching `SMTP_PORT` between `587` and `465` |
