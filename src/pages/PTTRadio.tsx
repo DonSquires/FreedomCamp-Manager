@@ -39,6 +39,7 @@ import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
 import { useBobBrain } from '@/hooks/useBobBrain'
 import { useHybridWorkspaceHandshake } from '@/hooks/useHybridWorkspaceHandshake'
 import { useBobTranslator } from '@/hooks/useBobTranslator'
+import { usePTTTranslationPrefs } from '@/hooks/usePTTTranslationPrefs'
 import {
   usePTTStore,
   usePTTAvailable,
@@ -463,6 +464,10 @@ export default function PTTRadio() {
     completedAt: bobResponseCompletedAt,
     clearResponse,
   } = useBobBrain()
+  const {
+    readInterpreterTargetLanguagePreference,
+    saveInterpreterTargetLanguagePreference,
+  } = usePTTTranslationPrefs()
 
   // PTT store state
   const connectionStatus = usePTTStore((s) => s.connectionStatus)
@@ -2044,18 +2049,9 @@ export default function PTTRadio() {
         return
       }
 
-      const { data, error } = await (supabase.from('user_profiles') as any)
-        .select('notification_preferences')
-        .eq('id', user.id)
-        .single()
-
-      if (!cancelled && !error) {
-        const prefs = (data?.notification_preferences as Record<string, any> | null) ?? {}
-        const translation = (prefs.translation as Record<string, any> | undefined) ?? {}
-        const dbTargetLanguage = typeof translation.target_language === 'string' ? translation.target_language.trim() : ''
-        if (dbTargetLanguage) {
-          setInterpreterTargetLanguage(dbTargetLanguage)
-        }
+      const dbTargetLanguage = await readInterpreterTargetLanguagePreference(user.id)
+      if (!cancelled && dbTargetLanguage) {
+        setInterpreterTargetLanguage(dbTargetLanguage)
       }
 
       if (!cancelled) setInterpreterPrefsHydrated(true)
@@ -2065,7 +2061,7 @@ export default function PTTRadio() {
     return () => {
       cancelled = true
     }
-  }, [user?.id])
+  }, [user?.id, readInterpreterTargetLanguagePreference])
 
   useEffect(() => {
     if (!interpreterPrefsHydrated) return
@@ -2087,29 +2083,11 @@ export default function PTTRadio() {
     if (!user?.id) return
 
     const timer = setTimeout(async () => {
-      const { data } = await (supabase.from('user_profiles') as any)
-        .select('notification_preferences')
-        .eq('id', user.id)
-        .single()
-
-      const currentPrefs = (data?.notification_preferences as Record<string, any> | null) ?? {}
-      const nextPrefs = {
-        ...currentPrefs,
-        translation: {
-          ...(currentPrefs.translation || {}),
-          target_language: interpreterTargetLanguage,
-          primary_language: 'en-NZ',
-          region: 'NZ',
-        },
-      }
-
-      await (supabase.from('user_profiles') as any)
-        .update({ notification_preferences: nextPrefs } as never)
-        .eq('id', user.id)
+      await saveInterpreterTargetLanguagePreference(user.id, interpreterTargetLanguage)
     }, 350)
 
     return () => clearTimeout(timer)
-  }, [user?.id, interpreterTargetLanguage, interpreterPrefsHydrated])
+  }, [user?.id, interpreterTargetLanguage, interpreterPrefsHydrated, saveInterpreterTargetLanguagePreference])
 
   // Auto-transcribe the latest incoming PTT clip whenever it changes
   useEffect(() => {

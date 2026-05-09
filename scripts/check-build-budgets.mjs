@@ -7,7 +7,7 @@ import process from 'node:process'
 const DIST_ASSETS = path.resolve(process.cwd(), 'dist/assets')
 const DEFAULT_MAX_JS_KB = 550
 const DEFAULT_MAX_CSS_KB = 250
-const DEFAULT_MAX_TOTAL_JS_KB = 8100
+const DEFAULT_MAX_TOTAL_JS_KB = 8300
 const DEFAULT_EXEMPT_TOKENS = ['pdf.worker']
 
 function parseNumberEnv(name, fallback) {

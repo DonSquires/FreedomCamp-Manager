@@ -19,6 +19,11 @@ import { formatDistance, estimateEtaMinutes, formatEta, haversineKm } from '@/li
 import { useAuthStore } from '@/stores/authStore'
 import { useClientOrgIds } from '@/hooks/useClientOrgIds'
 import { useDispatchReplan } from '@/hooks/useDispatchReplan'
+import {
+  insertDispatchOfficerNotification,
+  useDispatchClientSitesLookup,
+  useDispatchZonesLookup,
+} from '@/hooks/useDispatchConsoleData'
 import { useOperationalCases } from '@/hooks/useOperationalCases'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
@@ -358,29 +363,14 @@ export default function DispatchConsole() {
   })
 
   // ── Client sites for create form ────────────────────────────────────────────
-  const { data: clientSites = [] } = useQuery({
-    queryKey: ['client-sites-lookup', orgId, clientOrgIds],
-    queryFn: async () => {
-      let q = (supabase as any)
-        .from('client_sites').select('id, name, address').eq('is_active', true)
-      // clientOrgIds === null means master (unrestricted)
-      if (clientOrgIds !== null) q = q.in('organization_id', clientOrgIds)
-      const { data } = await q
-      return data ?? []
-    },
-    enabled: !!orgId && !clientOrgIdsLoading,
+  const { data: clientSites = [] } = useDispatchClientSitesLookup({
+    orgId,
+    clientOrgIds,
+    clientOrgIdsLoading,
   })
 
   // ── Zones for create form ───────────────────────────────────────────────────
-  const { data: dispatchZones = [] } = useQuery({
-    queryKey: ['dispatch-zones-lookup', orgId],
-    queryFn: async () => {
-      const { data } = await (supabase as any)
-        .from('zones').select('id, name').eq('organization_id', orgId ?? '').eq('is_active', true).order('name')
-      return data ?? []
-    },
-    enabled: !!orgId,
-  })
+  const { data: dispatchZones = [] } = useDispatchZonesLookup({ orgId })
 
   // ── Summary stats ────────────────────────────────────────────────────────────
   const pending    = jobs.filter(j => j.status === 'pending').length
@@ -401,14 +391,14 @@ export default function DispatchConsole() {
 
       // Notify the officer
       const job = jobs.find(j => j.id === jobId)
-      await supabase.from('notifications').insert({
-        user_id:         officerId,
-        organization_id: orgId,
-        type:            'investigation_assigned',
-        title:           `Job Dispatched: ${job?.job_number}`,
-        body:            `${job?.title}${job?.address ? ' – ' + job.address : ''}`,
-        priority:        job?.priority ?? 'normal',
-        data:            { dispatch_job_id: jobId, job_number: job?.job_number },
+      await insertDispatchOfficerNotification({
+        officerId,
+        organizationId: orgId,
+        jobId,
+        jobNumber: job?.job_number,
+        jobTitle: job?.title,
+        jobAddress: job?.address,
+        priority: job?.priority,
       })
     },
     onSuccess: () => {

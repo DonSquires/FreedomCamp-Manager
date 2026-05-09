@@ -128,6 +128,9 @@ import {
   Eye,
   TicketX,
   UserX,
+  Clock,
+  CalendarCheck,
+  LayoutGrid,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { supabase } from '@/lib/supabase'
@@ -242,6 +245,12 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/notifications-log', icon: Bell, label: 'Notification Log', roles: ['admin', 'admin_officer', 'master'] },
       // Sprint 49: B-158
       { path: '/infringement-notices-log', icon: Receipt, label: 'Infringement Notice Log', roles: ['admin', 'admin_officer', 'master'] },
+      // Sprint 51: B-161
+      { path: '/breach-alerts-log', icon: AlertTriangle, label: 'Breach Alert Log', roles: ['admin', 'admin_officer', 'master'] },
+      // Sprint 52: B-165
+      { path: '/dispatch-jobs-log', icon: ClipboardList, label: 'Dispatch Job Log', roles: ['admin', 'admin_officer', 'master'] },
+      // Sprint 52: B-166
+      { path: '/enforcement-actions-log', icon: Gavel, label: 'Enforcement Action Log', roles: ['admin', 'admin_officer', 'master'] },
     ],
   },
   {
@@ -325,6 +334,14 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/organizations-log', icon: Building2, label: 'Organization Log', roles: ['master', 'grand_master'] },
       // Sprint 50: B-160
       { path: '/admin/video-generation', icon: BrainCircuit, label: 'Video Generation Suite', roles: ['admin', 'admin_officer', 'master'] },
+      // Sprint 53: B-168
+      { path: '/officer-availability-log', icon: CalendarCheck, label: 'Officer Availability Log', roles: ['admin', 'admin_officer', 'master'] },
+      // Sprint 53: B-169
+      { path: '/officer-shifts-log', icon: Clock, label: 'Officer Shift Log', roles: ['admin', 'admin_officer', 'master'] },
+      // Sprint 54: B-170
+      { path: '/open-shifts-log', icon: CalendarClock, label: 'Open Shift Log', roles: ['admin', 'admin_officer', 'master'] },
+      // Sprint 54: B-171
+      { path: '/zone-compliance-matrix-log', icon: LayoutGrid, label: 'Zone Compliance Matrix Log', roles: ['admin', 'admin_officer', 'master'] },
     ],
   },
   {
@@ -408,6 +425,14 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/face-records-log', icon: Camera, label: 'Face Record Log', roles: ['admin', 'admin_officer', 'master'] },
       // Sprint 49: B-159
       { path: '/site-risk-assessments-log', icon: ShieldAlert, label: 'Site Risk Assessment Log', roles: ['admin', 'admin_officer', 'master'] },
+      // Sprint 51: B-162
+      { path: '/canonical-homeless-log', icon: Tent, label: 'Canonical Homeless Log', roles: ['admin', 'admin_officer', 'master'] },
+      // Sprint 51: B-163
+      { path: '/canonical-scv-log', icon: ShieldCheck, label: 'Canonical SCV Log', roles: ['admin', 'admin_officer', 'master'] },
+      // Sprint 52: B-164
+      { path: '/canonical-vehicles-log', icon: Car, label: 'Canonical Vehicle Log', roles: ['admin', 'admin_officer', 'master'] },
+      // Sprint 53: B-167
+      { path: '/flagged-vehicles-log', icon: Flag, label: 'Flagged Vehicle Log', roles: ['admin', 'admin_officer', 'master'] },
     ],
   },
   {

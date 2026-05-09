@@ -1,9 +1,9 @@
 # Module Roadmap (Operator Navigation Map)
 
-Date: 2026-05-08 (verified against src/navigation/routeManifest.ts)
-Source of truth for routes: route manifest file src/navigation/routeManifest.ts (211 route manifest entries as of Sprint 49 completion)
+Date: 2026-05-09 (verified against src/navigation/routeManifest.ts)
+Source of truth for routes: route manifest file src/navigation/routeManifest.ts (265 route manifest entries after App-router parity backfill)
 
- > **Last Verification**: 2026-05-08 — Role-gating and route docs reviewed through Sprint 49 (B-159). Production main includes Sprints 31-49.
+ > **Last Verification**: 2026-05-09 — App.tsx to routeManifest parity backfill applied for 54 previously-missing routes.
 
 ## How To Use
 
@@ -812,6 +812,77 @@ New admin routes added in Sprint 49 (B-157, B-158, B-159):
    - Route: /site-risk-assessments-log
    - Role gate: admin, admin_officer, master
    - Viewer for site_risk_assessments; KPIs (Total/High+Critical/Open/Reviewed); risk/status/request/site/date filters; hazard count + controls/review detail expand
+
+## Sprint 51 Route Addendum (2026-05-09)
+
+New admin routes added in Sprint 51 (B-161, B-162, B-163):
+
+1. Breach Alert Log (B-161)
+   - Route: /breach-alerts-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for breach_alerts; date/status/type filters; assignment, notification, review, resolution metadata expand
+
+2. Canonical Homeless Log (B-162)
+   - Route: /canonical-homeless-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for canonical_homeless; active/source/date filters; plate linkage, observation history expand
+
+3. Canonical SCV Log (B-163)
+   - Route: /canonical-scv-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for canonical_scv; plate/status/date filters; compliance status and observation cross-refs expand
+
+## Sprint 52 Route Addendum (2026-05-09)
+
+New admin routes added in Sprint 52 (B-164, B-165, B-166):
+
+1. Canonical Vehicle Log (B-164)
+   - Route: /canonical-vehicles-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for canonical_vehicles; plate/owner/date filters; exemption, flag/homeless status, lifecycle totals expand
+
+2. Dispatch Job Log (B-165)
+   - Route: /dispatch-jobs-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for dispatch_jobs; job#/title/address search, status/type/priority/date filters; caller, GPS, SLA, case cross-refs expand
+
+3. Enforcement Action Log (B-166)
+   - Route: /enforcement-actions-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for enforcement_actions; plate/notes search, status/action_type/date filters; breach/vehicle/compliance links, assignment metadata expand
+
+## Sprint 53 Route Addendum (2026-05-09)
+
+New admin routes added in Sprint 53 (B-167, B-168, B-169):
+
+1. Flagged Vehicle Log (B-167)
+   - Route: /flagged-vehicles-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for flagged_vehicles; plate/reason/contact search, active/priority/date filters; creator/flagger/site/notes/status expand
+
+2. Officer Availability Log (B-168)
+   - Route: /officer-availability-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for officer_availability; availability/date filters; officer profile and schedule context expand
+
+3. Officer Shift Log (B-169)
+   - Route: /officer-shifts-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for officer_shifts; start/end times, approval status, shift type filters; officer assignment and welfare expand
+
+## Sprint 54 Route Addendum (2026-05-09)
+
+New admin routes added in Sprint 54 (B-170, B-171):
+
+1. Open Shift Log (B-170)
+   - Route: /open-shifts-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for open_shifts; title/description/creator/claimant search, status/date filters; shift window and claim history expand
+
+2. Zone Compliance Matrix Log (B-171)
+   - Route: /zone-compliance-matrix-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for zone_compliance_matrix; zone/status/date filters; max nights, seasonal rules, compliance threshold expand
 
 ## Production Status Snapshot (2026-05-08)
 
