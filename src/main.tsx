@@ -43,13 +43,13 @@ const appBootLoader = (
         <div className="absolute h-20 w-20 rounded-full border-[3px] border-cyan-300/20 border-t-cyan-300 animate-spin" />
         <img
           src="/iron-eagle-security-logo.jpg"
-          alt="Iron Eagle Security"
+          alt="Iron Eagle Security Limited"
           className="h-12 w-12 rounded-xl object-cover shadow-lg"
         />
       </div>
       <div className="space-y-1">
-        <p className="text-sm font-semibold uppercase tracking-[0.28em] text-cyan-200">Iron Eagle Security</p>
-        <h1 className="text-2xl font-bold text-white">FieldOps Manager</h1>
+        <p className="text-sm font-semibold uppercase tracking-[0.28em] text-cyan-200">Iron Eagle Security Limited</p>
+        <h1 className="text-2xl font-bold text-white">Field Compliance Manager</h1>
         <p className="text-sm text-slate-300">Preparing the Freedom Camp enforcement workspace...</p>
       </div>
     </div>

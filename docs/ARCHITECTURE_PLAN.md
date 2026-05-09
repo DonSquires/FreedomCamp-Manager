@@ -105,16 +105,16 @@ endpoint and poll for results.
 
 | Property | Value |
 |---|---|
-| Purpose | Staff / company inboxes (`admin@fcmanager.co.nz`, `support@…`, etc.) |
+| Purpose | Staff inboxes plus current production transactional SMTP for this build |
 | Accessed via | Standard IMAP/SMTP clients (Outlook, Apple Mail, webmail) |
 | DNS records | MX records pointing to Hostinger mail servers (see §3) |
 
-This is a traditional human-operated inbox tier. It is completely separate from the
-transactional / multi-tenant email path.  Never route application-generated email
-through hPanel — Hostinger imposes hourly sending caps that will break bulk
-organisation notifications.
+For the current production build, application-generated email is sent via managed
+Hostinger SMTP credentials wired through Supabase Edge Functions and the proxy relay.
+This keeps operational complexity low while preserving deliverability and security
+controls required for enterprise rollout.
 
-### 2.6 Multi-Tenant System Email — Postal (dedicated VPS)
+### 2.6 Multi-Tenant System Email — Postal (dedicated VPS, future option)
 
 | Property | Value |
 |---|---|
@@ -124,7 +124,11 @@ organisation notifications.
 | API | Postal HTTP API (called from Railway backend) |
 | Webhooks | Postal → Railway backend (inbound replies, bounce events) |
 
-#### Why a dedicated VPS is required
+This path is not the active production path for the current build. Use it only when
+you need tenant-level inbound reply routing and higher-volume mail controls beyond
+the managed SMTP baseline.
+
+#### Why a dedicated VPS is required (when enabled)
 
 Vercel, Railway, and RunPod are managed PaaS platforms that **block outbound port 25**
 to prevent abuse of their shared IP ranges.  Port 25 is the standard SMTP relay port
@@ -189,7 +193,7 @@ All records are managed in iwantmyname under `fcmanager.co.nz`.
 > Retrieve the exact DKIM and SPF values from **hPanel → Email → Email Accounts → DNS Records**.
 > Hostinger generates the DKIM key per domain.
 
-### 3.3 Multi-Tenant Organisation Email (Postal VPS)
+### 3.3 Multi-Tenant Organisation Email (Postal VPS, future option)
 
 | Record type | Name | Value | Priority | Notes |
 |---|---|---|---|---|

@@ -1547,7 +1547,7 @@ export default function BobAssistantStudio() {
                 role: 'user',
                 content: [
                   'Create a structured interactive training module from the source material below.',
-                  'This module is for FieldOps Manager and must support picture, video, and interactive learning activities, with Bob acting as tutor on incorrect answers.',
+                  'This module is for Field Compliance Manager and must support picture, video, and interactive learning activities, with Bob acting as tutor on incorrect answers.',
                   `Author role: ${String(user?.role || 'unknown')}.`,
                   `Author title: ${String(user?.job_title || 'unknown')}.`,
                   `Author name: ${authorName}.`,
@@ -3057,7 +3057,7 @@ export default function BobAssistantStudio() {
     const lines = testLines.length > MAX_LINES ? testLines.slice(-MAX_LINES) : testLines
     const truncated = testLines.length > MAX_LINES ? `\n(Showing last ${MAX_LINES} of ${testLines.length} lines)\n` : ''
     const summary = lines.map((l) => `${l.ok === true ? '✓' : l.ok === false ? '✗' : '→'} ${l.text}`).join('\n')
-    const prompt = `Here are the latest ${testSuiteLabel} results from inside the FieldOps Manager app. Please analyse them and highlight any issues, failures, or recommendations:${truncated}\n\n${summary}`
+    const prompt = `Here are the latest ${testSuiteLabel} results from inside the Field Compliance Manager app. Please analyse them and highlight any issues, failures, or recommendations:${truncated}\n\n${summary}`
     sendMessage(prompt)
   }
 

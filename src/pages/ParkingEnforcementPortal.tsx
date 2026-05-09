@@ -693,7 +693,7 @@ export default function ParkingEnforcementPortal() {
                 ParkPow Integration Sync
               </CardTitle>
               <CardDescription>
-                Synchronise FieldOps Manager zones, watchlists, and violations with ParkPow's enforcement platform.
+                Synchronise Field Compliance Manager zones, watchlists, and violations with ParkPow's enforcement platform.
                 Requires PARKPOW_API_TOKEN to be configured in Supabase secrets.
               </CardDescription>
             </CardHeader>

@@ -12,14 +12,14 @@
  */
 
 export const BOB_PROJECT_KNOWLEDGE = `
-# FieldOps Manager — Project Briefing for Bob Assistant
+# Field Compliance Manager — Project Briefing for Bob Assistant
 Compiled from authoritative build docs. Current as of April 2026.
 
 ---
 
 ## 1. What This Build Is
 
-FieldOps Manager (also called FreedomCamp Manager) is a web-based admin control centre for freedom camping enforcement in New Zealand. Operated by Iron Eagle Security / OnSpace AI, it connects field officers, admin teams, and client organisations in real time.
+Field Compliance Manager (formerly FreedomCamp Manager) is a web-based admin control centre for freedom camping enforcement in New Zealand. Operated by Iron Eagle Security Limited / OnSpace AI, it connects field officers, admin teams, and client organisations in real time.
 
 Five core jobs:
 1. Scan vehicles via camera/ALPR and evaluate compliance against zone rules

@@ -61,7 +61,7 @@ export const supabaseConfigured = !!(supabaseUrl && supabaseAnonKey)
 
 if (!supabaseConfigured) {
   console.warn(
-    '[FieldOps Manager] VITE_SUPABASE_URL and/or VITE_SUPABASE_ANON_KEY are not set. ' +
+    '[Field Compliance Manager] VITE_SUPABASE_URL and/or VITE_SUPABASE_ANON_KEY are not set. ' +
     'Configure these environment variables in your deployment platform ' +
     '(Environment Variables dashboard, or GitHub Secrets for the CI workflow). ' +
     'The application will not function until they are provided.'

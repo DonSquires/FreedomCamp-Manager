@@ -112,7 +112,7 @@ async function handleParkPowSync(req: Request) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// sync-lots: ensure every FieldOps Manager zone has a corresponding ParkPow lot
+// sync-lots: ensure every Field Compliance Manager zone has a corresponding ParkPow lot
 // ─────────────────────────────────────────────────────────────────────────────
 async function syncLots(supabase: ReturnType<typeof createClient>) {
   const { data: zones, error } = await supabase
@@ -175,11 +175,11 @@ async function syncWatchlist(supabase: ReturnType<typeof createClient>) {
   for (const v of vehicles ?? []) {
     try {
       if (v.is_flagged) {
-        const pv = await blockVehicle(v.plate_number, "Flagged in FieldOps Manager");
+        const pv = await blockVehicle(v.plate_number, "Flagged in Field Compliance Manager");
         await supabase.from("canonical_vehicles").update({ parkpow_vehicle_id: pv.id }).eq("id", v.id);
         blocked++;
       } else if (v.is_exempt) {
-        const pv = await permitVehicle(v.plate_number, "Exempt in FieldOps Manager");
+        const pv = await permitVehicle(v.plate_number, "Exempt in Field Compliance Manager");
         await supabase.from("canonical_vehicles").update({ parkpow_vehicle_id: pv.id }).eq("id", v.id);
         permitted++;
       }

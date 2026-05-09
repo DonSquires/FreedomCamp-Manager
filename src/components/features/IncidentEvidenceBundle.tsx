@@ -129,7 +129,7 @@ export function IncidentEvidenceBundle({ incidentId, className = '' }: IncidentE
   </div>
   ${noteRows ? `<div class="section"><h2>Enforcement Notes</h2><ul>${noteRows}</ul></div>` : ''}
   ${photoRows ? `<div class="section"><h2>Photos (${allPhotos.length})</h2>${photoRows}</div>` : ''}
-  <p style="font-size:10px;color:#999;margin-top:32px">FieldOps Manager — Confidential Document</p>
+  <p style="font-size:10px;color:#999;margin-top:32px">Field Compliance Manager — Confidential Document</p>
   <script>window.print()</script>
 </body>
 </html>`

@@ -538,7 +538,7 @@ export default function AiAnalysis() {
       'Treat this as a live intake where more excerpts can arrive later.',
       agreementClientName.trim() ? `Client candidate name: ${agreementClientName.trim()}.` : 'Client candidate name is not yet confirmed.',
       intakeExecutionMode === 'review_assess_action'
-        ? 'Execution mode: review, assess risk, and action. Do not stop at recommendations. Provide concrete next actions that an operator can execute immediately in FieldOps.'
+        ? 'Execution mode: review, assess risk, and action. Do not stop at recommendations. Provide concrete next actions that an operator can execute immediately in FCM.'
         : 'Execution mode: draft setup plan only.',
     ]
 
@@ -552,13 +552,13 @@ export default function AiAnalysis() {
       : []
 
     const serviceAgreementPrompt = [
-      'You are Bob, configuring FieldOps Manager from a service agreement.',
+      'You are Bob, configuring Field Compliance Manager from a service agreement.',
       ...commonInstructions,
       'Return in this exact structure:',
       '1) Extracted entities: clients, service provider, facilities/sites, services, frequencies, time windows, lock/unlock obligations, alarm response obligations, reporting/invoicing obligations.',
       '2) Proposed system actions: create/update client, create/update sites, assign service provider, create patrol templates, create gate lock schedules, create alarm response runbook, create reporting profile.',
       '3) Missing data to request next (because excerpt may be partial).',
-      '4) Safe SQL/edge-function plan using existing FieldOps entities only; do not invent tables.',
+      '4) Safe SQL/edge-function plan using existing FCM entities only; do not invent tables.',
       '5) A short operator checklist for admin/master to confirm before execution.',
       ...executionSuffix,
       '',
@@ -567,7 +567,7 @@ export default function AiAnalysis() {
     ].join('\n')
 
     const alarmMatrixPrompt = [
-      'You are Bob, configuring FieldOps Manager from an alarm/security escalation matrix.',
+      'You are Bob, configuring Field Compliance Manager from an alarm/security escalation matrix.',
       ...commonInstructions,
       'This is typically tabular and may include columns like site address, alarmed yes/no, business unit, response contact 1..4, revised date, and callout notes.',
       'Return in this exact structure:',
@@ -576,7 +576,7 @@ export default function AiAnalysis() {
       '3) Proposed system actions: create/update client sites, attach site security profile, set escalation workflow order, map contacts to site response roles, mark missing contacts.',
       '4) Data quality checks: duplicate phones, malformed numbers, ambiguous names, missing alarm flags, conflicting call order.',
       '5) Missing fields required before execution and a safe operator checklist for admin/master.',
-      '6) JSON payload examples for site + contact + escalation objects compatible with existing FieldOps entities only.',
+      '6) JSON payload examples for site + contact + escalation objects compatible with existing FCM entities only.',
       ...executionSuffix,
       '',
       'Matrix excerpts:',
@@ -591,7 +591,7 @@ export default function AiAnalysis() {
       '1) Normalized row schema and sample JSON rows: dispatch_id, client_name, site_name, po_reference, status, on_site_at_nz, off_site_at_nz, duration_minutes, visit_charge_nzd, source_quality_flags.',
       '2) Data quality report: missing timestamps, invalid timestamps, duplicates by dispatch ID, inconsistent statuses, probable OCR/spelling issues.',
       '3) Entity mapping plan: match site names to existing client_sites, identify unmatched sites to create, map client/provider organization context.',
-      '4) Import execution plan using existing FieldOps entities only: which table(s) to insert/update, idempotency key strategy, and rollback-safe staging approach.',
+      '4) Import execution plan using existing FCM entities only: which table(s) to insert/update, idempotency key strategy, and rollback-safe staging approach.',
       '5) KPI summary from the pasted sample: completed vs missed, average duration, charge totals, site-level completion rate, and anomaly list.',
       '6) Missing fields needed from operator before final import and an explicit operator checklist.',
       ...executionSuffix,
@@ -638,7 +638,7 @@ export default function AiAnalysis() {
         intakeExecutionMode === 'review_assess_action'
           ? 'Run as E2E review-assess-action: include decision gates, risk/confidence scores, and an execution checklist that can be actioned immediately.'
           : 'Run as planning mode with safe draft-only output.',
-        'Produce grounded implementation steps for existing FieldOps routes, stores, and Supabase entities only.',
+        'Produce grounded implementation steps for existing FCM routes, stores, and Supabase entities only.',
         '',
         chunks.map((chunk, index) => `Excerpt ${index + 1}:\n${chunk}`).join('\n\n'),
       ].join('\n')
@@ -672,7 +672,7 @@ export default function AiAnalysis() {
             <div>
               <h1 className="text-lg font-semibold leading-tight">Bob Analysis</h1>
               <p className="text-xs text-muted-foreground">
-                Bob inference agent and assistant for FieldOps Manager
+                Bob inference agent and assistant for Field Compliance Manager
               </p>
             </div>
           </div>

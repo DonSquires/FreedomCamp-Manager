@@ -66,7 +66,7 @@ export function PWAInstallPrompt() {
         <CardHeader className="pb-3">
           <div className="flex items-start justify-between">
             <div className="flex-1">
-              <CardTitle className="text-lg">Install FieldOps Manager</CardTitle>
+              <CardTitle className="text-lg">Install Field Compliance Manager</CardTitle>
               <CardDescription className="mt-1">
                 Install this app for offline access and faster loading
               </CardDescription>

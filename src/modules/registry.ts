@@ -114,7 +114,7 @@ export const SERVICE_MODULES: Record<ModuleId, ServiceModule> = {
   core: {
     id: 'core',
     name: 'Core Platform (CRM Hub)',
-    description: 'CRM-centric platform hub with Iron Eagle Security as the platform owner. CRM Features: Accounts/Organizations (hierarchical), Users (assigned to accounts), Zones/Sites (owned by accounts), Contacts (stakeholders), Contracts (with line items & SLAs), Invoices & Payments, Activities (calls, meetings, tasks), Opportunities (sales pipeline), Documents & Notes, Tags & Account History. Platform Features: Live officer tracking, PTT/Team Chat, Officer welfare system, Self-healing bug detection. Compliance: NZ Privacy Act 2020 (consent tracking, DSAR), NZ Private Security Personnel Act (COA tracking), Workflow Automation, Email Templates, Custom Fields, SLA Monitoring, API Webhooks, Rate Limiting, Data Export.',
+    description: 'CRM-centric platform hub with Iron Eagle Security Limited as the platform owner. CRM Features: Accounts/Organizations (hierarchical), Users (assigned to accounts), Zones/Sites (owned by accounts), Contacts (stakeholders), Contracts (with line items & SLAs), Invoices & Payments, Activities (calls, meetings, tasks), Opportunities (sales pipeline), Documents & Notes, Tags & Account History. Platform Features: Live officer tracking, PTT/Team Chat, Officer welfare system, Self-healing bug detection. Compliance: NZ Privacy Act 2020 (consent tracking, DSAR), NZ Private Security Personnel Act (COA tracking), Workflow Automation, Email Templates, Custom Fields, SLA Monitoring, API Webhooks, Rate Limiting, Data Export.',
     shortDescription: 'Full CRM + Compliance + Automation',
     icon: Shield,
     color: 'text-slate-700 dark:text-slate-300',
@@ -191,7 +191,7 @@ export const SERVICE_MODULES: Record<ModuleId, ServiceModule> = {
     ],
     tables: [
       // CRM Hub Tables (Central Entity Management)
-      'organizations',           // Accounts (Iron Eagle → Service Providers → Clients)
+      'organizations',           // Accounts (Iron Eagle Security Limited → Service Providers → Clients)
       'user_profiles',           // Users assigned to accounts
       'zones',                   // Geographic zones owned by accounts
       'client_sites',            // Physical sites managed by accounts

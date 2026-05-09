@@ -21,12 +21,12 @@ export const TRAINING_MARKET_RESEARCH_PRESETS: TrainingMarketResearchPreset[] = 
   {
     id: 'competitor-matrix',
     title: 'Competitor Matrix',
-    description: 'Benchmark enterprise training apps feature-by-feature against the FieldOps target state.',
+    description: 'Benchmark enterprise training apps feature-by-feature against the FCM target state.',
     category: 'training_market',
     question: [
       `Research and compare these training platforms: ${TRAINING_VENDOR_TEXT}.`,
       'Focus on reusable content libraries, role-based assignment automation, learning paths, assessments, competency tracking, compliance reporting, mobile delivery, and AI/personalization.',
-      'Return a concise competitor matrix with strengths, missing pieces, and the top 5 patterns FieldOps Manager should adopt for Bob-driven training.',
+      'Return a concise competitor matrix with strengths, missing pieces, and the top 5 patterns Field Compliance Manager should adopt for Bob-driven training.',
       'Use current authoritative vendor sources where possible and call out anything that remains unverified.',
     ].join(' '),
   },
@@ -38,7 +38,7 @@ export const TRAINING_MARKET_RESEARCH_PRESETS: TrainingMarketResearchPreset[] = 
     question: [
       `Research how ${TRAINING_VENDOR_TEXT} handle training assignment automation.`,
       'Focus on assignment by role, audience, site, prerequisites, overdue escalation, and event or schedule triggers.',
-      'Map the findings into concrete recommendations for FieldOps Manager where assignments are triggered by roster shifts, site induction gaps, and officer skill gaps.',
+      'Map the findings into concrete recommendations for Field Compliance Manager where assignments are triggered by roster shifts, site induction gaps, and officer skill gaps.',
     ].join(' '),
   },
   {
@@ -48,7 +48,7 @@ export const TRAINING_MARKET_RESEARCH_PRESETS: TrainingMarketResearchPreset[] = 
     category: 'training_market',
     question: [
       `Research how ${TRAINING_VENDOR_SET.slice(0, 5).join(', ')} represent completion evidence, pass thresholds, certifications, expiries, and compliance dashboards.`,
-      'Return the recommended data model and workflow for FieldOps Manager so Bob tutoring, attempts, competency grants, recompletion, and legal review are auditable.',
+      'Return the recommended data model and workflow for Field Compliance Manager so Bob tutoring, attempts, competency grants, recompletion, and legal review are auditable.',
     ].join(' '),
   },
   {
@@ -59,7 +59,7 @@ export const TRAINING_MARKET_RESEARCH_PRESETS: TrainingMarketResearchPreset[] = 
     question: [
       `Research AI, personalization, and coaching patterns in ${TRAINING_VENDOR_TEXT}.`,
       'Focus on tutoring after wrong answers, adaptive follow-up content, microlearning, contextual assistance, and manager visibility.',
-      'Translate findings into a Bob-specific pattern set for composer, verifier, and classroom tutor modes inside FieldOps Manager.',
+      'Translate findings into a Bob-specific pattern set for composer, verifier, and classroom tutor modes inside Field Compliance Manager.',
     ].join(' '),
   },
 ]

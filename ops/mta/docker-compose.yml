@@ -1,0 +1,32 @@
+version: '3.9'
+
+services:
+  poste:
+    image: analogic/poste.io:latest
+    container_name: fcmanager-mta
+    hostname: ${MAIL_HOSTNAME}
+    domainname: ${MAIL_DOMAIN}
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - TZ=${TZ}
+      - HTTPS=OFF
+      - LETSENCRYPT_EMAIL=ops@${MAIL_DOMAIN}
+      - LETSENCRYPT_HOST=${MAIL_FQDN}
+      - DISABLE_CLAMAV=true
+      - DISABLE_RSPAMD=false
+      - POSTE_ADMIN=${POSTE_ADMIN}
+      - POSTE_ADMIN_PASSWORD=${POSTE_ADMIN_PASSWORD}
+    ports:
+      - '25:25'
+      - '465:465'
+      - '587:587'
+      - '110:110'
+      - '143:143'
+      - '993:993'
+      - '995:995'
+      - '8080:80'
+      - '8443:443'
+    volumes:
+      - ./data:/data

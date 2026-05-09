@@ -135,12 +135,12 @@ export default function Login() {
             <div className="flex items-center gap-4 mb-6">
               <img
                 src="/iron-eagle-security-logo.jpg"
-                alt="Iron Eagle Security"
+                alt="Iron Eagle Security Limited"
                 className="h-14 w-14 rounded-2xl object-cover shadow-md"
               />
               <div>
                 <p className="text-[11px] uppercase tracking-[0.22em] text-slate-500">Operations Platform</p>
-                <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-slate-900">FieldOps Manager</h1>
+                <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-slate-900">Field Compliance Manager</h1>
               </div>
             </div>
 
@@ -176,11 +176,11 @@ export default function Login() {
             <div className="lg:hidden flex items-center gap-3 mb-6">
               <img
                 src="/iron-eagle-security-logo.jpg"
-                alt="Iron Eagle Security"
+                alt="Iron Eagle Security Limited"
                 className="h-11 w-11 rounded-xl object-cover shadow-sm"
               />
               <div>
-                <h1 className="text-lg font-semibold text-slate-900">FieldOps Manager</h1>
+                <h1 className="text-lg font-semibold text-slate-900">Field Compliance Manager</h1>
                 <p className="text-xs text-slate-600">Field Operations Management Platform</p>
               </div>
             </div>
@@ -283,7 +283,7 @@ export default function Login() {
             <div className="mt-7 text-center text-xs text-slate-500 border-t border-slate-200 pt-4">
               <p className="inline-flex items-center gap-1.5">
                 <CheckCircle2 className="h-3.5 w-3.5" />
-                Iron Eagle Security · Field Operations Management
+                Iron Eagle Security Limited · Field Compliance Management
               </p>
             </div>
           </section>

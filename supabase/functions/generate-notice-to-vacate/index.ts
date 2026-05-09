@@ -320,7 +320,7 @@ async function sendNoticeToVacateEmailAsync(params: {
   const smtpUser = Deno.env.get('SMTP_USERNAME');
   const smtpPass = Deno.env.get('SMTP_PASSWORD');
   const smtpFrom = Deno.env.get('SMTP_FROM_EMAIL');
-  const smtpFromName = Deno.env.get('SMTP_FROM_NAME') ?? 'FieldOps Manager - Enforcement Notices';
+  const smtpFromName = Deno.env.get('SMTP_FROM_NAME') ?? 'Field Compliance Manager - Enforcement Notices';
 
   if (!smtpHost || !smtpUser || !smtpPass || !smtpFrom) {
     throw new Error('SMTP not configured');
@@ -554,7 +554,7 @@ function generateNoticeHtml(params: any): string {
     <div class="signatory-title">${signatory.title}</div>
   </div>
   <div style="margin-top:24px;padding-top:8px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center;">
-    <span style="font-size:8pt;color:#94a3b8;">Enforcement management by <strong style="color:#1e3a8a;">FieldOps Manager</strong> &mdash; Iron Eagle Security</span>
+    <span style="font-size:8pt;color:#94a3b8;">Enforcement management by <strong style="color:#1e3a8a;">Field Compliance Manager</strong> &mdash; Iron Eagle Security</span>
     <img src="/iron-eagle-security-logo.jpg" alt="Iron Eagle Security" style="height:24px;opacity:0.55;object-fit:contain;">
   </div>
 </body>

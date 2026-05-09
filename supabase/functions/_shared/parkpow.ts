@@ -13,7 +13,7 @@
  * Secret name in Supabase: PARKPOW_API_TOKEN  (already configured ✅)
  * Base URL:                https://app.parkpow.com/api/v1/
  *
- * Integration flow for FieldOps Manager:
+ * Integration flow for Field Compliance Manager:
  *   1. Plate Recognizer reads plate from image        (PLATERECOGNIZER_TOKEN)
  *   2. ParkPow watchlist check → is this plate flagged?  (PARKPOW_API_TOKEN)
  *   3. ParkPow permit check  → is this vehicle exempt?
@@ -113,10 +113,10 @@ export async function listLots(): Promise<ParkPowLot[]> {
   return data.results ?? [];
 }
 
-/** Create a lot in ParkPow (called when a new zone is created in FieldOps Manager). */
+/** Create a lot in ParkPow (called when a new zone is created in Field Compliance Manager). */
 export async function createLot(params: {
   name: string;
-  external_id: string; // zone UUID from FieldOps Manager
+  external_id: string; // zone UUID from Field Compliance Manager
 }): Promise<ParkPowLot> {
   return parkpowFetch<ParkPowLot>("/lots/", {
     method: "POST",
@@ -173,7 +173,7 @@ export async function blockVehicle(
     body: JSON.stringify({
       license_plate: plate.toUpperCase(),
       list: "block",
-      description: description ?? "Flagged via FieldOps Manager",
+      description: description ?? "Flagged via Field Compliance Manager",
     }),
   });
 }
@@ -191,7 +191,7 @@ export async function permitVehicle(
     body: JSON.stringify({
       license_plate: plate.toUpperCase(),
       list: "allow",
-      description: description ?? "Exempt via FieldOps Manager",
+      description: description ?? "Exempt via Field Compliance Manager",
     }),
   });
 }

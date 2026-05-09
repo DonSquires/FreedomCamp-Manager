@@ -189,7 +189,7 @@ async function fallbackAnalyseWithOnspaceChat(
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
   if (!supabaseUrl || !serviceRoleKey) return null
 
-  const prompt = `You are analysing a bug report for FieldOps Manager (NZ freedom camping operations platform).\n\n`
+  const prompt = `You are analysing a bug report for Field Compliance Manager (NZ freedom camping operations platform).\n\n`
     + `Type: ${report.issue_type ?? 'bug'}\n`
     + `Severity: ${report.severity ?? 'medium'}\n`
     + `Title: ${report.title ?? 'Untitled'}\n`

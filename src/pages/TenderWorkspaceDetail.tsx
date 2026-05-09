@@ -986,7 +986,7 @@ export default function TenderWorkspaceDetail() {
         issuing_body: doc.issuing_body ?? undefined,
         reference_number: doc.reference_number ?? undefined,
         due_date: doc.due_date ?? undefined,
-        organization_name: orgData?.name ?? 'FieldOps Manager',
+        organization_name: orgData?.name ?? 'Field Compliance Manager',
         owner_name: userName(ownerProfile),
         export_date: new Date().toLocaleDateString('en-NZ'),
       },

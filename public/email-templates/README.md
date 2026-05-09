@@ -1,6 +1,6 @@
 # Iron Eagle Security Email Templates
 
-Professional HTML email templates for FieldOps Manager with Iron Eagle Security branding.
+Professional HTML email templates for Field Compliance Manager with Iron Eagle Security Limited branding.
 
 ## Templates Included
 
@@ -10,24 +10,10 @@ Professional HTML email templates for FieldOps Manager with Iron Eagle Security 
 
 ## How Templates Are Applied
 
-### Automatic (via config.toml)
-
-The branded templates are configured in `supabase/config.toml` under the
-`[auth.email.template.*]` sections and stored in `supabase/templates/`.
-When running locally with `supabase start`, these templates are used
-automatically for all auth emails (invitations, password resets, etc.).
-
-| Template type | config.toml section | File |
-|---|---|---|
-| Invite user | `[auth.email.template.invite]` | `supabase/templates/invite.html` |
-| Password reset | `[auth.email.template.recovery]` | `supabase/templates/recovery.html` |
-| Confirm signup | `[auth.email.template.confirmation]` | `supabase/templates/confirmation.html` |
-| Magic link | `[auth.email.template.magic_link]` | `supabase/templates/magic_link.html` |
-
 ### Hosted Supabase (Dashboard)
 
 For the hosted Supabase project, templates must be applied via the
-Dashboard since `config.toml` email templates only take effect locally:
+Dashboard. These files are the source-of-truth for the hosted environment.
 
 1. Go to your Supabase project dashboard
 2. Navigate to **Authentication** → **Email Templates** (left sidebar)
@@ -48,6 +34,15 @@ Dashboard since `config.toml` email templates only take effect locally:
    - `{{ .ConfirmationURL }}` - Invitation acceptance link
    - `{{ .SiteURL }}` - Your site URL (https://fcmanager.co.nz)
 5. Click **Save**
+
+### Link Security Standard
+
+For all auth emails and invite flows:
+
+1. Only use HTTPS links.
+2. Only use approved Field Compliance Manager domains.
+3. Keep Supabase **Site URL** and **Redirect URLs** aligned with the live deployment domains.
+4. Do not paste third-party or temporary domains into auth templates.
 
 ### Step 3: Update Reset Password Template
 
@@ -84,16 +79,17 @@ Make sure your Supabase Authentication settings are configured correctly:
 
 1. Go to **User Management** in your app
 2. Create a new user invitation
-3. Check the email received - it should use the new Iron Eagle Security branding
+3. Check the email received - it should use the new Iron Eagle Security Limited branding
 4. Verify:
    - Logo displays correctly (https://fcmanager.co.nz/iron-eagle-security-logo.jpg)
    - All links work properly
+   - Links are HTTPS and point to approved Field Compliance Manager domains
    - Branding is consistent
    - Disclaimer text is visible
 
 ## Template Features
 
-### Iron Eagle Security Branding
+### Iron Eagle Security Limited Branding
 - Official IES logo prominently displayed
 - Professional gradient headers (blue for invitations, purple for password reset, green for welcome)
 - Company badge and footer with IES information
@@ -178,5 +174,5 @@ For template issues or customization help:
 
 ---
 
-**Iron Eagle Security (IES)**  
+**Iron Eagle Security Limited (IES)**  
 Professional Security Solutions for New Zealand

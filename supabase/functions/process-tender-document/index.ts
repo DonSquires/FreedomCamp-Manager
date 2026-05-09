@@ -350,7 +350,7 @@ async function doAnalysis(
     }
 
     // --- Bob Assessment ---
-    const systemPrompt = `You are Bob, an expert analyst for Iron Eagle Security's FieldOps Manager system in New Zealand.
+    const systemPrompt = `You are Bob, an expert analyst for Iron Eagle Security's Field Compliance Manager system in New Zealand.
 Your job is to analyse tender, RFP, RFIP, and procurement documents and extract structured information
 to help the team prepare competitive responses.
 

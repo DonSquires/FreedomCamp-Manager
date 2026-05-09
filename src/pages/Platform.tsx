@@ -314,7 +314,7 @@ export default function Platform() {
       const navHistory: any[] = report.browser_info?.navigationHistory ?? []
       const consoleErrors: any[] = Array.isArray(report.console_errors) ? report.console_errors : []
 
-      const prompt = `You are analysing a bug/feedback report for FieldOps Manager, a NZ freedom camping enforcement SaaS.
+      const prompt = `You are analysing a bug/feedback report for Field Compliance Manager, a NZ freedom camping enforcement SaaS.
 
 ## Report
 **Type**: ${report.issue_type}
@@ -337,7 +337,7 @@ ${navHistory.slice(-10).reverse().map((n: any) => `- ${n.path} at ${n.timestamp}
 ${consoleErrors.slice(-10).map((e: any) => `[${e.level}] ${e.message}${e.stack ? '\n  ' + e.stack.slice(0, 200) : ''}`).join('\n') || 'None captured'}
 
 ## Task
-1. **Diagnose**: Identify the root cause. Reference specific files, components, or edge functions in FieldOps Manager that are likely responsible (e.g. src/pages/X.tsx, supabase/functions/Y/index.ts).
+1. **Diagnose**: Identify the root cause. Reference specific files, components, or edge functions in Field Compliance Manager that are likely responsible (e.g. src/pages/X.tsx, supabase/functions/Y/index.ts).
 2. **Fix suggestion**: Provide a concrete, actionable code fix or implementation plan. Include file paths, function names, and the specific change required.
 3. **Severity assessment**: Confirm or revise the severity (low/medium/high/critical) with justification.
 4. **Effort estimate**: Low (< 1 hour) / Medium (half day) / High (1-2 days).
@@ -474,7 +474,7 @@ Be specific. Name exact files and line-level changes where possible.`
               Platform Overview
             </h1>
             <p className="text-muted-foreground text-sm mt-1">
-              FieldOps Manager — all organisations, all activity
+              Field Compliance Manager — all organisations, all activity
             </p>
           </div>
           <div className="flex gap-2">
@@ -571,7 +571,7 @@ Be specific. Name exact files and line-level changes where possible.`
           <TabsContent value="features" className="mt-4">
             <div className="space-y-6">
               <p className="text-sm text-muted-foreground">
-                Direct access to every section of FieldOps Manager. All pages are unrestricted for the Platform Administrator role.
+                Direct access to every section of Field Compliance Manager. All pages are unrestricted for the Platform Administrator role.
               </p>
 
               {FEATURE_GROUPS.map(group => (

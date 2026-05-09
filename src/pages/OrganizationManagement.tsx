@@ -557,7 +557,7 @@ export default function OrganizationManagement() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="owner">Owner (Level 1 – Iron Eagle / Platform Owner)</SelectItem>
+                  <SelectItem value="owner">Owner (Level 1 – Iron Eagle Security Limited / Platform Owner)</SelectItem>
                   <SelectItem value="service_provider">Service Provider (Level 2 – Security Company / Branch)</SelectItem>
                   <SelectItem value="client">Client (Level 3 – Council / Territory / Business)</SelectItem>
                   <SelectItem value="contractor">Contractor (Level 4 – Sub-contracted Security Company)</SelectItem>

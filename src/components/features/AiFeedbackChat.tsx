@@ -58,7 +58,7 @@ interface AiFeedbackChatProps {
 
 // ── System prompt ─────────────────────────────────────────────────────────────
 
-const INTAKE_SYSTEM_PROMPT = `You are a friendly support assistant for FieldOps Manager — a field operations management platform used by patrol officers, admins, and site managers.
+const INTAKE_SYSTEM_PROMPT = `You are a friendly support assistant for Field Compliance Manager — a field operations management platform used by patrol officers, admins, and site managers.
 
 Your job is to help users report bugs, request features, or flag performance issues. Ask simple, pointed questions one at a time to understand what happened. Be conversational and brief. Officers are often reporting from the field on mobile — keep it short.
 
@@ -122,7 +122,7 @@ function buildBobHandoffPrompt(messages: ChatMsg[], draftInput: string): string 
     .join('\n')
 
   return [
-    'Help me continue this FieldOps feedback or bug report.',
+    'Help me continue this FCM feedback or bug report.',
     `Current page: ${snapshot.currentPage || '/'}`,
     `App version: ${snapshot.appVersion}`,
     draftInput.trim() ? `Unsent draft: ${draftInput.trim()}` : '',

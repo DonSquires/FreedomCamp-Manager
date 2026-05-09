@@ -446,7 +446,7 @@ export default function PublicNoiseComplaintPortal() {
 
         {/* Footer */}
         <footer className="text-center text-xs text-muted-foreground pt-4 pb-8 border-t">
-          FieldOps Manager · {t.nc.footerEmergency} ·
+          Field Compliance Manager · {t.nc.footerEmergency} ·
           {' '}<a href="/public/zone-map" className="text-orange-700 hover:underline">{t.nc.footerZoneMap}</a>
           {' '}·{' '}<a href="/dispute" className="text-orange-700 hover:underline">{t.nc.footerDispute}</a>
         </footer>

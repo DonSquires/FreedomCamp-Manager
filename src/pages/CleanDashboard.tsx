@@ -1098,7 +1098,7 @@ export default function CleanDashboard() {
               <Shield className="w-5 h-5 text-white" />
             </div>
             <div>
-              <span className="font-bold text-gray-900 dark:text-white text-sm">FieldOps Manager</span>
+              <span className="font-bold text-gray-900 dark:text-white text-sm">Field Compliance Manager</span>
               <span className="ml-2 text-xs text-blue-600 dark:text-blue-400 font-medium">Live Data</span>
             </div>
           </div>
@@ -1176,7 +1176,7 @@ export default function CleanDashboard() {
 
       {/* Footer */}
       <footer className="border-t border-gray-200 dark:border-gray-800 py-3 px-4 text-center text-xs text-gray-400">
-        FieldOps Manager · Live data from Supabase ·{' '}
+        Field Compliance Manager · Live data from Supabase ·{' '}
         <Calendar className="inline w-3 h-3 mx-1" />
         {format(new Date(), 'PPP')}
       </footer>

@@ -2205,7 +2205,7 @@ export function initBluetoothPTT(): void {
     // Set metadata for Bluetooth display
     navigator.mediaSession.metadata = new MediaMetadata({
       title: 'Push to Talk',
-      artist: 'FieldOps Manager',
+      artist: 'Field Compliance Manager',
       album: 'PTT Channel',
     })
 

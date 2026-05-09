@@ -108,7 +108,7 @@ export function generateTenderHtml(meta: TenderDocMeta, sections: TenderSections
 
   <div class="header">
     <div class="header-title">Tender Response</div>
-    <div class="header-org">${escapeHtml(meta.organization_name || 'Iron Eagle Security')}</div>
+    <div class="header-org">${escapeHtml(meta.organization_name || 'Iron Eagle Security Limited')}</div>
     ${meta.reference_number ? `<div class="header-ref">Ref: ${escapeHtml(meta.reference_number)}</div>` : ''}
   </div>
 
@@ -140,7 +140,7 @@ export function generateTenderHtml(meta: TenderDocMeta, sections: TenderSections
   ${sectionHtml('Risks & Mitigations', sections.risks_mitigations)}
 
   <div class="footer">
-    Confidential — prepared by ${escapeHtml(meta.organization_name || 'Iron Eagle Security')} on ${escapeHtml(meta.export_date || new Date().toLocaleDateString('en-NZ'))}
+    Confidential — prepared by ${escapeHtml(meta.organization_name || 'Iron Eagle Security Limited')} on ${escapeHtml(meta.export_date || new Date().toLocaleDateString('en-NZ'))}
   </div>
 </div>
 </body>

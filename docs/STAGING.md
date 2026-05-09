@@ -5850,20 +5850,19 @@ Open blockers with owner:
 - Sprint lanes through Sprint 75 are complete in staging evidence.
 - No additional staged sprints are defined in `docs/STAGING.md`.
 
-### Email Service Activation Audit (2026-05-09)
+### Email Service Activation Audit (2026-05-09) — CLOSED ✅
 
-Direction confirmed: hPanel/Hostinger SMTP is the canonical production email provider.
+**Provider**: Hostinger Business Email (canonical production), self-hosted MTA demoted to fallback/DR.
 
-Current observed state from live checks:
+**Completed (2026-05-09):**
 
-1. Supabase SMTP secrets exist (`SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM_EMAIL`, `SMTP_FROM_NAME`).
-2. DNS currently resolves to legacy Zoho MX/SPF values (not hPanel MX/SPF), and `default._domainkey` TXT was not found.
-3. Live `send-report-email` invocation reached the function but returned `WORKER_RESOURCE_LIMIT`.
+1. ✅ DNS migrated — `mx1.hostinger.com` (5) and `mx2.hostinger.com` (10) live; legacy `mx3.zoho.com` removed.
+2. ✅ SPF live: `v=spf1 include:_spf.mail.hostinger.com ~all`; DKIM-A CNAME live at `hostingermail-a._domainkey`.
+3. ✅ Supabase Edge Function secrets set: `SMTP_HOST=smtp.hostinger.com`, `SMTP_PORT=465`, `SMTP_USERNAME=donotreply@fcmanager.co.nz`, `SMTP_FROM_EMAIL=donotreply@fcmanager.co.nz`, `SMTP_REPORTS_FROM_EMAIL=reports@fcmanager.co.nz` (alias).
+4. ✅ Supabase Auth custom SMTP updated: `smtp_user=donotreply@fcmanager.co.nz`, `smtp_host=smtp.hostinger.com`.
+5. ✅ Direct SMTP auth test passed — `235 2.7.0 Authentication successful`, email queued `4gCH3X3XLRz31H6`.
+6. ✅ Alias `reports@fcmanager.co.nz` created and verified — sends successfully via `donotreply@` auth.
 
-Closeout checklist:
+7. ✅ Live delivery confirmed — test email to `don.squires@firstsecurity.co.nz` received, queue ID `4gCH6G0H15z406Y`, sender displayed as `reports@fcmanager.co.nz`.
 
-1. Migrate DNS mail routing to hPanel values from hPanel DNS panel (MX/SPF/DKIM/DMARC).
-2. Remove legacy Zoho DNS records.
-3. Ensure Supabase Auth custom SMTP and Edge Function SMTP both use hPanel mailbox credentials.
-4. Re-run authenticated live `send-report-email` invocation until success response and inbox receipt are confirmed.
-5. Record final pass evidence and clear this section.
+**Pending (post-password rotation):** Re-push `SMTP_PASSWORD` after user rotates `donotreply@fcmanager.co.nz` password in hPanel. DMARC policy to be hardened from `p=none` → `p=quarantine` after 30-day clean delivery period.

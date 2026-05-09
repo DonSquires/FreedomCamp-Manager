@@ -206,11 +206,11 @@ export default function PortalSelection() {
             <div className="flex items-center gap-4">
               <img
                 src="/iron-eagle-security-logo.jpg"
-                alt="Iron Eagle Security"
+                alt="Iron Eagle Security Limited"
                 className="h-12 w-12 rounded-xl object-cover shadow-md shrink-0"
               />
               <div>
-                <h1 className="text-2xl font-semibold tracking-tight leading-tight">FieldOps Manager</h1>
+                <h1 className="text-2xl font-semibold tracking-tight leading-tight">Field Compliance Manager</h1>
                 <p className="text-slate-300 text-sm">
                   Welcome back, {user?.full_name || user?.email}
                 </p>

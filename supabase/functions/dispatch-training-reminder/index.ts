@@ -17,6 +17,91 @@ function sanitizeError(error: unknown): string {
   return String(error || 'unknown_error').replace(/[\r\n]+/g, ' ').slice(0, 500)
 }
 
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+function buildReminderEmailHtml(params: {
+  subject: string
+  message: string
+  organizationName: string
+}) {
+  const safeSubject = escapeHtml(params.subject)
+  const safeOrganizationName = escapeHtml(params.organizationName)
+  const safeMessage = escapeHtml(params.message).replace(/\n/g, '<br />')
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+</head>
+<body style="margin:0;padding:0;background:#eef2f7;font-family:Arial,sans-serif;color:#0f172a;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#eef2f7;padding:32px 16px;">
+    <tr>
+      <td align="center">
+        <table width="100%" cellpadding="0" cellspacing="0" style="max-width:640px;background:#ffffff;border-radius:20px;overflow:hidden;box-shadow:0 20px 60px rgba(15,23,42,0.12);">
+          <tr>
+            <td style="background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 55%,#2563eb 100%);padding:28px 32px;">
+              <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td style="vertical-align:middle;">
+                    <img src="https://fcmanager.co.nz/iron-eagle-security-logo.jpg" alt="Iron Eagle Security Limited" style="height:56px;width:auto;display:block;border-radius:12px;background:#ffffff;padding:8px;" />
+                  </td>
+                  <td style="vertical-align:middle;text-align:right;">
+                    <div style="color:#bfdbfe;font-size:11px;letter-spacing:0.16em;text-transform:uppercase;font-weight:700;">Owner / Developer</div>
+                    <div style="color:#ffffff;font-size:15px;font-weight:700;margin-top:6px;">Iron Eagle Security Limited</div>
+                  </td>
+                </tr>
+              </table>
+              <div style="margin-top:24px;color:#ffffff;font-size:28px;font-weight:700;line-height:1.2;">Field Compliance Manager</div>
+              <div style="margin-top:8px;color:#cbd5e1;font-size:15px;line-height:1.5;">Training and operational reminders for field teams.</div>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:34px 32px 18px;">
+              <div style="font-size:12px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:#2563eb;">Reminder</div>
+              <h1 style="margin:10px 0 16px;font-size:26px;line-height:1.25;color:#0f172a;">${safeSubject}</h1>
+              <div style="font-size:15px;line-height:1.75;color:#334155;">${safeMessage}</div>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:0 32px 18px;">
+              <table width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;border:1px solid #dbeafe;border-radius:14px;">
+                <tr>
+                  <td style="padding:18px 20px;">
+                    <div style="font-size:12px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:#2563eb;">Organization</div>
+                    <div style="margin-top:8px;font-size:15px;font-weight:600;color:#0f172a;">${safeOrganizationName}</div>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:0 32px 32px;">
+              <table width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid #e2e8f0;padding-top:20px;">
+                <tr>
+                  <td style="font-size:12px;line-height:1.7;color:#64748b;">
+                    This email was sent by <strong>Field Compliance Manager</strong>, owned and developed by <strong>Iron Eagle Security Limited</strong>.<br />
+                    Support site: <a href="https://fcmanager.co.nz" style="color:#2563eb;text-decoration:none;">fcmanager.co.nz</a>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`
+}
+
 async function sendEmailReminder(params: {
   toEmail: string
   subject: string
@@ -28,7 +113,7 @@ async function sendEmailReminder(params: {
   const smtpUsername = Deno.env.get('SMTP_USERNAME')
   const smtpPassword = Deno.env.get('SMTP_PASSWORD')
   const smtpFromEmail = Deno.env.get('SMTP_FROM_EMAIL')
-  const smtpFromName = Deno.env.get('SMTP_FROM_NAME') || 'FieldOps Manager'
+  const smtpFromName = Deno.env.get('SMTP_FROM_NAME') || 'Field Compliance Manager'
 
   if (!smtpHost || !smtpUsername || !smtpPassword || !smtpFromEmail) {
     throw new Error('SMTP_NOT_CONFIGURED')
@@ -47,12 +132,18 @@ async function sendEmailReminder(params: {
   })
 
   try {
+    const html = buildReminderEmailHtml({
+      subject: params.subject,
+      message: params.message,
+      organizationName: params.organizationName,
+    })
+
     await client.send({
       from: `${smtpFromName} <${smtpFromEmail}>`,
       to: params.toEmail,
       subject: params.subject,
       content: `${params.message}\n\nOrganization: ${params.organizationName}`,
-      html: `<p>${params.message}</p><p><strong>Organization:</strong> ${params.organizationName}</p>`,
+      html,
     })
   } finally {
     await client.close()

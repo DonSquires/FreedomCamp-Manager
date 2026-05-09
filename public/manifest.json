@@ -1,7 +1,7 @@
 {
-  "name": "FieldOps Manager",
-  "short_name": "FieldOps",
-  "description": "Integrated field operations management for real-time site monitoring, compliance reporting, and asset coordination",
+  "name": "Field Compliance Manager",
+  "short_name": "FCM",
+  "description": "Integrated field compliance management for real-time site monitoring, compliance reporting, and asset coordination",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

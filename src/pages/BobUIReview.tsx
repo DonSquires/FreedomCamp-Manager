@@ -193,7 +193,7 @@ export default function BobUIReview() {
             role: 'user',
             content: [
               `Run a UI review with focus area: ${visionFocus}.`,
-              'FieldOps Manager is a NZ freedom camping enforcement admin tool used by field officers on mobile and desktop.',
+              'Field Compliance Manager is a NZ freedom camping enforcement admin tool used by field officers on mobile and desktop.',
               'Prioritize field usability on mobile at night.',
               'Screenshot payload (base64) is attached below:',
               visionImageB64,

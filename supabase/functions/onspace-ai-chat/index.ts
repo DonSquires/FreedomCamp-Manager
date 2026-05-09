@@ -1,7 +1,7 @@
 /**
  * onspace-ai-chat
  *
- * Bob-powered analysis and chat for FieldOps Manager admins.
+ * Bob-powered analysis and chat for Field Compliance Manager admins.
  *
  * Self-contained policy:
  *   Primary provider is the Bob inference service (/chat endpoint or RunPod runsync).
@@ -46,7 +46,7 @@ const BOB_OLLAMA_CHAT_MAX_BACKOFF_MS = Math.max(
 )
 const BOB_OLLAMA_CHAT_TIMEOUT_MS = Math.max(5000, Number(Deno.env.get('BOB_OLLAMA_CHAT_TIMEOUT_MS') ?? '60000'))
 
-const SYSTEM_PROMPT = `You are Bob, the inference agent and assistant for FieldOps Manager — a freedom camping enforcement system used by councils and security contractors in New Zealand.
+const SYSTEM_PROMPT = `You are Bob, the inference agent and assistant for Field Compliance Manager — a freedom camping enforcement system used by councils and security contractors in New Zealand.
 
 ==============================================================================
 PART 1: SYSTEM AND APP KNOWLEDGE

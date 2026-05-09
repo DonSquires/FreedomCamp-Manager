@@ -572,7 +572,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
             />
           </div>
           <div className="space-y-2">
-            <p className="text-sm font-medium text-foreground">FieldOps Manager</p>
+            <p className="text-sm font-medium text-foreground">Field Compliance Manager</p>
             <p className="text-xs text-muted-foreground">Checking session and permissions…</p>
           </div>
           <div className="flex items-center justify-center gap-1.5">
