@@ -20,6 +20,8 @@ import { useAuthStore } from '@/stores/authStore'
 import { useClientOrgIds } from '@/hooks/useClientOrgIds'
 import { useDispatchReplan } from '@/hooks/useDispatchReplan'
 import {
+  assignAndDispatchJob,
+  cancelDispatchJob,
   insertDispatchOfficerNotification,
   useDispatchClientSitesLookup,
   useDispatchZonesLookup,
@@ -381,13 +383,12 @@ export default function DispatchConsole() {
   // ── Assign + dispatch mutation ───────────────────────────────────────────────
   const dispatchMutation = useMutation({
     mutationFn: async ({ jobId, officerId }: { jobId: string; officerId: string }) => {
-      const { error } = await (supabase as any).from('dispatch_jobs').update({
-        assigned_to:   officerId,
-        dispatched_by: user?.id,
-        status:        'dispatched',
-        dispatched_at: new Date().toISOString(),
-      }).eq('id', jobId)
-      if (error) throw error
+      const dispatchResult = await assignAndDispatchJob({
+        jobId,
+        officerId,
+        dispatchedBy: user?.id,
+      })
+      if (!dispatchResult.ok) throw dispatchResult.error
 
       // Notify the officer
       const job = jobs.find(j => j.id === jobId)
@@ -417,10 +418,8 @@ export default function DispatchConsole() {
 
   const cancelMutation = useMutation({
     mutationFn: async (jobId: string) => {
-      const { error } = await (supabase as any).from('dispatch_jobs')
-        .update({ status: 'cancelled', cancelled_at: new Date().toISOString() })
-        .eq('id', jobId)
-      if (error) throw error
+      const cancelResult = await cancelDispatchJob({ jobId })
+      if (!cancelResult.ok) throw cancelResult.error
     },
     onSuccess: () => {
       toast.success('Job cancelled')

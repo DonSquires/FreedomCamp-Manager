@@ -21,6 +21,18 @@ interface DispatchOfficerNotificationInput {
   priority?: 'low' | 'normal' | 'high' | 'urgent'
 }
 
+interface AssignAndDispatchJobInput {
+  jobId: string
+  officerId: string
+  dispatchedBy?: string
+  dispatchedAt?: string
+}
+
+interface CancelDispatchJobInput {
+  jobId: string
+  cancelledAt?: string
+}
+
 export function useDispatchClientSitesLookup({
   orgId,
   clientOrgIds,
@@ -76,6 +88,46 @@ export async function insertDispatchOfficerNotification({
     priority: priority ?? 'normal',
     data: { dispatch_job_id: jobId, job_number: jobNumber },
   })
+
+  return {
+    ok: !error,
+    error,
+  }
+}
+
+export async function assignAndDispatchJob({
+  jobId,
+  officerId,
+  dispatchedBy,
+  dispatchedAt,
+}: AssignAndDispatchJobInput) {
+  const { error } = await (supabase as any)
+    .from('dispatch_jobs')
+    .update({
+      assigned_to: officerId,
+      dispatched_by: dispatchedBy,
+      status: 'dispatched',
+      dispatched_at: dispatchedAt ?? new Date().toISOString(),
+    })
+    .eq('id', jobId)
+
+  return {
+    ok: !error,
+    error,
+  }
+}
+
+export async function cancelDispatchJob({
+  jobId,
+  cancelledAt,
+}: CancelDispatchJobInput) {
+  const { error } = await (supabase as any)
+    .from('dispatch_jobs')
+    .update({
+      status: 'cancelled',
+      cancelled_at: cancelledAt ?? new Date().toISOString(),
+    })
+    .eq('id', jobId)
 
   return {
     ok: !error,

@@ -307,6 +307,31 @@ Latest Session Snapshot (Phase D3 Gate Artifacts + Phase E Kickoff Alignment —
   2. Carry forward E1→E4 checkpoints from `docs/MODULE_ROADMAP.md`.
   3. Maintain rollback-ready flag posture and org isolation evidence per slice.
 
+Latest Session Snapshot (Phase E1 Multi-Worker Consolidation — Dispatch Mutations + Org Counts — 2026-05-09):
+
+- Timestamp (NZ): 2026-05-09 01:55 NZST
+- Current branch: copilot/realignment-project-multiple-workers
+- Scope completed:
+  - Continued realignment with two parallel workers.
+  - Worker A extracted remaining `DispatchConsole` dispatch mutation writes into `src/hooks/useDispatchConsoleData.ts`:
+    - `assignAndDispatchJob(...)`
+    - `cancelDispatchJob(...)`
+  - Worker B extracted `CleanDashboard` organisation observation count query into `src/hooks/useCleanDashboardOrgCounts.ts`.
+  - Updated pages to consume shared hook/service boundaries:
+    - `src/pages/DispatchConsole.tsx`
+    - `src/pages/CleanDashboard.tsx`
+
+- Validation evidence:
+  | Command | Result | Notes |
+  |---|---|---|
+  | `bun run lint` | PASS | 0 errors |
+  | `bun run build` | PASS | TypeScript + Vite build succeeded (29.80s) |
+  | `bun run build:budget` | PASS | 8205.15/8300 kB |
+  | `bun run test:e2e -- phase-e1-data-access-consolidation.spec.ts` | PASS | 70 passed |
+
+- Open blockers with owner:
+  1. NONE.
+
 Latest Session Snapshot (Phase E1 Multi-Worker Consolidation — PTTRadio + DispatchConsole — 2026-05-09):
 
 - Timestamp (NZ): 2026-05-09 01:45 NZST
