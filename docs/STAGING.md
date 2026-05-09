@@ -5569,3 +5569,100 @@ The web SPA delivers SOS via the existing `officer_welfare_alerts` table + `send
 - No open blockers.
 - Monitor Bob inference endpoint stability.
 - Continue delivery planning from Sprint 69 scope.
+
+
+---
+
+## Realignment Sprint 69+ — Next To-Do List (2026-05-09)
+
+**Status**: Planned — awaiting execution  
+**Scope**: Phase E data-access consolidation continuation + Phase A gate closure + deferred items
+
+### Sprint 69 — Phase E Continuation: Top-Priority Hook Extractions
+
+32 pages still own 3+ direct Supabase calls (147 total calls). Prioritised by call count:
+
+| Ticket | Page | Direct Calls | Target Hook | Priority |
+|---|---|---|---|---|
+| E-01 | `CanonicalRecordsManager.tsx` | 13 | `useCanonicalRecords.ts` | P1 |
+| E-02 | `ZoneManagement.tsx` | 9 | `useZoneManagement.ts` | P1 |
+| E-03 | `LivePatrolMonitor.tsx` | 9 | `useLivePatrolMonitor.ts` | P1 |
+| E-04 | `TeamChat.tsx` | 8 | `useTeamChat.ts` | P1 |
+| E-05 | `UserManagement.tsx` | 6 | `useUserManagement.ts` | P2 |
+| E-06 | `SystemDiagnostics.tsx` | 6 | `useSystemDiagnostics.ts` | P2 |
+| E-07 | `Compliance.tsx` | 6 | `useComplianceModule.ts` | P2 |
+| E-08 | `SpatialComplianceAdmin.tsx` | 5 | `useSpatialCompliance.ts` | P2 |
+| E-09 | `OrganizationProfile.tsx` | 5 | `useOrganizationProfile.ts` | P2 |
+| E-10 | `BobAssistantStudio.tsx` | 5 | `useBobStudio.ts` | P2 |
+| E-11 | `ParkingEnforcementPortal.tsx` | 4 | `useParkingEnforcement.ts` | P3 |
+| E-12 | `ObservationRecords.tsx` | 4 | `useObservationRecords.ts` | P3 |
+| E-13 | `NoiseOfficerPortal.tsx` | 4 | `useNoiseOfficer.ts` | P3 |
+| E-14 | `LMRBridge.tsx` | 4 | `useLMRBridge.ts` | P3 |
+| E-15 | `InfringementNotices.tsx` | 4 | `useInfringementNotices.ts` | P3 |
+| E-16 | `IncidentReports.tsx` | 4 | `useIncidentReports.ts` | P3 |
+
+**Sprint 69 checklist (P1 extractions):**
+- [ ] E-01: Extract `CanonicalRecordsManager` → `useCanonicalRecords.ts`
+- [ ] E-02: Extract `ZoneManagement` → `useZoneManagement.ts`
+- [ ] E-03: Extract `LivePatrolMonitor` → `useLivePatrolMonitor.ts`
+- [ ] E-04: Extract `TeamChat` → `useTeamChat.ts`
+- [ ] `bun run build` → PASS after each extraction
+- [ ] `bun run lint` → PASS
+
+**Sprint 70 checklist (P2 batch):**
+- [ ] E-05 through E-10: P2 extractions (UserManagement, SystemDiagnostics, Compliance, SpatialComplianceAdmin, OrganizationProfile, BobAssistantStudio)
+- [ ] `bun run build` → PASS
+- [ ] `bun run lint` → PASS
+
+**Sprint 71 checklist (P3 batch):**
+- [ ] E-11 through E-16: P3 extractions (ParkingEnforcementPortal, ObservationRecords, NoiseOfficerPortal, LMRBridge, InfringementNotices, IncidentReports)
+- [ ] Remaining ~16 pages with 3 direct calls (InvestigationJobConfig, ComplianceDashboard, Reports, PersonRecords, etc.)
+- [ ] `bun run build` → PASS
+- [ ] `bun run lint` → PASS
+
+---
+
+### Phase A Gate Closure Checklist (still open)
+
+These items from `docs/PHASE_B_GATE_STATUS.md` were never formally closed:
+
+| # | Item | Status | Action needed |
+|---|---|---|---|
+| 1 | Org isolation CI: 5/5 scenarios green in GitHub Actions | Partial | Run `bunx playwright test tests/e2e/org-isolation-api.spec.ts` + verify CI green |
+| 2 | Bootstrap routes E2E full CI pass | Partial | Run phase-b1/b2/b4 E2E tests |
+| 3 | Team ownership sign-off (8 leads) | External | DonSquires to confirm or mark N/A for solo-operated repo |
+
+- [ ] Run org isolation CI suite and confirm 5/5 pass
+- [ ] Run bootstrap routes E2E suite and confirm 3/3 pass
+- [ ] Formally mark Phase A gate GREEN in `docs/PHASE_B_GATE_STATUS.md`
+- [ ] Update `docs/BUILD_REALIGNMENT_PLAN_2026-05-04.md` status to `Phase A COMPLETE — Phase B ACTIVE`
+
+---
+
+### Phase B Feature Flag Activation Checklist
+
+All Phase B feature flags are currently at 0% canary. Once Phase A gate is closed:
+
+| Flag | Current | Action |
+|---|---|---|
+| `FF_PHASE_B_PATROL_EVENTS` | disabled 0% | Advance to canary (10% to 50% to 100%) |
+| `FF_PHASE_B_DISPATCH_ACK` | disabled 0% | Advance to canary |
+| `FF_PHASE_B_ENFORCEMENT_TIMELINE` | disabled 0% | Advance to canary |
+| `FF_PHASE_C_SECURITY_ASSISTIVE` | disabled 0% | Hold until Phase C gate |
+| `FF_PHASE_D_BOB_INTEGRATION` | disabled 0% | Hold until Phase D gate |
+
+- [ ] Phase A gate confirmed GREEN
+- [ ] Enable `FF_PHASE_B_PATROL_EVENTS` at 10% canary: `node scripts/advance-canary-stage.sh FF_PHASE_B_PATROL_EVENTS`
+- [ ] Enable `FF_PHASE_B_DISPATCH_ACK` at 10% canary
+- [ ] Enable `FF_PHASE_B_ENFORCEMENT_TIMELINE` at 10% canary
+- [ ] Monitor for 24h then advance to 50% to 100%
+
+---
+
+### Deferred Item
+
+| Ticket | Item | Status |
+|---|---|---|
+| B-05 | Offline job map tiles downloadable for rural zones | Deferred — `useOfflineTileCache.ts` hook exists, needs wiring into JobMap page |
+
+- [ ] B-05: Wire `useOfflineTileCache` into `src/pages/JobMap` or equivalent — confirm download UI and tile storage boundary
