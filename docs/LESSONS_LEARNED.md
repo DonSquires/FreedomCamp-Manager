@@ -13,6 +13,13 @@ Use this file to record concrete mistakes Bob and Dr Bob found during adversaria
 
 ## Current Lessons
 
+- Date: 2026-05-09
+- Trigger: External NZ case study (Stuff, Laura Frykberg, 2026-05-08) describing ANPR-based parking notices issued to drivers who made separate short visits that were incorrectly merged into one overstay event.
+- Mistake: AI/computer-vision enforcement flow treated entry/exit snapshots as sufficient proof of a continuous parking stay, without proving stationary occupancy, multi-visit disambiguation, or evidentiary completeness.
+- Risk: false infringement notices, unfair customer burden to disprove machine output, regulatory exposure under Fair Trading obligations, and trust erosion in compliance automation.
+- Fix: adopt evidence-first enforcement logic for Bob-assisted compliance decisions: (1) no penalty recommendation without verifiable parking-state evidence, (2) detect and split same-day multi-visit patterns before duration calculation, (3) provide transparent appeal evidence bundle by default.
+- Prevention Rule: Bob must never treat ANPR timing pairs alone as conclusive liability; require corroboration (parking-state proof, site context, duplicate-journey checks) and downgrade uncertain cases to human review with explainable evidence gaps.
+
 - Date: 2026-05-07
 - Trigger: Playwright Bob UI regression (`tests/e2e/governance-bob-regression.spec.ts`) showing blank `/login` and `/bob` pages.
 - Mistake: duplicate `/open-shifts` entries existed in both `src/navigation/routeManifest.ts` and `src/App.tsx`, causing route manifest validation to throw during app boot.

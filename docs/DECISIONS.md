@@ -14,6 +14,12 @@ When a pattern, platform, or architectural decision changes, append a dated note
 
 ## Current Standing Decisions
 
+- Date: 2026-05-09
+- Decision: ANPR/AI parking-duration signals are advisory evidence only and cannot be used as sole proof for infringement actions.
+- Scope: Bob compliance reasoning, ANPR/parking workflows, automated notice recommendations, and appeal evidence handling.
+- Reason: Real-world NZ failures showed false positives when separate short visits were merged into a single overstay without parking-state proof.
+- Consequences: Every Bob-assisted enforcement recommendation must include corroboration checks (multi-visit split detection, parking-state evidence, and confidence/explainability metadata). If corroboration is missing, Bob must route to human review and explicitly state evidence gaps.
+
 - Date: 2026-05-08
 - Decision: Total JS build budget recalibrated from 7200 kB to 8000 kB.
 - Scope: `scripts/check-build-budgets.mjs`.
