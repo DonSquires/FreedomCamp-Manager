@@ -83,10 +83,7 @@ export function useLiveSessionDiagnostics() {
       inFlightRef.current = false
     }
   }, [location.pathname, location.search, user?.id])
-
-  useEffect(() => {
-    flushRef.current = flush
-  }, [flush])
+  flushRef.current = flush
 
   useEffect(() => {
     if (!user?.id || sessionStartedRef.current) return
