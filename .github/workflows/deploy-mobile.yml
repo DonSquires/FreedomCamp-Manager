@@ -107,8 +107,6 @@ jobs:
         uses: actions/setup-node@v5
         with:
           node-version: '24'
-          cache: 'npm'
-          cache-dependency-path: mobile-app/package-lock.json
 
       - name: Install dependencies
         if: steps.check-secrets.outputs.secrets_present == 'true'

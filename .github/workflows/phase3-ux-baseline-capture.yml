@@ -89,6 +89,9 @@ jobs:
             --reporter=list \
             --timeout=60000
 
+      - name: Generate route-role matrix
+        run: bun run roadmap:route-matrix
+
       - name: Validate route-role gates (strict)
         run: node scripts/validate-roadmap-role-gates.mjs --strict
 

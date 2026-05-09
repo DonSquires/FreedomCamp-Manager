@@ -19,10 +19,11 @@ test.describe('Tender & Document Workspace', () => {
 
     // Modal/dialog should open
     const dialog = page.locator('[role="dialog"]').first()
-    await expect(dialog).toBeVisible({ timeout: 8000 })
+    await expect(dialog).toBeVisible({ timeout: 15000 })
 
-    // Ensure key input fields are present
-    await expect(dialog.locator('input, textarea').first()).toBeVisible({ timeout: 8000 })
+    // Ensure key input fields are present — use a longer timeout for webkit
+    // which has slower dialog animation / rendering in CI
+    await expect(dialog.locator('input, textarea').first()).toBeVisible({ timeout: 15000 })
   })
 
   test('authorized user can open an existing tender when one is listed', async ({ page }) => {
