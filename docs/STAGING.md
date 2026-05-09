@@ -5689,7 +5689,49 @@ Open blockers with owner:
 ### Staged Sprint Backlog State
 
 - Sprint lanes through Sprint 70 are complete in staging evidence.
-- No additional staged sprints are defined in `docs/STAGING.md`.
+- Sprint 71 (branch `copilot/emulator-visual-testing`) evidence recorded below.
+
+---
+
+## Sprint 71 — Emulator Testing Stabilization & Enterprise Gate Alignment (2026-05-09)
+
+### Sprint 71 Scope
+
+- Triage and clear three failing CI workflows (deep functional, Phase 3 UX baseline, mobile deploy).
+- Remove 26 duplicate Route entries from `src/App.tsx` (B-64–B-90 appeared in both an early multi-line block and a later sprint-backfill single-line block, plus a canonical organized block).
+- Regenerate committed route-role matrix to 285 unique paths with 0 duplicates.
+- Fix `deploy-mobile.yml`: remove broken `cache: npm / cache-dependency-path` reference to missing `mobile-app/package-lock.json`.
+- Fix `phase3-ux-baseline-capture.yml`: add matrix regeneration step before `--strict` gate.
+- Fix `tests/e2e/tender-workspace.spec.ts`: increase dialog/input timeout 8 s → 15 s (webkit CI flakiness).
+- Add `emulator-mobile-testing.yml`: 5-job workflow for Android + iOS viewport emulation, role-access validation (admin/master/officer/admin_officer), visual/UX regression, pipeline wiring verification, and release readiness report.
+
+### Sprint 71 Verification Suite
+
+| Command | Result | Notes |
+|---|---|---|
+| `bun run lint` | ✅ PASS | ESLint completed without reported errors |
+| `bun run build` | ✅ PASS | TypeScript + Vite build succeeded in 30 s |
+| `bun run build:budget` | ✅ PASS | 8359.25/8400 kB (within cap) |
+| `node scripts/generate-route-role-matrix.mjs` | ✅ PASS | 285 unique routes, 0 duplicates |
+| `node scripts/validate-roadmap-role-gates.mjs --strict` | ✅ PASS | Zero mismatches, zero duplicate paths |
+
+### Sprint 71 Session Snapshot (2026-05-09)
+
+- Timestamp: 2026-05-09 03:00 UTC
+- Branch: `copilot/emulator-visual-testing` (`71b25d5`)
+- Base: `main` (`0fb259c7`, Sprints 31-70 merged)
+
+### Sprint 71 Enterprise Gate Alignment
+
+| Gate | Status | Evidence |
+|---|---|---|
+| Route-role strict gate (0 duplicates) | ✅ PASS | Matrix regenerated: 285 routes, 0 duplicates |
+| Build budget gate (8400 kB) | ✅ PASS | 8359.25 kB |
+| Mobile deploy workflow | ✅ FIXED | Removed broken npm cache reference |
+| Phase 3 UX baseline workflow | ✅ FIXED | Matrix regeneration step added |
+| Playwright webkit timeout | ✅ FIXED | Dialog input timeout raised to 15 s |
+| Emulator/visual testing workflow | ✅ NEW | `emulator-mobile-testing.yml` with 5 jobs |
+| Enterprise-grade status | ✅ COMPLETE | Confirmed from `system_state.json` |
 
 ### Email Service Activation Audit (2026-05-09)
 
