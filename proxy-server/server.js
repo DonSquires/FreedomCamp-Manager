@@ -1,9 +1,11 @@
 /**
  * NZSCV API PROXY SERVER
  * Provides static IP whitelisting for NZSCV Self-Contained Vehicle Registry API
+ * Also provides email relay for edge functions: /api/email/send-report, /api/email/send-invite
  * 
  * Deploy this to: DigitalOcean Droplet, Railway, or Fly.io
  * Cost: $5-6/month for static IP
+ * Deployment: git push proxy-server/** → GitHub Actions → Railway CLI → railway up
  */
 
 const express = require('express');
