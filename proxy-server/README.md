@@ -232,6 +232,15 @@ curl -X POST https://your-proxy-url.com/api/nzscv/vehicle-info \
   -d '{"RegistrationNumber": "ABC123"}'
 ```
 
+### Report Email Relay Test (after deployment)
+
+```bash
+curl -X POST https://your-proxy-url.com/api/email/send-report \
+  -H "Content-Type: application/json" \
+  -H "X-Proxy-Secret: your_secret_here" \
+  -d '{"recipient_email":"reports@fieldops.co.nz","subject":"Relay test","html":"<p>relay ok</p>"}'
+```
+
 Expected response (before NZSCV approval):
 ```json
 {
