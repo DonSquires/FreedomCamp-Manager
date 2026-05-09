@@ -99,6 +99,9 @@ import {
   Table2,
   Briefcase,
   Bell,
+  ClipboardList,
+  Flag,
+  CalendarCheck,
 } from 'lucide-react'
 
 type DrillConfig = {
@@ -1236,6 +1239,18 @@ export default function AdminPortal() {
                     { path: '/face-records-log',               label: 'Face Records',    Icon: Camera,       color: 'text-blue-600',   bg: 'bg-blue-50 dark:bg-blue-900/20' },
                     { path: '/infringement-notices-log',       label: 'Notice Log',      Icon: Receipt,      color: 'text-emerald-600',bg: 'bg-emerald-50 dark:bg-emerald-900/20' },
                     { path: '/site-risk-assessments-log',      label: 'Site Risk Log',   Icon: ShieldAlert,  color: 'text-rose-600',   bg: 'bg-rose-50 dark:bg-rose-900/20' },
+                    // Sprint 51–54: B-161–B-171
+                    { path: '/breach-alerts-log',              label: 'Breach Alert Log',    Icon: AlertTriangle, color: 'text-red-600',   bg: 'bg-red-50 dark:bg-red-900/20' },
+                    { path: '/canonical-homeless-log',         label: 'Homeless Log',         Icon: Tent,          color: 'text-amber-600', bg: 'bg-amber-50 dark:bg-amber-900/20' },
+                    { path: '/canonical-scv-log',              label: 'SCV Log',              Icon: ShieldCheck,   color: 'text-green-600', bg: 'bg-green-50 dark:bg-green-900/20' },
+                    { path: '/canonical-vehicles-log',         label: 'Canon. Vehicles',      Icon: Car,           color: 'text-blue-600',  bg: 'bg-blue-50 dark:bg-blue-900/20' },
+                    { path: '/dispatch-jobs-log',              label: 'Dispatch Jobs',        Icon: ClipboardList, color: 'text-indigo-600',bg: 'bg-indigo-50 dark:bg-indigo-900/20' },
+                    { path: '/enforcement-actions-log',        label: 'Enforcement Log',      Icon: Gavel,         color: 'text-purple-600',bg: 'bg-purple-50 dark:bg-purple-900/20' },
+                    { path: '/flagged-vehicles-log',           label: 'Flagged Vehicles',     Icon: Flag,          color: 'text-orange-600',bg: 'bg-orange-50 dark:bg-orange-900/20' },
+                    { path: '/officer-availability-log',       label: 'Availability Log',     Icon: CalendarCheck, color: 'text-cyan-600',  bg: 'bg-cyan-50 dark:bg-cyan-900/20' },
+                    { path: '/officer-shifts-log',             label: 'Shifts Log',           Icon: Clock,         color: 'text-teal-600',  bg: 'bg-teal-50 dark:bg-teal-900/20' },
+                    { path: '/open-shifts-log',                label: 'Open Shifts Log',      Icon: CalendarClock, color: 'text-violet-600',bg: 'bg-violet-50 dark:bg-violet-900/20' },
+                    { path: '/zone-compliance-matrix-log',     label: 'Zone Matrix Log',      Icon: LayoutGrid,    color: 'text-rose-600',  bg: 'bg-rose-50 dark:bg-rose-900/20' },
                   ].map(({ path, label, Icon, color, bg }) => (
                     <button key={path} onClick={() => navigate(path)} aria-label={`Open ${label}`} className={`${moduleTileClass} ${bg}`}>
                       <Icon className={`h-5 w-5 ${color}`} />
