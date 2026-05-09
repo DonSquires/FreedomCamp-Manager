@@ -1,9 +1,9 @@
 # Module Roadmap (Operator Navigation Map)
 
-Date: 2026-05-09 (verified against src/navigation/routeManifest.ts)
-Source of truth for routes: route manifest file src/navigation/routeManifest.ts (265 route manifest entries after App-router parity backfill)
+Date: 2026-05-08 (verified against src/navigation/routeManifest.ts)
+Source of truth for routes: route manifest file src/navigation/routeManifest.ts (286 route manifest entries as of Sprint 67 completion)
 
- > **Last Verification**: 2026-05-09 — App.tsx to routeManifest parity backfill applied for 54 previously-missing routes.
+ > **Last Verification**: 2026-05-09 — Role-gating and route docs reviewed through Sprint 67 (B-246). Production main includes Sprints 31-67.
 
 ## How To Use
 
@@ -813,82 +813,513 @@ New admin routes added in Sprint 49 (B-157, B-158, B-159):
    - Role gate: admin, admin_officer, master
    - Viewer for site_risk_assessments; KPIs (Total/High+Critical/Open/Reviewed); risk/status/request/site/date filters; hazard count + controls/review detail expand
 
-## Sprint 51 Route Addendum (2026-05-09)
+## Sprint 50 Route Addendum (2026-05-08)
 
-New admin routes added in Sprint 51 (B-161, B-162, B-163):
+New admin routes added in Sprint 50 (B-160, B-161, B-162):
 
-1. Breach Alert Log (B-161)
-   - Route: /breach-alerts-log
-   - Role gate: admin, admin_officer, master
-   - Viewer for breach_alerts; date/status/type filters; assignment, notification, review, resolution metadata expand
-
-2. Canonical Homeless Log (B-162)
-   - Route: /canonical-homeless-log
-   - Role gate: admin, admin_officer, master
-   - Viewer for canonical_homeless; active/source/date filters; plate linkage, observation history expand
-
-3. Canonical SCV Log (B-163)
-   - Route: /canonical-scv-log
-   - Role gate: admin, admin_officer, master
-   - Viewer for canonical_scv; plate/status/date filters; compliance status and observation cross-refs expand
-
-## Sprint 52 Route Addendum (2026-05-09)
-
-New admin routes added in Sprint 52 (B-164, B-165, B-166):
-
-1. Canonical Vehicle Log (B-164)
-   - Route: /canonical-vehicles-log
-   - Role gate: admin, admin_officer, master
-   - Viewer for canonical_vehicles; plate/owner/date filters; exemption, flag/homeless status, lifecycle totals expand
-
-2. Dispatch Job Log (B-165)
+1. Dispatch Job Log (B-160)
    - Route: /dispatch-jobs-log
    - Role gate: admin, admin_officer, master
-   - Viewer for dispatch_jobs; job#/title/address search, status/type/priority/date filters; caller, GPS, SLA, case cross-refs expand
+   - Viewer for dispatch_jobs; KPIs (Total/Active/Completed/SLA Breached); status/type/priority/date filters; caller, case, breach, lifecycle, and SLA detail expand
 
-3. Enforcement Action Log (B-166)
+2. Enforcement Action Log (B-161)
    - Route: /enforcement-actions-log
    - Role gate: admin, admin_officer, master
-   - Viewer for enforcement_actions; plate/notes search, status/action_type/date filters; breach/vehicle/compliance links, assignment metadata expand
+   - Viewer for enforcement_actions; KPIs (Total/Pending/Completed/Assigned); status/action/date filters; breach, observation, assignment, outcome, and notes detail expand
 
-## Sprint 53 Route Addendum (2026-05-09)
-
-New admin routes added in Sprint 53 (B-167, B-168, B-169):
-
-1. Flagged Vehicle Log (B-167)
-   - Route: /flagged-vehicles-log
+3. Observation Log (B-162)
+   - Route: /observations-log
    - Role gate: admin, admin_officer, master
-   - Viewer for flagged_vehicles; plate/reason/contact search, active/priority/date filters; creator/flagger/site/notes/status expand
+   - Viewer for observations; KPIs (Total/Breaches/Compliant/With Photo); breach/compliance/date filters; GPS, processing, notes, and photo evidence detail expand
 
-2. Officer Availability Log (B-168)
+## Sprint 51 Route Addendum (2026-05-08)
+
+New admin routes added in Sprint 51 (B-163, B-164, B-165):
+
+1. Canonical SCV Log (B-163)
+   - Route: /canonical-scv-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for canonical_scv; KPIs (Total/Self-Contained/Active Certs/Expired Certs); status/source/date filters; certificate expiry, verification, occupancy, and notes detail expand
+
+2. Officer Availability Log (B-164)
    - Route: /officer-availability-log
    - Role gate: admin, admin_officer, master
-   - Viewer for officer_availability; availability/date filters; officer profile and schedule context expand
+   - Viewer for officer_availability; KPIs (Total/Available/Unavailable); availability/day/date filters; time windows, specific-date overrides, notes, and unavailability reason detail expand
 
-3. Officer Shift Log (B-169)
+3. Canonical Homeless Log (B-165)
+   - Route: /canonical-homeless-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for canonical_homeless; KPIs (Total/Confirmed/Cleared/Sources); status/source/date filters; confirmation, notes, and lifecycle detail expand
+
+## Sprint 52 Route Addendum (2026-05-08)
+
+New admin routes added in Sprint 52 (B-166, B-167, B-168):
+
+1. Breach Alert Log (B-166)
+   - Route: /breach-alerts-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for breach_alerts; KPIs (Total/Pending/Escalated/Resolved); status/breach type/date filters; alert level, zone, plate, notes, resolution detail expand
+
+2. Canonical Vehicle Log (B-167)
+   - Route: /canonical-vehicles-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for canonical_vehicles; KPIs (Total/Flagged/Homeless Linked/With Org); flagged/homeless/date filters; plate, make/model, colour, SCV status, org, and observation count detail expand
+
+3. Flagged Vehicle Log (B-168)
+   - Route: /flagged-vehicles-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for flagged_vehicles; KPIs (Total/Active/High Priority/With Plate); active/priority/date filters; flag type, reason, plate, expiry, and review notes detail expand
+
+## Sprint 53 Route Addendum (2026-05-08)
+
+New admin routes added in Sprint 53 (B-169, B-170, B-171):
+
+1. Officer Shift Log (B-169)
    - Route: /officer-shifts-log
    - Role gate: admin, admin_officer, master
-   - Viewer for officer_shifts; start/end times, approval status, shift type filters; officer assignment and welfare expand
+   - Viewer for officer_shifts; KPIs (Total/Active/Approved/GPS Tracked); approval/service/date filters; shift start/end, GPS flag, service type, feedback, and break time detail expand
 
-## Sprint 54 Route Addendum (2026-05-09)
-
-New admin routes added in Sprint 54 (B-170, B-171):
-
-1. Open Shift Log (B-170)
+2. Open Shift Log (B-170)
    - Route: /open-shifts-log
    - Role gate: admin, admin_officer, master
-   - Viewer for open_shifts; title/description/creator/claimant search, status/date filters; shift window and claim history expand
+   - Viewer for open_shifts; KPIs (Total/Open/Filled/High Priority); status/type/priority/date filters; shift window, zone, required skills, assignment, and posting metadata detail expand
 
-2. Zone Compliance Matrix Log (B-171)
+3. Zone Compliance Matrix Log (B-171)
    - Route: /zone-compliance-matrix-log
    - Role gate: admin, admin_officer, master
-   - Viewer for zone_compliance_matrix; zone/status/date filters; max nights, seasonal rules, compliance threshold expand
+   - Viewer for zone_compliance_matrix; KPIs (Total/Self-Contained Only/Night Cap Set/Monthly Cap Set); day-limit/self-contained/date filters; max nights, monthly limits, allowed days, and zone policy detail expand
+
+## Sprint 54 Route Addendum (2026-05-08)
+
+New admin routes added in Sprint 54 (B-172, B-173, B-174):
+
+1. Pricing Rule Log (B-172)
+   - Route: /pricing-rules-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for pricing_rules; KPIs (Total/Active/With Zone/With Flat Override); active/day/date filters; multiplier, overrides, and notes detail expand
+
+2. Zone Legal Config Log (B-173)
+   - Route: /zone-legal-config-log
+   - Role gate: admin, master
+   - Viewer for zone_legal_config; KPIs (Total/With Fine/With Max Stay/With Authority); enforcement/date filters; legal descriptors and breach template detail expand
+
+3. Zone Signage Evidence Log (B-174)
+   - Route: /zone-signage-evidence-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for zone_signage_evidence; KPIs (Total/Current/With GPS/With Notes); signage/current/date filters; photo hash/location and capture metadata detail expand
+
+## Sprint 55 Route Addendum (2026-05-08)
+
+New admin routes added in Sprint 55 (B-175, B-176, B-177):
+
+1. Fixed Camera Log (B-175)
+   - Route: /fixed-cameras-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for fixed_cameras; KPIs (Total/Online/With Zone/With Stream); status/type/date filters; stream/snapshot and location detail expand
+
+2. Officer Skills Log (B-176)
+   - Route: /officer-skills-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for officer_skills; KPIs (Total/Verified/Expiring Soon/Expired); category/verification/date filters; credential and verification metadata detail expand
+
+3. Patrol Checkpoint Log (B-177)
+   - Route: /patrol-checkpoints-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for patrol_checkpoints; KPIs (Total/Active/Required on Patrol/With NFC); active/required/date filters; radius/location and assignment metadata detail expand
+
+## Sprint 56 Route Addendum (2026-05-08)
+
+New admin routes added in Sprint 56 (B-178, B-179, B-180):
+
+1. Contractor Profile Log (B-178)
+   - Route: /contractor-profiles-log
+   - Role gate: admin, master
+   - Viewer for contractor_profiles; KPIs (Total/HS Policy Verified/Insurance Verified/Both Verified); compliance/date filters; contact/accounts and policy expiry detail expand
+
+2. Parking Zone Log (B-179)
+   - Route: /parking-zones-log
+   - Role gate: admin, master
+   - Viewer for parking_zones; KPIs (Total/Active/With Fine/With Cameras); active/date filters; limits, enforcement windows, and camera assignment detail expand
+
+3. Canonical Persons Log (B-180)
+   - Route: /canonical-persons-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for canonical_persons; KPIs (Total/Identified/Partial/Minor); identity/minor/date filters; descriptors and lifecycle metadata detail expand
+
+## Sprint 57 Route Addendum (2026-05-08)
+
+New manifest entries added in Sprint 57 (B-181, B-182, B-183) — routes already existed in App.tsx/AppLayout.tsx:
+
+1. Alarm Event Log (B-181)
+   - Route: /alarm-events-log
+   - Role gate: admin, admin_officer, master
+   - navGroup: Operations
+
+2. Checkpoint Visit Log (B-182)
+   - Route: /checkpoint-visits-log
+   - Role gate: admin, admin_officer, master
+   - navGroup: Operations
+
+3. Credential Processing Log (B-183)
+   - Route: /credential-processing-log
+   - Role gate: admin, admin_officer, master
+   - navGroup: Records
+
+## Sprint 58 Route Addendum (2026-05-08)
+
+New manifest entries added in Sprint 58 (B-184, B-185, B-186):
+
+1. Dispatch Ack Log (B-184)
+   - Route: /dispatch-ack-log
+   - Role gate: admin, admin_officer, master
+   - navGroup: Operations
+
+2. Drift Events (B-185)
+   - Route: /drift-events
+   - Role gate: admin, admin_officer, master
+   - navGroup: Operations
+
+3. EMS Attendance Log (B-186)
+   - Route: /ems-attendances-log
+   - Role gate: admin, admin_officer, master
+   - navGroup: Operations
+
+## Sprint 59 Route Addendum (2026-05-08)
+
+New manifest entries added in Sprint 59 (B-187, B-188, B-189):
+
+1. Enforcement Event Log (B-187)
+   - Route: /enforcement-events-log
+   - Role gate: admin, admin_officer, master
+   - navGroup: Enforcement
+
+2. Health & Safety Report Log (B-188)
+   - Route: /health-safety-report-log
+   - Role gate: admin, admin_officer, master
+   - navGroup: Records
+
+3. Officer Activity Log (B-189)
+   - Route: /officer-activity-log
+   - Role gate: admin, admin_officer, master
+   - navGroup: Operations
+
+## Sprint 60 Route Addendum (2026-05-08)
+
+New manifest entries added in Sprint 60 (B-190, B-191, B-192):
+
+1. Parking Payment Log (B-190)
+   - Route: /parking-payments-log
+   - Role gate: admin, admin_officer, master
+   - navGroup: Operations
+
+2. Parking Session Log (B-191)
+   - Route: /parking-sessions-log
+   - Role gate: admin, admin_officer, master
+   - navGroup: Operations
+
+3. Plate Scan Log (B-192)
+   - Route: /plate-scans-log
+   - Role gate: admin, admin_officer, master
+   - navGroup: Operations
+
+## Sprint 61 Route Addendum (2026-05-08)
+
+Manifest normalization retained Sprint 61 unique addition:
+
+1. Access Audit Log (B-194)
+   - Route: /access-audit
+   - Role gate: admin, admin_officer, master, grand_master
+   - navGroup: Records
+
+## Sprint 62 Route Addendum (2026-05-08)
+
+New manifest entries added in Sprint 62 (B-195, B-196, B-197, B-198, B-199, B-200):
+
+1. Radio Transmissions (B-195)
+   - Route: /radio-transmissions
+   - Role gate: admin, admin_officer, master
+   - navGroup: Operations
+
+2. Radio Audit (B-196)
+   - Route: /radio/audit
+   - Role gate: admin, admin_officer, master, grand_master
+   - navGroup: Operations
+
+3. PTT Transmission Log (B-197)
+   - Route: /radio/log
+   - Role gate: officer, admin_officer, admin, master, grand_master
+   - navGroup: Operations
+
+4. EMS Portal (B-198)
+   - Route: /ems
+   - Role gate: officer, admin_officer, admin, master, grand_master
+   - navGroup: Specialist Services
+
+5. LMR Bridge (B-199)
+   - Route: /lmr-bridge
+   - Role gate: admin, admin_officer, master
+   - navGroup: Operations
+
+6. Site Guard Portal (B-200)
+   - Route: /site-guard
+   - Role gate: officer, admin_officer, admin, master, grand_master
+   - navGroup: Specialist Services
+
+## Sprint 63 Route Addendum (2026-05-08)
+
+New manifest entries added in Sprint 63 (B-201 through B-209):
+
+1. Access Permissions (B-201)
+   - Route: /access-permissions
+   - Role gate: admin, admin_officer, master
+   - navGroup: Records
+
+2. Asset Management (B-202)
+   - Route: /asset-management
+   - Role gate: admin, admin_officer, master, grand_master
+   - navGroup: Roster & Workforce
+
+3. Biosecurity (CNG) (B-203)
+   - Route: /biosecurity-officer
+   - Role gate: officer, admin_officer, admin, master
+   - navGroup: Specialist Services
+
+4. Canonical Persons (B-204)
+   - Route: /canonical-persons
+   - Role gate: admin, admin_officer, master
+   - navGroup: Records
+
+5. Case Bridge (B-205)
+   - Route: /case-bridge
+   - Role gate: admin, admin_officer, master, grand_master
+   - navGroup: Roster & Workforce
+
+6. Dispatch LOI Browser (B-206)
+   - Route: /loi-browser
+   - Role gate: admin, admin_officer, master
+   - navGroup: Records
+
+7. Smoke Complaints (OOH) (B-207)
+   - Route: /smoke-officer
+   - Role gate: officer, admin_officer, admin, master
+   - navGroup: Specialist Services
+
+8. Trespass Notices (B-208)
+   - Route: /trespass-notices
+   - Role gate: admin, admin_officer, master
+   - navGroup: Records
+
+9. Voice Profiles & Consent (B-209)
+   - Route: /voice-profiles
+   - Role gate: admin, admin_officer, master
+   - navGroup: Operations
+
+## Sprint 64 Route Addendum (2026-05-08)
+
+New manifest entries added in Sprint 64 (B-210 through B-222):
+
+1. Alarm Events (B-210)
+   - Route: /alarm-events
+   - Role gate: admin, admin_officer, master
+   - navGroup: Operations
+
+2. Fixed Cameras (B-211)
+   - Route: /fixed-cameras
+   - Role gate: admin, admin_officer, master
+   - navGroup: Operations
+
+3. Patrol Route Optimiser (B-212)
+   - Route: /patrol-route-optimiser
+   - Role gate: admin, admin_officer, master, officer
+   - navGroup: Operations
+
+4. Patrol Navigation (B-213)
+   - Route: /patrol-navigation
+   - Role gate: admin, admin_officer, master, officer
+   - navGroup: Operations
+
+5. Plate Finder (B-214)
+   - Route: /plate-finder
+   - Role gate: admin, admin_officer, master, officer
+   - navGroup: Management
+
+6. Evidence Packages (B-215)
+   - Route: /evidence-packages
+   - Role gate: admin, admin_officer, master, officer
+   - navGroup: Records
+
+7. Cohort Analysis (B-216)
+   - Route: /cohort-analysis
+   - Role gate: admin, admin_officer, master
+   - navGroup: Records
+
+8. Occupancy Analytics (B-217)
+   - Route: /occupancy-analytics
+   - Role gate: admin, admin_officer, master
+   - navGroup: Records
+
+9. Open Shift Manager (B-218)
+   - Route: /open-shifts-manager
+   - Role gate: admin, admin_officer, master
+   - navGroup: Roster & Workforce
+
+10. Dynamic Pricing (B-219)
+   - Route: /dynamic-pricing
+   - Role gate: admin, admin_officer, master
+   - navGroup: Management
+
+11. Revenue Forecasting (B-220)
+   - Route: /revenue-forecasting
+   - Role gate: admin, admin_officer, master
+   - navGroup: Management
+
+12. Service Agreements (B-221)
+   - Route: /service-agreements
+   - Role gate: admin, admin_officer, master, grand_master
+   - navGroup: Roster & Workforce
+
+13. POI/VOI Watch-list (B-222)
+   - Route: /poi-voi-dashboard
+   - Role gate: admin, admin_officer, master, grand_master
+   - navGroup: Roster & Workforce
+
+## Sprint 65 Route Addendum (2026-05-08)
+
+New manifest entries added in Sprint 65 (B-223 through B-225):
+
+1. Command Centre (B-223)
+   - Route: /admin
+   - Role gate: admin, admin_officer, master
+   - navGroup: Core
+
+2. Service Provider Access (B-224)
+   - Route: /admin/service-provider-access
+   - Role gate: admin, master
+   - navGroup: Settings
+
+3. Search (B-225)
+   - Route: /search
+   - Role gate: master, admin, officer, admin_officer, nzscv_monitor, grand_master, client_viewer
+   - navGroup: Core
+
+## Sprint 66 Route Addendum (2026-05-08)
+
+New manifest entries added in Sprint 66 (B-226 through B-235):
+
+1. Public Dispute Portal (B-226)
+   - Route: /dispute
+   - Role gate: manifest-shared public route
+   - navGroup: none
+
+2. Public Zone Map (B-227)
+   - Route: /public/zone-map
+   - Role gate: manifest-shared public route
+   - navGroup: none
+
+3. Public Noise Complaint Portal (B-228)
+   - Route: /public/noise-complaint
+   - Role gate: manifest-shared public route
+   - navGroup: none
+
+4. Public Parking Appeal Portal (B-229)
+   - Route: /public/parking-appeal
+   - Role gate: manifest-shared public route
+   - navGroup: none
+
+5. Public Pay by Plate (B-230)
+   - Route: /public/pay-by-plate
+   - Role gate: manifest-shared public route
+   - navGroup: none
+
+6. Public Registration (B-231)
+   - Route: /public/register
+   - Role gate: manifest-shared public route
+   - navGroup: none
+
+7. Bob Studio (B-232)
+   - Route: /bob-studio
+   - Role gate: admin, admin_officer, master, grand_master
+   - navGroup: Bob
+
+8. Bob UI Review (B-233)
+   - Route: /bob-ui-review
+   - Role gate: admin, admin_officer, master, grand_master
+   - navGroup: Bob
+
+9. Job Map (B-234)
+   - Route: /job-map
+   - Role gate: admin, admin_officer, master, officer
+   - navGroup: Live Ops
+
+10. Patrol Dispatch (B-235)
+   - Route: /field-officer/dispatch
+   - Role gate: officer, admin_officer
+   - navGroup: Officer
+
+## Sprint 67 Route Addendum (2026-05-09)
+
+New manifest entries added in Sprint 67 (B-236 through B-246):
+
+1. Admin Dispatch Alias (B-236)
+   - Route: /admin/dispatch
+   - Role gate: admin, admin_officer, master
+   - navGroup: none
+
+2. Admin Enforcement Alias (B-237)
+   - Route: /admin/enforcement
+   - Role gate: admin, admin_officer, master, officer
+   - navGroup: none
+
+3. Bob Alias (B-238)
+   - Route: /bob
+   - Role gate: admin, admin_officer, master, officer, grand_master
+   - navGroup: none
+
+4. Bob Assistant Studio Alias (B-239)
+   - Route: /bob/assistant-studio
+   - Role gate: admin, admin_officer, master, officer, grand_master
+   - navGroup: none
+
+5. Field Alias (B-240)
+   - Route: /field
+   - Role gate: authenticated users and client personas
+   - navGroup: none
+
+6. Messages (B-241)
+   - Route: /messages
+   - Role gate: authenticated users and client personas
+   - navGroup: none
+
+7. Vehicle Detail Route (B-242)
+   - Route: /vehicles/:id
+   - Role gate: authenticated users and client personas
+   - navGroup: none
+
+8. Client Portal (B-243)
+   - Route: /client-portal
+   - Role gate: client_viewer, client_officer, client_admin, admin, admin_officer, master, grand_master
+   - navGroup: none
+
+9. CRM Contractor Detail (B-244)
+   - Route: /crm/contractor/:orgId
+   - Role gate: admin, admin_officer, master, grand_master
+   - navGroup: none
+
+10. CRM Client Detail (B-245)
+   - Route: /crm/client/:orgId
+   - Role gate: admin, admin_officer, master, grand_master
+   - navGroup: none
+
+11. Tender Workspace Detail (B-246)
+   - Route: /tender-workspace/:id
+   - Role gate: admin, master, grand_master
+   - navGroup: none
 
 ## Production Status Snapshot (2026-05-08)
 
 - Branch: main
 - PR state (base main): 0 open
-- Consolidation status: Sprint 31 through Sprint 49 route work is merged to production main
+- Consolidation status: Sprint 31 through Sprint 67 route work is merged to production main
 
 ## Post-Sprint-42 Realignment Phases and Phase-Gate Progression (#548)
 

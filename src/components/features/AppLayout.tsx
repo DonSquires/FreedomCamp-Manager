@@ -128,9 +128,6 @@ import {
   Eye,
   TicketX,
   UserX,
-  Clock,
-  CalendarCheck,
-  LayoutGrid,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { supabase } from '@/lib/supabase'
@@ -245,12 +242,23 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/notifications-log', icon: Bell, label: 'Notification Log', roles: ['admin', 'admin_officer', 'master'] },
       // Sprint 49: B-158
       { path: '/infringement-notices-log', icon: Receipt, label: 'Infringement Notice Log', roles: ['admin', 'admin_officer', 'master'] },
-      // Sprint 51: B-161
-      { path: '/breach-alerts-log', icon: AlertTriangle, label: 'Breach Alert Log', roles: ['admin', 'admin_officer', 'master'] },
-      // Sprint 52: B-165
+      // Sprint 50: B-160–B-161
       { path: '/dispatch-jobs-log', icon: ClipboardList, label: 'Dispatch Job Log', roles: ['admin', 'admin_officer', 'master'] },
-      // Sprint 52: B-166
-      { path: '/enforcement-actions-log', icon: Gavel, label: 'Enforcement Action Log', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/enforcement-actions-log', icon: ShieldAlert, label: 'Enforcement Action Log', roles: ['admin', 'admin_officer', 'master'] },
+      // Sprint 51: B-164
+      { path: '/officer-availability-log', icon: CalendarCheck2, label: 'Officer Availability Log', roles: ['admin', 'admin_officer', 'master'] },
+      // Sprint 52: B-166–B-168
+      { path: '/breach-alerts-log', icon: AlertTriangle, label: 'Breach Alert Log', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/flagged-vehicles-log', icon: Flag, label: 'Flagged Vehicle Log', roles: ['admin', 'admin_officer', 'master'] },
+      // Sprint 53: B-169–B-170
+      { path: '/officer-shifts-log', icon: CalendarClock, label: 'Officer Shift Log', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/open-shifts-log', icon: CalendarDays, label: 'Open Shift Log', roles: ['admin', 'admin_officer', 'master'] },
+      // Sprint 54: B-172
+      { path: '/pricing-rules-log', icon: DollarSign, label: 'Pricing Rule Log', roles: ['admin', 'admin_officer', 'master'] },
+      // Sprint 55: B-175–B-177
+      { path: '/fixed-cameras-log', icon: Camera, label: 'Fixed Camera Log', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/officer-skills-log', icon: GraduationCap, label: 'Officer Skills Log', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/patrol-checkpoints-log', icon: Navigation2, label: 'Patrol Checkpoint Log', roles: ['admin', 'admin_officer', 'master'] },
     ],
   },
   {
@@ -332,16 +340,14 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/restrictions-log', icon: Map, label: 'Restriction Log', roles: ['admin', 'master'] },
       // Sprint 47: B-151
       { path: '/organizations-log', icon: Building2, label: 'Organization Log', roles: ['master', 'grand_master'] },
-      // Sprint 50: B-160
+      // Briefing video suite
       { path: '/admin/video-generation', icon: BrainCircuit, label: 'Video Generation Suite', roles: ['admin', 'admin_officer', 'master'] },
-      // Sprint 53: B-168
-      { path: '/officer-availability-log', icon: CalendarCheck, label: 'Officer Availability Log', roles: ['admin', 'admin_officer', 'master'] },
-      // Sprint 53: B-169
-      { path: '/officer-shifts-log', icon: Clock, label: 'Officer Shift Log', roles: ['admin', 'admin_officer', 'master'] },
-      // Sprint 54: B-170
-      { path: '/open-shifts-log', icon: CalendarClock, label: 'Open Shift Log', roles: ['admin', 'admin_officer', 'master'] },
-      // Sprint 54: B-171
-      { path: '/zone-compliance-matrix-log', icon: LayoutGrid, label: 'Zone Compliance Matrix Log', roles: ['admin', 'admin_officer', 'master'] },
+      // Sprint 53: B-171
+      { path: '/zone-compliance-matrix-log', icon: ShieldCheck, label: 'Zone Compliance Matrix Log', roles: ['admin', 'master'] },
+      // Sprint 54: B-173
+      { path: '/zone-legal-config-log', icon: Scale, label: 'Zone Legal Config Log', roles: ['admin', 'master'] },
+      // Sprint 56: B-179
+      { path: '/parking-zones-log', icon: ParkingSquare, label: 'Parking Zone Log', roles: ['admin', 'master'] },
     ],
   },
   {
@@ -425,14 +431,18 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/face-records-log', icon: Camera, label: 'Face Record Log', roles: ['admin', 'admin_officer', 'master'] },
       // Sprint 49: B-159
       { path: '/site-risk-assessments-log', icon: ShieldAlert, label: 'Site Risk Assessment Log', roles: ['admin', 'admin_officer', 'master'] },
-      // Sprint 51: B-162
-      { path: '/canonical-homeless-log', icon: Tent, label: 'Canonical Homeless Log', roles: ['admin', 'admin_officer', 'master'] },
-      // Sprint 51: B-163
+      // Sprint 50: B-162
+      { path: '/observations-log', icon: Eye, label: 'Observation Log', roles: ['admin', 'admin_officer', 'master'] },
+      // Sprint 51: B-163–B-165
       { path: '/canonical-scv-log', icon: ShieldCheck, label: 'Canonical SCV Log', roles: ['admin', 'admin_officer', 'master'] },
-      // Sprint 52: B-164
+      { path: '/canonical-homeless-log', icon: Users, label: 'Canonical Homeless Log', roles: ['admin', 'admin_officer', 'master'] },
+      // Sprint 52: B-167
       { path: '/canonical-vehicles-log', icon: Car, label: 'Canonical Vehicle Log', roles: ['admin', 'admin_officer', 'master'] },
-      // Sprint 53: B-167
-      { path: '/flagged-vehicles-log', icon: Flag, label: 'Flagged Vehicle Log', roles: ['admin', 'admin_officer', 'master'] },
+      // Sprint 54: B-174
+      { path: '/zone-signage-evidence-log', icon: Camera, label: 'Zone Signage Evidence Log', roles: ['admin', 'admin_officer', 'master'] },
+      // Sprint 56: B-178, B-180
+      { path: '/contractor-profiles-log', icon: Briefcase, label: 'Contractor Profile Log', roles: ['admin', 'master'] },
+      { path: '/canonical-persons-log', icon: PersonStanding, label: 'Canonical Persons Log', roles: ['admin', 'admin_officer', 'master'] },
     ],
   },
   {

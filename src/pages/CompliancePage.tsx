@@ -36,8 +36,15 @@ import {
   TrendingUp,
   Image as ImageIcon,
 } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/authStore';
+import { supabase } from '@/lib/supabase';
+import {
+  useComplianceStats,
+  useComplianceBreachObservations,
+  useComplianceZoneBreakdown,
+  useComplianceExemptObservations,
+  useComplianceCanonicalHomeless,
+} from '@/hooks/useComplianceDashboard';
 import { Navigate, useSearchParams } from 'react-router-dom';
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon';
 import { useGlobalFiltersStore as useGlobalFilters } from '@/stores/globalFiltersStore';
@@ -165,72 +172,7 @@ function OverviewTab({
   orgId: string | null;
   zoneId: string | null;
 }) {
-  const startISO = nzDateToUTCStart(dateFrom);
-  const endISO = nzDateToUTCEnd(dateTo);
-
-  // Direct queries against observations + canonical_vehicles (respects RLS).
-  const { data: stats } = useQuery({
-    queryKey: ['comp-stats', dateFrom, dateTo, orgId, zoneId],
-    queryFn: async () => {
-      const applyObs = (q: any) => {
-        q = q.gte('recorded_at', startISO).lte('recorded_at', endISO);
-        if (orgId)  q = q.eq('organization_id', orgId);
-        if (zoneId) q = q.eq('zone_id', zoneId);
-        return q;
-      };
-
-      const [totalRes, breachRes, flaggedRes, homelessRes] = await Promise.all([
-        applyObs(supabase.from('observations').select('*', { count: 'exact', head: true })),
-        applyObs(supabase.from('observations').select('*', { count: 'exact', head: true }).eq('is_compliant', false)),
-        supabase.from('canonical_vehicles').select('*', { count: 'exact', head: true }).eq('is_flagged', true),
-        (supabase.from('canonical_homeless') as any).select('*', { count: 'exact', head: true }).in('status', HOMELESS_UI_STATUSES),
-      ]);
-
-      // Count observations for homeless-confirmed/claimed vehicles that are marked
-      // non-compliant. These are "breach exempt" under the FC Act and should not
-      // inflate the breach KPI.
-      const { data: homelessPlateRows } = await (supabase.from('canonical_homeless') as any)
-        .select('plate_number')
-        .in('status', ['confirmed', 'claimed']);
-      const homelessPlates = (homelessPlateRows ?? []).map((r: any) => r.plate_number).filter(Boolean) as string[];
-
-      let homelessBreachCount = 0;
-      if (homelessPlates.length > 0) {
-        // Count non-compliant observations for homeless plates in the date/org/zone scope
-        const chunks: string[][] = [];
-        for (let i = 0; i < homelessPlates.length; i += 200) {
-          chunks.push(homelessPlates.slice(i, i + 200));
-        }
-        const chunkResults = await Promise.all(
-          chunks.map((chunk) =>
-            applyObs(
-              (supabase.from('observations') as any)
-                .select('*', { count: 'exact', head: true })
-                .eq('is_compliant', false)
-                .in('plate_number', chunk)
-            )
-          )
-        );
-        for (const res of chunkResults) {
-          homelessBreachCount += res.count ?? 0;
-        }
-      }
-
-      const total    = totalRes.count  ?? 0;
-      const rawBreaches = breachRes.count ?? 0;
-      const breaches = Math.max(0, rawBreaches - homelessBreachCount);
-      const compliant = total - breaches;
-
-      return {
-        total_observations: total,
-        breach_count:       breaches,
-        compliant_count:    compliant,
-        compliance_rate:    total > 0 ? Math.round(100 * compliant / total) : 0,
-        flagged_vehicles:   flaggedRes.count  ?? 0,
-        homeless_vehicles:  homelessRes.count ?? 0,
-      };
-    },
-  });
+  const { data: stats } = useComplianceStats({ orgId, dateFrom, dateTo, zoneId });
 
   return (
     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -298,124 +240,15 @@ function BreachesTab({
   const startISO = nzDateToUTCStart(dateFrom);
   const endISO = nzDateToUTCEnd(dateTo);
 
-  const { data, isLoading, isFetching, isError } = useQuery({
-    queryKey: ['breaches-detail', page, search, dateFrom, dateTo, orgId, zoneId, statusFilter],
-    queryFn: async () => {
-      if (statusFilter) {
-        let q = supabase
-          .from('breach_alerts')
-          .select(
-            'id, plate_number, created_at, breach_type, breach_details, status, zones(name), organizations(name)',
-            { count: 'exact' }
-          )
-          .eq('status', statusFilter)
-          .gte('created_at', startISO)
-          .lte('created_at', endISO)
-          .order('created_at', { ascending: false })
-          .range(page * PAGE, (page + 1) * PAGE - 1);
-
-        if (search.trim()) q = q.ilike('plate_number', `%${search.trim()}%`);
-        if (orgId) q = q.eq('organization_id', orgId);
-        if (zoneId) q = q.eq('zone_id', zoneId);
-
-        const { data, count, error } = await q;
-        if (error) throw error;
-
-        const rows: BreachObservation[] = (data ?? []).map((row: any) => ({
-          id: row.id,
-          plate_number: row.plate_number,
-          recorded_at: row.created_at,
-          breach_type: row.breach_type,
-          breach_reason: row.breach_details?.breach_reason ?? null,
-          status: row.status,
-          zones: row.zones ?? null,
-          organizations: row.organizations ?? null,
-        }));
-
-        return { rows, total: count ?? 0 };
-      }
-
-      // Default source: observations where is_compliant = false
-      const applyObsFilters = (query: any) => {
-        query = query
-          .eq('is_compliant', false)
-          .gte('recorded_at', startISO)
-          .lte('recorded_at', endISO)
-          .order('recorded_at', { ascending: false })
-          .range(page * PAGE, (page + 1) * PAGE - 1);
-
-        if (search.trim()) query = query.ilike('plate_number', `%${search.trim()}%`);
-        if (orgId) query = query.eq('organization_id', orgId);
-        if (zoneId) query = query.eq('zone_id', zoneId);
-        return query;
-      };
-
-      // Keep both id and observation_id variants for backward compatibility across
-      // environments. Relation selectors use legacy FK constraint names.
-      const joinSelects = [
-        'id, plate_number, recorded_at, breach_type, breach_reason, zone_id, zones!vehicle_observations_v2_zone_id_fkey(name), organizations!vehicle_observations_v2_organization_id_fkey(name)',
-        'id:observation_id, plate_number, recorded_at, breach_type, breach_reason, zone_id, zones!vehicle_observations_v2_zone_id_fkey(name), organizations!vehicle_observations_v2_organization_id_fkey(name)',
-        'id, plate_number, recorded_at, breach_type, zone_id, zones!vehicle_observations_v2_zone_id_fkey(name), organizations!vehicle_observations_v2_organization_id_fkey(name)',
-        'id:observation_id, plate_number, recorded_at, breach_type, zone_id, zones!vehicle_observations_v2_zone_id_fkey(name), organizations!vehicle_observations_v2_organization_id_fkey(name)',
-      ];
-
-      for (const selectClause of joinSelects) {
-        let q = supabase.from('observations').select(selectClause, { count: 'exact' });
-        q = applyObsFilters(q);
-        const joined = await q;
-        if (!joined.error) {
-          return { rows: (joined.data ?? []) as unknown as BreachObservation[], total: joined.count ?? 0 };
-        }
-      }
-
-      const plainSelects = [
-        'id, plate_number, recorded_at, breach_type, breach_reason, zone_id',
-        'id:observation_id, plate_number, recorded_at, breach_type, breach_reason, zone_id',
-        'id, plate_number, recorded_at, breach_type, zone_id',
-        'id:observation_id, plate_number, recorded_at, breach_type, zone_id',
-      ];
-
-      let fallbackData: any[] = [];
-      let fallbackCount = 0;
-      let fallbackError: any = null;
-
-      for (const selectClause of plainSelects) {
-        let q = supabase.from('observations').select(selectClause, { count: 'exact' });
-        q = applyObsFilters(q);
-        const plain = await q;
-        if (!plain.error) {
-          fallbackData = plain.data ?? [];
-          fallbackCount = plain.count ?? 0;
-          fallbackError = null;
-          break;
-        }
-        fallbackError = plain.error;
-      }
-
-      if (fallbackError) throw fallbackError;
-
-      const zoneIds = Array.from(new Set((fallbackData || []).map((r: any) => r.zone_id).filter(Boolean)));
-      let zoneNameById = new Map<string, string>();
-      if (zoneIds.length > 0) {
-        const zoneRes = await supabase.from('zones').select('id, name').in('id', zoneIds);
-        if (!zoneRes.error && zoneRes.data) {
-          zoneNameById = new Map((zoneRes.data as any[]).map((z: any) => [z.id, z.name]));
-        }
-      }
-
-      const mappedRows: BreachObservation[] = (fallbackData || []).map((row: any) => ({
-        id: row.id,
-        plate_number: row.plate_number,
-        recorded_at: row.recorded_at,
-        breach_type: row.breach_type ?? null,
-        breach_reason: row.breach_reason ?? null,
-        zones: row.zone_id ? { name: zoneNameById.get(row.zone_id) ?? '—' } : null,
-        organizations: null,
-      }));
-
-      return { rows: mappedRows, total: fallbackCount };
-    },
-    placeholderData: (p) => p,
+  const { data, isLoading, isFetching, isError } = useComplianceBreachObservations({
+    orgId,
+    dateFrom,
+    dateTo,
+    zoneId,
+    searchQuery: search,
+    page,
+    pageSize: PAGE,
+    statusFilter,
   });
 
   const totalPages = Math.ceil((data?.total ?? 0) / PAGE);
@@ -556,28 +389,10 @@ function ZonesTab({
   dateTo: string;
   orgId: string | null;
 }) {
-  const startISO = nzDateToUTCStart(dateFrom);
-  const endISO = nzDateToUTCEnd(dateTo);
-
-  // Use server-side RPC to avoid the 1000-row Supabase client default limit.
-  // get_zone_compliance_breakdown aggregates all observations in the DB.
-  const { data: zoneStats, isLoading: zonesLoading } = useQuery({
-    queryKey: ['comp-zone-breakdown', dateFrom, dateTo, orgId],
-    queryFn: async () => {
-      const { data, error } = await (supabase.rpc as any)('get_zone_compliance_breakdown', {
-        p_start:            startISO,
-        p_end:              endISO,
-        p_organization_id:  orgId ?? null,
-      });
-      if (error) throw error;
-      return (Array.isArray(data) ? data : []) as ZoneStats[];
-    },
-  });
+  const { data: zoneStats, isLoading: zonesLoading } = useComplianceZoneBreakdown({ orgId, dateFrom, dateTo });
 
   if (zonesLoading) return <Spinner />;
 
-  // Filter to show only specific child zones (not jurisdiction-level parent zones).
-  // Jurisdiction zones have parent_zone_id = null; specific zones have a parent.
   const specificZones = (zoneStats ?? []).filter((z) => z.parent_zone_id !== null);
 
   if (!specificZones.length) return <Empty msg="No specific zones found" />;
@@ -685,21 +500,7 @@ function JurisdictionTab({
   dateTo: string;
   orgId: string | null;
 }) {
-  const startISO = nzDateToUTCStart(dateFrom);
-  const endISO = nzDateToUTCEnd(dateTo);
-
-  const { data: zoneStats, isLoading: zonesLoading } = useQuery({
-    queryKey: ['comp-zone-breakdown', dateFrom, dateTo, orgId],
-    queryFn: async () => {
-      const { data, error } = await (supabase.rpc as any)('get_zone_compliance_breakdown', {
-        p_start:            startISO,
-        p_end:              endISO,
-        p_organization_id:  orgId ?? null,
-      });
-      if (error) throw error;
-      return (Array.isArray(data) ? data : []) as ZoneStats[];
-    },
-  });
+  const { data: zoneStats, isLoading: zonesLoading } = useComplianceZoneBreakdown({ orgId, dateFrom, dateTo });
 
   if (zonesLoading) return <Spinner />;
 
@@ -875,28 +676,12 @@ function HomelessTab({
     return Array.from(plates);
   }, [exemptObs]);
 
-  const { data: obsDetails } = useQuery({
-    queryKey: ['exempt-obs-details', dateFrom, dateTo, orgId, zoneId, exemptPlates.join('|')],
-    queryFn: async () => {
-      if (exemptPlates.length === 0) return [];
-      const fromTs = nzDateToUTCStart(dateFrom);
-      const toTs = nzDateToUTCEnd(dateTo);
-      let q = (supabase.from('observations') as any)
-        .select('observation_id, plate_number, recorded_at, photo, photo_url, is_compliant, gps_latitude, gps_longitude, officer_notes')
-        .in('plate_number', exemptPlates)
-        .gte('recorded_at', fromTs)
-        .lte('recorded_at', toTs)
-        .order('recorded_at', { ascending: false });
-      if (orgId) q = q.eq('organization_id', orgId);
-      if (zoneId) q = q.eq('zone_id', zoneId);
-      const { data, error } = await q;
-      if (error) {
-        console.warn('Failed to fetch exempt observation details:', error.message);
-        return [];
-      }
-      return data ?? [];
-    },
-    enabled: exemptPlates.length > 0,
+  const { data: obsDetails } = useComplianceExemptObservations({
+    orgId,
+    dateFrom,
+    dateTo,
+    zoneId,
+    plates: exemptPlates,
   });
 
   // Build lookup of observation details by observation_id
@@ -908,34 +693,7 @@ function HomelessTab({
     return map;
   }, [obsDetails]);
 
-  // Fetch canonical vehicle metadata for matched plates
-  const { data: canonicalVehicleRows = [] } = useQuery({
-    queryKey: ['exempt-canonical-vehicles', exemptPlates.join('|')],
-    queryFn: async () => {
-      if (exemptPlates.length === 0) return [];
-      const { data, error } = await supabase
-        .from('canonical_vehicles')
-        .select('plate_number, vehicle_make, vehicle_model, vehicle_color, is_exempt')
-        .in('plate_number', exemptPlates);
-      if (error) throw error;
-      return data ?? [];
-    },
-    enabled: exemptPlates.length > 0,
-  });
-
-  // Fetch authoritative homeless status/notes from canonical_homeless
-  const { data: canonicalHomelessRows = [] } = useQuery({
-    queryKey: ['exempt-canonical-homeless', exemptPlates.join('|')],
-    queryFn: async () => {
-      if (exemptPlates.length === 0) return [];
-      const { data, error } = await (supabase.from('canonical_homeless') as any)
-        .select('plate_number, status, notes')
-        .in('plate_number', exemptPlates);
-      if (error) throw error;
-      return (data ?? []) as Array<{ plate_number: string; status: string | null; notes: string | null }>;
-    },
-    enabled: exemptPlates.length > 0,
-  });
+  const { canonicalVehicleRows, canonicalHomelessRows } = useComplianceCanonicalHomeless({ plates: exemptPlates });
 
   // Merge vehicle attributes and homeless status into ExemptCanonicalVehicle records
   const canonicalVehicles: ExemptCanonicalVehicle[] = useMemo(() => {

@@ -38,6 +38,7 @@ import {
   Car,
   CheckCircle2,
   ClipboardCheck,
+  ClipboardList,
   Clock,
   Database,
   Eye,
@@ -99,9 +100,7 @@ import {
   Table2,
   Briefcase,
   Bell,
-  ClipboardList,
-  Flag,
-  CalendarCheck,
+  PersonStanding,
 } from 'lucide-react'
 
 type DrillConfig = {
@@ -1020,7 +1019,10 @@ export default function AdminPortal() {
                     { path: '/patrol-checkpoints', label: 'Checkpoints',     Icon: ScanLine,      color: 'text-teal-600',   bg: 'bg-teal-50 dark:bg-teal-900/20' },
                     { path: '/patrol-events',      label: 'Event Log',       Icon: Route,         color: 'text-slate-600',  bg: 'bg-slate-50 dark:bg-slate-900/30' },
                     { path: '/patrol-route-log',   label: 'Route Log',       Icon: Navigation,    color: 'text-teal-600',   bg: 'bg-teal-50 dark:bg-teal-900/20' },
-                    { path: '/alarm-events-log',   label: 'Alarm Events',    Icon: BellRing,      color: 'text-red-600',    bg: 'bg-red-50 dark:bg-red-900/20' },
+                    { path: '/alarm-events-log',       label: 'Alarm Events',     Icon: BellRing,   color: 'text-red-600',    bg: 'bg-red-50 dark:bg-red-900/20' },
+                    { path: '/checkpoint-visits-log',  label: 'Checkpoint Visits',Icon: ScanLine,   color: 'text-teal-700',   bg: 'bg-teal-50 dark:bg-teal-900/20' },
+                    { path: '/ems-attendances-log',    label: 'EMS Attendances',  Icon: HeartPulse, color: 'text-rose-600',   bg: 'bg-rose-50 dark:bg-rose-900/20' },
+                    { path: '/officer-activity-log',  label: 'Officer Activity', Icon: Activity,   color: 'text-indigo-600', bg: 'bg-indigo-50 dark:bg-indigo-900/20' },
                     { path: '/officer-performance',label: 'Performance',     Icon: UserCheck,     color: 'text-blue-600',   bg: 'bg-blue-50 dark:bg-blue-900/20' },
                   ].map(({ path, label, Icon, color, bg, badge }) => (
                     <button key={path} onClick={() => navigate(path)} aria-label={`Open ${label}`} className={`${moduleTileClass} ${bg}`}>
@@ -1049,6 +1051,10 @@ export default function AdminPortal() {
                     { path: '/admin/nzscv',            label: 'NZSCV Monitor',     Icon: Shield,        color: 'text-blue-600',   bg: 'bg-blue-50 dark:bg-blue-900/20', badge: (data as any)?.scvExpiringSoon > 0 ? (data as any)?.scvExpiringSoon : undefined },
                     { path: '/admin/discrepancies',    label: 'Discrepancies',     Icon: AlertTriangle, color: 'text-amber-600',  bg: 'bg-amber-50 dark:bg-amber-900/20', badge: (data as any)?.discrepanciesPending > 0 ? (data as any)?.discrepanciesPending : undefined },
                     { path: '/admin/canonical-records',label: 'Canonical Records', Icon: Database,      color: 'text-purple-600', bg: 'bg-purple-50 dark:bg-purple-900/20' },
+                    { path: '/drift-events',          label: 'Drift Events',      Icon: Navigation,    color: 'text-slate-600',  bg: 'bg-slate-50 dark:bg-slate-900/30' },
+                    { path: '/parking-payments-log',  label: 'Parking Payments',  Icon: Receipt,       color: 'text-emerald-600',bg: 'bg-emerald-50 dark:bg-emerald-900/20' },
+                    { path: '/parking-sessions-log',  label: 'Parking Sessions',  Icon: ParkingSquare, color: 'text-orange-600', bg: 'bg-orange-50 dark:bg-orange-900/20' },
+                    { path: '/plate-scans-log',       label: 'Plate Scans',       Icon: ScanLine,      color: 'text-blue-600',   bg: 'bg-blue-50 dark:bg-blue-900/20' },
                   ].map(({ path, label, Icon, color, bg, badge }) => (
                     <button key={path} onClick={() => navigate(path)} aria-label={`Open ${label}`} className={`${moduleTileClass} ${bg}`}>
                       {badge !== undefined && (
@@ -1079,6 +1085,7 @@ export default function AdminPortal() {
                     { path: '/site-risk-trends',    label: 'Risk Trends',       Icon: TrendingUp,    color: 'text-orange-600', bg: 'bg-orange-50 dark:bg-orange-900/20' },
                     { path: '/trespass-notices',    label: 'Trespass Notices',  Icon: Ban,           color: 'text-rose-600',   bg: 'bg-rose-50 dark:bg-rose-900/20',   badge: (data as any)?.activeTrespassCount > 0 ? (data as any)?.activeTrespassCount : undefined },
                     { path: '/access-permissions',  label: 'Access Permissions',Icon: KeyRound,      color: 'text-violet-600', bg: 'bg-violet-50 dark:bg-violet-900/20' },
+                    { path: '/access-audit',       label: 'Access Audit',      Icon: ScanLine,      color: 'text-slate-600',  bg: 'bg-slate-50 dark:bg-slate-900/30' },
                     { path: '/canonical-persons',   label: 'Canonical Persons', Icon: Users,         color: 'text-purple-600', bg: 'bg-purple-50 dark:bg-purple-900/20' },
                   ].map(({ path, label, Icon, color, bg, badge }) => (
                     <button key={path} onClick={() => navigate(path)} aria-label={`Open ${label}`} className={`${moduleTileClass} ${bg}`}>
@@ -1154,6 +1161,8 @@ export default function AdminPortal() {
                     { path: '/locations-of-interest-log', label: 'Locations',     Icon: MapPin,    color: 'text-emerald-700', bg: 'bg-emerald-50 dark:bg-emerald-900/20' },
                     { path: '/vehicle-monthly-stays-log', label: 'Monthly Stays', Icon: CalendarRange, color: 'text-cyan-700', bg: 'bg-cyan-50 dark:bg-cyan-900/20' },
                     { path: '/radio-voice-consent-log',   label: 'Voice Consents', Icon: ShieldCheck, color: 'text-green-700', bg: 'bg-green-50 dark:bg-green-900/20' },
+                    { path: '/dispatch-ack-log',          label: 'Dispatch Acks',  Icon: Radio,      color: 'text-cyan-700',  bg: 'bg-cyan-50 dark:bg-cyan-900/20' },
+                    { path: '/credential-processing-log', label: 'Credentials',    Icon: BadgeCheck, color: 'text-violet-700',bg: 'bg-violet-50 dark:bg-violet-900/20' },
                   ].map(({ path, label, Icon, color, bg, badge }) => (
                     <button key={path} onClick={() => navigate(path)} aria-label={`Open ${label}`} className={`${moduleTileClass} ${bg}`}>
                       {badge !== undefined && (
@@ -1187,6 +1196,7 @@ export default function AdminPortal() {
                     { path: '/camper-registrations',label:'Camper Reg.',     Icon: Tent,          color: 'text-teal-600',   bg: 'bg-teal-50 dark:bg-teal-900/20' },
                     { path: '/zone-amenities',    label: 'Zone Amenities',   Icon: Wrench,        color: 'text-slate-600',  bg: 'bg-slate-50 dark:bg-slate-900/30' },
                     { path: '/parking-permits',   label: 'Parking Permits',  Icon: BadgeCheck,    color: 'text-green-600',  bg: 'bg-green-50 dark:bg-green-900/20' },
+                    { path: '/roster-shifts',     label: 'Roster Shifts',    Icon: ClipboardList, color: 'text-violet-600', bg: 'bg-violet-50 dark:bg-violet-900/20' },
                   ].map(({ path, label, Icon, color, bg }) => (
                     <button key={path} onClick={() => navigate(path)} aria-label={`Open ${label}`} className={`${moduleTileClass} ${bg}`}>
                       <Icon className={`h-5 w-5 ${color}`} />
@@ -1239,18 +1249,34 @@ export default function AdminPortal() {
                     { path: '/face-records-log',               label: 'Face Records',    Icon: Camera,       color: 'text-blue-600',   bg: 'bg-blue-50 dark:bg-blue-900/20' },
                     { path: '/infringement-notices-log',       label: 'Notice Log',      Icon: Receipt,      color: 'text-emerald-600',bg: 'bg-emerald-50 dark:bg-emerald-900/20' },
                     { path: '/site-risk-assessments-log',      label: 'Site Risk Log',   Icon: ShieldAlert,  color: 'text-rose-600',   bg: 'bg-rose-50 dark:bg-rose-900/20' },
-                    // Sprint 51–54: B-161–B-171
-                    { path: '/breach-alerts-log',              label: 'Breach Alert Log',    Icon: AlertTriangle, color: 'text-red-600',   bg: 'bg-red-50 dark:bg-red-900/20' },
-                    { path: '/canonical-homeless-log',         label: 'Homeless Log',         Icon: Tent,          color: 'text-amber-600', bg: 'bg-amber-50 dark:bg-amber-900/20' },
-                    { path: '/canonical-scv-log',              label: 'SCV Log',              Icon: ShieldCheck,   color: 'text-green-600', bg: 'bg-green-50 dark:bg-green-900/20' },
-                    { path: '/canonical-vehicles-log',         label: 'Canon. Vehicles',      Icon: Car,           color: 'text-blue-600',  bg: 'bg-blue-50 dark:bg-blue-900/20' },
-                    { path: '/dispatch-jobs-log',              label: 'Dispatch Jobs',        Icon: ClipboardList, color: 'text-indigo-600',bg: 'bg-indigo-50 dark:bg-indigo-900/20' },
-                    { path: '/enforcement-actions-log',        label: 'Enforcement Log',      Icon: Gavel,         color: 'text-purple-600',bg: 'bg-purple-50 dark:bg-purple-900/20' },
-                    { path: '/flagged-vehicles-log',           label: 'Flagged Vehicles',     Icon: Flag,          color: 'text-orange-600',bg: 'bg-orange-50 dark:bg-orange-900/20' },
-                    { path: '/officer-availability-log',       label: 'Availability Log',     Icon: CalendarCheck, color: 'text-cyan-600',  bg: 'bg-cyan-50 dark:bg-cyan-900/20' },
-                    { path: '/officer-shifts-log',             label: 'Shifts Log',           Icon: Clock,         color: 'text-teal-600',  bg: 'bg-teal-50 dark:bg-teal-900/20' },
-                    { path: '/open-shifts-log',                label: 'Open Shifts Log',      Icon: CalendarClock, color: 'text-violet-600',bg: 'bg-violet-50 dark:bg-violet-900/20' },
-                    { path: '/zone-compliance-matrix-log',     label: 'Zone Matrix Log',      Icon: LayoutGrid,    color: 'text-rose-600',  bg: 'bg-rose-50 dark:bg-rose-900/20' },
+                    // Sprint 50: B-160–B-162
+                    { path: '/dispatch-jobs-log',              label: 'Dispatch Jobs',   Icon: ClipboardList,color: 'text-indigo-600', bg: 'bg-indigo-50 dark:bg-indigo-900/20' },
+                    { path: '/enforcement-actions-log',        label: 'Enforcement Log', Icon: Gavel,        color: 'text-violet-600', bg: 'bg-violet-50 dark:bg-violet-900/20' },
+                    { path: '/observations-log',               label: 'Observations',    Icon: Eye,          color: 'text-sky-600',    bg: 'bg-sky-50 dark:bg-sky-900/20' },
+                    // Sprint 51: B-163–B-165
+                    { path: '/canonical-scv-log',              label: 'Canonical SCV',   Icon: ShieldCheck,  color: 'text-green-600',  bg: 'bg-green-50 dark:bg-green-900/20' },
+                    { path: '/officer-availability-log',       label: 'Officer Avail.',  Icon: CalendarCheck2,color:'text-blue-600',   bg: 'bg-blue-50 dark:bg-blue-900/20' },
+                    { path: '/canonical-homeless-log',         label: 'Homeless Canon.', Icon: Users,        color: 'text-amber-600',  bg: 'bg-amber-50 dark:bg-amber-900/20' },
+                    // Sprint 52: B-166–B-168
+                    { path: '/breach-alerts-log',              label: 'Breach Alerts',   Icon: AlertTriangle,color: 'text-red-600',    bg: 'bg-red-50 dark:bg-red-900/20' },
+                    { path: '/canonical-vehicles-log',         label: 'Canon. Vehicles', Icon: Car,          color: 'text-blue-600',   bg: 'bg-blue-50 dark:bg-blue-900/20' },
+                    { path: '/flagged-vehicles-log',           label: 'Flagged Vehicles',Icon: AlertTriangle,color: 'text-amber-600',  bg: 'bg-amber-50 dark:bg-amber-900/20' },
+                    // Sprint 53: B-169–B-171
+                    { path: '/officer-shifts-log',             label: 'Officer Shifts',  Icon: Clock,        color: 'text-indigo-600', bg: 'bg-indigo-50 dark:bg-indigo-900/20' },
+                    { path: '/open-shifts-log',                label: 'Open Shifts Log', Icon: CalendarClock,color: 'text-teal-600',   bg: 'bg-teal-50 dark:bg-teal-900/20' },
+                    { path: '/zone-compliance-matrix-log',     label: 'Zone Compliance', Icon: ShieldCheck,  color: 'text-green-600',  bg: 'bg-green-50 dark:bg-green-900/20' },
+                    // Sprint 54: B-172–B-174
+                    { path: '/pricing-rules-log',              label: 'Pricing Rules',   Icon: BadgeDollarSign, color: 'text-emerald-600', bg: 'bg-emerald-50 dark:bg-emerald-900/20' },
+                    { path: '/zone-legal-config-log',          label: 'Zone Legal Config', Icon: Scale,      color: 'text-slate-600',   bg: 'bg-slate-50 dark:bg-slate-900/20' },
+                    { path: '/zone-signage-evidence-log',      label: 'Signage Evidence', Icon: Camera,      color: 'text-indigo-600',  bg: 'bg-indigo-50 dark:bg-indigo-900/20' },
+                    // Sprint 55: B-175–B-177
+                    { path: '/fixed-cameras-log',              label: 'Fixed Cameras',   Icon: Camera,       color: 'text-cyan-600',    bg: 'bg-cyan-50 dark:bg-cyan-900/20' },
+                    { path: '/officer-skills-log',             label: 'Officer Skills',  Icon: GraduationCap,color: 'text-blue-600',    bg: 'bg-blue-50 dark:bg-blue-900/20' },
+                    { path: '/patrol-checkpoints-log',         label: 'Patrol Checkpts', Icon: Navigation,   color: 'text-violet-600',  bg: 'bg-violet-50 dark:bg-violet-900/20' },
+                    // Sprint 56: B-178–B-180
+                    { path: '/contractor-profiles-log',        label: 'Contractor Profiles', Icon: Briefcase,color: 'text-orange-600',  bg: 'bg-orange-50 dark:bg-orange-900/20' },
+                    { path: '/parking-zones-log',              label: 'Parking Zones',   Icon: ParkingSquare,color: 'text-teal-600',    bg: 'bg-teal-50 dark:bg-teal-900/20' },
+                    { path: '/canonical-persons-log',          label: 'Canonical Persons', Icon: PersonStanding, color: 'text-rose-600', bg: 'bg-rose-50 dark:bg-rose-900/20' },
                   ].map(({ path, label, Icon, color, bg }) => (
                     <button key={path} onClick={() => navigate(path)} aria-label={`Open ${label}`} className={`${moduleTileClass} ${bg}`}>
                       <Icon className={`h-5 w-5 ${color}`} />
