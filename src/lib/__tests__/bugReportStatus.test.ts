@@ -8,6 +8,7 @@ import {
   nextStatusAfterAnalysis,
   shouldAutoAcknowledge,
 } from '../bugReportStatus'
+import { nextStatusAfterAnalysis as edgeNextStatusAfterAnalysis } from '../../../supabase/functions/_shared/bugReportStatus'
 
 // ── constants ────────────────────────────────────────────────────────────────
 
@@ -184,5 +185,15 @@ describe('shouldAutoAcknowledge', () => {
     expect(shouldAutoAcknowledge('closed')).toBe(false)
     expect(shouldAutoAcknowledge('wont_fix')).toBe(false)
     expect(shouldAutoAcknowledge('duplicate')).toBe(false)
+  })
+})
+
+describe('shared and edge bug report status helpers stay in sync', () => {
+  it('returns the same post-analysis status for every supported transition input', () => {
+    const inputs = [...BUG_REPORT_STATUSES, null, undefined, '', 'some_unknown']
+
+    for (const input of inputs) {
+      expect(edgeNextStatusAfterAnalysis(input)).toBe(nextStatusAfterAnalysis(input))
+    }
   })
 })
