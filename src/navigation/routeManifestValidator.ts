@@ -9,6 +9,7 @@ export interface RouteManifestValidationResult {
 const VALID_SHELLS: AppShell[] = ['officer', 'admin', 'master', 'shared']
 const VALID_VISIBILITY: VisibilityMode[] = ['production', 'internal', 'hidden']
 const VALID_PRELOAD: PreloadPolicy[] = ['none', 'intent', 'viewport', 'eager']
+const VALID_CATCH_ALL_PATHS = new Set(['*'])
 
 function isUnique(items: string[]): boolean {
   return new Set(items).size === items.length
@@ -28,7 +29,7 @@ export function validateRouteManifest(entries: RouteManifestEntry[]): RouteManif
     const prefix = `routeId=${entry.routeId}`
 
     if (!entry.routeId.trim()) errors.push(`${prefix}: routeId must not be empty.`)
-    if (!entry.path.startsWith('/') && entry.path !== '*') {
+    if (!entry.path.startsWith('/') && !VALID_CATCH_ALL_PATHS.has(entry.path)) {
       errors.push(`${prefix}: path must start with '/' (or be '*' for a catch-all route).`)
     }
     if (!VALID_SHELLS.includes(entry.shell)) errors.push(`${prefix}: invalid shell '${entry.shell}'.`)
