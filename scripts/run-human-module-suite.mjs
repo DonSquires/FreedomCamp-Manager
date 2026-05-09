@@ -39,6 +39,7 @@ function run(command, args) {
         ...process.env,
         PLAYWRIGHT_ALLOW_SHARED_CREDENTIAL_FALLBACK: process.env.PLAYWRIGHT_ALLOW_SHARED_CREDENTIAL_FALLBACK || '1',
         PLAYWRIGHT_SKIP_ROLE_ASSERTIONS: process.env.PLAYWRIGHT_SKIP_ROLE_ASSERTIONS || '1',
+        PLAYWRIGHT_REUSE_EXISTING_SERVER: process.env.PLAYWRIGHT_REUSE_EXISTING_SERVER || '1',
         ...(chromiumExecutablePath ? { PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH: chromiumExecutablePath } : {}),
       },
       cwd: process.cwd(),

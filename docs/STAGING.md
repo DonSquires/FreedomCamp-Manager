@@ -5816,9 +5816,38 @@ Open blockers with owner:
 Open blockers with owner:
 1. NONE.
 
+### Sprint 75 — Human Emulator Existing-Server Reuse Fix (2026-05-09)
+
+#### Sprint 75 To-Do
+
+1. [x] Reproduce the follow-up runner issue: `node scripts/run-bob-assisted-core-suite.mjs` still failed when `localhost:5173` was already serving the app because Playwright `webServer.reuseExistingServer` stayed disabled under CI-like environments.
+2. [x] Add explicit `PLAYWRIGHT_REUSE_EXISTING_SERVER` support in `/home/runner/work/FreedomCamp-Manager/FreedomCamp-Manager/playwright.config.ts` so runners can opt into reusing a live local app server even when `CI=1`.
+3. [x] Default `PLAYWRIGHT_REUSE_EXISTING_SERVER=1` inside `scripts/run-human-module-suite.mjs` and `scripts/run-bob-assisted-core-suite.mjs` so the human emulator paths stop failing on port-5173 conflicts.
+4. [x] Validate the fix with a live dev server already bound to `127.0.0.1:5173`.
+5. [x] Re-run repo quality gates and update staging evidence.
+
+#### Sprint 75 Session Snapshot (2026-05-09)
+
+- Timestamp (NZ): 2026-05-09 18:53 NZST
+- Current branch: `copilot/fix-wiring-and-ui-ux`
+- HEAD SHA at verification start: `19c41524`
+- Scope: allow human emulator and Bob-assisted runners to reuse an already-running local app server.
+
+| Command | Result | Notes |
+|---|---|---|
+| `bun run lint` | ✅ PASS | ESLint completed without errors before edits |
+| `bun run build` | ✅ PASS | TypeScript + Vite build succeeded before edits |
+| `curl -I http://127.0.0.1:5173` | ✅ PASS | Confirmed live Vite server running for reuse validation |
+| `CI=1 PLAYWRIGHT_REUSE_EXISTING_SERVER=1 npx playwright test tests/e2e/route-restoration-smoke.spec.ts --project chromium` | ✅ Reuse fix verified | No port-conflict; run progressed into auth/test failures instead of aborting at webServer startup |
+| `CI=1 node scripts/run-human-module-suite.mjs --grep "Client Portal Isolation"` | ✅ Reuse fix verified | Human module suite progressed into real test execution against existing server; no `localhost:5173 is already used` failure |
+| `CI=1 node scripts/run-bob-assisted-core-suite.mjs` | ✅ Reuse fix verified | Bob-assisted core suite started running 108 tests against the existing server; prior port-conflict no longer reproduced |
+
+Open blockers with owner:
+1. NONE.
+
 ### Staged Sprint Backlog State
 
-- Sprint lanes through Sprint 74 are complete in staging evidence.
+- Sprint lanes through Sprint 75 are complete in staging evidence.
 - No additional staged sprints are defined in `docs/STAGING.md`.
 
 ### Email Service Activation Audit (2026-05-09)

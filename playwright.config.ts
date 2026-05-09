@@ -85,6 +85,8 @@ const mobileSafariProject = canUseWebkitOnHost
     }
 
 const playwrightBaseURL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:5173'
+const reuseExistingPlaywrightServer =
+  process.env.PLAYWRIGHT_REUSE_EXISTING_SERVER === '1' ? true : !process.env.CI
 const webServerRunner = existsSync('/home/vscode/.bun/bin/bun') ? 'bun' : 'npm'
 
 function buildWebServerCommand(baseURL: string): string {
@@ -210,7 +212,7 @@ export default defineConfig({
   webServer: {
     command: buildWebServerCommand(playwrightBaseURL),
     url: playwrightBaseURL,
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: reuseExistingPlaywrightServer,
     timeout: 120000,
   },
 })
