@@ -21,7 +21,7 @@
         "CI_RELEASE_APPROVED": "true"
       },
       "android": {
-        "credentialsSource": "local"
+        "credentialsSource": "remote"
       }
     },
     "production_ci": {
