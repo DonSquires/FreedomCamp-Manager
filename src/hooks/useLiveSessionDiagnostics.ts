@@ -23,6 +23,12 @@ export function useLiveSessionDiagnostics() {
   const { user } = useAuthStore()
   const inFlightRef = useRef(false)
   const sessionStartedRef = useRef(false)
+  const currentRouteRef = useRef(`${location.pathname}${location.search}`)
+  const flushRef = useRef<(reason: string) => Promise<void>>(async () => {})
+
+  useEffect(() => {
+    currentRouteRef.current = `${location.pathname}${location.search}`
+  }, [location.pathname, location.search])
 
   const flush = useCallback(async (reason: string) => {
     if (!user?.id || inFlightRef.current) return
@@ -79,6 +85,10 @@ export function useLiveSessionDiagnostics() {
   }, [location.pathname, location.search, user?.id])
 
   useEffect(() => {
+    flushRef.current = flush
+  }, [flush])
+
+  useEffect(() => {
     if (!user?.id || sessionStartedRef.current) return
 
     sessionStartedRef.current = true
@@ -103,20 +113,20 @@ export function useLiveSessionDiagnostics() {
   useEffect(() => {
     if (!user?.id || typeof window === 'undefined') return
 
-    const onOnline = () => recordLiveSessionDiagnostic('browser_online', {}, `${location.pathname}${location.search}`, getDocumentTitle())
-    const onOffline = () => recordLiveSessionDiagnostic('browser_offline', {}, `${location.pathname}${location.search}`, getDocumentTitle())
-    const onFocus = () => recordLiveSessionDiagnostic('window_focus', {}, `${location.pathname}${location.search}`, getDocumentTitle())
-    const onBlur = () => recordLiveSessionDiagnostic('window_blur', {}, `${location.pathname}${location.search}`, getDocumentTitle())
+    const onOnline = () => recordLiveSessionDiagnostic('browser_online', {}, currentRouteRef.current, getDocumentTitle())
+    const onOffline = () => recordLiveSessionDiagnostic('browser_offline', {}, currentRouteRef.current, getDocumentTitle())
+    const onFocus = () => recordLiveSessionDiagnostic('window_focus', {}, currentRouteRef.current, getDocumentTitle())
+    const onBlur = () => recordLiveSessionDiagnostic('window_blur', {}, currentRouteRef.current, getDocumentTitle())
     const onVisibility = () => {
       recordLiveSessionDiagnostic(
         document.visibilityState === 'hidden' ? 'document_hidden' : 'document_visible',
         { visibility_state: document.visibilityState },
-        `${location.pathname}${location.search}`,
+        currentRouteRef.current,
         getDocumentTitle(),
       )
 
       if (document.visibilityState === 'hidden') {
-        void flush('document-hidden')
+        void flushRef.current('document-hidden')
       }
     }
 
@@ -133,7 +143,7 @@ export function useLiveSessionDiagnostics() {
       window.removeEventListener('blur', onBlur)
       document.removeEventListener('visibilitychange', onVisibility)
     }
-  }, [flush, location.pathname, location.search, user?.id])
+  }, [user?.id])
 
   useEffect(() => {
     if (!user?.id) return
@@ -151,8 +161,8 @@ export function useLiveSessionDiagnostics() {
     if (!user?.id) return
 
     return () => {
-      recordLiveSessionDiagnostic('session_observer_unmounted', {}, `${location.pathname}${location.search}`, getDocumentTitle())
-      void flush('unmount')
+      recordLiveSessionDiagnostic('session_observer_unmounted', {}, currentRouteRef.current, getDocumentTitle())
+      void flushRef.current('unmount')
     }
-  }, [flush, location.pathname, location.search, user?.id])
+  }, [user?.id])
 }
