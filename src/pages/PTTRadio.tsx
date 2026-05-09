@@ -2083,7 +2083,10 @@ export default function PTTRadio() {
     if (!user?.id) return
 
     const timer = setTimeout(async () => {
-      await saveInterpreterTargetLanguagePreference(user.id, interpreterTargetLanguage)
+      const saveError = await saveInterpreterTargetLanguagePreference(user.id, interpreterTargetLanguage)
+      if (saveError) {
+        toast.error('Could not save translation language preference.')
+      }
     }, 350)
 
     return () => clearTimeout(timer)

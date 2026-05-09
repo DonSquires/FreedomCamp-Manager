@@ -9,8 +9,8 @@ type PhaseE1Target = {
 }
 
 const PHASE_E1_TARGETS: PhaseE1Target[] = [
-  { page: 'PTTRadio', baselineDirectSupabaseFromCalls: 3, reductionTarget: 'Hold at or below baseline while shared radio hooks remain the data boundary.' },
-  { page: 'DispatchConsole', baselineDirectSupabaseFromCalls: 3, reductionTarget: 'Hold at or below baseline while dispatch contract hooks absorb new reads.' },
+  { page: 'PTTRadio', baselineDirectSupabaseFromCalls: 0, reductionTarget: 'Interpreter translation preference reads/writes extracted into usePTTTranslationPrefs hook (3 → 0).' },
+  { page: 'DispatchConsole', baselineDirectSupabaseFromCalls: 2, reductionTarget: 'Client-site/zone lookups and dispatch notification insert extracted into useDispatchConsoleData (3 → 2).' },
   { page: 'FieldOfficerPortal', baselineDirectSupabaseFromCalls: 0, reductionTarget: 'All reads/mutations extracted into useFieldOfficerData + useFieldOfficerMutations hooks (11 → 0).' },
   { page: 'AssetManagement', baselineDirectSupabaseFromCalls: 0, reductionTarget: 'Keep page free of direct Supabase query clusters.' },
   { page: 'VehicleManagement', baselineDirectSupabaseFromCalls: 0, reductionTarget: 'All vehicle-list reads extracted into useVehicleListQuery in useVehicles.ts (14 → 0).' },

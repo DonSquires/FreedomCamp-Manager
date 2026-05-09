@@ -32,6 +32,7 @@ import { supabase } from '@/lib/supabase';
 import { HOMELESS_UI_STATUSES, homelessStatusLabel, isHomelessForUi } from '@/lib/homelessStatus';
 import { useAuthStore } from '@/stores/authStore';
 import { PaperworkSearchAnimation } from '@/components/features/PaperworkSearchAnimation';
+import { useCleanDashboardOrgCounts } from '@/hooks/useCleanDashboardOrgCounts';
 
 // ============================================================================
 // Types
@@ -918,18 +919,7 @@ function OrganisationsTab() {
     },
   });
 
-  const { data: orgObsCounts } = useQuery({
-    queryKey: ['org-obs-counts'],
-    queryFn: async () => {
-      const { data, error } = await supabase.from('observations').select('organization_id');
-      if (error) throw error;
-      const counts: Record<string, number> = {};
-      for (const row of (data ?? []) as { organization_id: string }[]) {
-        counts[row.organization_id] = (counts[row.organization_id] ?? 0) + 1;
-      }
-      return counts;
-    },
-  });
+  const { data: orgObsCounts } = useCleanDashboardOrgCounts();
 
   const { data: orgBreachCounts } = useQuery({
     queryKey: ['org-breach-counts'],
