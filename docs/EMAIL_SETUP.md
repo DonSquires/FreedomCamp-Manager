@@ -5,7 +5,8 @@
 For production, the canonical provider is Hostinger hPanel SMTP for domain `fcmanager.co.nz`.
 
 - Primary SMTP host: `smtp.hostinger.com`
-- Primary sender mailbox: `noreply@fcmanager.co.nz`
+- General sender mailbox: `donotreply@fieldops.co.nz`
+- Report sender mailbox: `reports@fieldops.co.nz`
 - Legacy providers (Zoho/SendGrid/other) are transitional only and should be removed from DNS and secrets once hPanel is active.
 
 ## Overview
@@ -45,8 +46,10 @@ URLs before checking the Edge Function SMTP secrets below.
 | `SMTP_PORT` | No | `587` | SMTP port. Use `587` for STARTTLS or `465` for implicit TLS |
 | `SMTP_USERNAME` | **Yes** | — | SMTP authentication username |
 | `SMTP_PASSWORD` | **Yes** | — | SMTP authentication password or API key |
-| `SMTP_FROM_EMAIL` | **Yes** | — | Sender "From" address (e.g. `noreply@yourdomain.co.nz`) |
+| `SMTP_FROM_EMAIL` | **Yes** | — | General sender "From" address (production: `donotreply@fieldops.co.nz`) |
 | `SMTP_FROM_NAME` | No | Varies per function | Display name for the sender (see below) |
+| `SMTP_REPORTS_FROM_EMAIL` | No | Falls back to `SMTP_FROM_EMAIL` | Report-email sender (production: `reports@fieldops.co.nz`) |
+| `SMTP_REPORTS_FROM_NAME` | No | Falls back to `SMTP_FROM_NAME` | Report-email sender display name |
 
 ### `SMTP_FROM_NAME` defaults
 
@@ -70,9 +73,10 @@ Setting `SMTP_FROM_NAME` overrides all of these with a single value.
 supabase secrets set \
   SMTP_HOST=smtp.hostinger.com \
   SMTP_PORT=465 \
-  SMTP_USERNAME=noreply@fcmanager.co.nz \
+  SMTP_USERNAME=donotreply@fieldops.co.nz \
   SMTP_PASSWORD=<hpanel_mailbox_password> \
-  SMTP_FROM_EMAIL=noreply@fcmanager.co.nz \
+  SMTP_FROM_EMAIL=donotreply@fieldops.co.nz \
+  SMTP_REPORTS_FROM_EMAIL=reports@fieldops.co.nz \
   SMTP_FROM_NAME="FieldOps Manager"
 ```
 
@@ -145,7 +149,7 @@ supabase secrets list
 
 ### hPanel Migration Checklist (from legacy providers)
 
-1. Create mailbox in hPanel: `noreply@fcmanager.co.nz`.
+1. Create mailboxes in hPanel: `donotreply@fieldops.co.nz` and `reports@fieldops.co.nz`.
 2. Set Supabase Edge Function SMTP secrets to hPanel values.
 3. Set Supabase Auth custom SMTP to same hPanel mailbox.
 4. Update DNS to hPanel mail routing:

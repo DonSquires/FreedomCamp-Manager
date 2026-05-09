@@ -312,10 +312,12 @@ These are available as `Deno.env.get('SECRET_NAME')` inside all Edge Functions. 
 |---|---|---|
 | `SMTP_HOST` | Required for email | production: `smtp.hostinger.com` |
 | `SMTP_PORT` | Optional | Default: `465` |
-| `SMTP_USERNAME` | Required for email | Full mailbox email address |
+| `SMTP_USERNAME` | Required for email | Full mailbox email address (production: `donotreply@fieldops.co.nz`) |
 | `SMTP_PASSWORD` | Required for email | App-specific password |
-| `SMTP_FROM_EMAIL` | Required for email | Must match `SMTP_USERNAME` for reliable delivery |
+| `SMTP_FROM_EMAIL` | Required for email | General sender address (production: `donotreply@fieldops.co.nz`) |
 | `SMTP_FROM_NAME` | Optional | Default: `FieldOps Manager` |
+| `SMTP_REPORTS_FROM_EMAIL` | Optional | Report sender override (production: `reports@fieldops.co.nz`) |
+| `SMTP_REPORTS_FROM_NAME` | Optional | Report sender display name override |
 
 ### Security + Feature Flags
 

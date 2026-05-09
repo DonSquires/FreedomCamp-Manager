@@ -14,10 +14,14 @@ import { recordCommunicationAudit } from '../_shared/communicationsAudit.ts';
  *   SMTP_PORT          e.g. 587
  *   SMTP_USERNAME      SMTP login username / email address
  *   SMTP_PASSWORD      SMTP login password
- *   SMTP_FROM_EMAIL    From address, e.g. reports@yourdomain.com
+ *   SMTP_FROM_EMAIL    General default from address, e.g. donotreply@fieldops.co.nz
  *
  * Optional Supabase secret:
  *   SMTP_FROM_NAME     Display name (defaults to "FieldOps Manager – Do Not Reply")
+ *
+ * Optional report-specific sender override:
+ *   SMTP_REPORTS_FROM_EMAIL   e.g. reports@fieldops.co.nz
+ *   SMTP_REPORTS_FROM_NAME    e.g. FieldOps Manager Reports
  *
  * Request body:
  *   report_type       string   'compliance' | 'enforcement' | 'vehicle-activity' | 'zone-stats'
@@ -101,15 +105,17 @@ Deno.serve(async (req) => {
     const smtpPort     = parseInt(Deno.env.get('SMTP_PORT') ?? '587', 10);
     const smtpUser     = Deno.env.get('SMTP_USERNAME');
     const smtpPass     = Deno.env.get('SMTP_PASSWORD');
-    const smtpFrom     = Deno.env.get('SMTP_FROM_EMAIL');
-    const smtpFromName = Deno.env.get('SMTP_FROM_NAME') ?? 'FieldOps Manager – Do Not Reply';
+    const smtpFromDefault = Deno.env.get('SMTP_FROM_EMAIL');
+    const smtpFromNameDefault = Deno.env.get('SMTP_FROM_NAME') ?? 'FieldOps Manager – Do Not Reply';
+    const smtpReportsFrom = Deno.env.get('SMTP_REPORTS_FROM_EMAIL') || smtpFromDefault;
+    const smtpReportsFromName = Deno.env.get('SMTP_REPORTS_FROM_NAME') || smtpFromNameDefault;
 
-    if (!smtpHost || !smtpUser || !smtpPass || !smtpFrom) {
+    if (!smtpHost || !smtpUser || !smtpPass || !smtpFromDefault) {
       const missing = [
         !smtpHost ? 'SMTP_HOST' : null,
         !smtpUser ? 'SMTP_USERNAME' : null,
         !smtpPass ? 'SMTP_PASSWORD' : null,
-        !smtpFrom ? 'SMTP_FROM_EMAIL' : null,
+        !smtpFromDefault ? 'SMTP_FROM_EMAIL' : null,
       ].filter(Boolean).join(', ');
 
       await recordCommunicationAudit(supabaseAdmin, {
@@ -373,7 +379,7 @@ Deno.serve(async (req) => {
 
     const subject = `${reportTitle} — ${formatDateNZ(reportDateFrom)} to ${formatDateNZ(reportDateTo)}`;
     reportAuditContext.subject = subject;
-    const fromAddr = `${smtpFromName} <${smtpFrom}>`;
+    const fromAddr = `${smtpReportsFromName} <${smtpReportsFrom}>`;
 
     // ── Send via SMTP ────────────────────────────────────────────────────────
     // Use TLS (port 465) or STARTTLS (port 587 / 25).

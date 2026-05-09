@@ -468,7 +468,8 @@ Hostinger's mail servers are already on established IP reputation lists, which m
 
 | Address | Purpose |
 |---|---|
-| `noreply@fcmanager.co.nz` | Transactional emails (reports, notices, invites) |
+| `donotreply@fieldops.co.nz` | General transactional emails (notices, invites, platform notifications) |
+| `reports@fieldops.co.nz` | Report delivery sender |
 | `admin@fcmanager.co.nz` | Human admin inbox |
 | `support@fcmanager.co.nz` | Officer support |
 
@@ -478,7 +479,7 @@ Hostinger's mail servers are already on established IP reputation lists, which m
 |---|---|
 | `SMTP_HOST` | `smtp.hostinger.com` |
 | `SMTP_PORT` | `465` (implicit TLS) or `587` (STARTTLS) |
-| `SMTP_USERNAME` | Full email address, e.g. `noreply@fcmanager.co.nz` |
+| `SMTP_USERNAME` | Full email address, e.g. `donotreply@fieldops.co.nz` |
 | `SMTP_PASSWORD` | The mailbox password set in hPanel |
 
 ### 4.3 Configure Supabase Edge Function secrets (transactional email)
@@ -489,9 +490,10 @@ The three email-sending Edge Functions (`send-report-email`, `generate-infringem
 supabase secrets set \
   SMTP_HOST=smtp.hostinger.com \
   SMTP_PORT=465 \
-  SMTP_USERNAME=noreply@fcmanager.co.nz \
+  SMTP_USERNAME=donotreply@fieldops.co.nz \
   SMTP_PASSWORD=<hpanel_mailbox_password> \
-  SMTP_FROM_EMAIL=noreply@fcmanager.co.nz \
+  SMTP_FROM_EMAIL=donotreply@fieldops.co.nz \
+  SMTP_REPORTS_FROM_EMAIL=reports@fieldops.co.nz \
   SMTP_FROM_NAME="FreedomCamp Manager"
 ```
 
@@ -502,9 +504,10 @@ The proxy-server also sends invitation emails via `/api/email/send-invite`. Upda
 ```dotenv
 SMTP_HOST=smtp.hostinger.com
 SMTP_PORT=465
-SMTP_USERNAME=noreply@fcmanager.co.nz
+SMTP_USERNAME=donotreply@fieldops.co.nz
 SMTP_PASSWORD=<hpanel_mailbox_password>
-SMTP_FROM_EMAIL=noreply@fcmanager.co.nz
+SMTP_FROM_EMAIL=donotreply@fieldops.co.nz
+SMTP_REPORTS_FROM_EMAIL=reports@fieldops.co.nz
 SMTP_FROM_NAME=FieldOps Manager
 SITE_URL=https://fcmanager.co.nz
 ```
@@ -634,9 +637,10 @@ OLLAMA_MODEL=qwen2.5:7b
 # ── Email (hPanel SMTP) ───────────────────────────────────────────────────────
 SMTP_HOST=smtp.hostinger.com
 SMTP_PORT=465
-SMTP_USERNAME=noreply@fcmanager.co.nz
+SMTP_USERNAME=donotreply@fieldops.co.nz
 SMTP_PASSWORD=<hpanel_mailbox_password>
-SMTP_FROM_EMAIL=noreply@fcmanager.co.nz
+SMTP_FROM_EMAIL=donotreply@fieldops.co.nz
+SMTP_REPORTS_FROM_EMAIL=reports@fieldops.co.nz
 SMTP_FROM_NAME=FreedomCamp Manager
 SITE_URL=https://fcmanager.co.nz
 
@@ -654,9 +658,9 @@ Continue managing these in the **Supabase Dashboard → Edge Functions → Manag
 | `PROXY_SERVER_URL` | `https://api.fcmanager.co.nz/api/proxy` |
 | `SMTP_HOST` | `smtp.hostinger.com` |
 | `SMTP_PORT` | `465` |
-| `SMTP_USERNAME` | `noreply@fcmanager.co.nz` |
+| `SMTP_USERNAME` | `donotreply@fieldops.co.nz` |
 | `SMTP_PASSWORD` | `<hpanel_mailbox_password>` |
-| `SMTP_FROM_EMAIL` | `noreply@fcmanager.co.nz` |
+| `SMTP_FROM_EMAIL` | `donotreply@fieldops.co.nz` |
 
 ---
 
