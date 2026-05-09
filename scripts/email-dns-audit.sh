@@ -9,6 +9,7 @@ EXPECTED_SPF_FRAGMENT="${EXPECTED_SPF_FRAGMENT:-include:_spf.mail.hostinger.com}
 DMARC_HOST="${DMARC_HOST:-_dmarc.${DOMAIN}}"
 DKIM_HOSTINGER_SELECTOR="${DKIM_HOSTINGER_SELECTOR:-hostingermail-a._domainkey.${DOMAIN}}"
 DMARC_REQUIRED_POLICY="${DMARC_REQUIRED_POLICY:-quarantine}"
+DNS_SERVER="${DNS_SERVER:-}"
 
 failures=0
 warnings=0
@@ -27,10 +28,26 @@ require_cmd() {
 
 require_cmd dig
 
+if [[ -z "$DNS_SERVER" ]]; then
+  DNS_SERVER="$(dig +short NS "$DOMAIN" | head -n1)"
+fi
+
+if [[ -z "$DNS_SERVER" ]]; then
+  echo "Could not determine authoritative nameserver for $DOMAIN" >&2
+  exit 2
+fi
+
+digq() {
+  local type="$1"
+  local name="$2"
+  dig +short "$type" "$name" "@${DNS_SERVER}"
+}
+
 echo "== Email DNS Audit =="
 echo "Domain: $DOMAIN"
+echo "Authoritative DNS server: $DNS_SERVER"
 
-mx_records="$(dig +short MX "$DOMAIN" | awk '{print $2}' | sort -u)"
+mx_records="$(digq MX "$DOMAIN" | awk '{print $2}' | sort -u)"
 if [[ -z "$mx_records" ]]; then
   fail "No MX records found for $DOMAIN"
 else
@@ -56,7 +73,7 @@ else
   fi
 fi
 
-spf_txt="$(dig +short TXT "$DOMAIN" | tr -d '"' | grep -i '^v=spf1' || true)"
+spf_txt="$(digq TXT "$DOMAIN" | tr -d '"' | grep -i '^v=spf1' || true)"
 if [[ -z "$spf_txt" ]]; then
   fail "No SPF TXT found for $DOMAIN"
 else
@@ -68,7 +85,7 @@ else
   fi
 fi
 
-dmarc_txt="$(dig +short TXT "$DMARC_HOST" | tr -d '"' | head -n 1)"
+dmarc_txt="$(digq TXT "$DMARC_HOST" | tr -d '"' | head -n 1)"
 if [[ -z "$dmarc_txt" ]]; then
   fail "No DMARC TXT found at $DMARC_HOST"
 else
@@ -82,7 +99,7 @@ else
   fi
 fi
 
-dkim_cname="$(dig +short CNAME "$DKIM_HOSTINGER_SELECTOR")"
+dkim_cname="$(digq CNAME "$DKIM_HOSTINGER_SELECTOR")"
 if [[ -z "$dkim_cname" ]]; then
   fail "No Hostinger DKIM selector CNAME found at $DKIM_HOSTINGER_SELECTOR"
 else

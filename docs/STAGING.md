@@ -5872,7 +5872,7 @@ Re-validation snapshot (2026-05-09, live DNS check from workspace shell):
 1. `MX` is fully migrated: only `mx1.hostinger.com` and `mx2.hostinger.com` are present; legacy `mx3.zoho.com` is no longer published.
 2. `SPF` is correct: `v=spf1 include:_spf.mail.hostinger.com ~all`.
 3. `DKIM` hostinger selector is present: `hostingermail-a._domainkey.fcmanager.co.nz -> hostingermail-a.dkim.mail.hostinger.com`.
-4. `DMARC` is currently `v=DMARC1; p=none` (not yet hardened).
+4. `DMARC` record is currently missing at `_dmarc.fcmanager.co.nz` and must be re-added with enforcement policy.
 5. Supabase SMTP and report-email control secrets are confirmed present via `supabase secrets list` for project `kxwjcupuxnnbnzcgmkoi`.
 
 Updated verification note (2026-05-09, post-tooling install):
@@ -5887,7 +5887,7 @@ Updated verification note (2026-05-09, post-tooling install):
 Required actions to close the audit section:
 
 1. Keep Hostinger SPF and DKIM in place.
-2. Harden DMARC to at least `p=quarantine` after delivery confidence window.
+2. Add `_dmarc` TXT with at least `p=quarantine`.
 3. Re-run `scripts/email-dns-audit.sh` after DNS changes and ensure it exits with zero failures.
 
 Execution status note:
@@ -5905,6 +5905,6 @@ bash scripts/email-dns-audit.sh
 Latest output snapshot (2026-05-09):
 
 1. PASS: Hostinger MX (`mx1`/`mx2`) present and legacy Zoho MX removed
-2. WARN: DMARC still `p=none`
+2. FAIL: DMARC TXT missing at `_dmarc.fcmanager.co.nz`
 3. PASS: SPF Hostinger include present
 4. PASS: Hostinger DKIM selector present

@@ -4,9 +4,25 @@ set -euo pipefail
 DOMAIN="${DOMAIN:-fcmanager.co.nz}"
 DMARC_HOST="${DMARC_HOST:-_dmarc.${DOMAIN}}"
 DMARC_TARGET="${DMARC_TARGET:-v=DMARC1; p=quarantine; rua=mailto:admin@fcmanager.co.nz; pct=100}"
+DNS_SERVER="${DNS_SERVER:-}"
 
-current_mx="$(dig +short MX "$DOMAIN" | sort -n)"
-current_dmarc="$(dig +short TXT "$DMARC_HOST" | tr -d '"' | head -n1)"
+if [[ -z "$DNS_SERVER" ]]; then
+	DNS_SERVER="$(dig +short NS "$DOMAIN" | head -n1)"
+fi
+
+if [[ -z "$DNS_SERVER" ]]; then
+	echo "Could not determine authoritative nameserver for $DOMAIN" >&2
+	exit 2
+fi
+
+digq() {
+	local type="$1"
+	local name="$2"
+	dig +short "$type" "$name" "@${DNS_SERVER}"
+}
+
+current_mx="$(digq MX "$DOMAIN" | sort -n)"
+current_dmarc="$(digq TXT "$DMARC_HOST" | tr -d '"' | head -n1)"
 
 needs_zoho_removal="false"
 if echo "$current_mx" | grep -q 'mx3.zoho.com\.'; then
@@ -20,6 +36,9 @@ fi
 
 cat <<EOF
 Email DNS Remediation Plan (${DOMAIN})
+
+Authoritative DNS server:
+${DNS_SERVER}
 
 Current MX:
 ${current_mx:-<none>}
