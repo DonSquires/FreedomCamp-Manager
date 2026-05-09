@@ -5869,7 +5869,7 @@ Open blockers with owner:
 
 Re-validation snapshot (2026-05-09, live DNS check from workspace shell):
 
-1. `MX` is not fully migrated yet: `mx1.hostinger.com` and `mx2.hostinger.com` are present, but legacy `mx3.zoho.com` is still published.
+1. `MX` is fully migrated: only `mx1.hostinger.com` and `mx2.hostinger.com` are present; legacy `mx3.zoho.com` is no longer published.
 2. `SPF` is correct: `v=spf1 include:_spf.mail.hostinger.com ~all`.
 3. `DKIM` hostinger selector is present: `hostingermail-a._domainkey.fcmanager.co.nz -> hostingermail-a.dkim.mail.hostinger.com`.
 4. `DMARC` is currently `v=DMARC1; p=none` (not yet hardened).
@@ -5886,10 +5886,9 @@ Updated verification note (2026-05-09, post-tooling install):
 
 Required actions to close the audit section:
 
-1. Remove `mx3.zoho.com` from DNS so only Hostinger MX records remain.
-2. Keep Hostinger SPF and DKIM in place.
-3. Harden DMARC to at least `p=quarantine` after delivery confidence window.
-4. Re-run `scripts/email-dns-audit.sh` after DNS changes and ensure it exits with zero failures.
+1. Keep Hostinger SPF and DKIM in place.
+2. Harden DMARC to at least `p=quarantine` after delivery confidence window.
+3. Re-run `scripts/email-dns-audit.sh` after DNS changes and ensure it exits with zero failures.
 
 Execution status note:
 
@@ -5905,8 +5904,7 @@ bash scripts/email-dns-audit.sh
 
 Latest output snapshot (2026-05-09):
 
-1. FAIL: Legacy MX still present (`mx3.zoho.com.`)
+1. PASS: Hostinger MX (`mx1`/`mx2`) present and legacy Zoho MX removed
 2. WARN: DMARC still `p=none`
-3. PASS: Hostinger MX (`mx1`/`mx2`) present
-4. PASS: SPF Hostinger include present
-5. PASS: Hostinger DKIM selector present
+3. PASS: SPF Hostinger include present
+4. PASS: Hostinger DKIM selector present

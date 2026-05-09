@@ -3,9 +3,20 @@ set -euo pipefail
 
 DOMAIN="${DOMAIN:-fcmanager.co.nz}"
 DMARC_HOST="${DMARC_HOST:-_dmarc.${DOMAIN}}"
+DMARC_TARGET="${DMARC_TARGET:-v=DMARC1; p=quarantine; rua=mailto:admin@fcmanager.co.nz; pct=100}"
 
 current_mx="$(dig +short MX "$DOMAIN" | sort -n)"
 current_dmarc="$(dig +short TXT "$DMARC_HOST" | tr -d '"' | head -n1)"
+
+needs_zoho_removal="false"
+if echo "$current_mx" | grep -q 'mx3.zoho.com\.'; then
+	needs_zoho_removal="true"
+fi
+
+needs_dmarc_update="true"
+if [[ "$current_dmarc" == *"p=quarantine"* ]]; then
+	needs_dmarc_update="false"
+fi
 
 cat <<EOF
 Email DNS Remediation Plan (${DOMAIN})
@@ -17,10 +28,24 @@ Current DMARC:
 ${current_dmarc:-<none>}
 
 Required Registrar Changes (iwantmyname):
-1. DELETE MX: ${DOMAIN} priority 50 -> mx3.zoho.com.
-2. ENSURE MX:  ${DOMAIN} priority 5  -> mx1.hostinger.com.
-3. ENSURE MX:  ${DOMAIN} priority 10 -> mx2.hostinger.com.
-4. UPDATE TXT: ${DMARC_HOST} -> v=DMARC1; p=quarantine; rua=mailto:admin@fcmanager.co.nz; pct=100
+EOF
+
+if [[ "$needs_zoho_removal" == "true" ]]; then
+	echo "1. DELETE MX: ${DOMAIN} priority 50 -> mx3.zoho.com."
+else
+	echo "1. No Zoho MX cleanup needed (already removed)."
+fi
+
+echo "2. ENSURE MX:  ${DOMAIN} priority 5  -> mx1.hostinger.com."
+echo "3. ENSURE MX:  ${DOMAIN} priority 10 -> mx2.hostinger.com."
+
+if [[ "$needs_dmarc_update" == "true" ]]; then
+	echo "4. UPDATE TXT: ${DMARC_HOST} -> ${DMARC_TARGET}"
+else
+	echo "4. No DMARC policy update required (already quarantine/reject)."
+fi
+
+cat <<EOF
 
 Verification Commands:
 - bash scripts/email-dns-audit.sh
