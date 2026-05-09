@@ -17,9 +17,6 @@
     },
     "production": {
       "autoIncrement": true,
-      "env": {
-        "CI_RELEASE_APPROVED": "true"
-      },
       "android": {
         "credentialsSource": "local"
       }
