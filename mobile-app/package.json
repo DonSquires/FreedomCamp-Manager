@@ -9,7 +9,8 @@
     "web:export": "expo export --platform web",
     "deploy": "npm run web:export && eas deploy",
     "build:android": "eas build --platform android",
-    "build:ios": "eas build --platform ios"
+    "build:ios": "eas build --platform ios",
+    "eas-build-pre-install": "node ./scripts/enforce-build-origin.mjs"
   },
   "dependencies": {
     "@expo/metro-runtime": "~3.2.3",

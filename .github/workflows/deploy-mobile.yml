@@ -27,9 +27,9 @@ on:
       mobile_profile:
         description: 'EAS build profile'
         required: false
-        default: 'production'
+        default: 'production_ci'
         type: choice
-        options: [production, preview, development]
+        options: [production_ci, production, preview, development]
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -184,7 +184,7 @@ jobs:
             echo "profile=${{ github.event.inputs.mobile_profile }}"   >> "$GITHUB_OUTPUT"
           else
             echo "platform=android"   >> "$GITHUB_OUTPUT"
-            echo "profile=production" >> "$GITHUB_OUTPUT"
+            echo "profile=production_ci" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Build mobile app (EAS)

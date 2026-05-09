@@ -73,6 +73,12 @@ Get these from: **Supabase Dashboard → Project Settings → API**
 
 ## Building for Production
 
+### Release policy (important)
+
+- Production Android builds are CI-first in this repository.
+- Preferred path: run `.github/workflows/deploy-mobile.yml` using profile `production_ci`.
+- Direct Expo dashboard builds with profile `production` are blocked by a release-policy guard unless explicitly overridden.
+
 ### iOS (TestFlight / App Store)
 ```bash
 eas build --platform ios --profile production
@@ -81,8 +87,14 @@ eas submit --platform ios
 
 ### Android (Google Play)
 ```bash
-eas build --platform android --profile production
+eas build --platform android --profile production_ci
 eas submit --platform android
+```
+
+Emergency override (maintainers only):
+
+```bash
+ALLOW_DIRECT_EAS_PRODUCTION=true eas build --platform android --profile production
 ```
 
 ### Internal distribution (no app store)
@@ -93,6 +105,15 @@ eas build --platform ios --profile preview
 # Android — creates .apk for sideloading
 eas build --platform android --profile preview --output-format=apk
 ```
+
+## Update behavior (installed APK)
+
+If officers install an APK once, there are two update paths:
+
+- **OTA update (no new APK required):** works for JavaScript and asset-only changes published with `eas update`.
+- **New APK required:** needed for native changes (permissions, Expo SDK/react-native upgrades, native modules), or when runtime/app version changes.
+
+This project uses `runtimeVersion.policy = appVersion` in `app.json`, so OTA updates only apply to installs on the same app version/runtime.
 
 ---
 

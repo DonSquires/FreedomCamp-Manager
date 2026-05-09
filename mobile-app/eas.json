@@ -20,6 +20,15 @@
       "android": {
         "credentialsSource": "local"
       }
+    },
+    "production_ci": {
+      "autoIncrement": true,
+      "env": {
+        "CI_RELEASE_APPROVED": "true"
+      },
+      "android": {
+        "credentialsSource": "local"
+      }
     }
   },
   "submit": {
