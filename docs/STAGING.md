@@ -2,7 +2,7 @@
 
 Date: 2026-05-09
 Owner: GitHub Copilot
-Status: Active staging checklist — Sprints 50-69 complete on main; Sprint 70 kickoff in progress (2026-05-09)
+Status: Active staging checklist — Sprints 50-70 complete on main; no staged sprints remaining (2026-05-09)
 
 Latest Session Snapshot (Sprint 67 — B-236–B-246 — 2026-05-09):
 
@@ -5598,7 +5598,7 @@ The web SPA delivers SOS via the existing `officer_welfare_alerts` table + `send
 - Merge status: All sprint work through Sprint 69 closeout merged into `main`
 - Open PRs targeting `main`: 0
 - Local/remote status at verification: `main...origin/main` (clean)
-- Route manifest entries: 232 (as of Sprint 69 closeout)
+- Route manifest entries: 350 total rows / 286 unique paths (as of Sprint 70 hardening audit)
 - `bun run build`: PASS (26s, zero TypeScript errors)
 
 ### Included Production Merges (2026-05-09 consolidation)
@@ -5618,7 +5618,8 @@ The web SPA delivers SOS via the existing `officer_welfare_alerts` table + `send
 
 - No open blockers.
 - Monitor Bob inference endpoint stability.
-- Continue delivery planning from Sprint 70 scope.
+- No staged sprint backlog remains.
+- Await explicit Sprint 71 scope definition before opening new sprint lane.
 
 ### Sprint 69 — Realignment Closeout To-Do (Remaining Work)
 
@@ -5648,20 +5649,20 @@ Open blockers with owner:
 
 ### Sprint 70 — Kickoff To-Do (Next Workstream)
 
-1. Re-run full verification suite and capture a new snapshot anchored to current head (`7d071099`):
+1. [x] Re-run full verification suite and capture a new snapshot anchored to current head (`7d071099`):
   - `bun run lint`
   - `bun run build`
   - `bun run test:nav-parity`
   - `bun run lint:route-roadmap`
   - `bun run lint:staging-doc`
   - `bun run build:budget`
-2. Refresh canonical state files to the latest head and scope:
+2. [x] Refresh canonical state files to the latest head and scope:
   - `docs/MODULE_ROADMAP.md` verification banner (head + sprint coverage)
   - `system_state.json` (`main_head_commit`, `sprints_on_main`, timestamp)
-3. Start Sprint 70 route/data-access hardening lane:
+3. [x] Start Sprint 70 route/data-access hardening lane:
   - Run route-manifest parity sweep for alias/parameterized routes and update roadmap evidence if drift appears.
   - Run direct-query consolidation spot-check for admin/dispatch/field surfaces and record any new extraction candidates.
-4. Publish Sprint 70 Session Snapshot with evidence table and explicit blocker state.
+4. [x] Publish Sprint 70 Session Snapshot with evidence table and explicit blocker state.
 
 ### Sprint 70 Session Snapshot (2026-05-09)
 
@@ -5678,6 +5679,13 @@ Open blockers with owner:
 | `bun run lint:route-roadmap` | ✅ PASS | route-roadmap checker passed |
 | `bun run lint:staging-doc` | ✅ PASS | staging doc freshness/sanity passed |
 | `bun run build:budget` | ✅ PASS | 8361.67/8400 kB |
+| Route-manifest hardening audit | ✅ PASS | 350 route rows, 286 unique paths, 4 parameterized paths (`/vehicles/:id`, `/tender-workspace/:id`, `/crm/client/:orgId`, `/crm/contractor/:orgId`), 64 duplicate-path groups (alias/backfill overlap) |
+| Direct query spot-check (admin/dispatch/field) | ✅ PASS | `supabase.from(...)` = 0 and `supabase.rpc(...)` = 0 in `AdminPortal`, `DispatchConsole`, `FieldOfficerPortal`; hook boundaries intact |
 
 Open blockers with owner:
 1. NONE.
+
+### Staged Sprint Backlog State
+
+- Sprint lanes through Sprint 70 are complete in staging evidence.
+- No additional staged sprints are defined in `docs/STAGING.md`.

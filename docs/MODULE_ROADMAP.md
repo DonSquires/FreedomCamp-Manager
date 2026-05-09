@@ -1,9 +1,9 @@
 # Module Roadmap (Operator Navigation Map)
 
 Date: 2026-05-09 (verified against src/navigation/routeManifest.ts)
-Source of truth for routes: route manifest file src/navigation/routeManifest.ts (232 route manifest entries as of Sprint 68 completion)
+Source of truth for routes: route manifest file src/navigation/routeManifest.ts (350 manifest rows / 286 unique paths as of Sprint 70 hardening audit)
 
- > **Last Verification**: 2026-05-09 — Role-gating and route docs reviewed through Sprint 69 closeout. Production main (`7d071099`) includes Sprints 31-69. All copilot/* realignment branches merged.
+ > **Last Verification**: 2026-05-09 — Role-gating and route docs reviewed through Sprint 70. Production main (`0fb259c7`) includes Sprints 31-70. All copilot/* realignment branches merged.
 
 ## How To Use
 
