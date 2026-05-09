@@ -85,10 +85,15 @@ else
   fi
 fi
 
-dmarc_txt="$(digq TXT "$DMARC_HOST" | tr -d '"' | head -n 1)"
-if [[ -z "$dmarc_txt" ]]; then
+dmarc_records="$(digq TXT "$DMARC_HOST" | tr -d '"' | grep -i '^v=dmarc1' || true)"
+dmarc_count="$(echo "$dmarc_records" | sed '/^$/d' | wc -l | tr -d ' ')"
+if [[ "$dmarc_count" -eq 0 ]]; then
   fail "No DMARC TXT found at $DMARC_HOST"
+elif [[ "$dmarc_count" -gt 1 ]]; then
+  fail "Multiple DMARC TXT records found at $DMARC_HOST (must be exactly one)"
+  echo "$dmarc_records" | sed 's/^/  - /'
 else
+  dmarc_txt="$(echo "$dmarc_records" | head -n 1)"
   echo "DMARC: $dmarc_txt"
   if [[ "$dmarc_txt" == *"p=${DMARC_REQUIRED_POLICY}"* ]]; then
     pass "DMARC policy meets required level: p=${DMARC_REQUIRED_POLICY}"
