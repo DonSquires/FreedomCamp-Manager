@@ -28,7 +28,9 @@ export function validateRouteManifest(entries: RouteManifestEntry[]): RouteManif
     const prefix = `routeId=${entry.routeId}`
 
     if (!entry.routeId.trim()) errors.push(`${prefix}: routeId must not be empty.`)
-    if (!entry.path.startsWith('/')) errors.push(`${prefix}: path must start with '/'.`)
+    if (!entry.path.startsWith('/') && entry.path !== '*') {
+      errors.push(`${prefix}: path must start with '/' (or be '*' for a catch-all route).`)
+    }
     if (!VALID_SHELLS.includes(entry.shell)) errors.push(`${prefix}: invalid shell '${entry.shell}'.`)
     if (!VALID_VISIBILITY.includes(entry.visibilityMode)) {
       errors.push(`${prefix}: invalid visibilityMode '${entry.visibilityMode}'.`)
