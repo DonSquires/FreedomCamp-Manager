@@ -52,6 +52,7 @@ const NOISE_PATTERNS = [
   /No active session found\. Please sign in again/i,
   /PTT: WebSocket error \{"isTrusted":true\}/i,
   /Notification permission denied/i,
+  /Nominatim geocoding failed: TypeError: Failed to fetch/i,
 ]
 
 function isNoise(message: string): boolean {

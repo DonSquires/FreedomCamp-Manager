@@ -108,7 +108,9 @@ async function reverseGeocodeNominatim(
       source:            'nominatim',
     }
   } catch (error) {
-    console.error('Nominatim geocoding failed:', error)
+    // Network/cors/adblock failures are expected in some client environments;
+    // keep this non-fatal so auto error reporting does not treat it as a crash.
+    console.warn('Nominatim geocoding failed:', error)
     return null
   }
 }
