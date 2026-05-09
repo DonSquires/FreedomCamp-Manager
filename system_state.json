@@ -13,5 +13,7 @@
   "route_manifest_unique_paths": 286,
   "build_status": "PASS",
   "open_prs": 0,
+  "enterprise_grade_status": "COMPLETE",
+  "enterprise_grade_completed_at": "2026-05-09T02:30:00Z",
   "last_consolidation": "2026-05-09 — merged copilot/realignment-project-multiple-workers, copilot/continue-realignment-project-yet-again, copilot/continue-realignment-project-one-more-time into main"
 }

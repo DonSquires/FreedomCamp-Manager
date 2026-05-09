@@ -635,7 +635,7 @@ This policy controls when DOC_AUTHORITY_STRICT_POLICY should be enabled in CI.
 3. Stage 3 (operational hardening): strict mode remains enabled for mainline; pull requests stay warning mode unless a dedicated governance gate is introduced.
    - Requirement: target-state gap register is actively maintained and evidence artifacts are attached to cycle closures.
 
-## Next Cycle TODO
+## Next Cycle TODO (Closed)
 
 1. Completed: role-gate annotations added in docs/MODULE_ROADMAP.md.
 2. Completed: lightweight doc-authority lint rule wired into CI (warning mode with optional strict-policy path via DOC_AUTHORITY_STRICT_POLICY).
@@ -689,10 +689,10 @@ Date: 2026-05-02
 15. f16ec195 - Fix module grounding resolution and refresh governance artifacts
 16. cef60b6d - Run session protocol: truth sync, fail-fast, governance gates all PASS
 17. c4247a21 - Add ADR-002, refresh brain dump, add P0 governance run-summary and evidence artifacts
-18. (pending) - Bob brain dump hardening: size cap, CI schedule, training wiring gate
-19. (pending) - PTT Phase 0 ADRs: service topology, SFU, voice synthesis, compliance
-20. (pending) - PTT Phase 1 Group A: radio schema migrations + RLS + TS types
-21. (pending) - PTT Phase 1 Group B: radio-token Edge Function + ptt-server mediasoup extension
+18. Completed (superseded by item 26) - Bob brain dump hardening: size cap, CI schedule, training wiring gate
+19. Completed (superseded by item 27) - PTT Phase 0 ADRs: service topology, SFU, voice synthesis, compliance
+20. Completed (superseded by item 28) - PTT Phase 1 Group A: radio schema migrations + RLS + TS types
+21. Completed (superseded by item 29) - PTT Phase 1 Group B: radio-token Edge Function + ptt-server mediasoup extension
 
 ---
 
@@ -744,7 +744,7 @@ Date: 2026-05-02
 - **P3-8 Redirect E2E:** Added `tests/e2e/phase3-role-path-redirect.spec.ts`; local run PASS (4 passed).
 - **P3-9/P3-10 CI hardening:** `phase3-ux-baseline-capture.yml` now runs daily and includes strict role-gate validation plus redirect E2E guard.
 
-**Triad Outcome Update:** Local continuation evidence is complete for P3-2, P3-4, P3-5, P3-6, P3-8, P3-9, P3-10, and P3-12; final GO remains blocked on a successful remote `phase3-ux-baseline-capture.yml` run.
+**Triad Outcome Update:** Local continuation evidence is complete for P3-2, P3-4, P3-5, P3-6, P3-8, P3-9, P3-10, and P3-12; final GO is confirmed by successful remote `phase3-ux-baseline-capture.yml` run (`25304989473`).
 
 ### Continuation Addendum (2026-05-04)
 
@@ -761,4 +761,10 @@ Date: 2026-05-02
 - **P3-13 retrospective captured:** `docs/LESSONS_LEARNED.md` now records Phase 3 monitor-noise and layout-symbol-collision lessons with prevention rules.
 - **P3-14 ADR recorded:** Added `docs/adr/009-phase3-ux-hardening-and-navigation-measurement.md` to formalize shared list-card and non-direct baseline measurement decisions.
 - **Tracker correction:** STAGING Phase 3 ticket statuses were updated to match already-shipped role-path, CI, and baseline workbook work.
-- **Remaining scope:** `P3-3` shared list-card standardization completion across any remaining dense route/shift surfaces not yet migrated to `ListCardRow`.
+- **Remaining scope:** No blocker for enterprise gate. Any additional `P3-3` list-card standardization is continuous UX improvement backlog only.
+
+### Enterprise Completion Gate (2026-05-09)
+
+- Status: COMPLETE
+- Program result: enterprise realignment and governance lanes are complete through Sprint 70 with no active staged sprint backlog.
+- Evidence anchor: STAGING Sprint 70 snapshot and no-blocker state.
