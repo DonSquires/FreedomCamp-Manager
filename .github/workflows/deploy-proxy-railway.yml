@@ -45,7 +45,7 @@ jobs:
 
           # Deterministic production fallbacks (user-provided from Railway production settings)
           : "${RAILWAY_PROXY_PROJECT_ID:=c5305775-ecf5-4d67-a59f-b7ae49838561}"
-          : "${RAILWAY_PROXY_SERVICE_ID:=44e08d1a-c626-400c-b78c-c64eec259768}"
+          : "${RAILWAY_PROXY_SERVICE_ID:=902fa49d-6f80-4518-b691-5e9e54f79066}"
           echo "RAILWAY_PROXY_PROJECT_ID=$RAILWAY_PROXY_PROJECT_ID" >> "$GITHUB_ENV"
           echo "RAILWAY_PROXY_SERVICE_ID=$RAILWAY_PROXY_SERVICE_ID" >> "$GITHUB_ENV"
 
