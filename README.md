@@ -27,6 +27,16 @@ For the original full from-zero baseline, use [docs/NEW_PROJECT_SETUP.md](docs/N
 For browser-only deployment steps, use [ONLINE_DEPLOYMENT_GUIDE.md](ONLINE_DEPLOYMENT_GUIDE.md).
 For Bob RunPod setup and daily Codespaces operations, use [README_RUNPOD.md](README_RUNPOD.md).
 
+## Recent Deployments
+
+### Training Feature (May 2026) ✅ Deployed
+Pre-shift training assignment automation, competency grants, and multi-channel reminders.
+- **Status**: Fully deployed and operationally verified
+- **Details**: [docs/TRAINING_FEATURE_DEPLOYMENT_MAY_2026.md](docs/TRAINING_FEATURE_DEPLOYMENT_MAY_2026.md)
+- **Architecture**: [docs/adr/011-training-orchestration-and-auto-assignment.md](docs/adr/011-training-orchestration-and-auto-assignment.md)
+- **All delivery channels verified**: in-app, email, SMS, escalation
+- **Commit**: [1a3f1363](https://github.com/DonSquires/FreedomCamp-Manager/commit/1a3f1363)
+
 ### Codespaces startup logs
 
 When reviewing `.codespaces/.persistedshare/creation.log`, it is normal to see
