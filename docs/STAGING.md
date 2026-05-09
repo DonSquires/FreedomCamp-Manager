@@ -1,13 +1,13 @@
 # STAGING — Unified Execution To-Do and Crash Recovery Plan
 
 Date: 2026-05-09
-Owner: GitHub Copilot (GPT-5.3-Codex)
-Status: Active staging checklist
+Owner: GitHub Copilot
+Status: Active staging checklist — Sprints 50-68 fully merged to main (2026-05-09)
 
 Latest Session Snapshot (Sprint 67 — B-236–B-246 — 2026-05-09):
 
 - Timestamp (NZ): 2026-05-09 12:09 NZST
-- Current branch: copilot/continue-realignment-project-yet-again
+- Current branch: main (consolidated from copilot/continue-realignment-project-yet-again)
 - Scope completed:
   - Added Sprint 67 manifest entries (B-236–B-246): `/admin/dispatch`, `/admin/enforcement`, `/bob`, `/bob/assistant-studio`, `/field`, `/messages`, `/vehicles/:id`, `/client-portal`, `/crm/contractor/:orgId`, `/crm/client/:orgId`, `/tender-workspace/:id`.
   - Extended route manifest `AppRole` typing to include `client_officer` and `client_admin` so client-role route gates can be represented without type escapes.
@@ -5541,21 +5541,31 @@ The web SPA delivers SOS via the existing `officer_welfare_alerts` table + `send
 
 **Delivered on main:** Sprint 37 — B-121 WelfareEventB1Log, B-122 ZoneGeofenceSnapshotLog, B-123 FeatureFlagManager.
 
-## Production Consolidation Snapshot (2026-05-07)
+## Production Consolidation Snapshot (2026-05-09)
 
 - Production branch: `main`
-- Merge status: PR branch work for Sprint 31-36 is merged into `main`
+- HEAD commit: `1ffd9603`
+- Merge status: All sprint work through Sprint 68 (B-246) merged into `main`
 - Open PRs targeting `main`: 0
 - Local/remote status at verification: `main...origin/main` (clean)
+- Route manifest entries: 232 (as of Sprint 68)
+- `bun run build`: PASS (26s, zero TypeScript errors)
 
-### Included Production Merges
+### Included Production Merges (2026-05-09 consolidation)
 
-- PR #524 branch content merged to `main`
-- PR #526 branch content merged to `main`
-- PR #527 branch content merged to `main`
-- PR #529 branch content merged to `main` with add/add conflicts resolved by keeping existing `main` implementations for overlapping log page files
+- `copilot/realignment-project-multiple-workers` → commit `a2a56cef` (PTTRadio/DispatchConsole hook refactor, sprints 50-54)
+- `copilot/continue-realignment-project-yet-again` → commit `83d7e18c` (CompliancePage refactor, useComplianceDashboard/usePatrolMonitor hooks, sprints 57-68)
+- `copilot/continue-realignment-project-one-more-time` → commit `1ffd9603` (log pages batch: CanonicalPersonsLog, ContractorProfileLog, FixedCameraLog, OfficerSkillsLog, ParkingZoneLog, PatrolCheckpointLog, PricingRuleLog, ZoneLegalConfigLog, ZoneSignageEvidenceLog)
+
+### New Hooks on main
+
+- `src/hooks/useComplianceDashboard.ts`
+- `src/hooks/useDispatchConsoleData.ts`
+- `src/hooks/usePTTTranslationPrefs.ts`
+- `src/hooks/usePatrolMonitor.ts`
 
 ### Current Next Step
 
-- Run post-deploy verification and monitor Bob inference endpoint stability.
-- Continue next delivery planning from Sprint 38 scope.
+- No open blockers.
+- Monitor Bob inference endpoint stability.
+- Continue delivery planning from Sprint 69 scope.

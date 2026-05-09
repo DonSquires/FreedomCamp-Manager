@@ -5,6 +5,12 @@
   "toolchain_ready": true,
   "modules": ["messaging"],
   "lockfiles": ["bun.lock"],
-  "generated_at": "2026-05-08T21:10:43Z",
-  "source": "scripts/system-check.sh"
+  "generated_at": "2026-05-09T00:00:00Z",
+  "source": "scripts/system-check.sh",
+  "main_head_commit": "1ffd9603",
+  "sprints_on_main": "31-68",
+  "route_manifest_entries": 232,
+  "build_status": "PASS",
+  "open_prs": 0,
+  "last_consolidation": "2026-05-09 — merged copilot/realignment-project-multiple-workers, copilot/continue-realignment-project-yet-again, copilot/continue-realignment-project-one-more-time into main"
 }
