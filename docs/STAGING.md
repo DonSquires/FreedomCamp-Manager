@@ -2,7 +2,7 @@
 
 Date: 2026-05-09
 Owner: GitHub Copilot
-Status: Active staging checklist — Sprints 50-68 fully merged to main (2026-05-09)
+Status: Active staging checklist — Sprints 50-69 complete on main; Sprint 70 kickoff in progress (2026-05-09)
 
 Latest Session Snapshot (Sprint 67 — B-236–B-246 — 2026-05-09):
 
@@ -5594,11 +5594,11 @@ The web SPA delivers SOS via the existing `officer_welfare_alerts` table + `send
 ## Production Consolidation Snapshot (2026-05-09)
 
 - Production branch: `main`
-- HEAD commit: `1ffd9603`
-- Merge status: All sprint work through Sprint 68 (B-246) merged into `main`
+- HEAD commit: `7d071099`
+- Merge status: All sprint work through Sprint 69 closeout merged into `main`
 - Open PRs targeting `main`: 0
 - Local/remote status at verification: `main...origin/main` (clean)
-- Route manifest entries: 232 (as of Sprint 68)
+- Route manifest entries: 232 (as of Sprint 69 closeout)
 - `bun run build`: PASS (26s, zero TypeScript errors)
 
 ### Included Production Merges (2026-05-09 consolidation)
@@ -5618,7 +5618,7 @@ The web SPA delivers SOS via the existing `officer_welfare_alerts` table + `send
 
 - No open blockers.
 - Monitor Bob inference endpoint stability.
-- Continue delivery planning from Sprint 69 scope.
+- Continue delivery planning from Sprint 70 scope.
 
 ### Sprint 69 — Realignment Closeout To-Do (Remaining Work)
 
@@ -5642,6 +5642,42 @@ The web SPA delivers SOS via the existing `officer_welfare_alerts` table + `send
 | `bun run lint:staging-doc` | ✅ PASS | staging doc freshness/sanity passed |
 | `bun run build:budget` | ✅ PASS | budget recalibrated to 8400 kB; current non-exempt JS is 8361.18 kB |
 | `bun run test:nav-parity` | ✅ PASS | file-local node environment override in `src/config/navigationRegistry.parity.test.ts` avoids jsdom worker ESM path; 4/4 tests passing |
+
+Open blockers with owner:
+1. NONE.
+
+### Sprint 70 — Kickoff To-Do (Next Workstream)
+
+1. Re-run full verification suite and capture a new snapshot anchored to current head (`7d071099`):
+  - `bun run lint`
+  - `bun run build`
+  - `bun run test:nav-parity`
+  - `bun run lint:route-roadmap`
+  - `bun run lint:staging-doc`
+  - `bun run build:budget`
+2. Refresh canonical state files to the latest head and scope:
+  - `docs/MODULE_ROADMAP.md` verification banner (head + sprint coverage)
+  - `system_state.json` (`main_head_commit`, `sprints_on_main`, timestamp)
+3. Start Sprint 70 route/data-access hardening lane:
+  - Run route-manifest parity sweep for alias/parameterized routes and update roadmap evidence if drift appears.
+  - Run direct-query consolidation spot-check for admin/dispatch/field surfaces and record any new extraction candidates.
+4. Publish Sprint 70 Session Snapshot with evidence table and explicit blocker state.
+
+### Sprint 70 Session Snapshot (2026-05-09)
+
+- Timestamp (NZ): 2026-05-09 14:10 NZST
+- Current branch: `main`
+- HEAD SHA at verification start: `7d071099`
+- Scope: Sprint 70 kickoff planning + state-file synchronization.
+
+| Command | Result | Notes |
+|---|---|---|
+| `bun run lint` | ✅ PASS | ESLint completed without reported errors |
+| `bun run build` | ✅ PASS | TypeScript + Vite build succeeded |
+| `bun run test:nav-parity` | ✅ PASS | 4/4 tests passing |
+| `bun run lint:route-roadmap` | ✅ PASS | route-roadmap checker passed |
+| `bun run lint:staging-doc` | ✅ PASS | staging doc freshness/sanity passed |
+| `bun run build:budget` | ✅ PASS | 8361.67/8400 kB |
 
 Open blockers with owner:
 1. NONE.
