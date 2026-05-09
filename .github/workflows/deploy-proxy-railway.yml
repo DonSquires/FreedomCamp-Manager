@@ -201,7 +201,7 @@ jobs:
           set -euo pipefail
           cd proxy-server
           echo "🚂 Deploying proxy-server to Railway..."
-          railway up --project "$RAILWAY_PROXY_PROJECT_ID" --service "$RAILWAY_PROXY_SERVICE_ID" --detach
+          railway up --project "$RAILWAY_PROXY_PROJECT_ID" --environment production --service "$RAILWAY_PROXY_SERVICE_ID" --detach
           echo "✅ Deploy triggered. Check Railway dashboard for status."
 
       - name: Verify proxy health
