@@ -5641,8 +5641,7 @@ The web SPA delivers SOS via the existing `officer_welfare_alerts` table + `send
 | `bun run lint:route-roadmap` | ✅ PASS | route-roadmap checker passed |
 | `bun run lint:staging-doc` | ✅ PASS | staging doc freshness/sanity passed |
 | `bun run build:budget` | ✅ PASS | budget recalibrated to 8400 kB; current non-exempt JS is 8361.18 kB |
-| `bun run test:nav-parity` | ⛔ BLOCKED (env/runtime) | Vitest worker fails with `ERR_REQUIRE_ESM` (`html-encoding-sniffer` requiring ESM `@exodus/bytes/encoding-lite.js`) under current Node 22 worker runtime |
+| `bun run test:nav-parity` | ✅ PASS | file-local node environment override in `src/config/navigationRegistry.parity.test.ts` avoids jsdom worker ESM path; 4/4 tests passing |
 
 Open blockers with owner:
-1. `test:nav-parity` environment/runtime compatibility issue; owner: frontend platform/tooling.
-2. Optional hardening: pin/align the problematic dependency chain for Vitest worker startup in Node 22.
+1. NONE.
