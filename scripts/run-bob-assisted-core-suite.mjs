@@ -44,6 +44,8 @@ async function main() {
     'import data page loads',
     'intel approvals page loads',
     'compliance page loads',
+    'CRM.*Business Management Crossover',
+    'Client Portal Isolation',
   ].join('|')
 
   const opsExit = await run(bobAssist, [

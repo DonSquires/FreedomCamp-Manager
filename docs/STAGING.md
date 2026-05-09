@@ -5787,9 +5787,38 @@ Open blockers with owner:
 Open blockers with owner:
 1. NONE.
 
+### Sprint 74 — Human Emulator Workflow Suite Wiring (2026-05-09)
+
+#### Sprint 74 To-Do
+
+1. [x] Identify remaining runner drift: `scripts/run-human-module-suite.mjs` and `scripts/run-tests-on-runpod.mjs` workflow suites omitted `tests/e2e/crm-business-crossover.spec.ts` and `tests/e2e/client-portal-isolation.spec.ts`, even though `bob-agentic-test-orchestrator.mjs` already included them.
+2. [x] Add both portal specs to `run-human-module-suite.mjs` so local human emulator sweeps cover CRM/client-portal workflows on chromium + Mobile Chrome.
+3. [x] Expand `run-bob-assisted-core-suite.mjs` grep pattern to include `CRM ↔ Business Management Crossover` and `Client Portal Isolation`, so Bob-assisted focused runs do not filter those newly wired specs back out.
+4. [x] Add both portal specs to RunPod `workflows` suite in `scripts/run-tests-on-runpod.mjs` to keep remote workflow coverage aligned.
+5. [x] Validate suite wiring with Playwright `--list` and repo quality gates.
+
+#### Sprint 74 Session Snapshot (2026-05-09)
+
+- Timestamp (NZ): 2026-05-09 18:35 NZST
+- Current branch: `copilot/fix-wiring-and-ui-ux`
+- HEAD SHA at verification start: `e73349a7`
+- Scope: wire CRM/client portal workflow specs into human emulator and remote workflow runners.
+
+| Command | Result | Notes |
+|---|---|---|
+| `bun run lint` | ✅ PASS | ESLint completed without errors |
+| `bun run build` | ✅ PASS | TypeScript + Vite build succeeded |
+| `bun run build:budget` | ✅ PASS | 8346.52/8400 kB |
+| `node scripts/run-human-module-suite.mjs --list` | ✅ PASS | 642 tests in 6 files after adding CRM/client specs |
+| `node scripts/run-human-module-suite.mjs --grep "CRM.*Business Management Crossover|Client Portal Isolation" --list` | ✅ PASS | 28 tests in 2 files across chromium + Mobile Chrome |
+| `node scripts/run-bob-assisted-core-suite.mjs` | ⚠️ Infra-only | Existing localhost:5173 server caused Playwright webServer port conflict during smoke run; not a code failure |
+
+Open blockers with owner:
+1. NONE.
+
 ### Staged Sprint Backlog State
 
-- Sprint lanes through Sprint 73 are complete in staging evidence.
+- Sprint lanes through Sprint 74 are complete in staging evidence.
 - No additional staged sprints are defined in `docs/STAGING.md`.
 
 ### Email Service Activation Audit (2026-05-09)
