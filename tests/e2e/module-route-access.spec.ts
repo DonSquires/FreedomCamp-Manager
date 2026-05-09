@@ -32,7 +32,6 @@ test.use({ screenshot: 'on' })
 // ─── Route collection helpers ─────────────────────────────────────────────────
 
 const ADMIN_ROLES = new Set(['admin', 'admin_officer', 'master', 'grand_master'])
-const OFFICER_ROLES = new Set(['officer', 'admin_officer'])
 
 type CollectedRoute = { path: string; label: string }
 
@@ -47,7 +46,7 @@ function collectRoutesForRoles(allowedRoles: Set<string>): CollectedRoute[] {
       if (/:[^/]+/.test(route.path)) continue
       if (!route.path.startsWith('/')) continue
 
-      const hasRole = route.roles.some((r) => allowedRoles.has(String(r)))
+      const hasRole = route.roles.some((r) => allowedRoles.has(r))
       if (!hasRole) continue
 
       seen.add(route.path)
@@ -58,10 +57,12 @@ function collectRoutesForRoles(allowedRoles: Set<string>): CollectedRoute[] {
   return result.sort((a, b) => a.path.localeCompare(b.path))
 }
 
-/** Admin-accessible routes (admin, admin_officer, master, grand_master). */
-const adminRoutes = collectRoutesForRoles(ADMIN_ROLES).filter(
-  ({ path }) => !collectRoutesForRoles(OFFICER_ROLES).find((r) => r.path === path && !ADMIN_ROLES.has('officer')),
-)
+/**
+ * Admin-accessible routes (admin, admin_officer, master, grand_master).
+ * `collectRoutesForRoles` already excludes routes that require only officer roles,
+ * so no additional filtering is needed here.
+ */
+const adminRoutes = collectRoutesForRoles(ADMIN_ROLES)
 
 /** Officer-only routes (officer-portal surfaces). */
 const officerOnlyRoutes = Object.values(SERVICE_MODULES)
