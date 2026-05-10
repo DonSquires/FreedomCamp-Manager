@@ -1,0 +1,58 @@
+$ bash scripts/bob-collab.sh plan "Using docs/STAGING.md authority order and docs/UIUX_STRATEGIC_PLANS_2026.md, return an independent enterprise UI/UX plan with phases, risks, guardrails, metrics, and explicit role-shell/workflow mapping."
+### Risk Analysis
+1. **Inadequate Documentation**: The provided documents may not cover all necessary details for a comprehensive UI/UX plan.
+2. **Lack of Stakeholder Input**: Without direct input from stakeholders, the plan might miss critical requirements or user needs.
+3. **Timeline Inconsistencies**: Differences in timing between STAGING.md and UIUX_STRATEGIC_PLANS_2026.md could lead to conflicting priorities.
+4. **Resource Constraints**: Insufficient resources (time, budget, personnel) could hinder successful implementation.
+
+### Root Cause Hypotheses
+1. **Insufficient Documentation**: The documents might be outdated or incomplete.
+2. **Outdated Information**: There may be newer developments that are not reflected in the provided documents.
+3. **Stakeholder Communication Gaps**: Lack of direct communication with key stakeholders could lead to misalignment.
+
+### Recommended Split (Bob-do vs Copilot-do)
+1. **Copilot-do**: Gather and analyze existing documentation, identify gaps, and list potential risks.
+2. **Bob-do**: Develop the plan based on internal evidence, conduct necessary research, and map out roles and workflows.
+
+### Staged Plan
+#### Phase 1: Documentation Review (3 days)
+- **Objective**: Analyze STAGING.md and UIUX_STRATEGIC_PLANS_2026.md to gather relevant information.
+- **Tasks**:
+  - Review both documents for key points, timelines, and priorities.
+  - Identify any missing or unclear sections.
+
+#### Phase 2: Research and Gap Analysis (3 days)
+- **Objective**: Fill in gaps identified in the review phase and conduct additional research if necessary.
+- **Tasks**:
+  - Conduct a SWOT analysis based on existing documents.
+  - Identify key stakeholders and map their roles.
+
+#### Phase 3: Plan Development (5 days)
+- **Objective**: Develop the independent enterprise UI/UX plan with phases, risks, guardrails, metrics, and role-shell mapping.
+- **Tasks**:
+  - Draft the plan, incorporating findings from previous phases.
+  - Define phased implementation strategy and key milestones.
+
+#### Phase 4: Validation and Review (2 days)
+- **Objective**: Validate the plan against internal evidence and get stakeholder feedback.
+- **Tasks**:
+  - Present the draft plan to relevant stakeholders for review.
+  - Incorporate feedback and finalize the plan.
+
+### Verification Checklist
+1. **Documentation Completeness**:
+   - Verify all key points in STAGING.md and UIUX_STRATEGIC_PLANS_2026.md are covered.
+   
+2. **Stakeholder Alignment**:
+   - Confirm roles and workflows align with stakeholder expectations.
+   
+3. **Risk Identification**:
+   - Ensure all identified risks are documented and mitigated in the plan.
+
+4. **Plan Feasibility**:
+   - Validate timelines and resource requirements against available resources.
+   
+5. **Stakeholder Feedback**:
+   - Confirm that stakeholders have reviewed and approved the final plan.
+
+By following this structured approach, we can ensure a robust and well-documented UI/UX plan for FieldOps Manager.
