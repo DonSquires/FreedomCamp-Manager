@@ -4,7 +4,20 @@ import { Check, ChevronDown, ChevronUp } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
-const Select = SelectPrimitive.Root
+const Select = ({ ...props }: React.ComponentPropsWithoutRef<typeof SelectPrimitive.Root>) => {
+  const hasValueProp = Object.prototype.hasOwnProperty.call(props, "value")
+  const hasDefaultValueProp = Object.prototype.hasOwnProperty.call(props, "defaultValue")
+
+  if (hasValueProp) {
+    return <SelectPrimitive.Root {...props} value={props.value ?? ""} />
+  }
+
+  if (hasDefaultValueProp) {
+    return <SelectPrimitive.Root {...props} defaultValue={props.defaultValue ?? ""} />
+  }
+
+  return <SelectPrimitive.Root {...props} />
+}
 
 const SelectGroup = SelectPrimitive.Group
 
