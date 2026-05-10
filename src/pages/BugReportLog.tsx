@@ -15,7 +15,7 @@
  * Route: /bug-reports-log — admin/master
  */
 
-import { useState } from 'react'
+import { Fragment, useMemo, useState } from 'react'
 import { format, parseISO } from 'date-fns'
 import {
   Bug, RefreshCw, AlertCircle, Loader2,
@@ -131,12 +131,23 @@ export default function BugReportLog() {
     onError: () => toast.error('Failed to update bug report'),
   })
 
-  const issueTypes    = [...new Set(rows.map(r => r.issue_type).filter(Boolean))].sort()
-  const severities    = [...new Set(rows.map(r => r.severity).filter(Boolean))].sort()
-  const statusTypes   = [...new Set(rows.map(r => r.status).filter(Boolean))].sort()
-  const openCount     = rows.filter(r => r.status === 'open' || r.status == null).length
-  const aiAnalyzed    = rows.filter(r => r.ai_analyzed).length
-  const needsReview   = rows.filter(r => r.requires_human_review).length
+  // Defensive dedupe protects rendering when backend queries or joins return
+  // duplicate records for the same bug ID, preventing duplicate React keys.
+  const uniqueRows = useMemo(() => {
+    const byId = new Map<string, BugReport>()
+    for (const row of rows) {
+      if (!row?.id) continue
+      if (!byId.has(row.id)) byId.set(row.id, row)
+    }
+    return Array.from(byId.values())
+  }, [rows])
+
+  const issueTypes    = [...new Set(uniqueRows.map(r => r.issue_type).filter(Boolean))].sort()
+  const severities    = [...new Set(uniqueRows.map(r => r.severity).filter(Boolean))].sort()
+  const statusTypes   = [...new Set(uniqueRows.map(r => r.status).filter(Boolean))].sort()
+  const openCount     = uniqueRows.filter(r => r.status === 'open' || r.status == null).length
+  const aiAnalyzed    = uniqueRows.filter(r => r.ai_analyzed).length
+  const needsReview   = uniqueRows.filter(r => r.requires_human_review).length
 
   // ─────────────────────────────────────────────────────────────────────────
 
@@ -160,7 +171,7 @@ export default function BugReportLog() {
         {/* KPIs */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
-            { label: 'Total Reports',       value: rows.length,  colour: 'text-gray-700' },
+            { label: 'Total Reports',       value: uniqueRows.length,  colour: 'text-gray-700' },
             { label: 'Open',                value: openCount,    colour: 'text-blue-700' },
             { label: 'AI Analyzed',         value: aiAnalyzed,   colour: 'text-purple-700' },
             { label: 'Needs Human Review',  value: needsReview,  colour: 'text-red-700' },
@@ -211,7 +222,7 @@ export default function BugReportLog() {
           <div className="flex justify-center py-12">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
-        ) : rows.length === 0 ? (
+        ) : uniqueRows.length === 0 ? (
           <div className="flex flex-col items-center py-12 text-muted-foreground gap-2">
             <AlertCircle className="h-8 w-8" /><p>No bug reports found</p>
           </div>
@@ -233,12 +244,11 @@ export default function BugReportLog() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {rows.map(row => {
+                {uniqueRows.map(row => {
                   const expanded = expandedId === row.id
                   return (
-                    <>
+                    <Fragment key={row.id}>
                       <TableRow
-                        key={row.id}
                         className="cursor-pointer hover:bg-muted/50"
                         onClick={() => setExpandedId(expanded ? null : row.id)}
                       >
@@ -272,7 +282,7 @@ export default function BugReportLog() {
                         </TableCell>
                       </TableRow>
                       {expanded && (
-                        <TableRow key={`${row.id}-exp`} className="bg-muted/30">
+                        <TableRow className="bg-muted/30">
                           <TableCell colSpan={10} className="p-4 space-y-3">
                             <div>
                               <p className="font-medium text-sm mb-1">Description</p>
@@ -323,7 +333,7 @@ export default function BugReportLog() {
                           </TableCell>
                         </TableRow>
                       )}
-                    </>
+                    </Fragment>
                   )
                 })}
               </TableBody>
