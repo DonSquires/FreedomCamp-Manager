@@ -1194,7 +1194,7 @@ export default function App() {
             path="/test-dashboard"
             element={
               <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'grand_master']}>
+                <RoleRoute allowedRoles={['master', 'grand_master']}>
                   <TestDashboard />
                 </RoleRoute>
               </ProtectedRoute>

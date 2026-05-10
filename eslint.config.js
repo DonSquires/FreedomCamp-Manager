@@ -39,6 +39,11 @@ export default tseslint.config(
       ],
       '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/no-unused-vars': 'off',
+      // TODO (Phase II-CI): Add custom rule to prevent calls to archive functions.
+      // Rule should fail if any src/lib/edgeFunctions.ts or UI component calls:
+      //   callEdgeFunction('recalculate-compliance*', ...) or other archive function names
+      // Recommended: implement via custom ESLint plugin or GitHub Actions CI gate
+      // See: docs/STAGING.md Phase II-CI section for archive function inventory
     },
   },
   {

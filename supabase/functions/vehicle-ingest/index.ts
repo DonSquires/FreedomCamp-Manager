@@ -331,6 +331,7 @@ Deno.serve(async (req) => {
     let officerId: string | null = null;
     let organizationId: string | null = null;
     let zoneId: string | null = null;
+    let loiId: string | null = null;
     let idempotencyKey: string | null = null;
     let existingObservationId: string | null = null;
     let officerNotes: string | null = null;
@@ -363,6 +364,7 @@ Deno.serve(async (req) => {
       officerId = body.officerId ?? body.officer_id ?? body.recorded_by;
       organizationId = body.organizationId ?? body.organization_id;
       zoneId = body.zoneId ?? body.zone_id;
+      loiId = body.loiId ?? body.loi_id ?? null;
       idempotencyKey = body.idempotencyKey ?? body.idempotency_key;
       existingObservationId = body.existing_observation_id ?? body.observation_id ?? null;
       officerNotes = body.notes ?? body.officer_notes;
@@ -390,6 +392,7 @@ Deno.serve(async (req) => {
       officerId = formData.get("officerId") as string || formData.get("recorded_by") as string;
       organizationId = formData.get("organizationId") as string;
       zoneId = formData.get("zoneId") as string;
+      loiId = (formData.get("loiId") as string) || (formData.get("loi_id") as string) || null;
       idempotencyKey = formData.get("idempotencyKey") as string;
       existingObservationId = (formData.get("existing_observation_id") as string) || (formData.get("observation_id") as string) || null;
       officerNotes = formData.get("notes") as string;
@@ -422,6 +425,7 @@ Deno.serve(async (req) => {
       has_photo_url: !!photoUrlInput,
       has_photo_hash: !!hintPhotoHash,
       zone_id: zoneId,
+      loi_id: loiId,
       has_gps: gpsLatitude !== null && gpsLongitude !== null,
     });
 
@@ -518,6 +522,7 @@ Deno.serve(async (req) => {
             observation_id: canonicalObservationId,
             photo_url: canonicalPhotoRef,
             photo_hash: photoHash,
+            loi_id: loiId,
             allow_admin_override: true,
           }),
         }).then(async (response) => {
@@ -611,8 +616,28 @@ Deno.serve(async (req) => {
       }
     }
 
+    if (!zoneId && loiId) {
+      const { data: zoneFromLoi, error: zoneFromLoiError } = await supabase
+        .from("zones")
+        .select("id")
+        .eq("loi_id", loiId)
+        .eq("is_active", true)
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (zoneFromLoiError) {
+        return new Response(JSON.stringify({ error: `Failed resolving zone from loi_id: ${zoneFromLoiError.message}` }), {
+          status: 400,
+          headers: { ...getCorsHeaders(req), "content-type": "application/json" },
+        });
+      }
+
+      zoneId = (zoneFromLoi as any)?.id ?? null;
+    }
+
     if (!zoneId) {
-      return new Response(JSON.stringify({ error: "Missing zoneId" }), {
+      return new Response(JSON.stringify({ error: "Missing zoneId (or valid loi_id)" }), {
         status: 400,
         headers: { ...getCorsHeaders(req), "content-type": "application/json" },
       });
@@ -1107,6 +1132,7 @@ Deno.serve(async (req) => {
           observation_id: newObservationId,
           photo_url: photoUrl,
           photo_hash: photoHash,
+          loi_id: loiId,
           allow_admin_override: isUpdateExistingMode,
         }),
       }).then(async (response) => {

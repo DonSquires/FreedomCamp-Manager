@@ -772,6 +772,7 @@ Deno.serve(async (req: Request) => {
     const observationId: string | null = body.observation_id ?? null;
     const photoUrl:       string | null = body.photo_url ?? null;
     const allowAdminOverride = body.allow_admin_override === true;
+    const requestLoiId: string | null = body.loi_id ?? body.loiId ?? null;
 
     const gpsLatitudeRaw = body.gps_latitude ?? body.officer_latitude ?? body.latitude ?? null;
     const gpsLongitudeRaw = body.gps_longitude ?? body.officer_longitude ?? body.longitude ?? null;
@@ -835,7 +836,28 @@ Deno.serve(async (req: Request) => {
       return jsonResp({ error: 'Forbidden: observation belongs to another officer' }, 403);
     }
 
-    const zoneId = obs.zone_id as string;
+    let zoneId = obs.zone_id as string | null;
+    if (!zoneId && requestLoiId) {
+      const { data: zoneFromLoi, error: zoneFromLoiError } = await supabase
+        .from('zones')
+        .select('id')
+        .eq('loi_id', requestLoiId)
+        .eq('is_active', true)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (zoneFromLoiError) {
+        console.warn('⚠️ LOI->zone resolution failed:', zoneFromLoiError.message)
+      }
+
+      zoneId = (zoneFromLoi as any)?.id ?? null;
+    }
+
+    if (!zoneId) {
+      return jsonResp({ error: 'Observation has no zone_id and no active zone found for provided loi_id' }, 400)
+    }
+
     const sourceOrganizationId = obs.organization_id as string;
     let organizationId = sourceOrganizationId;
     const recordedAt = obs.recorded_at as string;

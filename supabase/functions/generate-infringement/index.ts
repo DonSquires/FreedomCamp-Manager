@@ -142,6 +142,7 @@ Deno.serve(async (req) => {
       observation_id,
       plate_number,
       zone_id,
+      loi_id,
       offence_description,
       legal_basis,
       offence_date,
@@ -156,10 +157,12 @@ Deno.serve(async (req) => {
       vehicle_model,
     } = body
 
+    let resolvedZoneId: string | null = zone_id ?? null
+
     // Validate required fields
-    if (!plate_number || !zone_id || !offence_description || !legal_basis) {
+    if (!plate_number || !offence_description || !legal_basis) {
       return new Response(
-        JSON.stringify({ success: false, error: 'plate_number, zone_id, offence_description and legal_basis are required' }),
+        JSON.stringify({ success: false, error: 'plate_number, offence_description and legal_basis are required' }),
         { status: 400, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       )
     }
@@ -238,11 +241,71 @@ Deno.serve(async (req) => {
       )
     }
 
+    let observationData: {
+      gps_latitude: number | null
+      gps_longitude: number | null
+      recorded_at: string
+      vehicle_make: string | null
+      vehicle_model: string | null
+      zone_id: string | null
+      loi_id: string | null
+    } | null = null
+
+    if (observation_id) {
+      const { data: observation, error: observationError } = await supabaseAdmin
+        .from('observations')
+        .select('gps_latitude, gps_longitude, recorded_at, vehicle_make, vehicle_model, zone_id, loi_id')
+        .eq('observation_id', observation_id)
+        .single()
+
+      if (observationError || !observation) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Linked observation was not found. Refresh the page and try again.' }),
+          { status: 400, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
+        )
+      }
+
+      observationData = observation
+      resolvedZoneId = resolvedZoneId ?? observation.zone_id ?? null
+
+      if (!resolvedZoneId) {
+        const observationLoiId = observation.loi_id ?? loi_id ?? null
+        if (observationLoiId) {
+          const { data: zoneFromLoi } = await supabaseAdmin
+            .from('zones')
+            .select('id')
+            .eq('loi_id', observationLoiId)
+            .eq('is_active', true)
+            .limit(1)
+            .maybeSingle()
+          resolvedZoneId = zoneFromLoi?.id ?? null
+        }
+      }
+    }
+
+    if (!resolvedZoneId && loi_id) {
+      const { data: zoneFromLoi } = await supabaseAdmin
+        .from('zones')
+        .select('id')
+        .eq('loi_id', loi_id)
+        .eq('is_active', true)
+        .limit(1)
+        .maybeSingle()
+      resolvedZoneId = zoneFromLoi?.id ?? null
+    }
+
+    if (!resolvedZoneId) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'zone_id or loi_id is required' }),
+        { status: 400, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
+      )
+    }
+
     // Get zone + org details for the notice letterhead
     const { data: zoneData, error: zoneError } = await supabaseAdmin
       .from('zones')
       .select('id, name, location_lat, location_lng, enforcement_authority, organizations!inner(id, name, address, contact_phone, contact_email, logo_url)')
-      .eq('id', zone_id)
+      .eq('id', resolvedZoneId)
       .single()
 
     if (zoneError || !zoneData) {
@@ -284,36 +347,11 @@ Deno.serve(async (req) => {
     const { data: legalConfig, error: legalConfigError } = await supabaseAdmin
       .from('zone_legal_config')
       .select('org_office_name, org_street_address, org_po_box, org_city, org_postcode, org_phone, org_email, org_website, enforcement_authority, payment_online_url, payment_bank_account, payment_instructions, objections_email, objections_postal_address, dispute_portal_url')
-      .eq('zone_id', zone_id)
+      .eq('zone_id', resolvedZoneId)
       .maybeSingle()
 
     if (legalConfigError) {
       console.warn('⚠️ zone_legal_config lookup failed', formatDbError(legalConfigError))
-    }
-
-    let observationData: {
-      gps_latitude: number | null
-      gps_longitude: number | null
-      recorded_at: string
-      vehicle_make: string | null
-      vehicle_model: string | null
-    } | null = null
-
-    if (observation_id) {
-      const { data: observation, error: observationError } = await supabaseAdmin
-        .from('observations')
-        .select('gps_latitude, gps_longitude, recorded_at, vehicle_make, vehicle_model')
-        .eq('observation_id', observation_id)
-        .single()
-
-      if (observationError || !observation) {
-        return new Response(
-          JSON.stringify({ success: false, error: 'Linked observation was not found. Refresh the page and try again.' }),
-          { status: 400, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
-        )
-      }
-
-      observationData = observation
     }
 
     const legalOfficeAddress = joinAddressParts([
@@ -414,7 +452,7 @@ Deno.serve(async (req) => {
         organization_id: orgId,
         observation_id: observation_id ?? null,
         breach_alert_id: breach_alert_id ?? null,
-        zone_id,
+        zone_id: resolvedZoneId,
         plate_number,
         offence_description,
         legal_basis,

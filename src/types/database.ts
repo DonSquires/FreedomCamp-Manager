@@ -6583,6 +6583,7 @@ export type Database = {
           is_compliant: boolean | null
           is_legacy_import: boolean | null
           legacy_source_tag: string | null
+          loi_id: string | null
           movement_background_similarity: number | null
           movement_decision: string | null
           movement_moved: boolean | null
@@ -6666,6 +6667,7 @@ export type Database = {
           is_compliant?: boolean | null
           is_legacy_import?: boolean | null
           legacy_source_tag?: string | null
+          loi_id?: string | null
           movement_background_similarity?: number | null
           movement_decision?: string | null
           movement_moved?: boolean | null
@@ -6749,6 +6751,7 @@ export type Database = {
           is_compliant?: boolean | null
           is_legacy_import?: boolean | null
           legacy_source_tag?: string | null
+          loi_id?: string | null
           movement_background_similarity?: number | null
           movement_decision?: string | null
           movement_moved?: boolean | null
@@ -6841,6 +6844,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "observations_loi_id_fkey"
+            columns: ["loi_id"]
+            isOneToOne: false
+            referencedRelation: "locations_of_interest"
             referencedColumns: ["id"]
           },
           {
@@ -11555,6 +11565,7 @@ export type Database = {
           land_managing_agency: string | null
           location_lat: number | null
           location_lng: number | null
+          loi_id: string | null
           max_consecutive_nights: number | null
           max_vehicles: number | null
           name: string
@@ -11593,6 +11604,7 @@ export type Database = {
           land_managing_agency?: string | null
           location_lat?: number | null
           location_lng?: number | null
+          loi_id?: string | null
           max_consecutive_nights?: number | null
           max_vehicles?: number | null
           name: string
@@ -11631,6 +11643,7 @@ export type Database = {
           land_managing_agency?: string | null
           location_lat?: number | null
           location_lng?: number | null
+          loi_id?: string | null
           max_consecutive_nights?: number | null
           max_vehicles?: number | null
           name?: string
@@ -11652,6 +11665,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "zones_loi_id_fkey"
+            columns: ["loi_id"]
+            isOneToOne: false
+            referencedRelation: "locations_of_interest"
             referencedColumns: ["id"]
           },
           {

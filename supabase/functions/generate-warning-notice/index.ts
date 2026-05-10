@@ -55,6 +55,7 @@ Deno.serve(async (req: Request) => {
     const {
       plate_number,
       zone_id,
+      loi_id,
       breach_type,
       breach_reason,
       observation_id,
@@ -66,9 +67,46 @@ Deno.serve(async (req: Request) => {
       delivery_method = 'physical',
     } = await req.json()
 
+    let resolvedZoneId: string | null = zone_id ?? null
+
     // ── Validation ───────────────────────────────────────────────────────────
     if (!plate_number?.trim()) throw new Error('plate_number is required')
-    if (!zone_id) throw new Error('zone_id is required')
+    if (!resolvedZoneId && observation_id) {
+      const { data: observation } = await supabaseAdmin
+        .from('observations')
+        .select('zone_id, loi_id')
+        .eq('observation_id', observation_id)
+        .maybeSingle()
+
+      resolvedZoneId = (observation as any)?.zone_id ?? null
+
+      if (!resolvedZoneId) {
+        const observationLoiId = (observation as any)?.loi_id ?? loi_id ?? null
+        if (observationLoiId) {
+          const { data: zoneFromLoi } = await supabaseAdmin
+            .from('zones')
+            .select('id')
+            .eq('loi_id', observationLoiId)
+            .eq('is_active', true)
+            .limit(1)
+            .maybeSingle()
+          resolvedZoneId = zoneFromLoi?.id ?? null
+        }
+      }
+    }
+
+    if (!resolvedZoneId && loi_id) {
+      const { data: zoneFromLoi } = await supabaseAdmin
+        .from('zones')
+        .select('id')
+        .eq('loi_id', loi_id)
+        .eq('is_active', true)
+        .limit(1)
+        .maybeSingle()
+      resolvedZoneId = zoneFromLoi?.id ?? null
+    }
+
+    if (!resolvedZoneId) throw new Error('zone_id or loi_id is required')
     if (!breach_type?.trim()) throw new Error('breach_type is required')
     if (!breach_reason?.trim()) throw new Error('breach_reason is required')
     if (!issued_by) throw new Error('issued_by is required')
@@ -92,8 +130,8 @@ Deno.serve(async (req: Request) => {
     // ── 2. Get zone + org details ────────────────────────────────────────────
     const { data: zone, error: zoneErr } = await supabaseAdmin
       .from('zones')
-      .select('id, name, organization_id')
-      .eq('id', zone_id)
+      .select('id, name, organization_id, loi_id')
+      .eq('id', resolvedZoneId)
       .single()
 
     if (zoneErr || !zone) throw new Error('Zone not found')
@@ -126,7 +164,7 @@ Deno.serve(async (req: Request) => {
         created_by: issued_by,
         observation_id: observation_id ?? null,
         plate_number: plate,
-        zone_id,
+        zone_id: resolvedZoneId,
         action_type: 'warning',
         status: 'issued',
         notes: [

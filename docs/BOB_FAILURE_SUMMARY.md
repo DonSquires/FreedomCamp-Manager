@@ -1,8 +1,8 @@
 # Bob Failure Summary
 
-Generated: 2026-05-09T08:31:48.408Z
+Generated: 2026-05-10T12:33:15.723Z
 Window: last 24 hours
-Entries analyzed: 3
+Entries analyzed: 0
 Low-score entries: 0
 
 ## Top Failure Reasons
@@ -19,7 +19,7 @@ Low-score entries: 0
 
 ## Most-Flagged Artifacts
 
-- /workspaces/FreedomCamp-Manager/docs/INSTRUCTION_MANUAL.md (1), /workspaces/FreedomCamp-Manager/spec.md (1)
+- none
 
 ## Recommendations
 

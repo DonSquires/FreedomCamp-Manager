@@ -666,6 +666,8 @@ export const edgeFunctions = {
     organization_id?: string
     zoneId?: string
     zone_id?: string
+    loiId?: string
+    loi_id?: string
     idempotencyKey?: string
     idempotency_key?: string
     notes?: string
@@ -845,6 +847,10 @@ export const edgeFunctions = {
   generateNoticeToVacate: async (params: {
     zoneId?: string
     zone_id?: string
+    loiId?: string
+    loi_id?: string
+    observationId?: string
+    observation_id?: string
     plateNumber?: string
     plate_number?: string
     nightsStayed?: number

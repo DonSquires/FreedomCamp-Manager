@@ -1,0 +1,117 @@
+# Freedom Camping Runtime Update Matrix
+
+Generated: 2026-05-10T10:44:28Z
+
+## Scope
+
+Runtime files matching Freedom Camping functionality keywords (excluding docs-only references).
+
+## Files
+
+- [ ] src/hooks/PHASE_5_PRIORITY_3_COMPLETE.md
+- [ ] src/hooks/useAdminPortalData.ts
+- [ ] src/hooks/useAutonomousReasoning.ts
+- [ ] src/hooks/useEnforcementActions.ts
+- [ ] src/hooks/useFieldOfficerMutations.ts
+- [ ] src/hooks/useOrgModules.ts
+- [ ] src/hooks/usePermissions.ts
+- [ ] src/hooks/usePersonRecords.ts
+- [ ] src/hooks/useRosteredShift.ts
+- [ ] src/hooks/useServices.ts
+- [ ] src/hooks/useShiftGate.ts
+- [ ] src/lib/__tests__/homelessStatus.test.ts
+- [ ] src/lib/__tests__/zoneFeatures.test.ts
+- [ ] src/lib/bobADRService.ts
+- [ ] src/lib/bobKnowledgeBase.ts
+- [ ] src/lib/bobLearningMemory.ts
+- [ ] src/lib/bobReasoningService.ts
+- [ ] src/lib/bobSetupBlueprint.ts
+- [x] src/lib/edgeFunctions.ts
+- [ ] src/lib/homelessStatus.ts
+- [ ] src/lib/proxyServices.ts
+- [x] src/lib/zoneFeatures.ts
+- [ ] src/pages/AccessControlPage.tsx
+- [ ] src/pages/AdminHub.tsx
+- [ ] src/pages/AdminPortal.tsx
+- [ ] src/pages/AiAnalysis.tsx
+- [ ] src/pages/BiosecurityControlPage.tsx
+- [ ] src/pages/BiosecurityOfficerPortal.tsx
+- [ ] src/pages/BobUIReview.tsx
+- [ ] src/pages/BreachAlerts.tsx
+- [ ] src/pages/CanonicalRecordsManager.tsx
+- [ ] src/pages/ClientAccountPage.tsx
+- [ ] src/pages/ClientOrganisationPortal.tsx
+- [ ] src/pages/ClientSites.tsx
+- [ ] src/pages/CohortAnalysis.tsx
+- [ ] src/pages/DispatchConsole.tsx
+- [ ] src/pages/DispatchLOIBrowser.tsx
+- [ ] src/pages/DispatchWizard.tsx
+- [ ] src/pages/DispatchedJobsList.tsx
+- [ ] src/pages/DisputeIntakeLog.tsx
+- [ ] src/pages/EnforcementActions.tsx
+- [ ] src/pages/EnforcementCommandCenter.tsx
+- [ ] src/pages/EnforcementReview.tsx
+- [ ] src/pages/FieldOfficerPortal.tsx
+- [ ] src/pages/InfringementNoticeLog.tsx
+- [ ] src/pages/InfringementNotices.tsx
+- [ ] src/pages/JobMap.tsx
+- [ ] src/pages/LocationsOfInterestLog.tsx
+- [ ] src/pages/NZSCVMonitor.tsx
+- [ ] src/pages/OccupancyAnalytics.tsx
+- [ ] src/pages/OfficerHomePage.tsx
+- [ ] src/pages/ParkingAppeals.tsx
+- [ ] src/pages/ParkingEnforcementPortal.tsx
+- [ ] src/pages/ParkingInfringementLog.tsx
+- [ ] src/pages/ParkingOfficerPortal.tsx
+- [ ] src/pages/PersonRecordLog.tsx
+- [ ] src/pages/Platform.tsx
+- [ ] src/pages/PointsOfInterest.tsx
+- [ ] src/pages/PortalSelection.tsx
+- [ ] src/pages/PricingPage.tsx
+- [ ] src/pages/PublicCamperRegistration.tsx
+- [ ] src/pages/PublicDisputePortal.tsx
+- [ ] src/pages/PublicFreedomCampingMap.tsx
+- [ ] src/pages/PublicParkingAppealPortal.tsx
+- [ ] src/pages/RosterPlanner.tsx
+- [ ] src/pages/ServiceAgreements.tsx
+- [ ] src/pages/SitePermissionsAdmin.tsx
+- [ ] src/pages/SmokeComplaintControlPage.tsx
+- [ ] src/pages/SmokeComplaintOfficerPortal.tsx
+- [ ] src/pages/TestDashboard.tsx
+- [ ] src/pages/UserManagement.tsx
+- [ ] src/pages/VehicleDetailPage.tsx
+- [ ] src/pages/VehicleManagement.tsx
+- [ ] src/pages/VehicleRegistry.tsx
+- [ ] src/pages/ZoneManagement.tsx
+- [ ] supabase/functions/_archive/README.md
+- [ ] supabase/functions/_archive/recalculate-compliance-v2/index.ts
+- [ ] supabase/functions/_archive/recalculate-compliance-v3/index.ts
+- [ ] supabase/functions/_shared/infringement-notice.ts
+- [x] supabase/functions/_shared/observationInsert.ts
+- [ ] supabase/functions/_shared/withCors.ts
+- [x] supabase/functions/alpr-process/index.ts
+- [ ] supabase/functions/analyze-vehicle-photo/index.ts
+- [ ] supabase/functions/ask-bob/index.ts
+- [ ] supabase/functions/auto-analyse-report/index.ts
+- [ ] supabase/functions/biosecurity-notice/index.ts
+- [ ] supabase/functions/check-nzscv-status/index.ts
+- [x] supabase/functions/cleanup-and-recalculate/index.ts
+- [ ] supabase/functions/create-user/index.ts
+- [ ] supabase/functions/doc-council-sync/index.ts
+- [ ] supabase/functions/export-data/index.ts
+- [x] supabase/functions/generate-infringement/index.ts
+- [ ] supabase/functions/generate-noise-notice/index.ts
+- [x] supabase/functions/generate-notice-to-vacate/index.ts
+- [x] supabase/functions/generate-warning-notice/index.ts
+- [ ] supabase/functions/import-data/index.ts
+- [ ] supabase/functions/onspace-ai-chat/index.ts
+- [ ] supabase/functions/process-credential-document/index.ts
+- [ ] supabase/functions/process-homeless-data/index.ts
+- [x] supabase/functions/process-officer-scan/index.ts
+- [ ] supabase/functions/public-case-lookup/index.ts
+- [ ] supabase/functions/render-infringement-notice/index.ts
+- [ ] supabase/functions/send-invite-email/index.ts
+- [ ] supabase/functions/smoke-notice/index.ts
+- [ ] supabase/functions/submit-dispute-intake/index.ts
+- [ ] supabase/functions/submit-parking-appeal/index.ts
+- [ ] supabase/functions/sync-scv-list/index.ts

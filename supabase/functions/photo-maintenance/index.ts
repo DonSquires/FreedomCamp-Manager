@@ -3,10 +3,17 @@ import { getCorsHeaders } from '../_shared/withCors.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3'
 
 interface PhotoMaintenanceRequest {
-  mode: 'reconcile' | 'reingest' | 'recover_missing'
+  mode?: 'reconcile' | 'reingest' | 'recover_missing' | 'link-evidence'
+  action?: 'reconcile' | 'reingest' | 'recover_missing' | 'link-evidence'
   organizationId?: string
+  organization_id?: string
+  date_from?: string
+  date_to?: string
+  before_recorded_at?: string
+  batch_size?: number
   limit?: number
   dryRun?: boolean
+  dry_run?: boolean
 }
 
 Deno.serve(async (req: Request) => {
@@ -42,7 +49,8 @@ Deno.serve(async (req: Request) => {
 
     const body = (await req.json()) as PhotoMaintenanceRequest
 
-    if (!body.mode) {
+    const resolvedMode = body.mode ?? body.action
+    if (!resolvedMode) {
       return new Response(JSON.stringify({ error: 'mode is required' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -55,7 +63,7 @@ Deno.serve(async (req: Request) => {
       .eq('id', user.id)
       .single()
 
-    const isAdminLike = profile && ['admin', 'master', 'grand_master'].includes(profile.role)
+    const isAdminLike = profile && ['admin', 'admin_officer', 'master', 'grand_master'].includes(profile.role)
     if (!isAdminLike) {
       return new Response(JSON.stringify({ error: 'Forbidden' }), {
         status: 403,
@@ -63,9 +71,80 @@ Deno.serve(async (req: Request) => {
       })
     }
 
-    const targetOrgId = body.organizationId ?? profile.organization_id
-    const limit = Math.max(1, Math.min(body.limit ?? 200, 2000))
-    const dryRun = body.dryRun ?? true
+    const targetOrgId = body.organizationId ?? body.organization_id ?? profile.organization_id
+    const limit = Math.max(1, Math.min(body.batch_size ?? body.limit ?? 200, 2000))
+    const dryRun = body.dryRun ?? body.dry_run ?? true
+
+    if (resolvedMode === 'reingest') {
+      let reingestQuery = adminClient
+        .from('observations')
+        .select('observation_id, photo_url, photo_hash, recorded_at, zone_id, organization_id, gps_latitude, gps_longitude, gps_accuracy, plate_number, officer_notes')
+        .not('photo_url', 'is', null)
+        .neq('photo_url', '')
+        .order('recorded_at', { ascending: false })
+        .limit(limit)
+
+      if (body.before_recorded_at) {
+        reingestQuery = reingestQuery.lt('recorded_at', body.before_recorded_at)
+      }
+      if (body.date_from) {
+        reingestQuery = reingestQuery.gte('recorded_at', body.date_from)
+      }
+      if (body.date_to) {
+        reingestQuery = reingestQuery.lte('recorded_at', body.date_to)
+      }
+
+      if (targetOrgId && profile.role !== 'grand_master') {
+        reingestQuery = reingestQuery.eq('organization_id', targetOrgId)
+      } else if (targetOrgId) {
+        reingestQuery = reingestQuery.eq('organization_id', targetOrgId)
+      }
+
+      const { data: rows, error: reingestError } = await reingestQuery
+      if (reingestError) {
+        throw new Error(reingestError.message)
+      }
+
+      const observations = rows ?? []
+      const zoneIds = [...new Set(observations.map((r: any) => r.zone_id).filter(Boolean))]
+      const loiByZoneId = new Map<string, string | null>()
+
+      if (zoneIds.length > 0) {
+        const { data: zones, error: zonesError } = await adminClient
+          .from('zones')
+          .select('id, loi_id, organization_id')
+          .in('id', zoneIds)
+
+        if (zonesError) {
+          throw new Error(zonesError.message)
+        }
+
+        for (const z of zones ?? []) {
+          loiByZoneId.set(z.id, z.loi_id ?? null)
+        }
+      }
+
+      const mapped = observations.map((row: any) => ({
+        ...row,
+        loi_id: row.zone_id ? (loiByZoneId.get(row.zone_id) ?? null) : null,
+      }))
+
+      const nextBeforeRecordedAt = mapped.length > 0 ? mapped[mapped.length - 1].recorded_at : null
+
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          mode: resolvedMode,
+          organization_id: targetOrgId,
+          scanned_rows: mapped.length,
+          processed: mapped.length,
+          next_before_recorded_at: nextBeforeRecordedAt,
+          observations: mapped,
+          note: 'Reingest candidate list now includes loi_id mapped from zones.loi_id',
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      )
+    }
 
     let query = adminClient
       .from('observations')
@@ -110,7 +189,7 @@ Deno.serve(async (req: Request) => {
     return new Response(
       JSON.stringify({
         ok: true,
-        mode: body.mode,
+        mode: resolvedMode,
         dryRun,
         organizationId: targetOrgId,
         scanned: items.length,

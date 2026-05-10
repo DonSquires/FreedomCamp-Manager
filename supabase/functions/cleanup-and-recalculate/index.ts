@@ -557,7 +557,7 @@ Deno.serve(async (req) => {
       // Load all zones for GPS matching (include parent_zone_id & zone_type for child-zone prioritisation)
       const { data: zonesData, error: zoneError } = await supabaseAdmin
         .from('zones')
-        .select('id, name, organization_id, geometry, location_lat, location_lng, parent_zone_id, zone_type, radius_meters')
+        .select('id, name, organization_id, geometry, location_lat, location_lng, parent_zone_id, zone_type, radius_meters, loi_id')
         .eq('is_active', true);
 
       if (zoneError) throw zoneError;
@@ -582,14 +582,17 @@ Deno.serve(async (req) => {
           );
 
           if (correctZone && correctZone.id !== obs.zone_id) {
+            const zoneUpdatePayload: Record<string, unknown> = { zone_id: correctZone.id };
+            if ((correctZone as any).loi_id) zoneUpdatePayload.loi_id = (correctZone as any).loi_id;
             const { error: updateError } = await supabaseAdmin
               .from('observations')
-              .update({ zone_id: correctZone.id })
+              .update(zoneUpdatePayload)
               .eq(observationKeyColumn, obsId);
 
             if (!updateError) {
               // Keep in-memory record aligned for subsequent phases in this same invocation.
               obs.zone_id = correctZone.id;
+              if ((correctZone as any).loi_id) obs.loi_id = (correctZone as any).loi_id;
               zonesCorrected++;
               console.log(`✅ Zone corrected: ${obs.plate_number} → ${correctZone.name}`);
             }

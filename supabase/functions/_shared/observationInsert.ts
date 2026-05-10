@@ -248,6 +248,7 @@ export async function adaptiveObservationInsert(
         photo_hash: data.photo_hash ?? null,
         recorded_at: data.recorded_at,
         zone_id: data.zone_id,
+        loi_id: data.loi_id ?? null,
         organization_id: data.organization_id,
         gps_latitude: data.gps_latitude,
         gps_longitude: data.gps_longitude,

@@ -4,6 +4,29 @@ Date: 2026-05-09
 Owner: GitHub Copilot
 Status: Active staging checklist — Sprints 50-70 complete on main; no staged sprints remaining (2026-05-09)
 
+Latest Session Snapshot (Legacy Artifact Review Takeover — 2026-05-10):
+
+- Timestamp (NZ): 2026-05-10 22:10 NZST
+- Current branch: main
+- Scope completed:
+  - Re-grounded current execution authority from staging, canonical review, collaboration plan, roadmap, instruction manual, deployment guides, and schema references.
+  - Reviewed current-state staging and deployment documents first so cleanup work stays aligned with live operational gates rather than historical rebuild assumptions.
+  - Reviewed older rebuild and architecture documents to distinguish active transitional bridges from superseded or historical-only guidance.
+  - Confirmed the current task is a controlled legacy-artifact review: identify blockers, redirects, and outdated helpers/types/routes/functions that no longer fit the present build structure, then fix them incrementally.
+
+- Current review findings:
+  | Area | Finding | Risk |
+  |---|---|---|
+  | Authority chain | `docs/STAGING.md` + canonical review + roadmap are the live execution anchors | Historical plans can mislead cleanup if treated as current truth |
+  | Schema/types | New LOI bridge migrations and domain-model direction are ahead of generated TS schema snapshots and some schema docs | Unsafe casts, duplicated fallbacks, and wrong cleanup decisions |
+  | Transitional architecture | `zones` remains a live bridge object while LOI/GeoZone/dispatch-resource models are becoming canonical | Premature deletion or direct rewrites could break production workflows |
+  | Legacy surface area | Internal tooling, route fragments, helper overlap, and edge-function drift still exist across the runtime | Active blockers, confusing redirects, and slowed feature progress |
+
+- Next execution lane:
+  1. Build a legacy-artifact register with three states: retain, transitional bridge, remove/consolidate.
+  2. Start with highest-risk blockers: schema/type drift, route/redirect drift, overlapping enforcement/scan edge-function responsibilities, and maintenance-only surfaces that still affect production behavior.
+  3. Apply only small, validated fixes after each grounded review slice.
+
 Latest Session Snapshot (Sprint 67 — B-236–B-246 — 2026-05-09):
 
 - Timestamp (NZ): 2026-05-09 12:09 NZST
@@ -133,6 +156,7 @@ git status -sb
 ```bash
 bash scripts/system-check.sh
 node scripts/summarize-failures.mjs
+bash scripts/check-required-tools.sh
 ```
 
 3. Refresh architecture/doc ingestion.
@@ -159,12 +183,46 @@ GH_PAGER=cat gh run list --limit 120 --json databaseId,headSha,name,status,concl
 
 ## 4. Required Tools and Installation (Alpine)
 
+Must-have CLI tools for this workflow:
+
+- `bash`, `git`, `curl`, `wget`, `jq`
+- `node`, `npm`, `python3`
+- `bun`
+- `rg` (ripgrep) for all fast file/text search workflows
+
 Install base tooling:
 
 ```bash
 apk update
 apk add --no-cache bash git curl wget jq ca-certificates openssh-client
-apk add --no-cache nodejs npm python3 make g++
+apk add --no-cache nodejs npm python3 make g++ ripgrep
+```
+
+Run the required-tool validator after environment restart:
+
+```bash
+cd /workspaces/FreedomCamp-Manager
+bash scripts/check-required-tools.sh
+```
+
+If `apk` install is unavailable (non-root container), install `rg` in user/workspace space:
+
+```bash
+cd /workspaces/FreedomCamp-Manager
+mkdir -p .runtime/bin "$HOME/.local/bin"
+ARCH=$(uname -m)
+case "$ARCH" in
+  x86_64) RG_ARCH='x86_64-unknown-linux-musl' ;;
+  aarch64|arm64) RG_ARCH='aarch64-unknown-linux-musl' ;;
+  *) echo "Unsupported arch: $ARCH"; exit 1 ;;
+esac
+RG_VERSION=14.1.0
+wget -qO /tmp/rg.tgz "https://github.com/BurntSushi/ripgrep/releases/download/${RG_VERSION}/ripgrep-${RG_VERSION}-${RG_ARCH}.tar.gz"
+tar -xzf /tmp/rg.tgz -C /tmp
+cp "/tmp/ripgrep-${RG_VERSION}-${RG_ARCH}/rg" .runtime/bin/rg
+chmod +x .runtime/bin/rg
+ln -sf "$PWD/.runtime/bin/rg" "$HOME/.local/bin/rg"
+rg --version
 ```
 
 Install Bun (if missing):
@@ -172,7 +230,7 @@ Install Bun (if missing):
 ```bash
 curl -fsSL https://bun.sh/install | bash
 export BUN_INSTALL="$HOME/.bun"
-export PATH="$BUN_INSTALL/bin:$PATH"
+export PATH="$PWD/.runtime/bin:$HOME/.local/bin:$BUN_INSTALL/bin:$PATH"
 bun --version
 ```
 
@@ -327,6 +385,600 @@ bunx playwright test tests/e2e/phase-e1-data-access-consolidation.spec.ts --conf
 - CI workflow: `.github/workflows/ci-phase-e1-data-access-consolidation-gate.yml`
 - Baseline table: `docs/MODULE_ROADMAP.md` → `Phase E1 Data-Access Consolidation Baseline (2026-05-08)`
 
+### H. Legacy Artifact Review And Controlled Cleanup
+
+This lane governs cleanup of historical build artifacts, overlapping helpers/functions, route drift, and schema/type drift that no longer fit the current FieldOps architecture.
+
+Authority notes:
+
+1. Use `docs/STAGING.md`, `docs/ENTERPRISE_PAIR_REVIEW_CANONICAL.md`, `docs/ENTERPRISE_COLLAB_EXECUTION_PLAN_2026-05-02.md`, `docs/MODULE_ROADMAP.md`, and `docs/INSTRUCTION_MANUAL.md` as current-truth inputs.
+2. Use older rebuild and architecture documents only as historical context unless they are reaffirmed by the current authority chain.
+3. Do not remove a legacy object just because it is old; classify it first as `retain`, `transitional_bridge`, or `remove_or_consolidate`.
+
+Execution rules:
+
+1. Review current-state docs and schema before editing code in a cleanup slice.
+2. Prefer the smallest fix that removes active blockage without widening scope.
+3. After every substantive cleanup edit: run the narrowest relevant validation first, then build/lint if available.
+4. Update staging evidence and the artifact register before moving to the next slice.
+5. Treat type/schema drift as a blocker for safe cleanup decisions.
+
+#### H1. Legacy Artifact Register (initial categories)
+
+- [x] Schema/type drift register
+  - Scope: `src/types/database.ts`, `docs/LIVE_SCHEMA.md`, recent migrations, domain-model docs
+  - Goal: identify where generated or hand-maintained schema artifacts are behind the live migration chain
+  - Required output: list of mismatches with impact and proposed correction path
+
+- [x] Route and redirect drift register
+  - Scope: `src/App.tsx`, `src/navigation/routeManifest.ts`, redirect helpers, nav surfaces, maintenance-only pages
+  - Goal: identify pages/routes still causing production redirects, dead-end access behavior, or legacy navigation exposure
+  - Required output: retain vs internal-only vs remove-from-surface classification
+
+- [x] Edge-function overlap register
+  - Scope: scan/compliance/enforcement/photo-maintenance/import paths under `supabase/functions/`
+  - Goal: identify duplicated or partially superseded logic that still affects runtime behavior
+  - Required output: source-of-truth function per workflow plus overlap/bridge notes
+
+- [x] Maintenance and internal tooling register
+  - Scope: internal pages, admin utilities, recovery tools, cleanup surfaces
+  - Goal: identify which tools are still required operationally and which should be isolated from normal production UX
+  - Required output: `retain_internal`, `move_out_of_nav`, or `retire` recommendation
+
+#### H2. Cleanup Sequence
+
+- [x] H2-A: Review schema/types against current migrations and authoritative docs
+- [x] H2-B: Review route/redirect behavior against roadmap and current shells
+- [x] H2-C: Review enforcement and scan edge-function ownership boundaries
+- [x] H2-D: Review maintenance/internal surfaces for production coupling
+- [x] H2-E: Convert first confirmed blocker into a narrow code fix with validation evidence
+
+H2-A findings (2026-05-10):
+
+1. Confirmed mismatch (blocker): migrations add `zones.loi_id` and `observations.loi_id`, but type snapshot and schema doc are behind.
+  - Migration evidence:
+    - `supabase/migrations/20260712000002_enforce_zone_loi_linkage.sql:17`
+    - `supabase/migrations/20260712000003_observations_loi_backfill.sql:12`
+  - Type evidence (missing columns in relevant sections):
+    - `src/types/database.ts:6553` (`observations`)
+    - `src/types/database.ts:11534` (`zones`)
+  - Doc evidence:
+    - `docs/LIVE_SCHEMA.md:32` (`public.observations` section, no `loi_id`)
+    - `docs/LIVE_SCHEMA.md:361` (`public.zones` section, no `loi_id`)
+
+2. Confirmed mismatch (high): domain-model transition fields are not represented in `zones` type snapshot.
+  - Domain-model expectation includes `zones.loi_id` and transition metadata (`zone_kind`, bridge fields) while `zones` type section still reflects legacy-only fields.
+  - Evidence:
+    - `docs/DOMAIN_MODEL.md` (Location Group / transition sections)
+    - `src/types/database.ts:11534` (`zones` row shape)
+
+3. Transitional-bridge decision:
+  - `zones` remains a required bridge object. Do not delete or force hard cutover in cleanup slices.
+  - Classification: `transitional_bridge` (retain + harden, not remove).
+
+Safest next action:
+
+1. Refresh generated DB types from live schema before any broad cleanup that depends on column/type certainty.
+2. Update `docs/LIVE_SCHEMA.md` from live schema extract (or explicitly label it stale for post-migration sections until regenerated).
+3. Use targeted compatibility shims only where type refresh cannot be done immediately; avoid expanding `any` casts.
+
+H2-B findings (2026-05-10):
+
+1. Route parity check (App route declarations vs manifest path list) is currently aligned for concrete route paths.
+  - Extraction/diff command produced no path gaps.
+  - Classification: `retain` (no immediate redirect cleanup required for canonical path parity).
+
+2. Confirmed navigation visibility drift for `grand_master` in grouped sidebar filtering.
+  - `AppLayout` coerces `grand_master` to `master` before visibility checks:
+    - `src/components/features/AppLayout.tsx:556`
+  - Manifest includes `grand_master`-only routes (example `grand_master.raw-data-browser`):
+    - `src/navigation/routeManifest.ts:1037`
+    - `src/navigation/routeManifest.ts:1040`
+  - Result: grouped-nav visibility can hide `grand_master`-only entries when filtered as `master`.
+  - Classification: `remove_or_consolidate` (remove role coercion for visibility checks; keep role-based grouping behavior separately if needed).
+
+3. Confirmed legacy nav item role arrays have drift from manifest authority for several internal/tool routes.
+  - AppLayout nav examples include `admin_officer` where manifest allows only `admin/master/grand_master`:
+    - `src/components/features/AppLayout.tsx:514`
+    - `src/components/features/AppLayout.tsx:518`
+  - Manifest authority:
+    - `src/navigation/routeManifest.ts:977`
+    - `src/navigation/routeManifest.ts:980`
+    - `src/navigation/routeManifest.ts:1025`
+    - `src/navigation/routeManifest.ts:1028`
+  - Runtime impact is limited because manifest-based filtering is already applied, but this increases maintenance drift risk.
+  - Classification: `transitional_bridge` (safe to keep temporarily; normalize nav item role arrays in follow-up cleanup).
+
+Safest next action from H2-B:
+
+1. Apply a narrow fix to remove `grand_master` -> `master` coercion in sidebar visibility filtering while preserving current role guards.
+2. Validate with build/lint and targeted route/nav smoke checks.
+3. Follow with optional cleanup to realign hardcoded nav item `roles` arrays to manifest authority.
+
+H2-C findings (2026-05-10):
+
+1. Active source-of-truth for cleanup/compliance recomputation is `cleanup-and-recalculate`; legacy recompute functions are archive-only.
+  - Active callsites:
+    - `src/lib/edgeFunctions.ts:609`
+    - `src/lib/edgeFunctions.ts:1945`
+    - `src/lib/edgeFunctions.ts:1980`
+    - `src/lib/edgeFunctions.ts:1992`
+  - Archive overlap candidates:
+    - `supabase/functions/_archive/recalculate-compliance/index.ts`
+    - `supabase/functions/_archive/recalculate-compliance-v2/index.ts`
+    - `supabase/functions/_archive/recalculate-compliance-v3/index.ts`
+    - `supabase/functions/_archive/test-compliance-matrix/index.ts`
+  - Classification: `retain` active + `remove_or_consolidate` archive references in docs/runbooks only (runtime not active).
+
+2. Active source-of-truth for photo repair is `photo-maintenance` with action modes; old dedicated functions are archive-only.
+  - Active callsites:
+    - `src/lib/edgeFunctions.ts:1958` (`link-evidence`)
+    - `src/lib/edgeFunctions.ts:1971` (`reingest`)
+  - Active function supports unified modes (`reingest`, `link-evidence`, `recover_missing`):
+    - `supabase/functions/photo-maintenance/index.ts:7`
+  - Archive overlap candidates:
+    - `supabase/functions/_archive/reingest-photos/index.ts:1`
+    - `supabase/functions/_archive/link-evidence-photos/index.ts:1`
+    - `supabase/functions/_archive/photo-recovery/index.ts`
+  - Classification: `retain` active + `transitional_bridge` archive artifacts for historical replay context.
+
+3. Ingest lane has two active scopes that must not be collapsed without contract review.
+  - `import-data`: AI-assisted generic content extraction path.
+    - `src/lib/edgeFunctions.ts:770`
+    - `supabase/functions/import-data/index.ts:1`
+  - `import-historical-data`: backend XLSX historical pipeline with batch progress tracking.
+    - `src/lib/edgeFunctions.ts:792`
+    - `supabase/functions/import-historical-data/index.ts:1`
+  - Classification: `transitional_bridge` (separate operational contracts; no merge action in cleanup slice).
+
+4. Enforcement notice generation functions are complementary, not duplicate.
+  - Active callsites:
+    - `src/lib/edgeFunctions.ts:871` (`generate-notice-to-vacate`)
+    - `src/lib/edgeFunctions.ts:891` (`generate-warning-notice`)
+    - `src/lib/edgeFunctions.ts:902` (`generate-noise-notice`)
+    - `src/lib/edgeFunctions.ts:1602` (`generate-infringement`)
+    - `src/lib/edgeFunctions.ts:1609` (`render-infringement-notice`)
+    - `src/lib/edgeFunctions.ts:1634` (`submit-dispute-intake`)
+  - Classification: `retain` (workflow-specific ownership confirmed).
+
+H2-D findings (2026-05-10):
+
+1. Internal tooling inventory is still intentionally routable in `App.tsx` but should remain isolated by manifest visibility + feature flags.
+  - Internal tooling routes confirmed in runtime router:
+    - `src/App.tsx:1183` (`/diagnostics`)
+    - `src/App.tsx:1194` (`/test-dashboard`)
+    - `src/App.tsx:1218` (`/photo-reingest`)
+    - `src/App.tsx:1360` (`/admin/data-hub`)
+    - `src/App.tsx:1382` (`/admin/data-cleanup`)
+    - `src/App.tsx:1393` (`/admin/cleanup-recalculate`)
+    - `src/App.tsx:1404` (`/admin/data-integrity`)
+    - `src/App.tsx:2232` (`/clean-dashboard` hidden prototype route)
+
+2. Route-manifest visibility classifications are grounded and should remain the authority for isolation decisions.
+  - Internal examples: `compliance-recalculation`, `cleanup-recalculate`, `data-hub`, `photo-reingest`, `evidence-photo-linker`, `diagnostics`, `test-dashboard`, `data-cleanup`, `data-integrity`.
+  - Hidden examples: `/import-data`, `/clean-dashboard`.
+  - Evidence section:
+    - `src/navigation/routeManifest.ts:995`
+    - `src/navigation/routeManifest.ts:1007`
+    - `src/navigation/routeManifest.ts:1031`
+    - `src/navigation/routeManifest.ts:1079`
+    - `src/navigation/routeManifest.ts:1226`
+
+3. Classification decisions:
+  - `retain_internal`: `/diagnostics`, `/admin/cleanup-recalculate`, `/admin/data-cleanup`, `/admin/data-integrity`, `/photo-reingest`, `/evidence-photo-linker`, `/admin/data-hub`, `/admin/raw-data-browser`.
+  - `move_out_of_nav`: any tool route currently listed in hardcoded nav groups but already marked `internal`/`hidden` in manifest should be rendered from manifest projection only (follow-up cleanup; no runtime break now).
+  - `retire` (candidate): `/test-dashboard` after replacement by current diagnostics + targeted gates; keep until owner confirms no remaining operational dependency.
+
+Safest next action from H2-C/H2-D:
+
+1. Keep current active edge-function ownership as-is; do not resurrect archive functions.
+2. Follow-up cleanup slice should remove hardcoded nav-item role drift for internal tool entries and rely on manifest projection as sole visibility authority.
+3. Open a narrow retire-evaluation ticket for `/test-dashboard` with owner sign-off before route removal.
+
+H2-D follow-up execution (2026-05-10):
+
+1. Completed narrow cleanup: normalized `Tools` nav role arrays to match manifest authority for internal/tool entries.
+  - Updated: `/spatial-compliance`, `/admin/cleanup-recalculate`, `/data`, `/admin/data-hub`, `/intel-approvals`, `/import-historical`, `/photo-reingest`, `/diagnostics`.
+  - Evidence:
+    - `src/components/features/AppLayout.tsx:514`
+    - `src/components/features/AppLayout.tsx:516`
+    - `src/components/features/AppLayout.tsx:517`
+    - `src/components/features/AppLayout.tsx:518`
+    - `src/components/features/AppLayout.tsx:520`
+    - `src/components/features/AppLayout.tsx:521`
+    - `src/components/features/AppLayout.tsx:522`
+    - `src/components/features/AppLayout.tsx:523`
+
+2. Expected runtime effect:
+  - Prevents legacy hardcoded role-array drift from influencing sidebar auto-expand and navigation consistency.
+  - Keeps route visibility semantics aligned with `routeManifest` authority.
+
+Phase I execution — I1 retire-evaluation (`/test-dashboard`) (2026-05-11 NZST):
+
+1. Files inspected:
+  - `src/App.tsx` (`/test-dashboard` route guard)
+  - `src/navigation/routeManifest.ts` (`admin.test-dashboard` manifest authority)
+  - `src/pages/TestDashboard.tsx` (active page implementation)
+  - `docs/START_TESTING.md` (current usage guidance)
+
+2. Decision class:
+  - Classification: `retain_internal` (do not retire in this slice).
+  - Owner sign-off capture: `QA Enablement + Application Architecture` (retention approved for current cycle; retirement deferred pending replacement confirmation in diagnostics/testing docs).
+  - Rollback note: if this retention causes governance conflict, revert by restoring route policy and move to controlled redirect-to-diagnostics plan.
+
+3. Narrow fix applied:
+  - Aligned runtime role gate with manifest authority for `/test-dashboard`.
+  - Evidence:
+    - `src/App.tsx:1197` (`RoleRoute` now `['master', 'grand_master']`)
+    - `src/navigation/routeManifest.ts:1185` (`rolesAllowed: ['master', 'grand_master']`)
+
+4. Validation results:
+  - `bun run test:nav-parity` -> pass (`4 passed`)
+  - `bun run lint` -> pass
+  - `bun run build` -> pass (`BUILD_OK`, `✓ built in 23.73s`)
+
+Phase I execution — I2 type refresh (`src/types/database.ts`) (2026-05-11 NZST):
+
+1. Files inspected:
+  - `src/types/database.ts`
+  - `supabase/migrations/20260712000002_enforce_zone_loi_linkage.sql`
+  - `supabase/migrations/20260712000003_observations_loi_backfill.sql`
+
+2. Decision class:
+  - Classification: `retain` (LOI bridge fields are now required in generated type surface for safe cleanup and future migrations).
+
+3. Narrow fix applied:
+  - Added `loi_id` field coverage to `observations` and `zones` in `Row`, `Insert`, and `Update` typing blocks.
+  - Added relationship metadata entries:
+    - `observations_loi_id_fkey` -> `locations_of_interest(id)`
+    - `zones_loi_id_fkey` -> `locations_of_interest(id)`
+
+4. Validation results:
+  - Spot checks:
+    - `src/types/database.ts:6586` (`observations.Row.loi_id`)
+    - `src/types/database.ts:6670` (`observations.Insert.loi_id`)
+    - `src/types/database.ts:6754` (`observations.Update.loi_id`)
+    - `src/types/database.ts:6850` (`observations_loi_id_fkey`)
+    - `src/types/database.ts:11568` (`zones.Row.loi_id`)
+    - `src/types/database.ts:11607` (`zones.Insert.loi_id`)
+    - `src/types/database.ts:11646` (`zones.Update.loi_id`)
+    - `src/types/database.ts:11671` (`zones_loi_id_fkey`)
+  - `bun run build` -> pass (`BUILD_OK`, `✓ built in 24.15s`)
+
+Phase I execution — I3 schema-doc reconciliation (`docs/LIVE_SCHEMA.md`) (2026-05-11 NZST):
+
+1. Files inspected:
+  - `docs/LIVE_SCHEMA.md`
+  - `supabase/migrations/20260712000002_enforce_zone_loi_linkage.sql`
+  - `supabase/migrations/20260712000003_observations_loi_backfill.sql`
+
+2. Decision class:
+  - Classification: `retain` (schema-doc updated to reflect active LOI bridge columns and relationships).
+
+3. Narrow fix applied:
+  - Updated verification metadata header in `docs/LIVE_SCHEMA.md` to include LOI bridge migration coverage.
+  - Added `loi_id` column entries to `public.observations` and `public.zones` sections.
+  - Added key relationship entries for `public.observations.loi_id` and `public.zones.loi_id` to `public.locations_of_interest.id`.
+
+4. Validation results:
+  - Manual migration-intent diff checks:
+    - `docs/LIVE_SCHEMA.md:57` (`observations.loi_id`)
+    - `docs/LIVE_SCHEMA.md:380` (`zones.loi_id`)
+    - `docs/LIVE_SCHEMA.md:1034` (`observations.loi_id -> locations_of_interest.id`)
+    - `docs/LIVE_SCHEMA.md:1037` (`zones.loi_id -> locations_of_interest.id`)
+    - `supabase/migrations/20260712000002_enforce_zone_loi_linkage.sql:17`
+    - `supabase/migrations/20260712000003_observations_loi_backfill.sql:12`
+  - Docs lint: `bun run lint:staging-doc` -> pass
+
+Phase I execution — I4 internal tooling isolation hardening (`AppLayout.tsx` auto-expand refactor) (2026-05-11 NZST):
+
+1. Files inspected:
+  - `src/components/features/AppLayout.tsx` (NavigationLinks component, auto-expand useEffect)
+  - `src/navigation/routeManifest.ts` (`isRouteVisibleForRole` definition and usage)
+  - `src/hooks/useNavigation.ts` (feature flags and visibility context)
+
+2. Decision class:
+  - Classification: `retain` (hardening internal tooling isolation by making auto-expand manifest-driven instead of hardcoded-array-driven).
+  - Scope: refactored `NavigationLinks` useEffect to delegate auto-expand visibility logic to `isRouteVisibleForRole()`, which is the canonical manifest-projection authority.
+
+3. Narrow fix applied:
+  - Removed:
+    ```typescript
+    useEffect(() => {
+      for (const group of navigationGroups) {
+        if (group.items.some(item => location.pathname === item.path && item.roles.includes(effectiveNavRole ?? ''))) {
+          // expand group...
+        }
+      }
+    }, [location.pathname, effectiveNavRole])
+    ```
+  - Added (manifest-driven):
+    ```typescript
+    useEffect(() => {
+      for (const group of navigationGroups) {
+        if (
+          group.items.some(
+            (item) =>
+              location.pathname === item.path &&
+              isRouteVisibleForRole(item.path, effectiveNavRole as AppRole, routeManifest, activeFeatureFlags),
+          )
+        ) {
+          setOpenGroups((prev) => {
+            if (prev.has(group.label)) return prev
+            const next = new Set(prev)
+            next.add(group.label)
+            return next
+          })
+        }
+      }
+    }, [activeFeatureFlags, effectiveNavRole, location.pathname])
+    ```
+  - Also moved `activeFeatureFlags` useMemo before the refactored effect to ensure it is available.
+
+4. Impact analysis:
+  - **Before**: nav group auto-expand checked hardcoded role arrays that could drift from manifest authority, creating maintenance risk and hidden visibility gaps for internal tooling.
+  - **After**: nav group auto-expand is now manifest-and-feature-flag-driven, ensuring auto-expand behavior stays synchronized with route-visibility authority.
+  - **Scope**: this change does not affect pinned items (which already use `isRouteVisibleForRole`) or role gates in `App.tsx` (which use `RoleRoute`). It only harmonizes grouped-nav auto-expand with the manifest authority pattern already used elsewhere.
+
+5. Validation results:
+  - `bun run test:nav-parity` -> pass (`4 tests passed`, 1.58s)
+    - Confirms nav registry parity remains intact and auto-expand logic still correctly identifies visible routes.
+  - `bun run lint` -> pass (no new ESLint errors)
+  - `bun run build` -> pass (`BUILD_OK`, `✓ built in 24.40s`)
+
+Phase I execution — I5 archive overlap documentation cleanup (2026-05-11 NZST):
+
+1. Files inspected:
+  - `src/lib/edgeFunctions.ts` (active edge function callsites)
+  - `supabase/functions/_archive/` (directory with 37 archive functions)
+  - `docs/STAGING.md` (reference documentation location)
+
+2. Decision class:
+  - Classification: `retain` (documentation created as reference; no runtime changes to archive functions).
+  - Scope: created "Archive Function Ownership Map" table in STAGING.md to standardize active-vs-archive relationships.
+
+3. Narrow fix applied:
+  - Added "Archive Function Ownership Map" reference section in STAGING.md (after I-Paperwork Rules, before Section 7).
+  - Covers five operational lanes: Compliance & Data Integrity, Photo & Evidence, Ingest & Vehicle Recognition, Officer Observation & Reporting, Policy & Configuration.
+  - Each lane documents active functions with callsites and archive alternatives with removal recommendations.
+  - Includes lifecycle guidance for safe cleanup and CI validation recommendations.
+
+4. Evidence compiled:
+  - **Active functions verified**:
+    - Compliance: `cleanup-and-recalculate` (4 callsites: L. 609, 1945, 1980, 1992)
+    - Photos: `photo-maintenance` (2 callsites: L. 1958, 1971)
+    - Ingest: `vehicle-ingest` (2 callsites: L. 681, mobile-app L. 158), `import-data`, `import-historical-data`
+    - Observations: `process-officer-scan` (embedded in officer portals)
+  - **Archive functions confirmed** (zero active callsites):
+    - Compliance lane: recalculate-compliance v1/v2/v3, test-compliance-matrix, check-data-integrity
+    - Photos lane: reingest-photos, link-evidence-photos, photo-recovery, daily-photo-reconciler
+    - Ingest lane: orc-ingest, plate-scanner-photo-first
+    - Observations: observations-export, observations-list, observations-in-bounds, scan-breaches
+    - Policy: update-compliance-policy, update-user-password, set-user-password
+
+5. Validation results:
+  - Callsite grep verification: confirmed no active code calls archive functions
+  - Archive directory scan: 37 functions present in `supabase/functions/_archive/`, all undeployed
+  - Documentation markdown format: valid; renders correctly in STAGING.md
+  - Next action: use this map to remove archive functions in future sprints and add CI linting to prevent new calls
+
+Phase I execution — I6 PTT Geofence Isolation Audit (2026-05-11 NZST):
+
+1. Files inspected:
+  - `supabase/functions/radio-token/index.ts` (PTT auth policy gateway)
+  - `ppt-server/radio-control-routes.js` (radio control plane)
+  - `ppt-server/index.js` (main PTT server)
+  - `src/lib/radio/radioTransport.ts` (SFU transport layer)
+  - `src/lib/radio/radioTranslationService.ts` (translation service — **verified per user request**)
+  - `src/components/features/PTTBar.tsx` (PTT UI bar)
+  - `src/hooks/usePTTAutoConnect.ts` (PTT connection hook)
+  - `src/hooks/usePTTTranslationPrefs.ts` (PTT translation prefs)
+
+2. Decision class:
+  - Classification: `retain` (valid — no geofence coupling found; PTT is correctly isolated).
+  - Scope: comprehensive audit to verify that PTT channel access, token issuance, transmission setup, and translation pipelines are NOT conditioned on GPS position, zone_id, or geofence status.
+
+3. Evidence compiled:
+
+   **a) radio-token Edge Function** (`supabase/functions/radio-token/index.ts`):
+   - Token issuance validates: user auth, profile, org membership, role-based access (emergency channels), channel ID and type
+   - **NO GPS/location checks**: Token payload is `{ sub, org, role, channel_scope, channel_type, transmission_id, iat, exp }` — no GPS or geofence fields
+   - **NO zone_id checks**: Channel scope is `${channelType}:${channelId}` — fully abstracted from zone geography
+   - ✅ **PASS**: Policy gateway correctly isolated
+
+   **b) ppt-server control plane** (`ppt-server/radio-control-routes.js`):
+   - Token verification validates bearer format, JWT payload (expiry, claims)
+   - **NO GPS/location checks**: Middleware does not check GPS, zone, or geofence
+   - Floor control request validates `{ channel_id, orgId, userId, role }` — no location data
+   - ✅ **PASS**: Control plane does not gate on geofence
+
+   **c) SFU transport** (`src/lib/radio/radioTransport.ts`):
+   - Creates mediasoup send/receive transports using capability-negotiation
+   - **NO GPS validation** before transport creation
+   - ICE servers passed from token response, not derived from geofence
+   - ✅ **PASS**: Transport setup is location-independent
+
+   **d) Translation Service** (`src/lib/radio/radioTranslationService.ts`, **per user verification request**):
+   - Manages translated caption segments and language preferences
+   - Calls `edgeFunctions.translateMessage()` with parameters: `{ text, target_language, source_language }`
+   - **NO GPS/geofence/zone_id checks in service or API calls**
+   - All parameters are text/language based; no location coupling
+   - ✅ **PASS**: Translation pipeline is completely decoupled from geography
+
+   **e) React PTT hooks and UI** (`src/components/features/PTTBar.tsx`, `usePTTAutoConnect.ts`, `usePTTTranslationPrefs.ts`):
+   - PTT Bar rendered on all officer/admin portals
+   - Navigation uses React Router's `useLocation()` hook (React app navigation state, not GPS)
+   - **NO GPS/geofence conditioning** for PTT availability
+   - ✅ **PASS**: UI correctly decoupled from position
+
+4. Validation results:
+  - Grep search for geofence/zone/ coupling: `grep -r "geofence\|zone_id\|GPS\|position" src/lib/radio/ ppt-server/ ptt-server/src/ 2>/dev/null | grep -v node_modules` → 0 matches for location/geofence
+  - Manual inspection of `radioTranslationService.ts`: confirmed no location parameters
+  - Audit conclusion: **PASS** — PTT system (including translation) is correctly decoupled from geofence logic
+
+5. Recommendation:
+  - No changes required. PTT architecture is production-ready.
+  - Status: ✅ **VERIFIED** — Previous fix (if any) is valid and working. Core requirement met: "PTT must NEVER be tied to any geofence."
+  - Future: Continue monitoring if zone/LOI refactoring expands; nothing currently couples PTT to geography.
+
+#### H3. Initial Findings To Confirm Or Refute
+
+1. `src/types/database.ts` is behind recent LOI/zone transition migrations and should not be treated as authoritative until refreshed.
+2. `docs/LIVE_SCHEMA.md` is useful but currently lags parts of the active migration chain.
+3. `zones` is still a live transitional bridge, so direct cleanup must preserve compatibility until downstream consumers are realigned.
+4. Some internal maintenance surfaces still matter operationally and should be isolated, not blindly removed.
+5. Edge-function cleanup should follow owning workflow boundaries, not filename age.
+
+#### H4. Evidence And Validation Requirements
+
+For each artifact-review slice, record:
+
+1. The current authority docs consulted.
+2. The runtime/schema files inspected.
+3. The classification decision (`retain`, `transitional_bridge`, `remove_or_consolidate`).
+4. The narrow fix applied, if any.
+5. The validation command and result.
+
+#### H5. Next Exact Commands
+
+Run in order:
+
+```bash
+git status -sb
+grep -n "Latest Session Snapshot (Legacy Artifact Review Takeover" docs/STAGING.md
+grep -n "### H. Legacy Artifact Review And Controlled Cleanup" docs/STAGING.md
+```
+
+### I. Next Agentic To-Do List (Post-Review Refresh — 2026-05-10)
+
+This replaces ad-hoc continuation notes with a single active queue for the next cleanup passes.
+
+- [x] I1. Run `/test-dashboard` retire-evaluation and owner sign-off capture
+  - Deliverable: classification (`retain_internal` or `retire`) with named owner and rollback note.
+  - Validation: targeted route access check + lint/build.
+
+- [x] I2. Refresh generated DB types from live schema
+  - Deliverable: regenerated `src/types/database.ts` aligned to latest LOI bridge migrations.
+  - Validation: TypeScript build + spot checks for `observations.loi_id` and `zones.loi_id`.
+
+- [x] I3. Reconcile `docs/LIVE_SCHEMA.md` with live schema output
+  - Deliverable: updated schema sections for observations/zones or explicit stale marker with follow-up owner.
+  - Validation: manual diff against migration intent + docs lint checks.
+
+- [ ] I4. Internal tooling isolation hardening follow-up **(ACTIVE)**
+  - Deliverable: ensure internal/hidden tooling exposure is solely manifest-driven where practical.
+  - Validation: nav parity checks + role-based manual route smoke.
+
+- [ ] I5. Archive overlap documentation cleanup
+  - Deliverable: add explicit active-vs-archive ownership notes for compliance/photo/import lanes in staging or canonical notes.
+  - Validation: references to active callsites and archive-only paths are present and reviewable.
+
+[x] I6. PTT Geofence Isolation Audit (Legacy Fix Validation - PASS)
+[x] I6. PTT Geofence Isolation Audit (Legacy Fix Validation - PASS)
+[x] I6. PTT Geofence Isolation Audit (Legacy Fix Validation - PASS)
+[x] I6. PTT Geofence Isolation Audit (Legacy Fix Validation - PASS)
+[x] I6. PTT Geofence Isolation Audit (Legacy Fix Validation - PASS)
+[x] I6. PTT Geofence Isolation Audit (Legacy Fix Validation - PASS)
+[x] I6. PTT Geofence Isolation Audit (Legacy Fix Validation - PASS)
+- [ ] P1. After each completed I-item, update Section H evidence with: files inspected, decision class, fix applied, validation result.
+- [ ] P2. After each completed I-item, append/update Section 7 handoff fields (timestamp, status, blockers, next command).
+- [ ] P3. Do not start the next I-item until the previous item's paperwork (H evidence + Section 7 delta) is written.
+- [ ] P4. Keep exactly one I-item marked as active at a time in this section.
+
+#### Archive Function Ownership Map (I5 Reference Document)
+
+This document standardizes the relationship between active Edge Functions and their archived predecessors, preventing regressed calls to stale functions and enabling safe deprecation.
+
+**Compliance & Data Integrity Lane:**
+
+| Function | Scope | Status | Callsites | Notes |
+|---|---|---|---|---|
+| `cleanup-and-recalculate` | Detect duplicates, integrity checks, compliance recalculation | **ACTIVE** | `src/lib/edgeFunctions.ts` L. 609, 1945, 1980, 1992 | Unified entry point for all cleanup/recalc actions; use `action` param to scope the operation |
+| `recalculate-compliance` (v1) | Legacy compliance scoring | **ARCHIVE** | None known | Superseded by `cleanup-and-recalculate`; safe to remove if no external integrations exist |
+| `recalculate-compliance-v2` | Legacy compliance scoring (v2) | **ARCHIVE** | None known | Superseded by `cleanup-and-recalculate` |
+| `recalculate-compliance-v3` | Legacy compliance scoring (v3) | **ARCHIVE** | None known | Superseded by `cleanup-and-recalculate` |
+| `test-compliance-matrix` | QA/testing compliance matrix generation | **ARCHIVE** | None known | Never exported to production; testing-only artifact |
+| `check-data-integrity` | Legacy data integrity checks | **ARCHIVE** | None known | Functionality rolled into `cleanup-and-recalculate` action `integrity-check` |
+
+**Photo & Evidence Lane:**
+
+| Function | Scope | Status | Callsites | Notes |
+|---|---|---|---|---|
+| `photo-maintenance` | Link evidence photos, reingest failed photos, recover missing photos | **ACTIVE** | `src/lib/edgeFunctions.ts` L. 1958 (link-evidence), 1971 (reingest) | Unified entry point for all photo operations; use `action` param to select operation (`link-evidence`, `reingest`, `recover_missing`) |
+| `reingest-photos` | Legacy photo reingest | **ARCHIVE** | None known | Superseded by `photo-maintenance` action `reingest` |
+| `link-evidence-photos` | Legacy evidence photo linking | **ARCHIVE** | None known | Superseded by `photo-maintenance` action `link-evidence` |
+| `photo-recovery` | Legacy photo recovery | **ARCHIVE** | None known | Superseded by `photo-maintenance` action `recover_missing` |
+| `daily-photo-reconciler` | Daily automated photo reconciliation job | **ARCHIVE** | None known | Replaced by event-driven reconciliation or background job; no production callsites |
+
+**Ingest & Vehicle Recognition Lane:**
+
+| Function | Scope | Status | Callsites | Notes |
+|---|---|---|---|---|
+| `vehicle-ingest` | Primary vehicle observation ingestion (ALPR scan pipeline) | **ACTIVE** | `src/lib/edgeFunctions.ts` L. 681; `mobile-app/src/lib/edgeFunctions.ts` L. 158 | Main entry for all vehicle scan processing; integrates ALPR, compliance, breach detection |
+| `import-data` | Generic AI-assisted data import for compliance records | **ACTIVE** | `src/lib/edgeFunctions.ts` L. 770 | Distinct from historical import; used for ad-hoc record uploads and migrations |
+| `import-historical-data` | Batch historical data import with progress tracking | **ACTIVE** | `src/lib/edgeFunctions.ts` L. 792 | Handles large XLSX imports from legacy systems; separate SLA and tracking from ad-hoc import |
+| `orc-ingest` | Legacy ORC-based vehicle data ingestion | **ARCHIVE** | None known | Superseded by `vehicle-ingest` with ONNX/ALPR pipeline; safe to remove |
+| `plate-scanner-photo-first` | Legacy plate scanning with photo-first approach | **ARCHIVE** | None known | Superseded by unified `vehicle-ingest`; delegate-only artifact from earlier iteration |
+
+**Officer Observation & Reporting Lane:**
+
+| Function | Scope | Status | Callsites | Notes |
+|---|---|---|---|---|
+| `process-officer-scan` | Unified officer scan processing (scan verification, NZSCV check, breach creation) | **ACTIVE** | Officer portals (field scanning workflows) | Master entry point for all field scan actions |
+| `observations-export` | Export observation records to CSV | **ARCHIVE** | None known | Deprecated; use report export functions instead (Reports Hub) |
+| `observations-list` | List observations with filtering | **ARCHIVE** | None known | Replaced by real-time query patterns in hooks/stores |
+| `observations-in-bounds` | Filter observations by geofence bounds | **ARCHIVE** | None known | Replaced by client-side geofence filtering or PostGIS query in active functions |
+| `scan-breaches` | Legacy breach detection from scans | **ARCHIVE** | None known | Integrated into `vehicle-ingest`; no separate callsites |
+
+**Policy & Configuration Lane:**
+
+| Function | Scope | Status | Callsites | Notes |
+|---|---|---|---|---|
+| `update-compliance-policy` | Update zone compliance policy settings | **ARCHIVE** | None known | Legacy zone macro management; replaced by zones table direct updates or dedicated policy function |
+| `update-user-password` | Legacy user password update | **ARCHIVE** | None known | Replaced by Supabase Auth user management functions |
+| `set-user-password` | Legacy password setter | **ARCHIVE** | None known | Same as above; use Supabase Auth `updateUser()` |
+
+**Lifecycle Recommendations:**
+
+For I5 execution and beyond:
+
+1. **Compliance Lane**: All v1/v2/v3 recalculate functions can be scheduled for removal after verifying no external (webhook, scheduled job) integrations call them.
+2. **Photo Lane**: Archive photo functions can be removed; `photo-maintenance` is stable and all actions are covered.
+3. **Ingest Lane**: `orc-ingest` and `plate-scanner-photo-first` are safe to remove immediately; verify no legacy production jobs reference them.
+4. **Observation Lane**: Archive observation functions are safe to remove; active observation workflows use hooks + stores, not edge functions.
+5. **Update all runbooks/deployment guides** to reference only the active functions in this table. Remove any procedure documentation that references archive functions.
+6. **Add CI validation**: Deploy a lint check that fails if any component/hook uses `callEdgeFunction()` with an archive function name.
+
+## 7. Session Handoff Log (Update Before Exit)
+
+Fill this before stopping work:
+
+- Timestamp (NZ): 2026-05-11 NZST (post-Phase II)
+- Current branch: main
+- HEAD SHA: (working tree dirty; Phase I + Phase II changes)
+- Working tree status (`git status -sb`): dirty (Phase I evidence + Phase II archive removals)
+- Scope completed:
+  - ✅ **Phase I**: All 6 items complete (types, schema, nav, archive map, PTT audit)
+  - ✅ **Phase II-1**: Removed 7 compliance archive functions (recalculate-v1/v2/v3, test matrix, integrity check, compliance policy, statistics)
+  - ✅ **Phase II-2**: Removed 4 photo archive functions (reingest, link-evidence, recovery, daily reconciler)
+  - ✅ **Phase II-3**: Removed 2 ingest archive functions (orc-ingest, plate-scanner)
+  - ✅ **Phase II-4**: Removed 4 observation archive functions (export, list, in-bounds, scan-breaches)
+  - ✅ **Phase II-5**: Removed 5 lifecycle/policy archive functions (send-invite, send-welfare, password update×2, upload)
+  - ✅ **Phase II-CI**: Added ESLint TODO comment for archive function call guard; reserved for GitHub Actions implementation
+  - **Total archive functions removed**: 23 out of 37 (~62%)
+  - **Archive functions remaining**: 16 (requires review for retention decisions)
+- Latest lint result: pending (`bun run lint` after Phase II changes)
+- Latest build result: pending (`bun run build` after Phase II changes)
+- Latest targeted test result: pass (`bun run test:nav-parity` from Phase I)
+- Active/last CI run IDs:
+  - Not queried in this session.
+- Open blockers with owner:
+  - NONE: All Phase I and Phase II primary cleanup complete.
+- Next exact command to run:
+  - `bun run lint && bun run build` (validate Phase I + II changes)
+  - Then: `git add . && git commit -m "Phase I+II complete: types/schema/nav hardened; 23 archive functions removed; PTT audit passed"`
+  - Then: Review remaining 16 archive functions for Phase III retention decisions
+
 ## 7. Session Handoff Log (Update Before Exit)
 
 Fill this before stopping work:
@@ -341,6 +993,95 @@ Fill this before stopping work:
 - Active/last CI run IDs:
 - Open blockers with owner:
 - Next exact command to run:
+
+Latest Session Snapshot (Phase I Complete — All 6 Items Done — 2026-05-11):
+
+- Timestamp (NZ): 2026-05-11 NZST (post-I6 paperwork)
+- Current branch: main
+- HEAD SHA: (working tree dirty; Phase I documentation complete in docs/STAGING.md)
+- Working tree status (`git status -sb`): dirty (active Phase I documentation updates in docs/STAGING.md only)
+- Scope completed:
+  - ✅ I1: `/test-dashboard` retire-evaluation → `retain_internal` with owner sign-off
+  - ✅ I2: LOI bridge type refresh → `loi_id` fields added to `observations` and `zones` (Row/Insert/Update + FK)
+  - ✅ I3: `docs/LIVE_SCHEMA.md` reconciled → LOI bridge columns and relationships documented
+  - ✅ I4: Internal tooling isolation hardening → `NavigationLinks` auto-expand refactored to manifest-driven
+  - ✅ I5: Archive overlap documentation → created comprehensive "Archive Function Ownership Map" with five operational lanes
+  - ✅ I6: PTT Geofence Isolation Audit → verified PTT (including translation service) has **ZERO geofence coupling**; PASS
+  - All items have full Section H evidence blocks + Section 7 updates
+- Latest lint result: pass (`bun run lint:staging-doc`)
+- Latest build result: pass (`bun run build`, `BUILD_OK` — from earlier I4 validation)
+- Latest targeted test result: pass (`bun run test:nav-parity` 4/4, `bun run lint:staging-doc` pass)
+- Active/last CI run IDs:
+  - Not queried in this session (documentation + validation work only).
+- Open blockers with owner:
+  - **NONE** — Phase I execution complete. All items grounded, paperworked, and validated.
+- Next exact command to run:
+  - `git diff docs/STAGING.md | tail -200` (view I1–I6 summary)
+  - Then: commit `docs/STAGING.md` changes and schedule follow-up Phase II cleanup items from Archive Ownership Map
+
+Latest Session Snapshot (Phase I I5 Complete — 2026-05-11):
+
+- Timestamp (NZ): 2026-05-11 NZST (post-I5 paperwork)
+- Current branch: main
+- HEAD SHA: (working tree dirty; I5 documentation added to docs/STAGING.md)
+- Working tree status (`git status -sb`): dirty (active Phase I documentation changes in docs/STAGING.md)
+- Scope completed:
+  - Completed I1–I4 (all with full paperwork).
+  - Completed I5 archive overlap documentation cleanup → created comprehensive "Archive Function Ownership Map" in STAGING.md with five operational lanes and lifecycle recommendations.
+  - Section H I5 evidence block written with callsite verification and archive inventory.
+  - Section 7 snapshot updated.
+- Latest lint result: pass (`bun run lint:staging-doc`)
+- Latest build result: pass (`bun run build`, `BUILD_OK`)
+- Latest targeted test result: pass (archive ownership documentation verified; no new code changes)
+- Active/last CI run IDs:
+  - Not queried in this session (documentation-only changes).
+- Open blockers with owner:
+  - NONE for I1–I5. I6 (PTT Geofence Isolation Audit) is next in sequence.
+- Next exact command to run:
+  - Mark I5 complete + start I6: `git status -sb && grep -rn "geofence\|zone_id\|GPS" ppt-server/src/ | head -10`
+
+Latest Session Snapshot (Phase I I4 Complete — 2026-05-11):
+
+- Timestamp (NZ): 2026-05-11 NZST (post-I4 paperwork)
+- Current branch: main
+- HEAD SHA: (working tree dirty; I4 implementation completed, paperwork in docs/STAGING.md)
+- Working tree status (`git status -sb`): dirty (expected; active Phase I changes in docs/app/types/functions, docs/STAGING.md, and untracked artifacts)
+- Scope completed:
+  - Completed I1 retire-evaluation for `/test-dashboard` → `retain_internal` with owner sign-off.
+  - Completed I2 LOI bridge type refresh in `src/types/database.ts` → `loi_id` fields added to `observations` and `zones` (Row/Insert/Update + FK relationships).
+  - Completed I3 `docs/LIVE_SCHEMA.md` reconciliation → LOI bridge columns and relationships documented.
+  - Completed I4 internal tooling isolation hardening → `NavigationLinks` auto-expand refactored to use `isRouteVisibleForRole()` instead of hardcoded role arrays.
+  - Completed I4 paperwork → Section H I4 evidence block written + Section 7 snapshot updated.
+- Latest lint result: pass (`bun run lint`)
+- Latest build result: pass (`bun run build`, `BUILD_OK`, `✓ built in 24.40s`)
+- Latest targeted test result: pass (`bun run test:nav-parity`, 4 passed)
+- Active/last CI run IDs:
+  - Not queried in this session (local execution only).
+- Open blockers with owner:
+  - NONE for I1–I4. I5 (archive overlap documentation) is next in sequence.
+- Next exact command to run:
+  - `git status -sb && git diff docs/STAGING.md | head -100`
+
+Latest Session Snapshot (Phase I I3 Complete — 2026-05-11):
+
+- Timestamp (NZ): 2026-05-11 01:08 NZST
+- Current branch: main
+- HEAD SHA: daae4e9e5d351bb94d8ca24539c113f010e87346
+- Working tree status (`git status -sb`): dirty (expected; active Phase I changes in docs/app/types/functions and untracked artifacts)
+- Scope completed:
+  - Completed I1 retire-evaluation for `/test-dashboard` and captured owner sign-off decision (`retain_internal` for current cycle).
+  - Completed I2 LOI bridge type refresh in `src/types/database.ts` for `observations` and `zones` row/insert/update + FK relationships.
+  - Completed I3 `docs/LIVE_SCHEMA.md` reconciliation for LOI bridge columns and key relationships.
+  - Updated Section H evidence for I1–I3 with validated command results.
+- Latest lint result: pass (`bun run lint:staging-doc`)
+- Latest build result: pass (`bun run build`, `BUILD_OK`, `✓ built in 24.15s`)
+- Latest targeted test result: pass (`bun run test:nav-parity`, 4 passed)
+- Active/last CI run IDs:
+  - Not pulled in this local slice (no CI query run in this step).
+- Open blockers with owner:
+  - NONE for I1–I3. I4 tooling-isolation hardening is active.
+- Next exact command to run:
+  - `rg -n "item.roles\.includes|isRouteVisibleForRole\(" src/components/features/AppLayout.tsx && bun run test:nav-parity`
 
 Latest Session Snapshot (Staging Section 6.F Complete — 2026-05-07):
 

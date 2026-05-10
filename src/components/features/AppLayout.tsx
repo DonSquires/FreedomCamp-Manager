@@ -511,16 +511,16 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
     label: 'Tools',
     icon: Wrench,
     items: [
-      { path: '/spatial-compliance', icon: Map, label: 'Spatial Compliance', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/spatial-compliance', icon: Map, label: 'Spatial Compliance', roles: ['admin', 'master', 'grand_master'] },
       { path: '/compliance-recalculation', icon: Shield, label: 'Recalculation', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/admin/cleanup-recalculate', icon: RefreshCw, label: 'Cleanup & Recalculate', roles: ['admin', 'master'] },
-      { path: '/data', icon: Database, label: 'Data Management', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/admin/data-hub', icon: Database, label: 'Data Hub', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/admin/cleanup-recalculate', icon: RefreshCw, label: 'Cleanup & Recalculate', roles: ['admin', 'master', 'grand_master'] },
+      { path: '/data', icon: Database, label: 'Data Management', roles: ['admin', 'master', 'grand_master'] },
+      { path: '/admin/data-hub', icon: Database, label: 'Data Hub', roles: ['admin', 'master', 'grand_master'] },
       { path: '/admin/raw-data-browser', icon: Database, label: 'Raw Data Browser', roles: ['grand_master'] },
-      { path: '/intel-approvals', icon: ShieldAlert, label: 'Intel Approvals', roles: ['master'] },
-      { path: '/import-historical', icon: Upload, label: 'Import Data', roles: ['admin', 'master'] },
-      { path: '/photo-reingest', icon: Camera, label: 'Photo Reingest', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/diagnostics', icon: Settings, label: 'Diagnostics', roles: ['master'] },
+      { path: '/intel-approvals', icon: ShieldAlert, label: 'Intel Approvals', roles: ['master', 'grand_master'] },
+      { path: '/import-historical', icon: Upload, label: 'Import Data', roles: ['admin', 'master', 'grand_master'] },
+      { path: '/photo-reingest', icon: Camera, label: 'Photo Reingest', roles: ['admin', 'admin_officer', 'master', 'grand_master'] },
+      { path: '/diagnostics', icon: Settings, label: 'Diagnostics', roles: ['master', 'grand_master'] },
     ],
   },
   {
@@ -552,22 +552,8 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
   const { user } = useAuthStore()
   const [openGroups, setOpenGroups] = useState<Set<string>>(new Set())
 
-  // grand_master sees the same grouped nav items as master
-  const effectiveNavRole = user?.role === 'grand_master' ? 'master' : user?.role
-
-  // Auto-expand the group containing the active path on navigation
-  useEffect(() => {
-    for (const group of navigationGroups) {
-      if (group.items.some(item => location.pathname === item.path && item.roles.includes(effectiveNavRole ?? ''))) {
-        setOpenGroups(prev => {
-          if (prev.has(group.label)) return prev
-          const next = new Set(prev)
-          next.add(group.label)
-          return next
-        })
-      }
-    }
-  }, [location.pathname, effectiveNavRole])
+  // Keep the effective role aligned with route-manifest authority.
+  const effectiveNavRole = user?.role
 
   const toggleGroup = (label: string) => {
     setOpenGroups(prev => {
@@ -584,6 +570,26 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
     if (user?.role === 'master' || user?.role === 'grand_master') flags.add('enable_internal_tools')
     return flags
   }, [user?.role])
+
+  // Auto-expand the group containing the active path using manifest authority.
+  useEffect(() => {
+    for (const group of navigationGroups) {
+      if (
+        group.items.some(
+          (item) =>
+            location.pathname === item.path &&
+            isRouteVisibleForRole(item.path, effectiveNavRole as AppRole, routeManifest, activeFeatureFlags),
+        )
+      ) {
+        setOpenGroups((prev) => {
+          if (prev.has(group.label)) return prev
+          const next = new Set(prev)
+          next.add(group.label)
+          return next
+        })
+      }
+    }
+  }, [activeFeatureFlags, effectiveNavRole, location.pathname])
 
   const visiblePinned = pinnedItems.filter(item =>
     user && isRouteVisibleForRole(item.path, user.role as AppRole, routeManifest, activeFeatureFlags)

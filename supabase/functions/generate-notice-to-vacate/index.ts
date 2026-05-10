@@ -28,28 +28,63 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    const { 
-      zoneId,
-      plateNumber,
-      vehicleId,
-      nightsStayed,
-      breachDate,
-      breachDetails,
-      issuedBy,
-      deliveryMethod,
-      deliverToEmail,
-      deliverToOfficer,
-      breachAlertId,
-      autoBootstrapLegalConfig,
-    } = await req.json();
+    const body = await req.json();
+    const zoneId = body.zoneId ?? body.zone_id ?? null;
+    const loiId = body.loiId ?? body.loi_id ?? null;
+    const observationId = body.observationId ?? body.observation_id ?? null;
+    const plateNumber = body.plateNumber ?? body.plate_number ?? null;
+    const vehicleId = body.vehicleId ?? body.vehicle_id ?? null;
+    const nightsStayed = body.nightsStayed ?? body.nights_stayed ?? null;
+    const breachDate = body.breachDate ?? body.breach_date ?? null;
+    const breachDetails = body.breachDetails ?? body.breach_details ?? null;
+    const issuedBy = body.issuedBy ?? body.issued_by ?? null;
+    const deliveryMethod = body.deliveryMethod ?? body.delivery_method ?? null;
+    const deliverToEmail = body.deliverToEmail ?? body.deliver_to_email ?? null;
+    const deliverToOfficer = body.deliverToOfficer ?? body.deliver_to_officer ?? null;
+    const breachAlertId = body.breachAlertId ?? body.breach_alert_id ?? null;
+    const autoBootstrapLegalConfig = body.autoBootstrapLegalConfig ?? body.auto_bootstrap_legal_config;
 
-    console.log('📝 Generating Notice to Vacate:', { zoneId, plateNumber, nightsStayed });
+    let resolvedZoneId: string | null = zoneId;
+    let resolvedLoiId: string | null = loiId;
+
+    if (!resolvedZoneId && observationId) {
+      const { data: observation } = await supabaseAdmin
+        .from('observations')
+        .select('zone_id, loi_id')
+        .eq('observation_id', observationId)
+        .maybeSingle();
+
+      resolvedZoneId = (observation as any)?.zone_id ?? null;
+      resolvedLoiId = resolvedLoiId ?? ((observation as any)?.loi_id ?? null);
+    }
+
+    if (!resolvedZoneId && resolvedLoiId) {
+      const { data: zoneFromLoi } = await supabaseAdmin
+        .from('zones')
+        .select('id')
+        .eq('loi_id', resolvedLoiId)
+        .eq('is_active', true)
+        .limit(1)
+        .maybeSingle();
+      resolvedZoneId = zoneFromLoi?.id ?? null;
+    }
+
+    if (!resolvedZoneId) {
+      throw new Error('zoneId/zone_id or loiId/loi_id or observationId/observation_id is required');
+    }
+
+    console.log('📝 Generating Notice to Vacate:', {
+      zoneId: resolvedZoneId,
+      observationId,
+      plateNumber,
+      nightsStayed,
+    });
 
     // 1. Get zone legal configuration
     let { data: legalConfig, error: configError } = await supabaseAdmin
       .from('zone_legal_config')
       .select('*, zones(name, organization_id)')
-      .eq('zone_id', zoneId)
+      .eq('zone_id', resolvedZoneId)
       .single();
 
     if ((configError || !legalConfig) && autoBootstrapLegalConfig === true) {
@@ -57,7 +92,7 @@ Deno.serve(async (req) => {
       const { data: zoneRow, error: zoneError } = await supabaseAdmin
         .from('zones')
         .select('id, name, organization_id')
-        .eq('id', zoneId)
+        .eq('id', resolvedZoneId)
         .single();
 
       if (zoneError || !zoneRow) {
@@ -117,7 +152,7 @@ Deno.serve(async (req) => {
       const { data: reloadedConfig, error: reloadError } = await supabaseAdmin
         .from('zone_legal_config')
         .select('*, zones(name, organization_id)')
-        .eq('zone_id', zoneId)
+        .eq('zone_id', resolvedZoneId)
         .single();
 
       if (reloadError || !reloadedConfig) {
@@ -201,7 +236,7 @@ Deno.serve(async (req) => {
       .from('notices_to_vacate')
       .insert({
         organization_id: legalConfig.organization_id,
-        zone_id: zoneId,
+        zone_id: resolvedZoneId,
         vehicle_id: vehicleId,
         plate_number: plateNumber,
         recipient_name: `The Owner / Occupier of the vehicle with registration ${plateNumber}`,
@@ -236,7 +271,7 @@ Deno.serve(async (req) => {
       .insert({
         organization_id: legalConfig.organization_id,
         created_by: issuedBy,
-        zone_id: zoneId,
+        zone_id: resolvedZoneId,
         plate_number: plateNumber,
         action_type: 'notice_to_vacate',
         status: 'issued',

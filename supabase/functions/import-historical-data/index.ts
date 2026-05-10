@@ -113,6 +113,7 @@ type ZoneRow = {
   id: string;
   name: string;
   organization_id: string;
+  loi_id: string | null;
   location_lat: number | null;
   location_lng: number | null;
   geometry: any;
@@ -744,7 +745,7 @@ Deno.serve(async (req) => {
     console.log('📥 [IMPORT] Loading active zones for target organisation only…');
     const { data: existingZones, error: zonesError } = await supabaseAdmin
       .from('zones')
-      .select('id, name, organization_id, location_lat, location_lng, geometry')
+      .select('id, name, organization_id, loi_id, location_lat, location_lng, geometry')
       .eq('organization_id', targetOrganizationId)
       .eq('is_active', true);
 
@@ -852,7 +853,7 @@ Deno.serve(async (req) => {
       const { data: newZones, error: zoneCreateError } = await supabaseAdmin
         .from('zones')
         .insert(zonesToInsert)
-        .select('id, name');
+        .select('id, name, loi_id');
 
       if (zoneCreateError) {
         console.error('❌ [IMPORT] Zone creation failed:', zoneCreateError);
@@ -866,6 +867,7 @@ Deno.serve(async (req) => {
           id: zone.id,
           name: zone.name,
           organization_id: targetOrganizationId,
+          loi_id: (zone as any).loi_id ?? null,
           location_lat: null,
           location_lng: null,
           geometry: null,
@@ -1016,6 +1018,7 @@ Deno.serve(async (req) => {
           // LEGACY IMPORT: No photo available - use placeholder and set legacy flags
           // ⚠️ NO COMPLIANCE CALCULATION DURING IMPORT - run recalculation afterward
           const zoneForGps = record.zoneId ? zoneById.get(record.zoneId) || null : null;
+          const loiId = zoneForGps?.loi_id ?? null;
           const inferredGps = inferGpsFromZone(zoneForGps);
           if (inferredGps) {
             gpsInferredCount++;
@@ -1035,6 +1038,7 @@ Deno.serve(async (req) => {
               plate_number: record.plate,
               organization_id: observationOrgId,
               zone_id: record.zoneId,
+              loi_id: loiId,
               recorded_by: user.id,
               // Use +13:00 for NZDT (Oct-Apr) - PostgreSQL converts to UTC automatically
               // Excel date "2026-02-16" → "2026-02-16T08:00:00+13:00" → displays as "16 Feb 2026 08:00 NZDT" ✓

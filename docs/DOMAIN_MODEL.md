@@ -46,6 +46,8 @@ or place.
 **Design rules**:
 - Client sites, jobs, and dispatch resources *reference* LOI rather than
   storing duplicate address/coordinate data.
+- Zones must also resolve to LOI via `zones.loi_id` so every operational zone
+  has a canonical location record.
 - LOI does **not** store polygon geometry — that belongs to `geo_zones`.
 - Multiple LOIs can exist for the same physical place (before deduplication).
   Use `canonical_loi_id` to point duplicates to the preferred record.
@@ -88,6 +90,10 @@ that is under a contract with an Iron Eagle / OnSpace AI client.
 A Site specialises LOI — it adds billing context, security profile, keys
 management, SLA overrides, and contact details.
 
+**Rule**: a site must always belong to a CRM client organization. If a site
+record is being created, the client organization must already exist in CRM and
+must be selected before the site can be saved.
+
 ```
 client_sites.loi_id → locations_of_interest (planned future migration)
 ```
@@ -113,6 +119,9 @@ legal or jurisdictional one.
 
 Currently modelled as a `zones` record with `zone_kind = 'location_group'`.
 A dedicated `location_groups` table may be introduced in a future stage.
+
+`zones.loi_id` is required for active zones to ensure zone workflows can pivot
+to canonical LOI records without relying on duplicated address fields.
 
 ---
 

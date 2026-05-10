@@ -6,8 +6,8 @@
 > from the repository owner (@DonSquires) via a reviewed and approved Pull Request.**
 > See [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md) for the full governance policy.
 
-**Last verified:** 2026-04-27  
-**Verified by:** Migration file analysis (not live DB query) — full table inventory across 303 migration files through 20260425000001 — Business Management section added 2026-04-27  
+**Last verified:** 2026-05-11  
+**Verified by:** Migration file analysis (not live DB query) — includes LOI bridge migrations `20260712000002` and `20260712000003` plus prior full inventory baseline  
 **Live row counts at verification:** observations 30,789 · canonical_vehicles 61,535 · zones 3,731 · breach_alerts 1,484 · user_profiles 7 · compliance_results 1,959 (from last live query 2026-04-25)
 
 > 📋 **Source note:** This document was updated via static analysis of `supabase/migrations/*.sql` files, not a live database query. Column definitions reflect the CREATE TABLE statements in the migration files. Run the information_schema query above to verify against the live DB.
@@ -54,6 +54,7 @@ Then update this file, update `src/types/database.ts`, and open a PR for review.
 | recorded_at | timestamptz | NO | — |
 | organization_id | uuid | NO | — |
 | zone_id | uuid | NO | — |
+| loi_id | uuid | YES | — |
 | recorded_by | uuid | YES | — |
 | officer_notes | text | YES | — |
 | observation_notes | text | YES | — |
@@ -376,6 +377,7 @@ Then update this file, update `src/types/database.ts`, and open a PR for review.
 | is_active | boolean | true |
 | location_lat | numeric | — |
 | location_lng | numeric | — |
+| loi_id | uuid | — |
 | geometry | jsonb | — |
 | zone_type | text | 'specific' |
 | parent_zone_id | uuid | — |
@@ -1028,6 +1030,12 @@ public.user_profiles.organization_id
 
 public.observations.zone_id
   └─ public.zones.id
+
+public.observations.loi_id
+  └─ public.locations_of_interest.id
+
+public.zones.loi_id
+  └─ public.locations_of_interest.id
 
 public.observations.plate_number
   └─ public.canonical_vehicles.plate_number (text join, NOT FK)

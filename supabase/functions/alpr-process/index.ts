@@ -109,6 +109,7 @@ interface ALPRRequest {
   officerId?: string;
   organizationId?: string;
   zoneId?: string;
+  loiId?: string;
   idempotencyKey?: string;
   gpsLatitude?: number;
   gpsLongitude?: number;
@@ -778,10 +779,22 @@ Deno.serve(async (req) => {
     } else {
       // CREATE MODE: Insert new observation
       // Only write columns that exist in the live observations schema.
+      // Resolve loi_id from the zone if not provided directly
+      let loiId: string | null = body.loiId ?? null;
+      if (!loiId && body.zoneId) {
+        const { data: zoneRow } = await supabase
+          .from('zones')
+          .select('loi_id')
+          .eq('id', body.zoneId)
+          .maybeSingle();
+        loiId = (zoneRow as any)?.loi_id ?? null;
+      }
+
       const observationData = {
         recorded_by: body.officerId,
         organization_id: body.organizationId,
         zone_id: body.zoneId,
+        loi_id: loiId,
         photo: body.photo_url,     // primary photo column in live schema
         photo_url: body.photo_url, // secondary photo column for compatibility
         photo_hash: photoHash,

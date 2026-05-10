@@ -44,6 +44,7 @@ interface ReingestObservation {
   photo_hash: string | null
   recorded_at: string | null
   zone_id: string | null
+  loi_id: string | null
   organization_id: string | null
   gps_latitude: number | null
   gps_longitude: number | null
@@ -181,6 +182,8 @@ export default function PhotoReingest() {
           recordedAt: observation.recorded_at ?? undefined,
           zone_id: observation.zone_id ?? undefined,
           zoneId: observation.zone_id ?? undefined,
+          loi_id: observation.loi_id ?? undefined,
+          loiId: observation.loi_id ?? undefined,
           organization_id: observation.organization_id ?? undefined,
           organizationId: observation.organization_id ?? undefined,
           gps_latitude: observation.gps_latitude ?? undefined,

@@ -156,6 +156,8 @@ After making changes, always verify:
 
 - Treat `system_state.json` as the first source of truth for redesigns, new modules, package-manager choices, and repo topology.
 - If a module, service, or package manager is not grounded in `system_state.json`, existing files, or explicit user instruction, state that it cannot be verified instead of inventing it.
+- Before actioning any Bob task, verify the live schema and the relevant source documents first; do not rely on stale summaries when the repo has changed.
+- When a customer proposal or contract excerpt names facilities, treat those named locations as CRM site/LOI records for the owning organization unless the live schema says otherwise.
 - For major architecture work, follow this order: `spec.md` → self-critique with at least 3 flaws → `plan.md` → implementation ticket by ticket → validation → final completion claim.
 - If an artifact references module paths or features that are not grounded in the repo or `system_state.json`, treat that as a blocker.
 - Read `docs/DECISIONS.md` when a pattern seems ambiguous or historically driven.

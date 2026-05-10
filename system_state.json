@@ -1,10 +1,10 @@
 {
   "os": "Alpine Linux v3.23",
-  "node_version": "not installed",
+  "node_version": "v24.14.1",
   "bun_version": "not installed",
   "toolchain_ready": false,
   "modules": ["messaging"],
   "lockfiles": ["bun.lock","package-lock.json"],
-  "generated_at": "2026-05-09T08:31:08Z",
+  "generated_at": "2026-05-10T12:33:15Z",
   "source": "scripts/system-check.sh"
 }
