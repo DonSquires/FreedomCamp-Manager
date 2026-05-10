@@ -882,13 +882,15 @@ This replaces ad-hoc continuation notes with a single active queue for the next 
   - Deliverable: updated schema sections for observations/zones or explicit stale marker with follow-up owner.
   - Validation: manual diff against migration intent + docs lint checks.
 
-- [ ] I4. Internal tooling isolation hardening follow-up **(ACTIVE)**
+- [x] I4. Internal tooling isolation hardening follow-up
   - Deliverable: ensure internal/hidden tooling exposure is solely manifest-driven where practical.
   - Validation: nav parity checks + role-based manual route smoke.
+  - Evidence: `NavigationLinks` auto-expand refactored to `isRouteVisibleForRole()` manifest-driven pattern; `bun run test:nav-parity` → 4 passed; `bun run build` → BUILD_OK.
 
-- [ ] I5. Archive overlap documentation cleanup
+- [x] I5. Archive overlap documentation cleanup
   - Deliverable: add explicit active-vs-archive ownership notes for compliance/photo/import lanes in staging or canonical notes.
   - Validation: references to active callsites and archive-only paths are present and reviewable.
+  - Evidence: "Archive Function Ownership Map" section added to STAGING.md with 5 operational lanes; all callsites verified.
 
 [x] I6. PTT Geofence Isolation Audit (Legacy Fix Validation - PASS)
 [x] I6. PTT Geofence Isolation Audit (Legacy Fix Validation - PASS)
@@ -897,10 +899,10 @@ This replaces ad-hoc continuation notes with a single active queue for the next 
 [x] I6. PTT Geofence Isolation Audit (Legacy Fix Validation - PASS)
 [x] I6. PTT Geofence Isolation Audit (Legacy Fix Validation - PASS)
 [x] I6. PTT Geofence Isolation Audit (Legacy Fix Validation - PASS)
-- [ ] P1. After each completed I-item, update Section H evidence with: files inspected, decision class, fix applied, validation result.
-- [ ] P2. After each completed I-item, append/update Section 7 handoff fields (timestamp, status, blockers, next command).
-- [ ] P3. Do not start the next I-item until the previous item's paperwork (H evidence + Section 7 delta) is written.
-- [ ] P4. Keep exactly one I-item marked as active at a time in this section.
+- [x] P1. After each completed I-item, update Section H evidence with: files inspected, decision class, fix applied, validation result.
+- [x] P2. After each completed I-item, append/update Section 7 handoff fields (timestamp, status, blockers, next command).
+- [x] P3. Do not start the next I-item until the previous item's paperwork (H evidence + Section 7 delta) is written.
+- [x] P4. Keep exactly one I-item marked as active at a time in this section.
 
 #### Archive Function Ownership Map (I5 Reference Document)
 
@@ -1010,6 +1012,35 @@ Fill this before stopping work:
 - Active/last CI run IDs:
 - Open blockers with owner:
 - Next exact command to run:
+
+Latest Session Snapshot (Phase III Archive Review — 2026-05-10 NZST):
+
+- Timestamp (NZ): 2026-05-10 22:00 NZST
+- Current branch: main
+- HEAD SHA: db41b930 (Phase I+II+III committed upstream)
+- Working tree status (`git status -sb`): dirty — `data/bob-response-scores.jsonl`, `docs/UIUX_STRATEGIC_PLANS_2026.md`, `docs/STAGING.md`
+- Scope completed:
+  - Environment restored: `sudo apk add nodejs npm` + `curl bun.sh/install` — node and bun operational again.
+  - Confirmed Phase I (I1–I6), Phase II (23 archive removals), and Phase III commits already landed on main.
+  - Runtime quality gates passed: `bun run lint` → 0 errors; `bun run build` → BUILD_OK (26.30s); `bun run test:bob:governance` → 6/6; `bun run test:nav-parity` → 4/4.
+  - Fixed doc inconsistency: stale unchecked `[ ]` boxes for I4, I5, P1–P4 in Section I todo list were updated to `[x]` — all evidence blocks confirm completion.
+  - Phase III remaining archive review (4 entries in `supabase/functions/_archive/`):
+    | Name | Callsites | Active replacement | Decision |
+    |---|---|---|---|
+    | `bob-learning-feedback-sync` | 0 | None (Bob learning is inline via `bob_conversation_memory`) | `remove_or_consolidate` — schedule removal in next archive sweep |
+    | `admin-incident-ops` | 0 | None (incident ops are now in-page mutations via hooks) | `remove_or_consolidate` — no production dependency confirmed |
+    | `generate-incident-pdf` | 0 | None (PDF generation is handled via `render-infringement-notice` and Reports Hub) | `remove_or_consolidate` — superseded |
+    | `README.md` | N/A | N/A | Retain — archive directory documentation |
+- Latest lint result: pass (`bun run lint` → 0 errors)
+- Latest build result: pass (`bun run build` → BUILD_OK, `✓ built in 26.30s`)
+- Latest targeted test result: pass (`bun run test:bob:governance` 6/6, `bun run test:nav-parity` 4/4)
+- Active/last CI run IDs:
+  - Not queried this session.
+- Open blockers with owner:
+  - NONE. All Phase I–III work complete and committed.
+- Next exact command to run:
+  - `git add docs/STAGING.md data/bob-response-scores.jsonl docs/UIUX_STRATEGIC_PLANS_2026.md && git commit -m "docs(staging): mark I4/I5/P1-P4 complete; add Phase III archive review snapshot"`
+  - Then: remove the 3 remaining removable archive functions (`bob-learning-feedback-sync`, `admin-incident-ops`, `generate-incident-pdf`) in a Phase IV pass if no external callers are confirmed after a wider grep across `scripts/`, `tools/`, and CI workflows.
 
 Latest Session Snapshot (Phase I Complete — All 6 Items Done — 2026-05-11):
 

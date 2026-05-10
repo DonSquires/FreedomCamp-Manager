@@ -1138,3 +1138,174 @@ WEEK 16–17 (Phase 5: Launch)
 2. Rationale: Dr Bob approved with no blocker findings, but Bob plan output was high-level and requires one refinement pass to map directly to route-level implementation tickets.
 3. Required follow-up: run one targeted Bob refinement prompt focused on route-level mapping for top friction modules (Compliance, Records, Dispatch, Officer workflows).
 
+---
+
+## Enterprise UI/UX Build Plan (Execution Baseline)
+
+### Plan Intent
+
+This is the execution plan for delivering enterprise-grade UI/UX outcomes in production, not just strategy artifacts. It is grounded in:
+
+1. [docs/STAGING.md](docs/STAGING.md)
+2. [docs/INSTRUCTION_MANUAL.md](docs/INSTRUCTION_MANUAL.md)
+3. [docs/ENTERPRISE_PAIR_REVIEW_CANONICAL.md](docs/ENTERPRISE_PAIR_REVIEW_CANONICAL.md)
+4. [docs/ENTERPRISE_COLLAB_EXECUTION_PLAN_2026-05-02.md](docs/ENTERPRISE_COLLAB_EXECUTION_PLAN_2026-05-02.md)
+5. [docs/MODULE_ROADMAP.md](docs/MODULE_ROADMAP.md)
+6. [docs/LIVE_SCHEMA.md](docs/LIVE_SCHEMA.md)
+
+### Delivery Outcomes (Must-Hit)
+
+1. Reduce navigation complexity from fragmented multi-system behavior to one canonical shell navigation + global search.
+2. Reduce cognitive load in top operator flows (scan, breach action, notice issue, dispatch, roster) by at least 25% time-to-complete.
+3. Enforce design consistency through reusable components and hard quality gates.
+4. Preserve role-gating, multi-org isolation, and auditability with zero regressions.
+
+### Workstreams
+
+1. Information architecture and route consolidation.
+2. Design system and component standardization.
+3. Workflow UX refactors for top-frequency tasks.
+4. Performance, accessibility, and offline reliability hardening.
+5. Human testing and triad governance sign-off.
+
+### 12-Week Delivery Schedule
+
+#### Wave 1 (Weeks 1-2): Baseline and Freeze
+
+1. Freeze IA changes outside this plan unless tagged as production blocker.
+2. Establish baseline metrics for top 10 routes:
+  - median task completion time
+  - click depth
+  - action error rate
+  - abandonment rate
+3. Produce route pressure map from [src/navigation/routeManifest.ts](src/navigation/routeManifest.ts).
+
+**Exit gate**:
+1. Baseline metrics file published.
+2. Top 10 route list approved by triad.
+
+#### Wave 2 (Weeks 3-4): Navigation and Shell Refactor
+
+1. Implement shell-consistent top-level navigation for Officer, Admin, and Master.
+2. Introduce unified command/search entry for route and record jump.
+3. Remove redundant breadcrumb/filter/banner overlaps on list and queue pages.
+
+**Exit gate**:
+1. No route/role parity regressions.
+2. Navigation depth <= 4 levels in active menus.
+
+#### Wave 3 (Weeks 5-6): Records and Compliance UX Consolidation
+
+1. Consolidate record discovery into unified search + faceted filtering + side detail panels.
+2. Consolidate breach -> notice -> enforcement actions into a single flow-oriented workspace.
+3. Standardize page header actions: max one primary + two secondary actions visible.
+
+**Exit gate**:
+1. Demonstrated workflow reduction in page hops for Compliance and Records.
+2. Human pilot confirms improved clarity in operator pathing.
+
+#### Wave 4 (Weeks 7-8): Design System Enforcement
+
+1. Standardize forms to a single validation and feedback pattern.
+2. Standardize tables/cards and status semantics.
+3. Add lint/CI checks for complexity budgets (button density, form length, table width, modal nesting).
+
+**Exit gate**:
+1. New/updated pages pass design-system lint gates.
+2. No ad-hoc component variants added outside approved primitives.
+
+#### Wave 5 (Weeks 9-10): Performance + Accessibility + Offline
+
+1. Enforce route bundle and interaction budget targets from [docs/INSTRUCTION_MANUAL.md](docs/INSTRUCTION_MANUAL.md).
+2. Verify WCAG 2.2 AA behavior on critical flows.
+3. Validate offline queue, sync indicators, and shift-end unsynced guardrails for officer shell.
+
+**Exit gate**:
+1. Performance budgets pass on target pages.
+2. Accessibility checklist pass for top-frequency routes.
+3. Offline behavior validated in field simulation.
+
+#### Wave 6 (Weeks 11-12): Human Test, Stabilize, Launch Readiness
+
+1. Run structured human testing cohorts:
+  - Officer (field)
+  - Admin/admin_officer (operations)
+  - Master/grand_master (governance)
+2. Apply final priority fixes.
+3. Assemble triad sign-off package and launch recommendation.
+
+**Exit gate**:
+1. >= 70% cohort preference for new UX.
+2. >= 25% reduction in median task time on critical workflows.
+3. Triad status = GO in canonical evidence.
+
+### Governance and Review Cadence
+
+1. Weekly Bob lens review for operational risks and edge-case workflow breakage.
+2. Weekly OpenAI lens review for architecture quality, consistency, and enterprise-fit.
+3. Weekly specialist challenge review for implementation risk and hidden regressions.
+4. Every cycle updates canonical evidence links in [docs/ENTERPRISE_PAIR_REVIEW_CANONICAL.md](docs/ENTERPRISE_PAIR_REVIEW_CANONICAL.md).
+
+### Quality Gates (Non-Negotiable)
+
+1. `bun run lint` passes with no new severity regressions.
+2. `bun run build` passes.
+3. Route-role parity remains valid for modified routes.
+4. No multi-org isolation or role-gate regressions.
+5. Dr Bob review artifacts recorded for each major cycle.
+
+### KPI Scorecard
+
+1. UX efficiency: median completion time for breach-to-notice flow.
+2. Navigation clarity: average click depth to top 10 destinations.
+3. Error resilience: failed action rate and recovery success rate.
+4. Accessibility: checklist pass rate for top 10 routes.
+5. Stability: post-release bug rate and rollback-free deploy count.
+
+### Immediate Next 7 Actions
+
+1. Generate top-10 route friction scoreboard from current telemetry and workflow matrix.
+2. Produce route-level implementation tickets for Compliance, Records, Dispatch, and Officer shell.
+3. Run targeted Bob refinement for route-level mapping and attach artifact.
+4. Run Dr Bob review on this execution section and record artifact link.
+5. Define baseline KPI measurements before any major UI change lands.
+6. Schedule first human pilot session (officer + admin + master cohorts).
+7. Lock Wave 1/Wave 2 scope in sprint board with explicit owners.
+
+## Human Test Evidence (2026-05-10)
+
+### Executed Runs
+
+1. Human Test Engine report: [tools/human-test-engine/reports/2026-05-10T15-39-09-785Z/report.md](tools/human-test-engine/reports/2026-05-10T15-39-09-785Z/report.md)
+2. Human Test Engine raw report: [tools/human-test-engine/reports/2026-05-10T15-39-09-785Z/report.json](tools/human-test-engine/reports/2026-05-10T15-39-09-785Z/report.json)
+3. Bob human UX audit run directory (incomplete artifacts): [tools/bob-human-ux-audit-runs/2026-05-10T15-41-30-594Z](tools/bob-human-ux-audit-runs/2026-05-10T15-41-30-594Z)
+
+### Evidence Summary
+
+1. Human Test Engine completed with: Reliability 84%, Stability 89%, Operational Readiness 86%.
+2. Totals: 16 pass, 2 fail, 1 infra.
+3. High-severity failures:
+  - `auth.signin`: invalid login credentials for the test user path.
+  - `ui.playwright.crm_visual_sweep`: UI sweep failed during Playwright stage.
+4. Infra condition:
+  - `secret-alignment.org-context`: no `BOB_ORG_ID`, `ORG_ID`, or `DEFAULT_ORG_ID`; org resolution from auth profile was unavailable.
+5. External health check still passed (`external.check_railway_health` HTTP 200), so this is not a platform-down scenario.
+
+### Human-Test Gate Decision
+
+1. Current gate status: NO-GO for UX launch sign-off.
+2. Reason: human-test execution surfaced blocking auth and UI automation preconditions, so completion and preference metrics cannot be treated as valid rollout evidence yet.
+
+### Required Remediation Before Re-Run
+
+1. Fix test-user authentication credentials used by Human Test Engine profile.
+2. Install Playwright browser binaries in the execution environment and verify Chromium availability before test launch.
+3. Set tenant context variable (`BOB_ORG_ID` or `ORG_ID` or `DEFAULT_ORG_ID`) for org-scoped scenarios.
+4. Re-run:
+  - `bun run test:human-engine`
+  - `bun run test:bob:human-ux-audit`
+5. Re-open GO/NO-GO only after rerun shows:
+  - zero high-severity blockers,
+  - no infra org-context failures,
+  - usable cohort-level completion and preference outcomes.
+
