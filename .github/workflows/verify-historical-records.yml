@@ -63,9 +63,10 @@ jobs:
           query "Bob-generated patrol records" "patrols?select=id,description,status,organization_id,created_at,zone_id&or=(description.ilike.*Bob%20autonomous%20patrol%20setup*,description.ilike.*patrol%20setup*)&order=created_at.desc&limit=50"
 
           # 4) Historical dispatch marker rows from examples used in this workstream
-          query "Dispatch jobs by known dispatch numbers" "dispatch_jobs?select=*&or=(despatch_no.eq.58184481,despatch_no.eq.58188644,despatch_no.eq.58196068)&order=created_at.desc&limit=50"
+          # dispatch_jobs does not have despatch_no; use job_number/title/description markers.
+          query "Dispatch jobs by known dispatch markers" "dispatch_jobs?select=id,job_number,title,description,job_type,status,organization_id,created_at&or=(job_number.eq.58184481,job_number.eq.58188644,job_number.eq.58196068,title.ilike.*58184481*,title.ilike.*58188644*,title.ilike.*58196068*,description.ilike.*58184481*,description.ilike.*58188644*,description.ilike.*58196068*)&order=created_at.desc&limit=50"
 
           # 5) Incident records linked to same historical identifiers (if mapped to incidents)
-          query "Incidents containing known dispatch numbers" "incidents?select=id,title,description,organization_id,created_at&or=(description.ilike.*58184481*,description.ilike.*58188644*,description.ilike.*58196068*)&order=created_at.desc&limit=50"
+          query "Incidents containing known dispatch markers" "incidents?select=id,title,description,organization_id,created_at&or=(title.ilike.*58184481*,title.ilike.*58188644*,title.ilike.*58196068*,description.ilike.*58184481*,description.ilike.*58188644*,description.ilike.*58196068*)&order=created_at.desc&limit=50"
 
           echo "\n✅ Historical verification queries completed"
