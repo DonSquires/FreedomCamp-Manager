@@ -14,6 +14,12 @@ When a pattern, platform, or architectural decision changes, append a dated note
 
 ## Current Standing Decisions
 
+- Date: 2026-05-10
+- Decision: Bob patrol and dispatch intelligence must use deterministic pre-classification and plan verification before automating historical data placement.
+- Scope: `src/lib/bobSetupBlueprint.ts`, `src/lib/historicalDispatchIntelligence.ts`, `src/lib/patrolZoneFallbacks.ts`, `src/pages/AiAnalysis.tsx`, `src/pages/BobAssistantStudio.tsx`, Edge Functions, test suites (see ADR 013).
+- Reason: Raw hope-and-verify Bob workflows were failing on ambiguous job classifications (noise vs. alarm), missed facility mapping, and inconsistent timestamp handling. Pre-classification and verification loops ensure data integrity before insertion and enable Bob self-correction.
+- Consequences: All historical patrol and dispatch data intake must flow through bobSetupBlueprint or historicalDispatchIntelligence preprocessing; Bob receives pre-computed compliance scores, performance diagnostics, and job type hints; verification loop auto-detects and corrects mapping mismatches; fallback patrol zones activate only when explicit boundaries are missing.
+
 - Date: 2026-05-09
 - Decision: ANPR/AI parking-duration signals are advisory evidence only and cannot be used as sole proof for infringement actions.
 - Scope: Bob compliance reasoning, ANPR/parking workflows, automated notice recommendations, and appeal evidence handling.
