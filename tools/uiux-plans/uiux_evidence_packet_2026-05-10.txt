@@ -1,0 +1,50 @@
+EVIDENCE PACKET: Enterprise UI/UX Plan Inputs (2026-05-10)
+Authority order per docs/STAGING.md:
+1) docs/INSTRUCTION_MANUAL.md
+2) docs/ENTERPRISE_PAIR_REVIEW_CANONICAL.md
+3) docs/ENTERPRISE_COLLAB_EXECUTION_PLAN_2026-05-02.md
+4) docs/MODULE_ROADMAP.md
+5) docs/PHASE1_WORKFLOW_MATRIX_2026-05-02.json
+Plus grounding: docs/LIVE_SCHEMA.md and src/navigation/routeManifest.ts
+
+A) INSTRUCTION MANUAL (UI/UX standards)
+- Shell model: Officer (glove-safe), Admin (standard/dense), Master (governance)
+- Page anatomy: top bar, global filters, page header, status strip, primary actions, filters, content, audit trace
+- Action limits: max one primary action and <=2 secondary actions
+- Accessibility: WCAG 2.2 AA minimum, touch target >=44x44 for officer shell
+- Performance budgets: officer TTI <2.5s on 4G, filter response <300ms, route chunk <250KB gzip
+- Offline-first: queued actions + sync indicator required
+
+B) CANONICAL ENTERPRISE REVIEW
+- Dual-lens model is active: Bob operations lens + OpenAI architecture lens
+- Canonical requires evidence-backed decisions and updates on material changes
+- Validation baseline currently passes lint/build
+
+C) ENTERPRISE COLLAB PLAN
+- Triad model required: Bob + OpenAI + specialist subagent + execution lead
+- Iteration loop: draft -> Bob review -> specialist challenge -> OpenAI synthesis -> plan update
+- P0/P1 phases with governance and evidence requirements
+
+D) ROUTE/MODULE MAP
+- Module roadmap verified against routeManifest
+- Route manifest version: 2026-04-23.v2
+- Top nav-group pressure (from prior audit): Records and Operations are overloaded
+- Core families include Compliance, Operations, Records, Specialist Portals, AI/Bob, Governance
+
+E) WORKFLOW MATRIX
+- Total workflows: 12
+- P0 workflows: 11
+- Key examples: scan->compliance, breach->notice escalation, dispatch->job map, multi-org isolation, role matrix, offline queue, specialist portals
+
+F) LIVE SCHEMA GROUNDING
+- Last verified in docs/LIVE_SCHEMA.md: 2026-05-11
+- Core tables for UX-critical flows: public.observations, public.breach_alerts, public.user_profiles, public.dispatch_events, public.enforcement_events, public.speech_audit_events
+- Multi-org and role constraints are foundational and must be preserved in UX simplification
+
+REQUEST TO PLANNER
+Design an enterprise-grade UI/UX plan for this build that:
+1) Reduces UI noise and page sprawl
+2) Preserves role gating and multi-org isolation
+3) Improves operator speed for P0 workflows
+4) Meets documented accessibility/performance/offline constraints
+5) Includes measurable rollout gates and human test protocol

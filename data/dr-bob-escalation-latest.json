@@ -1,17 +1,17 @@
 {
-  "timestamp": "2026-05-03T11:24:50.319Z",
-  "sourceFile": "/workspaces/FreedomCamp-Manager/docs/UI_UX_ENTERPRISE_FORWARD_PLAN_2026-05-03.md",
-  "reviewArtifact": "/workspaces/FreedomCamp-Manager/data/dr-bob-reviews/UI_UX_ENTERPRISE_FORWARD_PLAN_2026-05-03.md.2026-05-03T11-24-50-303Z.json",
-  "escalationArtifact": "/workspaces/FreedomCamp-Manager/data/dr-bob-escalations/escalation.2026-05-03T11-24-50-318Z.json",
-  "structured": true,
+  "timestamp": "2026-05-10T14:51:32.405Z",
+  "sourceFile": "/workspaces/FreedomCamp-Manager/docs/UIUX_STRATEGIC_PLANS_2026.md",
+  "reviewArtifact": "/workspaces/FreedomCamp-Manager/data/dr-bob-reviews/UIUX_STRATEGIC_PLANS_2026.md.2026-05-10T14-51-32-392Z.json",
+  "escalationArtifact": "/workspaces/FreedomCamp-Manager/data/dr-bob-escalations/escalation.2026-05-10T14-51-32-404Z.json",
+  "structured": false,
   "decision": "needs-revision",
-  "reason": "blocker-findings",
-  "summary": "The plan references future artifacts and services that are not grounded in the current system_state.json, which could lead to ungrounded assumptions.",
+  "reason": "unstructured-review",
+  "summary": "Dr Bob returned an unstructured review. Inspect the raw response.",
   "findingsCount": 1,
-  "topFinding": "Future artifact references without grounding",
+  "topFinding": "Unstructured review response",
   "selfHealAttempted": false,
   "selfHealSuccess": false,
   "handoffRequired": true,
   "copilotActionHint": "Investigate escalation artifact and implement targeted fix",
-  "responsePreview": "{\"delayTime\":18,\"executionTime\":1618,\"id\":\"sync-8be92c3b-4574-4c4a-b825-da698d300cbf-u2\",\"output\":{\"message\":\"{\\n  \\\"decision\\\": \\\"needs-revision\\\",\\n  \\\"summary\\\": \\\"The plan references future artifacts and services that are not grounded in the current system_state.json, which could lead to ungroun"
+  "responsePreview": "{\"delayTime\":269,\"error\":\"{\\\"error_type\\\": \\\"<class 'requests.exceptions.HTTPError'>\\\", \\\"error_message\\\": \\\"404 Client Error: Not Found for url: https://ollama-production-a142.up.railway.app/api/generate\\\", \\\"error_traceback\\\": \\\"Traceback (most recent call last):\\\\n  File \\\\\\\"/usr/local/lib/python"
 }

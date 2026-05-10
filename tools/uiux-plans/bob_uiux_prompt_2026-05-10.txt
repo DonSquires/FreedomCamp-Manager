@@ -1,0 +1,15 @@
+You are Bob (operations lens). Using ONLY the evidence packet below, create an independent enterprise-grade UI/UX plan.
+
+OUTPUT FORMAT (strict):
+- Section 1: Bob Assumptions (with confidence 0-1)
+- Section 2: Top 10 UX/IA Risks (severity + affected workflows)
+- Section 3: Bob Plan (4 phases max, each with outcomes, owner, duration)
+- Section 4: Data Safety Guardrails (multi-org, role gates, auditability)
+- Section 5: Human Test Plan (officer/admin/master cohorts)
+- Section 6: Go/No-Go Criteria (quantitative metrics)
+- Section 7: Blockers and Dependencies
+
+Keep it grounded and implementation-ready. No generic advice.
+
+EVIDENCE:
+$(cat tools/uiux-plans/uiux_evidence_packet_2026-05-10.txt)

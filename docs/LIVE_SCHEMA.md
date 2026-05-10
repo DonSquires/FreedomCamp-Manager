@@ -1685,6 +1685,29 @@ RLS: enabled. Read: all authenticated. Write: `admin`/`master` roles only.
 
 ---
 
+## public.speech_audit_events
+
+Persists every speech-to-intent call for NZ Privacy Act IPP 5/6/7 compliance. Added in migration `20260712000001`.
+
+| Column | Type | Nullable | Default |
+|---|---|---|---|
+| id | uuid | NO | gen_random_uuid() |
+| created_at | timestamptz | NO | now() |
+| user_id | uuid | NO | — |
+| org_id | uuid | YES | — |
+| transcript | text | NO | '' |
+| intent_name | text | YES | — |
+| confidence | numeric(4,3) | YES | — |
+| needs_confirmation | boolean | NO | true |
+| provider_stt | text | NO | '' |
+| provider_intent | text | NO | '' |
+| redacted | boolean | NO | false |
+| error_message | text | YES | — |
+
+RLS: enabled. Users can read their own rows only. Service role can insert (edge function).
+
+---
+
 ## Database Functions
 
 The live database functions (stored procedures, triggers, RPCs, extensions) are documented in a dedicated companion file:
