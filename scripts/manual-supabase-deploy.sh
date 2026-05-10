@@ -9,7 +9,7 @@ set -eu
 
 MODE="${1:-all}"
 PROJECT_REF="${SUPABASE_PROJECT_REF:-kxwjcupuxnnbnzcgmkoi}"
-PUBLIC_FUNCTIONS="orc-ingest vehicle-ingest alpr-process alpr-retry plate-scanner-photo-first stream-webhook get-weather send-push-notification onspace-ai-chat auto-analyse-report bob-learning-feedback-sync"
+PUBLIC_FUNCTIONS="orc-ingest vehicle-ingest alpr-process plate-scanner-photo-first send-push-notification onspace-ai-chat auto-analyse-report bob-learning-feedback-sync"
 ROOT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 REPO_SUPABASE="$ROOT_DIR/.tools/bin/supabase"
 
@@ -60,6 +60,7 @@ if [ "$MODE" = "functions" ] || [ "$MODE" = "all" ]; then
   for fn in */; do
     fn="${fn%/}"
     [ "$fn" = "_shared" ] && continue
+    [ "$fn" = "_archive" ] && continue
 
     JWT_FLAG=""
     for pub in $PUBLIC_FUNCTIONS; do

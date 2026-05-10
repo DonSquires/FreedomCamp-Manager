@@ -43,17 +43,17 @@ env:
   # Space-separated list of functions that do NOT require a JWT (public-facing).
   # These are deployed with --no-verify-jwt and expected to return non-5xx without auth.
   PUBLIC_FUNCTIONS: >-
-    admin-incident-ops alpr-process alpr-retry analyze-vehicle-photo
+    admin-incident-ops alpr-process analyze-vehicle-photo
     auto-analyse-report
     bob-learning-feedback-sync
-    check-almost-breaches check-data-integrity check-nzscv-status
-    check-services-health check-zone-corrections cleanup-and-recalculate
-    correct-zone-assignments create-user create_auth_and_profiles
-    daily-photo-reconciler duplicate-detection enrich-from-motorweb
+    check-data-integrity check-nzscv-status
+    check-services-health cleanup-and-recalculate
+    create-user
+    daily-photo-reconciler enrich-from-motorweb
     generate-dashboard-report generate-incident-pdf generate-infringement
-    generate-leadership-pack generate-noise-notice generate-notice-to-vacate
-    generate-seizure-receipt generate-vehicle-report generate-warning-notice
-    get-compliance-statistics get-weather hotspot-data import-data
+    generate-noise-notice generate-notice-to-vacate
+    generate-seizure-receipt generate-warning-notice
+    get-compliance-statistics hotspot-data import-data
     import-historical-data link-evidence-photos monitor-officer-welfare
     nightly-privacy-cleanup observations-export observations-in-bounds
     observations-list onspace-ai-chat parkpow-photo-sync
@@ -64,10 +64,10 @@ env:
     recalculate-compliance-v3
     reingest-photos render-infringement-notice scan-breaches
     scrape-vehicle-photos select-best-vehicle-photo send-invite-email
-    send-push-notification send-report-email set-user-password stream-webhook
-    submit-dispute-intake suggest-new-zone sync-scv-list sync-spatial-layers
+    send-push-notification send-report-email set-user-password
+    submit-dispute-intake sync-scv-list sync-spatial-layers
     test-compliance-matrix update-compliance-policy update-user-password
-    upload-file vehicle-ingest zone-correction
+    upload-file vehicle-ingest
 
 jobs:
   deploy-edge-functions:
@@ -158,11 +158,13 @@ jobs:
               | grep '^supabase/functions/' \
               | awk -F/ '{print $3}' \
               | grep -v '^_shared$' \
+              | grep -v '^_archive$' \
               | sort -u || true)
           else
             FUNCTIONS=$(find supabase/functions -mindepth 1 -maxdepth 1 -type d \
               | sed 's#supabase/functions/##' \
               | grep -v '^_shared$' \
+              | grep -v '^_archive$' \
               | sort -u)
           fi
 
@@ -310,6 +312,7 @@ jobs:
           for fn_dir in supabase/functions/*/; do
             fn=$(basename "$fn_dir")
             [ "$fn" = "_shared" ] && continue
+            [ "$fn" = "_archive" ] && continue
 
             is_public=false
             for pub in $PUBLIC_FUNCTIONS; do
