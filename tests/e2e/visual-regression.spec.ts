@@ -106,7 +106,7 @@ async function gotoAndSettle(page: Page, path: string): Promise<void> {
 async function gotoAndSettleWithRecovery(
   page: Page,
   path: string,
-  user: 'master' | 'adminOrg1' | 'adminOrg2' | 'officerOrg1' | 'clientViewer' | 'clientStaff' | 'admin' | 'client'
+  user: 'master' | 'adminOrg1' | 'adminOrg2' | 'officerOrg1' | 'clientViewer' | 'clientStaff' | 'client'
 ): Promise<void> {
   const maxAttempts = 3
 

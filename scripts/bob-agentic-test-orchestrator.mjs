@@ -8,7 +8,21 @@ import { loadLocalEnv } from './load-local-env.mjs'
 
 loadLocalEnv()
 
-const SHARED_PROJECTS = ['chromium', 'firefox', 'webkit', 'Mobile Chrome', 'Mobile Safari']
+const DEFAULT_SHARED_PROJECTS = ['chromium', 'firefox', 'webkit', 'Mobile Chrome', 'Mobile Safari']
+
+function resolveSharedProjects() {
+  const raw = String(process.env.BOB_AGENTIC_PROJECTS || '').trim()
+  if (!raw) return DEFAULT_SHARED_PROJECTS
+
+  const parsed = raw
+    .split(',')
+    .map((token) => token.trim())
+    .filter(Boolean)
+
+  return parsed.length > 0 ? parsed : DEFAULT_SHARED_PROJECTS
+}
+
+const SHARED_PROJECTS = resolveSharedProjects()
 
 const STAGE_CATALOG = {
   lint: {
@@ -311,6 +325,50 @@ function withBobAssist(command, args) {
   }
 }
 
+function hasBugReporterEnv(env) {
+  return Boolean(
+    String(env.VITE_SUPABASE_URL || '').trim() &&
+    String(env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
+  )
+}
+
+async function autoPublishBugReports({ env, args }) {
+  const autoPublishEnabled = String(env.BOB_AUTO_PUBLISH_BUG_REPORTS || '1').trim() !== '0'
+  if (!autoPublishEnabled) {
+    console.log('[bob-agentic-test-orchestrator] Auto publish to bug_reports disabled by BOB_AUTO_PUBLISH_BUG_REPORTS=0')
+    return { attempted: false, skipped: 'disabled', exitCode: 0 }
+  }
+
+  if (!hasBugReporterEnv(env)) {
+    console.log('[bob-agentic-test-orchestrator] Skipping bug_report publish: missing VITE_SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY')
+    return { attempted: false, skipped: 'missing-env', exitCode: 0 }
+  }
+
+  const publisher = process.execPath || 'node'
+  const latestReportPath = path.join(path.resolve(args.outRoot), RETENTION_LATEST_FILE)
+  const emulatorRoot = path.resolve('tools/agentic-ui-reports')
+
+  const exitCode = await runCommand(
+    publisher,
+    [
+      'scripts/publish-test-failures-to-bug-reports.mjs',
+      '--agentic-report',
+      latestReportPath,
+      '--emulator-root',
+      emulatorRoot,
+    ],
+    env
+  )
+
+  if (exitCode === 0) {
+    console.log('[bob-agentic-test-orchestrator] bug_reports publish completed')
+  } else {
+    console.warn('[bob-agentic-test-orchestrator] bug_reports publish failed')
+  }
+
+  return { attempted: true, skipped: null, exitCode }
+}
+
 function toMd(report) {
   return [
     '# Bob Agentic Test Orchestrator Report',
@@ -520,12 +578,26 @@ async function main() {
   await saveReport(outDir, report)
   await saveKnowledgeRetention(args.outRoot, report)
 
+  const publishResult = await autoPublishBugReports({ env, args })
+  report.bugReportPublish = {
+    attempted: publishResult.attempted,
+    skipped: publishResult.skipped,
+    exitCode: publishResult.exitCode,
+    completedAt: new Date().toISOString(),
+  }
+  await saveReport(outDir, report)
+  await saveKnowledgeRetention(args.outRoot, report)
+
   const reportJsonPath = path.join(outDir, 'report.json')
   const reportMdPath = path.join(outDir, 'report.md')
 
   console.log(`\nBob agentic orchestrator complete.\nReport: ${reportJsonPath}\nSummary: ${reportMdPath}`)
 
   if (report.summary.failed > 0) {
+    process.exit(1)
+  }
+
+  if (publishResult.attempted && publishResult.exitCode !== 0) {
     process.exit(1)
   }
 }

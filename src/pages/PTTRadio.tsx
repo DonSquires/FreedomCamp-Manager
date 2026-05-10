@@ -182,6 +182,29 @@ interface VoiceTwinConsentStatus {
   profileActive: boolean
 }
 
+function readPersistedGlobalFilterOrgId(): string | null {
+  if (typeof window === 'undefined') return null
+
+  try {
+    const raw = window.localStorage.getItem('global-filters-storage')
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as { state?: { organizationId?: unknown } }
+    const persisted = parsed?.state?.organizationId
+    return typeof persisted === 'string' && persisted.trim() ? persisted : null
+  } catch {
+    return null
+  }
+}
+
+function resolvePreferredClientOrgId(storeOrganizationId: string | null): string | null {
+  const persisted = readPersistedGlobalFilterOrgId()
+
+  // Persisted global filter is the durable source-of-truth for active org context.
+  if (persisted) return persisted
+  if (storeOrganizationId) return storeOrganizationId
+  return null
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants
 // ─────────────────────────────────────────────────────────────────────────────
@@ -529,7 +552,7 @@ export default function PTTRadio() {
   const [handoffStreetAddress, setHandoffStreetAddress] = useState('')
   const [mobileSettingsMenuOpen, setMobileSettingsMenuOpen] = useState(false)
   const [translationRailEnabled, setTranslationRailEnabled] = useState(true)
-  const [pttStreamMode, setPttStreamMode] = useState<'tactical' | 'diplomatic'>('tactical')
+  const [resolvedMultiplexMode, setResolvedMultiplexMode] = useState<'tactical' | 'diplomatic' | null>(null)
   const [interpreterInput, setInterpreterInput] = useState('')
   const [interpreterOutput, setInterpreterOutput] = useState('')
   const [interpreterTranslationMeta, setInterpreterTranslationMeta] = useState<TranslationResult | null>(null)
@@ -801,6 +824,12 @@ export default function PTTRadio() {
   const homeOrganizationId = user?.organization_id || effectiveOrgId || null
   const employerOrganizationId = user?.employer_organization_id || null
   const providerOrgId = employerOrganizationId || homeOrganizationId || null
+  const preferredClientOrgId = useMemo(() => resolvePreferredClientOrgId(organizationId), [organizationId])
+  const delegatedBySelection = Boolean(
+    preferredClientOrgId &&
+    preferredClientOrgId !== homeOrganizationId &&
+    preferredClientOrgId !== employerOrganizationId,
+  )
 
   const { data: voiceTwinStatusFromDb } = useQuery<VoiceTwinConsentStatus | null>({
     queryKey: ['radio-voice-twin-status', effectiveOrgId, user?.id],
@@ -1051,13 +1080,21 @@ export default function PTTRadio() {
     providerOrgId,
     longitude: handoffGeoPoint?.longitude,
     latitude: handoffGeoPoint?.latitude,
-    preferredClientOrgId: organizationId || null,
+    preferredClientOrgId,
     userId: user?.id,
     defaultTranslationLang: interpreterTargetLanguage,
     enabled: !!user,
   })
 
   const translationRailAvailable = hybridHandshake?.handshake_active === true
+  const delegatedByHandshake = Boolean(
+    hybridHandshake?.handshake_active === true &&
+    hybridHandshake?.client_org_id &&
+    hybridHandshake?.client_org_id !== providerOrgId,
+  )
+  const fallbackStreamMode: 'diplomatic' | 'tactical' =
+    (delegatedBySelection || delegatedByHandshake) ? 'diplomatic' : 'tactical'
+  const pttStreamMode = resolvedMultiplexMode ?? fallbackStreamMode
   const translatorWorkspaceId = hybridHandshake?.workspace_id || null
   const translatorClientOrgId = hybridHandshake?.client_org_id || null
   const translatorTargetLanguage = hybridHandshake?.target_translation_language || interpreterTargetLanguage
@@ -1863,8 +1900,9 @@ export default function PTTRadio() {
   }, [handoffGeoPoint])
 
   useEffect(() => {
+    setResolvedMultiplexMode(null)
+
     if (!providerOrgId) {
-      setPttStreamMode('tactical')
       return
     }
 
@@ -1872,22 +1910,36 @@ export default function PTTRadio() {
 
     edgeFunctions.pttMultiplexContext({
       provider_org_id: providerOrgId,
-      client_org_id: hybridHandshake?.client_org_id || null,
+      client_org_id: hybridHandshake?.client_org_id || preferredClientOrgId,
       branch_id: hybridHandshake?.branch_id || null,
     })
       .then((result: any) => {
         if (cancelled) return
-        const stream = String(result?.data?.stream || '').toLowerCase()
-        setPttStreamMode(stream === 'diplomatic' ? 'diplomatic' : 'tactical')
+
+        const payload = result?.data?.data ?? result?.data ?? result ?? {}
+        const stream = String(payload?.stream || payload?.mode || payload?.route_mode || '').toLowerCase()
+        const payloadClientOrgId = String(payload?.client_org_id || '').trim()
+        const delegatedByPayload =
+          stream === 'diplomatic'
+          || (payload?.handshake_active === true && !!payloadClientOrgId && payloadClientOrgId !== providerOrgId)
+
+        if (stream === 'diplomatic' || stream === 'tactical') {
+          setResolvedMultiplexMode(stream)
+          return
+        }
+
+        setResolvedMultiplexMode(delegatedByPayload ? 'diplomatic' : 'tactical')
       })
       .catch(() => {
-        if (!cancelled) setPttStreamMode('tactical')
+        if (!cancelled) {
+          setResolvedMultiplexMode(null)
+        }
       })
 
     return () => {
       cancelled = true
     }
-  }, [providerOrgId, hybridHandshake?.client_org_id, hybridHandshake?.branch_id])
+  }, [providerOrgId, preferredClientOrgId, hybridHandshake?.client_org_id, hybridHandshake?.branch_id])
 
   const requestMicrophoneAccess = useCallback(async () => {
     try {
@@ -2834,6 +2886,7 @@ export default function PTTRadio() {
           <div className="flex items-center gap-2 md:gap-3">
             <Radio className="h-5 w-5 text-blue-400" />
             <div>
+              <h1 className="text-[10px] md:text-xs text-slate-300 uppercase tracking-widest">Radio</h1>
               <div className="text-[10px] md:text-xs text-slate-500 uppercase tracking-widest">Callsign</div>
               <div className="text-base md:text-lg font-semibold text-white tracking-wide">{callsign || '---'}</div>
             </div>

@@ -756,9 +756,17 @@ export async function loginAs(page: Page, user: TestUserKey): Promise<void> {
   let lastErrorText: string | null = null
   for (let attempt = 0; attempt < 2; attempt += 1) {
     await page.goto('/login')
-    await page.fill('input[type="email"]', credentials.email)
-    await page.fill('input[type="password"]', credentials.password)
-    await page.click('button[type="submit"]')
+
+    const emailInput = page.locator('input[type="email"], input[name="email"], #email').first()
+    const passwordInput = page.locator('input[type="password"], input[name="password"], #password').first()
+    const submitButton = page.locator('button[type="submit"], button:has-text("Sign In")').first()
+
+    await emailInput.waitFor({ state: 'visible', timeout: 30000 })
+    await passwordInput.waitFor({ state: 'visible', timeout: 30000 })
+
+    await emailInput.fill(credentials.email)
+    await passwordInput.fill(credentials.password)
+    await submitButton.click()
 
     const loginSucceeded = await page
       .waitForURL((url) => !url.pathname.startsWith('/login'), { timeout: 20000 })

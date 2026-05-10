@@ -47,6 +47,10 @@ import { useBobAssistantStore } from '@/stores/bobAssistantStore'
 import { getEffectiveBobExecutionPolicy, useBobExecutionPolicyStore } from '@/stores/bobExecutionPolicyStore'
 import { supabase } from '@/lib/supabase'
 import { TERMINAL_BUG_REPORT_STATUSES } from '@/lib/bugReportStatus'
+import {
+  buildHistoricalDispatchPlacementReview,
+  verifyBobDispatchPlacementPlan,
+} from '@/lib/historicalDispatchIntelligence'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -98,7 +102,7 @@ interface BugDigest {
   created_at: string
 }
 
-type AgreementIntakeType = 'service_agreement' | 'alarm_contact_matrix' | 'historical_patrol_data'
+type AgreementIntakeType = 'service_agreement' | 'alarm_contact_matrix' | 'historical_patrol_data' | 'historical_alarm_dispatch_data'
 type IntakeExecutionMode = 'draft_plan' | 'review_assess_action'
 
 // ── Suggested prompts ─────────────────────────────────────────────────────────
@@ -227,6 +231,29 @@ function renderInline(text: string): React.ReactNode {
   })
 }
 
+function extractFirstJsonObject(text: string): Record<string, any> | null {
+  const fenced = text.match(/```json\s*([\s\S]+?)\s*```/i)
+  const candidate = fenced?.[1] || text
+
+  try {
+    const parsed = JSON.parse(candidate)
+    return parsed && typeof parsed === 'object' ? parsed : null
+  } catch {
+    // Ignore direct parse failure and try brace extraction.
+  }
+
+  const firstBrace = candidate.indexOf('{')
+  const lastBrace = candidate.lastIndexOf('}')
+  if (firstBrace < 0 || lastBrace <= firstBrace) return null
+
+  try {
+    const parsed = JSON.parse(candidate.slice(firstBrace, lastBrace + 1))
+    return parsed && typeof parsed === 'object' ? parsed : null
+  } catch {
+    return null
+  }
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function AiAnalysis() {
@@ -247,6 +274,8 @@ export default function AiAnalysis() {
   const [agreementContextChunks, setAgreementContextChunks] = useState<string[]>([])
   const [agreementIntakeType, setAgreementIntakeType] = useState<AgreementIntakeType>('service_agreement')
   const [intakeExecutionMode, setIntakeExecutionMode] = useState<IntakeExecutionMode>('draft_plan')
+  const [simpleChatMode, setSimpleChatMode] = useState(true)
+  const [advancedControlsOpen, setAdvancedControlsOpen] = useState(false)
   const [isQueueingOwnerTask, setIsQueueingOwnerTask] = useState(false)
   const [completedChecklist, setCompletedChecklist] = useState<Record<string, boolean>>({})
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -255,6 +284,8 @@ export default function AiAnalysis() {
   const pttBaseInputRef = useRef('')
   const isGrandMasterOwner = user?.role === 'grand_master'
   const isPolicyManager = user?.role === 'master' || user?.role === 'grand_master'
+  const canAccessAdvancedControls = ['admin', 'admin_officer', 'master', 'grand_master'].includes(String(user?.role || ''))
+  const advancedControlsPrefKey = `ai-analysis-advanced-controls:${String(user?.id || 'anon')}`
   const policyMode = useBobExecutionPolicyStore((state) => state.mode)
   const setPolicyMode = useBobExecutionPolicyStore((state) => state.setMode)
   const enforceSchemaCheck = useBobExecutionPolicyStore((state) => state.enforceSchemaCheck)
@@ -269,6 +300,38 @@ export default function AiAnalysis() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
+
+  useEffect(() => {
+    if (!canAccessAdvancedControls) {
+      setAdvancedControlsOpen(false)
+      setSimpleChatMode(true)
+    }
+  }, [canAccessAdvancedControls])
+
+  useEffect(() => {
+    if (!canAccessAdvancedControls) return
+    if (typeof window === 'undefined') return
+
+    try {
+      const stored = window.localStorage.getItem(advancedControlsPrefKey)
+      const shouldOpenAdvanced = stored === '1'
+      setAdvancedControlsOpen(shouldOpenAdvanced)
+      setSimpleChatMode(!shouldOpenAdvanced)
+    } catch {
+      // Ignore storage access issues and keep defaults.
+    }
+  }, [advancedControlsPrefKey, canAccessAdvancedControls])
+
+  useEffect(() => {
+    if (!canAccessAdvancedControls) return
+    if (typeof window === 'undefined') return
+
+    try {
+      window.localStorage.setItem(advancedControlsPrefKey, advancedControlsOpen ? '1' : '0')
+    } catch {
+      // Ignore storage access issues.
+    }
+  }, [advancedControlsPrefKey, advancedControlsOpen, canAccessAdvancedControls])
 
   useEffect(() => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
@@ -371,8 +434,8 @@ export default function AiAnalysis() {
     }
   }, [])
 
-  const sendMessage = useCallback(async (content: string) => {
-    if (!content.trim() || isLoading) return
+  const sendMessage = useCallback(async (content: string): Promise<string | null> => {
+    if (!content.trim() || isLoading) return null
 
     const userMsg: ChatMessage = {
       id: `u-${Date.now()}`,
@@ -432,6 +495,7 @@ export default function AiAnalysis() {
           },
         })
       }
+      return assistantMsg.content
     } catch (err: any) {
       const rawError = String(err?.message || '')
       const isEdgeOutage =
@@ -474,6 +538,7 @@ export default function AiAnalysis() {
         })
       }
       toast.error('Bob request failed', { description: err.message })
+      return null
     } finally {
       setIsLoading(false)
       textareaRef.current?.focus()
@@ -518,7 +583,7 @@ export default function AiAnalysis() {
     toast.success('Agreement excerpt added to Bob context')
   }
 
-  const runAgreementSetupAssist = () => {
+  const runAgreementSetupAssist = async () => {
     const currentExcerpt = agreementExcerpt.trim()
     const chunks = currentExcerpt
       ? [...agreementContextChunks, currentExcerpt]
@@ -600,13 +665,55 @@ export default function AiAnalysis() {
       compiledAgreement,
     ].join('\n')
 
+    const historicalDispatchReview = buildHistoricalDispatchPlacementReview(compiledAgreement)
+
+    const historicalAlarmDispatchPrompt = [
+      'You are Bob, classifying historical alarm and dispatch jobs from tabular exports.',
+      ...commonInstructions,
+      'Use the deterministic pre-review below as ground truth hints and reconcile any uncertainty explicitly.',
+      `Pre-review totals: rows=${historicalDispatchReview.totalRows}, missing_despatch_no=${historicalDispatchReview.rowsMissingDespatchNo}, missing_timestamps=${historicalDispatchReview.rowsMissingTimestamps}.`,
+      `Pre-review type counts: noise_control=${historicalDispatchReview.typeCounts.noise_control}, alarm_activation=${historicalDispatchReview.typeCounts.alarm_activation}, fire_alarm=${historicalDispatchReview.typeCounts.fire_alarm}, late_to_close=${historicalDispatchReview.typeCounts.late_to_close}, atm_maintenance=${historicalDispatchReview.typeCounts.atm_maintenance}, other_dispatch=${historicalDispatchReview.typeCounts.other_dispatch}.`,
+      'Return strict JSON only with this shape:',
+      '{"jobs":[{"despatch_no":string,"job_type":"noise_control|alarm_activation|fire_alarm|late_to_close|atm_maintenance|other_dispatch","target_locations":string[],"confidence":number,"reason":string}],"admin_feedback":{"summary":string,"issues":string[],"proposed_fixes":string[],"officer_discussion_points":string[],"client_alternative_options":string[]},"validation":{"missing_fields":string[],"needs_admin_review":string[]}}',
+      'Placement intent by type:',
+      '- noise_control -> noise_jobs + noise_assessments + dispatch_jobs',
+      '- alarm_activation/fire_alarm/late_to_close -> alarm_events + dispatch_jobs + incidents',
+      '- atm_maintenance -> dispatch_jobs + operational_cases',
+      '- other_dispatch -> dispatch_jobs',
+      ...executionSuffix,
+      '',
+      'Historical alarm/dispatch excerpts:',
+      compiledAgreement,
+    ].join('\n')
+
     const prompt = agreementIntakeType === 'alarm_contact_matrix'
       ? alarmMatrixPrompt
       : agreementIntakeType === 'historical_patrol_data'
         ? historicalPatrolPrompt
+        : agreementIntakeType === 'historical_alarm_dispatch_data'
+          ? historicalAlarmDispatchPrompt
         : serviceAgreementPrompt
 
-    void sendMessage(prompt)
+    const firstResponse = await sendMessage(prompt)
+
+    if (agreementIntakeType === 'historical_alarm_dispatch_data' && firstResponse) {
+      const parsed = extractFirstJsonObject(firstResponse)
+      const verification = verifyBobDispatchPlacementPlan(parsed, historicalDispatchReview)
+
+      if (!verification.isValid) {
+        const correctionPrompt = [
+          'Training correction required: your historical dispatch placement plan did not pass validation.',
+          'Fix every error below and return corrected strict JSON only with the same schema.',
+          `Validation errors: ${verification.errors.join(' | ')}`,
+          historicalDispatchReview.trainingTips.length
+            ? `Training tips: ${historicalDispatchReview.trainingTips.join(' | ')}`
+            : 'Training tips: none',
+          'Do not omit rows. Keep despatch_no values exact.',
+        ].join('\n')
+
+        await sendMessage(correctionPrompt)
+      }
+    }
   }
 
   const queueOwnerAgreementTask = async () => {
@@ -628,12 +735,14 @@ export default function AiAnalysis() {
     setIsQueueingOwnerTask(true)
     try {
       const question = [
-        `${agreementIntakeType === 'alarm_contact_matrix' ? 'Alarm/security contact matrix' : agreementIntakeType === 'historical_patrol_data' ? 'Historical patrol data' : 'Service agreement'} intake request${agreementClientName.trim() ? ` for ${agreementClientName.trim()}` : ''}.`,
+        `${agreementIntakeType === 'alarm_contact_matrix' ? 'Alarm/security contact matrix' : agreementIntakeType === 'historical_patrol_data' ? 'Historical patrol data' : agreementIntakeType === 'historical_alarm_dispatch_data' ? 'Historical alarm and dispatch data' : 'Service agreement'} intake request${agreementClientName.trim() ? ` for ${agreementClientName.trim()}` : ''}.`,
         'Document excerpts may be partial; reconcile incrementally and output missing fields separately.',
         agreementIntakeType === 'alarm_contact_matrix'
           ? 'Need site-level escalation mapping: response order, police escalation rules, keyholder fallback, and security contractor defaults.'
           : agreementIntakeType === 'historical_patrol_data'
             ? 'Need historical patrol enrichment: normalize timestamps, dedupe by dispatch id, map site/client entities, and output import-safe payload plan.'
+            : agreementIntakeType === 'historical_alarm_dispatch_data'
+              ? 'Need historical alarm/dispatch classification into noise, alarm activation, ATM maintenance, and related job types, then map each to correct system locations with validation.'
             : 'Need setup plan for both directions: service provider onboarding a new client, and client onboarding/changing service provider.',
         intakeExecutionMode === 'review_assess_action'
           ? 'Run as E2E review-assess-action: include decision gates, risk/confidence scores, and an execution checklist that can be actioned immediately.'
@@ -677,6 +786,21 @@ export default function AiAnalysis() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {canAccessAdvancedControls ? (
+              <Button
+                variant={advancedControlsOpen ? 'secondary' : 'outline'}
+                size="sm"
+                onClick={() => {
+                  const next = !advancedControlsOpen
+                  setAdvancedControlsOpen(next)
+                  setSimpleChatMode(!next)
+                }}
+              >
+                {advancedControlsOpen ? 'Advanced On' : 'Advanced'}
+              </Button>
+            ) : (
+              <Badge variant="outline">Simple Chat</Badge>
+            )}
             {hasMessages && (
               <Button
                 variant="ghost"
@@ -692,6 +816,7 @@ export default function AiAnalysis() {
         </div>
 
         {/* Known issue broadcast */}
+        {advancedControlsOpen && (
         <Card className="shrink-0 border-amber-200 bg-amber-50 dark:border-amber-900/40 dark:bg-amber-900/15">
           <CardContent className="py-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-start gap-2">
@@ -735,7 +860,9 @@ export default function AiAnalysis() {
             </div>
           </CardContent>
         </Card>
+        )}
 
+        {advancedControlsOpen && (
         <Card className="shrink-0 border-blue-200 bg-blue-50/70 dark:border-blue-900/40 dark:bg-blue-900/10">
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Operational Intake Controller</CardTitle>
@@ -785,8 +912,16 @@ export default function AiAnalysis() {
               >
                 Historical Patrol Data Mode
               </Button>
+              <Button
+                variant={agreementIntakeType === 'historical_alarm_dispatch_data' ? 'default' : 'outline'}
+                size="sm"
+                disabled={isLoading}
+                onClick={() => setAgreementIntakeType('historical_alarm_dispatch_data')}
+              >
+                Historical Alarm/Dispatch Mode
+              </Button>
               <Badge variant="outline">
-                Active mode: {agreementIntakeType === 'alarm_contact_matrix' ? 'alarm/escalation matrix' : agreementIntakeType === 'historical_patrol_data' ? 'historical patrol data' : 'service agreement'}
+                Active mode: {agreementIntakeType === 'alarm_contact_matrix' ? 'alarm/escalation matrix' : agreementIntakeType === 'historical_patrol_data' ? 'historical patrol data' : agreementIntakeType === 'historical_alarm_dispatch_data' ? 'historical alarm/dispatch data' : 'service agreement'}
               </Badge>
               <Badge variant="outline">
                 Execution: {intakeExecutionMode === 'review_assess_action' ? 'review-assess-action' : 'draft plan'}
@@ -802,7 +937,7 @@ export default function AiAnalysis() {
               <Textarea
                 value={agreementExcerpt}
                 onChange={(e) => setAgreementExcerpt(e.target.value)}
-                placeholder={agreementIntakeType === 'historical_patrol_data' ? 'Paste historical patrol rows (Excel export, CSV, or tabular text)...' : 'Paste agreement excerpt (partial is fine)...'}
+                placeholder={agreementIntakeType === 'historical_patrol_data' ? 'Paste historical patrol rows (Excel export, CSV, or tabular text)...' : agreementIntakeType === 'historical_alarm_dispatch_data' ? 'Paste historical alarm/dispatch rows (tab-separated export preferred)...' : 'Paste agreement excerpt (partial is fine)...'}
                 rows={3}
                 disabled={isLoading}
               />
@@ -832,7 +967,9 @@ export default function AiAnalysis() {
             </div>
           </CardContent>
         </Card>
+        )}
 
+        {advancedControlsOpen && (
         <Card className="shrink-0">
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Bob Execution Policy</CardTitle>
@@ -857,12 +994,13 @@ export default function AiAnalysis() {
             )}
           </CardContent>
         </Card>
+        )}
 
         {/* ── Main layout ─────────────────────────────────────────────────────── */}
         <div className="flex gap-4 flex-1 min-h-0">
 
           {/* ── Suggested prompts sidebar ──────────────────────────────────── */}
-          {!hasMessages && (
+          {advancedControlsOpen && !hasMessages && (
             <div className="w-64 shrink-0 hidden lg:flex flex-col gap-2">
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide px-1">
                 Suggested prompts
@@ -897,7 +1035,7 @@ export default function AiAnalysis() {
                       <div>
                         <p className="font-semibold text-base">Welcome to Bob</p>
                         <p className="text-sm text-muted-foreground mt-1 max-w-sm">
-                          Ask anything about compliance, enforcement, NZ legislation, breach trends, or operational strategy.
+                          Ask anything about compliance, enforcement, NZ legislation, breach trends, or operations. For media, ask Bob to create photo prompts, video scripts, or briefing pack inputs.
                         </p>
                       </div>
                       {/* Mobile suggested prompts */}
@@ -1037,6 +1175,26 @@ export default function AiAnalysis() {
                   />
                   <Button
                     type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={isLoading}
+                    className="h-9 shrink-0"
+                    onClick={() => sendMessage(`Create a photorealistic image prompt pack for this request with: main prompt, negative prompt, camera style, lighting notes, and 3 alternate shots. Request: ${inputValue || 'operational field incident response scene'}`)}
+                  >
+                    Photo
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={isLoading}
+                    className="h-9 shrink-0"
+                    onClick={() => sendMessage(`Create a short operational briefing video package for this request with: scene list, narration script, B-roll list, and voiceover timing. Request: ${inputValue || 'incident summary and response briefing'}`)}
+                  >
+                    Video
+                  </Button>
+                  <Button
+                    type="button"
                     variant={isPttRecording ? 'destructive' : 'outline'}
                     size="sm"
                     disabled={!isPttSupported || isLoading}
@@ -1076,6 +1234,9 @@ export default function AiAnalysis() {
                 </div>
                 <p className="text-[10px] text-muted-foreground mt-2 px-0.5">
                   Bob uses your organisation's inference backend. Responses may not always be accurate — verify important information.
+                </p>
+                <p className="text-[10px] text-muted-foreground mt-1 px-0.5">
+                  The Photo/Video buttons generate production-ready creative instructions in chat. Use Briefing Video Suite for audited video pack generation from incident/breach IDs.
                 </p>
                 <p className="text-[10px] text-muted-foreground mt-1 px-0.5">
                   {isPttSupported ? 'Push-to-talk: hold the mic button while speaking.' : 'Push-to-talk works in Chrome/Edge.'}

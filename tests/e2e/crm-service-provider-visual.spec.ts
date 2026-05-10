@@ -62,7 +62,11 @@ test.describe('CRM full visual provisioning and module sweep', () => {
   })
 
   test('visual route sweep for CRM and enabled modules', async ({ page }, testInfo) => {
-    test.setTimeout(180000)
+    // This sweep visits many live routes and runs Bob UI assessment per route.
+    // Keep the timeout proportional to scope so growth in route count does not
+    // create false negatives unrelated to product behavior.
+    const estimatedMs = Math.max(180000, CRM_SERVICE_ROUTES.length * 9000)
+    test.setTimeout(estimatedMs)
     await loginAs(page, 'master')
 
     const routeIssues: Array<{ route: string; consoleErrors: string[]; bodySnippet: string }> = []

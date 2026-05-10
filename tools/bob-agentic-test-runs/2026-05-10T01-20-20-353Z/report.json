@@ -1,0 +1,62 @@
+{
+  "runId": "2026-05-10T01-20-20-353Z",
+  "batch": "all",
+  "scope": "quick",
+  "startedAt": "2026-05-10T01:20:20.357Z",
+  "endedAt": null,
+  "resumeMode": false,
+  "continueOnFailure": true,
+  "browserInstallAttempted": false,
+  "browserInstallExitCode": null,
+  "stages": [
+    {
+      "id": "lint",
+      "description": "Lint codebase",
+      "command": "/home/vscode/.bun/bin/bun",
+      "args": [
+        "scripts/run-test-with-bob-assist.mjs",
+        "--",
+        "bun",
+        "run",
+        "lint"
+      ],
+      "exitCode": 0,
+      "status": "pass",
+      "durationMs": 32264
+    },
+    {
+      "id": "build",
+      "description": "Build app",
+      "command": "/home/vscode/.bun/bin/bun",
+      "args": [
+        "scripts/run-test-with-bob-assist.mjs",
+        "--",
+        "bun",
+        "run",
+        "build"
+      ],
+      "exitCode": 0,
+      "status": "pass",
+      "durationMs": 118568
+    },
+    {
+      "id": "nav-parity",
+      "description": "Run navigation parity tests",
+      "command": "/home/vscode/.bun/bin/bun",
+      "args": [
+        "scripts/run-test-with-bob-assist.mjs",
+        "--",
+        "bun",
+        "run",
+        "test:nav-parity"
+      ],
+      "exitCode": 0,
+      "status": "pass",
+      "durationMs": 8888
+    }
+  ],
+  "summary": {
+    "passed": 3,
+    "failed": 0
+  }
+}

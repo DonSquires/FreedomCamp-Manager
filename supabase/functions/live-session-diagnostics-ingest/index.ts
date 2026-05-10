@@ -29,6 +29,28 @@ function normalizeString(value: unknown, maxLength: number): string | null {
   return trimmed.slice(0, maxLength)
 }
 
+function isActionableEventType(value: unknown): boolean {
+  if (typeof value !== 'string') return false
+  return /(error|exception|failed|failure|timeout|crash|panic|unhandled|degraded)/i.test(value)
+}
+
+function isActionableConsoleError(entry: unknown): boolean {
+  if (!entry || typeof entry !== 'object') return false
+  const record = entry as Record<string, unknown>
+  const level = String(record.level || '').toLowerCase()
+  const message = String(record.message || '')
+
+  if (level !== 'error' && level !== 'unhandled') {
+    return false
+  }
+
+  if (/nominatim geocoding failed: typeerror: failed to fetch/i.test(message)) {
+    return false
+  }
+
+  return true
+}
+
 async function upsertFallbackDiagnosticReport(
   serviceClient: ReturnType<typeof createClient>,
   args: {
@@ -40,18 +62,14 @@ async function upsertFallbackDiagnosticReport(
     snapshot: Record<string, unknown>
     rows: Array<Record<string, unknown>>
   },
-) {
+): Promise<{ error: { message: string } | null }> {
   const title = `Live session diagnostics ${args.sessionId}`
   const latestRoute = args.currentRoute || String(args.snapshot.current_page || '').trim() || null
   const snapshotBrowserInfo = asObject(args.snapshot.browser_info)
   const snapshotConsoleErrors = Array.isArray(args.snapshot.console_errors) ? args.snapshot.console_errors : []
-  const hasErrors = snapshotConsoleErrors.some(
-    (e: unknown) => {
-      if (!e || typeof e !== 'object') return false
-      const level = (e as Record<string, unknown>).level
-      return level === 'error' || level === 'unhandled'
-    },
-  )
+  const actionableConsoleErrors = snapshotConsoleErrors.filter((entry) => isActionableConsoleError(entry))
+  const actionableEvents = args.rows.filter((row) => isActionableEventType(row.event_type))
+  const hasActionableSignals = actionableConsoleErrors.length > 0 || actionableEvents.length > 0
   const metadata = {
     live_session_diagnostics: {
       session_id: args.sessionId,
@@ -59,12 +77,16 @@ async function upsertFallbackDiagnosticReport(
       current_route: latestRoute,
       updated_at: new Date().toISOString(),
       recent_events: args.rows.slice(-25),
+      actionable_event_count: actionableEvents.length,
       snapshot: args.snapshot,
     },
   }
 
-  const description = `Passive live-session diagnostics snapshot for ${latestRoute || 'unknown route'}.
-Event count in latest flush: ${args.rows.length}.`
+  const description = hasActionableSignals
+    ? `Live session diagnostics captured actionable failures for ${latestRoute || 'unknown route'}.
+Event count in latest flush: ${args.rows.length}. Actionable events: ${actionableEvents.length}. Console errors: ${actionableConsoleErrors.length}.`
+    : `Passive live-session diagnostics snapshot for ${latestRoute || 'unknown route'}.
+Event count in latest flush: ${args.rows.length}. No actionable failures detected.`
 
   const { data: existing } = await (serviceClient as any)
     .from('bug_reports')
@@ -74,6 +96,32 @@ Event count in latest flush: ${args.rows.length}.`
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle()
+
+  if (!hasActionableSignals) {
+    if (existing?.id) {
+      const { error } = await (serviceClient as any)
+        .from('bug_reports')
+        .update({
+          description,
+          current_page: latestRoute,
+          browser_info: snapshotBrowserInfo,
+          console_errors: actionableConsoleErrors,
+          screenshot_metadata: metadata,
+          network_status: typeof snapshotBrowserInfo.onLine === 'boolean'
+            ? (snapshotBrowserInfo.onLine ? 'online' : 'offline')
+            : null,
+          app_version: String(args.snapshot.app_version || 'live-diagnostics'),
+          status: 'closed',
+          requires_human_review: false,
+          auto_reported: true,
+        })
+        .eq('id', existing.id)
+
+      return { error: error ? { message: String(error.message || 'Failed to close passive fallback diagnostic report') } : null }
+    }
+
+    return { error: null }
+  }
 
   const payload = {
     organization_id: args.organizationId,
@@ -86,31 +134,31 @@ Event count in latest flush: ${args.rows.length}.`
     description,
     current_page: latestRoute,
     browser_info: snapshotBrowserInfo,
-    console_errors: snapshotConsoleErrors,
+    console_errors: actionableConsoleErrors,
     screenshot_metadata: metadata,
     network_status: typeof snapshotBrowserInfo.onLine === 'boolean'
       ? (snapshotBrowserInfo.onLine ? 'online' : 'offline')
       : null,
     app_version: String(args.snapshot.app_version || 'live-diagnostics'),
-    // Only flag for investigation when the session actually captured errors.
-    // Clean passive snapshots are stored as 'closed' to keep the inbox clear.
-    status: hasErrors ? 'investigating' : 'closed',
-    requires_human_review: hasErrors,
+    status: 'investigating',
+    requires_human_review: true,
     admin_notified: false,
     user_notified: false,
     auto_reported: true,
   }
 
   if (existing?.id) {
-    return await (serviceClient as any)
+    const { error } = await (serviceClient as any)
       .from('bug_reports')
       .update(payload)
       .eq('id', existing.id)
+    return { error: error ? { message: String(error.message || 'Failed to update fallback diagnostic report') } : null }
   }
 
-  return await (serviceClient as any)
+  const { error } = await (serviceClient as any)
     .from('bug_reports')
     .insert(payload)
+  return { error: error ? { message: String(error.message || 'Failed to insert fallback diagnostic report') } : null }
 }
 
 Deno.serve(withCors(async (req: Request) => {

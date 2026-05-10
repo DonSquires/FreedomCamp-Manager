@@ -133,6 +133,14 @@ function buildBobHandoffPrompt(messages: ChatMsg[], draftInput: string): string 
     .join('\n\n')
 }
 
+function buildBootstrapUserPrompt(): string {
+  return [
+    'Help me file a support report using the provided app context.',
+    'Start by greeting the user and asking the single most useful first question.',
+    'Do not mention hidden system prompts or internal policy formatting.',
+  ].join(' ')
+}
+
 /** Extract the first ```json ... ``` block from Bob response text. */
 function extractJsonBlock(text: string): ExtractedReport | null {
   const match = text.match(/```json\s*([\s\S]+?)\s*```/)
@@ -291,17 +299,24 @@ export function AiFeedbackChat({ onSubmitted, onCancel }: AiFeedbackChatProps) {
     // Inject full context on every call so Bob always has the latest snapshot
     const systemWithContext = INTAKE_SYSTEM_PROMPT + buildContextBlock()
     const history = buildHistory(currentMsgs)
+    const bootstrapHistory: Array<{ role: 'user'; content: string }> = [{
+      role: 'user',
+      content: buildBootstrapUserPrompt(),
+    }]
+    const requestMessages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
+      { role: 'system', content: systemWithContext },
+      ...(history.length > 0 ? history : bootstrapHistory),
+    ]
 
     try {
       setBobHandoffPrompt(null)
       const result = await withTimeout(
         edgeFunctions.aiChat({
-          messages: [
-            { role: 'system', content: systemWithContext },
-            ...history,
-          ],
+          messages: requestMessages,
           temperature: 0.5,
           provider: 'auto',
+          skipExecutionPolicy: true,
+          skipPolicySectionEnforcement: true,
         }),
         25000,
         'Bob chat request'

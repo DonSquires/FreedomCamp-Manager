@@ -1284,6 +1284,8 @@ export const edgeFunctions = {
     model?: string
     temperature?: number
     provider?: 'auto' | 'ollama' | 'inference'
+    skipExecutionPolicy?: boolean
+    skipPolicySectionEnforcement?: boolean
   }) => {
     const policy = getEffectiveBobExecutionPolicy()
     const executionPrompt = buildBobExecutionSystemPrompt()
@@ -1291,15 +1293,17 @@ export const edgeFunctions = {
       (message) => message.role === 'system' && message.content.includes('execution-first mode')
     )
 
-    const requestParams = hasExecutionSystemPrompt
-      ? params
-      : {
+    const shouldInjectExecutionPrompt = !params.skipExecutionPolicy && !hasExecutionSystemPrompt
+
+    const requestParams = shouldInjectExecutionPrompt
+      ? {
           ...params,
           messages: [
             { role: 'system' as const, content: executionPrompt },
             ...(params.messages || []),
           ],
         }
+      : params
 
     // AiAnalysis.tsx renders errors in the chat and shows its own toast, so
     // suppress the automatic toast here to avoid duplicate error notifications.
@@ -1324,7 +1328,7 @@ export const edgeFunctions = {
     const data = result.data as any
     let normalizedResponse = pickNormalizedResponse(data)
 
-    if (policy.enforceHardSections && normalizedResponse) {
+    if (!params.skipPolicySectionEnforcement && policy.enforceHardSections && normalizedResponse) {
       const missingSections = findMissingRequiredSections(normalizedResponse)
       if (missingSections.length > 0) {
         const retryMessages = [
@@ -1889,7 +1893,10 @@ export const edgeFunctions = {
     client_org_id?: string | null
     branch_id?: string | null
   }) => {
-    return callEdgeFunction('ptt-multiplex-context', params, { showToast: false })
+    return callEdgeFunction('ptt-multiplex-context', params, {
+      showToast: false,
+      useDirectFetch: true,
+    })
   },
 
   /**

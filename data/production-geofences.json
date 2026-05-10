@@ -176,6 +176,59 @@
       }
     },
     {
+      "id": "nelson-cc",
+      "council": "Nelson City Council",
+      "region": "Top of South Island",
+      "bounds": {
+        "north": -41.15,
+        "south": -41.4,
+        "east": 173.4,
+        "west": 173.1
+      },
+      "polygon": [
+        [
+          -41.15,
+          173.1
+        ],
+        [
+          -41.15,
+          173.4
+        ],
+        [
+          -41.4,
+          173.4
+        ],
+        [
+          -41.4,
+          173.1
+        ],
+        [
+          -41.15,
+          173.1
+        ]
+      ],
+      "bylaws": {
+        "freedomCamping": {
+          "prohibited": true,
+          "exemptions": [
+            "Designated freedom camping areas only"
+          ],
+          "enforcementOfficers": 1.1,
+          "staffRatio": 1
+        },
+        "noise": {
+          "commercialLimit": 75,
+          "residentialLimit": 70,
+          "enforcementThreshold": 80
+        }
+      },
+      "riskProfile": {
+        "seizureRule": "2h-notice",
+        "towing": true,
+        "occupantRemoval": false
+      }
+    },
+    {
       "id": "christchurch-cc",
       "council": "Christchurch City Council",
       "region": "Canterbury",

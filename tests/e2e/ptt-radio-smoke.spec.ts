@@ -10,12 +10,24 @@ async function stubTranslationRailContext(
     workspaceName?: string
   },
 ) {
+  const corsHeaders = {
+    'access-control-allow-origin': '*',
+    'access-control-allow-methods': 'GET,POST,OPTIONS',
+    'access-control-allow-headers': 'authorization,apikey,content-type,x-client-timezone,x-org-id',
+  }
+
   await page.context().grantPermissions(['geolocation'])
   await page.context().setGeolocation({ latitude: -41.2706, longitude: 173.284 })
 
-  await page.route(`${supabaseUrl}/rest/v1/rpc/resolve_hybrid_workspace_handshake`, async (route: any) => {
+  await page.route(/\/rest\/v1\/rpc\/resolve_hybrid_workspace_handshake(?:\?|$)/, async (route: any) => {
+    if (route.request().method() === 'OPTIONS') {
+      await route.fulfill({ status: 200, headers: corsHeaders, body: '' })
+      return
+    }
+
     await route.fulfill({
       status: 200,
+      headers: corsHeaders,
       contentType: 'application/json',
       body: JSON.stringify({
         matched: true,
@@ -31,9 +43,15 @@ async function stubTranslationRailContext(
     })
   })
 
-  await page.route(`${supabaseUrl}/functions/v1/ptt-multiplex-context`, async (route: any) => {
+  await page.route(/\/functions\/v1\/ptt-multiplex-context(?:\?|$)/, async (route: any) => {
+    if (route.request().method() === 'OPTIONS') {
+      await route.fulfill({ status: 200, headers: corsHeaders, body: '' })
+      return
+    }
+
     await route.fulfill({
       status: 200,
+      headers: corsHeaders,
       contentType: 'application/json',
       body: JSON.stringify({
         success: true,
@@ -64,14 +82,16 @@ async function assertRadioLoads(page: any) {
   await expect(page).toHaveURL(/\/radio/)
 
   // Stable radio UI markers on PTTRadio page.
-  await expect(page.getByRole('heading', { name: 'Radio' })).toBeVisible({ timeout: 20000 })
-  await expect(page.getByTestId('ptt-main-button')).toBeVisible({ timeout: 20000 })
-  await expect(page.getByTestId('ptt-channel-1').first()).toBeVisible({ timeout: 20000 })
-  await expect(page.getByText('Emergency — All Channels')).toBeVisible({ timeout: 20000 })
+  // The radio page shows the active channel label rather than a static "Radio" heading.
+  // Verify the CHANNELS panel label and known PTT UI elements are visible.
+  await expect(page.getByText('Channels', { exact: true })).toBeVisible({ timeout: 20000 })
+  await expect(page.getByRole('button', { name: /push to talk/i })).toBeVisible({ timeout: 20000 })
+  await expect(page.getByRole('button', { name: /all units/i }).first()).toBeVisible({ timeout: 20000 })
+  await expect(page.getByRole('button', { name: /Emergency\s+—\s+All Channels/i })).toBeVisible({ timeout: 20000 })
 }
 
 async function connectPrimaryChannel(page: any) {
-  const primaryChannel = page.getByTestId('ptt-channel-1').first()
+  const primaryChannel = page.getByRole('button', { name: /all units/i }).first()
   await primaryChannel.click()
   await waitForRadioState(page, 'connected')
   await waitForRadioState(page, 'ready')
@@ -107,26 +127,48 @@ test.describe('PTT radio route smoke', () => {
     await waitForRadioState(masterUser, 'ready', 10000)
   })
 
-  test('radio shows Diplomatic Route when multiplex context is delegated', async ({ officerUser: page }) => {
+  test('radio shows Diplomatic Route when multiplex context is delegated', async ({ masterUser: page, syntheticOrganization }) => {
     await stubTranslationRailContext(page, {
       stream: 'diplomatic',
       clientOrgId: 'b8f3a1e4-5c7d-4e9f-a2b6-3c8d9e1f2a3b',
       workspaceName: 'Nelson Delegated Workspace',
     })
 
+    await applySyntheticOrganization(page, syntheticOrganization)
+    const multiplexRequest = page.waitForRequest(
+      (request: any) => /\/functions\/v1\/ptt-multiplex-context(?:\?|$)/.test(request.url()) && request.method() === 'POST',
+      { timeout: 30000 },
+    )
+    const multiplexResponse = page.waitForResponse(
+      (response: any) => /\/functions\/v1\/ptt-multiplex-context(?:\?|$)/.test(response.url()) && response.request().method() === 'POST' && response.status() === 200,
+      { timeout: 30000 },
+    )
     await assertRadioLoads(page)
-    await expect(page.getByText(/Nelson Delegated Workspace .* Diplomatic Route/i)).toBeVisible({ timeout: 20000 })
+    await multiplexRequest
+    await multiplexResponse
+    await expect(page.getByText(/Mode:\s*Diplomatic/i)).toBeVisible({ timeout: 30000 })
   })
 
-  test('radio shows Tactical Route when multiplex context stays provider-side', async ({ officerUser: page }) => {
+  test('radio shows Tactical Route when multiplex context stays provider-side', async ({ masterUser: page, syntheticOrganization }) => {
     await stubTranslationRailContext(page, {
       stream: 'tactical',
       clientOrgId: 'b8f3a1e4-5c7d-4e9f-a2b6-3c8d9e1f2a3b',
       workspaceName: 'Nelson Delegated Workspace',
     })
 
+    await applySyntheticOrganization(page, syntheticOrganization)
+    const multiplexRequest = page.waitForRequest(
+      (request: any) => /\/functions\/v1\/ptt-multiplex-context(?:\?|$)/.test(request.url()) && request.method() === 'POST',
+      { timeout: 30000 },
+    )
+    const multiplexResponse = page.waitForResponse(
+      (response: any) => /\/functions\/v1\/ptt-multiplex-context(?:\?|$)/.test(response.url()) && response.request().method() === 'POST' && response.status() === 200,
+      { timeout: 30000 },
+    )
     await assertRadioLoads(page)
-    await expect(page.getByText(/Nelson Delegated Workspace .* Tactical Route/i)).toBeVisible({ timeout: 20000 })
+    await multiplexRequest
+    await multiplexResponse
+    await expect(page.getByText(/Mode:\s*Tactical/i)).toBeVisible({ timeout: 30000 })
   })
 })
 

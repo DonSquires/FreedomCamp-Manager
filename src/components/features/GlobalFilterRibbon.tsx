@@ -182,25 +182,25 @@ export function GlobalFilterRibbon({
                 )}
               </div>
 
-              <div className="flex items-center gap-2 ml-2">
-                <div className="flex items-center gap-1">
+              <div className="grid w-full grid-cols-1 gap-2 sm:ml-2 sm:flex sm:w-auto sm:items-center sm:gap-2">
+                <div className="flex min-w-0 items-center gap-1">
                   <span className="text-xs text-gray-500">From</span>
                   <Input
                     type="date"
                     value={dateFrom || ''}
                     onChange={(e) => handleFromDateChange(e.target.value)}
                     max={dateTo || undefined}
-                    className="h-8 w-[150px]"
+                    className="h-8 w-full min-w-0 sm:w-[150px]"
                   />
                 </div>
-                <div className="flex items-center gap-1">
+                <div className="flex min-w-0 items-center gap-1">
                   <span className="text-xs text-gray-500">To</span>
                   <Input
                     type="date"
                     value={dateTo || ''}
                     onChange={(e) => handleToDateChange(e.target.value)}
                     min={dateFrom || undefined}
-                    className="h-8 w-[150px]"
+                    className="h-8 w-full min-w-0 sm:w-[150px]"
                   />
                 </div>
               </div>

@@ -98,6 +98,8 @@ export default function VehicleManagement() {
     searchQuery,
   })
 
+  const safeVehicles = Array.isArray(vehicles) ? vehicles : []
+
   // ─── Dialog: open & reset ────────────────────────────────────────────────
   const openDetails = (vehicle: Vehicle) => {
     setSelectedVehicle(vehicle)
@@ -245,15 +247,15 @@ export default function VehicleManagement() {
   }
 
   // ─── Summary stats ────────────────────────────────────────────────────────
-  const stats = vehicles
+  const stats = safeVehicles.length > 0
     ? {
-        total: vehicles.length,
-        compliant: vehicles.filter((v) => v.total_breaches === 0).length,
+        total: safeVehicles.length,
+        compliant: safeVehicles.filter((v) => v.total_breaches === 0).length,
         // Exclude homeless vehicles from breach count – they are breach-exempt under the FC Act
-        breaches: vehicles.filter((v) => v.total_breaches > 0 && !isHomelessForUi(v.homeless_status)).length,
-        selfContained: vehicles.filter((v) => v.self_contained).length,
-        homeless: vehicles.filter((v) => isHomelessForUi(v.homeless_status)).length,
-        exempt: vehicles.filter((v) => v.is_exempt).length,
+        breaches: safeVehicles.filter((v) => v.total_breaches > 0 && !isHomelessForUi(v.homeless_status)).length,
+        selfContained: safeVehicles.filter((v) => v.self_contained).length,
+        homeless: safeVehicles.filter((v) => isHomelessForUi(v.homeless_status)).length,
+        exempt: safeVehicles.filter((v) => v.is_exempt).length,
       }
     : null
 
@@ -333,7 +335,7 @@ export default function VehicleManagement() {
         isLoading={isLoading}
         isError={!!vehiclesError}
         error={vehiclesError}
-        isEmpty={!vehicles || vehicles.length === 0}
+        isEmpty={safeVehicles.length === 0}
         loadingText="Loading vehicles…"
         errorTitle="Failed to load vehicles"
         onRetry={() => refetchVehicles()}
@@ -345,7 +347,7 @@ export default function VehicleManagement() {
         onEmptyAction={() => { setStatusFilter('all'); setSearchQuery('') }}
       >
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {vehicles.map((vehicle) => {
+          {safeVehicles.map((vehicle) => {
             const profileUrl = vehicle.profile_photo
             const canDrillDown =
               !!vehicle.vehicle_id &&

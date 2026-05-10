@@ -1515,6 +1515,30 @@ async function handleSignalMessage(message: SignalMessage): Promise<void> {
 
   try {
     if (signal.type === 'offer' && signal.sdp) {
+      if (pc.signalingState !== 'stable') {
+        // Offer glare or stale mid-negotiation state. Reset this peer so the
+        // incoming offer can be applied cleanly.
+        markNegotiationAttempt(fromUserId, `offer_glare_reset_${pc.signalingState}`)
+        try {
+          pc.close()
+        } catch {
+          // Ignore close errors while resetting.
+        }
+        peerConnections.delete(fromUserId)
+        pc = createPeerConnection(fromUserId)
+        peerConnections.set(fromUserId, pc)
+
+        // Preserve outbound mic track when we are currently transmitting.
+        if (localStream) {
+          for (const track of localStream.getTracks()) {
+            const alreadySending = pc.getSenders().some((s) => s.track?.id === track.id)
+            if (!alreadySending) {
+              pc.addTrack(track, localStream)
+            }
+          }
+        }
+      }
+
       clearNegotiationError()
       await pc.setRemoteDescription({ type: 'offer', sdp: signal.sdp })
       markNegotiationAttempt(fromUserId, 'remote_offer_applied')
@@ -1526,6 +1550,12 @@ async function handleSignalMessage(message: SignalMessage): Promise<void> {
 
       sendSignal(fromUserId, { type: 'answer', sdp: answer.sdp })
     } else if (signal.type === 'answer' && signal.sdp) {
+      if (pc.signalingState !== 'have-local-offer') {
+        // Ignore stale/duplicate answers that arrive after signaling is already stable.
+        markNegotiationAttempt(fromUserId, `stale_answer_ignored_${pc.signalingState}`)
+        return
+      }
+
       clearNegotiationError()
       await pc.setRemoteDescription({ type: 'answer', sdp: signal.sdp })
       markNegotiationAttempt(fromUserId, 'remote_answer_applied')
@@ -1579,14 +1609,41 @@ function createPeerConnection(peerId: string): RTCPeerConnection {
   pc.ontrack = (event) => {
     // Keep a persistent audio element per peer for stable playback on mobile/desktop.
     const audio = getOrCreateRemoteAudio(peerId)
+    const incomingStream = event.streams[0]
 
-    audio.srcObject = event.streams[0]
+    if (!incomingStream) return
+
+    // Avoid rebinding the same stream repeatedly; this can interrupt play().
+    const boundStream = audio.srcObject as MediaStream | null
+    if (boundStream?.id !== incomingStream.id) {
+      audio.srcObject = incomingStream
+    }
+
+    if (audio.dataset.pttPlayPending === '1') {
+      return
+    }
+
+    audio.dataset.pttPlayPending = '1'
+
+    const finishPlayAttempt = () => {
+      delete audio.dataset.pttPlayPending
+    }
+
     audio.play().then(() => {
       remoteAudioPrimed = true
+      finishPlayAttempt()
     }).catch((playErr) => {
+      finishPlayAttempt()
       const store = usePTTStore.getState()
+
+      // AbortError here is commonly a rapid src/load interruption, not a hard failure.
+      if (playErr?.name === 'AbortError') {
+        console.warn('🎤 PTT: Remote audio play interrupted during stream rebinding', playErr)
+        return
+      }
+
       store.setError('Remote audio blocked by browser. Tap the speaker icon or Push to Talk once to enable playback.')
-      console.error('🎤 PTT: Remote audio autoplay blocked', playErr)
+      console.warn('🎤 PTT: Remote audio autoplay blocked', playErr)
     })
   }
 

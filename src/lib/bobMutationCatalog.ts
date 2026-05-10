@@ -11,6 +11,16 @@ export interface BobMutationCatalogEntry {
 
 export const BOB_MUTATION_CATALOG: BobMutationCatalogEntry[] = [
   {
+    id: 'create_patrol_setup_draft',
+    contract: 'supabase.directPatrolSetupDraft',
+    writesTo: ['client_sites', 'zones'],
+    purpose: 'Create draft site and linked zone records from approved patrol setup briefs.',
+    allowedExecutionModes: ['owner_full', 'master_balanced'],
+    approvalLevel: 'review',
+    dryRunSupported: true,
+    notes: 'Creates draft setup records only. Geofence coordinates and patrol schedules still require verified site location data.',
+  },
+  {
     id: 'import_data_file',
     contract: 'edgeFunctions.importData',
     writesTo: ['zones', 'observations'],
@@ -137,6 +147,7 @@ export interface BobMutationAccessResult {
 }
 
 const MUTATION_KEYWORDS: Record<string, string[]> = {
+  create_patrol_setup_draft: ['patrol setup', 'create sites', 'setup sites', 'security brief'],
   import_data_file: ['import data', 'bulk import', 'upload data'],
   import_historical_patrol_data: ['historical patrol', 'patrol import', 'visit import'],
   process_tender_document: ['tender', 'rfp', 'proposal'],

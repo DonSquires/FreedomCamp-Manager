@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import { AppLayout } from '@/components/features/AppLayout'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
 import { Badge } from '@/components/ui/badge'
@@ -23,6 +24,7 @@ import { BrainCircuit, CheckCircle2, ClipboardList, FlaskConical, Loader2, MapPi
 import { toast } from 'sonner'
 import { edgeFunctions } from '@/lib/edgeFunctions'
 import { assertBobMutationAccess } from '@/lib/bobMutationCatalog'
+import { forwardGeocode } from '@/lib/geocoding'
 import { smokeTests, dataVerification, performanceTests, runBugFixDeepDive } from '@/lib/testUtils'
 import { consumeLatestBobCollaborationPacket, publishBobResponse, type BobCollaborationPacket } from '@/lib/bobCollaboration'
 import { BOB_PROJECT_KNOWLEDGE } from '@/lib/bobKnowledgeBase'
@@ -59,6 +61,25 @@ import {
   persistConversationTurnRemote,
 } from '@/lib/bobLearningMemory'
 import { classifyBobCommand, evaluateBobCommandPolicy, type BobCommand } from '@/lib/bobCommandBus'
+import {
+  buildPatrolSetupBlueprintDocument,
+  coercePatrolSetupBlueprint,
+  evaluateHistoricalDataPlacementReadiness,
+  evaluatePatrolShiftCompliance,
+  findPrimaryShiftForCode,
+  formatHistoricalPerformanceAdminFeedback,
+  formatHistoricalPlacementConversation,
+  formatHistoricalPlacementSummary,
+  formatPatrolShiftComplianceConversation,
+  formatPatrolShiftComplianceSummary,
+  findSopStepsForFacility,
+  formatPatrolSetupBlueprintReply,
+  inferSiteType,
+  looksLikePatrolSetupBrief,
+  reviewHistoricalPatrolPerformance,
+  type PatrolSetupBlueprint,
+} from '@/lib/bobSetupBlueprint'
+import { resolvePatrolZoneFallback } from '@/lib/patrolZoneFallbacks'
 import { radioTranslationService } from '@/lib/radio/radioTranslationService'
 import {
   publishTrainingComposerPacket,
@@ -592,6 +613,7 @@ function BobSketchPad() {
 }
 
 export default function BobAssistantStudio() {
+  const queryClient = useQueryClient()
   const navigate = useNavigate()
   const user = useAuthStore((state) => state.user)
   const { organizationId } = useGlobalFiltersStore()
@@ -693,6 +715,7 @@ export default function BobAssistantStudio() {
     fieldStaffCanView: true,
   })
   const [generatedPlan, setGeneratedPlan] = useState('')
+  const [pendingPatrolSetupBlueprint, setPendingPatrolSetupBlueprint] = useState<PatrolSetupBlueprint | null>(null)
   const [collaborationPacket, setCollaborationPacket] = useState<BobCollaborationPacket | null>(null)
   const [voiceSupported, setVoiceSupported] = useState(false)
   const [codeTaskLoading, setCodeTaskLoading] = useState(false)
@@ -800,6 +823,16 @@ export default function BobAssistantStudio() {
   } = useBobIdentitySettings(user?.id, user?.organization_id)
 
   const planRecommendations = useMemo(() => buildPlanRecommendations(planForm), [planForm])
+
+  const pendingPatrolShiftCompliance = useMemo(
+    () => (pendingPatrolSetupBlueprint ? evaluatePatrolShiftCompliance(pendingPatrolSetupBlueprint) : []),
+    [pendingPatrolSetupBlueprint],
+  )
+
+  const pendingPatrolShiftComplianceSummary = useMemo(
+    () => formatPatrolShiftComplianceSummary(pendingPatrolShiftCompliance),
+    [pendingPatrolShiftCompliance],
+  )
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -1044,8 +1077,9 @@ export default function BobAssistantStudio() {
 
   const selectedVoice = useMemo(() => {
     if (!availableVoices.length) return null
-    const accentMatches = availableVoices.filter((voice) => voice.lang.toLowerCase().startsWith(accent.toLowerCase()))
-    const englishPool = accentMatches.length ? accentMatches : availableVoices.filter((voice) => voice.lang.toLowerCase().startsWith('en'))
+    const normalizedAccent = String(accent || '').toLowerCase()
+    const accentMatches = availableVoices.filter((voice) => String(voice?.lang || '').toLowerCase().startsWith(normalizedAccent))
+    const englishPool = accentMatches.length ? accentMatches : availableVoices.filter((voice) => String(voice?.lang || '').toLowerCase().startsWith('en'))
 
     const maleHints = ['david', 'matthew', 'male', 'guy', 'james', 'tom', 'daniel', 'uk', 'british']
     const maleScottishHints = ['scotland', 'scottish', 'glasgow', 'edinburgh', 'angus', 'malcolm']
@@ -1054,15 +1088,15 @@ export default function BobAssistantStudio() {
     if (voiceGender === 'male') {
       if (accent === 'en-GB') {
         return (
-          englishPool.find((voice) => maleScottishHints.some((hint) => voice.name.toLowerCase().includes(hint))) ||
-          englishPool.find((voice) => maleHints.some((hint) => voice.name.toLowerCase().includes(hint))) ||
+          englishPool.find((voice) => maleScottishHints.some((hint) => String(voice?.name || '').toLowerCase().includes(hint))) ||
+          englishPool.find((voice) => maleHints.some((hint) => String(voice?.name || '').toLowerCase().includes(hint))) ||
           englishPool[0]
         )
       }
-      return englishPool.find((voice) => maleHints.some((hint) => voice.name.toLowerCase().includes(hint))) || englishPool[0]
+      return englishPool.find((voice) => maleHints.some((hint) => String(voice?.name || '').toLowerCase().includes(hint))) || englishPool[0]
     }
     if (voiceGender === 'female') {
-      return englishPool.find((voice) => femaleHints.some((hint) => voice.name.toLowerCase().includes(hint))) || englishPool[0]
+      return englishPool.find((voice) => femaleHints.some((hint) => String(voice?.name || '').toLowerCase().includes(hint))) || englishPool[0]
     }
     return englishPool[0]
   }, [availableVoices, accent, voiceGender])
@@ -1644,6 +1678,201 @@ export default function BobAssistantStudio() {
       }
     }
 
+    if (looksLikePatrolSetupBrief(message)) {
+      try {
+        const { data, error } = await withPromiseTimeout(
+          edgeFunctions.aiChat({
+            provider: 'auto',
+            messages: [
+              {
+                role: 'system',
+                content: 'You convert patrol and guarding contract briefs into strict JSON for operational setup. Return JSON only.',
+              },
+              {
+                role: 'user',
+                content: [
+                  'Extract a patrol setup blueprint from the source material below.',
+                  'Focus on what Bob can set up inside the app: client sites, linked zones/geofences, patrol routes, patrol schedules, officer roster prerequisites, and blockers.',
+                  'For patrol timings, classify each shift timing policy as specific/recommended/mixed and preserve paid break requirements from the contract text.',
+                  'Return strict JSON only with keys:',
+                  '{"title":string,"organizationName":string,"summary":string,"services":string[],"facilities":[{"name":string,"extent":string[],"serviceCoverage":string[],"frequencies":string[],"setupActions":string[],"notes":string[]}],"siteSops":[{"siteName":string,"jobType":string,"steps":string[]}],"patrolShifts":[{"code":string,"name":string,"startTime":string,"endTime":string,"breaks":string[],"allBreaksPaid":boolean,"timingPolicy":"specific|recommended|mixed|unspecified","coverageAreas":string[],"serviceCoverage":string[],"notes":string[]}],"blockers":string[],"nextActions":string[],"rosterRequirements":string[],"geofenceRequirements":string[],"patrolRouteRequirements":string[]}',
+                  'If source material is missing addresses, GPS coordinates, route stop geometry, or officer assignments, list those as blockers.',
+                  `Source material:\n${message}`,
+                ].join(' '),
+              },
+            ],
+          }),
+          BOB_CHAT_RESPONSE_TIMEOUT_MS,
+          `Bob patrol setup blueprint timeout after ${Math.round(BOB_CHAT_RESPONSE_TIMEOUT_MS / 1000)}s`,
+        )
+
+        if (error || !data?.response) {
+          throw new Error(error || 'Bob returned no patrol setup blueprint')
+        }
+
+        const parsed = extractJsonObject(String(data.response || ''))
+        if (!parsed) {
+          throw new Error('Could not parse Bob patrol setup blueprint JSON')
+        }
+
+        const blueprint = coercePatrolSetupBlueprint(parsed, message)
+        const compliance = evaluatePatrolShiftCompliance(blueprint)
+        const complianceBlockers = compliance
+          .filter((item) => !item.isCompliant)
+          .flatMap((item) => item.reasons.map((reason) => `${item.shiftCode || item.shiftName}: ${reason}`))
+        if (complianceBlockers.length > 0) {
+          blueprint.blockers = Array.from(new Set([...blueprint.blockers, ...complianceBlockers]))
+        }
+
+        const historicalPlacement = evaluateHistoricalDataPlacementReadiness(blueprint)
+        if (!historicalPlacement.isPlacementReady && historicalPlacement.blockers.length > 0) {
+          blueprint.blockers = Array.from(new Set([...blueprint.blockers, ...historicalPlacement.blockers]))
+        }
+
+        const historicalPerformance = reviewHistoricalPatrolPerformance(blueprint)
+
+        let orgOptionsSummary = 'Organization patrol option scan was not available for this request.'
+        let orgOptionEvidence = 'Organization patrol option scan unavailable'
+        const providerOrgIdForOptions = planForm.assignedServiceProviderOrgId
+          || user?.employer_organization_id
+          || user?.organization_id
+          || null
+
+        if (providerOrgIdForOptions) {
+          try {
+            const { data: orgPatrols, error: orgPatrolsError } = await (supabase as any)
+              .from('patrols')
+              .select('id, zone_id, status, shift, assigned_to, scheduled_start_time, scheduled_end_time, patrol_date, description')
+              .eq('organization_id', providerOrgIdForOptions)
+              .in('status', ['scheduled', 'in_progress', 'active'])
+              .order('scheduled_start_time', { ascending: true, nullsFirst: false })
+              .limit(80)
+
+            if (orgPatrolsError) throw orgPatrolsError
+
+            const zoneIds = Array.from(new Set((orgPatrols ?? []).map((row: any) => row.zone_id).filter(Boolean)))
+            const zoneNameById = new Map<string, string>()
+            if (zoneIds.length > 0) {
+              const { data: optionZones, error: optionZonesError } = await (supabase as any)
+                .from('zones')
+                .select('id, name')
+                .in('id', zoneIds)
+              if (optionZonesError) throw optionZonesError
+              ;(optionZones ?? []).forEach((zone: any) => {
+                zoneNameById.set(zone.id, zone.name)
+              })
+            }
+
+            const statusCounts = (orgPatrols ?? []).reduce((acc: Record<string, number>, patrol: any) => {
+              const key = String(patrol.status || 'unknown')
+              acc[key] = (acc[key] || 0) + 1
+              return acc
+            }, {})
+
+            const rerouteCandidates = (orgPatrols ?? [])
+              .filter((patrol: any) => patrol.status === 'scheduled' && !patrol.assigned_to)
+              .slice(0, 4)
+              .map((patrol: any) => {
+                const zoneName = zoneNameById.get(String(patrol.zone_id || '')) || 'Unknown zone'
+                const window = patrol.scheduled_start_time && patrol.scheduled_end_time
+                  ? `${String(patrol.scheduled_start_time).slice(11, 16)}-${String(patrol.scheduled_end_time).slice(11, 16)}`
+                  : (patrol.shift || patrol.patrol_date || 'unspecified window')
+                return `${zoneName} (${window})`
+              })
+
+            orgOptionEvidence = `Org patrols: ${(orgPatrols ?? []).length}, scheduled: ${statusCounts.scheduled || 0}, in-progress: ${statusCounts.in_progress || 0}, active: ${statusCounts.active || 0}, reroute candidates: ${rerouteCandidates.length}`
+            orgOptionsSummary = rerouteCandidates.length > 0
+              ? `Organization-wide options: ${orgOptionEvidence}. Suggested reroute candidates: ${rerouteCandidates.join('; ')}. If these do not meet the request window, recommend discussing a contract variation or adjusted service window with the client.`
+              : `Organization-wide options: ${orgOptionEvidence}. There are no unassigned scheduled patrols ready to reroute now, so the safer option is to discuss an alternative service window or revised scope with the client.`
+          } catch {
+            orgOptionsSummary = 'Organization patrol option scan was unavailable, so Bob could not confirm reroute candidates in this run.'
+            orgOptionEvidence = 'Organization patrol option scan failed'
+          }
+        }
+
+        setPendingPatrolSetupBlueprint(blueprint)
+        setPlanForm((prev) => ({
+          ...prev,
+          planType: 'assignment_instructions',
+          planTitle: blueprint.title || prev.planTitle,
+          organizationName: blueprint.organizationName || prev.organizationName,
+          deploymentType: blueprint.services.join(', ') || prev.deploymentType,
+          siteName: blueprint.facilities.slice(0, 3).map((facility) => facility.name).join(', '),
+          previousHistory: blueprint.summary || prev.previousHistory,
+          knownThreats: blueprint.services.join('; '),
+          environmentalHazards: blueprint.geofenceRequirements.join('; '),
+          hazardControls: blueprint.nextActions.join('; '),
+          commsPlan: blueprint.rosterRequirements.join('; '),
+          assignmentScope: 'organization',
+          assignedServiceProviderOrgId: prev.assignedServiceProviderOrgId || user?.employer_organization_id || user?.organization_id || '',
+          fieldStaffCanView: true,
+        }))
+        setGeneratedPlan([
+          buildPatrolSetupBlueprintDocument(blueprint),
+          '',
+          '## Shift Compliance Summary',
+          formatPatrolShiftComplianceSummary(compliance),
+          '',
+          '## Historical Data Placement Review',
+          formatHistoricalPlacementSummary(historicalPlacement),
+          '',
+          '## Historical Performance Review',
+          formatHistoricalPerformanceAdminFeedback(historicalPerformance),
+          '',
+          '## Organization Option Analysis',
+          orgOptionsSummary,
+        ].join('\n'))
+
+        const recommendation: BobRecommendation = {
+          id: `bob-patrol-setup-${Date.now()}`,
+          actionType: 'create_patrol_setup_draft',
+          title: 'Approve Bob patrol setup draft creation',
+          description: 'Bob extracted a patrol setup blueprint and wants to create draft client-site and linked-zone records inside the build.',
+          entityType: 'patrol_setup_blueprint',
+          entityId: blueprint.title,
+          confidence: 90,
+          riskLevel: blueprint.blockers.length > 0 ? 'medium' : 'low',
+          evidence: [
+            `Facilities found: ${blueprint.facilities.length}`,
+            `Site SOPs found: ${blueprint.siteSops.length}`,
+            `Patrol shifts found: ${blueprint.patrolShifts.length}`,
+            `Shift compliance issues: ${compliance.filter((item) => !item.isCompliant).length}`,
+            `Historical placement ready: ${historicalPlacement.isPlacementReady ? 'yes' : 'no'} (rows: ${historicalPlacement.detectedRows})`,
+            `Historical performance issues: ${historicalPerformance.issues.length}`,
+            orgOptionEvidence,
+            `Services found: ${blueprint.services.join(', ') || 'not specified'}`,
+            `Blockers: ${blueprint.blockers.join('; ') || 'none identified'}`,
+            `Next actions: ${blueprint.nextActions.join('; ') || 'not specified'}`,
+          ],
+          suggestedPayload: {
+            facilityCount: blueprint.facilities.length,
+            siteSopCount: blueprint.siteSops.length,
+            patrolShiftCount: blueprint.patrolShifts.length,
+            blockers: blueprint.blockers,
+            services: blueprint.services,
+          },
+        }
+
+        pushAssistantReply([
+          formatPatrolSetupBlueprintReply(blueprint),
+          formatPatrolShiftComplianceConversation(compliance),
+          formatHistoricalPlacementConversation(historicalPlacement),
+          formatHistoricalPerformanceAdminFeedback(historicalPerformance),
+          orgOptionsSummary,
+        ].join(' '))
+        bobActionApproval.showDialog(recommendation)
+        toast.success('Patrol setup blueprint ready for approval and execution')
+        setBobDegraded(false)
+        clearBobServiceOutage()
+      } catch (err: any) {
+        pushAssistantReply(`Bob patrol setup blueprint failed: ${String(err?.message ?? err)}`)
+        toast.error(err?.message || 'Could not structure the patrol setup blueprint')
+      } finally {
+        setThinking(false)
+      }
+      return
+    }
+
     const buildRequestBody = () => {
       const historyMessages = chat
         .slice(-16)
@@ -2027,7 +2256,7 @@ export default function BobAssistantStudio() {
     if (!dangerAutoAssistArmed) return false
     if (Date.now() < dangerCooldownUntil) return false
 
-    const normalized = text.toLowerCase()
+    const normalized = String(text || '').toLowerCase()
     const keys = dangerKeywords
       .split(',')
       .map((key) => key.trim().toLowerCase())
@@ -2037,7 +2266,7 @@ export default function BobAssistantStudio() {
   }, [dangerAutoAssistArmed, dangerCooldownUntil, dangerKeywords])
 
   const isEmergencyCancelCommand = useCallback((text: string): boolean => {
-    const normalized = text.toLowerCase()
+    const normalized = String(text || '').toLowerCase()
     return (
       normalized.includes('cancel emergency') ||
       normalized.includes('cancel call') ||
@@ -2048,7 +2277,7 @@ export default function BobAssistantStudio() {
   }, [])
 
   const isEmergencyCallNowCommand = useCallback((text: string): boolean => {
-    const normalized = text.toLowerCase()
+    const normalized = String(text || '').toLowerCase()
     return (
       normalized.includes('make the call') ||
       normalized.includes('call now') ||
@@ -2878,8 +3107,316 @@ export default function BobAssistantStudio() {
     bobActionApproval.showDialog(recommendation)
   }
 
+  const executeCreatePatrolSetupDraft = async () => {
+    const mutationAccess = assertBobMutationAccess('create_patrol_setup_draft', effectivePolicy.mode)
+    if (!mutationAccess.allowed) {
+      throw new Error(mutationAccess.reason)
+    }
+    if (!user?.organization_id) {
+      throw new Error('Your user profile is missing organization context')
+    }
+    if (!pendingPatrolSetupBlueprint || pendingPatrolSetupBlueprint.facilities.length === 0) {
+      throw new Error('No patrol setup blueprint is ready to execute')
+    }
+
+    const shiftCompliance = evaluatePatrolShiftCompliance(pendingPatrolSetupBlueprint)
+    const failedShiftCompliance = shiftCompliance.filter((item) => !item.isCompliant)
+    if (failedShiftCompliance.length > 0) {
+      const reason = failedShiftCompliance[0].reasons[0] || 'Shift timing compliance failed'
+      throw new Error(`Contract timing compliance failed (${failedShiftCompliance[0].shiftCode || failedShiftCompliance[0].shiftName}): ${reason}`)
+    }
+
+    const providerOrgId = planForm.assignedServiceProviderOrgId
+      || user?.employer_organization_id
+      || user?.organization_id
+      || null
+
+    if (!providerOrgId) {
+      throw new Error('Could not resolve the service provider organization for this patrol setup')
+    }
+
+    const accessibleClientOrgIds = Array.from(new Set([
+      ...(user?.organization_id ? [user.organization_id] : []),
+      ...(user?.authorized_work_locations ?? []),
+      ...(user?.extra_organization_ids ?? []),
+    ])).filter((id) => id && id !== providerOrgId)
+
+    let matchedClientOrgId: string | null = null
+    const requestedClientName = (pendingPatrolSetupBlueprint.organizationName || planForm.organizationName || '').trim()
+
+    if (accessibleClientOrgIds.length > 0) {
+      const { data: candidateOrgs, error: candidateOrgsError } = await (supabase as any)
+        .from('organizations')
+        .select('id, name, organization_type')
+        .in('id', accessibleClientOrgIds)
+        .eq('is_active', true)
+
+      if (candidateOrgsError) throw candidateOrgsError
+
+      const clientCandidates = ((candidateOrgs ?? []) as any[])
+        .filter((org) => org.id !== providerOrgId)
+
+      if (requestedClientName) {
+        const normalizedRequestedClientName = requestedClientName.toLowerCase()
+        const matchedClientOrg = clientCandidates.find((org) => String(org.name || '').trim().toLowerCase() === normalizedRequestedClientName)
+          || clientCandidates.find((org) => String(org.name || '').trim().toLowerCase().includes(normalizedRequestedClientName))
+        matchedClientOrgId = matchedClientOrg?.id ?? null
+      }
+
+      if (!matchedClientOrgId && clientCandidates.length === 1) {
+        matchedClientOrgId = clientCandidates[0].id
+      }
+    }
+
+    const fallbackPatrolZone = resolvePatrolZoneFallback(pendingPatrolSetupBlueprint)
+
+    let basePatrolZoneId: string | null = null
+    if (fallbackPatrolZone) {
+      const { data: existingPatrolZone, error: existingPatrolZoneError } = await (supabase as any)
+        .from('zones')
+        .select('id')
+      .eq('organization_id', providerOrgId)
+        .eq('name', fallbackPatrolZone.zoneName)
+        .maybeSingle()
+
+      if (existingPatrolZoneError) throw existingPatrolZoneError
+
+      if (existingPatrolZone?.id) {
+        basePatrolZoneId = existingPatrolZone.id
+      } else {
+        const { data: createdPatrolZone, error: createPatrolZoneError } = await (supabase as any)
+          .from('zones')
+          .insert({
+            organization_id: providerOrgId,
+            name: fallbackPatrolZone.zoneName,
+            zone_type: 'general',
+            is_active: true,
+            needs_admin_review: false,
+            boundary_source: fallbackPatrolZone.boundarySource,
+            geometry: fallbackPatrolZone.geometry,
+            description: fallbackPatrolZone.description,
+          })
+          .select('id')
+          .single()
+
+        if (createPatrolZoneError) throw createPatrolZoneError
+        basePatrolZoneId = createdPatrolZone?.id ?? null
+      }
+    }
+
+    let createdSites = 0
+    let updatedSites = 0
+    let createdZones = 0
+    const scheduleZoneIds: string[] = []
+
+    for (const facility of pendingPatrolSetupBlueprint.facilities) {
+      const clientOrgId = matchedClientOrgId || providerOrgId
+      const zoneName = `${facility.name} Geofence`
+      const zoneDescription = [
+        ...facility.serviceCoverage,
+        ...facility.frequencies,
+        ...facility.setupActions,
+        ...facility.notes,
+      ].filter(Boolean).join(' | ')
+
+      const { data: existingZone, error: existingZoneError } = await (supabase as any)
+        .from('zones')
+        .select('id')
+        .eq('organization_id', clientOrgId)
+        .eq('name', zoneName)
+        .maybeSingle()
+
+      if (existingZoneError) throw existingZoneError
+
+      let zoneId = existingZone?.id ?? null
+
+      const geocodeCandidate = await forwardGeocode(facility.name, pendingPatrolSetupBlueprint.organizationName || undefined)
+
+      const fallbackGeometry = fallbackPatrolZone?.geometry ?? null
+      const geometryPayload = geocodeCandidate
+        ? {
+            type: 'Point',
+            coordinates: [geocodeCandidate.longitude, geocodeCandidate.latitude],
+            radius: fallbackPatrolZone?.radiusMetres ?? 250,
+          }
+        : fallbackGeometry
+
+      if (!zoneId) {
+        const { data: createdZone, error: zoneInsertError } = await (supabase as any)
+          .from('zones')
+          .insert({
+            organization_id: clientOrgId,
+            name: zoneName,
+            zone_type: 'general',
+            is_active: true,
+            needs_admin_review: true,
+            boundary_source: 'bob_contract_setup',
+            geometry: geometryPayload,
+            location_lat: geocodeCandidate?.latitude ?? null,
+            location_lng: geocodeCandidate?.longitude ?? null,
+            description: zoneDescription || null,
+            zone_features: facility.serviceCoverage.length ? facility.serviceCoverage : null,
+          })
+          .select('id')
+          .single()
+
+        if (zoneInsertError) throw zoneInsertError
+        zoneId = createdZone?.id ?? null
+        createdZones += 1
+      }
+
+      const sitePayload = {
+        organization_id: clientOrgId,
+        created_by: user.id ?? null,
+        name: facility.name,
+        site_type: inferSiteType(facility.serviceCoverage),
+        zone_id: zoneId,
+        address: geocodeCandidate?.formatted_address ?? null,
+        city: geocodeCandidate?.city ?? null,
+        gps_lat: geocodeCandidate?.latitude ?? null,
+        gps_lng: geocodeCandidate?.longitude ?? null,
+        geofence_radius_metres: fallbackPatrolZone?.radiusMetres ?? 250,
+        access_instructions: facility.extent.join('; ') || null,
+        hazards: facility.notes.join('; ') || null,
+        special_instructions: facility.serviceCoverage.join('; ') || null,
+        notes: [
+          ...facility.frequencies,
+          ...facility.setupActions,
+          ...findSopStepsForFacility(pendingPatrolSetupBlueprint, facility.name),
+          ...pendingPatrolSetupBlueprint.blockers,
+        ].filter(Boolean).join('; ') || null,
+        default_response_minutes: 45,
+        is_active: true,
+      }
+
+      const { data: existingSite, error: existingSiteError } = await (supabase as any)
+        .from('client_sites')
+        .select('id')
+        .eq('organization_id', clientOrgId)
+        .eq('name', facility.name)
+        .maybeSingle()
+
+      if (existingSiteError) throw existingSiteError
+
+      if (existingSite?.id) {
+        const { error: updateSiteError } = await (supabase as any)
+          .from('client_sites')
+          .update(sitePayload)
+          .eq('id', existingSite.id)
+        if (updateSiteError) throw updateSiteError
+        updatedSites += 1
+      } else {
+        const { error: insertSiteError } = await (supabase as any)
+          .from('client_sites')
+          .insert(sitePayload)
+        if (insertSiteError) throw insertSiteError
+        createdSites += 1
+      }
+
+      if (zoneId) {
+        scheduleZoneIds.push(zoneId)
+      }
+    }
+
+    let attachedPatrolId: string | null = null
+    let createdPatrolSchedule = false
+
+    if (basePatrolZoneId && scheduleZoneIds.length > 0) {
+      const fallbackPatrolCode = fallbackPatrolZone?.zoneName.match(/\b(\d{3})\b/)?.[1] ?? null
+      const primaryShift = findPrimaryShiftForCode(pendingPatrolSetupBlueprint, fallbackPatrolCode)
+      const { data: activePatrol, error: activePatrolError } = await (supabase as any)
+        .from('patrols')
+        .select('id, zone_id, status')
+        .eq('organization_id', providerOrgId)
+        .eq('zone_id', basePatrolZoneId)
+        .in('status', ['in_progress', 'active'])
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      if (activePatrolError) throw activePatrolError
+
+      if (activePatrol?.id) {
+        attachedPatrolId = activePatrol.id
+      } else {
+        const now = new Date()
+        const patrolDate = now.toISOString().slice(0, 10)
+        const shiftStart = primaryShift?.startTime || '18:00'
+        const shiftEnd = primaryShift?.endTime || '06:00'
+        const startMinutes = Number(shiftStart.slice(0, 2)) * 60 + Number(shiftStart.slice(3, 5))
+        const endMinutes = Number(shiftEnd.slice(0, 2)) * 60 + Number(shiftEnd.slice(3, 5))
+        const endDate = new Date(`${patrolDate}T00:00:00`)
+        if (Number.isFinite(startMinutes) && Number.isFinite(endMinutes) && endMinutes <= startMinutes) {
+          endDate.setDate(endDate.getDate() + 1)
+        }
+        const patrolEndDate = endDate.toISOString().slice(0, 10)
+        const { data: createdPatrol, error: createPatrolError } = await (supabase as any)
+          .from('patrols')
+          .insert({
+            organization_id: providerOrgId,
+            zone_id: basePatrolZoneId,
+            patrol_date: patrolDate,
+            shift: primaryShift?.name || 'night',
+            assigned_to: null,
+            description: pendingPatrolSetupBlueprint.title || 'Bob autonomous patrol setup',
+            priority: 'normal',
+            recurrence: 'none',
+            notes: [
+              pendingPatrolSetupBlueprint.summary,
+              primaryShift
+                ? `Contract timing: ${primaryShift.code} ${primaryShift.startTime}-${primaryShift.endTime}; breaks: ${primaryShift.breaks.join(', ') || 'none listed'}; paid breaks: ${primaryShift.allBreaksPaid ? 'yes' : 'no'}`
+                : 'Contract timing: default fallback schedule used',
+            ].join(' | '),
+            scheduled_start_time: `${patrolDate}T${shiftStart}:00`,
+            scheduled_end_time: `${patrolEndDate}T${shiftEnd}:00`,
+            status: 'scheduled',
+          })
+          .select('id')
+          .single()
+
+        if (createPatrolError) throw createPatrolError
+        attachedPatrolId = createdPatrol?.id ?? null
+        createdPatrolSchedule = true
+      }
+    }
+
+    if (attachedPatrolId && scheduleZoneIds.length > 0) {
+      const { data: existingPatrolZones, error: existingPatrolZonesError } = await (supabase as any)
+        .from('patrol_schedule_zones')
+        .select('zone_id')
+        .eq('patrol_id', attachedPatrolId)
+
+      if (existingPatrolZonesError) throw existingPatrolZonesError
+
+      const existingZoneIds = new Set((existingPatrolZones ?? []).map((row: any) => row.zone_id))
+      const newZoneIds = scheduleZoneIds.filter((zoneId) => !existingZoneIds.has(zoneId))
+
+      if (newZoneIds.length > 0) {
+        const rows = newZoneIds.map((zoneId, index) => ({
+          patrol_id: attachedPatrolId,
+          zone_id: zoneId,
+          visit_order: existingZoneIds.size + index,
+        }))
+        const { error: insertPatrolZonesError } = await (supabase as any)
+          .from('patrol_schedule_zones')
+          .insert(rows)
+        if (insertPatrolZonesError) throw insertPatrolZonesError
+      }
+    }
+
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['client-sites'] }),
+      queryClient.invalidateQueries({ queryKey: ['zones'] }),
+      queryClient.invalidateQueries({ queryKey: ['patrols'] }),
+      queryClient.invalidateQueries({ queryKey: ['patrol-stats'] }),
+    ])
+
+    toast.success(`Patrol setup draft applied: provider patrol zone in service provider org, ${createdSites} client site(s) created, ${updatedSites} updated, ${createdZones} client geofence zone(s) created${attachedPatrolId ? createdPatrolSchedule ? ', 1 provider patrol schedule created' : ', attached to active provider patrol' : ''}`)
+  }
+
   const resolveRecommendationExecutor = (actionType?: string) => {
     if (actionType === 'create_live_plan') return executeSaveLivePlan
+    if (actionType === 'create_patrol_setup_draft') return executeCreatePatrolSetupDraft
     if (actionType === 'generate_code_patch_task') return executeGenerateCodeChangeTask
     return undefined
   }
@@ -4200,6 +4737,13 @@ export default function BobAssistantStudio() {
                 placeholder="Generated plan will appear here"
                 className="min-h-[260px] font-mono text-xs"
               />
+
+              {pendingPatrolSetupBlueprint && (
+                <div className="rounded-lg border p-3 bg-muted/20 space-y-2">
+                  <div className="text-xs font-medium text-muted-foreground">Patrol Shift Compliance Summary</div>
+                  <div className="text-xs whitespace-pre-wrap">{pendingPatrolShiftComplianceSummary}</div>
+                </div>
+              )}
             </CardContent>
           </Card>
 
