@@ -84,7 +84,7 @@ Bob's own canonical deploy repo (`DonSquires/Bob`) should have:
 | Component | Status | Domain / Notes |
 |---|---|---|
 | Bob Inference | ✅ Deployed | `https://api.runpod.ai/v2/<RUNPOD_ENDPOINT_ID>/runsync` |
-| Ollama | ✅ Deployed | `ollama-production-a142.up.railway.app` (us-west2, CPU, 22 GiB RAM, Ollama v0.20.2) |
+| Ollama | ✅ Deployed | `ollama-production-3ab0.up.railway.app` (us-west2, CPU, 22 GiB RAM, Ollama v0.20.2) |
 
 ## Ollama Service Details
 
