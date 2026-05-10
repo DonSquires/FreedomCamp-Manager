@@ -12,8 +12,8 @@ jobs:
     permissions:
       contents: read
     env:
-      SUPABASE_BASE_URL: ${{ secrets.VITE_SUPABASE_URL || secrets.SUPABASE_URL }}
-      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      SUPABASE_BASE_URL: ${{ secrets.VITE_SUPABASE_URL || secrets.SUPABASE_URL || format('https://{0}.supabase.co', secrets.SUPABASE_PROJECT_REF) }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY || secrets.SUPERBASE_SURVICE_ROLE_KEY }}
     steps:
       - name: Validate secrets
         run: |
