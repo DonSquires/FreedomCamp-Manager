@@ -634,8 +634,6 @@ export const SERVICE_MODULES: Record<ModuleId, ServiceModule> = {
       'witness_statements',
     ],
     edgeFunctions: [
-      'generate-incident-pdf',
-      'admin-incident-ops',
       'process-investigation-document',
       'submit-dispute-intake',
     ],

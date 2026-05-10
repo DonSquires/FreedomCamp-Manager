@@ -224,31 +224,10 @@ await run('Vehicle', 'hotspot-data endpoint responds', async () => {
   return `HTTP ${status}`
 })
 
-// ── 5. WEATHER & SPATIAL ─────────────────────────────────────────
-console.log('\n── 5. Weather & Spatial ─────────────────────────────────────')
-
-await run('Spatial', 'get-weather (Auckland)', async () => {
-  const { status } = await edge('get-weather', { latitude: -36.8485, longitude: 174.7633 }, { auth: false })
-  if (status !== 200 && status !== 500) throw new Error(`HTTP ${status}`)
-  return `HTTP ${status}`
-})
-
-await run('Spatial', 'get-weather rejects missing coords', async () => {
-  const res = await fetch(`${EDGE_BASE}/get-weather`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY },
-    body: JSON.stringify({}),
-    signal: AbortSignal.timeout(10000),
-  })
-  const json = await res.json().catch(() => ({}))
-  // 400 or 500 with validation message = both acceptable
-  if (res.status !== 400 && res.status !== 500) throw new Error(`Expected 400/500, got ${res.status}`)
-  const msg = json.error || json.message || ''
-  if (res.status === 500 && !msg.toLowerCase().includes('latitude') && !msg.toLowerCase().includes('longitude') && !msg.toLowerCase().includes('required')) {
-    throw new Error(`HTTP 500 without validation message: ${msg}`)
-  }
-  return `${res.status} (${msg.slice(0,40)}) as expected`
-})
+// ── 5. SPATIAL ─────────────────────────────────────────────────────
+// NOTE: get-weather edge function was removed (non-core to enforcement).
+// Weather data is not required for compliance or breach workflows.
+console.log('\n── 5. Spatial (weather tests skipped — get-weather retired) ─────')
 
 await run('Spatial', 'sync-spatial-layers accessible', async () => {
   const { status, json } = await edge('sync-spatial-layers', {})

@@ -402,7 +402,6 @@ export default function CleanupAndRecalculate() {
                 </ul>
                 <p className="text-xs text-blue-700 dark:text-blue-200 mt-2">
                   Runtime logs for this workflow appear under the <strong>cleanup-and-recalculate</strong> edge function.
-                  The standalone <strong>zone-correction</strong> function is a separate tool and is not called by this page.
                 </p>
               </div>
             </div>
