@@ -1,0 +1,37 @@
+{
+  "runId": "2026-05-10T18-50-42-842Z",
+  "batch": "human",
+  "scope": "full",
+  "startedAt": "2026-05-10T18:50:42.856Z",
+  "endedAt": "2026-05-10T19:11:20.993Z",
+  "resumeMode": false,
+  "continueOnFailure": true,
+  "browserInstallAttempted": false,
+  "browserInstallExitCode": null,
+  "stages": [
+    {
+      "id": "human-engine",
+      "description": "Run agentic human-test engine for broad UI workflow probing",
+      "command": "/usr/bin/node",
+      "args": [
+        "scripts/run-test-with-bob-assist.mjs",
+        "--",
+        "node",
+        "scripts/human-test-engine.mjs"
+      ],
+      "exitCode": 1,
+      "status": "fail",
+      "durationMs": 1238083
+    }
+  ],
+  "summary": {
+    "passed": 0,
+    "failed": 1
+  },
+  "bugReportPublish": {
+    "attempted": true,
+    "skipped": null,
+    "exitCode": 0,
+    "completedAt": "2026-05-10T19:11:21.359Z"
+  }
+}

@@ -16,6 +16,71 @@
 - Pages per nav group: 66, 57, 44, 18, 14, 14, 10, 7, 7, 6, 4, 4, 3, 3, 3, 2, 2, 1
 - **Target state**: ~120 pages (60% reduction), 1 unified nav system, ≤5 buttons per page header, consistent patterns
 
+## Current-State Issue Register (Evidence Refresh — 2026-05-10)
+
+Source evidence from latest focused and API gate runs:
+- Focused suite failure snapshot in `/tmp/focused_latest.out`
+- API gate output in `/tmp/gate_api.out`
+
+### Issue Cluster A: Route Access and Session State Instability
+
+Symptoms:
+- Large groups of route-level checks fail in `officer-portal-walkthrough.spec.ts`, `route-restoration-smoke.spec.ts`, and `capability-overview.spec.ts`.
+- Expected route reachability and route restoration behavior fails across admin/officer/master paths.
+
+Operator impact:
+- Users cannot reliably traverse high-frequency pages without route/session breakage.
+- Navigation confidence drops because valid paths appear broken.
+
+Priority:
+- **P0** (blocks release confidence).
+
+### Issue Cluster B: Command Centre and Primary Workflow Breakdown
+
+Symptoms:
+- `ui-comprehensive.spec.ts` failures in command centre module tiles, incident workflows, and quick-report actions.
+- Core page interactions (open dialogs, submit forms, filter/search) are failing early in workflow sequences.
+
+Operator impact:
+- Admin and officer core tasks cannot be completed end-to-end in regression automation.
+- Increased manual workaround load for incident and report workflows.
+
+Priority:
+- **P0**.
+
+### Issue Cluster C: Tender Workspace Workflow Failures
+
+Symptoms:
+- `tender-workspace.spec.ts` failures across intake, references, draft response, approval, export, collaborators, and reference library checks.
+
+Operator impact:
+- Tender lifecycle is not test-stable at multiple checkpoints.
+- Risks missed deadlines and incomplete proposal handling in production operations.
+
+Priority:
+- **P1**.
+
+### Issue Cluster D: API Contract Drift and Phase-Gate Inconsistency
+
+Symptoms:
+- Previously mixed API suite included non-API browser flows, creating noisy failures.
+- Auth wiring is now corrected, but phase-gate specs still show contract mismatches in some D/E phase assertions.
+
+Operator impact:
+- Signal-to-noise ratio in release gates is reduced.
+- Teams spend time triaging infrastructure/scope noise instead of real regressions.
+
+Priority:
+- **P1**.
+
+### Immediate Remediation Lanes
+
+1. **Stabilize route/session behavior first**: resolve route restoration and portal walkthrough failures before visual/layout refinements.
+2. **Recover command centre critical path**: restore module-grid navigation and incident quick actions as first UX workflow recovery slice.
+3. **Harden tender workspace path**: fix tab-level interaction breakpoints and verify create/open/export flows.
+4. **Keep API gate scope strict**: preserve API-only config for `test:api` and handle UI flow checks in focused/deep suites only.
+5. **Re-baseline after each lane**: rerun focused + targeted specs after each remediation batch and update this register.
+
 ---
 
 # PERSPECTIVE 1: Copilot Strategic Plan — "Shell-Centric Consolidation"

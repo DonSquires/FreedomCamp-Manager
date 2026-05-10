@@ -1,0 +1,46 @@
+{
+  "runId": "2026-05-10T18-26-52-801Z",
+  "batch": "visual",
+  "scope": "full",
+  "startedAt": "2026-05-10T18:26:52.850Z",
+  "endedAt": "2026-05-10T18:30:11.441Z",
+  "resumeMode": false,
+  "continueOnFailure": true,
+  "browserInstallAttempted": false,
+  "browserInstallExitCode": null,
+  "stages": [
+    {
+      "id": "visual-e2e-emulation",
+      "description": "Run visual regression-style sweeps on desktop and mobile emulation",
+      "command": "/usr/bin/node",
+      "args": [
+        "scripts/run-test-with-bob-assist.mjs",
+        "--",
+        "bunx",
+        "playwright",
+        "test",
+        "tests/e2e/crm-service-provider-visual.spec.ts",
+        "--project",
+        "chromium",
+        "--project",
+        "Mobile Chrome",
+        "--project",
+        "Mobile Safari",
+        "--reporter=list,json"
+      ],
+      "exitCode": 0,
+      "status": "pass",
+      "durationMs": 198564
+    }
+  ],
+  "summary": {
+    "passed": 1,
+    "failed": 0
+  },
+  "bugReportPublish": {
+    "attempted": true,
+    "skipped": null,
+    "exitCode": 0,
+    "completedAt": "2026-05-10T18:30:11.845Z"
+  }
+}

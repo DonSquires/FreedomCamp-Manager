@@ -3,8 +3,8 @@ import { config as loadEnv } from 'dotenv'
 
 // Load base env first, then local overrides for test runs.
 loadEnv({ path: '.env' })
-loadEnv({ path: '.env.local', override: true })
-loadEnv({ path: '.env.playwright.local', override: true })
+loadEnv({ path: '.env.local' })
+loadEnv({ path: '.env.playwright.local' })
 
 /**
  * Dedicated configuration for API-only Playwright tests.
@@ -14,7 +14,8 @@ loadEnv({ path: '.env.playwright.local', override: true })
  */
 export default defineConfig({
   testDir: './tests/e2e',
-  testMatch: ['**/*.spec.ts', '**/*.test.ts'],
+  // Keep API mode constrained to API-focused specs and avoid browser/UI suites.
+  testMatch: ['**/*api*.spec.ts'],
   fullyParallel: false,
   retries: 0,
   workers: 1,

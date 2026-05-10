@@ -1,0 +1,35 @@
+{
+  "updatedAt": "2026-05-10T19:11:21.366Z",
+  "runId": "2026-05-10T18-50-42-842Z",
+  "batch": "human",
+  "scope": "full",
+  "resumeMode": false,
+  "continueOnFailure": true,
+  "startedAt": "2026-05-10T18:50:42.856Z",
+  "endedAt": "2026-05-10T19:11:20.993Z",
+  "summary": {
+    "passed": 0,
+    "failed": 1
+  },
+  "failedStages": [
+    {
+      "id": "human-engine",
+      "exitCode": 1,
+      "durationMs": 1238083
+    }
+  ],
+  "failureContexts": [
+    {
+      "folder": "ui-comprehensive-Complianc-214df-e-loads-with-trigger-button-Mobile-Chrome",
+      "testName": "ui-comprehensive.spec.ts >> Compliance Recalculation >> page loads with trigger button",
+      "location": "tests/e2e/ui-comprehensive.spec.ts:2147:3",
+      "error": "Error: expect(locator).toBeVisible() failed"
+    },
+    {
+      "folder": "ui-comprehensive-Complianc-214df-e-loads-with-trigger-button-chromium",
+      "testName": "ui-comprehensive.spec.ts >> Compliance Recalculation >> page loads with trigger button",
+      "location": "tests/e2e/ui-comprehensive.spec.ts:2147:3",
+      "error": "Error: expect(locator).toBeVisible() failed"
+    }
+  ]
+}

@@ -2,8 +2,8 @@ import { defineConfig, devices } from '@playwright/test'
 import { config as loadEnv } from 'dotenv'
 
 loadEnv({ path: '.env' })
-loadEnv({ path: '.env.local', override: true })
-loadEnv({ path: '.env.playwright.local', override: true })
+loadEnv({ path: '.env.local' })
+loadEnv({ path: '.env.playwright.local' })
 
 const executablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH || '/usr/bin/chromium'
 const ignoreHTTPSErrors = process.env.PLAYWRIGHT_IGNORE_HTTPS_ERRORS !== '0'

@@ -1,0 +1,1455 @@
+# Human Trial Gate Summary
+
+- Generated: 2026-05-10T22:22:12.544Z
+- Verdict: NO_GO
+- Blockers: 142
+- Majors: 19
+- Minors: 198
+- Failed gate steps: 0
+
+## Gate Step Outcomes
+
+- No step outcomes were provided by the workflow environment.
+
+## Blockers
+
+- [bob-audit] capability-overview.spec.ts >> Admin Dashboard / Command Centre route >> /admin route exists and redirects unauthenticated users to login
+  - location: tests/e2e/capability-overview.spec.ts:198:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/admin
+  - dimension: architecture
+- [bob-audit] capability-overview.spec.ts >> Breach Alerts route >> /breaches route exists and redirects unauthenticated users
+  - location: tests/e2e/capability-overview.spec.ts:222:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/breaches
+  - dimension: architecture
+- [bob-audit] capability-overview.spec.ts >> Client Organisation Portal route >> /client-portal redirects unauthenticated users
+  - location: tests/e2e/capability-overview.spec.ts:342:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/client-portal
+  - dimension: architecture
+- [bob-audit] capability-overview.spec.ts >> Compliance Dashboard route >> /compliance route exists and redirects unauthenticated users
+  - location: tests/e2e/capability-overview.spec.ts:206:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/compliance
+  - dimension: architecture
+- [bob-audit] capability-overview.spec.ts >> Data Management routes >> /admin/data-hub redirects unauthenticated users
+  - location: tests/e2e/capability-overview.spec.ts:314:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/admin/data-hub
+  - dimension: architecture
+- [bob-audit] capability-overview.spec.ts >> Data Management routes >> /audit-log redirects unauthenticated users
+  - location: tests/e2e/capability-overview.spec.ts:306:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/audit-log
+  - dimension: architecture
+- [bob-audit] capability-overview.spec.ts >> Data Management routes >> /data redirects unauthenticated users
+  - location: tests/e2e/capability-overview.spec.ts:302:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/data
+  - dimension: architecture
+- [bob-audit] capability-overview.spec.ts >> Data Management routes >> /admin/data-integrity redirects unauthenticated users
+  - location: tests/e2e/capability-overview.spec.ts:310:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/admin/data-integrity
+  - dimension: architecture
+- [bob-audit] capability-overview.spec.ts >> Enforcement routes >> /enforcement-actions redirects unauthenticated users
+  - location: tests/e2e/capability-overview.spec.ts:350:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/enforcement-actions
+  - dimension: architecture
+- [bob-audit] capability-overview.spec.ts >> Enforcement Command Centre route >> /enforcement-command-center route exists and redirects
+  - location: tests/e2e/capability-overview.spec.ts:230:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/enforcement-command-center
+  - dimension: architecture
+- [bob-audit] capability-overview.spec.ts >> Enforcement routes >> /infringements redirects unauthenticated users
+  - location: tests/e2e/capability-overview.spec.ts:354:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/infringements
+  - dimension: architecture
+- [bob-audit] capability-overview.spec.ts >> Incident Management route >> /incidents redirects unauthenticated users
+  - location: tests/e2e/capability-overview.spec.ts:274:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/incidents
+  - dimension: architecture
+- [bob-audit] capability-overview.spec.ts >> Live Patrol Monitor route >> /live-tracking route exists and redirects unauthenticated users
+  - location: tests/e2e/capability-overview.spec.ts:242:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/live-tracking
+  - dimension: architecture
+- [bob-audit] capability-overview.spec.ts >> Live Patrol Monitor route >> /live-patrol route exists and redirects unauthenticated users
+  - location: tests/e2e/capability-overview.spec.ts:238:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/live-patrol
+  - dimension: architecture
+- [bob-audit] capability-overview.spec.ts >> Multi-organisation routes >> /organizations redirects unauthenticated users
+  - location: tests/e2e/capability-overview.spec.ts:326:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/organizations
+  - dimension: architecture
+- [bob-audit] capability-overview.spec.ts >> Multi-organisation routes >> /users redirects unauthenticated users
+  - location: tests/e2e/capability-overview.spec.ts:330:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/users
+  - dimension: architecture
+- [bob-audit] capability-overview.spec.ts >> Multi-organisation routes >> /platform redirects unauthenticated users
+  - location: tests/e2e/capability-overview.spec.ts:322:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/platform
+  - dimension: architecture
+- [bob-audit] capability-overview.spec.ts >> Multi-organisation routes >> /access-control redirects unauthenticated users
+  - location: tests/e2e/capability-overview.spec.ts:334:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/access-control
+  - dimension: architecture
+- [bob-audit] capability-overview.spec.ts >> Patrol scheduling routes >> /patrol-schedule redirects unauthenticated users
+  - location: tests/e2e/capability-overview.spec.ts:250:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/patrol-schedule
+  - dimension: architecture
+- [bob-audit] capability-overview.spec.ts >> Patrol scheduling routes >> /patrol-checkpoints redirects unauthenticated users
+  - location: tests/e2e/capability-overview.spec.ts:254:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/patrol-checkpoints
+  - dimension: architecture
+- [bob-audit] capability-overview.spec.ts >> Patrol scheduling routes >> /patrol-kpis redirects unauthenticated users
+  - location: tests/e2e/capability-overview.spec.ts:258:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/patrol-kpis
+  - dimension: architecture
+- [bob-audit] capability-overview.spec.ts >> Protected routes redirect to login when unauthenticated >> /organization-profile redirects to /login
+  - location: tests/e2e/capability-overview.spec.ts:189:5
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/organization-profile
+  - dimension: architecture
+- [bob-audit] capability-overview.spec.ts >> Protected routes redirect to login when unauthenticated >> /ai-analysis redirects to /login
+  - location: tests/e2e/capability-overview.spec.ts:189:5
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/ai-analysis
+  - dimension: architecture
+- [bob-audit] capability-overview.spec.ts >> Protected routes redirect to login when unauthenticated >> /hotspots redirects to /login
+  - location: tests/e2e/capability-overview.spec.ts:189:5
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/hotspots
+  - dimension: architecture
+- [bob-audit] capability-overview.spec.ts >> Protected routes redirect to login when unauthenticated >> /reports redirects to /login
+  - location: tests/e2e/capability-overview.spec.ts:189:5
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/reports
+  - dimension: architecture
+- [bob-audit] capability-overview.spec.ts >> Protected routes redirect to login when unauthenticated >> /compliance-recalculation redirects to /login
+  - location: tests/e2e/capability-overview.spec.ts:189:5
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/compliance-recalculation
+  - dimension: architecture
+- [bob-audit] capability-overview.spec.ts >> Protected routes redirect to login when unauthenticated >> /field-officer redirects to /login
+  - location: tests/e2e/capability-overview.spec.ts:189:5
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/field-officer
+  - dimension: architecture
+- [bob-audit] capability-overview.spec.ts >> Protected routes redirect to login when unauthenticated >> /data redirects to /login
+  - location: tests/e2e/capability-overview.spec.ts:189:5
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/data
+  - dimension: architecture
+- [bob-audit] capability-overview.spec.ts >> Protected routes redirect to login when unauthenticated >> /admin/data-cleanup redirects to /login
+  - location: tests/e2e/capability-overview.spec.ts:189:5
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/admin/data-cleanup
+  - dimension: architecture
+- [bob-audit] capability-overview.spec.ts >> Protected routes redirect to login when unauthenticated >> /organizations redirects to /login
+  - location: tests/e2e/capability-overview.spec.ts:189:5
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/organizations
+  - dimension: architecture
+- [bob-audit] capability-overview.spec.ts >> Protected routes redirect to login when unauthenticated >> /breaches redirects to /login
+  - location: tests/e2e/capability-overview.spec.ts:189:5
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/breaches
+  - dimension: architecture
+- [bob-audit] capability-overview.spec.ts >> Protected routes redirect to login when unauthenticated >> /users redirects to /login
+  - location: tests/e2e/capability-overview.spec.ts:189:5
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/users
+  - dimension: architecture
+- [bob-audit] capability-overview.spec.ts >> Protected routes redirect to login when unauthenticated >> /diagnostics redirects to /login
+  - location: tests/e2e/capability-overview.spec.ts:189:5
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/diagnostics
+  - dimension: architecture
+- [bob-audit] capability-overview.spec.ts >> Protected routes redirect to login when unauthenticated >> /admin/data-integrity redirects to /login
+  - location: tests/e2e/capability-overview.spec.ts:189:5
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/admin/data-integrity
+  - dimension: architecture
+- [bob-audit] capability-overview.spec.ts >> Protected routes redirect to login when unauthenticated >> /compliance redirects to /login
+  - location: tests/e2e/capability-overview.spec.ts:189:5
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/compliance
+  - dimension: architecture
+- [bob-audit] capability-overview.spec.ts >> Protected routes redirect to login when unauthenticated >> /live-patrol redirects to /login
+  - location: tests/e2e/capability-overview.spec.ts:189:5
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/live-patrol
+  - dimension: architecture
+- [bob-audit] capability-overview.spec.ts >> Protected routes redirect to login when unauthenticated >> /incidents redirects to /login
+  - location: tests/e2e/capability-overview.spec.ts:189:5
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/incidents
+  - dimension: architecture
+- [bob-audit] capability-overview.spec.ts >> Protected routes redirect to login when unauthenticated >> /live-tracking redirects to /login
+  - location: tests/e2e/capability-overview.spec.ts:189:5
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/live-tracking
+  - dimension: architecture
+- [bob-audit] capability-overview.spec.ts >> Protected routes redirect to login when unauthenticated >> /audit-log redirects to /login
+  - location: tests/e2e/capability-overview.spec.ts:189:5
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/audit-log
+  - dimension: architecture
+- [bob-audit] capability-overview.spec.ts >> Protected routes redirect to login when unauthenticated >> /enforcement-actions redirects to /login
+  - location: tests/e2e/capability-overview.spec.ts:189:5
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/enforcement-actions
+  - dimension: architecture
+- [bob-audit] capability-overview.spec.ts >> Protected routes redirect to login when unauthenticated >> /settings redirects to /login
+  - location: tests/e2e/capability-overview.spec.ts:189:5
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/settings
+  - dimension: architecture
+- [bob-audit] capability-overview.spec.ts >> Protected routes redirect to login when unauthenticated >> /client-portal redirects to /login
+  - location: tests/e2e/capability-overview.spec.ts:189:5
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/client-portal
+  - dimension: architecture
+- [bob-audit] capability-overview.spec.ts >> Protected routes redirect to login when unauthenticated >> /patrol-schedule redirects to /login
+  - location: tests/e2e/capability-overview.spec.ts:189:5
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/patrol-schedule
+  - dimension: architecture
+- [bob-audit] capability-overview.spec.ts >> Protected routes redirect to login when unauthenticated >> / redirects to /login
+  - location: tests/e2e/capability-overview.spec.ts:189:5
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/
+  - dimension: architecture
+- [bob-audit] capability-overview.spec.ts >> Protected routes redirect to login when unauthenticated >> /admin redirects to /login
+  - location: tests/e2e/capability-overview.spec.ts:189:5
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/admin
+  - dimension: architecture
+- [bob-audit] capability-overview.spec.ts >> Protected routes redirect to login when unauthenticated >> /admin/data-hub redirects to /login
+  - location: tests/e2e/capability-overview.spec.ts:189:5
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/admin/data-hub
+  - dimension: architecture
+- [bob-audit] capability-overview.spec.ts >> Protected routes redirect to login when unauthenticated >> /infringements redirects to /login
+  - location: tests/e2e/capability-overview.spec.ts:189:5
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/infringements
+  - dimension: architecture
+- [bob-audit] capability-overview.spec.ts >> Protected routes redirect to login when unauthenticated >> /patrol-kpis redirects to /login
+  - location: tests/e2e/capability-overview.spec.ts:189:5
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/patrol-kpis
+  - dimension: architecture
+- [bob-audit] capability-overview.spec.ts >> Protected routes redirect to login when unauthenticated >> /reports-hub redirects to /login
+  - location: tests/e2e/capability-overview.spec.ts:189:5
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/reports-hub
+  - dimension: architecture
+- [bob-audit] capability-overview.spec.ts >> Protected routes redirect to login when unauthenticated >> /profile redirects to /login
+  - location: tests/e2e/capability-overview.spec.ts:189:5
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/profile
+  - dimension: architecture
+- [bob-audit] capability-overview.spec.ts >> Protected routes redirect to login when unauthenticated >> /portal-selection redirects to /login
+  - location: tests/e2e/capability-overview.spec.ts:189:5
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/portal-selection
+  - dimension: architecture
+- [bob-audit] capability-overview.spec.ts >> Protected routes redirect to login when unauthenticated >> /vehicles redirects to /login
+  - location: tests/e2e/capability-overview.spec.ts:189:5
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/vehicles
+  - dimension: architecture
+- [bob-audit] capability-overview.spec.ts >> Protected routes redirect to login when unauthenticated >> /patrol-checkpoints redirects to /login
+  - location: tests/e2e/capability-overview.spec.ts:189:5
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/patrol-checkpoints
+  - dimension: architecture
+- [bob-audit] capability-overview.spec.ts >> Protected routes redirect to login when unauthenticated >> /enforcement-command-center redirects to /login
+  - location: tests/e2e/capability-overview.spec.ts:189:5
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/enforcement-command-center
+  - dimension: architecture
+- [bob-audit] capability-overview.spec.ts >> Protected routes redirect to login when unauthenticated >> /platform redirects to /login
+  - location: tests/e2e/capability-overview.spec.ts:189:5
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/platform
+  - dimension: architecture
+- [bob-audit] capability-overview.spec.ts >> Protected routes redirect to login when unauthenticated >> /access-control redirects to /login
+  - location: tests/e2e/capability-overview.spec.ts:189:5
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/access-control
+  - dimension: architecture
+- [bob-audit] capability-overview.spec.ts >> Protected routes redirect to login when unauthenticated >> /zones redirects to /login
+  - location: tests/e2e/capability-overview.spec.ts:189:5
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/zones
+  - dimension: architecture
+- [bob-audit] capability-overview.spec.ts >> Protected routes redirect to login when unauthenticated >> /admin/cleanup-recalculate redirects to /login
+  - location: tests/e2e/capability-overview.spec.ts:189:5
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/admin/cleanup-recalculate
+  - dimension: architecture
+- [bob-audit] capability-overview.spec.ts >> Public Dispute Portal >> is accessible without authentication
+  - location: tests/e2e/capability-overview.spec.ts:116:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/dispute
+  - dimension: architecture
+- [bob-audit] capability-overview.spec.ts >> Public Dispute Portal >> renders a notice reference number input
+  - location: tests/e2e/capability-overview.spec.ts:123:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/dispute
+  - dimension: architecture
+- [bob-audit] capability-overview.spec.ts >> Public Dispute Portal >> renders a Find Notice button
+  - location: tests/e2e/capability-overview.spec.ts:130:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/dispute
+  - dimension: architecture
+- [bob-audit] capability-overview.spec.ts >> Public Dispute Portal >> shows a heading describing the dispute process
+  - location: tests/e2e/capability-overview.spec.ts:137:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/dispute
+  - dimension: architecture
+- [bob-audit] capability-overview.spec.ts >> Reports & Analytics routes >> /reports redirects unauthenticated users
+  - location: tests/e2e/capability-overview.spec.ts:282:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/reports
+  - dimension: architecture
+- [bob-audit] capability-overview.spec.ts >> Reports & Analytics routes >> /hotspots redirects unauthenticated users
+  - location: tests/e2e/capability-overview.spec.ts:294:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/hotspots
+  - dimension: architecture
+- [bob-audit] capability-overview.spec.ts >> Reports & Analytics routes >> /ai-analysis redirects unauthenticated users
+  - location: tests/e2e/capability-overview.spec.ts:290:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/ai-analysis
+  - dimension: architecture
+- [bob-audit] capability-overview.spec.ts >> Reports & Analytics routes >> /reports-hub redirects unauthenticated users
+  - location: tests/e2e/capability-overview.spec.ts:286:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/reports-hub
+  - dimension: architecture
+- [bob-audit] capability-overview.spec.ts >> Vehicle Management routes >> /vehicles redirects unauthenticated users
+  - location: tests/e2e/capability-overview.spec.ts:266:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/vehicles
+  - dimension: architecture
+- [bob-audit] capability-overview.spec.ts >> Zone Management route >> /zones route exists and redirects unauthenticated users
+  - location: tests/e2e/capability-overview.spec.ts:214:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/zones
+  - dimension: architecture
+- [bob-audit] deep-functional.spec.ts >> Deep functional test actions >> @smoke admin can reach key functional routes
+  - location: tests/e2e/deep-functional.spec.ts:21:3
+  - error: Test timeout of 30000ms exceeded.
+  - dimension: architecture
+- [bob-audit] module-e2e-comprehensive.spec.ts >> Admin Data & Permissions >> data management page loads
+  - location: tests/e2e/module-e2e-comprehensive.spec.ts:576:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: architecture
+- [bob-audit] module-e2e-comprehensive.spec.ts >> Specialised Portals >> parking enforcement portal loads (admin)
+  - location: tests/e2e/module-e2e-comprehensive.spec.ts:514:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: architecture
+- [bob-audit] module-route-access.spec.ts >> module-route-access: officer is blocked from admin-only routes >> officer cannot access /admin
+  - location: tests/e2e/module-route-access.spec.ts:120:5
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: architecture
+- [bob-audit] module-route-access.spec.ts >> module-route-access: admin can reach all admin routes >> admin loads /access-control (Access Control)
+  - location: tests/e2e/module-route-access.spec.ts:90:5
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: architecture
+- [bob-audit] module-route-access.spec.ts >> module-route-access: officer can reach officer routes >> officer loads /field-officer (Field Officer Portal)
+  - location: tests/e2e/module-route-access.spec.ts:103:5
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: architecture
+- [bob-audit] officer-portal-walkthrough.spec.ts >> Portal page walkthrough >> page: /users
+  - location: tests/e2e/officer-portal-walkthrough.spec.ts:78:5
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/
+  - dimension: architecture
+- [bob-audit] officer-portal-walkthrough.spec.ts >> Portal page walkthrough >> page: /profile
+  - location: tests/e2e/officer-portal-walkthrough.spec.ts:78:5
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/
+  - dimension: architecture
+- [bob-audit] officer-portal-walkthrough.spec.ts >> Portal page walkthrough >> page: /breach-notices
+  - location: tests/e2e/officer-portal-walkthrough.spec.ts:78:5
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/
+  - dimension: architecture
+- [bob-audit] officer-portal-walkthrough.spec.ts >> Portal page walkthrough >> page: /site-guard
+  - location: tests/e2e/officer-portal-walkthrough.spec.ts:78:5
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/
+  - dimension: architecture
+- [bob-audit] officer-portal-walkthrough.spec.ts >> Portal page walkthrough >> page: /bob-assistant
+  - location: tests/e2e/officer-portal-walkthrough.spec.ts:78:5
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/
+  - dimension: architecture
+- [bob-audit] officer-portal-walkthrough.spec.ts >> Portal page walkthrough >> page: /observations
+  - location: tests/e2e/officer-portal-walkthrough.spec.ts:78:5
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/
+  - dimension: architecture
+- [bob-audit] officer-portal-walkthrough.spec.ts >> Portal page walkthrough >> page: /team-chat
+  - location: tests/e2e/officer-portal-walkthrough.spec.ts:78:5
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/
+  - dimension: architecture
+- [bob-audit] officer-portal-walkthrough.spec.ts >> Portal page walkthrough >> page: /organizations
+  - location: tests/e2e/officer-portal-walkthrough.spec.ts:78:5
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/
+  - dimension: architecture
+- [bob-audit] officer-portal-walkthrough.spec.ts >> Portal page walkthrough >> page: /organizations
+  - location: tests/e2e/officer-portal-walkthrough.spec.ts:78:5
+  - error: TimeoutError: page.screenshot: Timeout 10000ms exceeded.
+  - dimension: architecture
+- [bob-audit] officer-portal-walkthrough.spec.ts >> Portal page walkthrough >> page: /reports
+  - location: tests/e2e/officer-portal-walkthrough.spec.ts:78:5
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/
+  - dimension: architecture
+- [bob-audit] officer-portal-walkthrough.spec.ts >> Portal page walkthrough >> page: /reports
+  - location: tests/e2e/officer-portal-walkthrough.spec.ts:78:5
+  - error: Error: page.screenshot: Target crashed
+  - dimension: architecture
+- [bob-audit] officer-portal-walkthrough.spec.ts >> Portal page walkthrough >> page: /officer-welfare
+  - location: tests/e2e/officer-portal-walkthrough.spec.ts:78:5
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/
+  - dimension: architecture
+- [bob-audit] officer-portal-walkthrough.spec.ts >> Portal page walkthrough >> page: /timesheets
+  - location: tests/e2e/officer-portal-walkthrough.spec.ts:78:5
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/
+  - dimension: architecture
+- [bob-audit] officer-portal-walkthrough.spec.ts >> Portal page walkthrough >> page: /person-records
+  - location: tests/e2e/officer-portal-walkthrough.spec.ts:78:5
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/
+  - dimension: architecture
+- [bob-audit] officer-portal-walkthrough.spec.ts >> Portal page walkthrough >> page: /search
+  - location: tests/e2e/officer-portal-walkthrough.spec.ts:78:5
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/
+  - dimension: architecture
+- [bob-audit] officer-portal-walkthrough.spec.ts >> Portal page walkthrough >> page: /dispatch
+  - location: tests/e2e/officer-portal-walkthrough.spec.ts:78:5
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/
+  - dimension: architecture
+- [bob-audit] officer-portal-walkthrough.spec.ts >> Portal page walkthrough >> page: /availability
+  - location: tests/e2e/officer-portal-walkthrough.spec.ts:78:5
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/
+  - dimension: architecture
+- [bob-audit] officer-portal-walkthrough.spec.ts >> Portal page walkthrough >> page: /biosecurity-officer
+  - location: tests/e2e/officer-portal-walkthrough.spec.ts:78:5
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/
+  - dimension: architecture
+- [bob-audit] officer-portal-walkthrough.spec.ts >> Portal page walkthrough >> page: /radio
+  - location: tests/e2e/officer-portal-walkthrough.spec.ts:78:5
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/
+  - dimension: architecture
+- [bob-audit] officer-portal-walkthrough.spec.ts >> Portal page walkthrough >> page: /officer-home
+  - location: tests/e2e/officer-portal-walkthrough.spec.ts:78:5
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/
+  - dimension: architecture
+- [bob-audit] officer-portal-walkthrough.spec.ts >> Portal page walkthrough >> page: /field-officer
+  - location: tests/e2e/officer-portal-walkthrough.spec.ts:78:5
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/
+  - dimension: architecture
+- [bob-audit] officer-portal-walkthrough.spec.ts >> Portal page walkthrough >> page: /admin/dashboard
+  - location: tests/e2e/officer-portal-walkthrough.spec.ts:78:5
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/
+  - dimension: architecture
+- [bob-audit] officer-portal-walkthrough.spec.ts >> Portal page walkthrough >> page: /officer-skills
+  - location: tests/e2e/officer-portal-walkthrough.spec.ts:78:5
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/
+  - dimension: architecture
+- [bob-audit] officer-portal-walkthrough.spec.ts >> Portal page walkthrough >> page: /breaches
+  - location: tests/e2e/officer-portal-walkthrough.spec.ts:78:5
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/
+  - dimension: architecture
+- [bob-audit] officer-portal-walkthrough.spec.ts >> Portal page walkthrough >> page: /audit-log
+  - location: tests/e2e/officer-portal-walkthrough.spec.ts:78:5
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/
+  - dimension: architecture
+- [bob-audit] officer-portal-walkthrough.spec.ts >> Portal page walkthrough >> page: /hotspots
+  - location: tests/e2e/officer-portal-walkthrough.spec.ts:78:5
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/
+  - dimension: architecture
+- [bob-audit] officer-portal-walkthrough.spec.ts >> Portal page walkthrough >> page: /site-risk-assessment
+  - location: tests/e2e/officer-portal-walkthrough.spec.ts:78:5
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/
+  - dimension: architecture
+- [bob-audit] officer-portal-walkthrough.spec.ts >> Portal page walkthrough >> page: /vehicle-registry
+  - location: tests/e2e/officer-portal-walkthrough.spec.ts:78:5
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/
+  - dimension: architecture
+- [bob-audit] officer-portal-walkthrough.spec.ts >> Portal page walkthrough >> login
+  - location: tests/e2e/officer-portal-walkthrough.spec.ts:63:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/
+  - dimension: architecture
+- [bob-audit] officer-portal-walkthrough.spec.ts >> Portal page walkthrough >> page: /incidents
+  - location: tests/e2e/officer-portal-walkthrough.spec.ts:78:5
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/
+  - dimension: architecture
+- [bob-audit] officer-portal-walkthrough.spec.ts >> Portal page walkthrough >> page: /parking
+  - location: tests/e2e/officer-portal-walkthrough.spec.ts:78:5
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/
+  - dimension: architecture
+- [bob-audit] officer-portal-walkthrough.spec.ts >> Portal page walkthrough >> page: /infringements
+  - location: tests/e2e/officer-portal-walkthrough.spec.ts:78:5
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/
+  - dimension: architecture
+- [bob-audit] officer-portal-walkthrough.spec.ts >> Portal page walkthrough >> page: /patrol-checkpoints
+  - location: tests/e2e/officer-portal-walkthrough.spec.ts:78:5
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/
+  - dimension: architecture
+- [bob-audit] officer-portal-walkthrough.spec.ts >> Portal page walkthrough >> page: /vehicles
+  - location: tests/e2e/officer-portal-walkthrough.spec.ts:78:5
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/
+  - dimension: architecture
+- [bob-audit] officer-portal-walkthrough.spec.ts >> Portal page walkthrough >> page: /incident-reports
+  - location: tests/e2e/officer-portal-walkthrough.spec.ts:78:5
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/
+  - dimension: architecture
+- [bob-audit] officer-portal-walkthrough.spec.ts >> Portal page walkthrough >> page: /compliance-dashboard
+  - location: tests/e2e/officer-portal-walkthrough.spec.ts:78:5
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/
+  - dimension: architecture
+- [bob-audit] officer-portal-walkthrough.spec.ts >> Portal page walkthrough >> page: /admin
+  - location: tests/e2e/officer-portal-walkthrough.spec.ts:78:5
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/
+  - dimension: architecture
+- [bob-audit] officer-portal-walkthrough.spec.ts >> Portal page walkthrough >> page: /operations-map
+  - location: tests/e2e/officer-portal-walkthrough.spec.ts:78:5
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/
+  - dimension: architecture
+- [bob-audit] officer-portal-walkthrough.spec.ts >> Portal page walkthrough >> page: /diagnostics
+  - location: tests/e2e/officer-portal-walkthrough.spec.ts:78:5
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/
+  - dimension: architecture
+- [bob-audit] officer-portal-walkthrough.spec.ts >> Portal page walkthrough >> page: /smoke-officer
+  - location: tests/e2e/officer-portal-walkthrough.spec.ts:78:5
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/
+  - dimension: architecture
+- [bob-audit] officer-portal-walkthrough.spec.ts >> Portal page walkthrough >> page: /zones
+  - location: tests/e2e/officer-portal-walkthrough.spec.ts:78:5
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/
+  - dimension: architecture
+- [bob-audit] officer-portal-walkthrough.spec.ts >> Portal page walkthrough >> page: /compliance
+  - location: tests/e2e/officer-portal-walkthrough.spec.ts:78:5
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/
+  - dimension: architecture
+- [bob-audit] officer-portal-walkthrough.spec.ts >> Portal page walkthrough >> page: /patrol-schedule
+  - location: tests/e2e/officer-portal-walkthrough.spec.ts:78:5
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/
+  - dimension: architecture
+- [bob-audit] officer-portal-walkthrough.spec.ts >> Portal page walkthrough >> page: /settings
+  - location: tests/e2e/officer-portal-walkthrough.spec.ts:78:5
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/
+  - dimension: architecture
+- [bob-audit] officer-portal-walkthrough.spec.ts >> Portal page walkthrough >> page: /enforcement-actions
+  - location: tests/e2e/officer-portal-walkthrough.spec.ts:78:5
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/
+  - dimension: architecture
+- [bob-audit] officer-portal-walkthrough.spec.ts >> Portal page walkthrough >> page: /parking-officer
+  - location: tests/e2e/officer-portal-walkthrough.spec.ts:78:5
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/
+  - dimension: architecture
+- [bob-audit] officer-portal-walkthrough.spec.ts >> Portal page walkthrough >> page: /roster
+  - location: tests/e2e/officer-portal-walkthrough.spec.ts:78:5
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/
+  - dimension: architecture
+- [bob-audit] officer-portal-walkthrough.spec.ts >> Portal page walkthrough >> page: /patrol-kpis
+  - location: tests/e2e/officer-portal-walkthrough.spec.ts:78:5
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/
+  - dimension: architecture
+- [bob-audit] ui-comprehensive.spec.ts >> Access Control >> toggle changes a role permission
+  - location: tests/e2e/ui-comprehensive.spec.ts:1319:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: architecture
+- [bob-audit] ui-comprehensive.spec.ts >> Admin Portal — Scan and Compliance pipeline >> admin portal loads with Recent Scans panel
+  - location: tests/e2e/ui-comprehensive.spec.ts:2073:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: architecture
+- [bob-audit] ui-comprehensive.spec.ts >> Admin Portal — Scan and Compliance pipeline >> compliance chart renders on admin dashboard
+  - location: tests/e2e/ui-comprehensive.spec.ts:2091:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: architecture
+- [bob-audit] ui-comprehensive.spec.ts >> Client Organisation Portal >> page loads with tabs for Patrols, Breaches, Enforcement, Zones, Sites
+  - location: tests/e2e/ui-comprehensive.spec.ts:1689:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: architecture
+- [bob-audit] ui-comprehensive.spec.ts >> Field Officer Portal — Patrol and Welfare >> portal loads and shows welfare status indicator
+  - location: tests/e2e/ui-comprehensive.spec.ts:1951:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: architecture
+- [bob-audit] ui-comprehensive.spec.ts >> Field Officer Portal — Quick Report >> submits H&S report from field portal
+  - location: tests/e2e/ui-comprehensive.spec.ts:294:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: architecture
+- [bob-audit] ui-comprehensive.spec.ts >> Field Officer Portal — Vehicle Scanning >> opens PlateScanner dialog
+  - location: tests/e2e/ui-comprehensive.spec.ts:2019:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: architecture
+- [bob-audit] ui-comprehensive.spec.ts >> Field Officer Portal — Patrol and Welfare >> Activate Live Patrol button is present
+  - location: tests/e2e/ui-comprehensive.spec.ts:1989:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: architecture
+- [bob-audit] ui-comprehensive.spec.ts >> Field Officer Portal — Patrol and Welfare >> Welfare check-in button works
+  - location: tests/e2e/ui-comprehensive.spec.ts:2000:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: architecture
+- [bob-audit] ui-comprehensive.spec.ts >> Field Officer Portal — Patrol and Welfare >> service type selector shows 4 options
+  - location: tests/e2e/ui-comprehensive.spec.ts:1968:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: architecture
+- [bob-audit] ui-comprehensive.spec.ts >> Field Officer Portal — Quick Report >> submits Maintenance report from field portal
+  - location: tests/e2e/ui-comprehensive.spec.ts:322:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: architecture
+- [bob-audit] ui-comprehensive.spec.ts >> Field Officer Portal — Quick Report >> portal loads with service type selector
+  - location: tests/e2e/ui-comprehensive.spec.ts:268:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: architecture
+- [bob-audit] ui-comprehensive.spec.ts >> Field Officer Portal — Quick Report >> portal loads with service type selector
+  - location: tests/e2e/ui-comprehensive.spec.ts:268:3
+  - error: Error: expect(received).toMatch(expected)
+  - dimension: architecture
+- [bob-audit] ui-comprehensive.spec.ts >> Field Officer Portal — Vehicle Scanning >> Manual Entry mode in PlateScanner
+  - location: tests/e2e/ui-comprehensive.spec.ts:2031:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: architecture
+- [bob-audit] ui-comprehensive.spec.ts >> Field Officer Portal — Quick Report >> opens Quick Report dialog from field portal
+  - location: tests/e2e/ui-comprehensive.spec.ts:280:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: architecture
+- [bob-audit] ui-comprehensive.spec.ts >> Noise Control Portal >> page loads with heading
+  - location: tests/e2e/ui-comprehensive.spec.ts:2201:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: architecture
+- [bob-audit] ui-comprehensive.spec.ts >> Parking Enforcement Portal >> page loads with scan controls
+  - location: tests/e2e/ui-comprehensive.spec.ts:2188:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: architecture
+- [bob-audit] ui-comprehensive.spec.ts >> Public Dispute Portal — full submission flow >> notice lookup with invalid reference shows error
+  - location: tests/e2e/ui-comprehensive.spec.ts:1710:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/dispute
+  - dimension: architecture
+- [bob-audit] ui-comprehensive.spec.ts >> Site Guard Portal >> page loads with shift log
+  - location: tests/e2e/ui-comprehensive.spec.ts:2161:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: architecture
+- [bob-audit] ui-comprehensive.spec.ts >> Site Guard Portal >> page loads with shift log
+  - location: tests/e2e/ui-comprehensive.spec.ts:2161:3
+  - error: Error: expect(received).toMatch(expected)
+  - dimension: architecture
+
+## Majors
+
+- [bob-audit] ui-comprehensive.spec.ts >> Admin Dashboard — Command Centre >> navigates from module grid tile to correct page
+  - location: tests/e2e/ui-comprehensive.spec.ts:104:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: ui-layout
+- [bob-audit] ui-comprehensive.spec.ts >> Admin Dashboard — Command Centre >> renders KPI tiles and module grid
+  - location: tests/e2e/ui-comprehensive.spec.ts:91:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: ui-layout
+- [bob-audit] ui-comprehensive.spec.ts >> Admin Dashboard — Command Centre >> renders KPI tiles and module grid
+  - location: tests/e2e/ui-comprehensive.spec.ts:91:3
+  - error: Error: expect(locator).toBeVisible() failed
+  - dimension: ui-layout
+- [bob-audit] ui-comprehensive.spec.ts >> Incident Management — admin workflows >> fills and submits an Incident report
+  - location: tests/e2e/ui-comprehensive.spec.ts:154:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: practicality
+- [bob-audit] ui-comprehensive.spec.ts >> Incident Management — admin workflows >> opens New Incident dialog
+  - location: tests/e2e/ui-comprehensive.spec.ts:138:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: practicality
+- [bob-audit] ui-comprehensive.spec.ts >> Incident Management — admin workflows >> fills and submits a Maintenance report
+  - location: tests/e2e/ui-comprehensive.spec.ts:215:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: practicality
+- [bob-audit] ui-comprehensive.spec.ts >> Incident Management — admin workflows >> fills and submits a Maintenance report
+  - location: tests/e2e/ui-comprehensive.spec.ts:215:3
+  - error: TimeoutError: locator.click: Timeout 10000ms exceeded.
+  - dimension: practicality
+- [bob-audit] ui-comprehensive.spec.ts >> Incident Management — admin workflows >> fills and submits an H&S report
+  - location: tests/e2e/ui-comprehensive.spec.ts:186:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: practicality
+- [bob-audit] ui-comprehensive.spec.ts >> Incident Management — admin workflows >> searches incidents by keyword
+  - location: tests/e2e/ui-comprehensive.spec.ts:251:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: practicality
+- [bob-audit] ui-comprehensive.spec.ts >> Incident Management — admin workflows >> searches incidents by keyword
+  - location: tests/e2e/ui-comprehensive.spec.ts:251:3
+  - error: TimeoutError: locator.fill: Timeout 10000ms exceeded.
+  - dimension: practicality
+- [bob-audit] ui-comprehensive.spec.ts >> Incident Management — admin workflows >> page loads with heading and filter controls
+  - location: tests/e2e/ui-comprehensive.spec.ts:123:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: practicality
+- [bob-audit] ui-comprehensive.spec.ts >> Incident Management — admin workflows >> filters incidents by type
+  - location: tests/e2e/ui-comprehensive.spec.ts:239:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: practicality
+- [bob-audit] ui-comprehensive.spec.ts >> Profile & Settings >> theme toggle (dark mode) works
+  - location: tests/e2e/ui-comprehensive.spec.ts:1750:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: colour
+- [bob-audit] ui-comprehensive.spec.ts >> Profile & Settings >> theme toggle (dark mode) works
+  - location: tests/e2e/ui-comprehensive.spec.ts:1750:3
+  - error: Error: expect(received).toContain(expected) // indexOf
+  - dimension: colour
+- [bob-audit] ui-comprehensive.spec.ts >> Roster Planner >> page loads with calendar grid
+  - location: tests/e2e/ui-comprehensive.spec.ts:1392:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: ui-layout
+- [bob-audit] ui-comprehensive.spec.ts >> Zone Management >> page loads with stat grid and search
+  - location: tests/e2e/ui-comprehensive.spec.ts:1130:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: ui-layout
+- [bob-audit] ui-comprehensive.spec.ts >> Zone Management >> page loads with stat grid and search
+  - location: tests/e2e/ui-comprehensive.spec.ts:1130:3
+  - error: Error: expect(locator).toBeVisible() failed
+  - dimension: ui-layout
+- [playwright] ui-comprehensive.spec.ts >> Compliance Recalculation >> page loads with trigger button
+  - location: tests/e2e/ui-comprehensive.spec.ts:2147:3
+  - error: Error: expect(locator).toBeVisible() failed
+- [playwright] ui-comprehensive.spec.ts >> Compliance Recalculation >> page loads with trigger button
+  - location: tests/e2e/ui-comprehensive.spec.ts:2147:3
+  - error: Error: expect(locator).toBeVisible() failed
+
+## Minors
+
+- [bob-audit] asset-management-scan.spec.ts >> Asset Management - Scanner Flows >> keyboard wedge scan (USB/Bluetooth) triggers scan on Enter
+  - location: tests/e2e/asset-management-scan.spec.ts:28:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] asset-management-scan.spec.ts >> Asset Management - Scanner Flows >> keyboard wedge scan (USB/Bluetooth) triggers scan on Enter
+  - location: tests/e2e/asset-management-scan.spec.ts:28:3
+  - error: Error: expect(locator).toBeVisible() failed
+  - dimension: general
+- [bob-audit] asset-management-scan.spec.ts >> Asset Management - Scanner Flows >> camera scan uses mocked BarcodeDetector and resolves code
+  - location: tests/e2e/asset-management-scan.spec.ts:55:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] asset-management-scan.spec.ts >> Asset Management - Scanner Flows >> manual scan entry opens issue dialog and pre-fills asset tag
+  - location: tests/e2e/asset-management-scan.spec.ts:17:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] capability-overview.spec.ts >> App shell >> loads without critical JS errors on login page
+  - location: tests/e2e/capability-overview.spec.ts:395:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] capability-overview.spec.ts >> App shell >> React app mounts — root element is populated
+  - location: tests/e2e/capability-overview.spec.ts:420:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] capability-overview.spec.ts >> Login Page >> renders the login form with email and password fields
+  - location: tests/e2e/capability-overview.spec.ts:47:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] capability-overview.spec.ts >> Login page — form UX >> page title or heading contains product reference
+  - location: tests/e2e/capability-overview.spec.ts:379:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] capability-overview.spec.ts >> Login page — form UX >> password field masks input
+  - location: tests/e2e/capability-overview.spec.ts:371:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] capability-overview.spec.ts >> Login Page >> submit button is disabled when fields are empty
+  - location: tests/e2e/capability-overview.spec.ts:70:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] capability-overview.spec.ts >> Login Page >> shows an error for invalid credentials
+  - location: tests/e2e/capability-overview.spec.ts:81:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] capability-overview.spec.ts >> Login page — form UX >> email field accepts valid email format
+  - location: tests/e2e/capability-overview.spec.ts:362:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] capability-overview.spec.ts >> Login Page >> shows a brand / product name on the login page
+  - location: tests/e2e/capability-overview.spec.ts:56:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] crm-business-crossover.spec.ts >> CRM ↔ Business Management Crossover >> CRM account detail shows linked business management context
+  - location: tests/e2e/crm-business-crossover.spec.ts:24:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: wording
+- [bob-audit] crm-business-crossover.spec.ts >> CRM ↔ Business Management Crossover >> CRM account detail shows linked business management context
+  - location: tests/e2e/crm-business-crossover.spec.ts:24:3
+  - error: Error: expect(locator).toBeVisible() failed
+  - dimension: wording
+- [bob-audit] crm-business-crossover.spec.ts >> CRM ↔ Business Management Crossover >> Business Management section shows site context for roster shifts
+  - location: tests/e2e/crm-business-crossover.spec.ts:67:3
+  - error: Error: expect(received).toBe(expected) // Object.is equality
+  - dimension: wording
+- [bob-audit] human-module-interaction.spec.ts >> Human Module Interaction Sweep >> sweeps modules with visual, input, continue, and logout checks
+  - location: tests/e2e/human-module-interaction.spec.ts:100:3
+  - error: Test timeout of 30000ms exceeded.
+  - dimension: general
+- [bob-audit] module-e2e-comprehensive.spec.ts >> Asset Management >> page loads with correct heading
+  - location: tests/e2e/module-e2e-comprehensive.spec.ts:34:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] module-e2e-comprehensive.spec.ts >> Asset Management >> page loads with correct heading
+  - location: tests/e2e/module-e2e-comprehensive.spec.ts:34:3
+  - error: Error: expect(locator).toBeVisible() failed
+  - dimension: general
+- [bob-audit] module-e2e-comprehensive.spec.ts >> Bob Assistant >> bob assistant studio loads for admin
+  - location: tests/e2e/module-e2e-comprehensive.spec.ts:473:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] module-e2e-comprehensive.spec.ts >> CRM >> crm page loads
+  - location: tests/e2e/module-e2e-comprehensive.spec.ts:242:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] module-e2e-comprehensive.spec.ts >> Compliance >> compliance page loads
+  - location: tests/e2e/module-e2e-comprehensive.spec.ts:65:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] module-e2e-comprehensive.spec.ts >> Dispatch >> dispatch console loads
+  - location: tests/e2e/module-e2e-comprehensive.spec.ts:126:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] module-e2e-comprehensive.spec.ts >> Enforcement >> enforcement review page loads
+  - location: tests/e2e/module-e2e-comprehensive.spec.ts:85:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] module-e2e-comprehensive.spec.ts >> Invoicing & Financials >> invoicing page loads
+  - location: tests/e2e/module-e2e-comprehensive.spec.ts:378:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] module-e2e-comprehensive.spec.ts >> Invoicing & Financials >> pricing page loads
+  - location: tests/e2e/module-e2e-comprehensive.spec.ts:385:3
+  - error: Error: browserContext.close: Test ended.
+  - dimension: wording
+- [bob-audit] module-e2e-comprehensive.spec.ts >> Master-only Modules >> organizations page loads for master
+  - location: tests/e2e/module-e2e-comprehensive.spec.ts:645:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] module-e2e-comprehensive.spec.ts >> Observations & Incidents >> observations page loads
+  - location: tests/e2e/module-e2e-comprehensive.spec.ts:276:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] module-e2e-comprehensive.spec.ts >> Patrol Management >> live patrol monitor loads
+  - location: tests/e2e/module-e2e-comprehensive.spec.ts:167:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] module-e2e-comprehensive.spec.ts >> Reports >> reports page loads
+  - location: tests/e2e/module-e2e-comprehensive.spec.ts:344:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] module-e2e-comprehensive.spec.ts >> Settings & Profile >> settings page loads for admin
+  - location: tests/e2e/module-e2e-comprehensive.spec.ts:439:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] module-e2e-comprehensive.spec.ts >> Vehicles >> vehicles page loads
+  - location: tests/e2e/module-e2e-comprehensive.spec.ts:208:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] module-e2e-comprehensive.spec.ts >> Workforce & Roster >> roster planner loads
+  - location: tests/e2e/module-e2e-comprehensive.spec.ts:398:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] module-e2e-comprehensive.spec.ts >> Zones & Maps >> zones page loads
+  - location: tests/e2e/module-e2e-comprehensive.spec.ts:303:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] report-generation.spec.ts >> Report Generation - CSV Export >> should export observations as CSV from compliance dashboard
+  - location: tests/e2e/report-generation.spec.ts:71:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] report-generation.spec.ts >> Report Generation - Leadership Pack >> should navigate to Reports Hub page
+  - location: tests/e2e/report-generation.spec.ts:9:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] report-generation.spec.ts >> Report Generation - Leadership Pack >> should navigate to Reports Hub page
+  - location: tests/e2e/report-generation.spec.ts:9:3
+  - error: Error: expect(locator).toContainText(expected) failed
+  - dimension: wording
+- [bob-audit] report-generation.spec.ts >> Report Generation - Leadership Pack >> should generate and download leadership pack PDF
+  - location: tests/e2e/report-generation.spec.ts:17:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] report-generation.spec.ts >> Report Generation - Leadership Pack >> should generate and download leadership pack PDF
+  - location: tests/e2e/report-generation.spec.ts:17:3
+  - error: Error: expect(locator).toContainText(expected) failed
+  - dimension: wording
+- [bob-audit] ui-comprehensive.spec.ts >> AI Analysis >> page loads with chat interface
+  - location: tests/e2e/ui-comprehensive.spec.ts:1071:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> AI Analysis >> submits an AI query
+  - location: tests/e2e/ui-comprehensive.spec.ts:1090:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> AI Analysis >> submits an AI query
+  - location: tests/e2e/ui-comprehensive.spec.ts:1090:3
+  - error: Error: expect(received).toContain(expected) // indexOf
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Access Control >> page loads with role toggles
+  - location: tests/e2e/ui-comprehensive.spec.ts:1311:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Audit Log >> Export CSV button triggers download
+  - location: tests/e2e/ui-comprehensive.spec.ts:1642:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Audit Log >> page loads with searchable table
+  - location: tests/e2e/ui-comprehensive.spec.ts:1613:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Audit Log >> searches audit log by actor
+  - location: tests/e2e/ui-comprehensive.spec.ts:1630:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Breach Alerts — Adjudication Centre >> selecting a breach shows detail panel
+  - location: tests/e2e/ui-comprehensive.spec.ts:909:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Breach Alerts — Adjudication Centre >> page loads with filter buttons
+  - location: tests/e2e/ui-comprehensive.spec.ts:883:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Breach Alerts — Adjudication Centre >> Pending filter shows pending items
+  - location: tests/e2e/ui-comprehensive.spec.ts:892:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Breach Alerts — Adjudication Centre >> Dismiss All bulk action button renders when items selected
+  - location: tests/e2e/ui-comprehensive.spec.ts:923:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Breach Notices >> Acknowledge button is clickable on pending breach
+  - location: tests/e2e/ui-comprehensive.spec.ts:865:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Breach Notices >> page loads with stat cards and search
+  - location: tests/e2e/ui-comprehensive.spec.ts:848:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Breach Notices >> page loads with stat cards and search
+  - location: tests/e2e/ui-comprehensive.spec.ts:848:3
+  - error: Error: expect(locator).toBeVisible() failed
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Breach Notices >> status and breach type filters render
+  - location: tests/e2e/ui-comprehensive.spec.ts:858:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> CRM Module >> account Access action opens Access Control with org context
+  - location: tests/e2e/ui-comprehensive.spec.ts:2238:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: wording
+- [bob-audit] ui-comprehensive.spec.ts >> CRM Module >> account Access action opens Access Control with org context
+  - location: tests/e2e/ui-comprehensive.spec.ts:2238:3
+  - error: Error: expect(locator).toBeVisible() failed
+  - dimension: wording
+- [bob-audit] ui-comprehensive.spec.ts >> CRM Module >> account Sites action opens Client Sites with org context
+  - location: tests/e2e/ui-comprehensive.spec.ts:2222:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: wording
+- [bob-audit] ui-comprehensive.spec.ts >> CRM Module >> page loads
+  - location: tests/e2e/ui-comprehensive.spec.ts:2213:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Canonical Records Manager >> page loads for master user
+  - location: tests/e2e/ui-comprehensive.spec.ts:2134:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Canonical Records Manager >> page loads for master user
+  - location: tests/e2e/ui-comprehensive.spec.ts:2134:3
+  - error: Error: expect(received).toContain(expected) // indexOf
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Clean Dashboard >> page loads
+  - location: tests/e2e/ui-comprehensive.spec.ts:2121:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Clean Dashboard >> page loads
+  - location: tests/e2e/ui-comprehensive.spec.ts:2121:3
+  - error: Error: expect(received).toContain(expected) // indexOf
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Compliance Recalculation >> page loads with trigger button
+  - location: tests/e2e/ui-comprehensive.spec.ts:2147:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Compliance Recalculation >> page loads with trigger button
+  - location: tests/e2e/ui-comprehensive.spec.ts:2147:3
+  - error: Error: expect(locator).toBeVisible() failed
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Compliance Dashboard >> Jurisdiction View and Specific Zone View toggles
+  - location: tests/e2e/ui-comprehensive.spec.ts:1527:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Compliance Dashboard >> Jurisdiction View and Specific Zone View toggles
+  - location: tests/e2e/ui-comprehensive.spec.ts:1527:3
+  - error: Error: expect(received).toContain(expected) // indexOf
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Compliance Dashboard >> page loads with KPI cards and charts
+  - location: tests/e2e/ui-comprehensive.spec.ts:1518:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Compliance Dashboard >> page loads with KPI cards and charts
+  - location: tests/e2e/ui-comprehensive.spec.ts:1518:3
+  - error: Error: expect(locator).toBeVisible() failed
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Compliance Analytics >> page loads with charts
+  - location: tests/e2e/ui-comprehensive.spec.ts:1913:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Compliance Analytics >> page loads with charts
+  - location: tests/e2e/ui-comprehensive.spec.ts:1913:3
+  - error: Error: expect(received).toContain(expected) // indexOf
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Data Management >> data integrity dashboard loads
+  - location: tests/e2e/ui-comprehensive.spec.ts:1787:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Data Management >> import data page loads with file upload
+  - location: tests/e2e/ui-comprehensive.spec.ts:1774:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Data Management >> data hub page loads
+  - location: tests/e2e/ui-comprehensive.spec.ts:1768:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Data Management >> data hub page loads
+  - location: tests/e2e/ui-comprehensive.spec.ts:1768:3
+  - error: Error: expect(locator).toBeVisible() failed
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Dispatch Console >> page loads with job list and officer panel
+  - location: tests/e2e/ui-comprehensive.spec.ts:1471:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Disputes (Admin Queue) >> page loads with dispute list
+  - location: tests/e2e/ui-comprehensive.spec.ts:1883:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Enforcement Command Centre >> shows active breach cards and activity feed
+  - location: tests/e2e/ui-comprehensive.spec.ts:1491:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Enforcement Command Centre >> shows active breach cards and activity feed
+  - location: tests/e2e/ui-comprehensive.spec.ts:1491:3
+  - error: Error: expect(received).toContain(expected) // indexOf
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Enforcement Command Centre >> page loads with stat cards
+  - location: tests/e2e/ui-comprehensive.spec.ts:1483:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Enforcement Command Centre >> page loads with stat cards
+  - location: tests/e2e/ui-comprehensive.spec.ts:1483:3
+  - error: Error: expect(locator).toBeVisible() failed
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Enforcement Actions >> page loads
+  - location: tests/e2e/ui-comprehensive.spec.ts:1505:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Enforcement Actions >> page loads
+  - location: tests/e2e/ui-comprehensive.spec.ts:1505:3
+  - error: Error: expect(received).toContain(expected) // indexOf
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Evidence Photo Linker >> page loads
+  - location: tests/e2e/ui-comprehensive.spec.ts:2260:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Evidence Photo Linker >> page loads
+  - location: tests/e2e/ui-comprehensive.spec.ts:2260:3
+  - error: Error: expect(received).toContain(expected) // indexOf
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Face Recognition >> switches between Recent, Linked and Unlinked tabs
+  - location: tests/e2e/ui-comprehensive.spec.ts:541:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Face Recognition >> page loads with heading and tabs
+  - location: tests/e2e/ui-comprehensive.spec.ts:505:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Face Recognition >> Open Camera button is present
+  - location: tests/e2e/ui-comprehensive.spec.ts:523:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Face Recognition >> Open Camera button is present
+  - location: tests/e2e/ui-comprehensive.spec.ts:523:3
+  - error: Test timeout of 30000ms exceeded.
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Face Recognition >> privacy notice card is rendered
+  - location: tests/e2e/ui-comprehensive.spec.ts:532:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Field Officer Portal — Patrol and Welfare >> SOS button exists with correct aria-label
+  - location: tests/e2e/ui-comprehensive.spec.ts:1979:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: wording
+- [bob-audit] ui-comprehensive.spec.ts >> Hotspots Map >> page loads with map container
+  - location: tests/e2e/ui-comprehensive.spec.ts:1115:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Hotspots Map >> page loads with map container
+  - location: tests/e2e/ui-comprehensive.spec.ts:1115:3
+  - error: Error: expect(locator).toBeVisible() failed
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Infringement Notices >> opens Issue Infringement Notice dialog
+  - location: tests/e2e/ui-comprehensive.spec.ts:676:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Infringement Notices >> opens Issue Infringement Notice dialog
+  - location: tests/e2e/ui-comprehensive.spec.ts:676:3
+  - error: Error: expect(received).toContain(expected) // indexOf
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Infringement Notices >> searches infringement notices
+  - location: tests/e2e/ui-comprehensive.spec.ts:731:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Infringement Notices >> searches infringement notices
+  - location: tests/e2e/ui-comprehensive.spec.ts:731:3
+  - error: Error: expect(received).toContain(expected) // indexOf
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Infringement Notices >> page loads with heading and Issue Notice button
+  - location: tests/e2e/ui-comprehensive.spec.ts:665:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Infringement Notices >> page loads with heading and Issue Notice button
+  - location: tests/e2e/ui-comprehensive.spec.ts:665:3
+  - error: Error: expect(locator).toBeVisible() failed
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Infringement Notices >> status filter updates notice list
+  - location: tests/e2e/ui-comprehensive.spec.ts:743:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Infringement Notices >> fills Infringement Notice form fields
+  - location: tests/e2e/ui-comprehensive.spec.ts:697:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Infringement Notices >> fills Infringement Notice form fields
+  - location: tests/e2e/ui-comprehensive.spec.ts:697:3
+  - error: Error: expect(received).toContain(expected) // indexOf
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Investigation Jobs >> page loads with case list
+  - location: tests/e2e/ui-comprehensive.spec.ts:1859:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Live Officer Tracking >> page loads
+  - location: tests/e2e/ui-comprehensive.spec.ts:1378:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Live Officer Tracking >> page loads
+  - location: tests/e2e/ui-comprehensive.spec.ts:1378:3
+  - error: Error: expect(received).toContain(expected) // indexOf
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Live Patrol Monitor >> page loads with stat cards
+  - location: tests/e2e/ui-comprehensive.spec.ts:1354:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Live Patrol Monitor >> page loads with stat cards
+  - location: tests/e2e/ui-comprehensive.spec.ts:1354:3
+  - error: Error: expect(locator).toBeVisible() failed
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Live Patrol Monitor >> officer status columns render
+  - location: tests/e2e/ui-comprehensive.spec.ts:1362:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> NZSCV Monitor >> page loads with stat cards and searchable table
+  - location: tests/e2e/ui-comprehensive.spec.ts:1663:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> NZSCV Monitor >> page loads with stat cards and searchable table
+  - location: tests/e2e/ui-comprehensive.spec.ts:1663:3
+  - error: Error: expect(locator).toBeVisible() failed
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> NZSCV Monitor >> searches by plate number
+  - location: tests/e2e/ui-comprehensive.spec.ts:1671:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> NZSCV Monitor >> searches by plate number
+  - location: tests/e2e/ui-comprehensive.spec.ts:1671:3
+  - error: Error: expect(received).toContain(expected) // indexOf
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Notice to Vacate >> fills Notice to Vacate form fields
+  - location: tests/e2e/ui-comprehensive.spec.ts:799:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Notice to Vacate >> fills Notice to Vacate form fields
+  - location: tests/e2e/ui-comprehensive.spec.ts:799:3
+  - error: Error: expect(received).toContain(expected) // indexOf
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Notice to Vacate >> opens Issue Notice to Vacate dialog
+  - location: tests/e2e/ui-comprehensive.spec.ts:783:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Notice to Vacate >> opens Issue Notice to Vacate dialog
+  - location: tests/e2e/ui-comprehensive.spec.ts:783:3
+  - error: Error: expect(received).toContain(expected) // indexOf
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Notice to Vacate >> searches notices by plate
+  - location: tests/e2e/ui-comprehensive.spec.ts:830:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Notice to Vacate >> searches notices by plate
+  - location: tests/e2e/ui-comprehensive.spec.ts:830:3
+  - error: Error: expect(received).toContain(expected) // indexOf
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Notice to Vacate >> page loads with heading and Issue Notice button
+  - location: tests/e2e/ui-comprehensive.spec.ts:761:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Notice to Vacate >> page loads with heading and Issue Notice button
+  - location: tests/e2e/ui-comprehensive.spec.ts:761:3
+  - error: Error: expect(locator).toBeVisible() failed
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Notifications Centre >> Preferences tab shows toggles
+  - location: tests/e2e/ui-comprehensive.spec.ts:1594:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Notifications Centre >> Broadcast tab shows message composer
+  - location: tests/e2e/ui-comprehensive.spec.ts:1580:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: wording
+- [bob-audit] ui-comprehensive.spec.ts >> Notifications Centre >> page loads with Inbox, Broadcast, Preferences tabs
+  - location: tests/e2e/ui-comprehensive.spec.ts:1569:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Observation Records >> page loads with table
+  - location: tests/e2e/ui-comprehensive.spec.ts:1926:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Observation Records >> page loads with table
+  - location: tests/e2e/ui-comprehensive.spec.ts:1926:3
+  - error: Error: expect(locator).toBeVisible() failed
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Officer Availability >> page loads
+  - location: tests/e2e/ui-comprehensive.spec.ts:1829:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Officer Skills >> page loads with qualifications list
+  - location: tests/e2e/ui-comprehensive.spec.ts:1841:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Officer Welfare Settings >> page loads with welfare timer settings
+  - location: tests/e2e/ui-comprehensive.spec.ts:1545:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Officer Welfare Settings >> warning timer input is editable
+  - location: tests/e2e/ui-comprehensive.spec.ts:1551:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Open Shifts >> page loads with shift list
+  - location: tests/e2e/ui-comprehensive.spec.ts:1419:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Organisation Management >> org profile page loads
+  - location: tests/e2e/ui-comprehensive.spec.ts:1299:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Organisation Management >> page loads for master user
+  - location: tests/e2e/ui-comprehensive.spec.ts:1293:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Patrol Checkpoints >> page loads with checkpoint cards and QR codes
+  - location: tests/e2e/ui-comprehensive.spec.ts:1431:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Patrol KPI Dashboard >> page loads with KPI metrics
+  - location: tests/e2e/ui-comprehensive.spec.ts:1445:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Patrol Schedule Management >> page loads
+  - location: tests/e2e/ui-comprehensive.spec.ts:1458:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Person Records >> page loads with table and search
+  - location: tests/e2e/ui-comprehensive.spec.ts:1895:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Platform Overview >> page loads for master user with org cards
+  - location: tests/e2e/ui-comprehensive.spec.ts:1342:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Points of Interest >> switches to Notices tab and opens Issue Notice dialog
+  - location: tests/e2e/ui-comprehensive.spec.ts:470:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Points of Interest >> fills and submits Add Person form
+  - location: tests/e2e/ui-comprehensive.spec.ts:378:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Points of Interest >> fills and submits Add Person form
+  - location: tests/e2e/ui-comprehensive.spec.ts:378:3
+  - error: TimeoutError: locator.scrollIntoViewIfNeeded: Timeout 10000ms exceeded.
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Points of Interest >> fills and submits Add Vehicle (VOI) form
+  - location: tests/e2e/ui-comprehensive.spec.ts:433:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Points of Interest >> opens Add Person dialog
+  - location: tests/e2e/ui-comprehensive.spec.ts:364:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Points of Interest >> searches persons by name
+  - location: tests/e2e/ui-comprehensive.spec.ts:487:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Points of Interest >> switches to Vehicles tab and opens Add Vehicle dialog
+  - location: tests/e2e/ui-comprehensive.spec.ts:410:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Points of Interest >> page loads with Persons tab and search
+  - location: tests/e2e/ui-comprehensive.spec.ts:355:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Points of Interest >> page loads with Persons tab and search
+  - location: tests/e2e/ui-comprehensive.spec.ts:355:3
+  - error: Error: expect(locator).toBeVisible() failed
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Profile & Settings >> settings page loads with preferences
+  - location: tests/e2e/ui-comprehensive.spec.ts:1744:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Profile & Settings >> settings page loads with preferences
+  - location: tests/e2e/ui-comprehensive.spec.ts:1744:3
+  - error: Error: expect(locator).toBeVisible() failed
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Profile & Settings >> profile page loads with editable fields
+  - location: tests/e2e/ui-comprehensive.spec.ts:1735:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Reports >> Breaches tab renders
+  - location: tests/e2e/ui-comprehensive.spec.ts:985:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Reports >> Breaches tab renders
+  - location: tests/e2e/ui-comprehensive.spec.ts:985:3
+  - error: Error: expect(received).toContain(expected) // indexOf
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Reports >> Export Breaches CSV triggers download
+  - location: tests/e2e/ui-comprehensive.spec.ts:1038:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Reports >> Export Observations CSV triggers download
+  - location: tests/e2e/ui-comprehensive.spec.ts:1005:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Reports Hub >> page loads and shows report options
+  - location: tests/e2e/ui-comprehensive.spec.ts:1059:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Reports Hub >> page loads and shows report options
+  - location: tests/e2e/ui-comprehensive.spec.ts:1059:3
+  - error: Error: expect(locator).toBeVisible() failed
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Reports >> Observations tab renders
+  - location: tests/e2e/ui-comprehensive.spec.ts:975:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Reports >> Observations tab renders
+  - location: tests/e2e/ui-comprehensive.spec.ts:975:3
+  - error: Error: expect(received).toContain(expected) // indexOf
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Reports >> Preview Report button opens PDF dialog
+  - location: tests/e2e/ui-comprehensive.spec.ts:1021:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Reports >> Summary tab renders charts
+  - location: tests/e2e/ui-comprehensive.spec.ts:965:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Reports >> Summary tab renders charts
+  - location: tests/e2e/ui-comprehensive.spec.ts:965:3
+  - error: Error: expect(received).toContain(expected) // indexOf
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Reports >> Zones tab renders
+  - location: tests/e2e/ui-comprehensive.spec.ts:995:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Reports >> Zones tab renders
+  - location: tests/e2e/ui-comprehensive.spec.ts:995:3
+  - error: Error: expect(received).toContain(expected) // indexOf
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Reports >> page loads with stat cards and export buttons
+  - location: tests/e2e/ui-comprehensive.spec.ts:944:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Roster Planner >> week and fortnight view toggles
+  - location: tests/e2e/ui-comprehensive.spec.ts:1398:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Spatial Compliance Admin >> page loads with map
+  - location: tests/e2e/ui-comprehensive.spec.ts:1938:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Spatial Compliance Admin >> page loads with map
+  - location: tests/e2e/ui-comprehensive.spec.ts:1938:3
+  - error: Error: expect(received).toContain(expected) // indexOf
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> System Diagnostics >> page loads for master user
+  - location: tests/e2e/ui-comprehensive.spec.ts:2108:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> System Diagnostics >> page loads for master user
+  - location: tests/e2e/ui-comprehensive.spec.ts:2108:3
+  - error: Error: expect(received).toContain(expected) // indexOf
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Timesheet Review >> page loads with timesheet list
+  - location: tests/e2e/ui-comprehensive.spec.ts:1871:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Universal Search >> search page loads with input
+  - location: tests/e2e/ui-comprehensive.spec.ts:1799:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Universal Search >> typing in search returns results
+  - location: tests/e2e/ui-comprehensive.spec.ts:1807:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> User Management >> page loads with stat cards and Create User button
+  - location: tests/e2e/ui-comprehensive.spec.ts:1206:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> User Management >> page loads with stat cards and Create User button
+  - location: tests/e2e/ui-comprehensive.spec.ts:1206:3
+  - error: Error: expect(locator).toBeVisible() failed
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> User Management >> fills Create User form
+  - location: tests/e2e/ui-comprehensive.spec.ts:1232:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> User Management >> fills Create User form
+  - location: tests/e2e/ui-comprehensive.spec.ts:1232:3
+  - error: Error: expect(locator).toBeVisible() failed
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> User Management >> opens Create User dialog
+  - location: tests/e2e/ui-comprehensive.spec.ts:1216:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> User Management >> opens Create User dialog
+  - location: tests/e2e/ui-comprehensive.spec.ts:1216:3
+  - error: Error: expect(received).toContain(expected) // indexOf
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> User Management >> role filter dropdown works
+  - location: tests/e2e/ui-comprehensive.spec.ts:1274:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> User Management >> role filter dropdown works
+  - location: tests/e2e/ui-comprehensive.spec.ts:1274:3
+  - error: Error: expect(received).toContain(expected) // indexOf
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> User Management >> searches users by name
+  - location: tests/e2e/ui-comprehensive.spec.ts:1262:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> User Management >> searches users by name
+  - location: tests/e2e/ui-comprehensive.spec.ts:1262:3
+  - error: Error: expect(received).toContain(expected) // indexOf
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Vehicle Management >> Vehicle Detail page loads when navigating to /vehicles/:id
+  - location: tests/e2e/ui-comprehensive.spec.ts:633:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Vehicle Management >> vehicle card shows plate and opens detail panel
+  - location: tests/e2e/ui-comprehensive.spec.ts:602:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Vehicle Management >> Flag / Unflag vehicle button toggles
+  - location: tests/e2e/ui-comprehensive.spec.ts:620:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Vehicle Management >> status filter dropdown works
+  - location: tests/e2e/ui-comprehensive.spec.ts:588:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Vehicle Management >> status filter dropdown works
+  - location: tests/e2e/ui-comprehensive.spec.ts:588:3
+  - error: Error: expect(received).toContain(expected) // indexOf
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Vehicle Management >> searches for a vehicle by plate
+  - location: tests/e2e/ui-comprehensive.spec.ts:578:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Vehicle Management >> page loads with search and stat cards
+  - location: tests/e2e/ui-comprehensive.spec.ts:570:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Vehicle Registry >> page loads with heading and search
+  - location: tests/e2e/ui-comprehensive.spec.ts:653:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Vehicle Registry >> page loads with heading and search
+  - location: tests/e2e/ui-comprehensive.spec.ts:653:3
+  - error: Error: expect(locator).toBeVisible() failed
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Zone Management >> Edit Zone dialog opens from card
+  - location: tests/e2e/ui-comprehensive.spec.ts:1172:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Zone Management >> fills Add Zone form with name
+  - location: tests/e2e/ui-comprehensive.spec.ts:1157:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Zone Management >> fills Add Zone form with name
+  - location: tests/e2e/ui-comprehensive.spec.ts:1157:3
+  - error: TimeoutError: locator.click: Timeout 10000ms exceeded.
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Zone Management >> Add Zone button is visible
+  - location: tests/e2e/ui-comprehensive.spec.ts:1138:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Zone Management >> Add Zone button is visible
+  - location: tests/e2e/ui-comprehensive.spec.ts:1138:3
+  - error: Error: expect(locator).toBeVisible() failed
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Zone Management >> Show Inactive toggle works
+  - location: tests/e2e/ui-comprehensive.spec.ts:1187:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Zone Management >> opens Add Zone dialog
+  - location: tests/e2e/ui-comprehensive.spec.ts:1147:3
+  - error: Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Zone Management >> opens Add Zone dialog
+  - location: tests/e2e/ui-comprehensive.spec.ts:1147:3
+  - error: TimeoutError: locator.click: Timeout 10000ms exceeded.
+  - dimension: general
+- [bob-audit] ui-comprehensive.spec.ts >> Compliance Recalculation >> page loads with trigger button
+  - location: tests/e2e/ui-comprehensive.spec.ts:2147:3
+  - error: Error: expect(locator).toBeVisible() failed
+  - dimension: general

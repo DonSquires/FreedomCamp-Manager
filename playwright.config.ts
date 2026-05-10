@@ -6,7 +6,7 @@ import { defineConfig, devices } from '@playwright/test'
 loadEnv({ path: '.env' })
 loadEnv({ path: '.env.local' })
 // Load local Playwright-only secrets from an ignored file, if present.
-loadEnv({ path: '.env.playwright.local', override: true })
+loadEnv({ path: '.env.playwright.local' })
 
 const nativeChromiumExecutablePath = [
   process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH,

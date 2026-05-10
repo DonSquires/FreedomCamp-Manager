@@ -91,6 +91,10 @@ if [[ -z "${VITE_SUPABASE_URL:-}" && -n "${SUPABASE_PROJECT_REF:-}" ]]; then
   export VITE_SUPABASE_URL="https://${SUPABASE_PROJECT_REF}.supabase.co"
 fi
 
+# Shared fallback account used by auth helpers in tests/e2e/auth.ts.
+set_if_missing PLAYWRIGHT_OWNER_EMAIL TEST_OWNER_EMAIL
+set_if_missing PLAYWRIGHT_OWNER_PASSWORD TEST_OWNER_PASSWORD
+
 # Role credential mappings from TEST_* to PLAYWRIGHT_*.
 set_if_missing PLAYWRIGHT_MASTER_EMAIL TEST_MASTER_EMAIL
 set_if_missing PLAYWRIGHT_MASTER_PASSWORD TEST_MASTER_PASSWORD
@@ -112,6 +116,24 @@ set_if_missing PLAYWRIGHT_CLIENT_VIEWER_PASSWORD TEST_CLIENT_PASSWORD
 
 set_if_missing PLAYWRIGHT_CLIENT_STAFF_EMAIL TEST_CLIENT_OFFICER_EMAIL
 set_if_missing PLAYWRIGHT_CLIENT_STAFF_PASSWORD TEST_CLIENT_OFFICER_PASSWORD
+
+# API/live credential aliases used by auth helpers in tests/e2e/auth.ts.
+# Prefer owner credentials first because they are typically the most stable shared account.
+set_if_missing_chain API_TEST_EMAIL TEST_OWNER_EMAIL TEST_ADMIN_EMAIL PLAYWRIGHT_ADMIN_ORG1_EMAIL PLAYWRIGHT_ADMIN_EMAIL
+set_if_missing_chain API_TEST_PASSWORD TEST_OWNER_PASSWORD TEST_ADMIN_PASSWORD TEST_ADMIN_PASWORD PLAYWRIGHT_ADMIN_ORG1_PASSWORD PLAYWRIGHT_ADMIN_PASSWORD
+set_if_missing_chain PLAYWRIGHT_LIVE_EMAIL API_TEST_EMAIL PLAYWRIGHT_ADMIN_ORG1_EMAIL PLAYWRIGHT_ADMIN_EMAIL
+set_if_missing_chain PLAYWRIGHT_LIVE_PASSWORD API_TEST_PASSWORD PLAYWRIGHT_ADMIN_ORG1_PASSWORD PLAYWRIGHT_ADMIN_PASSWORD
+
+# If API_TEST_* was pre-exported from TEST_ADMIN_* in a prior shell, prefer the
+# owner pair when available so live auth bootstrap remains stable.
+if [[ -n "${TEST_OWNER_EMAIL:-}" && -n "${TEST_OWNER_PASSWORD:-}" ]]; then
+  if [[ "${API_TEST_EMAIL:-}" == "${TEST_ADMIN_EMAIL:-}" || "${PLAYWRIGHT_LIVE_EMAIL:-}" == "${TEST_ADMIN_EMAIL:-}" ]]; then
+    export API_TEST_EMAIL="$TEST_OWNER_EMAIL"
+    export API_TEST_PASSWORD="$TEST_OWNER_PASSWORD"
+    export PLAYWRIGHT_LIVE_EMAIL="$TEST_OWNER_EMAIL"
+    export PLAYWRIGHT_LIVE_PASSWORD="$TEST_OWNER_PASSWORD"
+  fi
+fi
 
 # Keep canonical role-pair names and legacy aliases synchronized.
 set_alias_pair_if_missing PLAYWRIGHT_ADMIN_ORG1_EMAIL PLAYWRIGHT_ADMIN_EMAIL

@@ -26,8 +26,8 @@ import { config as loadEnv } from 'dotenv'
 import { defineConfig, devices } from '@playwright/test'
 
 loadEnv({ path: '.env' })
-loadEnv({ path: '.env.local', override: true })
-loadEnv({ path: '.env.playwright.local', override: true })
+loadEnv({ path: '.env.local' })
+loadEnv({ path: '.env.playwright.local' })
 
 const chromiumPath = [
   process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH,

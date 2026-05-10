@@ -3,8 +3,8 @@ import { config as loadEnv } from 'dotenv'
 
 // Load base env first, then local overrides for test runs.
 loadEnv({ path: '.env' })
-loadEnv({ path: '.env.local', override: true })
-loadEnv({ path: '.env.playwright.local', override: true })
+loadEnv({ path: '.env.local' })
+loadEnv({ path: '.env.playwright.local' })
 
 /**
  * Dedicated configuration for the Phase B4 Enforcement Timeline gate tests.
