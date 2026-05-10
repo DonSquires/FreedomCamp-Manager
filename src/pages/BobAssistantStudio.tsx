@@ -1952,11 +1952,29 @@ export default function BobAssistantStudio() {
     }
 
     try {
-      const { data, error } = await withPromiseTimeout(
+      let callResult = await withPromiseTimeout(
         edgeFunctions.aiChat(buildRequestBody()),
         BOB_CHAT_RESPONSE_TIMEOUT_MS,
         `Bob response timeout after ${Math.round(BOB_CHAT_RESPONSE_TIMEOUT_MS / 1000)}s`,
       )
+
+      const initialErrorText = String(callResult?.error || '')
+      const missingSectionPolicyBlock = /required sections missing/i.test(initialErrorText)
+
+      if (missingSectionPolicyBlock) {
+        // Conversation mode should still respond even when strict section
+        // templates are not present in model output.
+        callResult = await withPromiseTimeout(
+          edgeFunctions.aiChat({
+            ...buildRequestBody(),
+            skipPolicySectionEnforcement: true,
+          }),
+          BOB_CHAT_RESPONSE_TIMEOUT_MS,
+          `Bob response timeout after ${Math.round(BOB_CHAT_RESPONSE_TIMEOUT_MS / 1000)}s`,
+        )
+      }
+
+      const { data, error } = callResult
       if (error || !data?.response) {
         throw new Error(error || 'Bob returned an empty response')
       }
