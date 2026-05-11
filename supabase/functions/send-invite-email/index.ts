@@ -186,6 +186,9 @@ async function sendInviteDirectSmtp(params: { email: string; firstName?: string;
     inviteUrl: params.inviteUrl,
   });
 
+  const authMailbox = String(smtpUser || '').trim();
+  const effectiveFrom = authMailbox.toLowerCase().endsWith('@fcmanager.co.nz') ? authMailbox : smtpFrom;
+
   const client = new SMTPClient({
     connection: {
       hostname: smtpHost,
@@ -200,7 +203,7 @@ async function sendInviteDirectSmtp(params: { email: string; firstName?: string;
 
   try {
     await client.send({
-      from: `${smtpFromName} <${smtpFrom}>`,
+      from: `${smtpFromName} <${effectiveFrom}>`,
       to: params.email,
       subject: "You've been invited to Field Compliance Manager",
       html,

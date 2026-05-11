@@ -33,6 +33,11 @@ export interface SFUTransportConfig {
   token: string;
   channelId: string;
   localStream: MediaStream;
+  voiceMetadata?: {
+    pitch?: number;
+    rate?: number;
+    tone?: string;
+  };
   onRemoteAudio?: (track: MediaStreamTrack) => void;
   onFloorState?: (state: FloorState) => void;
   onTranscript?: (text: string, confidence: number) => void;
@@ -72,12 +77,24 @@ export class SFUTransport {
    */
   async connect(): Promise<void> {
     try {
+      const turnUsername = String(import.meta.env.VITE_PTT_TURN_USERNAME || '').trim();
+      const turnCredential = String(import.meta.env.VITE_PTT_TURN_CREDENTIAL || '').trim();
+
       // 1. Create peer connection
       this.peerConnection = new RTCPeerConnection({
         iceServers: [
+          {
+            urls: [
+              'turn:72.61.123.97:3478?transport=udp',
+              'turn:72.61.123.97:3478?transport=tcp',
+            ],
+            ...(turnUsername ? { username: turnUsername } : {}),
+            ...(turnCredential ? { credential: turnCredential } : {}),
+          },
           { urls: 'stun:stun.l.google.com:19302' },
           { urls: 'stun:stun1.l.google.com:19302' },
         ],
+        iceTransportPolicy: 'relay',
       });
 
       // 2. Create send transport
@@ -217,6 +234,7 @@ export class SFUTransport {
             rtpParameters: params,
             appData: {
               channel_id: this.config.channelId,
+              voice_metadata: this.config.voiceMetadata || null,
             },
           }),
         }

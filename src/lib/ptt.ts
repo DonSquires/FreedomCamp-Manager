@@ -67,6 +67,11 @@ export interface PTTCustomAudioSource {
   stream: MediaStream
   label: string
   durationMs?: number
+  voiceMetadata?: {
+    pitch?: number
+    rate?: number
+    tone?: string
+  }
   cleanup?: () => void | Promise<void>
 }
 
@@ -324,6 +329,7 @@ let tokenRequestInFlight: Promise<PTTTokenResponse> | null = null
 let tokenRequestInFlightScope: string | null = null
 let localTokenCooldownUntilMs = 0
 let pingInterval: ReturnType<typeof setInterval> | null = null
+let lastPongAtMs = 0
 let tokenRefreshTimeout: ReturnType<typeof setTimeout> | null = null
 let socketConnectTimeout: ReturnType<typeof setTimeout> | null = null
 let isCleaningUpConnection = false
@@ -557,6 +563,7 @@ let lastIceCandidateError: string | null = null
 let customAudioSourceFactory: (() => Promise<PTTCustomAudioSource>) | null = null
 let activeCustomAudioSourceCleanup: (() => void | Promise<void>) | null = null
 let activeOutboundAudioSourceLabel = 'microphone'
+let activeOutboundVoiceMetadata: PTTCustomAudioSource['voiceMetadata'] | null = null
 
 // P1-8: getStats() telemetry intervals keyed by peerId
 const statsIntervals: Map<string, ReturnType<typeof setInterval>> = new Map()
@@ -670,6 +677,7 @@ async function cleanupActiveLocalStream(): Promise<void> {
   }
 
   activeOutboundAudioSourceLabel = customAudioSourceFactory ? 'custom' : 'microphone'
+  activeOutboundVoiceMetadata = null
 }
 
 export function setPTTCustomAudioSourceFactory(factory: (() => Promise<PTTCustomAudioSource>) | null): void {
@@ -1089,6 +1097,7 @@ export async function connectToPTT(channelScope: string, channelName?: string, f
         negotiatedProtocolVersion = tokenData.signaling?.protocolVersion || null
         negotiatedInteropProfile = tokenData.signaling?.interopProfile || null
         store.setConnection('connected')
+        lastPongAtMs = Date.now()
         startPingInterval()
         sendClientHello()
         scheduleTokenRefresh(channelScope, channelName, tokenData.expiresIn)
@@ -1216,6 +1225,7 @@ function cleanupConnection(options?: { closeSocket?: boolean }): void {
     clearInterval(pingInterval)
     pingInterval = null
   }
+  lastPongAtMs = 0
 
   if (ws) {
     const socketToClose = ws
@@ -1280,6 +1290,7 @@ function cleanupConnection(options?: { closeSocket?: boolean }): void {
   lastTransmitPresenceCount = 0
   lastTransmitMicrophoneReady = false
   lastTransmitChannelScope = null
+  activeOutboundVoiceMetadata = null
   iceCandidatesSent = 0
   iceCandidatesReceived = 0
   iceGatherCompleteCount = 0
@@ -1323,17 +1334,36 @@ function scheduleReconnect(channelScope: string): void {
 function startPingInterval(): void {
   if (pingInterval) clearInterval(pingInterval)
 
-  // 10 second interval keeps mobile browser WebSockets alive before iOS/Android kills idle connections.
+  const PING_INTERVAL_MS = 8000
+  const PONG_TIMEOUT_MS = 30000
+
+  // 8-second interval keeps mobile browser WebSockets alive before iOS/Android kills idle connections.
   pingInterval = setInterval(() => {
     if (ws?.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ type: 'ping' }))
+      if (lastPongAtMs > 0 && Date.now() - lastPongAtMs > PONG_TIMEOUT_MS) {
+        const channelScope = activeChannelScope
+        console.warn('🎤 PTT: Heartbeat timeout detected, forcing reconnect')
+        cleanupConnection()
+        usePTTStore.getState().setConnection('reconnecting')
+        if (channelScope) {
+          scheduleReconnect(channelScope)
+        }
+        return
+      }
+
+      ws.send(JSON.stringify({ type: 'ping', sentAt: new Date().toISOString() }))
     } else if (ws && ws.readyState !== WebSocket.CONNECTING) {
       // WS died silently (common on mobile). scheduleReconnect will be triggered by onclose.
       // If somehow onclose never fired, force a cleanup so the next visibility event recovers.
       console.warn('🎤 PTT: Ping found dead socket, clearing')
+      const channelScope = activeChannelScope
       ws = null
+      usePTTStore.getState().setConnection('reconnecting')
+      if (channelScope) {
+        scheduleReconnect(channelScope)
+      }
     }
-  }, 10000)
+  }, PING_INTERVAL_MS)
 }
 
 // ---------------------------------------------------------------------------
@@ -1429,7 +1459,7 @@ function handleServerMessage(message: PTTMessage): void {
       break
 
     case 'pong':
-      // Heartbeat response - no action needed
+      lastPongAtMs = Date.now()
       break
 
     default:
@@ -1809,11 +1839,13 @@ export async function startSpeaking(): Promise<void> {
       localStream = customSource.stream
       activeCustomAudioSourceCleanup = customSource.cleanup || null
       activeOutboundAudioSourceLabel = customSource.label || 'custom'
+      activeOutboundVoiceMetadata = customSource.voiceMetadata || null
     } else {
       // Request microphone with mobile-safe fallback.
       localStream = await requestLocalAudioStream()
       activeCustomAudioSourceCleanup = null
       activeOutboundAudioSourceLabel = 'microphone'
+      activeOutboundVoiceMetadata = null
     }
     markTransmitAttempt(store.presence.length, true)
 
@@ -1845,6 +1877,7 @@ export async function startSpeaking(): Promise<void> {
         token: activeTokenData.token,
         channelId: store.channelId,
         localStream,
+        voiceMetadata: activeOutboundVoiceMetadata || undefined,
         onError: (message: string) => store.setError(message),
       })
 
@@ -1854,7 +1887,10 @@ export async function startSpeaking(): Promise<void> {
 
     // Notify server
     if (ws?.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ type: 'start_speaking' }))
+      ws.send(JSON.stringify({
+        type: 'start_speaking',
+        voiceMetadata: activeOutboundVoiceMetadata || undefined,
+      }))
     }
 
     store.setSpeaking(true)
@@ -1983,6 +2019,7 @@ export async function stopSpeaking(): Promise<{ clipUrl?: string; duration?: num
   recordedChunks = []
   mediaRecorder = null
   recordingStartTime = null
+  activeOutboundVoiceMetadata = null
 
   console.log('🎤 PTT: Stopped speaking')
   return { clipUrl, duration }

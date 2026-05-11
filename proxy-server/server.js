@@ -534,7 +534,11 @@ app.post('/api/email/send-report', rateLimitMiddleware, async (req, res) => {
       });
     }
 
-    const effectiveFromEmail = from_email || SMTP_REPORTS_FROM_EMAIL;
+    const authMailbox = String(SMTP_USERNAME || '').trim();
+    const prefersFcManagerMailbox = authMailbox.toLowerCase().endsWith('@fcmanager.co.nz');
+    const effectiveFromEmail = prefersFcManagerMailbox
+      ? authMailbox
+      : (from_email || SMTP_REPORTS_FROM_EMAIL);
     const effectiveFromName = from_name || SMTP_REPORTS_FROM_NAME;
 
     const transporter = nodemailer.createTransport({
