@@ -14,13 +14,13 @@ import { recordCommunicationAudit } from '../_shared/communicationsAudit.ts';
  *   SMTP_PORT          e.g. 587
  *   SMTP_USERNAME      SMTP login username / email address
  *   SMTP_PASSWORD      SMTP login password
- *   SMTP_FROM_EMAIL    General default from address, e.g. donotreply@fieldops.co.nz
+ *   SMTP_FROM_EMAIL    General default from address, e.g. donotreply@fcmanager.co.nz
  *
  * Optional Supabase secret:
  *   SMTP_FROM_NAME     Display name (defaults to "Field Compliance Manager – Do Not Reply")
  *
  * Optional report-specific sender override:
- *   SMTP_REPORTS_FROM_EMAIL   e.g. reports@fieldops.co.nz
+ *   SMTP_REPORTS_FROM_EMAIL   e.g. reports@fcmanager.co.nz
  *   SMTP_REPORTS_FROM_NAME    e.g. Field Compliance Manager Reports
  *
  * Request body:
@@ -331,7 +331,12 @@ Deno.serve(async (req) => {
 
     const subject = `${reportTitle} — ${formatDateNZ(reportDateFrom)} to ${formatDateNZ(reportDateTo)}`;
     reportAuditContext.subject = subject;
-    const fromAddr = `${smtpReportsFromName} <${smtpReportsFrom}>`;
+    const authMailbox = String(smtpUser || '').trim();
+    const forceAuthMailboxFrom =
+      authMailbox.toLowerCase().endsWith('@fcmanager.co.nz') &&
+      smtpReportsFrom.toLowerCase() !== authMailbox.toLowerCase();
+    const effectiveReportsFrom = forceAuthMailboxFrom ? authMailbox : smtpReportsFrom;
+    const fromAddr = `${smtpReportsFromName} <${effectiveReportsFrom}>`;
 
     // ── Send via proxy relay first (hPanel / self-hosted) ───────────────────
     const proxyBaseUrl =
@@ -366,7 +371,7 @@ Deno.serve(async (req) => {
             date_to: reportDateTo,
             organization_id,
             zone_id,
-            from_email: smtpReportsFrom,
+            from_email: effectiveReportsFrom,
             from_name: smtpReportsFromName,
           }),
           signal: relayController.signal,

@@ -179,6 +179,23 @@ interface BobRadioChannel {
   is_active: boolean
 }
 
+interface TacticalSubtitleSegment {
+  id: string
+  text: string
+  sourceLanguage: string | null
+  targetLanguage: string
+  confidence: number | null
+  provider: string | null
+  createdAt: string
+}
+
+interface TacticalDubRelay {
+  id: string
+  provider: string
+  renderLatencyMs: number | null
+  createdAt: string
+}
+
 const DEFAULT_BOB_RADIO_CHANNELS: BobRadioChannel[] = [
   { id: 'bob-default-1', channel_number: 1, name: 'All Units', channel_type: 'primary', is_active: true },
   { id: 'bob-default-2', channel_number: 2, name: 'Dispatch', channel_type: 'dispatch', is_active: true },
@@ -740,6 +757,10 @@ export default function BobAssistantStudio() {
   const [radioSignalText, setRadioSignalText] = useState('BOB LINK TEST')
   const [radioConnecting, setRadioConnecting] = useState(false)
   const [radioTransmitting, setRadioTransmitting] = useState(false)
+  const [tacticalSubtitles, setTacticalSubtitles] = useState<TacticalSubtitleSegment[]>([])
+  const [tacticalDubRenders, setTacticalDubRenders] = useState<TacticalDubRelay[]>([])
+  const [tacticalSubtitleLanguage] = useState('en-NZ')
+  const [tacticalDubMode, setTacticalDubMode] = useState(true)
   const [dangerAutoAssistArmed, setDangerAutoAssistArmed] = useState(false)
   const [dangerKeywords, setDangerKeywords] = useState('help, danger, emergency, attack, assaulted, unsafe, call assistance')
   const [dangerCooldownUntil, setDangerCooldownUntil] = useState<number>(0)
@@ -979,6 +1000,126 @@ export default function BobAssistantStudio() {
       cancelled = true
     }
   }, [effectiveOrgId])
+
+  useEffect(() => {
+    if (!effectiveOrgId) {
+      setTacticalSubtitles([])
+      setTacticalDubRenders([])
+      return
+    }
+
+    const upsertSubtitle = (segment: TacticalSubtitleSegment) => {
+      setTacticalSubtitles((prev) => {
+        const next = [segment, ...prev.filter((item) => item.id !== segment.id)]
+        return next.slice(0, 20)
+      })
+    }
+
+    const upsertDubRender = (render: TacticalDubRelay) => {
+      setTacticalDubRenders((prev) => {
+        const next = [render, ...prev.filter((item) => item.id !== render.id)]
+        return next.slice(0, 20)
+      })
+    }
+
+    const subtitleChannel = supabase
+      .channel(`bob-studio-radio-translation-${effectiveOrgId}-${tacticalSubtitleLanguage}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'radio_translation_segments',
+          filter: `org_id=eq.${effectiveOrgId}`,
+        },
+        (payload: any) => {
+          const row = payload?.new
+          if (!row || row.target_language !== tacticalSubtitleLanguage) return
+          upsertSubtitle({
+            id: String(row.id || crypto.randomUUID()),
+            text: String(row.text || ''),
+            sourceLanguage: null,
+            targetLanguage: String(row.target_language || tacticalSubtitleLanguage),
+            confidence: Number.isFinite(Number(row.confidence)) ? Number(row.confidence) : null,
+            provider: row.provider ? String(row.provider) : null,
+            createdAt: row.created_at ? String(row.created_at) : new Date().toISOString(),
+          })
+        },
+      )
+      .subscribe()
+
+    const dubChannel = supabase
+      .channel(`bob-studio-radio-dub-${effectiveOrgId}-${tacticalSubtitleLanguage}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'radio_tts_renders',
+          filter: `org_id=eq.${effectiveOrgId}`,
+        },
+        (payload: any) => {
+          const row = payload?.new
+          if (!row || row.target_language !== tacticalSubtitleLanguage) return
+          upsertDubRender({
+            id: String(row.id || crypto.randomUUID()),
+            provider: String(row.provider || 'dub'),
+            renderLatencyMs: Number.isFinite(Number(row.render_latency_ms)) ? Number(row.render_latency_ms) : null,
+            createdAt: row.created_at ? String(row.created_at) : new Date().toISOString(),
+          })
+        },
+      )
+      .subscribe()
+
+    const sinceIso = new Date(Date.now() - 5 * 60 * 1000).toISOString()
+    void (supabase as any)
+      .from('radio_translation_segments')
+      .select('id, text, target_language, confidence, provider, created_at')
+      .eq('org_id', effectiveOrgId)
+      .eq('target_language', tacticalSubtitleLanguage)
+      .gte('created_at', sinceIso)
+      .order('created_at', { ascending: false })
+      .limit(20)
+      .then(({ data, error }: any) => {
+        if (error || !Array.isArray(data)) return
+        for (const row of data) {
+          upsertSubtitle({
+            id: String(row.id || crypto.randomUUID()),
+            text: String(row.text || ''),
+            sourceLanguage: null,
+            targetLanguage: String(row.target_language || tacticalSubtitleLanguage),
+            confidence: Number.isFinite(Number(row.confidence)) ? Number(row.confidence) : null,
+            provider: row.provider ? String(row.provider) : null,
+            createdAt: row.created_at ? String(row.created_at) : new Date().toISOString(),
+          })
+        }
+      })
+
+    void (supabase as any)
+      .from('radio_tts_renders')
+      .select('id, provider, render_latency_ms, target_language, created_at')
+      .eq('org_id', effectiveOrgId)
+      .eq('target_language', tacticalSubtitleLanguage)
+      .gte('created_at', sinceIso)
+      .order('created_at', { ascending: false })
+      .limit(20)
+      .then(({ data, error }: any) => {
+        if (error || !Array.isArray(data)) return
+        for (const row of data) {
+          upsertDubRender({
+            id: String(row.id || crypto.randomUUID()),
+            provider: String(row.provider || 'dub'),
+            renderLatencyMs: Number.isFinite(Number(row.render_latency_ms)) ? Number(row.render_latency_ms) : null,
+            createdAt: row.created_at ? String(row.created_at) : new Date().toISOString(),
+          })
+        }
+      })
+
+    return () => {
+      supabase.removeChannel(subtitleChannel)
+      supabase.removeChannel(dubChannel)
+    }
+  }, [effectiveOrgId, tacticalSubtitleLanguage])
 
   useEffect(() => {
     return () => {
@@ -2574,6 +2715,13 @@ export default function BobAssistantStudio() {
   }, [effectiveOrgId, startEmergencyCountdown])
 
   const pttDiagnostics = getPTTDiagnostics()
+  const pttConnectionLabel = useMemo(() => {
+    const wsState = String(pttDiagnostics.websocketReadyState || '').toUpperCase()
+    if (pttConnectionStatus === 'disconnected' && wsState === 'OPEN') {
+      return 'connected'
+    }
+    return pttConnectionStatus
+  }, [pttConnectionStatus, pttDiagnostics.websocketReadyState])
 
   useEffect(() => {
     if (dangerAutoAssistArmed) return
@@ -4235,7 +4383,7 @@ export default function BobAssistantStudio() {
               <div className="grid gap-2 text-sm md:grid-cols-3">
                 <div className="rounded border p-3">
                   <div className="text-xs uppercase tracking-wide text-muted-foreground">Connection</div>
-                  <div className="mt-1 font-medium">{pttConnectionStatus}</div>
+                  <div className="mt-1 font-medium">{pttConnectionLabel}</div>
                 </div>
                 <div className="rounded border p-3">
                   <div className="text-xs uppercase tracking-wide text-muted-foreground">Scope</div>
@@ -4245,6 +4393,53 @@ export default function BobAssistantStudio() {
                   <div className="text-xs uppercase tracking-wide text-muted-foreground">Outbound Source</div>
                   <div className="mt-1 font-medium">{pttDiagnostics.outboundAudioSource}</div>
                 </div>
+              </div>
+
+              <div className="rounded border p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-xs uppercase tracking-wide text-muted-foreground">Grandmaster Tactical Overlay</div>
+                    <div className="text-sm font-medium">Live English Subtitles + Dub Relay</div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="bob-tactical-dub">Dub mode</Label>
+                    <Switch id="bob-tactical-dub" checked={tacticalDubMode} onCheckedChange={setTacticalDubMode} />
+                  </div>
+                </div>
+
+                {tacticalSubtitles.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">Waiting for translated subtitle segments…</p>
+                ) : (
+                  <div className="max-h-28 overflow-y-auto space-y-1">
+                    {tacticalSubtitles.slice(0, 8).map((segment) => (
+                      <div key={segment.id} className="rounded border bg-muted/20 px-2 py-1 text-xs">
+                        <div>{segment.text}</div>
+                        <div className="text-[10px] text-muted-foreground">
+                          {segment.targetLanguage}
+                          {segment.provider ? ` • ${segment.provider}` : ''}
+                          {typeof segment.confidence === 'number' ? ` • ${Math.round(segment.confidence * 100)}%` : ''}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {tacticalDubMode && (
+                  <div>
+                    {tacticalDubRenders.length === 0 ? (
+                      <p className="text-xs text-muted-foreground">Dub relay standing by for translated speech synthesis…</p>
+                    ) : (
+                      <div className="max-h-20 overflow-y-auto space-y-1">
+                        {tacticalDubRenders.slice(0, 5).map((render) => (
+                          <div key={render.id} className="text-xs text-muted-foreground">
+                            {render.provider}
+                            {render.renderLatencyMs != null ? ` • ${render.renderLatencyMs} ms` : ''}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="flex flex-wrap gap-2">

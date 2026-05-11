@@ -503,6 +503,7 @@ router.post('/radio/producer/create', verifyRadioJwt, verifyTransmissionScope, a
     speakerId: claims.sub || null,
     channelType: claims.channel_type || null,
     isEmergency: !!claims.is_emergency,
+    voiceMetadata: req.body?.appData?.voice_metadata || null,
   });
 
   producer.on('transportclose', () => {
