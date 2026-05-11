@@ -16,7 +16,7 @@ const contractPaths = {
   inviteEmailFunction: 'supabase/functions/send-invite-email/index.ts',
   fetchWithRetry: 'supabase/functions/_shared/fetchWithRetry.ts',
   communicationsAudit: 'supabase/functions/_shared/communicationsAudit.ts',
-  communicationsMigration: 'supabase/migrations/20260506000001_platform_enhancements_complete.sql',
+  communicationsMigration: 'supabase/migrations/20260506000011_platform_enhancements_complete.sql',
 }
 
 function repoPath(relativePath: string) {
