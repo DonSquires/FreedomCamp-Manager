@@ -1,9 +1,218 @@
 {
-  "generatedAt": "2026-05-03T13:01:38.094Z",
+  "generatedAt": "2026-05-11T06:50:00.826Z",
   "source": "src/App.tsx",
-  "routeCount": 121,
-  "duplicatePathCount": 0,
-  "duplicates": [],
+  "routeCount": 311,
+  "duplicatePathCount": 26,
+  "duplicates": [
+    {
+      "path": "/health-safety-reports",
+      "count": 2,
+      "sourceIndexes": [
+        97,
+        288
+      ]
+    },
+    {
+      "path": "/welfare-checkins",
+      "count": 2,
+      "sourceIndexes": [
+        98,
+        289
+      ]
+    },
+    {
+      "path": "/parking-permits",
+      "count": 2,
+      "sourceIndexes": [
+        99,
+        290
+      ]
+    },
+    {
+      "path": "/roster-shifts",
+      "count": 2,
+      "sourceIndexes": [
+        167,
+        291
+      ]
+    },
+    {
+      "path": "/noise-notices",
+      "count": 2,
+      "sourceIndexes": [
+        168,
+        292
+      ]
+    },
+    {
+      "path": "/site-incidents",
+      "count": 2,
+      "sourceIndexes": [
+        169,
+        293
+      ]
+    },
+    {
+      "path": "/person-interactions",
+      "count": 2,
+      "sourceIndexes": [
+        170,
+        294
+      ]
+    },
+    {
+      "path": "/plate-scans-log",
+      "count": 2,
+      "sourceIndexes": [
+        171,
+        295
+      ]
+    },
+    {
+      "path": "/dispatch-events",
+      "count": 2,
+      "sourceIndexes": [
+        172,
+        296
+      ]
+    },
+    {
+      "path": "/notices-to-vacate",
+      "count": 2,
+      "sourceIndexes": [
+        173,
+        297
+      ]
+    },
+    {
+      "path": "/contractor-manager",
+      "count": 2,
+      "sourceIndexes": [
+        174,
+        298
+      ]
+    },
+    {
+      "path": "/vehicle-discrepancies",
+      "count": 2,
+      "sourceIndexes": [
+        175,
+        299
+      ]
+    },
+    {
+      "path": "/drift-events",
+      "count": 2,
+      "sourceIndexes": [
+        176,
+        300
+      ]
+    },
+    {
+      "path": "/investigation-job-config",
+      "count": 2,
+      "sourceIndexes": [
+        177,
+        301
+      ]
+    },
+    {
+      "path": "/zone-legal-config",
+      "count": 2,
+      "sourceIndexes": [
+        178,
+        302
+      ]
+    },
+    {
+      "path": "/checkpoint-visits-log",
+      "count": 2,
+      "sourceIndexes": [
+        182,
+        306
+      ]
+    },
+    {
+      "path": "/ems-attendances-log",
+      "count": 2,
+      "sourceIndexes": [
+        183,
+        307
+      ]
+    },
+    {
+      "path": "/parking-sessions-log",
+      "count": 2,
+      "sourceIndexes": [
+        184,
+        308
+      ]
+    },
+    {
+      "path": "/flagged-vehicles-manager",
+      "count": 2,
+      "sourceIndexes": [
+        185,
+        309
+      ]
+    },
+    {
+      "path": "/parking-payments-log",
+      "count": 2,
+      "sourceIndexes": [
+        186,
+        310
+      ]
+    },
+    {
+      "path": "/zone-signage-evidence",
+      "count": 2,
+      "sourceIndexes": [
+        187,
+        311
+      ]
+    },
+    {
+      "path": "/officer-activity-log",
+      "count": 2,
+      "sourceIndexes": [
+        188,
+        312
+      ]
+    },
+    {
+      "path": "/credential-processing-log",
+      "count": 2,
+      "sourceIndexes": [
+        189,
+        313
+      ]
+    },
+    {
+      "path": "/dispatch-ack-log",
+      "count": 2,
+      "sourceIndexes": [
+        190,
+        314
+      ]
+    },
+    {
+      "path": "/enforcement-events-log",
+      "count": 2,
+      "sourceIndexes": [
+        192,
+        304
+      ]
+    },
+    {
+      "path": "/alarm-events-log",
+      "count": 2,
+      "sourceIndexes": [
+        195,
+        303
+      ]
+    }
+  ],
   "routes": [
     {
       "path": "/login",
@@ -22,6 +231,46 @@
       "sourceIndex": 4
     },
     {
+      "path": "/public/zone-map",
+      "accessType": "public",
+      "roles": [],
+      "area": null,
+      "protected": false,
+      "sourceIndex": 5
+    },
+    {
+      "path": "/public/noise-complaint",
+      "accessType": "public",
+      "roles": [],
+      "area": null,
+      "protected": false,
+      "sourceIndex": 6
+    },
+    {
+      "path": "/public/parking-appeal",
+      "accessType": "public",
+      "roles": [],
+      "area": null,
+      "protected": false,
+      "sourceIndex": 7
+    },
+    {
+      "path": "/public/pay-by-plate",
+      "accessType": "public",
+      "roles": [],
+      "area": null,
+      "protected": false,
+      "sourceIndex": 8
+    },
+    {
+      "path": "/public/register",
+      "accessType": "public",
+      "roles": [],
+      "area": null,
+      "protected": false,
+      "sourceIndex": 9
+    },
+    {
       "path": "/portal-selection",
       "accessType": "protected-role",
       "roles": [
@@ -29,7 +278,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 5
+      "sourceIndex": 10
     },
     {
       "path": "/officer-home",
@@ -40,7 +289,18 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 6
+      "sourceIndex": 11
+    },
+    {
+      "path": "/field-officer/dispatch",
+      "accessType": "protected-area",
+      "roles": [
+        "officer",
+        "admin_officer"
+      ],
+      "area": "field_officer",
+      "protected": true,
+      "sourceIndex": 12
     },
     {
       "path": "/field-officer",
@@ -51,7 +311,7 @@
       ],
       "area": "field_officer",
       "protected": true,
-      "sourceIndex": 7
+      "sourceIndex": 13
     },
     {
       "path": "/field",
@@ -59,7 +319,7 @@
       "roles": [],
       "area": null,
       "protected": false,
-      "sourceIndex": 8
+      "sourceIndex": 14
     },
     {
       "path": "/",
@@ -67,7 +327,7 @@
       "roles": [],
       "area": null,
       "protected": true,
-      "sourceIndex": 9
+      "sourceIndex": 15
     },
     {
       "path": "/admin",
@@ -79,7 +339,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 10
+      "sourceIndex": 16
     },
     {
       "path": "/admin/dashboard",
@@ -91,7 +351,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 11
+      "sourceIndex": 17
     },
     {
       "path": "/vehicles",
@@ -99,7 +359,7 @@
       "roles": [],
       "area": null,
       "protected": true,
-      "sourceIndex": 12
+      "sourceIndex": 18
     },
     {
       "path": "/zones",
@@ -111,7 +371,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 13
+      "sourceIndex": 19
     },
     {
       "path": "/compliance",
@@ -123,7 +383,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 14
+      "sourceIndex": 20
     },
     {
       "path": "/breaches",
@@ -131,7 +391,7 @@
       "roles": [],
       "area": null,
       "protected": true,
-      "sourceIndex": 15
+      "sourceIndex": 21
     },
     {
       "path": "/data",
@@ -143,7 +403,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 16
+      "sourceIndex": 22
     },
     {
       "path": "/users",
@@ -155,7 +415,7 @@
       ],
       "area": "users",
       "protected": true,
-      "sourceIndex": 17
+      "sourceIndex": 23
     },
     {
       "path": "/access-control",
@@ -168,7 +428,7 @@
       ],
       "area": "users",
       "protected": true,
-      "sourceIndex": 18
+      "sourceIndex": 24
     },
     {
       "path": "/organizations",
@@ -179,7 +439,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 19
+      "sourceIndex": 25
     },
     {
       "path": "/platform",
@@ -189,7 +449,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 20
+      "sourceIndex": 26
     },
     {
       "path": "/grandmaster-code-studio",
@@ -199,7 +459,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 21
+      "sourceIndex": 27
     },
     {
       "path": "/compliance-escalations",
@@ -209,7 +469,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 22
+      "sourceIndex": 28
     },
     {
       "path": "/client-portal",
@@ -225,7 +485,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 23
+      "sourceIndex": 29
     },
     {
       "path": "/incidents",
@@ -233,94 +493,23 @@
       "roles": [],
       "area": null,
       "protected": true,
-      "sourceIndex": 24
-    },
-    {
-      "path": "/reports",
-      "accessType": "protected-role",
-      "roles": [
-        "admin",
-        "admin_officer",
-        "master"
-      ],
-      "area": null,
-      "protected": true,
-      "sourceIndex": 25
-    },
-    {
-      "path": "/diagnostics",
-      "accessType": "protected-role",
-      "roles": [
-        "master",
-        "grand_master"
-      ],
-      "area": null,
-      "protected": true,
-      "sourceIndex": 26
-    },
-    {
-      "path": "/test-dashboard",
-      "accessType": "protected-role",
-      "roles": [
-        "admin",
-        "admin_officer",
-        "master",
-        "grand_master"
-      ],
-      "area": null,
-      "protected": true,
-      "sourceIndex": 27
-    },
-    {
-      "path": "/compliance-recalculation",
-      "accessType": "protected-role",
-      "roles": [
-        "admin",
-        "admin_officer",
-        "master"
-      ],
-      "area": null,
-      "protected": true,
-      "sourceIndex": 28
-    },
-    {
-      "path": "/photo-reingest",
-      "accessType": "protected-role",
-      "roles": [
-        "admin",
-        "admin_officer",
-        "master"
-      ],
-      "area": null,
-      "protected": true,
-      "sourceIndex": 29
-    },
-    {
-      "path": "/evidence-photo-linker",
-      "accessType": "protected-role",
-      "roles": [
-        "admin",
-        "admin_officer",
-        "master"
-      ],
-      "area": null,
-      "protected": true,
       "sourceIndex": 30
     },
     {
-      "path": "/live-tracking",
+      "path": "/evidence-packages",
       "accessType": "protected-role",
       "roles": [
         "admin",
         "admin_officer",
-        "master"
+        "master",
+        "officer"
       ],
       "area": null,
       "protected": true,
       "sourceIndex": 31
     },
     {
-      "path": "/organization-profile",
+      "path": "/cohort-analysis",
       "accessType": "protected-role",
       "roles": [
         "admin",
@@ -332,7 +521,7 @@
       "sourceIndex": 32
     },
     {
-      "path": "/audit-log",
+      "path": "/alarm-events",
       "accessType": "protected-role",
       "roles": [
         "admin",
@@ -342,6 +531,251 @@
       "area": null,
       "protected": true,
       "sourceIndex": 33
+    },
+    {
+      "path": "/occupancy-analytics",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 34
+    },
+    {
+      "path": "/patrol-route-optimiser",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master",
+        "officer"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 35
+    },
+    {
+      "path": "/fixed-cameras",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 36
+    },
+    {
+      "path": "/patrol-navigation",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master",
+        "officer"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 37
+    },
+    {
+      "path": "/dynamic-pricing",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 38
+    },
+    {
+      "path": "/revenue-forecasting",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 39
+    },
+    {
+      "path": "/lmr-bridge",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 40
+    },
+    {
+      "path": "/case-bridge",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master",
+        "grand_master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 41
+    },
+    {
+      "path": "/service-agreements",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master",
+        "grand_master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 42
+    },
+    {
+      "path": "/poi-voi-dashboard",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master",
+        "grand_master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 43
+    },
+    {
+      "path": "/access-audit",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master",
+        "grand_master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 44
+    },
+    {
+      "path": "/reports",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 45
+    },
+    {
+      "path": "/diagnostics",
+      "accessType": "protected-role",
+      "roles": [
+        "master",
+        "grand_master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 46
+    },
+    {
+      "path": "/test-dashboard",
+      "accessType": "protected-role",
+      "roles": [
+        "master",
+        "grand_master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 47
+    },
+    {
+      "path": "/compliance-recalculation",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master",
+        "grand_master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 48
+    },
+    {
+      "path": "/photo-reingest",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 49
+    },
+    {
+      "path": "/evidence-photo-linker",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 50
+    },
+    {
+      "path": "/live-tracking",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 51
+    },
+    {
+      "path": "/organization-profile",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 52
+    },
+    {
+      "path": "/audit-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 53
     },
     {
       "path": "/enforcement-actions",
@@ -354,7 +788,20 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 34
+      "sourceIndex": 54
+    },
+    {
+      "path": "/admin/enforcement",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master",
+        "officer"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 55
     },
     {
       "path": "/enforcement-command-center",
@@ -366,7 +813,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 35
+      "sourceIndex": 56
     },
     {
       "path": "/infringements",
@@ -379,7 +826,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 36
+      "sourceIndex": 57
     },
     {
       "path": "/privacy-curtain",
@@ -391,7 +838,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 37
+      "sourceIndex": 58
     },
     {
       "path": "/patrol-checkpoints",
@@ -403,7 +850,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 38
+      "sourceIndex": 59
     },
     {
       "path": "/patrol-schedule",
@@ -415,7 +862,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 39
+      "sourceIndex": 60
     },
     {
       "path": "/patrol-kpis",
@@ -427,7 +874,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 40
+      "sourceIndex": 61
     },
     {
       "path": "/admin/data-hub",
@@ -439,7 +886,17 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 41
+      "sourceIndex": 62
+    },
+    {
+      "path": "/admin/raw-data-browser",
+      "accessType": "protected-role",
+      "roles": [
+        "grand_master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 63
     },
     {
       "path": "/admin/data-cleanup",
@@ -451,7 +908,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 42
+      "sourceIndex": 64
     },
     {
       "path": "/admin/cleanup-recalculate",
@@ -462,7 +919,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 43
+      "sourceIndex": 65
     },
     {
       "path": "/admin/data-integrity",
@@ -474,7 +931,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 44
+      "sourceIndex": 66
     },
     {
       "path": "/live-patrol",
@@ -486,7 +943,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 45
+      "sourceIndex": 67
     },
     {
       "path": "/reports-hub",
@@ -494,7 +951,7 @@
       "roles": [],
       "area": null,
       "protected": false,
-      "sourceIndex": 46
+      "sourceIndex": 68
     },
     {
       "path": "/custom-reports",
@@ -506,7 +963,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 47
+      "sourceIndex": 69
     },
     {
       "path": "/ai-analysis",
@@ -518,7 +975,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 48
+      "sourceIndex": 70
     },
     {
       "path": "/hotspots",
@@ -530,7 +987,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 49
+      "sourceIndex": 71
     },
     {
       "path": "/spatial-compliance",
@@ -542,7 +999,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 50
+      "sourceIndex": 72
     },
     {
       "path": "/compliance-analytics",
@@ -554,7 +1011,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 51
+      "sourceIndex": 73
     },
     {
       "path": "/incident-reports",
@@ -566,7 +1023,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 52
+      "sourceIndex": 74
     },
     {
       "path": "/observations",
@@ -578,7 +1035,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 53
+      "sourceIndex": 75
     },
     {
       "path": "/observation-records",
@@ -586,7 +1043,7 @@
       "roles": [],
       "area": null,
       "protected": false,
-      "sourceIndex": 54
+      "sourceIndex": 76
     },
     {
       "path": "/search",
@@ -594,7 +1051,7 @@
       "roles": [],
       "area": null,
       "protected": true,
-      "sourceIndex": 55
+      "sourceIndex": 77
     },
     {
       "path": "/team-chat",
@@ -602,7 +1059,7 @@
       "roles": [],
       "area": null,
       "protected": true,
-      "sourceIndex": 56
+      "sourceIndex": 78
     },
     {
       "path": "/radio",
@@ -610,7 +1067,7 @@
       "roles": [],
       "area": null,
       "protected": true,
-      "sourceIndex": 57
+      "sourceIndex": 79
     },
     {
       "path": "/radio/log",
@@ -618,7 +1075,7 @@
       "roles": [],
       "area": null,
       "protected": true,
-      "sourceIndex": 58
+      "sourceIndex": 80
     },
     {
       "path": "/radio/audit",
@@ -631,7 +1088,225 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 59
+      "sourceIndex": 81
+    },
+    {
+      "path": "/radio-transmissions",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 82
+    },
+    {
+      "path": "/voice-profiles",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 83
+    },
+    {
+      "path": "/on-call-periods",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master",
+        "officer"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 84
+    },
+    {
+      "path": "/callout-shifts",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master",
+        "officer"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 85
+    },
+    {
+      "path": "/officer-allowances",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 86
+    },
+    {
+      "path": "/travel-allowances",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 87
+    },
+    {
+      "path": "/parking-appeals",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 88
+    },
+    {
+      "path": "/camper-registrations",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 89
+    },
+    {
+      "path": "/zone-amenities",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 90
+    },
+    {
+      "path": "/noise-complaints",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 91
+    },
+    {
+      "path": "/patrol-events",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 92
+    },
+    {
+      "path": "/breach-escalation",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 93
+    },
+    {
+      "path": "/officer-performance",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 94
+    },
+    {
+      "path": "/site-risk-trends",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 95
+    },
+    {
+      "path": "/incident-heatmap",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 96
+    },
+    {
+      "path": "/health-safety-reports",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 97
+    },
+    {
+      "path": "/welfare-checkins",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 98
+    },
+    {
+      "path": "/parking-permits",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 99
     },
     {
       "path": "/messages",
@@ -639,7 +1314,7 @@
       "roles": [],
       "area": null,
       "protected": true,
-      "sourceIndex": 60
+      "sourceIndex": 100
     },
     {
       "path": "/intel-approvals",
@@ -650,7 +1325,31 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 61
+      "sourceIndex": 101
+    },
+    {
+      "path": "/bob",
+      "accessType": "redirect",
+      "roles": [],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 102
+    },
+    {
+      "path": "/bob-studio",
+      "accessType": "redirect",
+      "roles": [],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 103
+    },
+    {
+      "path": "/bob/assistant-studio",
+      "accessType": "redirect",
+      "roles": [],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 104
     },
     {
       "path": "/bob-intake-queue",
@@ -663,7 +1362,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 62
+      "sourceIndex": 105
     },
     {
       "path": "/bob-assistant",
@@ -677,7 +1376,19 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 63
+      "sourceIndex": 106
+    },
+    {
+      "path": "/admin/video-generation",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 107
     },
     {
       "path": "/bob-ui-review",
@@ -690,7 +1401,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 64
+      "sourceIndex": 108
     },
     {
       "path": "/live-plan-reviews",
@@ -703,7 +1414,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 65
+      "sourceIndex": 109
     },
     {
       "path": "/notice-to-vacate",
@@ -715,7 +1426,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 66
+      "sourceIndex": 110
     },
     {
       "path": "/disputes",
@@ -727,7 +1438,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 67
+      "sourceIndex": 111
     },
     {
       "path": "/admin/discrepancies",
@@ -739,7 +1450,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 68
+      "sourceIndex": 112
     },
     {
       "path": "/admin/nzscv",
@@ -752,7 +1463,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 69
+      "sourceIndex": 113
     },
     {
       "path": "/officer-welfare",
@@ -764,7 +1475,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 70
+      "sourceIndex": 114
     },
     {
       "path": "/enforcement-review",
@@ -776,7 +1487,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 71
+      "sourceIndex": 115
     },
     {
       "path": "/investigations",
@@ -788,7 +1499,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 72
+      "sourceIndex": 116
     },
     {
       "path": "/parking",
@@ -800,7 +1511,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 73
+      "sourceIndex": 117
     },
     {
       "path": "/parking-officer",
@@ -813,7 +1524,7 @@
       ],
       "area": "parking",
       "protected": true,
-      "sourceIndex": 74
+      "sourceIndex": 118
     },
     {
       "path": "/noise-control",
@@ -825,7 +1536,7 @@
       ],
       "area": "noise",
       "protected": true,
-      "sourceIndex": 75
+      "sourceIndex": 119
     },
     {
       "path": "/noise-officer",
@@ -838,7 +1549,7 @@
       ],
       "area": "noise",
       "protected": true,
-      "sourceIndex": 76
+      "sourceIndex": 120
     },
     {
       "path": "/biosecurity-control",
@@ -850,7 +1561,7 @@
       ],
       "area": "biosecurity",
       "protected": true,
-      "sourceIndex": 77
+      "sourceIndex": 121
     },
     {
       "path": "/biosecurity-officer",
@@ -863,7 +1574,7 @@
       ],
       "area": "biosecurity",
       "protected": true,
-      "sourceIndex": 78
+      "sourceIndex": 122
     },
     {
       "path": "/smoke-control",
@@ -875,7 +1586,7 @@
       ],
       "area": "smoke",
       "protected": true,
-      "sourceIndex": 79
+      "sourceIndex": 123
     },
     {
       "path": "/smoke-officer",
@@ -888,7 +1599,7 @@
       ],
       "area": "smoke",
       "protected": true,
-      "sourceIndex": 80
+      "sourceIndex": 124
     },
     {
       "path": "/vehicles/:id",
@@ -896,7 +1607,7 @@
       "roles": [],
       "area": null,
       "protected": true,
-      "sourceIndex": 81
+      "sourceIndex": 125
     },
     {
       "path": "/person-records",
@@ -908,7 +1619,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 82
+      "sourceIndex": 126
     },
     {
       "path": "/points-of-interest",
@@ -921,7 +1632,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 83
+      "sourceIndex": 127
     },
     {
       "path": "/site-risk-assessment",
@@ -934,7 +1645,55 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 84
+      "sourceIndex": 128
+    },
+    {
+      "path": "/loi-browser",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 129
+    },
+    {
+      "path": "/trespass-notices",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 130
+    },
+    {
+      "path": "/access-permissions",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 131
+    },
+    {
+      "path": "/canonical-persons",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 132
     },
     {
       "path": "/face-recognition",
@@ -947,7 +1706,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 85
+      "sourceIndex": 133
     },
     {
       "path": "/identity-verification",
@@ -959,7 +1718,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 86
+      "sourceIndex": 134
     },
     {
       "path": "/import-data",
@@ -971,7 +1730,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 87
+      "sourceIndex": 135
     },
     {
       "path": "/import-historical",
@@ -982,7 +1741,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 88
+      "sourceIndex": 136
     },
     {
       "path": "/breach-notices",
@@ -995,7 +1754,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 89
+      "sourceIndex": 137
     },
     {
       "path": "/observations-report",
@@ -1007,7 +1766,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 90
+      "sourceIndex": 138
     },
     {
       "path": "/settings",
@@ -1015,7 +1774,7 @@
       "roles": [],
       "area": null,
       "protected": true,
-      "sourceIndex": 91
+      "sourceIndex": 139
     },
     {
       "path": "/admin/service-provider-access",
@@ -1026,7 +1785,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 92
+      "sourceIndex": 140
     },
     {
       "path": "/profile",
@@ -1034,7 +1793,7 @@
       "roles": [],
       "area": null,
       "protected": true,
-      "sourceIndex": 93
+      "sourceIndex": 141
     },
     {
       "path": "/vehicle-registry",
@@ -1047,7 +1806,20 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 94
+      "sourceIndex": 142
+    },
+    {
+      "path": "/plate-finder",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master",
+        "officer"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 143
     },
     {
       "path": "/admin/canonical-records",
@@ -1059,7 +1831,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 95
+      "sourceIndex": 144
     },
     {
       "path": "/notifications",
@@ -1067,7 +1839,7 @@
       "roles": [],
       "area": null,
       "protected": true,
-      "sourceIndex": 96
+      "sourceIndex": 145
     },
     {
       "path": "/compliance-dashboard",
@@ -1075,7 +1847,7 @@
       "roles": [],
       "area": null,
       "protected": false,
-      "sourceIndex": 97
+      "sourceIndex": 146
     },
     {
       "path": "/clean-dashboard",
@@ -1087,7 +1859,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 98
+      "sourceIndex": 147
     },
     {
       "path": "/asset-management",
@@ -1100,7 +1872,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 99
+      "sourceIndex": 148
     },
     {
       "path": "/invoicing",
@@ -1113,7 +1885,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 100
+      "sourceIndex": 149
     },
     {
       "path": "/pricing",
@@ -1126,7 +1898,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 101
+      "sourceIndex": 150
     },
     {
       "path": "/timesheets",
@@ -1138,7 +1910,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 103
+      "sourceIndex": 152
     },
     {
       "path": "/open-shifts",
@@ -1151,7 +1923,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 104
+      "sourceIndex": 153
     },
     {
       "path": "/dispatch",
@@ -1163,7 +1935,19 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 105
+      "sourceIndex": 154
+    },
+    {
+      "path": "/admin/dispatch",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 155
     },
     {
       "path": "/dispatch-monitor",
@@ -1175,7 +1959,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 106
+      "sourceIndex": 156
     },
     {
       "path": "/dispatch-wizard",
@@ -1187,7 +1971,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 107
+      "sourceIndex": 157
     },
     {
       "path": "/dispatched-jobs",
@@ -1199,7 +1983,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 108
+      "sourceIndex": 158
     },
     {
       "path": "/job-map",
@@ -1212,7 +1996,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 109
+      "sourceIndex": 159
     },
     {
       "path": "/operations-map",
@@ -1224,7 +2008,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 110
+      "sourceIndex": 160
     },
     {
       "path": "/client-sites",
@@ -1236,7 +2020,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 111
+      "sourceIndex": 161
     },
     {
       "path": "/site-permissions",
@@ -1248,7 +2032,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 112
+      "sourceIndex": 162
     },
     {
       "path": "/client-master-list",
@@ -1260,7 +2044,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 113
+      "sourceIndex": 163
     },
     {
       "path": "/roster",
@@ -1272,7 +2056,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 114
+      "sourceIndex": 164
     },
     {
       "path": "/officer-skills",
@@ -1284,7 +2068,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 115
+      "sourceIndex": 165
     },
     {
       "path": "/availability",
@@ -1292,7 +2076,1339 @@
       "roles": [],
       "area": null,
       "protected": true,
-      "sourceIndex": 116
+      "sourceIndex": 166
+    },
+    {
+      "path": "/roster-shifts",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 167
+    },
+    {
+      "path": "/noise-notices",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 168
+    },
+    {
+      "path": "/site-incidents",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 169
+    },
+    {
+      "path": "/person-interactions",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 170
+    },
+    {
+      "path": "/plate-scans-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 171
+    },
+    {
+      "path": "/dispatch-events",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 172
+    },
+    {
+      "path": "/notices-to-vacate",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 173
+    },
+    {
+      "path": "/contractor-manager",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 174
+    },
+    {
+      "path": "/vehicle-discrepancies",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 175
+    },
+    {
+      "path": "/drift-events",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 176
+    },
+    {
+      "path": "/investigation-job-config",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 177
+    },
+    {
+      "path": "/zone-legal-config",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 178
+    },
+    {
+      "path": "/investigation-jobs-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 179
+    },
+    {
+      "path": "/operational-cases-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 180
+    },
+    {
+      "path": "/patrol-events-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 181
+    },
+    {
+      "path": "/checkpoint-visits-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 182
+    },
+    {
+      "path": "/ems-attendances-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 183
+    },
+    {
+      "path": "/parking-sessions-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 184
+    },
+    {
+      "path": "/flagged-vehicles-manager",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 185
+    },
+    {
+      "path": "/parking-payments-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 186
+    },
+    {
+      "path": "/zone-signage-evidence",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 187
+    },
+    {
+      "path": "/officer-activity-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 188
+    },
+    {
+      "path": "/credential-processing-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 189
+    },
+    {
+      "path": "/dispatch-ack-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 190
+    },
+    {
+      "path": "/compliance-audit-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 191
+    },
+    {
+      "path": "/enforcement-events-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 192
+    },
+    {
+      "path": "/noise-jobs-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 193
+    },
+    {
+      "path": "/patrol-route-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 194
+    },
+    {
+      "path": "/alarm-events-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 195
+    },
+    {
+      "path": "/bug-reports-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 196
+    },
+    {
+      "path": "/radio-transmissions-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master",
+        "officer"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 197
+    },
+    {
+      "path": "/noise-assessments-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 198
+    },
+    {
+      "path": "/trespass-notices-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 199
+    },
+    {
+      "path": "/parking-infringements-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 200
+    },
+    {
+      "path": "/person-observations-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 201
+    },
+    {
+      "path": "/vehicles-of-interest-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 202
+    },
+    {
+      "path": "/persons-of-interest-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 203
+    },
+    {
+      "path": "/photo-metadata-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 204
+    },
+    {
+      "path": "/radio-comms-events-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 205
+    },
+    {
+      "path": "/case-comments-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 206
+    },
+    {
+      "path": "/lmr-bridge-sessions-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 207
+    },
+    {
+      "path": "/patrol-session-events-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 208
+    },
+    {
+      "path": "/radio-transcript-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 209
+    },
+    {
+      "path": "/dispute-intake-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 210
+    },
+    {
+      "path": "/radio-tts-render-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 211
+    },
+    {
+      "path": "/health-safety-report-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 212
+    },
+    {
+      "path": "/noise-seizures-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 213
+    },
+    {
+      "path": "/locations-of-interest-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 214
+    },
+    {
+      "path": "/vehicle-monthly-stays-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 215
+    },
+    {
+      "path": "/radio-voice-consent-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 216
+    },
+    {
+      "path": "/patrol-field-events-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 217
+    },
+    {
+      "path": "/alert-queue-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 218
+    },
+    {
+      "path": "/compliance-results-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 219
+    },
+    {
+      "path": "/welfare-events-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 220
+    },
+    {
+      "path": "/zone-geofence-snapshots",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 221
+    },
+    {
+      "path": "/feature-flags",
+      "accessType": "protected-role",
+      "roles": [
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 222
+    },
+    {
+      "path": "/feature-flag-evaluations-log",
+      "accessType": "protected-role",
+      "roles": [
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 223
+    },
+    {
+      "path": "/feature-flag-rollout-log",
+      "accessType": "protected-role",
+      "roles": [
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 224
+    },
+    {
+      "path": "/missing-photo-queue",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 225
+    },
+    {
+      "path": "/photo-integrity-health-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 226
+    },
+    {
+      "path": "/photo-recovery-audit-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 227
+    },
+    {
+      "path": "/user-sessions-log",
+      "accessType": "protected-role",
+      "roles": [
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 228
+    },
+    {
+      "path": "/recent-observations-photo-status-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 229
+    },
+    {
+      "path": "/observation-zone-audit-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 230
+    },
+    {
+      "path": "/user-deactivation-queue-log",
+      "accessType": "protected-role",
+      "roles": [
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 231
+    },
+    {
+      "path": "/alert-acknowledgements-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 232
+    },
+    {
+      "path": "/officer-welfare-alerts-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 233
+    },
+    {
+      "path": "/vehicle-migration-log",
+      "accessType": "protected-role",
+      "roles": [
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 234
+    },
+    {
+      "path": "/observation-deletions-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 235
+    },
+    {
+      "path": "/dispatch-resources-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 236
+    },
+    {
+      "path": "/radio-translation-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 237
+    },
+    {
+      "path": "/bob-proposals-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 238
+    },
+    {
+      "path": "/bob-proposal-events-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 239
+    },
+    {
+      "path": "/import-batches-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 240
+    },
+    {
+      "path": "/admin-recalculation-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 241
+    },
+    {
+      "path": "/contractor-documents-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 242
+    },
+    {
+      "path": "/import-staging-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 243
+    },
+    {
+      "path": "/lmr-bridge-config-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 244
+    },
+    {
+      "path": "/radio-voice-profiles-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 245
+    },
+    {
+      "path": "/zone-dispatch-rules-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 246
+    },
+    {
+      "path": "/bob-action-proposal-events-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 247
+    },
+    {
+      "path": "/homeless-records-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 248
+    },
+    {
+      "path": "/restrictions-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 249
+    },
+    {
+      "path": "/organizations-log",
+      "accessType": "protected-role",
+      "roles": [
+        "master",
+        "grand_master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 250
+    },
+    {
+      "path": "/client-sites-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 251
+    },
+    {
+      "path": "/parking-permits-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 252
+    },
+    {
+      "path": "/incidents-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 253
+    },
+    {
+      "path": "/person-records-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 254
+    },
+    {
+      "path": "/notifications-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 255
+    },
+    {
+      "path": "/face-records-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 256
+    },
+    {
+      "path": "/infringement-notices-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 257
+    },
+    {
+      "path": "/site-risk-assessments-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 258
+    },
+    {
+      "path": "/dispatch-jobs-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 259
+    },
+    {
+      "path": "/enforcement-actions-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 260
+    },
+    {
+      "path": "/observations-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 261
+    },
+    {
+      "path": "/canonical-scv-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 262
+    },
+    {
+      "path": "/officer-availability-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 263
+    },
+    {
+      "path": "/canonical-homeless-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 264
+    },
+    {
+      "path": "/breach-alerts-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 265
+    },
+    {
+      "path": "/canonical-vehicles-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 266
+    },
+    {
+      "path": "/flagged-vehicles-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 267
+    },
+    {
+      "path": "/officer-shifts-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 268
+    },
+    {
+      "path": "/open-shifts-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 269
+    },
+    {
+      "path": "/zone-compliance-matrix-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 270
+    },
+    {
+      "path": "/pricing-rules-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 271
+    },
+    {
+      "path": "/zone-legal-config-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 272
+    },
+    {
+      "path": "/zone-signage-evidence-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 273
+    },
+    {
+      "path": "/fixed-cameras-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 274
+    },
+    {
+      "path": "/officer-skills-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 275
+    },
+    {
+      "path": "/patrol-checkpoints-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 276
+    },
+    {
+      "path": "/contractor-profiles-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 277
+    },
+    {
+      "path": "/parking-zones-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 278
+    },
+    {
+      "path": "/canonical-persons-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 279
     },
     {
       "path": "/crm",
@@ -1305,7 +3421,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 117
+      "sourceIndex": 280
     },
     {
       "path": "/crm/contractor/:orgId",
@@ -1318,7 +3434,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 118
+      "sourceIndex": 281
     },
     {
       "path": "/crm/client/:orgId",
@@ -1331,7 +3447,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 119
+      "sourceIndex": 282
     },
     {
       "path": "/tender-workspace",
@@ -1343,7 +3459,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 120
+      "sourceIndex": 283
     },
     {
       "path": "/tender-workspace/:id",
@@ -1355,7 +3471,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 121
+      "sourceIndex": 284
     },
     {
       "path": "/tender-reference-library",
@@ -1367,7 +3483,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 122
+      "sourceIndex": 285
     },
     {
       "path": "/ems",
@@ -1381,7 +3497,7 @@
       ],
       "area": "ems",
       "protected": true,
-      "sourceIndex": 123
+      "sourceIndex": 286
     },
     {
       "path": "/site-guard",
@@ -1395,7 +3511,329 @@
       ],
       "area": "site_guard",
       "protected": true,
-      "sourceIndex": 124
+      "sourceIndex": 287
+    },
+    {
+      "path": "/health-safety-reports",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 288
+    },
+    {
+      "path": "/welfare-checkins",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 289
+    },
+    {
+      "path": "/parking-permits",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 290
+    },
+    {
+      "path": "/roster-shifts",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 291
+    },
+    {
+      "path": "/noise-notices",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 292
+    },
+    {
+      "path": "/site-incidents",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 293
+    },
+    {
+      "path": "/person-interactions",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 294
+    },
+    {
+      "path": "/plate-scans-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 295
+    },
+    {
+      "path": "/dispatch-events",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 296
+    },
+    {
+      "path": "/notices-to-vacate",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 297
+    },
+    {
+      "path": "/contractor-manager",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 298
+    },
+    {
+      "path": "/vehicle-discrepancies",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 299
+    },
+    {
+      "path": "/drift-events",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 300
+    },
+    {
+      "path": "/investigation-job-config",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 301
+    },
+    {
+      "path": "/zone-legal-config",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 302
+    },
+    {
+      "path": "/alarm-events-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 303
+    },
+    {
+      "path": "/enforcement-events-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 304
+    },
+    {
+      "path": "/open-shifts-manager",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 305
+    },
+    {
+      "path": "/checkpoint-visits-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 306
+    },
+    {
+      "path": "/ems-attendances-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 307
+    },
+    {
+      "path": "/parking-sessions-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 308
+    },
+    {
+      "path": "/flagged-vehicles-manager",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 309
+    },
+    {
+      "path": "/parking-payments-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 310
+    },
+    {
+      "path": "/zone-signage-evidence",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 311
+    },
+    {
+      "path": "/officer-activity-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 312
+    },
+    {
+      "path": "/credential-processing-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 313
+    },
+    {
+      "path": "/dispatch-ack-log",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 314
     }
   ]
 }
