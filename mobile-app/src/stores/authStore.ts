@@ -37,7 +37,8 @@ async function registerPushToken(userId: string): Promise<string | null> {
 
     await ensureNotificationChannel()
     return token
-  } catch {
+  } catch (error) {
+    console.warn('Push token registration failed:', error)
     // Non-critical — notifications degraded gracefully
     return null
   }
