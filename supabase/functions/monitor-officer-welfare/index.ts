@@ -62,6 +62,46 @@ async function notifySupervisors(
   );
 }
 
+async function notifyOfficer(
+  supabaseAdmin: ReturnType<typeof createClient>,
+  officerId: string,
+  title: string,
+  body: string,
+  data: Record<string, unknown> = {},
+): Promise<void> {
+  const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+  const serviceKey  = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+
+  const { data: officer } = await supabaseAdmin
+    .from('user_profiles')
+    .select('id, push_token, push_subscription')
+    .eq('id', officerId)
+    .maybeSingle();
+
+  if (!officer?.id || (!officer.push_token && !officer.push_subscription)) return;
+
+  try {
+    await fetch(`${supabaseUrl}/functions/v1/send-push-notification`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${serviceKey}`,
+      },
+      body: JSON.stringify({
+        user_id: officer.id,
+        title,
+        body,
+        data: {
+          notification_type: 'welfare_alerts',
+          ...data,
+        },
+      }),
+    });
+  } catch (err) {
+    console.warn(`Push failed for officer ${officerId}:`, err);
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: getCorsHeaders(req) });
@@ -293,6 +333,21 @@ Deno.serve(async (req) => {
     // ─────────────────────────────────────────────────────────────────────────
     if (warningInserts.length > 0) {
       await supabaseAdmin.from('officer_welfare_alerts').insert(warningInserts);
+      await Promise.allSettled(
+        warningInserts.map((warning: any) =>
+          notifyOfficer(
+            supabaseAdmin,
+            warning.officer_id,
+            'Welfare reminder',
+            'We have not seen recent activity from your shift. Open the app and check in.',
+            {
+              type: 'inactivity_warning',
+              alert_type: 'inactivity_warning',
+              escalation_level: warning.escalation_level,
+            },
+          )
+        )
+      );
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -330,6 +385,21 @@ Deno.serve(async (req) => {
     // ─────────────────────────────────────────────────────────────────────────
     if (welfareInserts.length > 0) {
       await supabaseAdmin.from('officer_welfare_alerts').insert(welfareInserts);
+      await Promise.allSettled(
+        welfareInserts.map((alert: any) =>
+          notifyOfficer(
+            supabaseAdmin,
+            alert.officer_id,
+            'Welfare check required',
+            'Your welfare alert needs attention. Open the app now and confirm you are safe.',
+            {
+              type: 'welfare_check',
+              alert_type: 'welfare_check',
+              escalation_level: alert.escalation_level,
+            },
+          )
+        )
+      );
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -381,11 +451,11 @@ Deno.serve(async (req) => {
           }
         }
 
-        if (alert.alert_type === 'welfare_check') {
-          // 3.5: peer-level (0) → admin (1) after 5 min
-          if (alert.escalation_level === 0 && alertAgeMin >= 5) {
-            console.log(`⚠️ No peer response for ${alert.officer_name} — escalating to admin`);
-            escalateToLevel.set(alert.id, 1);
+          if (alert.alert_type === 'welfare_check') {
+            // 3.5: peer-level (0) → admin (1) after 5 min
+            if (alert.escalation_level === 0 && alertAgeMin >= 5) {
+              console.log(`⚠️ No peer response for ${alert.officer_name} — escalating to admin`);
+              escalateToLevel.set(alert.id, 1);
             escalationCount++;
           }
           // 4a: admin (1) → high priority (2)
@@ -414,6 +484,25 @@ Deno.serve(async (req) => {
           .from('officer_welfare_alerts')
           .update({ escalation_level: level, escalated_at: now.toISOString() })
           .in('id', ids);
+
+        const escalatedAlerts = (pendingAlertsRaw as any[]).filter((alert) => ids.includes(alert.id));
+        await Promise.allSettled(
+          escalatedAlerts.map((alert) =>
+            notifyOfficer(
+              supabaseAdmin,
+              alert.officer_id,
+              level >= 3 ? 'Critical welfare escalation' : 'Welfare escalation',
+              level >= 3
+                ? 'Your welfare alert is now critical. Open the app immediately and confirm you are safe.'
+                : 'Your welfare alert has escalated. Open the app immediately and check in.',
+              {
+                type: alert.alert_type,
+                alert_type: alert.alert_type,
+                escalation_level: level,
+              },
+            )
+          )
+        );
       }
     }
 

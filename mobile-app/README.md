@@ -161,7 +161,7 @@ The app uses **Expo Push Notifications** via the `send-push-notification` Supaba
 On first launch after login, the app requests notification permission and registers the Expo push token:
 
 ```ts
-// The token is saved to user_profiles.expo_push_token
+// The token is saved to user_profiles.push_token
 // so the edge function can target this device
 ```
 
@@ -213,4 +213,4 @@ No backend changes are needed to support the mobile app.
 | GPS permission denied | User must grant in device Settings → Location |
 | Login error "Invalid JWT" | Check EXPO_PUBLIC_SUPABASE_ANON_KEY in .env |
 | Upload fails | Verify the `scans` storage bucket exists with public access |
-| No push notifications | Ensure `expo_push_token` is saved in user_profiles |
+| No push notifications | Ensure `push_token` is saved in user_profiles |

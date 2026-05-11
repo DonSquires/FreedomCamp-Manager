@@ -3,7 +3,17 @@ import * as Notifications from 'expo-notifications'
 import { Platform } from 'react-native'
 import { supabase } from '../lib/supabase'
 
-async function registerPushToken(userId: string): Promise<void> {
+async function ensureNotificationChannel(): Promise<void> {
+  if (Platform.OS !== 'android') return
+  await Notifications.setNotificationChannelAsync('default', {
+    name: 'FieldOps Alerts',
+    importance: Notifications.AndroidImportance.HIGH,
+    vibrationPattern: [0, 250, 250, 250],
+    lightColor: '#1d4ed8',
+  })
+}
+
+async function registerPushToken(userId: string): Promise<string | null> {
   try {
     const { status: existingStatus } = await Notifications.getPermissionsAsync()
     let finalStatus = existingStatus
@@ -11,27 +21,25 @@ async function registerPushToken(userId: string): Promise<void> {
       const { status } = await Notifications.requestPermissionsAsync()
       finalStatus = status
     }
-    if (finalStatus !== 'granted') return
+    if (finalStatus !== 'granted') return null
 
     const tokenData = await Notifications.getExpoPushTokenAsync()
     const token = tokenData.data
-    if (!token) return
+    if (!token) return null
 
     await supabase
       .from('user_profiles')
-      .update({ expo_push_token: token })
+      .update({
+        push_token: token,
+        push_token_updated_at: new Date().toISOString(),
+      })
       .eq('id', userId)
 
-    if (Platform.OS === 'android') {
-      await Notifications.setNotificationChannelAsync('default', {
-        name: 'FieldOps Alerts',
-        importance: Notifications.AndroidImportance.HIGH,
-        vibrationPattern: [0, 250, 250, 250],
-        lightColor: '#1d4ed8',
-      })
-    }
+    await ensureNotificationChannel()
+    return token
   } catch {
     // Non-critical — notifications degraded gracefully
+    return null
   }
 }
 
@@ -50,9 +58,12 @@ interface AuthState {
   isAuthenticated: boolean
   loading: boolean
   enforcementWorkflow: string
+  notificationStandby: boolean
+  pushToken: string | null
   login: (email: string, password: string) => Promise<void>
   logout: () => Promise<void>
   checkSession: () => Promise<void>
+  initializeNotificationRuntime: () => Promise<void>
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -60,6 +71,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   isAuthenticated: false,
   loading: true,
   enforcementWorkflow: 'admin_first',
+  notificationStandby: false,
+  pushToken: null,
+
+  initializeNotificationRuntime: async () => {
+    await ensureNotificationChannel().catch(() => {})
+    const { status } = await Notifications.getPermissionsAsync().catch(() => ({ status: 'undetermined' as const }))
+    set((state) => ({
+      ...state,
+      notificationStandby: !state.isAuthenticated && status === 'granted',
+    }))
+  },
 
   login: async (email: string, password: string) => {
     set({ loading: true })
@@ -96,22 +118,46 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       if (org?.enforcement_workflow) workflow = org.enforcement_workflow
     }
 
-    set({ user, isAuthenticated: true, loading: false, enforcementWorkflow: workflow })
+    set({
+      user,
+      isAuthenticated: true,
+      loading: false,
+      enforcementWorkflow: workflow,
+      notificationStandby: false,
+    })
 
     // Register push token non-blocking
-    registerPushToken(user.id).catch(() => {})
+    registerPushToken(user.id)
+      .then((token) => {
+        if (token) {
+          set((state) => ({ ...state, pushToken: token }))
+        }
+      })
+      .catch(() => {})
   },
 
   logout: async () => {
-    await supabase.auth.signOut()
-    set({ user: null, isAuthenticated: false, loading: false, enforcementWorkflow: 'admin_first' })
+    try {
+      await supabase.auth.signOut({ scope: 'local' })
+    } catch {
+      // Keep local logout resilient even if sign-out has issues.
+    }
+    const hasPushCapability = !!get().pushToken || (await Notifications.getPermissionsAsync().catch(() => ({ status: 'denied' as const }))).status === 'granted'
+    set({
+      user: null,
+      isAuthenticated: false,
+      loading: false,
+      enforcementWorkflow: 'admin_first',
+      notificationStandby: hasPushCapability,
+    })
   },
 
   checkSession: async () => {
     const { data: { session } } = await supabase.auth.getSession()
 
     if (!session) {
-      set({ loading: false })
+      const { status } = await Notifications.getPermissionsAsync().catch(() => ({ status: 'undetermined' as const }))
+      set({ loading: false, notificationStandby: status === 'granted' })
       return
     }
 
@@ -146,6 +192,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       if (org?.enforcement_workflow) workflow = org.enforcement_workflow
     }
 
-    set({ user, isAuthenticated: true, loading: false, enforcementWorkflow: workflow })
+    set({
+      user,
+      isAuthenticated: true,
+      loading: false,
+      enforcementWorkflow: workflow,
+      notificationStandby: false,
+    })
   },
 }))

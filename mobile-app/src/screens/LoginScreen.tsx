@@ -8,7 +8,7 @@ import { toast } from 'sonner-native'
 import { useAuthStore } from '../stores/authStore'
 
 export default function LoginScreen() {
-  const { login } = useAuthStore()
+  const { login, notificationStandby } = useAuthStore()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -42,6 +42,15 @@ export default function LoginScreen() {
           <Text style={styles.title}>FieldOps Officer</Text>
           <Text style={styles.subtitle}>Iron Eagle Security — Field App</Text>
         </View>
+
+        {notificationStandby && (
+          <View style={styles.standbyBanner}>
+            <Text style={styles.standbyTitle}>Notifications stay active</Text>
+            <Text style={styles.standbyText}>
+              Patrol tools are signed out, but the app remains ready to receive push notifications in the background.
+            </Text>
+          </View>
+        )}
 
         {/* Form */}
         <View style={styles.form}>
@@ -137,6 +146,25 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 8,
     elevation: 4,
+  },
+  standbyBanner: {
+    backgroundColor: '#dbeafe',
+    borderWidth: 1,
+    borderColor: '#93c5fd',
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 18,
+  },
+  standbyTitle: {
+    color: '#1e3a8a',
+    fontSize: 14,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  standbyText: {
+    color: '#1d4ed8',
+    fontSize: 13,
+    lineHeight: 18,
   },
   label: {
     fontSize: 13,
