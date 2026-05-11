@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
@@ -36,6 +36,7 @@ import {
   useUpdatePatrolRouteStopStatus,
 } from '@/hooks/usePatrolRouteInstances'
 import { useDispatchCompletion } from '@/hooks/useDispatchCompletion'
+import { useSpeechIntent, type SpeechIntentResult } from '@/hooks/useSpeechIntent'
 import { GeofenceWarningBanner } from '@/components/features/GeofenceWarningBanner'
 import { reverseGeocode } from '@/lib/geocoding'
 import { useThemePreferencesStore } from '@/stores/themePreferencesStore'
@@ -44,7 +45,7 @@ import {
   ShieldAlert, CheckCircle, Shield, Megaphone, FileWarning, XCircle,
   Clock, Home, X, Car, Zap, Search, Printer, PlusCircle, Wrench, Heart, Users,
   Moon, Sun, ParkingSquare, Volume2, Video, Eye, Tent, Timer,
-  ScanFace, CalendarPlus, Siren, Bell, PhoneCall, Lock, Leaf, Wind, Loader2,
+  ScanFace, CalendarPlus, Siren, Bell, PhoneCall, Lock, Leaf, Wind, Loader2, Mic,
 } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { Badge } from '@/components/ui/badge'
@@ -694,6 +695,98 @@ export default function FieldOfficerPortal() {
 
   const [isStartingShift, setIsStartingShift] = useState(false)
   const [isEndingShift,   setIsEndingShift]   = useState(false)
+
+  const primarySpeechDispatchJob = (myDispatchJobs as any[])[0] ?? null
+  const speechActivityTarget = useMemo(() => {
+    if (primarySpeechDispatchJob) {
+      return {
+        kind: 'dispatch' as const,
+        id: primarySpeechDispatchJob.id as string,
+        label: `${primarySpeechDispatchJob.job_number ?? 'Dispatch'} · ${primarySpeechDispatchJob.title ?? 'Untitled job'}`,
+      }
+    }
+
+    if (activeRouteInstance) {
+      return {
+        kind: 'patrol' as const,
+        id: activeRouteInstance.id as string,
+        label: String(activeRouteInstance.patrol_route_name ?? 'Active patrol route'),
+      }
+    }
+
+    return null
+  }, [activeRouteInstance, primarySpeechDispatchJob])
+
+  const handleSpeechIntentResult = useCallback(async (speechResult: SpeechIntentResult) => {
+    if (!user?.id || !user.organization_id) return
+
+    const { error } = await (supabase.from('audit_log') as any).insert({
+      organization_id: user.organization_id,
+      action: 'speech_activity_enriched',
+      entity_type: speechActivityTarget?.kind === 'dispatch' ? 'dispatch_job' : 'patrol_route_instance',
+      entity_id: speechActivityTarget?.id ?? activeShift?.id ?? user.id,
+      performed_by: user.id,
+      new_values: {
+        source: 'assistive',
+        authoritative_target: speechActivityTarget?.kind === 'dispatch' ? 'dispatch_job' : 'patrol_route_instance',
+        target_label: speechActivityTarget?.label ?? 'Field session',
+        transcript: speechResult.transcript,
+        summary: speechResult.intent.summary,
+        intent: speechResult.intent.intent,
+        confidence: speechResult.intent.confidence,
+        needs_confirmation: speechResult.intent.needs_confirmation,
+        entities: speechResult.intent.entities,
+        dispatch_job_id: primarySpeechDispatchJob?.id ?? null,
+        patrol_route_instance_id: activeRouteInstance?.id ?? null,
+        shift_id: activeShift?.id ?? null,
+        zone_id: effectivePatrolZone ?? manualZoneId ?? null,
+        active_service: activeService ?? null,
+        captured_at: new Date().toISOString(),
+      },
+    })
+
+    if (error) {
+      toast.error(error.message || 'Failed to attach speech activity')
+      return
+    }
+
+    queryClient.invalidateQueries({ queryKey: ['dispatch-monitor-parity'] })
+    setQuickReportStatusKind('success')
+    setQuickReportStatusText(`Speech activity attached to ${speechActivityTarget?.label ?? 'field session'}`)
+    toast.success('Officer activity enriched from speech capture')
+  }, [
+    activeRouteInstance?.id,
+    activeService,
+    activeShift?.id,
+    effectivePatrolZone,
+    manualZoneId,
+    primarySpeechDispatchJob?.id,
+    queryClient,
+    speechActivityTarget,
+    user,
+  ])
+
+  const speechIntent = useSpeechIntent({
+    orgId: user?.organization_id ?? null,
+    context: speechActivityTarget
+      ? {
+          source: 'rapid-activity-listener',
+          target_kind: speechActivityTarget.kind,
+          target_id: speechActivityTarget.id,
+          dispatch_job_id: primarySpeechDispatchJob?.id ?? null,
+          patrol_route_instance_id: activeRouteInstance?.id ?? null,
+          shift_id: activeShift?.id ?? null,
+          zone_id: effectivePatrolZone ?? manualZoneId ?? null,
+          active_service: activeService ?? null,
+        }
+      : undefined,
+    maxDurationMs: 12000,
+    onResult: handleSpeechIntentResult,
+    onError: (message) => {
+      setQuickReportStatusKind('error')
+      setQuickReportStatusText(message)
+    },
+  })
 
   const handleStartShift = useCallback(async () => {
     // Service-provider members can choose a client jurisdiction to work in.
@@ -2348,6 +2441,107 @@ export default function FieldOfficerPortal() {
                   </CardContent>
                 </Card>
               </div>
+            )}
+
+            {(speechActivityTarget || speechIntent.result || speechIntent.error) && (
+              <Card className="mb-6 border-blue-200 dark:border-blue-900/60 bg-blue-50/60 dark:bg-blue-950/20">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <Mic className="h-4 w-4 text-blue-600" />
+                    Officer Activity Capture
+                  </CardTitle>
+                  <CardDescription>
+                    Rapid-style speech capture enriches the active dispatch or patrol context without overwriting authoritative lifecycle data.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex flex-wrap items-center gap-2 text-xs">
+                    <Badge variant="outline" className="border-blue-300 text-blue-700 dark:text-blue-300">
+                      Assistive enrichment
+                    </Badge>
+                    {speechActivityTarget && (
+                      <Badge variant="outline" className="border-emerald-300 text-emerald-700 dark:text-emerald-300">
+                        Target: {speechActivityTarget.label}
+                      </Badge>
+                    )}
+                    <Badge variant="outline" className="capitalize">
+                      {speechIntent.state.replace(/_/g, ' ')}
+                    </Badge>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        if (speechIntent.state === 'listening') {
+                          speechIntent.stopListening()
+                          return
+                        }
+                        speechIntent.reset()
+                        void speechIntent.startListening()
+                      }}
+                      disabled={!speechActivityTarget || speechIntent.state === 'processing'}
+                    >
+                      {speechIntent.state === 'processing' ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+                          Processing…
+                        </>
+                      ) : speechIntent.state === 'listening' ? (
+                        <>
+                          <Mic className="h-4 w-4 mr-1.5" />
+                          Stop capture
+                        </>
+                      ) : (
+                        <>
+                          <Mic className="h-4 w-4 mr-1.5" />
+                          Record activity
+                        </>
+                      )}
+                    </Button>
+
+                    {(speechIntent.result || speechIntent.error) && (
+                      <Button size="sm" variant="outline" onClick={speechIntent.reset}>
+                        Clear
+                      </Button>
+                    )}
+                  </div>
+
+                  {!speechActivityTarget && (
+                    <p className="text-xs text-muted-foreground">
+                      Start a patrol route or take a dispatch job to attach speech enrichment to an active operational record.
+                    </p>
+                  )}
+
+                  {speechIntent.error && (
+                    <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-300">
+                      {speechIntent.error}
+                    </div>
+                  )}
+
+                  {speechIntent.result && (
+                    <div className="rounded-lg border border-blue-200 bg-white/80 dark:border-blue-900 dark:bg-slate-950/40 p-3 space-y-2">
+                      <div className="flex flex-wrap items-center gap-2 text-xs">
+                        <Badge variant="outline">{speechIntent.result.intent.intent}</Badge>
+                        <Badge variant="outline">
+                          {Math.round(speechIntent.result.intent.confidence * 100)}% confidence
+                        </Badge>
+                        {speechIntent.result.intent.needs_confirmation && (
+                          <Badge variant="outline" className="border-amber-300 text-amber-700 dark:text-amber-300">
+                            Needs confirmation
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="text-sm font-medium text-foreground">
+                        {speechIntent.result.intent.summary || 'No summary returned'}
+                      </p>
+                      <p className="text-xs text-muted-foreground whitespace-pre-wrap">
+                        {speechIntent.result.transcript}
+                      </p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
             )}
 
             {/* ── Dispatched Job Queue (GDS CATS-style) ──────────────── */}

@@ -41,6 +41,8 @@ export interface SpeechIntentResult {
 
 export interface UseSpeechIntentOptions {
   orgId?: string | null
+  language?: string
+  context?: Record<string, unknown>
   /** Max recording duration in ms before auto-stop. Default: 10000 */
   maxDurationMs?: number
   /** Audio MIME type for MediaRecorder. Default: browser-determined */
@@ -95,6 +97,8 @@ function detectSupportedMimeType(): string {
 export function useSpeechIntent(options: UseSpeechIntentOptions = {}): UseSpeechIntentReturn {
   const {
     orgId = null,
+    language = 'en',
+    context,
     maxDurationMs = 10000,
     mimeType,
     onResult,
@@ -141,8 +145,9 @@ export function useSpeechIntent(options: UseSpeechIntentOptions = {}): UseSpeech
         const { data, error: fnError } = await supabase.functions.invoke('speech-to-intent', {
           body: {
             audio_base64,
-            language: 'en',
+            language,
             org_id: orgId,
+            context: context ?? {},
           },
           headers: orgId ? { 'x-org-id': orgId } : undefined,
         })
@@ -158,7 +163,7 @@ export function useSpeechIntent(options: UseSpeechIntentOptions = {}): UseSpeech
         _handleError(err instanceof Error ? err.message : 'Speech processing failed')
       }
     },
-    [orgId, onResult, _handleError],
+    [context, language, orgId, onResult, _handleError],
   )
 
   const stopListening = useCallback(() => {

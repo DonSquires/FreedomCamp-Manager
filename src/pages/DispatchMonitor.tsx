@@ -14,10 +14,12 @@ import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
 import { AppLayout } from '@/components/features/AppLayout'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
+import { runDispatchJobsQueryWithAlarmTypeFallback } from '@/lib/dispatchJobs'
+import { summarizeDispatchParity } from '@/lib/rapidFieldParity'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { RefreshCw, Radio, AlertTriangle, Clock, CheckCircle, Zap, XCircle } from 'lucide-react'
+import { RefreshCw, Radio, AlertTriangle, Clock, CheckCircle, Zap, XCircle, Mic, Database } from 'lucide-react'
 import { toast } from 'sonner'
 import { AsyncStateWrapper } from '@/components/features/AsyncStateWrapper'
 
@@ -38,7 +40,7 @@ const ALARM_TYPE_FILTERS = [
 
 const RESPONSE_SLA_THRESHOLD_MIN = 60
 
-const DISPATCH_MONITOR_SELECT = 'id, status, dispatched_at, acknowledged_at, on_scene_at, completed_at, cancelled_at, created_at, response_sla_minutes, priority'
+const DISPATCH_MONITOR_SELECT = 'id, status, alarm_type, title, address, gps_lat, gps_lng, assigned_to, client_site_id, zone_id, dispatched_at, acknowledged_at, en_route_at, on_scene_at, completed_at, cancelled_at, created_at, response_sla_minutes, priority'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -58,6 +60,21 @@ interface StatTile {
   value: number
   red?: boolean
   icon: React.FC<{ className?: string }>
+}
+
+interface DispatchParitySnapshot {
+  coveragePercent: number
+  mappedRequired: number
+  totalRequired: number
+  readyJobs: number
+  totalJobs: number
+  missingByKey: Array<{
+    key: string
+    label: string
+    count: number
+  }>
+  assistiveEnrichmentCount: number
+  speechErrorCount: number
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -88,11 +105,13 @@ export default function DispatchMonitor() {
       const nowIso = now.toISOString()
 
       // Fetch all jobs for today onwards
-      const { data: jobs, error } = await (supabase as any)
-        .from('dispatch_jobs')
-        .select(DISPATCH_MONITOR_SELECT)
-        .eq('organization_id', orgId ?? '')
-        .gte('created_at', new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString())
+      const { data: jobs, error } = await runDispatchJobsQueryWithAlarmTypeFallback<any[]>((includeAlarmType) =>
+        (supabase as any)
+          .from('dispatch_jobs')
+          .select(includeAlarmType ? DISPATCH_MONITOR_SELECT : DISPATCH_MONITOR_SELECT.replace('alarm_type, ', ''))
+          .eq('organization_id', orgId ?? '')
+          .gte('created_at', new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString())
+      )
 
       if (error) throw error
 
@@ -124,6 +143,51 @@ export default function DispatchMonitor() {
         not_acknowledged: notAcknowledged.length,
         over_response_time: overResponseTime.length,
         ready_to_close: readyToClose.length,
+      }
+    },
+    enabled: !!orgId,
+  })
+
+  const { data: paritySnapshot, isLoading: parityLoading } = useQuery<DispatchParitySnapshot>({
+    queryKey: ['dispatch-monitor-parity', orgId, tick],
+    queryFn: async () => {
+      const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+      const { data: jobs, error } = await runDispatchJobsQueryWithAlarmTypeFallback<any[]>((includeAlarmType) =>
+        (supabase as any)
+          .from('dispatch_jobs')
+          .select(includeAlarmType ? DISPATCH_MONITOR_SELECT : DISPATCH_MONITOR_SELECT.replace('alarm_type, ', ''))
+          .eq('organization_id', orgId ?? '')
+          .in('status', ['pending', 'dispatched', 'acknowledged', 'en_route', 'on_scene', 'completed'])
+          .gte('created_at', since)
+      )
+
+      if (error) throw error
+
+      const parity = summarizeDispatchParity((jobs ?? []) as any[])
+
+      const assistiveEnrichmentQuery = (supabase
+        .from('audit_log')
+        .select('id', { count: 'exact', head: true }) as any)
+        .eq('action', 'speech_activity_enriched')
+        .eq('organization_id', orgId ?? '')
+        .gte('created_at', since)
+
+      const speechErrorsQuery = (supabase as any)
+        .from('speech_audit_events')
+        .select('id', { count: 'exact', head: true })
+        .eq('org_id', orgId ?? '')
+        .not('error_message', 'is', null)
+        .gte('created_at', since)
+
+      const [{ count: assistiveEnrichmentCount }, speechErrorsResult] = await Promise.all([
+        assistiveEnrichmentQuery,
+        speechErrorsQuery.catch(() => ({ count: 0 })),
+      ])
+
+      return {
+        ...parity,
+        assistiveEnrichmentCount: assistiveEnrichmentCount ?? 0,
+        speechErrorCount: speechErrorsResult.count ?? 0,
       }
     },
     enabled: !!orgId,
@@ -170,6 +234,75 @@ export default function DispatchMonitor() {
           <Button size="sm" variant="outline" onClick={handleManualRefresh} className="gap-1.5">
             <RefreshCw className="h-3.5 w-3.5" /> Refresh
           </Button>
+        </div>
+
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+          <Card className="border-blue-200 dark:border-blue-900">
+            <CardContent className="p-4 space-y-2">
+              <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                <Database className="h-4 w-4 text-blue-600" />
+                Rapid parity readiness
+              </div>
+              <AsyncStateWrapper isLoading={parityLoading} loadingText="Measuring parity coverage…">
+                <div className="space-y-1">
+                  <p className="text-3xl font-bold text-blue-700 dark:text-blue-300">
+                    {paritySnapshot?.coveragePercent ?? 0}%
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {paritySnapshot?.mappedRequired ?? 0}/{paritySnapshot?.totalRequired ?? 0} required canonical fields mapped across recent dispatch jobs
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {paritySnapshot?.readyJobs ?? 0}/{paritySnapshot?.totalJobs ?? 0} jobs currently parity-ready
+                  </p>
+                </div>
+              </AsyncStateWrapper>
+            </CardContent>
+          </Card>
+
+          <Card className="border-emerald-200 dark:border-emerald-900">
+            <CardContent className="p-4 space-y-2">
+              <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                <Mic className="h-4 w-4 text-emerald-600" />
+                Assistive enrichment
+              </div>
+              <AsyncStateWrapper isLoading={parityLoading} loadingText="Loading enrichment health…">
+                <p className="text-3xl font-bold text-emerald-700 dark:text-emerald-300">
+                  {paritySnapshot?.assistiveEnrichmentCount ?? 0}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Officer speech enrichments attached in the last 24 hours
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Speech audit errors in window: {paritySnapshot?.speechErrorCount ?? 0}
+                </p>
+              </AsyncStateWrapper>
+            </CardContent>
+          </Card>
+
+          <Card className="border-amber-200 dark:border-amber-900">
+            <CardContent className="p-4 space-y-2">
+              <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                <AlertTriangle className="h-4 w-4 text-amber-600" />
+                Top parity gaps
+              </div>
+              <AsyncStateWrapper isLoading={parityLoading} loadingText="Loading gap hotspots…">
+                <div className="space-y-2">
+                  {(paritySnapshot?.missingByKey.length ?? 0) > 0 ? (
+                    paritySnapshot?.missingByKey.slice(0, 3).map((gap) => (
+                      <div key={gap.key} className="flex items-center justify-between gap-3 rounded-lg bg-amber-50 dark:bg-amber-950/20 px-3 py-2 text-xs">
+                        <span className="font-medium text-amber-900 dark:text-amber-100">{gap.label}</span>
+                        <Badge variant="outline" className="border-amber-300 text-amber-700 dark:text-amber-300">
+                          {gap.count}
+                        </Badge>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-xs text-muted-foreground">No parity gaps detected in the current dispatch sample.</p>
+                  )}
+                </div>
+              </AsyncStateWrapper>
+            </CardContent>
+          </Card>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">

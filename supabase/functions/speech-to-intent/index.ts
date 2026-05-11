@@ -87,11 +87,14 @@ Deno.serve(withCors(async (req: Request) => {
   }
 
   // 3. Forward to speech-router (user-scoped only; no org restrictions)
+  const orgId = typeof body.org_id === 'string' && body.org_id.trim().length > 0
+    ? body.org_id.trim()
+    : null
   const routerPayload = {
     audio_base64: body.audio_base64,
     language: typeof body.language === 'string' ? body.language : 'en',
     wake_phrase: typeof body.wake_phrase === 'string' ? body.wake_phrase : null,
-    org_id: null,
+    org_id: orgId,
     user_id: userId,
     context: typeof body.context === 'object' && body.context !== null ? body.context : {},
   }
@@ -119,7 +122,7 @@ Deno.serve(withCors(async (req: Request) => {
     if (!routerRes.ok) {
       await persistAuditEvent(supabase, {
         user_id: userId,
-        org_id: null,
+        org_id: orgId,
         transcript: '',
         intent_name: null,
         confidence: null,
@@ -140,9 +143,9 @@ Deno.serve(withCors(async (req: Request) => {
     const intent = routerBody.intent as Record<string, unknown> | undefined
     const provider = routerBody.provider as Record<string, string> | undefined
     await persistAuditEvent(supabase, {
-      user_id: userId,
-      org_id: null,
-      transcript: typeof routerBody.transcript === 'string' ? routerBody.transcript : '',
+        user_id: userId,
+        org_id: orgId,
+        transcript: typeof routerBody.transcript === 'string' ? routerBody.transcript : '',
       intent_name: typeof intent?.intent === 'string' ? intent.intent : null,
       confidence: typeof intent?.confidence === 'number' ? intent.confidence : null,
       needs_confirmation: intent?.needs_confirmation === true,
@@ -160,7 +163,7 @@ Deno.serve(withCors(async (req: Request) => {
 
     await persistAuditEvent(supabase, {
       user_id: userId,
-      org_id: null,
+      org_id: orgId,
       transcript: '',
       intent_name: null,
       confidence: null,
