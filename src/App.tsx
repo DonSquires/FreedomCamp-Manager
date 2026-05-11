@@ -122,6 +122,7 @@ const NotificationsCenter = lazy(() => import('@/pages/NotificationsCenter'))
 const FaceRecognitionPage = lazy(() => import('@/pages/FaceRecognitionPage'))
 const IdentityVerificationPage = lazy(() => import('@/pages/IdentityVerificationPage'))
 const TimesheetReview = lazy(() => import('@/pages/TimesheetReview'))
+const LeaveManagement = lazy(() => import('@/pages/LeaveManagement'))
 const OpenShifts = lazy(() => import('@/pages/OpenShifts'))
 const DispatchConsole = lazy(() => import('@/pages/DispatchConsole'))
 const FieldOfficerDispatch = lazy(() => import('@/pages/FieldOfficerDispatch'))
@@ -2285,6 +2286,16 @@ export default function App() {
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
                   <TimesheetReview />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/leave-management"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'officer']}>
+                  <LeaveManagement />
                 </RoleRoute>
               </ProtectedRoute>
             }

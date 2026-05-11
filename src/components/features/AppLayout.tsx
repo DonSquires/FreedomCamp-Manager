@@ -475,6 +475,7 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/availability', icon: CalendarDays, label: 'My Availability', roles: ['admin', 'admin_officer', 'master', 'officer'] },
       { path: '/officer-skills', icon: GraduationCap, label: 'Skills & Licences', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/timesheets', icon: ClipboardCopy, label: 'Timesheets', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/leave-management', icon: CalendarDays, label: 'Leave Management', roles: ['admin', 'admin_officer', 'master', 'officer'] },
       { path: '/asset-management', icon: Package2, label: 'Asset Management', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/contractor-manager', icon: Wrench, label: 'Contractor Manager', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/on-call-periods', icon: PhoneCall, label: 'On-Call Periods', roles: ['admin', 'admin_officer', 'master', 'officer'] },
