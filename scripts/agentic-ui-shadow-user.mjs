@@ -243,11 +243,11 @@ function buildPackPlan(pack) {
   if (pack === 'admin') {
     return [
       ...baseLogin,
-      { type: 'ensurePortalSelectionResolved', url: '/admin', note: 'Bypass portal selection for admin/officer dual-role accounts' },
+      { type: 'ensurePortalSelectionResolved', url: '/admin', note: 'Bypass portal selection for admin/master role accounts' },
       { type: 'goto', url: '/admin', note: 'Open admin portal home' },
       { type: 'expectVisibleAny', value: 'text=/Admin Portal|Dashboard|Operations|FieldOps Manager|Portal Selection|Choose Portal/i', note: 'Verify admin portal or valid fallback state is visible' },
       { type: 'goto', url: '/bug-reports-log', note: 'Navigate to bug reports log' },
-      { type: 'expectVisibleAny', value: 'text=/Bug Report Log|Bug Reports|No bug reports|Portal Selection|Choose Portal|FieldOps Manager|Login/i', note: 'Verify bug reports log page or valid gate state is visible' },
+      { type: 'expectVisibleAny', value: 'text=/Bug Report Log|Bug Reports|No bug reports|Total Reports|Portal Selection|Choose Portal|FieldOps Manager|Login/i', note: 'Verify bug reports log page or valid gate state is visible' },
       { type: 'axeCheck', note: 'Quick a11y scan on bug reports log' },
       { type: 'done', note: 'Admin pack complete' },
     ]
