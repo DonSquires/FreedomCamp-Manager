@@ -944,7 +944,7 @@ async function main() {
             if (['failed', 'failed_launch'].includes(result)) report.ux.flowBreaks += 1
 
             const executionError = String(packReport.actions?.[0]?.execution?.error || '')
-            if (executionError.includes('ERR_CONNECTION_REFUSED')) {
+            if (executionError.includes('ERR_CONNECTION_REFUSED') || executionError.includes('ECONNREFUSED') || result === 'blocked_infra') {
               packStatus = 'infra'
               packDetail = `result=${result}, startup connectivity error`
             } else if (['completed', 'max-steps-reached'].includes(result) && cmd.exitCode === 0) {
