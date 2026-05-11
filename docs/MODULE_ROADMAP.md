@@ -1516,3 +1516,9 @@ Phase E1 gate artifacts:
 - Test spec: `tests/e2e/phase-e1-data-access-consolidation.spec.ts`
 - CI workflow: `.github/workflows/ci-phase-e1-data-access-consolidation-gate.yml`
 - Local command: `bunx playwright test tests/e2e/phase-e1-data-access-consolidation.spec.ts --config=playwright.api.config.ts --reporter=list`
+
+## Sprint 76 Addendum (2026-05-11) — Leave Management
+
+New route added:
+
+- `/leave-management` — Leave Management; role gate: admin, admin_officer, master, officer; nav group: Roster & Workforce; page: `src/pages/LeaveManagement.tsx`; allows all roles to view and manage leave requests

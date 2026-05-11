@@ -768,3 +768,7 @@ Date: 2026-05-02
 - Status: COMPLETE
 - Program result: enterprise realignment and governance lanes are complete through Sprint 70 with no active staged sprint backlog.
 - Evidence anchor: STAGING Sprint 70 snapshot and no-blocker state.
+
+### Route Addition (2026-05-11)
+
+- **Leave Management route wired:** Added `/leave-management` route in `src/App.tsx`, mapped to `src/pages/LeaveManagement.tsx`. Role gate: admin, admin_officer, master, officer (all roles). This route is accessible to all authenticated roles and supports leave request workflows.
