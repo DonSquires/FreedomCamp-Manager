@@ -20,7 +20,8 @@ import { useBobActionApproval } from '@/hooks/useBobActionApproval'
 import { listPendingBobActionProposals, type BobActionProposalRow } from '@/hooks/useBobApprovalD1'
 import { usePTTStore } from '@/stores/pttStore'
 import { supabase } from '@/lib/supabase'
-import { BrainCircuit, CheckCircle2, ClipboardList, FlaskConical, Loader2, MapPinned, Mic, MicOff, Paintbrush2, Play, Radio, Route, Send, Volume2, VolumeX, Wrench, Github, ShieldAlert, PhoneOff, SignalHigh, Stethoscope, XCircle } from 'lucide-react'
+import { BrainCircuit, CheckCircle2, ChevronDown, ClipboardList, Copy, FlaskConical, Loader2, MapPinned, Mic, MicOff, Paintbrush2, Play, Radio, Route, Send, Volume2, VolumeX, Wrench, Github, ShieldAlert, PhoneOff, SignalHigh, Stethoscope, XCircle } from 'lucide-react'
+import ReactMarkdown from 'react-markdown'
 import { toast } from 'sonner'
 import { edgeFunctions } from '@/lib/edgeFunctions'
 import { assertBobMutationAccess } from '@/lib/bobMutationCatalog'
@@ -793,6 +794,8 @@ export default function BobAssistantStudio() {
 
   const recognitionRef = useRef<any>(null)
   const chatEndRef = useRef<HTMLDivElement | null>(null)
+  const chatScrollContainerRef = useRef<HTMLDivElement | null>(null)
+  const [userScrolledUp, setUserScrolledUp] = useState(false)
   const voiceConversationActiveRef = useRef(false)
   const speakingRef = useRef(false)
   const wakeUnlockedRef = useRef(false)
@@ -859,8 +862,10 @@ export default function BobAssistantStudio() {
   )
 
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [chat, thinking])
+    if (!userScrolledUp) {
+      chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }
+  }, [chat, thinking, userScrolledUp])
 
   useEffect(() => {
     let cancelled = false
@@ -4535,84 +4540,210 @@ export default function BobAssistantStudio() {
                 )}
               </div>
 
-              <div className="h-[45vh] min-h-[200px] overflow-auto rounded border p-3 space-y-2 bg-muted/20">
-                {chat.length === 0 && !thinking ? (
-                  <div className="text-sm text-muted-foreground">No messages yet. Ask Bob for import help, directions, or operational guidance.</div>
-                ) : (
-                  chat.map((message) => (
-                    <div
-                      key={message.id}
-                      className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                    >
-                      <div className={`max-w-[85%] rounded px-3 py-2 text-sm ${message.role === 'assistant' ? 'bg-primary text-primary-foreground mr-auto' : 'bg-background border ml-auto text-right'}`}>
-                        <div className="text-[11px] opacity-80 mb-1">{message.role === 'assistant' ? displayName : 'You'}</div>
-                        <div className="text-left">{message.text}</div>
-                        {message.role === 'assistant' && !!message.actionChecklist?.length && (
-                          <div className="mt-2 rounded border border-white/40 bg-white/10 p-2 space-y-1">
-                            <div className="text-xs font-semibold">Action Checklist</div>
-                            {message.actionChecklist.map((task, index) => {
-                              const key = `${message.id}-${index}`
-                              const done = !!completedChecklist[key]
-                              return (
-                                <button
-                                  key={key}
-                                  type="button"
-                                  className="block w-full text-left text-xs rounded border border-white/30 px-2 py-1 hover:bg-white/10"
-                                  onClick={() => setCompletedChecklist((prev) => ({ ...prev, [key]: !done }))}
-                                >
-                                  {done ? '[x]' : '[ ]'} {task}
-                                </button>
-                              )
-                            })}
-                          </div>
-                        )}
-                        {message.role === 'assistant' && !!message.executionReview && (
-                          <div className="mt-2 rounded border border-white/40 bg-white/10 p-2 space-y-1 text-xs">
-                            <div className="font-semibold">Execution Review</div>
-                            <div>Policy mode: {message.executionReview.policyMode || 'unknown'}</div>
-                            {!!message.executionReview.currentRoute && (
-                              <div>Current route: {message.executionReview.currentRoute}</div>
-                            )}
-                            {!!message.executionReview.matchedRoutes?.length && (
-                              <div>Matched routes: {message.executionReview.matchedRoutes.join(', ')}</div>
-                            )}
-                            {!!message.executionReview.matchedEntities?.length && (
-                              <div>Matched entities: {message.executionReview.matchedEntities.join(', ')}</div>
-                            )}
-                            {!!message.executionReview.candidateMutationContracts?.length && (
-                              <div>Candidate contracts: {message.executionReview.candidateMutationContracts.join(', ')}</div>
-                            )}
-                            {!!message.executionReview.requestedMutationContract && (
-                              <div>
-                                Requested contract: {message.executionReview.requestedMutationContract}
-                                {message.executionReview.mutationAccess
-                                  ? ` (${message.executionReview.mutationAccess.allowed ? 'allowed' : 'blocked'})`
-                                  : ''}
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))
-                )}
-                {thinking && (
-                  <div className="flex justify-start">
-                    <div className="max-w-[85%] rounded px-3 py-2 text-sm bg-primary/70 text-primary-foreground mr-auto flex items-center gap-2">
-                      <Loader2 className="h-3 w-3 animate-spin shrink-0" />
-                      <span>{displayName} is thinking…</span>
-                    </div>
+              {/* ── Copilot-style chat conversation area ─────────────────── */}
+              <div className="relative flex flex-col rounded-xl border border-border bg-[#F7F7F8] dark:bg-[#1F2937] overflow-hidden" style={{ minHeight: 360, maxHeight: '55vh' }}>
+
+                {/* Outage/degraded banner – non-blocking */}
+                {bobDegraded && (
+                  <div className="flex items-center gap-2 px-4 py-1.5 text-xs bg-amber-50 dark:bg-amber-950/30 border-b border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300">
+                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                    Bob is in degraded mode – responses may be slower or from a fallback provider.
                   </div>
                 )}
-                <div ref={chatEndRef} />
+
+                {/* Message list */}
+                <div
+                  ref={chatScrollContainerRef}
+                  className="flex-1 overflow-y-auto px-4 py-4 space-y-1"
+                  onScroll={() => {
+                    const el = chatScrollContainerRef.current
+                    if (!el) return
+                    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80
+                    setUserScrolledUp(!nearBottom)
+                  }}
+                >
+                  {chat.length === 0 && !thinking ? (
+                    <div className="flex flex-col items-center justify-center h-40 gap-2 text-muted-foreground">
+                      <BrainCircuit className="h-8 w-8 opacity-30" />
+                      <p className="text-sm">No messages yet. Ask Bob for import help, directions, or operational guidance.</p>
+                    </div>
+                  ) : (
+                    chat.map((message, idx) => {
+                      const isUser = message.role === 'user'
+                      const prevMsg = idx > 0 ? chat[idx - 1] : null
+                      const isNewTurn = !prevMsg || prevMsg.role !== message.role
+                      return (
+                        <div
+                          key={message.id}
+                          className={`flex items-end gap-2 animate-in fade-in slide-in-from-bottom-1 duration-200 ${isUser ? 'flex-row-reverse' : 'flex-row'} ${isNewTurn ? 'mt-5' : 'mt-2'}`}
+                        >
+                          {/* Avatar */}
+                          {!isUser && (
+                            <div className="shrink-0 w-7 h-7 rounded-full bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center text-white">
+                              <BrainCircuit className="h-3.5 w-3.5" />
+                            </div>
+                          )}
+
+                          {/* Bubble */}
+                          <div className={`group relative max-w-[75%] md:max-w-[70%] ${isUser ? 'items-end' : 'items-start'}`}>
+                            <div
+                              className={[
+                                'px-3.5 py-2.5 text-sm leading-relaxed shadow-sm',
+                                isUser
+                                  ? 'rounded-2xl rounded-br-[4px] bg-[#2563EB] text-white dark:bg-[#3B82F6]'
+                                  : 'rounded-2xl rounded-bl-[4px] bg-white dark:bg-[#374151] text-[#111827] dark:text-[#F9FAFB] border border-[#E5E7EB] dark:border-[#4B5563]',
+                              ].join(' ')}
+                            >
+                              {/* Role label */}
+                              {isNewTurn && (
+                                <div className={`text-[10px] font-semibold mb-1 opacity-60`}>
+                                  {isUser ? 'You' : displayName}
+                                </div>
+                              )}
+
+                              {/* Message body with markdown */}
+                              <div className={`prose prose-sm max-w-none ${isUser ? 'prose-invert' : 'dark:prose-invert'}`}>
+                                <ReactMarkdown
+                                  components={{
+                                    code({ children, className, ...props }) {
+                                      const isBlock = className?.includes('language-')
+                                      return isBlock ? (
+                                        <code
+                                          className="block bg-[#111827] text-[#F9FAFB] rounded-lg p-3 text-xs font-mono my-2 overflow-x-auto"
+                                          {...props}
+                                        >
+                                          {children}
+                                        </code>
+                                      ) : (
+                                        <code
+                                          className={`bg-black/10 dark:bg-white/10 rounded px-1 py-0.5 text-xs font-mono ${isUser ? 'bg-white/20' : ''}`}
+                                          {...props}
+                                        >
+                                          {children}
+                                        </code>
+                                      )
+                                    },
+                                    pre({ children }) {
+                                      return <pre className="not-prose">{children}</pre>
+                                    },
+                                    p({ children }) {
+                                      return <p className="mb-1 last:mb-0">{children}</p>
+                                    },
+                                  }}
+                                >
+                                  {message.text}
+                                </ReactMarkdown>
+                              </div>
+
+                              {/* Action checklist */}
+                              {!isUser && !!message.actionChecklist?.length && (
+                                <div className="mt-2.5 rounded-lg border border-[#E5E7EB] dark:border-[#4B5563] bg-[#F7F7F8] dark:bg-[#1F2937] p-2.5 space-y-1">
+                                  <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Action Checklist</div>
+                                  {message.actionChecklist.map((task, index) => {
+                                    const key = `${message.id}-${index}`
+                                    const done = !!completedChecklist[key]
+                                    return (
+                                      <button
+                                        key={key}
+                                        type="button"
+                                        className={`flex items-start gap-1.5 w-full text-left text-xs rounded px-2 py-1.5 transition-colors ${done ? 'text-muted-foreground line-through' : 'hover:bg-muted/50'}`}
+                                        onClick={() => setCompletedChecklist((prev) => ({ ...prev, [key]: !done }))}
+                                      >
+                                        <span className="mt-0.5 shrink-0">{done ? '✅' : '☐'}</span>
+                                        <span>{task}</span>
+                                      </button>
+                                    )
+                                  })}
+                                </div>
+                              )}
+
+                              {/* Execution review */}
+                              {!isUser && !!message.executionReview && (
+                                <div className="mt-2 rounded-lg border border-[#E5E7EB] dark:border-[#4B5563] bg-[#F7F7F8] dark:bg-[#1F2937] p-2 space-y-0.5 text-xs text-muted-foreground">
+                                  <div className="font-medium text-foreground">Execution Review · {message.executionReview.policyMode || 'unknown'}</div>
+                                  {!!message.executionReview.currentRoute && <div>Route: {message.executionReview.currentRoute}</div>}
+                                  {!!message.executionReview.matchedRoutes?.length && <div>Matched: {message.executionReview.matchedRoutes.join(', ')}</div>}
+                                  {!!message.executionReview.requestedMutationContract && (
+                                    <div>Contract: {message.executionReview.requestedMutationContract} {message.executionReview.mutationAccess ? `(${message.executionReview.mutationAccess.allowed ? '✓ allowed' : '✗ blocked'})` : ''}</div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Copy hover action */}
+                            <button
+                              type="button"
+                              onClick={() => void navigator.clipboard.writeText(message.text)}
+                              className="absolute -top-1 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground p-1 rounded-md"
+                              style={{ [isUser ? 'left' : 'right']: -28 }}
+                              title="Copy"
+                            >
+                              <Copy className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+
+                          {/* User avatar placeholder to maintain alignment */}
+                          {isUser && <div className="shrink-0 w-7" />}
+                        </div>
+                      )
+                    })
+                  )}
+
+                  {/* Typing indicator */}
+                  {thinking && (
+                    <div className="flex items-end gap-2 mt-5 animate-in fade-in duration-200">
+                      <div className="shrink-0 w-7 h-7 rounded-full bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center text-white">
+                        <BrainCircuit className="h-3.5 w-3.5" />
+                      </div>
+                      <div className="rounded-2xl rounded-bl-[4px] bg-white dark:bg-[#374151] border border-[#E5E7EB] dark:border-[#4B5563] px-4 py-3 flex items-center gap-1.5 shadow-sm">
+                        <span className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-bounce [animation-delay:0ms]" />
+                        <span className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-bounce [animation-delay:150ms]" />
+                        <span className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-bounce [animation-delay:300ms]" />
+                      </div>
+                    </div>
+                  )}
+
+                  <div ref={chatEndRef} />
+                </div>
+
+                {/* Scroll-to-bottom button */}
+                {userScrolledUp && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setUserScrolledUp(false)
+                      chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+                    }}
+                    className="absolute bottom-3 right-3 z-10 flex items-center gap-1 rounded-full bg-primary text-primary-foreground text-xs px-3 py-1.5 shadow-md hover:bg-primary/90 transition-colors"
+                  >
+                    <ChevronDown className="h-3.5 w-3.5" />
+                    Latest
+                  </button>
+                )}
               </div>
 
-              <div className="flex gap-2 pb-safe">
+              {/* ── Sticky input bar ─────────────────────────────────────── */}
+              <div className="rounded-2xl border border-[#E5E7EB] dark:border-[#4B5563] bg-white dark:bg-[#374151] shadow-sm px-3 py-2 flex items-end gap-2">
+                <button
+                  type="button"
+                  onClick={toggleListening}
+                  title={listening ? 'Stop listening' : 'Voice input'}
+                  className={`shrink-0 flex items-center justify-center w-8 h-8 rounded-full transition-colors ${listening ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400' : 'text-muted-foreground hover:bg-muted/50'}`}
+                >
+                  {listening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+                </button>
+
                 <Textarea
                   value={chatInput}
-                  onChange={(e) => setChatInput(e.target.value)}
-                  placeholder="Ask Bob anything operational..."
-                  className="min-h-[72px] resize-none"
+                  onChange={(e) => {
+                    setChatInput(e.target.value)
+                    const el = e.target
+                    el.style.height = 'auto'
+                    el.style.height = Math.min(el.scrollHeight, 120) + 'px'
+                  }}
+                  placeholder="Ask Bob anything operational…"
+                  className="flex-1 resize-none border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 text-sm min-h-[36px] max-h-[120px] py-1.5 px-0 placeholder:text-muted-foreground/60"
+                  rows={1}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && !e.shiftKey) {
                       e.preventDefault()
@@ -4620,17 +4751,26 @@ export default function BobAssistantStudio() {
                     }
                   }}
                 />
-              </div>
 
-              <div className="flex flex-wrap gap-2">
-                <Button onClick={() => sendMessage()} disabled={!chatInput.trim() || thinking}><Send className="h-4 w-4 mr-1" /> Send</Button>
-                <Button variant="outline" onClick={toggleListening}>
-                  {listening ? <MicOff className="h-4 w-4 mr-1" /> : <Mic className="h-4 w-4 mr-1" />}
-                  {listening ? 'Stop Listening' : 'Voice Input'}
-                </Button>
-                <Button variant="outline" onClick={() => speak('Hello, I am Bob. Ready when you are.')} disabled={!speechEnabled}>
-                  {speechEnabled ? <Volume2 className="h-4 w-4 mr-1" /> : <VolumeX className="h-4 w-4 mr-1" />} Test Voice
-                </Button>
+                <button
+                  type="button"
+                  onClick={() => speak('Hello, I am Bob. Ready when you are.')}
+                  disabled={!speechEnabled}
+                  title="Test voice"
+                  className="shrink-0 flex items-center justify-center w-8 h-8 rounded-full text-muted-foreground hover:bg-muted/50 transition-colors disabled:opacity-30"
+                >
+                  {speechEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => sendMessage()}
+                  disabled={!chatInput.trim() || thinking}
+                  className="shrink-0 flex items-center justify-center w-8 h-8 rounded-full bg-[#2563EB] text-white transition-all hover:bg-[#1D4ED8] disabled:opacity-30 disabled:cursor-not-allowed"
+                  title="Send (Enter)"
+                >
+                  <Send className="h-4 w-4" />
+                </button>
               </div>
             </CardContent>
           </Card>
