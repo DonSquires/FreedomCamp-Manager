@@ -153,14 +153,14 @@ function nowIso() {
   return new Date().toISOString()
 }
 
-function mkSummaryReport({ reporterUser, source, title, description, severity = 'low', issueType = 'bug' }) {
+function mkSummaryReport({ reporterUser, source, title, description, severity = 'low', issueType = 'bug', currentPage = '/bug-reports-log' }) {
   return {
     title,
     description,
     severity,
     issue_type: issueType,
     status: 'submitted',
-    current_page: '/bug-reports-log',
+    current_page: currentPage,
     app_version: `ops-${source}`,
     auto_reported: true,
     admin_notified: false,
@@ -171,6 +171,27 @@ function mkSummaryReport({ reporterUser, source, title, description, severity = 
     user_id: reporterUser,
     user_role: 'master',
   }
+}
+
+function deriveCurrentPage(report) {
+  const actions = Array.isArray(report?.actions) ? report.actions : []
+  for (let i = actions.length - 1; i >= 0; i -= 1) {
+    const action = actions[i]?.action
+    if (String(action?.type || '') === 'goto') {
+      const url = String(action?.url || '').trim()
+      if (url.startsWith('/')) return url
+      try {
+        const parsed = new URL(url)
+        return parsed.pathname || '/bug-reports-log'
+      } catch {
+        // Ignore invalid URLs and continue scanning.
+      }
+    }
+  }
+
+  const goal = String(report?.goal || report?.config?.goal || '').trim()
+  const match = goal.match(/(\/[a-z0-9/_-]+)/i)
+  return match?.[1] || '/bug-reports-log'
 }
 
 async function main() {
@@ -266,7 +287,13 @@ async function main() {
       const report = await readJson(filePath).catch(() => null)
       if (!report) continue
 
-      const pack = String(report.pack || report.goal || path.basename(path.dirname(filePath)))
+      const firstActionError = String(report.actions?.[0]?.execution?.error || '')
+      if (firstActionError.includes('ERR_CONNECTION_REFUSED') || firstActionError.includes('ECONNREFUSED')) {
+        continue
+      }
+
+      const reportGoal = report.goal || report.config?.goal || null
+      const pack = String(report.pack || reportGoal || path.basename(path.dirname(filePath)))
       const result = String(report.result || 'unknown')
       const level = result === 'completed' ? 'low' : result === 'blocked_auth' ? 'medium' : 'high'
 
@@ -276,7 +303,7 @@ async function main() {
         title: `[Vercel Emulator][${pack}] Result: ${result.toUpperCase()}`,
         description: [
           `Pack: ${pack}`,
-          `Goal: ${report.goal || 'n/a'}`,
+          `Goal: ${reportGoal || 'n/a'}`,
           `Result: ${result}`,
           `Started: ${report.started_at || 'n/a'}`,
           `Ended: ${report.ended_at || 'n/a'}`,
@@ -285,7 +312,8 @@ async function main() {
           `Findings: ${JSON.stringify(report.compliance_findings || []).slice(0, 2000)}`,
         ].join('\n'),
         severity: level,
-        issueType: result === 'completed' ? 'enhancement' : 'ui_ux',
+        issueType: result === 'completed' ? 'enhancement' : result === 'blocked_auth' ? 'infra' : 'ui_ux',
+        currentPage: deriveCurrentPage(report),
       }))
     }
   } else {

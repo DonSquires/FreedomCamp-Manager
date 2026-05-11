@@ -96,6 +96,10 @@ const testPacks = [
   { name: 'crm-business-crossover', desc: 'CRM and business cross-module page access' },
   { name: 'client-portal-isolation', desc: 'Client portal isolation and admin-route block' },
   { name: 'live-ops', desc: 'Live operations monitoring pages' },
+  { name: 'shared', desc: 'Shared profile/settings/notifications pages' },
+  { name: 'dispatch', desc: 'Dispatch and dispatch jobs coverage' },
+  { name: 'admin', desc: 'Admin portal and bug report log coverage' },
+  { name: 'admin-bug-reports', desc: 'Direct admin bug report log coverage' },
 ]
 
 // ─── Server readiness helpers ──────────────────────────────────────────────────
@@ -332,7 +336,8 @@ async function main() {
       for (const page of pageGroup.pages) {
         testCount += 1
         const testName = `${role}-${pageGroup.category}-${page.replace(/\//g, '-')}`
-        const testReportDir = path.join(reportDir, `role-${role}`, pageGroup.category)
+        const pageSlug = page.replace(/^\/+/, '').replace(/[^\w-]+/g, '-').replace(/^-+|-+$/g, '') || 'root'
+        const testReportDir = path.join(reportDir, `role-${role}`, pageGroup.category, pageSlug)
         results.summary.total += 1
 
         // Goal for this test
