@@ -20,7 +20,7 @@ import { useBobActionApproval } from '@/hooks/useBobActionApproval'
 import { listPendingBobActionProposals, type BobActionProposalRow } from '@/hooks/useBobApprovalD1'
 import { usePTTStore } from '@/stores/pttStore'
 import { supabase } from '@/lib/supabase'
-import { BrainCircuit, CheckCircle2, ChevronDown, ClipboardList, Copy, FlaskConical, Loader2, MapPinned, Mic, MicOff, Paintbrush2, Play, Radio, Route, Send, Volume2, VolumeX, Wrench, Github, ShieldAlert, PhoneOff, SignalHigh, Stethoscope, XCircle } from 'lucide-react'
+import { BrainCircuit, CheckCircle2, ChevronDown, ClipboardList, Copy, FlaskConical, Loader2, MapPinned, Mic, MicOff, Paintbrush2, Play, Plus, Radio, Route, Send, Volume2, VolumeX, Wrench, Github, ShieldAlert, PhoneOff, SignalHigh, Stethoscope, XCircle } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import { toast } from 'sonner'
 import { edgeFunctions } from '@/lib/edgeFunctions'
@@ -697,6 +697,7 @@ export default function BobAssistantStudio() {
   } | null>(null)
   const [listening, setListening] = useState(false)
   const [thinking, setThinking] = useState(false)
+  const [streamingMessageId, setStreamingMessageId] = useState<string | null>(null)
   const [isBobSpeaking, setIsBobSpeaking] = useState(false)
   const [bobDegraded, setBobDegraded] = useState(false)
   const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([])
@@ -2013,8 +2014,9 @@ export default function BobAssistantStudio() {
       setBobDegraded(data?.provider === 'local-fallback')
       clearBobServiceOutage()
 
+      const msgId = crypto.randomUUID()
       const bobMsg: ChatMessage = {
-        id: crypto.randomUUID(),
+        id: msgId,
         role: 'assistant',
         text: replyText,
         createdAt: new Date().toISOString(),
@@ -2024,7 +2026,10 @@ export default function BobAssistantStudio() {
         executionReview: (data as any)?.executionReview,
       }
 
+      setStreamingMessageId(msgId)
       setChat((prev) => [...prev, bobMsg])
+      // Clear the streaming cursor after a short delay so it feels like the text settled
+      setTimeout(() => setStreamingMessageId(null), 1200)
 
       // Run memory writes in background so chat UX is not blocked by DB latency.
       void (async () => {
@@ -4543,7 +4548,7 @@ export default function BobAssistantStudio() {
               {/* ── Copilot-style chat conversation area ─────────────────── */}
               <div className="relative flex flex-col rounded-xl border border-border bg-[#F7F7F8] dark:bg-[#1F2937] overflow-hidden" style={{ minHeight: 360, maxHeight: '55vh' }}>
 
-                {/* Outage/degraded banner – non-blocking */}
+                {/* Outage/degraded banner – non-blocking, sits above messages */}
                 {bobDegraded && (
                   <div className="flex items-center gap-2 px-4 py-1.5 text-xs bg-amber-50 dark:bg-amber-950/30 border-b border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300">
                     <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
@@ -4572,51 +4577,59 @@ export default function BobAssistantStudio() {
                       const isUser = message.role === 'user'
                       const prevMsg = idx > 0 ? chat[idx - 1] : null
                       const isNewTurn = !prevMsg || prevMsg.role !== message.role
+                      const isStreaming = !isUser && message.id === streamingMessageId
                       return (
                         <div
                           key={message.id}
                           className={`flex items-end gap-2 animate-in fade-in slide-in-from-bottom-1 duration-200 ${isUser ? 'flex-row-reverse' : 'flex-row'} ${isNewTurn ? 'mt-5' : 'mt-2'}`}
                         >
-                          {/* Avatar */}
-                          {!isUser && (
-                            <div className="shrink-0 w-7 h-7 rounded-full bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center text-white">
-                              <BrainCircuit className="h-3.5 w-3.5" />
-                            </div>
-                          )}
+                          {/* Bob avatar — only on first message of a turn */}
+                          {!isUser ? (
+                            isNewTurn ? (
+                              <div className="shrink-0 w-7 h-7 rounded-full bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center text-white self-end">
+                                <BrainCircuit className="h-3.5 w-3.5" />
+                              </div>
+                            ) : (
+                              <div className="shrink-0 w-7" />
+                            )
+                          ) : null}
 
                           {/* Bubble */}
-                          <div className={`group relative max-w-[75%] md:max-w-[70%] ${isUser ? 'items-end' : 'items-start'}`}>
+                          <div className={`group relative max-w-[75%] sm:max-w-[70%] flex flex-col ${isUser ? 'items-end' : 'items-start'}`}>
+                            {/* Sender label on first message of turn */}
+                            {isNewTurn && (
+                              <div className="text-[10px] font-semibold mb-0.5 opacity-50 px-1">
+                                {isUser ? 'You' : displayName}
+                              </div>
+                            )}
+
                             <div
                               className={[
                                 'px-3.5 py-2.5 text-sm leading-relaxed shadow-sm',
+                                // WhatsApp/Teams asymmetric rounding:
+                                // User: rounded except bottom-right corner
+                                // Bob:  rounded except bottom-left corner
                                 isUser
-                                  ? 'rounded-2xl rounded-br-[4px] bg-[#2563EB] text-white dark:bg-[#3B82F6]'
-                                  : 'rounded-2xl rounded-bl-[4px] bg-white dark:bg-[#374151] text-[#111827] dark:text-[#F9FAFB] border border-[#E5E7EB] dark:border-[#4B5563]',
+                                  ? 'rounded-2xl rounded-br-sm bg-[#2563EB] text-white dark:bg-[#3B82F6]'
+                                  : 'rounded-2xl rounded-bl-sm bg-white dark:bg-[#374151] text-[#111827] dark:text-[#F9FAFB] border border-[#E5E7EB] dark:border-[#4B5563]',
                               ].join(' ')}
                             >
-                              {/* Role label */}
-                              {isNewTurn && (
-                                <div className={`text-[10px] font-semibold mb-1 opacity-60`}>
-                                  {isUser ? 'You' : displayName}
-                                </div>
-                              )}
-
-                              {/* Message body with markdown */}
-                              <div className={`prose prose-sm max-w-none ${isUser ? 'prose-invert' : 'dark:prose-invert'}`}>
+                              {/* Message body with Markdown */}
+                              <div className={`prose prose-sm max-w-none break-words ${isUser ? 'prose-invert' : 'dark:prose-invert'}`}>
                                 <ReactMarkdown
                                   components={{
                                     code({ children, className, ...props }) {
                                       const isBlock = className?.includes('language-')
                                       return isBlock ? (
                                         <code
-                                          className="block bg-[#111827] text-[#F9FAFB] rounded-lg p-3 text-xs font-mono my-2 overflow-x-auto"
+                                          className="block bg-[#111827] text-[#F9FAFB] rounded-lg p-3 text-xs font-mono my-2 overflow-x-auto whitespace-pre"
                                           {...props}
                                         >
                                           {children}
                                         </code>
                                       ) : (
                                         <code
-                                          className={`bg-black/10 dark:bg-white/10 rounded px-1 py-0.5 text-xs font-mono ${isUser ? 'bg-white/20' : ''}`}
+                                          className={`rounded px-1 py-0.5 text-xs font-mono ${isUser ? 'bg-white/20' : 'bg-black/10 dark:bg-white/10'}`}
                                           {...props}
                                         >
                                           {children}
@@ -4624,7 +4637,7 @@ export default function BobAssistantStudio() {
                                       )
                                     },
                                     pre({ children }) {
-                                      return <pre className="not-prose">{children}</pre>
+                                      return <pre className="not-prose my-0">{children}</pre>
                                     },
                                     p({ children }) {
                                       return <p className="mb-1 last:mb-0">{children}</p>
@@ -4633,6 +4646,10 @@ export default function BobAssistantStudio() {
                                 >
                                   {message.text}
                                 </ReactMarkdown>
+                                {/* Blinking cursor while this message is streaming */}
+                                {isStreaming && (
+                                  <span className="inline-block w-0.5 h-3.5 bg-current align-middle ml-0.5 animate-[blink_1s_step-end_infinite]" />
+                                )}
                               </div>
 
                               {/* Action checklist */}
@@ -4669,33 +4686,32 @@ export default function BobAssistantStudio() {
                                 </div>
                               )}
                             </div>
-
-                            {/* Copy hover action */}
-                            <button
-                              type="button"
-                              onClick={() => void navigator.clipboard.writeText(message.text)}
-                              className="absolute -top-1 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground p-1 rounded-md"
-                              style={{ [isUser ? 'left' : 'right']: -28 }}
-                              title="Copy"
-                            >
-                              <Copy className="h-3.5 w-3.5" />
-                            </button>
                           </div>
 
-                          {/* User avatar placeholder to maintain alignment */}
+                          {/* Copy action — appears on hover, offset from bubble */}
+                          <button
+                            type="button"
+                            onClick={() => void navigator.clipboard.writeText(message.text)}
+                            className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground p-1 rounded-md self-center"
+                            title="Copy"
+                          >
+                            <Copy className="h-3.5 w-3.5" />
+                          </button>
+
+                          {/* Spacer keeps user messages right-aligned when no avatar shown */}
                           {isUser && <div className="shrink-0 w-7" />}
                         </div>
                       )
                     })
                   )}
 
-                  {/* Typing indicator */}
+                  {/* Typing indicator (3 bouncing dots) */}
                   {thinking && (
                     <div className="flex items-end gap-2 mt-5 animate-in fade-in duration-200">
-                      <div className="shrink-0 w-7 h-7 rounded-full bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center text-white">
+                      <div className="shrink-0 w-7 h-7 rounded-full bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center text-white self-end">
                         <BrainCircuit className="h-3.5 w-3.5" />
                       </div>
-                      <div className="rounded-2xl rounded-bl-[4px] bg-white dark:bg-[#374151] border border-[#E5E7EB] dark:border-[#4B5563] px-4 py-3 flex items-center gap-1.5 shadow-sm">
+                      <div className="rounded-2xl rounded-bl-sm bg-white dark:bg-[#374151] border border-[#E5E7EB] dark:border-[#4B5563] px-4 py-3 flex items-center gap-1.5 shadow-sm">
                         <span className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-bounce [animation-delay:0ms]" />
                         <span className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-bounce [animation-delay:150ms]" />
                         <span className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-bounce [animation-delay:300ms]" />
@@ -4706,7 +4722,7 @@ export default function BobAssistantStudio() {
                   <div ref={chatEndRef} />
                 </div>
 
-                {/* Scroll-to-bottom button */}
+                {/* ↓ New messages button — appears when user has scrolled up */}
                 {userScrolledUp && (
                   <button
                     type="button"
@@ -4714,29 +4730,35 @@ export default function BobAssistantStudio() {
                       setUserScrolledUp(false)
                       chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
                     }}
-                    className="absolute bottom-3 right-3 z-10 flex items-center gap-1 rounded-full bg-primary text-primary-foreground text-xs px-3 py-1.5 shadow-md hover:bg-primary/90 transition-colors"
+                    className="absolute bottom-3 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1.5 rounded-full bg-[#2563EB] text-white text-xs font-medium px-3 py-1.5 shadow-lg hover:bg-[#1D4ED8] transition-colors"
                   >
                     <ChevronDown className="h-3.5 w-3.5" />
-                    Latest
+                    New messages
                   </button>
                 )}
               </div>
 
-              {/* ── Sticky input bar ─────────────────────────────────────── */}
+              {/* ── Sticky input bar ──────────────────────────────────────────
+                  pb-safe keeps the bar above the mobile OS keyboard/home bar.
+                  The rounded container sits on the page surface (z-0) so it
+                  never overlaps the last message – spacing is handled by the
+                  Card's space-y-4 gap above it.                              */}
               <div className="rounded-2xl border border-[#E5E7EB] dark:border-[#4B5563] bg-white dark:bg-[#374151] shadow-sm px-3 py-2 flex items-end gap-2">
+                {/* + icon: quick-access to specialist portals / attachments */}
                 <button
                   type="button"
-                  onClick={toggleListening}
-                  title={listening ? 'Stop listening' : 'Voice input'}
-                  className={`shrink-0 flex items-center justify-center w-8 h-8 rounded-full transition-colors ${listening ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400' : 'text-muted-foreground hover:bg-muted/50'}`}
+                  title="Specialist portals & attachments"
+                  onClick={() => toast.info('Specialist portals coming soon')}
+                  className="shrink-0 flex items-center justify-center w-8 h-8 rounded-full text-muted-foreground hover:bg-muted/60 transition-colors"
                 >
-                  {listening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+                  <Plus className="h-4 w-4" />
                 </button>
 
                 <Textarea
                   value={chatInput}
                   onChange={(e) => {
                     setChatInput(e.target.value)
+                    // Auto-expand up to ~5 lines (≈120px)
                     const el = e.target
                     el.style.height = 'auto'
                     el.style.height = Math.min(el.scrollHeight, 120) + 'px'
@@ -4752,16 +4774,28 @@ export default function BobAssistantStudio() {
                   }}
                 />
 
+                {/* Mic / voice button */}
+                <button
+                  type="button"
+                  onClick={toggleListening}
+                  title={listening ? 'Stop listening' : 'Voice input'}
+                  className={`shrink-0 flex items-center justify-center w-8 h-8 rounded-full transition-colors ${listening ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400' : 'text-muted-foreground hover:bg-muted/60'}`}
+                >
+                  {listening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+                </button>
+
+                {/* Test voice button */}
                 <button
                   type="button"
                   onClick={() => speak('Hello, I am Bob. Ready when you are.')}
                   disabled={!speechEnabled}
                   title="Test voice"
-                  className="shrink-0 flex items-center justify-center w-8 h-8 rounded-full text-muted-foreground hover:bg-muted/50 transition-colors disabled:opacity-30"
+                  className="shrink-0 flex items-center justify-center w-8 h-8 rounded-full text-muted-foreground hover:bg-muted/60 transition-colors disabled:opacity-30"
                 >
                   {speechEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
                 </button>
 
+                {/* Send button – primary blue, disabled when empty */}
                 <button
                   type="button"
                   onClick={() => sendMessage()}
