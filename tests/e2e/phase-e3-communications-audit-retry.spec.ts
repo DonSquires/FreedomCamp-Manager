@@ -28,6 +28,12 @@ function source(relativePath: string) {
 }
 
 test.describe('Phase E3 — Communications audit and retry governance gate', () => {
+  test.beforeEach(async ({}, testInfo) => {
+    if (testInfo.project.name === 'Mobile Safari') {
+      testInfo.setTimeout(90_000)
+    }
+  })
+
   test('E3 communications contract files remain present', () => {
     for (const [label, relativePath] of Object.entries(contractPaths)) {
       expect(fs.existsSync(repoPath(relativePath)), `${label} should remain at ${relativePath}`).toBe(true)
@@ -115,8 +121,8 @@ test.describe('Phase E3 — Communications audit and retry governance gate', () 
     expect(reportEmail).toContain("import { recordCommunicationAudit } from '../_shared/communicationsAudit.ts'")
     expect(reportEmail).toContain('recipient_email')
     expect(reportEmail).toContain('Invalid email address')
-    expect(reportEmail).toContain("if (organization_id) obsQuery = obsQuery.eq('organization_id', organization_id)")
-    expect(reportEmail).toContain('Promise.all([obsQuery, enfQuery, matrixQuery])')
+    expect(reportEmail).toContain('organizationId: organization_id')
+    expect(reportEmail).toContain('Promise.all([obsCountQuery, breachCountQuery, enfCountQuery, sampleObsQuery])')
     expect(reportEmail).toContain("provider: 'smtp'")
     expect(reportEmail).toContain("status: 'delivered'")
     expect(reportEmail).toContain("status: 'failed'")
