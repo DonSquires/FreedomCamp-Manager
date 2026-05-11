@@ -1,0 +1,22 @@
+{
+  "pack": "shared",
+  "goal": "shadow run: shared pages access check",
+  "result": "failed",
+  "started_at": "2026-05-10T06:10:00.000Z",
+  "ended_at": "2026-05-10T06:10:05.000Z",
+  "actions": [
+    {
+      "step": 1,
+      "action": {"type": "goto", "url": "/login"},
+      "execution": {"ok": true},
+      "duration_ms": 1000
+    },
+    {
+      "step": 2,
+      "action": {"type": "expectVisibleAny", "value": "Profile"},
+      "execution": {"ok": false, "error": "Expected selector not visible: text=Profile"},
+      "duration_ms": 15000
+    }
+  ],
+  "compliance_findings": []
+}

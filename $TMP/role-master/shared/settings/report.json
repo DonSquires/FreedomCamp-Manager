@@ -1,0 +1,9 @@
+{
+  "pack": "shared",
+  "goal": "shadow run: shared pages access check",
+  "result": "completed",
+  "started_at": "2026-05-10T06:12:00.000Z",
+  "ended_at": "2026-05-10T06:12:04.000Z",
+  "actions": [{"step": 1, "action": {"type": "done"}, "execution": {"ok": true}}],
+  "compliance_findings": []
+}

@@ -1,0 +1,16 @@
+{
+  "pack": "shared",
+  "goal": "shadow run: shared pages access check (profile, settings, notifications)",
+  "result": "failed",
+  "started_at": "2026-05-10T06:05:22.596Z",
+  "ended_at": "2026-05-10T06:05:23.551Z",
+  "actions": [
+    {
+      "step": 1,
+      "action": {"type": "goto", "url": "/login"},
+      "execution": {"ok": false, "error": "page.goto: net::ERR_CONNECTION_REFUSED http://localhost:5173/login"},
+      "duration_ms": 900
+    }
+  ],
+  "compliance_findings": []
+}
