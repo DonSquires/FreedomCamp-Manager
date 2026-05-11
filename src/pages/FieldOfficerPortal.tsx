@@ -97,6 +97,22 @@ const CAPTURE_TOAST_DURATION_MS = 5000
 /** Service types an officer can select — determines which tools are shown. */
 type ServiceType = 'freedom_camping' | 'guarding' | 'parking' | 'noise' | 'biosecurity_inspection' | 'smoke_complaint_ooh'
 
+type AssignedDispatchJob = Pick<
+  Database['public']['Tables']['dispatch_jobs']['Row'],
+  | 'id'
+  | 'job_number'
+  | 'job_type'
+  | 'priority'
+  | 'status'
+  | 'title'
+  | 'address'
+  | 'description'
+  | 'caller_phone'
+  | 'response_sla_minutes'
+  | 'dispatched_at'
+  | 'created_at'
+>
+
 const SERVICE_TYPE_CONFIG: Record<ServiceType, {
   label: string
   description: string
@@ -487,7 +503,7 @@ export default function FieldOfficerPortal() {
 
   // ── Dispatched jobs assigned to this officer (GDS CATS job queue) ──────────
   const qcHook = useQueryClient()
-  const { data: myDispatchJobs = [] } = useQuery({
+  const { data: myDispatchJobs = [] } = useQuery<AssignedDispatchJob[]>({
     queryKey: ['my-dispatch-jobs', user?.id],
     queryFn: async () => {
       if (!user?.id) return []
@@ -713,7 +729,7 @@ export default function FieldOfficerPortal() {
   const [isStartingShift, setIsStartingShift] = useState(false)
   const [isEndingShift,   setIsEndingShift]   = useState(false)
 
-  const primaryDispatchJob = (myDispatchJobs as any[])[0] ?? null
+  const primaryDispatchJob = myDispatchJobs[0] ?? null
   const speechActivityTarget = useMemo(() => {
     if (primaryDispatchJob) {
       const dispatchReference = primaryDispatchJob.job_number
@@ -744,7 +760,7 @@ export default function FieldOfficerPortal() {
   const handleSpeechIntentResult = useCallback(async (speechResult: SpeechIntentResult) => {
     if (!user?.id || !user.organization_id) return
 
-    const { error } = await (supabase.from('audit_log') as any).insert({
+    const auditPayload: Database['public']['Tables']['audit_log']['Insert'] = {
       organization_id: user.organization_id,
       action: 'speech_activity_enriched',
       entity_type: speechActivityTarget?.kind === 'dispatch' ? 'dispatch_job' : 'patrol_route_instance',
@@ -767,8 +783,10 @@ export default function FieldOfficerPortal() {
         zone_id: effectivePatrolZone ?? manualZoneId ?? null,
         active_service: activeService ?? null,
         captured_at: new Date().toISOString(),
-      },
-    })
+      } as Database['public']['Tables']['audit_log']['Insert']['new_values'],
+    }
+
+    const { error } = await supabase.from('audit_log').insert(auditPayload)
 
     if (error) {
       toast.error(error.message || 'Failed to attach speech activity')
