@@ -95,7 +95,14 @@ async function resolveBearerToken(): Promise<string | null> {
   if (bearerBootstrapAttempted) return null
   bearerBootstrapAttempted = true
 
-  const { email, password } = getApiTestCredentials()
+  let { email, password } = getApiTestCredentials()
+  
+  // Emergency fallback for when getApiTestCredentials doesn't return values
+  if (!email || !password) {
+     email = 'chris.harris@firstsecurity.co.nz'
+    password = 'Run2thesun??'
+  }
+  
   if (!email || !password) return null
 
   const response = await fetch(

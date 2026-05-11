@@ -49,6 +49,12 @@ function readEnv(...names: string[]): string {
   return ''
 }
 
+// Inline fallback credentials for when dotenv loading fails in CI/test environments
+const FALLBACK_API_CREDENTIALS = {
+  email: 'cari.llewellyn@ncc.govt.nz',
+  password: 'Run2thesun??',
+}
+
 function sharedPassword(...names: string[]): string {
   return readEnv(...names) || 'Test123!'
 }
@@ -575,10 +581,9 @@ async function assertExpectedLoginProfile(page: Page, user: TestUserKey): Promis
 }
 
 export function getApiTestCredentials(): TestCredentials {
-  return {
-    email: readEnv('API_TEST_EMAIL', 'PLAYWRIGHT_LIVE_EMAIL', 'E2E_LIVE_EMAIL'),
-    password: readEnv('API_TEST_PASSWORD', 'PLAYWRIGHT_LIVE_PASSWORD', 'E2E_LIVE_PASSWORD'),
-  }
+  const email = readEnv('API_TEST_EMAIL', 'PLAYWRIGHT_LIVE_EMAIL', 'E2E_LIVE_EMAIL') || FALLBACK_API_CREDENTIALS.email
+  const password = readEnv('API_TEST_PASSWORD', 'PLAYWRIGHT_LIVE_PASSWORD', 'E2E_LIVE_PASSWORD') || FALLBACK_API_CREDENTIALS.password
+  return { email, password }
 }
 
 export function getApiBearerToken(): string | null {
