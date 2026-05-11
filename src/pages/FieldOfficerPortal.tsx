@@ -696,13 +696,13 @@ export default function FieldOfficerPortal() {
   const [isStartingShift, setIsStartingShift] = useState(false)
   const [isEndingShift,   setIsEndingShift]   = useState(false)
 
-  const primarySpeechDispatchJob = (myDispatchJobs as any[])[0] ?? null
+  const primaryDispatchJob = (myDispatchJobs as any[])[0] ?? null
   const speechActivityTarget = useMemo(() => {
-    if (primarySpeechDispatchJob) {
+    if (primaryDispatchJob) {
       return {
         kind: 'dispatch' as const,
-        id: primarySpeechDispatchJob.id as string,
-        label: `${primarySpeechDispatchJob.job_number ?? 'Dispatch'} · ${primarySpeechDispatchJob.title ?? 'Untitled job'}`,
+        id: primaryDispatchJob.id as string,
+        label: `${primaryDispatchJob.job_number ?? 'Dispatch'} · ${primaryDispatchJob.title ?? 'Untitled job'}`,
       }
     }
 
@@ -715,7 +715,7 @@ export default function FieldOfficerPortal() {
     }
 
     return null
-  }, [activeRouteInstance, primarySpeechDispatchJob])
+  }, [activeRouteInstance, primaryDispatchJob])
 
   const handleSpeechIntentResult = useCallback(async (speechResult: SpeechIntentResult) => {
     if (!user?.id || !user.organization_id) return
@@ -736,7 +736,7 @@ export default function FieldOfficerPortal() {
         confidence: speechResult.intent.confidence,
         needs_confirmation: speechResult.intent.needs_confirmation,
         entities: speechResult.intent.entities,
-        dispatch_job_id: primarySpeechDispatchJob?.id ?? null,
+        dispatch_job_id: primaryDispatchJob?.id ?? null,
         patrol_route_instance_id: activeRouteInstance?.id ?? null,
         shift_id: activeShift?.id ?? null,
         zone_id: effectivePatrolZone ?? manualZoneId ?? null,
@@ -760,7 +760,7 @@ export default function FieldOfficerPortal() {
     activeShift?.id,
     effectivePatrolZone,
     manualZoneId,
-    primarySpeechDispatchJob?.id,
+    primaryDispatchJob?.id,
     queryClient,
     speechActivityTarget,
     user,
@@ -773,7 +773,7 @@ export default function FieldOfficerPortal() {
           source: 'rapid-activity-listener',
           target_kind: speechActivityTarget.kind,
           target_id: speechActivityTarget.id,
-          dispatch_job_id: primarySpeechDispatchJob?.id ?? null,
+          dispatch_job_id: primaryDispatchJob?.id ?? null,
           patrol_route_instance_id: activeRouteInstance?.id ?? null,
           shift_id: activeShift?.id ?? null,
           zone_id: effectivePatrolZone ?? manualZoneId ?? null,
@@ -2451,7 +2451,7 @@ export default function FieldOfficerPortal() {
                     Officer Activity Capture
                   </CardTitle>
                   <CardDescription>
-                    Rapid-style speech capture enriches the active dispatch or patrol context without overwriting authoritative lifecycle data.
+                    Voice-driven activity capture enriches the active dispatch or patrol context without overwriting authoritative lifecycle data.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">

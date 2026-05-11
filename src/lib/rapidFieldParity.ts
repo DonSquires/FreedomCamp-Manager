@@ -46,7 +46,9 @@ const STATUS_RANK: Record<string, number> = {
 }
 
 function hasValue(value: unknown) {
-  return value !== null && value !== undefined && String(value).trim() !== ''
+  if (value === null || value === undefined) return false
+  if (typeof value === 'string') return value.trim() !== ''
+  return true
 }
 
 function hasLocation(job: DispatchParityJob) {
