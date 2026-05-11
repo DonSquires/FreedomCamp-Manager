@@ -2394,11 +2394,9 @@ export default function App() {
 
           {/* Sprint 27: B-91–B-93 */}
           <Route path="/compliance-audit-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><ComplianceAuditLog /></RoleRoute></ProtectedRoute>} />
-          <Route path="/enforcement-events-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><EnforcementEventLog /></RoleRoute></ProtectedRoute>} />
           <Route path="/noise-jobs-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><NoiseJobLog /></RoleRoute></ProtectedRoute>} />
           {/* Sprint 28: B-94–B-96 */}
           <Route path="/patrol-route-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><PatrolRouteLog /></RoleRoute></ProtectedRoute>} />
-          <Route path="/alarm-events-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><AlarmEventLog /></RoleRoute></ProtectedRoute>} />
           <Route path="/bug-reports-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'master']}><BugReportLog /></RoleRoute></ProtectedRoute>} />
           {/* Sprint 29: B-97–B-99 */}
           <Route path="/radio-transmissions-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'officer']}><RadioTransmissionLog /></RoleRoute></ProtectedRoute>} />

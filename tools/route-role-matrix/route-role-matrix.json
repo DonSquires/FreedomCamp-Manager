@@ -1,218 +1,9 @@
 {
-  "generatedAt": "2026-05-11T06:50:00.826Z",
+  "generatedAt": "2026-05-11T06:52:51.666Z",
   "source": "src/App.tsx",
-  "routeCount": 311,
-  "duplicatePathCount": 26,
-  "duplicates": [
-    {
-      "path": "/health-safety-reports",
-      "count": 2,
-      "sourceIndexes": [
-        97,
-        288
-      ]
-    },
-    {
-      "path": "/welfare-checkins",
-      "count": 2,
-      "sourceIndexes": [
-        98,
-        289
-      ]
-    },
-    {
-      "path": "/parking-permits",
-      "count": 2,
-      "sourceIndexes": [
-        99,
-        290
-      ]
-    },
-    {
-      "path": "/roster-shifts",
-      "count": 2,
-      "sourceIndexes": [
-        167,
-        291
-      ]
-    },
-    {
-      "path": "/noise-notices",
-      "count": 2,
-      "sourceIndexes": [
-        168,
-        292
-      ]
-    },
-    {
-      "path": "/site-incidents",
-      "count": 2,
-      "sourceIndexes": [
-        169,
-        293
-      ]
-    },
-    {
-      "path": "/person-interactions",
-      "count": 2,
-      "sourceIndexes": [
-        170,
-        294
-      ]
-    },
-    {
-      "path": "/plate-scans-log",
-      "count": 2,
-      "sourceIndexes": [
-        171,
-        295
-      ]
-    },
-    {
-      "path": "/dispatch-events",
-      "count": 2,
-      "sourceIndexes": [
-        172,
-        296
-      ]
-    },
-    {
-      "path": "/notices-to-vacate",
-      "count": 2,
-      "sourceIndexes": [
-        173,
-        297
-      ]
-    },
-    {
-      "path": "/contractor-manager",
-      "count": 2,
-      "sourceIndexes": [
-        174,
-        298
-      ]
-    },
-    {
-      "path": "/vehicle-discrepancies",
-      "count": 2,
-      "sourceIndexes": [
-        175,
-        299
-      ]
-    },
-    {
-      "path": "/drift-events",
-      "count": 2,
-      "sourceIndexes": [
-        176,
-        300
-      ]
-    },
-    {
-      "path": "/investigation-job-config",
-      "count": 2,
-      "sourceIndexes": [
-        177,
-        301
-      ]
-    },
-    {
-      "path": "/zone-legal-config",
-      "count": 2,
-      "sourceIndexes": [
-        178,
-        302
-      ]
-    },
-    {
-      "path": "/checkpoint-visits-log",
-      "count": 2,
-      "sourceIndexes": [
-        182,
-        306
-      ]
-    },
-    {
-      "path": "/ems-attendances-log",
-      "count": 2,
-      "sourceIndexes": [
-        183,
-        307
-      ]
-    },
-    {
-      "path": "/parking-sessions-log",
-      "count": 2,
-      "sourceIndexes": [
-        184,
-        308
-      ]
-    },
-    {
-      "path": "/flagged-vehicles-manager",
-      "count": 2,
-      "sourceIndexes": [
-        185,
-        309
-      ]
-    },
-    {
-      "path": "/parking-payments-log",
-      "count": 2,
-      "sourceIndexes": [
-        186,
-        310
-      ]
-    },
-    {
-      "path": "/zone-signage-evidence",
-      "count": 2,
-      "sourceIndexes": [
-        187,
-        311
-      ]
-    },
-    {
-      "path": "/officer-activity-log",
-      "count": 2,
-      "sourceIndexes": [
-        188,
-        312
-      ]
-    },
-    {
-      "path": "/credential-processing-log",
-      "count": 2,
-      "sourceIndexes": [
-        189,
-        313
-      ]
-    },
-    {
-      "path": "/dispatch-ack-log",
-      "count": 2,
-      "sourceIndexes": [
-        190,
-        314
-      ]
-    },
-    {
-      "path": "/enforcement-events-log",
-      "count": 2,
-      "sourceIndexes": [
-        192,
-        304
-      ]
-    },
-    {
-      "path": "/alarm-events-log",
-      "count": 2,
-      "sourceIndexes": [
-        195,
-        303
-      ]
-    }
-  ],
+  "routeCount": 282,
+  "duplicatePathCount": 0,
+  "duplicates": [],
   "routes": [
     {
       "path": "/login",
@@ -1273,48 +1064,12 @@
       "sourceIndex": 96
     },
     {
-      "path": "/health-safety-reports",
-      "accessType": "protected-role",
-      "roles": [
-        "admin",
-        "admin_officer",
-        "master"
-      ],
-      "area": null,
-      "protected": true,
-      "sourceIndex": 97
-    },
-    {
-      "path": "/welfare-checkins",
-      "accessType": "protected-role",
-      "roles": [
-        "admin",
-        "admin_officer",
-        "master"
-      ],
-      "area": null,
-      "protected": true,
-      "sourceIndex": 98
-    },
-    {
-      "path": "/parking-permits",
-      "accessType": "protected-role",
-      "roles": [
-        "admin",
-        "admin_officer",
-        "master"
-      ],
-      "area": null,
-      "protected": true,
-      "sourceIndex": 99
-    },
-    {
       "path": "/messages",
       "accessType": "protected-authenticated",
       "roles": [],
       "area": null,
       "protected": true,
-      "sourceIndex": 100
+      "sourceIndex": 97
     },
     {
       "path": "/intel-approvals",
@@ -1325,7 +1080,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 101
+      "sourceIndex": 98
     },
     {
       "path": "/bob",
@@ -1333,7 +1088,7 @@
       "roles": [],
       "area": null,
       "protected": true,
-      "sourceIndex": 102
+      "sourceIndex": 99
     },
     {
       "path": "/bob-studio",
@@ -1341,7 +1096,7 @@
       "roles": [],
       "area": null,
       "protected": true,
-      "sourceIndex": 103
+      "sourceIndex": 100
     },
     {
       "path": "/bob/assistant-studio",
@@ -1349,7 +1104,7 @@
       "roles": [],
       "area": null,
       "protected": true,
-      "sourceIndex": 104
+      "sourceIndex": 101
     },
     {
       "path": "/bob-intake-queue",
@@ -1362,7 +1117,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 105
+      "sourceIndex": 102
     },
     {
       "path": "/bob-assistant",
@@ -1376,7 +1131,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 106
+      "sourceIndex": 103
     },
     {
       "path": "/admin/video-generation",
@@ -1388,7 +1143,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 107
+      "sourceIndex": 104
     },
     {
       "path": "/bob-ui-review",
@@ -1401,7 +1156,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 108
+      "sourceIndex": 105
     },
     {
       "path": "/live-plan-reviews",
@@ -1414,7 +1169,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 109
+      "sourceIndex": 106
     },
     {
       "path": "/notice-to-vacate",
@@ -1426,7 +1181,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 110
+      "sourceIndex": 107
     },
     {
       "path": "/disputes",
@@ -1438,7 +1193,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 111
+      "sourceIndex": 108
     },
     {
       "path": "/admin/discrepancies",
@@ -1450,7 +1205,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 112
+      "sourceIndex": 109
     },
     {
       "path": "/admin/nzscv",
@@ -1463,7 +1218,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 113
+      "sourceIndex": 110
     },
     {
       "path": "/officer-welfare",
@@ -1475,7 +1230,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 114
+      "sourceIndex": 111
     },
     {
       "path": "/enforcement-review",
@@ -1487,7 +1242,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 115
+      "sourceIndex": 112
     },
     {
       "path": "/investigations",
@@ -1499,7 +1254,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 116
+      "sourceIndex": 113
     },
     {
       "path": "/parking",
@@ -1511,7 +1266,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 117
+      "sourceIndex": 114
     },
     {
       "path": "/parking-officer",
@@ -1524,7 +1279,7 @@
       ],
       "area": "parking",
       "protected": true,
-      "sourceIndex": 118
+      "sourceIndex": 115
     },
     {
       "path": "/noise-control",
@@ -1536,7 +1291,7 @@
       ],
       "area": "noise",
       "protected": true,
-      "sourceIndex": 119
+      "sourceIndex": 116
     },
     {
       "path": "/noise-officer",
@@ -1549,7 +1304,7 @@
       ],
       "area": "noise",
       "protected": true,
-      "sourceIndex": 120
+      "sourceIndex": 117
     },
     {
       "path": "/biosecurity-control",
@@ -1561,7 +1316,7 @@
       ],
       "area": "biosecurity",
       "protected": true,
-      "sourceIndex": 121
+      "sourceIndex": 118
     },
     {
       "path": "/biosecurity-officer",
@@ -1574,7 +1329,7 @@
       ],
       "area": "biosecurity",
       "protected": true,
-      "sourceIndex": 122
+      "sourceIndex": 119
     },
     {
       "path": "/smoke-control",
@@ -1586,7 +1341,7 @@
       ],
       "area": "smoke",
       "protected": true,
-      "sourceIndex": 123
+      "sourceIndex": 120
     },
     {
       "path": "/smoke-officer",
@@ -1599,7 +1354,7 @@
       ],
       "area": "smoke",
       "protected": true,
-      "sourceIndex": 124
+      "sourceIndex": 121
     },
     {
       "path": "/vehicles/:id",
@@ -1607,7 +1362,7 @@
       "roles": [],
       "area": null,
       "protected": true,
-      "sourceIndex": 125
+      "sourceIndex": 122
     },
     {
       "path": "/person-records",
@@ -1619,7 +1374,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 126
+      "sourceIndex": 123
     },
     {
       "path": "/points-of-interest",
@@ -1632,7 +1387,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 127
+      "sourceIndex": 124
     },
     {
       "path": "/site-risk-assessment",
@@ -1645,7 +1400,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 128
+      "sourceIndex": 125
     },
     {
       "path": "/loi-browser",
@@ -1657,7 +1412,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 129
+      "sourceIndex": 126
     },
     {
       "path": "/trespass-notices",
@@ -1669,7 +1424,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 130
+      "sourceIndex": 127
     },
     {
       "path": "/access-permissions",
@@ -1681,7 +1436,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 131
+      "sourceIndex": 128
     },
     {
       "path": "/canonical-persons",
@@ -1693,7 +1448,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 132
+      "sourceIndex": 129
     },
     {
       "path": "/face-recognition",
@@ -1706,7 +1461,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 133
+      "sourceIndex": 130
     },
     {
       "path": "/identity-verification",
@@ -1718,7 +1473,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 134
+      "sourceIndex": 131
     },
     {
       "path": "/import-data",
@@ -1730,7 +1485,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 135
+      "sourceIndex": 132
     },
     {
       "path": "/import-historical",
@@ -1741,7 +1496,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 136
+      "sourceIndex": 133
     },
     {
       "path": "/breach-notices",
@@ -1754,7 +1509,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 137
+      "sourceIndex": 134
     },
     {
       "path": "/observations-report",
@@ -1766,7 +1521,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 138
+      "sourceIndex": 135
     },
     {
       "path": "/settings",
@@ -1774,7 +1529,7 @@
       "roles": [],
       "area": null,
       "protected": true,
-      "sourceIndex": 139
+      "sourceIndex": 136
     },
     {
       "path": "/admin/service-provider-access",
@@ -1785,7 +1540,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 140
+      "sourceIndex": 137
     },
     {
       "path": "/profile",
@@ -1793,7 +1548,7 @@
       "roles": [],
       "area": null,
       "protected": true,
-      "sourceIndex": 141
+      "sourceIndex": 138
     },
     {
       "path": "/vehicle-registry",
@@ -1806,7 +1561,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 142
+      "sourceIndex": 139
     },
     {
       "path": "/plate-finder",
@@ -1819,7 +1574,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 143
+      "sourceIndex": 140
     },
     {
       "path": "/admin/canonical-records",
@@ -1831,7 +1586,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 144
+      "sourceIndex": 141
     },
     {
       "path": "/notifications",
@@ -1839,7 +1594,7 @@
       "roles": [],
       "area": null,
       "protected": true,
-      "sourceIndex": 145
+      "sourceIndex": 142
     },
     {
       "path": "/compliance-dashboard",
@@ -1847,7 +1602,7 @@
       "roles": [],
       "area": null,
       "protected": false,
-      "sourceIndex": 146
+      "sourceIndex": 143
     },
     {
       "path": "/clean-dashboard",
@@ -1859,7 +1614,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 147
+      "sourceIndex": 144
     },
     {
       "path": "/asset-management",
@@ -1872,7 +1627,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 148
+      "sourceIndex": 145
     },
     {
       "path": "/invoicing",
@@ -1885,7 +1640,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 149
+      "sourceIndex": 146
     },
     {
       "path": "/pricing",
@@ -1898,7 +1653,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 150
+      "sourceIndex": 147
     },
     {
       "path": "/timesheets",
@@ -1910,7 +1665,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 152
+      "sourceIndex": 149
     },
     {
       "path": "/open-shifts",
@@ -1923,7 +1678,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 153
+      "sourceIndex": 150
     },
     {
       "path": "/dispatch",
@@ -1935,7 +1690,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 154
+      "sourceIndex": 151
     },
     {
       "path": "/admin/dispatch",
@@ -1947,7 +1702,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 155
+      "sourceIndex": 152
     },
     {
       "path": "/dispatch-monitor",
@@ -1959,7 +1714,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 156
+      "sourceIndex": 153
     },
     {
       "path": "/dispatch-wizard",
@@ -1971,7 +1726,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 157
+      "sourceIndex": 154
     },
     {
       "path": "/dispatched-jobs",
@@ -1983,7 +1738,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 158
+      "sourceIndex": 155
     },
     {
       "path": "/job-map",
@@ -1996,7 +1751,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 159
+      "sourceIndex": 156
     },
     {
       "path": "/operations-map",
@@ -2008,7 +1763,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 160
+      "sourceIndex": 157
     },
     {
       "path": "/client-sites",
@@ -2020,7 +1775,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 161
+      "sourceIndex": 158
     },
     {
       "path": "/site-permissions",
@@ -2032,7 +1787,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 162
+      "sourceIndex": 159
     },
     {
       "path": "/client-master-list",
@@ -2044,7 +1799,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 163
+      "sourceIndex": 160
     },
     {
       "path": "/roster",
@@ -2056,7 +1811,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 164
+      "sourceIndex": 161
     },
     {
       "path": "/officer-skills",
@@ -2068,7 +1823,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 165
+      "sourceIndex": 162
     },
     {
       "path": "/availability",
@@ -2076,295 +1831,7 @@
       "roles": [],
       "area": null,
       "protected": true,
-      "sourceIndex": 166
-    },
-    {
-      "path": "/roster-shifts",
-      "accessType": "protected-role",
-      "roles": [
-        "admin",
-        "admin_officer",
-        "master"
-      ],
-      "area": null,
-      "protected": true,
-      "sourceIndex": 167
-    },
-    {
-      "path": "/noise-notices",
-      "accessType": "protected-role",
-      "roles": [
-        "admin",
-        "admin_officer",
-        "master"
-      ],
-      "area": null,
-      "protected": true,
-      "sourceIndex": 168
-    },
-    {
-      "path": "/site-incidents",
-      "accessType": "protected-role",
-      "roles": [
-        "admin",
-        "admin_officer",
-        "master"
-      ],
-      "area": null,
-      "protected": true,
-      "sourceIndex": 169
-    },
-    {
-      "path": "/person-interactions",
-      "accessType": "protected-role",
-      "roles": [
-        "admin",
-        "admin_officer",
-        "master"
-      ],
-      "area": null,
-      "protected": true,
-      "sourceIndex": 170
-    },
-    {
-      "path": "/plate-scans-log",
-      "accessType": "protected-role",
-      "roles": [
-        "admin",
-        "admin_officer",
-        "master"
-      ],
-      "area": null,
-      "protected": true,
-      "sourceIndex": 171
-    },
-    {
-      "path": "/dispatch-events",
-      "accessType": "protected-role",
-      "roles": [
-        "admin",
-        "admin_officer",
-        "master"
-      ],
-      "area": null,
-      "protected": true,
-      "sourceIndex": 172
-    },
-    {
-      "path": "/notices-to-vacate",
-      "accessType": "protected-role",
-      "roles": [
-        "admin",
-        "admin_officer",
-        "master"
-      ],
-      "area": null,
-      "protected": true,
-      "sourceIndex": 173
-    },
-    {
-      "path": "/contractor-manager",
-      "accessType": "protected-role",
-      "roles": [
-        "admin",
-        "admin_officer",
-        "master"
-      ],
-      "area": null,
-      "protected": true,
-      "sourceIndex": 174
-    },
-    {
-      "path": "/vehicle-discrepancies",
-      "accessType": "protected-role",
-      "roles": [
-        "admin",
-        "admin_officer",
-        "master"
-      ],
-      "area": null,
-      "protected": true,
-      "sourceIndex": 175
-    },
-    {
-      "path": "/drift-events",
-      "accessType": "protected-role",
-      "roles": [
-        "admin",
-        "admin_officer",
-        "master"
-      ],
-      "area": null,
-      "protected": true,
-      "sourceIndex": 176
-    },
-    {
-      "path": "/investigation-job-config",
-      "accessType": "protected-role",
-      "roles": [
-        "admin",
-        "admin_officer",
-        "master"
-      ],
-      "area": null,
-      "protected": true,
-      "sourceIndex": 177
-    },
-    {
-      "path": "/zone-legal-config",
-      "accessType": "protected-role",
-      "roles": [
-        "admin",
-        "admin_officer",
-        "master"
-      ],
-      "area": null,
-      "protected": true,
-      "sourceIndex": 178
-    },
-    {
-      "path": "/investigation-jobs-log",
-      "accessType": "protected-role",
-      "roles": [
-        "admin",
-        "admin_officer",
-        "master"
-      ],
-      "area": null,
-      "protected": true,
-      "sourceIndex": 179
-    },
-    {
-      "path": "/operational-cases-log",
-      "accessType": "protected-role",
-      "roles": [
-        "admin",
-        "admin_officer",
-        "master"
-      ],
-      "area": null,
-      "protected": true,
-      "sourceIndex": 180
-    },
-    {
-      "path": "/patrol-events-log",
-      "accessType": "protected-role",
-      "roles": [
-        "admin",
-        "admin_officer",
-        "master"
-      ],
-      "area": null,
-      "protected": true,
-      "sourceIndex": 181
-    },
-    {
-      "path": "/checkpoint-visits-log",
-      "accessType": "protected-role",
-      "roles": [
-        "admin",
-        "admin_officer",
-        "master"
-      ],
-      "area": null,
-      "protected": true,
-      "sourceIndex": 182
-    },
-    {
-      "path": "/ems-attendances-log",
-      "accessType": "protected-role",
-      "roles": [
-        "admin",
-        "admin_officer",
-        "master"
-      ],
-      "area": null,
-      "protected": true,
-      "sourceIndex": 183
-    },
-    {
-      "path": "/parking-sessions-log",
-      "accessType": "protected-role",
-      "roles": [
-        "admin",
-        "admin_officer",
-        "master"
-      ],
-      "area": null,
-      "protected": true,
-      "sourceIndex": 184
-    },
-    {
-      "path": "/flagged-vehicles-manager",
-      "accessType": "protected-role",
-      "roles": [
-        "admin",
-        "admin_officer",
-        "master"
-      ],
-      "area": null,
-      "protected": true,
-      "sourceIndex": 185
-    },
-    {
-      "path": "/parking-payments-log",
-      "accessType": "protected-role",
-      "roles": [
-        "admin",
-        "admin_officer",
-        "master"
-      ],
-      "area": null,
-      "protected": true,
-      "sourceIndex": 186
-    },
-    {
-      "path": "/zone-signage-evidence",
-      "accessType": "protected-role",
-      "roles": [
-        "admin",
-        "admin_officer",
-        "master"
-      ],
-      "area": null,
-      "protected": true,
-      "sourceIndex": 187
-    },
-    {
-      "path": "/officer-activity-log",
-      "accessType": "protected-role",
-      "roles": [
-        "admin",
-        "admin_officer",
-        "master"
-      ],
-      "area": null,
-      "protected": true,
-      "sourceIndex": 188
-    },
-    {
-      "path": "/credential-processing-log",
-      "accessType": "protected-role",
-      "roles": [
-        "admin",
-        "admin_officer",
-        "master"
-      ],
-      "area": null,
-      "protected": true,
-      "sourceIndex": 189
-    },
-    {
-      "path": "/dispatch-ack-log",
-      "accessType": "protected-role",
-      "roles": [
-        "admin",
-        "admin_officer",
-        "master"
-      ],
-      "area": null,
-      "protected": true,
-      "sourceIndex": 190
+      "sourceIndex": 163
     },
     {
       "path": "/compliance-audit-log",
@@ -2376,19 +1843,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 191
-    },
-    {
-      "path": "/enforcement-events-log",
-      "accessType": "protected-role",
-      "roles": [
-        "admin",
-        "admin_officer",
-        "master"
-      ],
-      "area": null,
-      "protected": true,
-      "sourceIndex": 192
+      "sourceIndex": 164
     },
     {
       "path": "/noise-jobs-log",
@@ -2400,7 +1855,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 193
+      "sourceIndex": 165
     },
     {
       "path": "/patrol-route-log",
@@ -2412,19 +1867,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 194
-    },
-    {
-      "path": "/alarm-events-log",
-      "accessType": "protected-role",
-      "roles": [
-        "admin",
-        "admin_officer",
-        "master"
-      ],
-      "area": null,
-      "protected": true,
-      "sourceIndex": 195
+      "sourceIndex": 166
     },
     {
       "path": "/bug-reports-log",
@@ -2435,7 +1878,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 196
+      "sourceIndex": 167
     },
     {
       "path": "/radio-transmissions-log",
@@ -2448,7 +1891,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 197
+      "sourceIndex": 168
     },
     {
       "path": "/noise-assessments-log",
@@ -2460,7 +1903,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 198
+      "sourceIndex": 169
     },
     {
       "path": "/trespass-notices-log",
@@ -2472,7 +1915,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 199
+      "sourceIndex": 170
     },
     {
       "path": "/parking-infringements-log",
@@ -2484,7 +1927,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 200
+      "sourceIndex": 171
     },
     {
       "path": "/person-observations-log",
@@ -2496,7 +1939,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 201
+      "sourceIndex": 172
     },
     {
       "path": "/vehicles-of-interest-log",
@@ -2508,7 +1951,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 202
+      "sourceIndex": 173
     },
     {
       "path": "/persons-of-interest-log",
@@ -2520,7 +1963,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 203
+      "sourceIndex": 174
     },
     {
       "path": "/photo-metadata-log",
@@ -2531,7 +1974,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 204
+      "sourceIndex": 175
     },
     {
       "path": "/radio-comms-events-log",
@@ -2543,7 +1986,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 205
+      "sourceIndex": 176
     },
     {
       "path": "/case-comments-log",
@@ -2555,7 +1998,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 206
+      "sourceIndex": 177
     },
     {
       "path": "/lmr-bridge-sessions-log",
@@ -2567,7 +2010,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 207
+      "sourceIndex": 178
     },
     {
       "path": "/patrol-session-events-log",
@@ -2579,7 +2022,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 208
+      "sourceIndex": 179
     },
     {
       "path": "/radio-transcript-log",
@@ -2591,7 +2034,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 209
+      "sourceIndex": 180
     },
     {
       "path": "/dispute-intake-log",
@@ -2603,7 +2046,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 210
+      "sourceIndex": 181
     },
     {
       "path": "/radio-tts-render-log",
@@ -2615,7 +2058,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 211
+      "sourceIndex": 182
     },
     {
       "path": "/health-safety-report-log",
@@ -2627,7 +2070,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 212
+      "sourceIndex": 183
     },
     {
       "path": "/noise-seizures-log",
@@ -2639,7 +2082,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 213
+      "sourceIndex": 184
     },
     {
       "path": "/locations-of-interest-log",
@@ -2651,7 +2094,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 214
+      "sourceIndex": 185
     },
     {
       "path": "/vehicle-monthly-stays-log",
@@ -2663,7 +2106,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 215
+      "sourceIndex": 186
     },
     {
       "path": "/radio-voice-consent-log",
@@ -2675,7 +2118,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 216
+      "sourceIndex": 187
     },
     {
       "path": "/patrol-field-events-log",
@@ -2687,7 +2130,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 217
+      "sourceIndex": 188
     },
     {
       "path": "/alert-queue-log",
@@ -2699,7 +2142,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 218
+      "sourceIndex": 189
     },
     {
       "path": "/compliance-results-log",
@@ -2711,7 +2154,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 219
+      "sourceIndex": 190
     },
     {
       "path": "/welfare-events-log",
@@ -2723,7 +2166,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 220
+      "sourceIndex": 191
     },
     {
       "path": "/zone-geofence-snapshots",
@@ -2735,7 +2178,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 221
+      "sourceIndex": 192
     },
     {
       "path": "/feature-flags",
@@ -2745,7 +2188,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 222
+      "sourceIndex": 193
     },
     {
       "path": "/feature-flag-evaluations-log",
@@ -2755,7 +2198,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 223
+      "sourceIndex": 194
     },
     {
       "path": "/feature-flag-rollout-log",
@@ -2765,7 +2208,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 224
+      "sourceIndex": 195
     },
     {
       "path": "/missing-photo-queue",
@@ -2777,7 +2220,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 225
+      "sourceIndex": 196
     },
     {
       "path": "/photo-integrity-health-log",
@@ -2789,7 +2232,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 226
+      "sourceIndex": 197
     },
     {
       "path": "/photo-recovery-audit-log",
@@ -2801,7 +2244,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 227
+      "sourceIndex": 198
     },
     {
       "path": "/user-sessions-log",
@@ -2811,7 +2254,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 228
+      "sourceIndex": 199
     },
     {
       "path": "/recent-observations-photo-status-log",
@@ -2823,7 +2266,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 229
+      "sourceIndex": 200
     },
     {
       "path": "/observation-zone-audit-log",
@@ -2835,7 +2278,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 230
+      "sourceIndex": 201
     },
     {
       "path": "/user-deactivation-queue-log",
@@ -2845,7 +2288,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 231
+      "sourceIndex": 202
     },
     {
       "path": "/alert-acknowledgements-log",
@@ -2857,7 +2300,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 232
+      "sourceIndex": 203
     },
     {
       "path": "/officer-welfare-alerts-log",
@@ -2869,7 +2312,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 233
+      "sourceIndex": 204
     },
     {
       "path": "/vehicle-migration-log",
@@ -2879,7 +2322,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 234
+      "sourceIndex": 205
     },
     {
       "path": "/observation-deletions-log",
@@ -2890,7 +2333,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 235
+      "sourceIndex": 206
     },
     {
       "path": "/dispatch-resources-log",
@@ -2902,7 +2345,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 236
+      "sourceIndex": 207
     },
     {
       "path": "/radio-translation-log",
@@ -2914,7 +2357,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 237
+      "sourceIndex": 208
     },
     {
       "path": "/bob-proposals-log",
@@ -2926,7 +2369,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 238
+      "sourceIndex": 209
     },
     {
       "path": "/bob-proposal-events-log",
@@ -2938,7 +2381,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 239
+      "sourceIndex": 210
     },
     {
       "path": "/import-batches-log",
@@ -2949,7 +2392,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 240
+      "sourceIndex": 211
     },
     {
       "path": "/admin-recalculation-log",
@@ -2960,7 +2403,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 241
+      "sourceIndex": 212
     },
     {
       "path": "/contractor-documents-log",
@@ -2972,7 +2415,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 242
+      "sourceIndex": 213
     },
     {
       "path": "/import-staging-log",
@@ -2983,7 +2426,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 243
+      "sourceIndex": 214
     },
     {
       "path": "/lmr-bridge-config-log",
@@ -2994,7 +2437,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 244
+      "sourceIndex": 215
     },
     {
       "path": "/radio-voice-profiles-log",
@@ -3006,7 +2449,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 245
+      "sourceIndex": 216
     },
     {
       "path": "/zone-dispatch-rules-log",
@@ -3017,7 +2460,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 246
+      "sourceIndex": 217
     },
     {
       "path": "/bob-action-proposal-events-log",
@@ -3029,7 +2472,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 247
+      "sourceIndex": 218
     },
     {
       "path": "/homeless-records-log",
@@ -3041,7 +2484,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 248
+      "sourceIndex": 219
     },
     {
       "path": "/restrictions-log",
@@ -3052,7 +2495,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 249
+      "sourceIndex": 220
     },
     {
       "path": "/organizations-log",
@@ -3063,7 +2506,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 250
+      "sourceIndex": 221
     },
     {
       "path": "/client-sites-log",
@@ -3075,7 +2518,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 251
+      "sourceIndex": 222
     },
     {
       "path": "/parking-permits-log",
@@ -3087,7 +2530,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 252
+      "sourceIndex": 223
     },
     {
       "path": "/incidents-log",
@@ -3099,7 +2542,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 253
+      "sourceIndex": 224
     },
     {
       "path": "/person-records-log",
@@ -3111,7 +2554,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 254
+      "sourceIndex": 225
     },
     {
       "path": "/notifications-log",
@@ -3123,7 +2566,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 255
+      "sourceIndex": 226
     },
     {
       "path": "/face-records-log",
@@ -3135,7 +2578,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 256
+      "sourceIndex": 227
     },
     {
       "path": "/infringement-notices-log",
@@ -3147,7 +2590,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 257
+      "sourceIndex": 228
     },
     {
       "path": "/site-risk-assessments-log",
@@ -3159,7 +2602,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 258
+      "sourceIndex": 229
     },
     {
       "path": "/dispatch-jobs-log",
@@ -3171,7 +2614,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 259
+      "sourceIndex": 230
     },
     {
       "path": "/enforcement-actions-log",
@@ -3183,7 +2626,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 260
+      "sourceIndex": 231
     },
     {
       "path": "/observations-log",
@@ -3195,7 +2638,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 261
+      "sourceIndex": 232
     },
     {
       "path": "/canonical-scv-log",
@@ -3207,7 +2650,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 262
+      "sourceIndex": 233
     },
     {
       "path": "/officer-availability-log",
@@ -3219,7 +2662,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 263
+      "sourceIndex": 234
     },
     {
       "path": "/canonical-homeless-log",
@@ -3231,7 +2674,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 264
+      "sourceIndex": 235
     },
     {
       "path": "/breach-alerts-log",
@@ -3243,7 +2686,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 265
+      "sourceIndex": 236
     },
     {
       "path": "/canonical-vehicles-log",
@@ -3255,7 +2698,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 266
+      "sourceIndex": 237
     },
     {
       "path": "/flagged-vehicles-log",
@@ -3267,7 +2710,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 267
+      "sourceIndex": 238
     },
     {
       "path": "/officer-shifts-log",
@@ -3279,7 +2722,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 268
+      "sourceIndex": 239
     },
     {
       "path": "/open-shifts-log",
@@ -3291,7 +2734,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 269
+      "sourceIndex": 240
     },
     {
       "path": "/zone-compliance-matrix-log",
@@ -3303,7 +2746,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 270
+      "sourceIndex": 241
     },
     {
       "path": "/pricing-rules-log",
@@ -3315,7 +2758,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 271
+      "sourceIndex": 242
     },
     {
       "path": "/zone-legal-config-log",
@@ -3326,7 +2769,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 272
+      "sourceIndex": 243
     },
     {
       "path": "/zone-signage-evidence-log",
@@ -3338,7 +2781,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 273
+      "sourceIndex": 244
     },
     {
       "path": "/fixed-cameras-log",
@@ -3350,7 +2793,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 274
+      "sourceIndex": 245
     },
     {
       "path": "/officer-skills-log",
@@ -3362,7 +2805,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 275
+      "sourceIndex": 246
     },
     {
       "path": "/patrol-checkpoints-log",
@@ -3374,7 +2817,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 276
+      "sourceIndex": 247
     },
     {
       "path": "/contractor-profiles-log",
@@ -3385,7 +2828,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 277
+      "sourceIndex": 248
     },
     {
       "path": "/parking-zones-log",
@@ -3396,7 +2839,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 278
+      "sourceIndex": 249
     },
     {
       "path": "/canonical-persons-log",
@@ -3408,7 +2851,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 279
+      "sourceIndex": 250
     },
     {
       "path": "/crm",
@@ -3421,7 +2864,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 280
+      "sourceIndex": 251
     },
     {
       "path": "/crm/contractor/:orgId",
@@ -3434,7 +2877,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 281
+      "sourceIndex": 252
     },
     {
       "path": "/crm/client/:orgId",
@@ -3447,7 +2890,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 282
+      "sourceIndex": 253
     },
     {
       "path": "/tender-workspace",
@@ -3459,7 +2902,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 283
+      "sourceIndex": 254
     },
     {
       "path": "/tender-workspace/:id",
@@ -3471,7 +2914,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 284
+      "sourceIndex": 255
     },
     {
       "path": "/tender-reference-library",
@@ -3483,7 +2926,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 285
+      "sourceIndex": 256
     },
     {
       "path": "/ems",
@@ -3497,7 +2940,7 @@
       ],
       "area": "ems",
       "protected": true,
-      "sourceIndex": 286
+      "sourceIndex": 257
     },
     {
       "path": "/site-guard",
@@ -3511,7 +2954,7 @@
       ],
       "area": "site_guard",
       "protected": true,
-      "sourceIndex": 287
+      "sourceIndex": 258
     },
     {
       "path": "/health-safety-reports",
@@ -3523,7 +2966,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 288
+      "sourceIndex": 259
     },
     {
       "path": "/welfare-checkins",
@@ -3535,7 +2978,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 289
+      "sourceIndex": 260
     },
     {
       "path": "/parking-permits",
@@ -3547,7 +2990,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 290
+      "sourceIndex": 261
     },
     {
       "path": "/roster-shifts",
@@ -3559,7 +3002,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 291
+      "sourceIndex": 262
     },
     {
       "path": "/noise-notices",
@@ -3571,7 +3014,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 292
+      "sourceIndex": 263
     },
     {
       "path": "/site-incidents",
@@ -3583,7 +3026,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 293
+      "sourceIndex": 264
     },
     {
       "path": "/person-interactions",
@@ -3595,7 +3038,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 294
+      "sourceIndex": 265
     },
     {
       "path": "/plate-scans-log",
@@ -3607,7 +3050,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 295
+      "sourceIndex": 266
     },
     {
       "path": "/dispatch-events",
@@ -3619,7 +3062,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 296
+      "sourceIndex": 267
     },
     {
       "path": "/notices-to-vacate",
@@ -3631,7 +3074,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 297
+      "sourceIndex": 268
     },
     {
       "path": "/contractor-manager",
@@ -3643,7 +3086,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 298
+      "sourceIndex": 269
     },
     {
       "path": "/vehicle-discrepancies",
@@ -3655,7 +3098,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 299
+      "sourceIndex": 270
     },
     {
       "path": "/drift-events",
@@ -3667,7 +3110,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 300
+      "sourceIndex": 271
     },
     {
       "path": "/investigation-job-config",
@@ -3678,7 +3121,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 301
+      "sourceIndex": 272
     },
     {
       "path": "/zone-legal-config",
@@ -3689,7 +3132,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 302
+      "sourceIndex": 273
     },
     {
       "path": "/alarm-events-log",
@@ -3701,7 +3144,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 303
+      "sourceIndex": 274
     },
     {
       "path": "/enforcement-events-log",
@@ -3713,7 +3156,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 304
+      "sourceIndex": 275
     },
     {
       "path": "/open-shifts-manager",
@@ -3725,7 +3168,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 305
+      "sourceIndex": 276
     },
     {
       "path": "/checkpoint-visits-log",
@@ -3737,7 +3180,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 306
+      "sourceIndex": 277
     },
     {
       "path": "/ems-attendances-log",
@@ -3749,7 +3192,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 307
+      "sourceIndex": 278
     },
     {
       "path": "/parking-sessions-log",
@@ -3761,7 +3204,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 308
+      "sourceIndex": 279
     },
     {
       "path": "/flagged-vehicles-manager",
@@ -3773,7 +3216,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 309
+      "sourceIndex": 280
     },
     {
       "path": "/parking-payments-log",
@@ -3785,7 +3228,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 310
+      "sourceIndex": 281
     },
     {
       "path": "/zone-signage-evidence",
@@ -3797,7 +3240,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 311
+      "sourceIndex": 282
     },
     {
       "path": "/officer-activity-log",
@@ -3809,7 +3252,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 312
+      "sourceIndex": 283
     },
     {
       "path": "/credential-processing-log",
@@ -3821,7 +3264,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 313
+      "sourceIndex": 284
     },
     {
       "path": "/dispatch-ack-log",
@@ -3833,7 +3276,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 314
+      "sourceIndex": 285
     }
   ]
 }
