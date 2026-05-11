@@ -112,6 +112,7 @@ test.describe('Phase E3 — Communications audit and retry governance gate', () 
     const edgeClient = source(contractPaths.edgeFunctionsClient)
 
     expect(reportEmail).toContain('SMTP_HOST')
+    expect(reportEmail).toContain('SMTP_REPORTS_FROM_EMAIL')
     expect(reportEmail).toContain("import { recordCommunicationAudit } from '../_shared/communicationsAudit.ts'")
     expect(reportEmail).toContain('recipient_email')
     expect(reportEmail).toContain('Invalid email address')

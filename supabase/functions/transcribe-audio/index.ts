@@ -17,6 +17,7 @@ const RUNPOD_ENDPOINT_ID = String(Deno.env.get('RUNPOD_ENDPOINT_ID') || '').trim
 const RUNPOD_DERIVED_URL = RUNPOD_ENDPOINT_ID ? `https://api.runpod.ai/v2/${RUNPOD_ENDPOINT_ID}` : ''
 
 const BOB_SERVICE_URL = normalizeBaseUrl(
+  Deno.env.get('RAILWAY_STT_URL') ||
   Deno.env.get('BOB_SERVICE_URL') ||
   Deno.env.get('INFERENCE_SERVICE_URL') ||
   Deno.env.get('RUNPOD_ENDPOINT_URL') ||
