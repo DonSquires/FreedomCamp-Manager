@@ -93,6 +93,8 @@ const testPacks = [
   { name: 'login-health', desc: 'Login health check' },
   { name: 'tender-shadow', desc: 'Tender compliance submission' },
   { name: 'ptt-zindex', desc: 'PTT control visibility and z-index' },
+  { name: 'admin', desc: 'Admin portal navigation and bug reports log access' },
+  { name: 'admin-bug-reports', desc: 'Bug reports log direct access and render check' },
 ]
 
 function parseArgs() {

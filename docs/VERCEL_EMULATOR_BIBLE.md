@@ -25,7 +25,7 @@ In this repo, emulator coverage is delivered through two complementary paths:
 
 1. Agentic shadow-user flows:
 - Script: scripts/agentic-ui-shadow-user.mjs
-- Packs: login-health, tender-shadow, ptt-zindex, crm-business-crossover, client-portal-isolation
+- Packs: login-health, tender-shadow, ptt-zindex, crm-business-crossover, client-portal-isolation, admin, admin-bug-reports
 - Output: tools/agentic-ui-reports/.../report.json plus step screenshots
 
 2. Human-style Playwright suites:
@@ -79,6 +79,10 @@ This prevents false failures due to local port conflicts.
 
 Agentic packs:
 - bun run agentic:ui:all3
+
+Admin and bug reports packs (use for admin/master role validation):
+- bun scripts/agentic-ui-shadow-user.mjs --pack=admin --no-planner --evidence-dir=tools/agentic-ui-reports/admin
+- bun scripts/agentic-ui-shadow-user.mjs --pack=admin-bug-reports --no-planner --evidence-dir=tools/agentic-ui-reports/admin-bug-reports
 
 Single pack:
 - bun scripts/agentic-ui-shadow-user.mjs --pack=login-health --no-planner --evidence-dir=tools/agentic-ui-reports/login-health
@@ -199,6 +203,10 @@ Credential preflight and module suite:
 
 Agentic packs:
 - bun run agentic:ui:all3
+
+Admin and bug reports packs (use for admin/master role validation):
+- bun scripts/agentic-ui-shadow-user.mjs --pack=admin --no-planner --evidence-dir=tools/agentic-ui-reports/admin
+- bun scripts/agentic-ui-shadow-user.mjs --pack=admin-bug-reports --no-planner --evidence-dir=tools/agentic-ui-reports/admin-bug-reports
 
 Single pack with explicit URL:
 - PLAYWRIGHT_BASE_URL=https://your-preview-url bun scripts/agentic-ui-shadow-user.mjs --pack=login-health --no-planner --evidence-dir=tools/agentic-ui-reports/login-health
