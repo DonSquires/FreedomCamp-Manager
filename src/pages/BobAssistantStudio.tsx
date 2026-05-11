@@ -28,7 +28,7 @@ import { assertBobMutationAccess } from '@/lib/bobMutationCatalog'
 import { forwardGeocode } from '@/lib/geocoding'
 import { smokeTests, dataVerification, performanceTests, runBugFixDeepDive } from '@/lib/testUtils'
 import { consumeLatestBobCollaborationPacket, publishBobResponse, type BobCollaborationPacket } from '@/lib/bobCollaboration'
-import { BOB_PROJECT_KNOWLEDGE } from '@/lib/bobKnowledgeBase'
+import { BOB_PROJECT_KNOWLEDGE, BOB_DOCUMENT_GUARDRAILS } from '@/lib/bobKnowledgeBase'
 import { BobOrb, type BobOrbState } from '@/components/features/BobOrb'
 import {
   clearPTTCustomAudioSourceFactory,
@@ -486,6 +486,10 @@ const BOB_REMOTE_MEMORY_CHAR_LIMIT = 1_400
 const BOB_CONTINUATION_MEMORY_CHAR_LIMIT = 1_600
 const BOB_TOTAL_PROMPT_CHAR_BUDGET = 12_000
 
+// Document attachment limits (~4 chars per token)
+const DOC_TOKEN_WARNING_CHARS = 12_000  // ~3 000 tokens – show yellow warning
+const DOC_TOKEN_HARD_LIMIT_CHARS = 16_000 // ~4 000 tokens – truncate excerpt sent
+
 async function withPromiseTimeout<T>(
   promise: Promise<T>,
   timeoutMs: number,
@@ -796,7 +800,14 @@ export default function BobAssistantStudio() {
   const recognitionRef = useRef<any>(null)
   const chatEndRef = useRef<HTMLDivElement | null>(null)
   const chatScrollContainerRef = useRef<HTMLDivElement | null>(null)
+  const docFileInputRef = useRef<HTMLInputElement | null>(null)
   const [userScrolledUp, setUserScrolledUp] = useState(false)
+  const [attachedDocument, setAttachedDocument] = useState<{
+    name: string
+    type: string
+    extractedText: string
+    charCount: number
+  } | null>(null)
   const voiceConversationActiveRef = useRef(false)
   const speakingRef = useRef(false)
   const wakeUnlockedRef = useRef(false)
@@ -1373,6 +1384,39 @@ export default function BobAssistantStudio() {
   }
   restartVoiceConversationRef.current = startVoiceConversation
 
+  const handleDocumentAttach = async (file: File) => {
+    let extractedText = ''
+    const name = file.name
+    const type = file.type
+
+    if (type.startsWith('image/')) {
+      extractedText = `[Attached image: ${name}. Bob will apply visual inference and Ringelmann assessment guidelines to any visible environmental or smoke evidence.]`
+    } else if (type === 'application/pdf' || name.toLowerCase().endsWith('.pdf')) {
+      // PDF text extraction requires a server-side tool; acknowledge and guide user
+      extractedText = `[Attached PDF: ${name}. For full text extraction use the Tender Document Processor. Paste key clauses here for immediate Bob analysis, or Bob will reference this attachment by name.]`
+    } else {
+      // CSV, TXT, JSON, XLSX-as-text etc. — read raw text
+      try {
+        extractedText = await file.text()
+      } catch {
+        extractedText = `[Could not read file content for ${name}. Please paste the relevant text directly into the chat.]`
+      }
+    }
+
+    const charCount = extractedText.length
+    const truncated = charCount > DOC_TOKEN_HARD_LIMIT_CHARS
+      ? extractedText.slice(0, DOC_TOKEN_HARD_LIMIT_CHARS) + `\n\n[…truncated at ${DOC_TOKEN_HARD_LIMIT_CHARS} chars to stay within context window. Full document: ${name}]`
+      : extractedText
+
+    setAttachedDocument({ name, type, extractedText: truncated, charCount })
+
+    if (charCount > DOC_TOKEN_WARNING_CHARS) {
+      toast.warning(`"${name}" is large (~${Math.round(charCount / 4)} tokens). Bob will use the first ${Math.round(DOC_TOKEN_HARD_LIMIT_CHARS / 4)} tokens. Use "Summarise document" to reduce first.`)
+    } else {
+      toast.success(`Attached: ${name}`)
+    }
+  }
+
   const sendMessage = async (override?: string) => {
     const message = (override ?? chatInput).trim()
     if (!message || thinking) return
@@ -1919,6 +1963,15 @@ export default function BobAssistantStudio() {
       if (compactLongTermMemory) rawMessages.push({ role: 'assistant', content: compactLongTermMemory })
       if (compactRemoteMemory) rawMessages.push({ role: 'assistant', content: compactRemoteMemory })
       if (compactContinuationMemory) rawMessages.push({ role: 'assistant', content: compactContinuationMemory })
+
+      // Inject document guardrails + extracted content when a file is attached
+      if (attachedDocument) {
+        rawMessages.push({
+          role: 'system',
+          content: `${BOB_DOCUMENT_GUARDRAILS}\n\n---\n## Attached Document: ${attachedDocument.name}\n\n${attachedDocument.extractedText}`,
+        })
+      }
+
       if (command.intent !== 'unknown') {
         rawMessages.push({
           role: 'system',
@@ -4743,12 +4796,56 @@ export default function BobAssistantStudio() {
                   The rounded container sits on the page surface (z-0) so it
                   never overlaps the last message – spacing is handled by the
                   Card's space-y-4 gap above it.                              */}
+
+              {/* Hidden file input for document attachment */}
+              <input
+                ref={docFileInputRef}
+                type="file"
+                accept=".pdf,.csv,.xlsx,.txt,.json,image/*"
+                className="sr-only"
+                onChange={(e) => {
+                  const file = e.target.files?.[0]
+                  if (file) void handleDocumentAttach(file)
+                  // Reset so same file can be re-selected
+                  e.target.value = ''
+                }}
+              />
+
+              {/* Context Window Monitor — shown when a large doc is attached */}
+              {attachedDocument && (
+                <div className={`flex items-center gap-2 rounded-lg px-3 py-2 text-xs border ${attachedDocument.charCount > DOC_TOKEN_WARNING_CHARS ? 'bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300' : 'bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-800 text-green-700 dark:text-green-300'}`}>
+                  <span className="shrink-0">📎</span>
+                  <span className="truncate flex-1 font-medium">{attachedDocument.name}</span>
+                  <span className="shrink-0 tabular-nums">~{Math.round(attachedDocument.charCount / 4).toLocaleString()} tokens</span>
+                  {attachedDocument.charCount > DOC_TOKEN_WARNING_CHARS && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setChatInput(`Please summarise the attached document "${attachedDocument.name}" in 3 bullet points before we proceed.`)
+                        toast.info('Summarise command added to input — press Send to ask Bob to condense first.')
+                      }}
+                      className="shrink-0 rounded px-1.5 py-0.5 bg-amber-200 dark:bg-amber-800 hover:bg-amber-300 dark:hover:bg-amber-700 font-medium transition-colors"
+                    >
+                      Summarise first ↗
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setAttachedDocument(null)}
+                    className="shrink-0 rounded p-0.5 hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
+                    title="Remove attachment"
+                  >
+                    <XCircle className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              )}
+
               <div className="rounded-2xl border border-[#E5E7EB] dark:border-[#4B5563] bg-white dark:bg-[#374151] shadow-sm px-3 py-2 flex items-end gap-2">
-                {/* + icon: quick-access to specialist portals / attachments */}
+                {/* + icon: attach PDF, CSV, image, or text documents */}
                 <button
                   type="button"
-                  title="Specialist portals & attachments"
-                  onClick={() => toast.info('Specialist portals coming soon')}
+                  title="Attach document (PDF, CSV, image, text)"
+                  onClick={() => docFileInputRef.current?.click()}
                   className="shrink-0 flex items-center justify-center w-8 h-8 rounded-full text-muted-foreground hover:bg-muted/60 transition-colors"
                 >
                   <Plus className="h-4 w-4" />
