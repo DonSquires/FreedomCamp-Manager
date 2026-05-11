@@ -19,6 +19,8 @@ import { useAuthStore } from '@/stores/authStore'
 import { useRosteredShift } from '@/hooks/useRosteredShift'
 import { useShiftGate } from '@/hooks/useShiftGate'
 import { useOperationalOrganization } from '@/hooks/useOperationalOrganization'
+import { useStartOfficerShift } from '@/hooks/useFieldOfficerMutations'
+import { SERVICE_TYPE_PORTAL, getOfficerPortalPath } from '@/lib/officerPortalRouting'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
@@ -48,6 +50,10 @@ import {
   Clock,
   LogOut,
   ChevronRight,
+  CheckCircle,
+  PlayCircle,
+  CalendarCheck2,
+  XCircle,
 } from 'lucide-react'
 import { PTTBar } from '@/components/features/PTTBar'
 import { OfficerShell } from '@/components/features/OfficerShell'
@@ -65,6 +71,7 @@ export default function OfficerHomePage() {
   const { operationalOrganizationId } = useOperationalOrganization()
   const queryClient = useQueryClient()
   const { t } = useOfficerLocale()
+  const startOfficerShift = useStartOfficerShift()
 
   const [showAdhocDialog, setShowAdhocDialog] = useState(false)
   const [adhocDate, setAdhocDate] = useState(format(nzNow(), 'yyyy-MM-dd'))
@@ -73,6 +80,9 @@ export default function OfficerHomePage() {
   const [adhocNotes, setAdhocNotes] = useState('')
   const [adhocServiceType, setAdhocServiceType] = useState('freedom_camping')
   const [isEndingShift, setIsEndingShift] = useState(false)
+  const [isStartingShift, setIsStartingShift] = useState(false)
+
+  const rosterPortalPath = rosteredShift ? getOfficerPortalPath(rosteredShift) : null
 
   // ── End active shift from home page (e.g. stale/geofence-locked shift) ─────
   const handleEndShift = useCallback(async () => {
@@ -138,6 +148,70 @@ export default function OfficerHomePage() {
       toast.error(err?.message || 'Failed to submit shift request')
     },
   })
+
+  const respondShiftMutation = useMutation({
+    mutationFn: async ({ response }: { response: 'accepted' | 'declined' }) => {
+      if (!rosteredShift?.id) throw new Error('No rostered shift to update')
+      const { error } = await (supabase as any)
+        .from('roster_shifts')
+        .update({
+          officer_response: response,
+          officer_response_at: new Date().toISOString(),
+          officer_notes: null,
+          status: response === 'accepted' ? 'confirmed' : rosteredShift.status,
+          confirmed_at: response === 'accepted' ? new Date().toISOString() : undefined,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', rosteredShift.id)
+      if (error) throw error
+    },
+    onSuccess: (_, vars) => {
+      toast.success(vars.response === 'accepted' ? 'Shift confirmed' : 'Shift declined')
+      queryClient.invalidateQueries({ queryKey: ['rostered_shift_today', user?.id] })
+      queryClient.invalidateQueries({ queryKey: ['my_shifts', user?.id] })
+    },
+    onError: (err: any) => toast.error(err?.message || 'Failed to update shift response'),
+  })
+
+  const handleStartShift = useCallback(async () => {
+    if (!user?.id || !rosteredShift) return
+    const effectiveOrgId = rosteredShift.client_org_id || operationalOrganizationId || user.employer_organization_id || user.organization_id
+    if (!effectiveOrgId) {
+      toast.error('Missing organisation context for this shift')
+      return
+    }
+    setIsStartingShift(true)
+    try {
+      let gpsLat: number | null = null
+      let gpsLng: number | null = null
+      try {
+        const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000 })
+        })
+        gpsLat = pos.coords.latitude
+        gpsLng = pos.coords.longitude
+      } catch {
+        // GPS optional here
+      }
+
+      await startOfficerShift.mutateAsync({
+        officer_id: user.id,
+        organization_id: effectiveOrgId,
+        parent_zone_id: rosteredShift.zone_id ?? null,
+        gps_start_lat: gpsLat,
+        gps_start_lng: gpsLng,
+      })
+
+      queryClient.invalidateQueries({ queryKey: ['officer-active-shift-gate'] })
+      queryClient.invalidateQueries({ queryKey: ['officer-active-shift'] })
+      toast.success('Shift started')
+      if (rosterPortalPath) navigate(rosterPortalPath)
+    } catch (err: any) {
+      toast.error(err?.message ?? 'Failed to start shift')
+    } finally {
+      setIsStartingShift(false)
+    }
+  }, [navigate, operationalOrganizationId, queryClient, rosterPortalPath, rosteredShift, startOfficerShift, user])
 
   const today = format(nzNow(), 'EEEE d MMMM yyyy')
 
@@ -250,10 +324,58 @@ export default function OfficerHomePage() {
                     {rosteredShift.start_time?.substring(11, 16)} – {rosteredShift.end_time?.substring(11, 16)}
                   </p>
                 )}
+                {rosteredShift.service_type && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    {SERVICE_TYPE_PORTAL[rosteredShift.service_type]?.label}
+                  </p>
+                )}
               </div>
               <Badge variant="outline" className="capitalize text-xs shrink-0">
                 {rosteredShift.status}
               </Badge>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {!hasActiveShift && rosteredShift.officer_response !== 'accepted' && (
+                <>
+                  <Button
+                    size="sm"
+                    className="min-h-10"
+                    onClick={() => respondShiftMutation.mutate({ response: 'accepted' })}
+                    disabled={respondShiftMutation.isPending}
+                  >
+                    <CheckCircle className="mr-1.5 h-4 w-4" />
+                    Confirm Shift
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="min-h-10"
+                    onClick={() => respondShiftMutation.mutate({ response: 'declined' })}
+                    disabled={respondShiftMutation.isPending}
+                  >
+                    <XCircle className="mr-1.5 h-4 w-4" />
+                    Decline
+                  </Button>
+                </>
+              )}
+              {!hasActiveShift && rosteredShift.officer_response !== 'declined' && (
+                <Button
+                  size="sm"
+                  variant={rosteredShift.officer_response === 'accepted' ? 'default' : 'secondary'}
+                  className="min-h-10"
+                  onClick={handleStartShift}
+                  disabled={isStartingShift}
+                >
+                  <PlayCircle className="mr-1.5 h-4 w-4" />
+                  {isStartingShift ? 'Starting…' : 'Start Shift'}
+                </Button>
+              )}
+              {hasActiveShift && rosterPortalPath && (
+                <Button size="sm" variant="outline" className="min-h-10" onClick={() => navigate(rosterPortalPath)}>
+                  Go to Shift
+                  <ChevronRight className="ml-1 h-4 w-4" />
+                </Button>
+              )}
             </div>
           </div>
         )}
@@ -278,6 +400,22 @@ export default function OfficerHomePage() {
           </button>
 
           {/* Open Shifts */}
+          <button
+            onClick={() => navigate('/leave-management')}
+            className="w-full min-h-14 flex items-center justify-between bg-white rounded-xl border border-gray-200 shadow-sm p-4 hover:bg-gray-50 dark:bg-gray-900 dark:border-gray-700 dark:hover:bg-gray-800 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+          >
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-lg bg-cyan-100 dark:bg-cyan-950/50 flex items-center justify-center">
+                <CalendarCheck2 className="h-5 w-5 text-cyan-600 dark:text-cyan-300" />
+              </div>
+              <div className="text-left">
+                <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">My Leave</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">Review or request your own leave</p>
+              </div>
+            </div>
+            <ChevronRight className="h-4 w-4 text-gray-400 dark:text-gray-500" />
+          </button>
+
           <button
             onClick={() => navigate('/open-shifts')}
             className="w-full min-h-14 flex items-center justify-between bg-white rounded-xl border border-gray-200 shadow-sm p-4 hover:bg-gray-50 dark:bg-gray-900 dark:border-gray-700 dark:hover:bg-gray-800 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"

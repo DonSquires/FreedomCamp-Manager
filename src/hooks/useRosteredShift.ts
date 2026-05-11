@@ -39,6 +39,8 @@ export interface RosteredShift {
   client_org_name: string | null
   zone_id: string | null
   status: string
+  officer_response: string | null
+  officer_response_at: string | null
   guard_cost_rate: number | null
   client_charge_rate: number | null
   rate_type: string | null
@@ -77,6 +79,7 @@ export function useRosteredShift(): UseRosteredShiftResult {
         .select(`
           id, shift_date, start_time, end_time, shift_type,
           service_type, position_title, client_site_id, zone_id, status,
+          officer_response, officer_response_at,
           guard_cost_rate, client_charge_rate, rate_type,
           client_site:client_sites!client_site_id(
             name,
@@ -111,6 +114,8 @@ export function useRosteredShift(): UseRosteredShiftResult {
         client_org_name:  org?.name ?? null,
         zone_id:          data.zone_id ?? null,
         status:           data.status,
+        officer_response: data.officer_response ?? null,
+        officer_response_at: data.officer_response_at ?? null,
         guard_cost_rate:  data.guard_cost_rate ?? null,
         client_charge_rate: data.client_charge_rate ?? null,
         rate_type:        data.rate_type ?? null,
