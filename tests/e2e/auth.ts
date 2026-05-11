@@ -589,6 +589,10 @@ export function getApiBearerToken(): string | null {
   ) || null
 }
 
+async function gotoLogin(page: Page): Promise<void> {
+  await page.goto('/login', { waitUntil: 'domcontentloaded', timeout: 20000 })
+}
+
 export async function loginWithLiveCredentialsAndResolveProfile(page: Page): Promise<LoginContextProfile | null> {
   const credentials = getApiTestCredentials()
   if (!credentials.email || !credentials.password) {
@@ -597,10 +601,10 @@ export async function loginWithLiveCredentialsAndResolveProfile(page: Page): Pro
     )
   }
 
-  await page.goto('/login')
-  await page.fill('input[type="email"]', credentials.email)
-  await page.fill('input[type="password"]', credentials.password)
-  await page.click('button[type="submit"]')
+  await gotoLogin(page)
+  await page.getByLabel(/^email$/i).fill(credentials.email)
+  await page.getByLabel(/^password$/i).fill(credentials.password)
+  await page.locator('button[type="submit"], button:has-text("Sign In")').first().click()
 
   try {
     await page.waitForURL(
@@ -755,10 +759,10 @@ export async function loginAs(page: Page, user: TestUserKey): Promise<void> {
 
   let lastErrorText: string | null = null
   for (let attempt = 0; attempt < 2; attempt += 1) {
-    await page.goto('/login')
+    await gotoLogin(page)
 
-    const emailInput = page.locator('input[type="email"], input[name="email"], #email').first()
-    const passwordInput = page.locator('input[type="password"], input[name="password"], #password').first()
+    const emailInput = page.getByLabel(/^email$/i)
+    const passwordInput = page.getByLabel(/^password$/i)
     const submitButton = page.locator('button[type="submit"], button:has-text("Sign In")').first()
 
     await emailInput.waitFor({ state: 'visible', timeout: 30000 })
