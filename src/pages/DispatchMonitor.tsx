@@ -14,10 +14,12 @@ import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
 import { AppLayout } from '@/components/features/AppLayout'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
+import { runDispatchJobsQueryWithAlarmTypeFallback } from '@/lib/dispatchJobs'
+import { summarizeDispatchParity } from '@/lib/rapidFieldParity'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { RefreshCw, Radio, AlertTriangle, Clock, CheckCircle, Zap, XCircle } from 'lucide-react'
+import { RefreshCw, Radio, AlertTriangle, Clock, CheckCircle, Zap, XCircle, Mic, Database } from 'lucide-react'
 import { toast } from 'sonner'
 import { AsyncStateWrapper } from '@/components/features/AsyncStateWrapper'
 
@@ -37,8 +39,9 @@ const ALARM_TYPE_FILTERS = [
 ]
 
 const RESPONSE_SLA_THRESHOLD_MIN = 60
+const MONITORED_RAPID_CALLSIGNS = ['587', '586', '585', '584'] as const
 
-const DISPATCH_MONITOR_SELECT = 'id, status, dispatched_at, acknowledged_at, on_scene_at, completed_at, cancelled_at, created_at, response_sla_minutes, priority'
+const DISPATCH_MONITOR_SELECT = 'id, status, alarm_type, title, address, gps_lat, gps_lng, assigned_to, client_site_id, zone_id, dispatched_at, acknowledged_at, en_route_at, on_scene_at, completed_at, cancelled_at, created_at, response_sla_minutes, priority'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -58,6 +61,47 @@ interface StatTile {
   value: number
   red?: boolean
   icon: React.FC<{ className?: string }>
+}
+
+interface DispatchParitySnapshot {
+  coveragePercent: number
+  mappedRequired: number
+  totalRequired: number
+  readyJobs: number
+  totalJobs: number
+  missingByKey: Array<{
+    key: string
+    label: string
+    count: number
+  }>
+  assistiveEnrichmentCount: number
+  speechErrorCount: number
+  monitoredCallsigns: Array<{
+    callsign: string
+    enrichmentCount: number
+    uniqueTargets: number
+    uniqueClientSites: number
+  }>
+  monitoredCoverageCount: number
+  monitoredTargetCoverage: number
+  monitoredClientSiteCoverage: number
+}
+
+function extractRapidReference(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const normalized = value.trim()
+  if (!normalized) return null
+
+  const patrolMatch = normalized.match(/\bpatrol\s*([a-z0-9-]{2,12})\b/i)
+  if (patrolMatch?.[1]) return patrolMatch[1].toUpperCase()
+
+  const callsignMatch = normalized.match(/\bcallsign\s*([a-z0-9-]{1,12})\b/i)
+  if (callsignMatch?.[1]) return callsignMatch[1].toUpperCase()
+
+  const numericMatch = normalized.match(/\b([0-9]{2,4}[a-z]?)\b/i)
+  if (numericMatch?.[1]) return numericMatch[1].toUpperCase()
+
+  return null
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -88,11 +132,13 @@ export default function DispatchMonitor() {
       const nowIso = now.toISOString()
 
       // Fetch all jobs for today onwards
-      const { data: jobs, error } = await (supabase as any)
-        .from('dispatch_jobs')
-        .select(DISPATCH_MONITOR_SELECT)
-        .eq('organization_id', orgId ?? '')
-        .gte('created_at', new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString())
+      const { data: jobs, error } = await runDispatchJobsQueryWithAlarmTypeFallback<any[]>((includeAlarmType) =>
+        (supabase as any)
+          .from('dispatch_jobs')
+          .select(includeAlarmType ? DISPATCH_MONITOR_SELECT : DISPATCH_MONITOR_SELECT.replace('alarm_type, ', ''))
+          .eq('organization_id', orgId ?? '')
+          .gte('created_at', new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString())
+      )
 
       if (error) throw error
 
@@ -124,6 +170,123 @@ export default function DispatchMonitor() {
         not_acknowledged: notAcknowledged.length,
         over_response_time: overResponseTime.length,
         ready_to_close: readyToClose.length,
+      }
+    },
+    enabled: !!orgId,
+  })
+
+  const { data: paritySnapshot, isLoading: parityLoading } = useQuery<DispatchParitySnapshot>({
+    queryKey: ['dispatch-monitor-parity', orgId, tick],
+    queryFn: async () => {
+      const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+      const { data: jobs, error } = await runDispatchJobsQueryWithAlarmTypeFallback<any[]>((includeAlarmType) =>
+        (supabase as any)
+          .from('dispatch_jobs')
+          .select(includeAlarmType ? DISPATCH_MONITOR_SELECT : DISPATCH_MONITOR_SELECT.replace('alarm_type, ', ''))
+          .eq('organization_id', orgId ?? '')
+          .in('status', ['pending', 'dispatched', 'acknowledged', 'en_route', 'on_scene', 'completed'])
+          .gte('created_at', since)
+      )
+
+      if (error) throw error
+
+      const parity = summarizeDispatchParity((jobs ?? []) as any[])
+
+      const assistiveEnrichmentQuery = (supabase
+        .from('audit_log')
+        .select('id', { count: 'exact', head: true }) as any)
+        .eq('action', 'speech_activity_enriched')
+        .eq('organization_id', orgId ?? '')
+        .gte('created_at', since)
+
+      const speechErrorsQuery = (supabase as any)
+        .from('speech_audit_events')
+        .select('id', { count: 'exact', head: true })
+        .eq('org_id', orgId ?? '')
+        .not('error_message', 'is', null)
+        .gte('created_at', since)
+
+      const monitoredEnrichmentRowsQuery = (supabase as any)
+        .from('audit_log')
+        .select('new_values')
+        .eq('action', 'speech_activity_enriched')
+        .eq('organization_id', orgId ?? '')
+        .gte('created_at', since)
+
+      const [{ count: assistiveEnrichmentCount }, speechErrorsResult, monitoredEnrichmentRowsResult] = await Promise.all([
+        assistiveEnrichmentQuery,
+        speechErrorsQuery.catch(() => ({ count: 0 })),
+        monitoredEnrichmentRowsQuery.catch(() => ({ data: [] })),
+      ])
+
+      const monitoredMap = new Map(
+        MONITORED_RAPID_CALLSIGNS.map((callsign) => [
+          callsign,
+          {
+            callsign,
+            enrichmentCount: 0,
+            targetKeys: new Set<string>(),
+            clientSiteKeys: new Set<string>(),
+          },
+        ]),
+      )
+
+      const monitoredRows = Array.isArray(monitoredEnrichmentRowsResult?.data)
+        ? monitoredEnrichmentRowsResult.data
+        : []
+      for (const row of monitoredRows as any[]) {
+        const values = row?.new_values && typeof row.new_values === 'object'
+          ? row.new_values
+          : null
+        if (!values) continue
+
+        const directReference = typeof values.rapid_reference === 'string'
+          ? values.rapid_reference
+          : null
+        const fallbackLabelReference = extractRapidReference(values.target_label)
+        const normalizedReference = (directReference ?? fallbackLabelReference ?? '').toUpperCase()
+
+        const bucket = monitoredMap.get(normalizedReference)
+        if (!bucket) continue
+
+        bucket.enrichmentCount += 1
+
+        const targetKind = typeof values.target_kind === 'string' ? values.target_kind : null
+        const targetId = typeof values.target_id === 'string' ? values.target_id : null
+        if (targetKind && targetId) {
+          bucket.targetKeys.add(`${targetKind}:${targetId}`)
+        } else {
+          const dispatchJobId = typeof values.dispatch_job_id === 'string' ? values.dispatch_job_id : null
+          const patrolRouteInstanceId = typeof values.patrol_route_instance_id === 'string' ? values.patrol_route_instance_id : null
+          const fallbackTarget = dispatchJobId ? `dispatch:${dispatchJobId}` : patrolRouteInstanceId ? `patrol:${patrolRouteInstanceId}` : null
+          if (fallbackTarget) bucket.targetKeys.add(fallbackTarget)
+        }
+
+        const clientSiteId = typeof values.client_site_id === 'string' ? values.client_site_id : null
+        if (clientSiteId) {
+          bucket.clientSiteKeys.add(clientSiteId)
+        }
+      }
+
+      const monitoredCallsigns = [...monitoredMap.values()].map((entry) => ({
+        callsign: entry.callsign,
+        enrichmentCount: entry.enrichmentCount,
+        uniqueTargets: entry.targetKeys.size,
+        uniqueClientSites: entry.clientSiteKeys.size,
+      }))
+
+      const monitoredCoverageCount = monitoredCallsigns.filter((entry) => entry.enrichmentCount > 0).length
+      const monitoredTargetCoverage = monitoredCallsigns.reduce((sum, entry) => sum + entry.uniqueTargets, 0)
+      const monitoredClientSiteCoverage = monitoredCallsigns.reduce((sum, entry) => sum + entry.uniqueClientSites, 0)
+
+      return {
+        ...parity,
+        assistiveEnrichmentCount: assistiveEnrichmentCount ?? 0,
+        speechErrorCount: speechErrorsResult.count ?? 0,
+        monitoredCallsigns,
+        monitoredCoverageCount,
+        monitoredTargetCoverage,
+        monitoredClientSiteCoverage,
       }
     },
     enabled: !!orgId,
@@ -170,6 +333,96 @@ export default function DispatchMonitor() {
           <Button size="sm" variant="outline" onClick={handleManualRefresh} className="gap-1.5">
             <RefreshCw className="h-3.5 w-3.5" /> Refresh
           </Button>
+        </div>
+
+        <div className="grid grid-cols-1 xl:grid-cols-4 gap-4">
+          <Card className="border-blue-200 dark:border-blue-900">
+            <CardContent className="p-4 space-y-2">
+              <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                <Database className="h-4 w-4 text-blue-600" />
+                Rapid parity readiness
+              </div>
+              <AsyncStateWrapper isLoading={parityLoading} loadingText="Measuring parity coverage…">
+                <div className="space-y-1">
+                  <p className="text-3xl font-bold text-blue-700 dark:text-blue-300">
+                    {paritySnapshot?.coveragePercent ?? 0}%
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {paritySnapshot?.mappedRequired ?? 0}/{paritySnapshot?.totalRequired ?? 0} required canonical fields mapped across recent dispatch jobs
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {paritySnapshot?.readyJobs ?? 0}/{paritySnapshot?.totalJobs ?? 0} jobs currently parity-ready
+                  </p>
+                </div>
+              </AsyncStateWrapper>
+            </CardContent>
+          </Card>
+
+          <Card className="border-emerald-200 dark:border-emerald-900">
+            <CardContent className="p-4 space-y-2">
+              <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                <Mic className="h-4 w-4 text-emerald-600" />
+                Assistive enrichment
+              </div>
+              <AsyncStateWrapper isLoading={parityLoading} loadingText="Loading enrichment health…">
+                <p className="text-3xl font-bold text-emerald-700 dark:text-emerald-300">
+                  {paritySnapshot?.assistiveEnrichmentCount ?? 0}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Officer speech enrichments attached in the last 24 hours
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Speech audit errors in window: {paritySnapshot?.speechErrorCount ?? 0}
+                </p>
+              </AsyncStateWrapper>
+            </CardContent>
+          </Card>
+
+          <Card className="border-amber-200 dark:border-amber-900">
+            <CardContent className="p-4 space-y-2">
+              <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                <AlertTriangle className="h-4 w-4 text-amber-600" />
+                Nelson callsign baseline
+              </div>
+              <AsyncStateWrapper isLoading={parityLoading} loadingText="Loading gap hotspots…">
+                <div className="space-y-2">
+                  <p className="text-xs text-muted-foreground">
+                    Monitored callsigns active: {paritySnapshot?.monitoredCoverageCount ?? 0}/{MONITORED_RAPID_CALLSIGNS.length}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Target coverage: {paritySnapshot?.monitoredTargetCoverage ?? 0} routes/jobs · Client/site coverage: {paritySnapshot?.monitoredClientSiteCoverage ?? 0}
+                  </p>
+                  {(paritySnapshot?.monitoredCallsigns.length ?? 0) > 0 ? (
+                    paritySnapshot?.monitoredCallsigns.map((entry) => (
+                      <div key={entry.callsign} className="flex items-center justify-between gap-3 rounded-lg bg-amber-50 dark:bg-amber-950/20 px-3 py-2 text-xs">
+                        <span className="font-medium text-amber-900 dark:text-amber-100">
+                          {entry.callsign} · {entry.uniqueTargets} targets · {entry.uniqueClientSites} sites
+                        </span>
+                        <Badge variant="outline" className="border-amber-300 text-amber-700 dark:text-amber-300">
+                          {entry.enrichmentCount}
+                        </Badge>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-xs text-muted-foreground">No monitored callsign activity detected in the last 24 hours.</p>
+                  )}
+                  {(paritySnapshot?.missingByKey.length ?? 0) > 0 && (
+                    <>
+                      <p className="pt-1 text-xs font-semibold text-amber-800 dark:text-amber-200">Top parity gaps</p>
+                      {paritySnapshot?.missingByKey.slice(0, 2).map((gap) => (
+                        <div key={gap.key} className="flex items-center justify-between gap-3 rounded-lg bg-white/80 dark:bg-slate-900/40 px-3 py-2 text-xs">
+                          <span className="font-medium text-foreground">{gap.label}</span>
+                          <Badge variant="outline" className="border-amber-300 text-amber-700 dark:text-amber-300">
+                            {gap.count}
+                          </Badge>
+                        </div>
+                      ))}
+                    </>
+                  )}
+                </div>
+              </AsyncStateWrapper>
+            </CardContent>
+          </Card>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">

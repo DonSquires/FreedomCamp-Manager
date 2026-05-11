@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
@@ -36,6 +36,7 @@ import {
   useUpdatePatrolRouteStopStatus,
 } from '@/hooks/usePatrolRouteInstances'
 import { useDispatchCompletion } from '@/hooks/useDispatchCompletion'
+import { useSpeechIntent, type SpeechIntentResult } from '@/hooks/useSpeechIntent'
 import { GeofenceWarningBanner } from '@/components/features/GeofenceWarningBanner'
 import { reverseGeocode } from '@/lib/geocoding'
 import { useThemePreferencesStore } from '@/stores/themePreferencesStore'
@@ -44,7 +45,7 @@ import {
   ShieldAlert, CheckCircle, Shield, Megaphone, FileWarning, XCircle,
   Clock, Home, X, Car, Zap, Search, Printer, PlusCircle, Wrench, Heart, Users,
   Moon, Sun, ParkingSquare, Volume2, Video, Eye, Tent, Timer,
-  ScanFace, CalendarPlus, Siren, Bell, PhoneCall, Lock, Leaf, Wind, Loader2,
+  ScanFace, CalendarPlus, Siren, Bell, PhoneCall, Lock, Leaf, Wind, Loader2, Mic,
 } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { Badge } from '@/components/ui/badge'
@@ -95,6 +96,23 @@ const CAPTURE_TOAST_DURATION_MS = 5000
 
 /** Service types an officer can select — determines which tools are shown. */
 type ServiceType = 'freedom_camping' | 'guarding' | 'parking' | 'noise' | 'biosecurity_inspection' | 'smoke_complaint_ooh'
+
+type AssignedDispatchJob = Pick<
+  Database['public']['Tables']['dispatch_jobs']['Row'],
+  | 'id'
+  | 'job_number'
+  | 'job_type'
+  | 'priority'
+  | 'status'
+  | 'title'
+  | 'address'
+  | 'description'
+  | 'caller_phone'
+  | 'client_site_id'
+  | 'response_sla_minutes'
+  | 'dispatched_at'
+  | 'created_at'
+>
 
 const SERVICE_TYPE_CONFIG: Record<ServiceType, {
   label: string
@@ -162,6 +180,23 @@ function formatShiftDuration(startedAt: string): string {
   const mins = totalMins % 60
   if (hrs > 0) return `${hrs}h ${mins}m`
   return `${mins}m`
+}
+
+function extractRapidReference(value: string | null | undefined): string | null {
+  if (!value) return null
+  const normalized = value.trim()
+  if (!normalized) return null
+
+  const patrolMatch = normalized.match(/\bpatrol\s*([a-z0-9-]{2,12})\b/i)
+  if (patrolMatch?.[1]) return patrolMatch[1].toUpperCase()
+
+  const callsignMatch = normalized.match(/\bcallsign\s*([a-z0-9-]{1,12})\b/i)
+  if (callsignMatch?.[1]) return callsignMatch[1].toUpperCase()
+
+  const numericMatch = normalized.match(/\b([0-9]{2,4}[a-z]?)\b/i)
+  if (numericMatch?.[1]) return numericMatch[1].toUpperCase()
+
+  return null
 }
 
 async function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
@@ -469,13 +504,13 @@ export default function FieldOfficerPortal() {
 
   // ── Dispatched jobs assigned to this officer (GDS CATS job queue) ──────────
   const qcHook = useQueryClient()
-  const { data: myDispatchJobs = [] } = useQuery({
+  const { data: myDispatchJobs = [] } = useQuery<AssignedDispatchJob[]>({
     queryKey: ['my-dispatch-jobs', user?.id],
     queryFn: async () => {
       if (!user?.id) return []
       const { data } = await (supabase as any)
         .from('dispatch_jobs')
-        .select('id, job_number, job_type, priority, status, title, address, description, caller_phone, response_sla_minutes, dispatched_at, created_at')
+        .select('id, job_number, job_type, priority, status, title, address, description, caller_phone, client_site_id, response_sla_minutes, dispatched_at, created_at')
         .eq('assigned_to', user.id)
         .in('status', ['dispatched', 'acknowledged', 'en_route', 'on_scene'])
         .order('priority', { ascending: false })
@@ -694,6 +729,114 @@ export default function FieldOfficerPortal() {
 
   const [isStartingShift, setIsStartingShift] = useState(false)
   const [isEndingShift,   setIsEndingShift]   = useState(false)
+
+  const primaryDispatchJob = myDispatchJobs[0] ?? null
+  const speechActivityTarget = useMemo(() => {
+    if (primaryDispatchJob) {
+      const dispatchReference = primaryDispatchJob.job_number
+        ? String(primaryDispatchJob.job_number)
+        : extractRapidReference(primaryDispatchJob.title ?? null)
+
+      return {
+        kind: 'dispatch' as const,
+        id: primaryDispatchJob.id as string,
+        label: `${dispatchReference ? `Dispatch ${dispatchReference}` : 'Dispatch'} · ${primaryDispatchJob.title ?? 'Untitled job'}`,
+        rapidReference: dispatchReference,
+      }
+    }
+
+    if (activeRouteInstance) {
+      const routeLabel = String(activeRouteInstance.patrol_route_name ?? 'Active patrol route')
+      return {
+        kind: 'patrol' as const,
+        id: activeRouteInstance.id as string,
+        label: routeLabel,
+        rapidReference: extractRapidReference(routeLabel),
+      }
+    }
+
+    return null
+  }, [activeRouteInstance, primaryDispatchJob])
+
+  const handleSpeechIntentResult = useCallback(async (speechResult: SpeechIntentResult) => {
+    if (!user?.id || !user.organization_id) return
+
+    const auditPayload: Database['public']['Tables']['audit_log']['Insert'] = {
+      organization_id: user.organization_id,
+      action: 'speech_activity_enriched',
+      entity_type: speechActivityTarget?.kind === 'dispatch' ? 'dispatch_job' : 'patrol_route_instance',
+      entity_id: speechActivityTarget?.id ?? activeShift?.id ?? user.id,
+      performed_by: user.id,
+      new_values: {
+        source: 'assistive',
+        authoritative_target: speechActivityTarget?.kind === 'dispatch' ? 'dispatch_job' : 'patrol_route_instance',
+        target_kind: speechActivityTarget?.kind ?? null,
+        target_id: speechActivityTarget?.id ?? null,
+        target_label: speechActivityTarget?.label ?? 'Field session',
+        rapid_reference: speechActivityTarget?.rapidReference ?? null,
+        transcript: speechResult.transcript,
+        summary: speechResult.intent.summary,
+        intent: speechResult.intent.intent,
+        confidence: speechResult.intent.confidence,
+        needs_confirmation: speechResult.intent.needs_confirmation,
+        entities: speechResult.intent.entities,
+        dispatch_job_id: primaryDispatchJob?.id ?? null,
+        client_site_id: primaryDispatchJob?.client_site_id ?? null,
+        patrol_route_instance_id: activeRouteInstance?.id ?? null,
+        shift_id: activeShift?.id ?? null,
+        zone_id: effectivePatrolZone ?? manualZoneId ?? null,
+        active_service: activeService ?? null,
+        captured_at: new Date().toISOString(),
+      } as Database['public']['Tables']['audit_log']['Insert']['new_values'],
+    }
+
+    const { error } = await supabase.from('audit_log').insert(auditPayload)
+
+    if (error) {
+      toast.error(error.message || 'Failed to attach speech activity')
+      return
+    }
+
+    queryClient.invalidateQueries({ queryKey: ['dispatch-monitor-parity'] })
+    setQuickReportStatusKind('success')
+    setQuickReportStatusText(`Speech activity attached to ${speechActivityTarget?.label ?? 'field session'}`)
+    toast.success('Officer activity enriched from speech capture')
+  }, [
+    activeRouteInstance?.id,
+    activeService,
+    activeShift?.id,
+    effectivePatrolZone,
+    manualZoneId,
+    primaryDispatchJob?.id,
+    queryClient,
+    speechActivityTarget,
+    user,
+  ])
+
+  const speechIntent = useSpeechIntent({
+    orgId: user?.organization_id ?? null,
+    context: speechActivityTarget
+      ? {
+          source: 'rapid-activity-listener',
+          target_kind: speechActivityTarget.kind,
+          target_id: speechActivityTarget.id,
+          target_label: speechActivityTarget.label,
+          rapid_reference: speechActivityTarget.rapidReference,
+          dispatch_job_id: primaryDispatchJob?.id ?? null,
+          client_site_id: primaryDispatchJob?.client_site_id ?? null,
+          patrol_route_instance_id: activeRouteInstance?.id ?? null,
+          shift_id: activeShift?.id ?? null,
+          zone_id: effectivePatrolZone ?? manualZoneId ?? null,
+          active_service: activeService ?? null,
+        }
+      : undefined,
+    maxDurationMs: 12000,
+    onResult: handleSpeechIntentResult,
+    onError: (message) => {
+      setQuickReportStatusKind('error')
+      setQuickReportStatusText(message)
+    },
+  })
 
   const handleStartShift = useCallback(async () => {
     // Service-provider members can choose a client jurisdiction to work in.
@@ -2348,6 +2491,112 @@ export default function FieldOfficerPortal() {
                   </CardContent>
                 </Card>
               </div>
+            )}
+
+            {(speechActivityTarget || speechIntent.result || speechIntent.error) && (
+              <Card className="mb-6 border-blue-200 dark:border-blue-900/60 bg-blue-50/60 dark:bg-blue-950/20">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <Mic className="h-4 w-4 text-blue-600" />
+                    Officer Activity Capture
+                  </CardTitle>
+                  <CardDescription>
+                    Voice-driven activity capture enriches the active dispatch or patrol context without overwriting authoritative lifecycle data.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex flex-wrap items-center gap-2 text-xs">
+                    <Badge variant="outline" className="border-blue-300 text-blue-700 dark:text-blue-300">
+                      Assistive enrichment
+                    </Badge>
+                    {speechActivityTarget && (
+                      <Badge variant="outline" className="border-emerald-300 text-emerald-700 dark:text-emerald-300">
+                        Target: {speechActivityTarget.label}
+                      </Badge>
+                    )}
+                    {speechActivityTarget?.rapidReference && (
+                      <Badge variant="outline" className="border-sky-300 text-sky-700 dark:text-sky-300">
+                        Rapid ref: {speechActivityTarget.rapidReference}
+                      </Badge>
+                    )}
+                    <Badge variant="outline" className="capitalize">
+                      {speechIntent.state.replace(/_/g, ' ')}
+                    </Badge>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        if (speechIntent.state === 'listening') {
+                          speechIntent.stopListening()
+                          return
+                        }
+                        speechIntent.reset()
+                        void speechIntent.startListening()
+                      }}
+                      disabled={!speechActivityTarget || speechIntent.state === 'processing'}
+                    >
+                      {speechIntent.state === 'processing' ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+                          Processing…
+                        </>
+                      ) : speechIntent.state === 'listening' ? (
+                        <>
+                          <Mic className="h-4 w-4 mr-1.5" />
+                          Stop capture
+                        </>
+                      ) : (
+                        <>
+                          <Mic className="h-4 w-4 mr-1.5" />
+                          Record activity
+                        </>
+                      )}
+                    </Button>
+
+                    {(speechIntent.result || speechIntent.error) && (
+                      <Button size="sm" variant="outline" onClick={speechIntent.reset}>
+                        Clear
+                      </Button>
+                    )}
+                  </div>
+
+                  {!speechActivityTarget && (
+                    <p className="text-xs text-muted-foreground">
+                      Start a patrol route or take a dispatch job to attach speech enrichment to an active operational record.
+                    </p>
+                  )}
+
+                  {speechIntent.error && (
+                    <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-300">
+                      {speechIntent.error}
+                    </div>
+                  )}
+
+                  {speechIntent.result && (
+                    <div className="rounded-lg border border-blue-200 bg-white/80 dark:border-blue-900 dark:bg-slate-950/40 p-3 space-y-2">
+                      <div className="flex flex-wrap items-center gap-2 text-xs">
+                        <Badge variant="outline">{speechIntent.result.intent.intent}</Badge>
+                        <Badge variant="outline">
+                          {Math.round(speechIntent.result.intent.confidence * 100)}% confidence
+                        </Badge>
+                        {speechIntent.result.intent.needs_confirmation && (
+                          <Badge variant="outline" className="border-amber-300 text-amber-700 dark:text-amber-300">
+                            Needs confirmation
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="text-sm font-medium text-foreground">
+                        {speechIntent.result.intent.summary || 'No summary returned'}
+                      </p>
+                      <p className="text-xs text-muted-foreground whitespace-pre-wrap">
+                        {speechIntent.result.transcript}
+                      </p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
             )}
 
             {/* ── Dispatched Job Queue (GDS CATS-style) ──────────────── */}
