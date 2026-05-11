@@ -153,14 +153,14 @@ function nowIso() {
   return new Date().toISOString()
 }
 
-function mkSummaryReport({ reporterUser, source, title, description, severity = 'low', issueType = 'bug' }) {
+function mkSummaryReport({ reporterUser, source, title, description, severity = 'low', issueType = 'bug', currentPage = '/bug-reports-log' }) {
   return {
     title,
     description,
     severity,
     issue_type: issueType,
     status: 'submitted',
-    current_page: '/bug-reports-log',
+    current_page: currentPage,
     app_version: `ops-${source}`,
     auto_reported: true,
     admin_notified: false,
@@ -171,6 +171,28 @@ function mkSummaryReport({ reporterUser, source, title, description, severity = 
     user_id: reporterUser,
     user_role: 'master',
   }
+}
+
+/**
+ * Derives the most relevant page URL from an emulator report.
+ * Prefers the last `goto` action URL before a failure, falling back to the
+ * first `goto` action URL, and finally to `/bug-reports-log`.
+ */
+function deriveCurrentPage(report) {
+  const actions = Array.isArray(report?.actions) ? report.actions : []
+  let lastGotoUrl = null
+  for (const entry of actions) {
+    const actionUrl = entry?.action?.url
+    if (entry?.action?.type === 'goto' && actionUrl) {
+      lastGotoUrl = actionUrl
+    }
+  }
+  if (lastGotoUrl) return lastGotoUrl
+  // Fall back to parsing the goal string for a URL-like path
+  const goal = String(report?.goal || '')
+  const match = goal.match(/\/([\w/-]+)/)
+  if (match) return match[0]
+  return '/bug-reports-log'
 }
 
 async function main() {
@@ -268,7 +290,10 @@ async function main() {
 
       const pack = String(report.pack || report.goal || path.basename(path.dirname(filePath)))
       const result = String(report.result || 'unknown')
+      // blocked_auth means the emulator lacked credentials — an infra issue, not a UI bug.
       const level = result === 'completed' ? 'low' : result === 'blocked_auth' ? 'medium' : 'high'
+      const issueType = result === 'completed' ? 'enhancement' : result === 'blocked_auth' ? 'infra' : 'ui_ux'
+      const currentPage = deriveCurrentPage(report)
 
       payloads.push(mkSummaryReport({
         reporterUser,
@@ -285,7 +310,8 @@ async function main() {
           `Findings: ${JSON.stringify(report.compliance_findings || []).slice(0, 2000)}`,
         ].join('\n'),
         severity: level,
-        issueType: result === 'completed' ? 'enhancement' : 'ui_ux',
+        issueType,
+        currentPage,
       }))
     }
   } else {

@@ -93,6 +93,7 @@ const testPacks = [
   { name: 'login-health', desc: 'Login health check' },
   { name: 'tender-shadow', desc: 'Tender compliance submission' },
   { name: 'ptt-zindex', desc: 'PTT control visibility and z-index' },
+  { name: 'dispatch', desc: 'Dispatch dashboard and jobs navigation' },
 ]
 
 function parseArgs() {

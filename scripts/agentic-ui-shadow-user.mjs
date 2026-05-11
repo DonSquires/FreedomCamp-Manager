@@ -96,7 +96,7 @@ Usage:
 
 Options:
   --goal <text>              Human test objective (required)
-  --pack <name>              Built-in pack: login-health | tender-shadow | ptt-zindex
+  --pack <name>              Built-in pack: login-health | tender-shadow | ptt-zindex | crm-business-crossover | client-portal-isolation | dispatch
   --base-url <url>           App base URL (default: PLAYWRIGHT_BASE_URL or http://localhost:5173)
   --email <email>            Login email (fallback from Playwright env vars)
   --password <password>      Login password (fallback from Playwright env vars)
@@ -235,6 +235,19 @@ function buildPackPlan(pack) {
       { type: 'expectVisibleAny', value: 'text=/Access Restricted|Forbidden|Unauthorized|Login|Not Found|Portal Selection|Choose Portal|FieldOps Manager|Client Portal/i', note: 'Verify admin is blocked or redirected away for client-viewer role' },
       { type: 'axeCheck', note: 'Quick a11y scan' },
       { type: 'done', note: 'Client portal isolation pack complete' },
+    ]
+  }
+
+  if (pack === 'dispatch') {
+    return [
+      ...baseLogin,
+      { type: 'ensurePortalSelectionResolved', url: '/dispatch', note: 'Bypass portal selection before dispatch check' },
+      { type: 'goto', url: '/dispatch', note: 'Open dispatch dashboard' },
+      { type: 'expectVisibleAny', value: 'text=/Dispatch|Jobs|Active Jobs|Pending|No jobs|Portal Selection|Choose Portal|Admin Portal|FieldOps Manager/i', note: 'Verify dispatch dashboard or valid fallback state is visible' },
+      { type: 'goto', url: '/dispatch-jobs', note: 'Navigate to dispatch jobs log' },
+      { type: 'expectVisibleAny', value: 'text=/Dispatch|Jobs|No jobs|Portal Selection|Choose Portal|Admin Portal|FieldOps Manager/i', note: 'Verify dispatch jobs list or valid fallback state' },
+      { type: 'axeCheck', note: 'Quick a11y scan on dispatch pages' },
+      { type: 'done', note: 'Dispatch pack complete' },
     ]
   }
 
