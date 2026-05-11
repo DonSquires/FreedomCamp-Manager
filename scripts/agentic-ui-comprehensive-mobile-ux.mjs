@@ -190,6 +190,11 @@ function run(cmd, opts = {}) {
   }
 }
 
+/**
+ * Converts an app route path to a filesystem-safe directory slug.
+ * Removes leading slashes, normalizes non-word characters to dashes,
+ * trims edge dashes, and falls back to "root" if empty.
+ */
 function createPageSlug(page) {
   return page.replace(/^\/+/, '').replace(/[^\w-]+/g, '-').replace(/^-+|-+$/g, '') || 'root'
 }

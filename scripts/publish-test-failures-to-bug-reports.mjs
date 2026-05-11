@@ -173,6 +173,11 @@ function mkSummaryReport({ reporterUser, source, title, description, severity = 
   }
 }
 
+/**
+ * Extracts the most relevant page path from emulator report data.
+ * Strategy: reverse-scan actions for the latest `goto` URL, then fall back
+ * to route-like text in goal metadata, then default to `/bug-reports-log`.
+ */
 function extractCurrentPageFromReport(report) {
   const actions = Array.isArray(report?.actions) ? report.actions : []
   for (let i = actions.length - 1; i >= 0; i -= 1) {
@@ -192,6 +197,14 @@ function extractCurrentPageFromReport(report) {
   const goal = String(report?.goal || report?.config?.goal || '').trim()
   const match = goal.match(/(\/[a-z0-9/_-]+)/i)
   return match?.[1] || '/bug-reports-log'
+}
+
+function hasConnectionRefusedError(report) {
+  const actions = Array.isArray(report?.actions) ? report.actions : []
+  return actions.some((step) => {
+    const message = String(step?.execution?.error || '')
+    return message.includes('ERR_CONNECTION_REFUSED') || message.includes('ECONNREFUSED')
+  })
 }
 
 async function main() {
@@ -287,8 +300,7 @@ async function main() {
       const report = await readJson(filePath).catch(() => null)
       if (!report) continue
 
-      const firstActionError = String(report.actions?.[0]?.execution?.error || '')
-      if (firstActionError.includes('ERR_CONNECTION_REFUSED') || firstActionError.includes('ECONNREFUSED')) {
+      if (hasConnectionRefusedError(report)) {
         continue
       }
 
