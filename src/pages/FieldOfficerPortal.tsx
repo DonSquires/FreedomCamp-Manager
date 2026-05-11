@@ -108,6 +108,7 @@ type AssignedDispatchJob = Pick<
   | 'address'
   | 'description'
   | 'caller_phone'
+  | 'client_site_id'
   | 'response_sla_minutes'
   | 'dispatched_at'
   | 'created_at'
@@ -509,7 +510,7 @@ export default function FieldOfficerPortal() {
       if (!user?.id) return []
       const { data } = await (supabase as any)
         .from('dispatch_jobs')
-        .select('id, job_number, job_type, priority, status, title, address, description, caller_phone, response_sla_minutes, dispatched_at, created_at')
+        .select('id, job_number, job_type, priority, status, title, address, description, caller_phone, client_site_id, response_sla_minutes, dispatched_at, created_at')
         .eq('assigned_to', user.id)
         .in('status', ['dispatched', 'acknowledged', 'en_route', 'on_scene'])
         .order('priority', { ascending: false })
@@ -769,6 +770,8 @@ export default function FieldOfficerPortal() {
       new_values: {
         source: 'assistive',
         authoritative_target: speechActivityTarget?.kind === 'dispatch' ? 'dispatch_job' : 'patrol_route_instance',
+        target_kind: speechActivityTarget?.kind ?? null,
+        target_id: speechActivityTarget?.id ?? null,
         target_label: speechActivityTarget?.label ?? 'Field session',
         rapid_reference: speechActivityTarget?.rapidReference ?? null,
         transcript: speechResult.transcript,
@@ -778,6 +781,7 @@ export default function FieldOfficerPortal() {
         needs_confirmation: speechResult.intent.needs_confirmation,
         entities: speechResult.intent.entities,
         dispatch_job_id: primaryDispatchJob?.id ?? null,
+        client_site_id: primaryDispatchJob?.client_site_id ?? null,
         patrol_route_instance_id: activeRouteInstance?.id ?? null,
         shift_id: activeShift?.id ?? null,
         zone_id: effectivePatrolZone ?? manualZoneId ?? null,
@@ -819,6 +823,7 @@ export default function FieldOfficerPortal() {
           target_label: speechActivityTarget.label,
           rapid_reference: speechActivityTarget.rapidReference,
           dispatch_job_id: primaryDispatchJob?.id ?? null,
+          client_site_id: primaryDispatchJob?.client_site_id ?? null,
           patrol_route_instance_id: activeRouteInstance?.id ?? null,
           shift_id: activeShift?.id ?? null,
           zone_id: effectivePatrolZone ?? manualZoneId ?? null,
