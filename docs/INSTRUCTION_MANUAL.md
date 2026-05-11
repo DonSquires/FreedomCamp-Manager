@@ -6,7 +6,7 @@
 
 > **Living document** — this manual is updated automatically when source files change.  
 > See [`.github/workflows/docs-update-instruction-manual.yml`](../.github/workflows/docs-update-instruction-manual.yml) for the update trigger rules.  
-> Last reviewed: 2026-05-04
+> Last reviewed: 2026-05-11
 
 ---
 
@@ -1596,6 +1596,21 @@ Vehicles flagged for follow-up from previous shifts appear in the **Follow-Up Qu
 2. Fill in type, description, severity, and optionally attach a photo or GPS pin.
 3. Incidents are immediately visible to supervisors in the admin portal.
 
+#### Mobile background alerts (on-shift safety requirement)
+
+When the officer app is in the background (another app open) or the device screen is off, welfare and operational push notifications are still expected to arrive.
+
+- Welfare reminders and welfare escalation alerts are delivered through the unified push service.
+- Officers must keep notification permission enabled on their device.
+- Logging out of operational workflows does **not** disable notification standby mode; the app can still receive welfare pushes.
+- The login screen shows a standby notice when notifications remain active but patrol tools are signed out.
+
+Expected user experience:
+1. Officer starts a shift and keeps device in pocket / switches apps.
+2. Welfare due/overdue/escalation push appears with audible/vibration alert (subject to device settings).
+3. Officer opens the app from the notification and checks in immediately.
+4. If no response occurs, supervisor escalation flow continues as configured.
+
 ---
 
 ### 5.2 Site Guard Officer
@@ -2550,6 +2565,7 @@ The `proxy-server/` is deployed to Railway. The Railway project's **Root Directo
 | Scan returns Unknown | ALPR could not read plate, or plate not in NZSCV | Enter plate manually; use VOI Lookup for history |
 | No zones in zone selector | Officer not linked to correct organisation | Update `organization_id` or `authorized_work_locations` in User Management |
 | PTT not connecting | PTT server offline or channel not configured | Check `/diagnostics` → PTT health; verify `ptt_channel_access` on user profile |
+| Officer missed welfare push while app was backgrounded | Device notification permission disabled, OS battery restriction, or invalid push token | Confirm notifications are enabled, disable aggressive battery optimization for FieldOps app, and verify `user_profiles.push_token` is present for the officer |
 | Compliance score stale after data import | Recalculation not yet run | Run `/compliance-recalculation` for the relevant date range and organisation |
 | Edge Function CORS error | Missing OPTIONS handler or corsHeaders | Check function follows `_shared/cors.ts` pattern |
 | `get_user_organization_ids()` returns empty | User profile has no `organization_id` set | Update user profile in User Management |

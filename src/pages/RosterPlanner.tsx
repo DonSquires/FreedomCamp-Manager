@@ -8,6 +8,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { useClientOrgIds } from '@/hooks/useClientOrgIds'
+import { parseDeputyImportText, type DeputyImportParseResult, type DeputyParsedRow } from '@/lib/deputyImport'
 import { AppLayout } from '@/components/features/AppLayout'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
 import { ListCardRow } from '@/components/features/ListCardRow'
@@ -51,6 +52,7 @@ import {
   AlertTriangle,
   Download,
   Send,
+  Upload,
   Calendar,
   Users,
   Clock,
@@ -117,6 +119,10 @@ interface RosterShift {
   created_by: string | null
   created_at: string
   updated_at: string
+  schedule_warning?: string | null
+  pay_period_name?: string | null
+  deputy_schedule_id?: string | null
+  deputy_imported_at?: string | null
 }
 
 interface Officer {
@@ -128,11 +134,14 @@ interface Officer {
   is_active: boolean
   employer_organization_id: string | null
   contractor_org: { id: string; name: string; organization_type: string } | null
+  deputy_employee_id?: string | null
+  deputy_display_name?: string | null
 }
 
 interface ClientSite {
   id: string
   name: string
+  site_code?: string | null
   default_pay_rate: number | null
   default_charge_rate: number | null
 }
@@ -158,6 +167,16 @@ interface OfficerAvailability {
   specific_date: string | null
   is_available: boolean
   unavailability_reason: string | null
+}
+
+interface LeaveRequest {
+  id: string
+  officer_id: string | null
+  leave_type_name: string
+  status: 'pending' | 'approved' | 'rejected' | 'cancelled'
+  date_start: string
+  date_end: string
+  total_hours: number | null
 }
 
 interface ShiftFormData {
@@ -302,6 +321,12 @@ function ShiftCard({ shift, siteName, zoneName, onClick }: ShiftCardProps) {
         left={<span className="truncate text-gray-600 leading-tight">{label}</span>}
         right={<span className={`rounded px-1 py-0 text-[10px] ${style.badge}`}>{style.label}</span>}
       />
+      {shift.schedule_warning && (
+        <div className="mt-1 inline-flex max-w-full items-center gap-1 rounded bg-amber-100 px-1 py-0.5 text-[10px] text-amber-800">
+          <AlertTriangle className="h-3 w-3 shrink-0" />
+          <span className="truncate">{shift.schedule_warning}</span>
+        </div>
+      )}
     </button>
   )
 }
@@ -358,7 +383,8 @@ function useConflicts(
   shiftDate: string,
   excludeShiftId: string | null,
   allShifts: RosterShift[],
-  availability: OfficerAvailability[]
+  availability: OfficerAvailability[],
+  leaveRequests: LeaveRequest[]
 ): string[] {
   return useMemo(() => {
     const warnings: string[] = []
@@ -395,8 +421,19 @@ function useConflicts(
       // ignore date parse errors
     }
 
+    const activeLeave = leaveRequests.find(
+      (leave) =>
+        leave.officer_id === officerId &&
+        !['rejected', 'cancelled'].includes(leave.status) &&
+        leave.date_start <= shiftDate &&
+        leave.date_end >= shiftDate
+    )
+    if (activeLeave) {
+      warnings.push(`Officer has ${activeLeave.status === 'pending' ? 'pending' : 'approved'} leave: ${activeLeave.leave_type_name}`)
+    }
+
     return warnings
-  }, [officerId, shiftDate, excludeShiftId, allShifts, availability])
+  }, [officerId, shiftDate, excludeShiftId, allShifts, availability, leaveRequests])
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -415,6 +452,7 @@ interface ShiftDialogProps {
   patrolRoutes: PatrolRoute[]
   allShifts: RosterShift[]
   availability: OfficerAvailability[]
+  leaveRequests: LeaveRequest[]
   isAdmin: boolean
   onSave: (data: ShiftFormData) => void
   onDelete: (id: string) => void
@@ -434,6 +472,7 @@ function ShiftDialog({
   patrolRoutes,
   allShifts,
   availability,
+  leaveRequests,
   isAdmin,
   onSave,
   onDelete,
@@ -479,7 +518,8 @@ function ShiftDialog({
     form.shift_date,
     editShift?.id ?? null,
     allShifts,
-    availability
+    availability,
+    leaveRequests
   )
 
   const routeInstanceFilters = editShift?.id ? { rosterShiftId: editShift.id } : undefined
@@ -1107,6 +1147,9 @@ export default function RosterPlanner() {
   const [prefillDate, setPrefillDate] = useState('')
   const [showPublishConfirm, setShowPublishConfirm] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
+  const [showDeputyImport, setShowDeputyImport] = useState(false)
+  const [deputyFileName, setDeputyFileName] = useState('')
+  const [deputyPreview, setDeputyPreview] = useState<DeputyImportParseResult | null>(null)
 
   // ─── Data queries ──────────────────────────────────────────────────────────
 
@@ -1136,6 +1179,7 @@ export default function RosterPlanner() {
         .from('user_profiles')
         .select(`
           id, first_name, last_name, email, role, is_active,
+          deputy_employee_id, deputy_display_name,
           employer_organization_id,
           contractor_org:organizations!employer_organization_id(id, name, organization_type)
         `)
@@ -1155,9 +1199,9 @@ export default function RosterPlanner() {
   const { data: sites = [] } = useQuery<ClientSite[]>({
     queryKey: ['roster_sites', user?.organization_id, clientOrgIds],
     queryFn: async () => {
-      let q = (supabase as any).from('client_sites')
-        .select('id, name, default_pay_rate, default_charge_rate')
-        .order('name')
+        let q = (supabase as any).from('client_sites')
+          .select('id, name, site_code, default_pay_rate, default_charge_rate')
+          .order('name')
       // clientOrgIds === null means master (unrestricted)
       if (clientOrgIds !== null) q = q.in('organization_id', clientOrgIds)
       const { data, error } = await q
@@ -1209,6 +1253,21 @@ export default function RosterPlanner() {
         .eq('organization_id', user!.organization_id!)
       if (error) throw error
       return (data || []) as OfficerAvailability[]
+    },
+    enabled: !!user?.organization_id,
+  })
+
+  const { data: leaveRequests = [] } = useQuery<LeaveRequest[]>({
+    queryKey: ['leave_requests', user?.organization_id, dateFrom, dateTo],
+    queryFn: async () => {
+      const { data, error } = await ((supabase as any).from('leave_requests') as any)
+        .select('id, officer_id, leave_type_name, status, date_start, date_end, total_hours')
+        .eq('organization_id', user!.organization_id!)
+        .lte('date_start', dateTo)
+        .gte('date_end', dateFrom)
+        .order('date_start')
+      if (error) throw error
+      return (data || []) as LeaveRequest[]
     },
     enabled: !!user?.organization_id,
   })
@@ -1326,6 +1385,183 @@ export default function RosterPlanner() {
     },
   })
 
+  const deputyImportMutation = useMutation({
+    mutationFn: async (parsed: DeputyImportParseResult) => {
+      if (!user?.organization_id) throw new Error('No organization selected')
+
+      const normalizeOfficerName = (value: string) =>
+        value
+          .replace(/\[.*?\]/g, '')
+          .replace(/^\(.*?\)\s*-\s*/, '')
+          .replace(/\s+/g, ' ')
+          .trim()
+          .toLowerCase()
+
+      const officerByDeputyCode = new Map(
+        officers
+          .filter((officer) => officer.deputy_employee_id)
+          .map((officer) => [String(officer.deputy_employee_id), officer])
+      )
+
+      const officerByName = new Map(
+        officers.map((officer) => [
+          normalizeOfficerName(`${officer.first_name} ${officer.last_name}`),
+          officer,
+        ])
+      )
+
+      const siteByCode = new Map(
+        sites
+          .filter((site) => site.site_code)
+          .flatMap((site) => {
+            const keys = [String(site.site_code)]
+            return keys.map((key) => [key, site] as const)
+          })
+      )
+
+      const siteByName = new Map(
+        sites.map((site) => [site.name.trim().toLowerCase(), site])
+      )
+
+      const pendingProfileUpdates = new Map<string, { deputy_employee_id: string; deputy_display_name: string | null }>()
+      const rosterPayload: Record<string, unknown>[] = []
+      const leavePayload: Record<string, unknown>[] = []
+      const timesheetPayload: Record<string, unknown>[] = []
+      const warnings: string[] = []
+
+      for (const row of parsed.rows) {
+        let matchedOfficer =
+          (row.employeeExportCode ? officerByDeputyCode.get(row.employeeExportCode) : undefined) ||
+          officerByName.get(normalizeOfficerName(row.employeeDisplayName || row.employeeName))
+
+        if (!matchedOfficer && row.employeeName) {
+          matchedOfficer = officerByName.get(normalizeOfficerName(row.employeeName))
+        }
+
+        if (matchedOfficer && row.employeeExportCode && matchedOfficer.deputy_employee_id !== row.employeeExportCode) {
+          pendingProfileUpdates.set(matchedOfficer.id, {
+            deputy_employee_id: row.employeeExportCode,
+            deputy_display_name: row.employeeDisplayName || null,
+          })
+        }
+
+        const matchedSite =
+          (row.locationCode ? siteByCode.get(row.locationCode) : undefined) ||
+          (row.locationName ? siteByName.get(row.locationName.trim().toLowerCase()) : undefined) ||
+          (row.areaName ? siteByName.get(row.areaName.trim().toLowerCase()) : undefined)
+
+        if (!matchedOfficer && row.isLeave) {
+          warnings.push(`Skipped leave for unmatched officer: ${row.employeeDisplayName || row.employeeName}`)
+        }
+
+        if (row.isLeave && matchedOfficer && row.scheduleStart) {
+          leavePayload.push({
+            organization_id: user.organization_id,
+            officer_id: matchedOfficer.id,
+            leave_type_name: row.leaveTypeName || 'Leave',
+            leave_export_code: row.leaveExportCode,
+            is_paid: row.isLeavePaid,
+            date_start: row.scheduleStart.slice(0, 10),
+            date_end: (row.scheduleEnd || row.scheduleStart).slice(0, 10),
+            total_hours: row.scheduleDurationHours,
+            status: row.approved ? 'approved' : 'pending',
+            deputy_leave_id: row.externalId,
+            deputy_imported_at: new Date().toISOString(),
+          })
+        }
+
+        if (!row.isLeave && row.scheduleStart) {
+          rosterPayload.push({
+            organization_id: user.organization_id,
+            officer_id: matchedOfficer?.id ?? null,
+            client_site_id: matchedSite?.id ?? null,
+            shift_date: row.scheduleStart.slice(0, 10),
+            shift_type: 'custom',
+            start_time: row.scheduleStart,
+            end_time: row.scheduleEnd,
+            break_minutes: 0,
+            position_title: row.locationName || row.areaName || null,
+            status: row.approved ? 'confirmed' : 'published',
+            officer_response: 'pending',
+            has_conflict: false,
+            notes: row.employeeComment,
+            internal_notes: matchedSite ? null : `Deputy import could not map site: ${row.locationName || row.areaName || 'Unknown'}`,
+            created_by: user.id,
+            deputy_schedule_id: row.externalId,
+            schedule_warning: row.scheduleWarning,
+            pay_period_name: row.payPeriodName,
+            deputy_imported_at: new Date().toISOString(),
+          })
+        }
+
+        if (row.timesheetStart && matchedOfficer) {
+          timesheetPayload.push({
+            organization_id: user.organization_id,
+            officer_id: matchedOfficer.id,
+            started_at: row.timesheetStart,
+            ended_at: row.timesheetEnd,
+            approval_status: row.approved ? 'approved' : 'pending',
+            employee_comment: row.employeeComment,
+            timesheet_cost: row.timesheetCost,
+            auto_rounded: row.autoRounded,
+            is_in_progress: row.isInProgress,
+            discarded: row.discarded,
+            deputy_timesheet_id: row.externalId,
+            deputy_imported_at: new Date().toISOString(),
+          })
+        }
+      }
+
+      if (pendingProfileUpdates.size > 0) {
+        await Promise.all(
+          Array.from(pendingProfileUpdates.entries()).map(([officerId, payload]) =>
+            ((supabase as any).from('user_profiles') as any).update(payload).eq('id', officerId)
+          )
+        )
+      }
+
+      if (rosterPayload.length > 0) {
+        const { error } = await ((supabase as any).from('roster_shifts') as any)
+          .upsert(rosterPayload, { onConflict: 'organization_id,deputy_schedule_id' })
+        if (error) throw error
+      }
+
+      if (leavePayload.length > 0) {
+        const { error } = await ((supabase as any).from('leave_requests') as any)
+          .upsert(leavePayload, { onConflict: 'organization_id,deputy_leave_id' })
+        if (error) throw error
+      }
+
+      if (timesheetPayload.length > 0) {
+        const { error } = await ((supabase as any).from('officer_shifts') as any)
+          .upsert(timesheetPayload, { onConflict: 'organization_id,deputy_timesheet_id' })
+        if (error) throw error
+      }
+
+      return {
+        warnings,
+        rosterCount: rosterPayload.length,
+        leaveCount: leavePayload.length,
+        timesheetCount: timesheetPayload.length,
+      }
+    },
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['roster_shifts'] })
+      queryClient.invalidateQueries({ queryKey: ['leave_requests'] })
+      queryClient.invalidateQueries({ queryKey: ['timesheets'] })
+      setShowDeputyImport(false)
+      setDeputyPreview(null)
+      setDeputyFileName('')
+      toast.success(`Imported ${result.rosterCount} shifts, ${result.leaveCount} leave requests, ${result.timesheetCount} timesheets`)
+      if (result.warnings.length > 0) {
+        toast.warning(`${result.warnings.length} import warning${result.warnings.length === 1 ? '' : 's'} — check unmapped staff/sites`)
+      }
+    },
+    onError: (error: any) => {
+      toast.error(error.message || 'Failed to import Deputy data')
+    },
+  })
+
   // ─── Computed data ─────────────────────────────────────────────────────────
 
   const siteMap = useMemo(
@@ -1366,6 +1602,23 @@ export default function RosterPlanner() {
     }
     return map
   }, [filteredShifts])
+
+  const leaveByOfficerDate = useMemo(() => {
+    const map: Record<string, Record<string, LeaveRequest[]>> = {}
+    for (const leave of leaveRequests) {
+      if (!leave.officer_id) continue
+      let cursor = parseISO(`${leave.date_start}T00:00:00`)
+      const end = parseISO(`${leave.date_end}T00:00:00`)
+      while (cursor <= end) {
+        const dateKey = format(cursor, 'yyyy-MM-dd')
+        if (!map[leave.officer_id]) map[leave.officer_id] = {}
+        if (!map[leave.officer_id][dateKey]) map[leave.officer_id][dateKey] = []
+        map[leave.officer_id][dateKey].push(leave)
+        cursor = addDays(cursor, 1)
+      }
+    }
+    return map
+  }, [leaveRequests])
 
   const unassignedShifts = shiftsByOfficerDate['__unassigned__'] || {}
   const hasUnassigned = Object.keys(unassignedShifts).length > 0
@@ -1421,6 +1674,18 @@ export default function RosterPlanner() {
     }
   }
 
+  async function handleDeputyFileChange(file: File | null) {
+    if (!file) return
+    const text = await file.text()
+    const parsed = parseDeputyImportText(text)
+    if (parsed.rows.length === 0) {
+      toast.error('No Deputy rows were found in that file')
+      return
+    }
+    setDeputyFileName(file.name)
+    setDeputyPreview(parsed)
+  }
+
   const isLoading = shiftsLoading || officersLoading
   const saving = createMutation.isPending || updateMutation.isPending
   const deleting = deleteMutation.isPending
@@ -1453,6 +1718,21 @@ export default function RosterPlanner() {
                 )}
                 {isExporting ? 'Exporting…' : 'Export CSV'}
               </Button>
+              {isAdmin && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowDeputyImport(true)}
+                  disabled={deputyImportMutation.isPending}
+                >
+                  {deputyImportMutation.isPending ? (
+                    <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                  ) : (
+                    <Upload className="w-4 h-4 mr-1" />
+                  )}
+                  {deputyImportMutation.isPending ? 'Importing…' : 'Import Deputy'}
+                </Button>
+              )}
               {isAdmin && (
                 <Button
                   variant="outline"
@@ -1622,6 +1902,7 @@ export default function RosterPlanner() {
                     {weekDays.map((day) => {
                       const dateStr = format(day, 'yyyy-MM-dd')
                       const cellShifts = shiftsByOfficerDate[officer.id]?.[dateStr] || []
+                      const cellLeave = leaveByOfficerDate[officer.id]?.[dateStr] || []
                       const isToday = isSameDay(day, new Date())
                       return (
                         <div
@@ -1633,6 +1914,15 @@ export default function RosterPlanner() {
                             if (cellShifts.length === 0) openAdd(officer.id, dateStr)
                           }}
                         >
+                          {cellLeave.map((leave) => (
+                            <div
+                              key={leave.id}
+                              className="mb-1 rounded border border-teal-200 bg-teal-50 px-2 py-1 text-[10px] text-teal-800"
+                            >
+                              <div className="font-medium truncate">{leave.leave_type_name}</div>
+                              <div className="text-teal-700">{leave.status === 'approved' ? 'Approved leave' : 'Pending leave'}</div>
+                            </div>
+                          ))}
                           {cellShifts.map((shift) => (
                             <ShiftCard
                               key={shift.id}
@@ -1728,6 +2018,7 @@ export default function RosterPlanner() {
           patrolRoutes={patrolRoutes}
           allShifts={shifts}
           availability={availability}
+          leaveRequests={leaveRequests}
           isAdmin={isAdmin}
           onSave={handleSave}
           onDelete={handleDelete}
@@ -1735,6 +2026,84 @@ export default function RosterPlanner() {
           deleting={deleting}
         />
       )}
+
+      <Dialog open={showDeputyImport} onOpenChange={setShowDeputyImport}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Upload className="h-4 w-4" />
+              Import Deputy roster
+            </DialogTitle>
+            <DialogDescription>
+              Upload a Deputy CSV or TSV export. We import it into native roster shifts, leave requests, and timesheets.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="rounded-lg border border-dashed p-4">
+              <Label htmlFor="deputy-import-file" className="text-sm font-medium">Deputy export file</Label>
+              <Input
+                id="deputy-import-file"
+                type="file"
+                accept=".csv,.tsv,.txt"
+                className="mt-2"
+                onChange={(e) => void handleDeputyFileChange(e.target.files?.[0] ?? null)}
+              />
+              {deputyFileName && (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Loaded <strong>{deputyFileName}</strong> · {deputyPreview?.rows.length ?? 0} rows
+                </p>
+              )}
+            </div>
+
+            {deputyPreview && (
+              <>
+                <div className="grid grid-cols-3 gap-3">
+                  <Card>
+                    <CardHeader className="pb-2"><CardTitle className="text-sm">Schedules</CardTitle></CardHeader>
+                    <CardContent className="pt-0 text-2xl font-semibold">{deputyPreview.scheduleCount}</CardContent>
+                  </Card>
+                  <Card>
+                    <CardHeader className="pb-2"><CardTitle className="text-sm">Leave</CardTitle></CardHeader>
+                    <CardContent className="pt-0 text-2xl font-semibold">{deputyPreview.leaveCount}</CardContent>
+                  </Card>
+                  <Card>
+                    <CardHeader className="pb-2"><CardTitle className="text-sm">Timesheets</CardTitle></CardHeader>
+                    <CardContent className="pt-0 text-2xl font-semibold">{deputyPreview.timesheetCount}</CardContent>
+                  </Card>
+                </div>
+
+                <div className="rounded-lg border">
+                  <div className="grid grid-cols-[1.2fr_1fr_1.2fr_1fr_1fr] gap-2 border-b bg-muted/40 px-3 py-2 text-xs font-medium">
+                    <div>Employee</div>
+                    <div>Location</div>
+                    <div>Schedule</div>
+                    <div>Leave</div>
+                    <div>Warning</div>
+                  </div>
+                  {deputyPreview.previewRows.map((row, index) => (
+                    <div key={`${row.employee}-${index}`} className="grid grid-cols-[1.2fr_1fr_1.2fr_1fr_1fr] gap-2 px-3 py-2 text-xs border-b last:border-b-0">
+                      <div className="truncate">{row.employee}</div>
+                      <div className="truncate">{row.location}</div>
+                      <div className="truncate">{row.schedule}</div>
+                      <div className="truncate">{row.leave}</div>
+                      <div className="truncate">{row.warning}</div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDeputyImport(false)}>Cancel</Button>
+            <Button onClick={() => deputyPreview && deputyImportMutation.mutate(deputyPreview)} disabled={!deputyPreview || deputyImportMutation.isPending}>
+              {deputyImportMutation.isPending ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Upload className="h-4 w-4 mr-1.5" />}
+              Import
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* ── Publish Confirmation ──────────────────────────────────────────── */}
       <AlertDialog open={showPublishConfirm} onOpenChange={setShowPublishConfirm}>

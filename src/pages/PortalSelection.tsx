@@ -3,29 +3,10 @@ import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/stores/authStore'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { SERVICE_TYPE_PORTAL, getOfficerPortalPath } from '@/lib/officerPortalRouting'
 import { Shield, Radio, ChevronRight, ParkingSquare, Volume2, Building2, Zap, MapPin, Clock, Lock, ArrowRight, Layers } from 'lucide-react'
-import { useRosteredShift, type RosterServiceType } from '@/hooks/useRosteredShift'
+import { useRosteredShift } from '@/hooks/useRosteredShift'
 import { format, parseISO } from 'date-fns'
-
-// Map service_type → portal path and label
-const SERVICE_TYPE_PORTAL: Record<RosterServiceType, { path: string; label: string; buildPath?: (shift: import('@/hooks/useRosteredShift').RosteredShift) => string }> = {
-  freedom_camping: { path: '/field-officer?service=freedom_camping', label: 'Freedom Camping Patrol' },
-  guarding:        {
-    path: '/site-guard',
-    label: 'Site Guarding',
-    buildPath: (shift) =>
-      shift.client_site_id
-        ? `/site-guard?site=${shift.client_site_id}${shift.id ? `&roster=${shift.id}` : ''}`
-        : '/field-officer?service=guarding',
-  },
-  parking:                 { path: '/parking-officer',                             label: 'Parking Enforcement' },
-  noise:                   { path: '/noise-officer',                               label: 'Noise Control' },
-  patrol:                  { path: '/field-officer?service=patrol',                label: 'General Patrol' },
-  alarm_response:          { path: '/field-officer?service=alarm_response',        label: 'Alarm Response' },
-  ems:                     { path: '/ems',                                         label: 'EMS' },
-  biosecurity_inspection:  { path: '/biosecurity-officer',                         label: 'Biosecurity Inspection' },
-  smoke_complaint_ooh:     { path: '/smoke-officer',                               label: 'Smoke Complaint (OOH)' },
-}
 
 export default function PortalSelection() {
   const { user } = useAuthStore()
@@ -54,8 +35,8 @@ export default function PortalSelection() {
       navigate('/field-officer', { replace: true })
       return
     }
-    const portal = SERVICE_TYPE_PORTAL[rosteredShift.service_type]
-    const path = portal.buildPath ? portal.buildPath(rosteredShift) : portal.path
+    const path = getOfficerPortalPath(rosteredShift)
+    if (!path) return
     navigate(path, { replace: true })
   }, [user, rosterLoading, rosteredShift, navigate])
 
@@ -183,8 +164,8 @@ export default function PortalSelection() {
           size="sm"
           className="bg-green-600 hover:bg-green-700 text-white flex-shrink-0"
           onClick={() => {
-            const portal = SERVICE_TYPE_PORTAL[rosteredShift.service_type!]
-            const path = portal.buildPath ? portal.buildPath(rosteredShift) : portal.path
+            const path = getOfficerPortalPath(rosteredShift)
+            if (!path) return
             selectPortal(path)
           }}
         >

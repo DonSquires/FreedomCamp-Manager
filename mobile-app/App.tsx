@@ -10,6 +10,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { StatusBar } from 'expo-status-bar'
 import { ActivityIndicator, View } from 'react-native'
 import { Toaster } from 'sonner-native'
+import * as Notifications from 'expo-notifications'
 
 import { useAuthStore } from './src/stores/authStore'
 import LoginScreen from './src/screens/LoginScreen'
@@ -28,6 +29,14 @@ const Stack = createNativeStackNavigator()
 const Tab = createBottomTabNavigator()
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 1000 * 60 * 5, retry: 2 } },
+})
+
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: true,
+  }),
 })
 
 function OfficerTabs() {
@@ -70,10 +79,11 @@ function OfficerTabs() {
 }
 
 export default function App() {
-  const { isAuthenticated, loading, checkSession } = useAuthStore()
+  const { isAuthenticated, loading, checkSession, initializeNotificationRuntime } = useAuthStore()
   const [offline, setOffline] = useState(false)
 
   useEffect(() => {
+    initializeNotificationRuntime().catch(() => {})
     checkSession()
   }, [])
 

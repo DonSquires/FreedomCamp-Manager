@@ -1,8 +1,25 @@
 # STAGING — Unified Execution To-Do and Crash Recovery Plan
 
-Date: 2026-05-09
+Date: 2026-05-11
 Owner: GitHub Copilot
-Status: Active staging checklist — Sprints 50-70 complete on main; no staged sprints remaining (2026-05-09)
+Status: Active staging checklist — Sprints 50-70 complete on main; no staged sprints remaining (2026-05-11)
+
+Latest Session Snapshot (Mobile welfare background hardening + doc sync — 2026-05-11):
+
+- Timestamp (NZ): 2026-05-11 23:03 NZST
+- Current branch: `copilot/update-roster-app-data`
+- Scope completed:
+  - Verified root quality gates pass after mobile/officer welfare notification hardening.
+  - Confirmed mobile push token registration now writes to `user_profiles.push_token` (aligned with unified push delivery path).
+  - Confirmed welfare monitoring pushes officer-facing alerts for inactivity/welfare events and escalations.
+  - Updated staging and operator docs so background/screen-off behavior and expected UX are explicit.
+
+- Validation evidence:
+  | Command | Result | Notes |
+  |---|---|---|
+  | `bun run lint` | PASS | ESLint completed without errors |
+  | `bun run build` | PASS | TypeScript + Vite build succeeded |
+  | `cd mobile-app && npm run web:export` | PASS | Expo web export succeeded |
 
 Latest Session Snapshot (Legacy Artifact Review Takeover — 2026-05-10):
 
