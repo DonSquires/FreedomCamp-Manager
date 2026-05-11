@@ -16,8 +16,9 @@ function normalizeBaseUrl(raw?: string | null): string {
 const RUNPOD_ENDPOINT_ID = String(Deno.env.get('RUNPOD_ENDPOINT_ID') || '').trim()
 const RUNPOD_DERIVED_URL = RUNPOD_ENDPOINT_ID ? `https://api.runpod.ai/v2/${RUNPOD_ENDPOINT_ID}` : ''
 
-const BOB_SERVICE_URL = normalizeBaseUrl(
+const TRANSCRIPTION_SERVICE_URL = normalizeBaseUrl(
   Deno.env.get('RAILWAY_STT_URL') ||
+  Deno.env.get('TRANSCRIPTION_SERVICE_URL') ||
   Deno.env.get('BOB_SERVICE_URL') ||
   Deno.env.get('INFERENCE_SERVICE_URL') ||
   Deno.env.get('RUNPOD_ENDPOINT_URL') ||
@@ -34,8 +35,8 @@ const BOB_API_KEY =
   ''
 
 function buildServiceUrlPool(): string[] {
-  const urls = [BOB_SERVICE_URL]
-  if (BOB_FALLBACK_SERVICE_URL && BOB_FALLBACK_SERVICE_URL !== BOB_SERVICE_URL) {
+  const urls = [TRANSCRIPTION_SERVICE_URL]
+  if (BOB_FALLBACK_SERVICE_URL && BOB_FALLBACK_SERVICE_URL !== TRANSCRIPTION_SERVICE_URL) {
     urls.push(BOB_FALLBACK_SERVICE_URL)
   }
   return urls.filter(Boolean)
@@ -53,7 +54,7 @@ Deno.serve(withCors(async (req: Request) => {
 
   const serviceUrls = buildServiceUrlPool()
   if (!serviceUrls.length) {
-    return errorResponse('BOB_SERVICE_URL or INFERENCE_SERVICE_URL is not configured', req, 503)
+    return errorResponse('TRANSCRIPTION_SERVICE_URL or INFERENCE_SERVICE_URL is not configured', req, 503)
   }
 
   const body = await req.json().catch(() => ({})) as {
