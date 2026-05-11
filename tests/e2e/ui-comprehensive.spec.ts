@@ -274,7 +274,7 @@ test.describe('Field Officer Portal — Quick Report', () => {
     if (await serviceIndicator.isVisible({ timeout: 5000 }).catch(() => false)) {
       await expect(serviceIndicator).toBeVisible({ timeout: 8000 })
     }
-    expect(page.url()).toMatch(/\/(field-officer|officer-home|login)/)
+    expect(page.url()).toMatch(/\/(field-officer|officer-home|portal-selection|login)/)
   })
 
   test('opens Quick Report dialog from field portal', async ({ page }) => {

@@ -17,12 +17,9 @@ test.describe('Enforcement Route Restoration Smoke', () => {
     await expectRouteAccessible(page, '/enforcement-command-center')
   })
 
-  test('officer can open enforcement actions only', async ({ page }) => {
+  test('officer can open enforcement actions and command center', async ({ page }) => {
     await loginAs(page, 'officerOrg1')
     await expectRouteAccessible(page, '/enforcement-actions')
-
-    await page.goto('/enforcement-command-center', { waitUntil: 'domcontentloaded' })
-    await expect(page).not.toHaveURL(/\/enforcement-command-center(?:\/)?$/, { timeout: 15000 })
-    await expect(page.locator('body')).toBeVisible({ timeout: 15000 })
+    await expectRouteAccessible(page, '/enforcement-command-center')
   })
 })

@@ -44,9 +44,28 @@ const baseURL =
   process.env.PLAYWRIGHT_FOCUSED_BASE_URL ||
   process.env.PLAYWRIGHT_BASE_URL ||
   process.env.DEFAULT_PLAYWRIGHT_BASE_URL ||
-  'http://localhost:4173'
+  'http://localhost:5173'
 
 const ignoreHTTPSErrors = process.env.PLAYWRIGHT_IGNORE_HTTPS_ERRORS !== '0'
+const reuseExistingPlaywrightServer =
+  process.env.PLAYWRIGHT_REUSE_EXISTING_SERVER === '1' ? true : !process.env.CI
+const webServerRunner = existsSync('/home/vscode/.bun/bin/bun') ? 'bun' : 'npm'
+
+function buildWebServerCommand(targetBaseURL: string): string {
+  try {
+    const parsed = new URL(targetBaseURL)
+    const isLocalHost = parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1'
+    const port = parsed.port || '5173'
+
+    if (!isLocalHost || parsed.protocol !== 'http:') {
+      return `sh -c 'set -a; [ -f .env ] && . ./.env; [ -f .env.local ] && . ./.env.local; [ -f .env.playwright.local ] && . ./.env.playwright.local; set +a; ${webServerRunner} run dev'`
+    }
+
+    return `sh -c 'set -a; [ -f .env ] && . ./.env; [ -f .env.local ] && . ./.env.local; [ -f .env.playwright.local ] && . ./.env.playwright.local; set +a; ${webServerRunner} run dev -- --port ${port} --strictPort'`
+  } catch {
+    return `sh -c 'set -a; [ -f .env ] && . ./.env; [ -f .env.local ] && . ./.env.local; [ -f .env.playwright.local ] && . ./.env.playwright.local; set +a; ${webServerRunner} run dev -- --port 5173 --strictPort'`
+  }
+}
 
 export default defineConfig({
   testDir: './tests/e2e',
@@ -96,4 +115,11 @@ export default defineConfig({
       },
     },
   ],
+
+  webServer: {
+    command: buildWebServerCommand(baseURL),
+    url: baseURL,
+    reuseExistingServer: reuseExistingPlaywrightServer,
+    timeout: 120000,
+  },
 })
