@@ -102,6 +102,20 @@ async function notifyOfficer(
   }
 }
 
+interface WelfareAlertInsert {
+  officer_id: string;
+  organization_id: string;
+  alert_type: 'inactivity_warning' | 'welfare_check';
+  officer_name: string;
+  officer_phone: string | null;
+  last_activity_at: string | null;
+  status: 'pending';
+  escalation_level: number;
+  gps_latitude?: number | null;
+  gps_longitude?: number | null;
+  gps_accuracy?: number | null;
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: getCorsHeaders(req) });
@@ -256,9 +270,9 @@ Deno.serve(async (req) => {
     // ─────────────────────────────────────────────────────────────────────────
     // PROCESS EACH OFFICER (no extra DB calls inside this loop)
     // ─────────────────────────────────────────────────────────────────────────
-    const warningInserts: any[]  = [];
+    const warningInserts: WelfareAlertInsert[]  = [];
     const logoffOfficers: any[]  = [];
-    const welfareInserts: any[]  = [];
+    const welfareInserts: WelfareAlertInsert[]  = [];
 
     for (const officer of officers as any[]) {
       const settings = officer.officer_welfare_settings;
@@ -334,7 +348,7 @@ Deno.serve(async (req) => {
     if (warningInserts.length > 0) {
       await supabaseAdmin.from('officer_welfare_alerts').insert(warningInserts);
       await Promise.allSettled(
-        warningInserts.map((warning: any) =>
+        warningInserts.map((warning) =>
           notifyOfficer(
             supabaseAdmin,
             warning.officer_id,
@@ -386,7 +400,7 @@ Deno.serve(async (req) => {
     if (welfareInserts.length > 0) {
       await supabaseAdmin.from('officer_welfare_alerts').insert(welfareInserts);
       await Promise.allSettled(
-        welfareInserts.map((alert: any) =>
+        welfareInserts.map((alert) =>
           notifyOfficer(
             supabaseAdmin,
             alert.officer_id,

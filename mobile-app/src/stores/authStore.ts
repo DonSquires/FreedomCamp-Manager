@@ -66,6 +66,13 @@ interface AuthState {
   initializeNotificationRuntime: () => Promise<void>
 }
 
+async function hasGrantedNotificationPermission(): Promise<boolean> {
+  const permissionResult = await Notifications.getPermissionsAsync().catch(() => ({
+    status: 'undetermined' as const,
+  }))
+  return permissionResult.status === 'granted'
+}
+
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   isAuthenticated: false,
@@ -76,10 +83,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   initializeNotificationRuntime: async () => {
     await ensureNotificationChannel().catch(() => {})
-    const { status } = await Notifications.getPermissionsAsync().catch(() => ({ status: 'undetermined' as const }))
+    const notificationsGranted = await hasGrantedNotificationPermission()
     set((state) => ({
       ...state,
-      notificationStandby: !state.isAuthenticated && status === 'granted',
+      notificationStandby: !state.isAuthenticated && notificationsGranted,
     }))
   },
 
@@ -142,7 +149,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     } catch {
       // Keep local logout resilient even if sign-out has issues.
     }
-    const hasPushCapability = !!get().pushToken || (await Notifications.getPermissionsAsync().catch(() => ({ status: 'denied' as const }))).status === 'granted'
+    const hasStoredPushToken = !!get().pushToken
+    const notificationsGranted = await hasGrantedNotificationPermission()
+    const hasPushCapability = hasStoredPushToken || notificationsGranted
     set({
       user: null,
       isAuthenticated: false,
@@ -156,8 +165,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const { data: { session } } = await supabase.auth.getSession()
 
     if (!session) {
-      const { status } = await Notifications.getPermissionsAsync().catch(() => ({ status: 'undetermined' as const }))
-      set({ loading: false, notificationStandby: status === 'granted' })
+      const notificationsGranted = await hasGrantedNotificationPermission()
+      set({ loading: false, notificationStandby: notificationsGranted })
       return
     }
 
