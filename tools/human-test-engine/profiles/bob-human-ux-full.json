@@ -23,7 +23,11 @@
       "ptt-zindex",
       "crm-business-crossover",
       "client-portal-isolation",
-      "live-ops"
+      "live-ops",
+      "shared",
+      "dispatch",
+      "admin",
+      "admin-bug-reports"
     ],
     "runAgenticPacks": true,
     "agenticNoPlanner": true,

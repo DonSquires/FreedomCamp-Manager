@@ -153,14 +153,14 @@ function nowIso() {
   return new Date().toISOString()
 }
 
-function mkSummaryReport({ reporterUser, source, title, description, severity = 'low', issueType = 'bug' }) {
+function mkSummaryReport({ reporterUser, source, title, description, severity = 'low', issueType = 'bug', currentPage = '/bug-reports-log' }) {
   return {
     title,
     description,
     severity,
     issue_type: issueType,
     status: 'submitted',
-    current_page: '/bug-reports-log',
+    current_page: currentPage,
     app_version: `ops-${source}`,
     auto_reported: true,
     admin_notified: false,
@@ -171,6 +171,47 @@ function mkSummaryReport({ reporterUser, source, title, description, severity = 
     user_id: reporterUser,
     user_role: 'master',
   }
+}
+
+/**
+ * Extracts the most relevant page path from emulator report data.
+ * Strategy: reverse-scan actions for the latest `goto` URL, then fall back
+ * to route-like text in goal metadata, then default to `/bug-reports-log`.
+ */
+function extractCurrentPageFromReport(report) {
+  const actions = Array.isArray(report?.actions) ? report.actions : []
+  for (let i = actions.length - 1; i >= 0; i -= 1) {
+    const action = actions[i]?.action
+    if (String(action?.type || '') === 'goto') {
+      const url = String(action?.url || '').trim()
+      if (url.startsWith('/')) return url
+      try {
+        const parsed = new URL(url)
+        return parsed.pathname || '/bug-reports-log'
+      } catch {
+        // Invalid URL strings can appear in noisy test output; keep scanning
+        // for the next usable route instead of failing report publication.
+      }
+    }
+  }
+
+  const goal = String(report?.goal || report?.config?.goal || '').trim()
+  const match = goal.match(/(\/[a-z0-9/_-]+)/i)
+  return match?.[1] || '/bug-reports-log'
+}
+
+function hasConnectionRefusedError(report) {
+  const actions = Array.isArray(report?.actions) ? report.actions : []
+  return actions.some((step) => {
+    const message = String(step?.execution?.error || '')
+    return message.includes('ERR_CONNECTION_REFUSED') || message.includes('ECONNREFUSED')
+  })
+}
+
+function classifyIssueType(result) {
+  if (result === 'completed') return 'enhancement'
+  if (result === 'blocked_auth') return 'infra'
+  return 'ui_ux'
 }
 
 async function main() {
@@ -266,9 +307,15 @@ async function main() {
       const report = await readJson(filePath).catch(() => null)
       if (!report) continue
 
-      const pack = String(report.pack || report.goal || path.basename(path.dirname(filePath)))
+      if (hasConnectionRefusedError(report)) {
+        continue
+      }
+
+      const reportGoal = report.goal || report.config?.goal || null
+      const pack = String(report.pack || reportGoal || path.basename(path.dirname(filePath)))
       const result = String(report.result || 'unknown')
       const level = result === 'completed' ? 'low' : result === 'blocked_auth' ? 'medium' : 'high'
+      const issueType = classifyIssueType(result)
 
       payloads.push(mkSummaryReport({
         reporterUser,
@@ -276,7 +323,7 @@ async function main() {
         title: `[Vercel Emulator][${pack}] Result: ${result.toUpperCase()}`,
         description: [
           `Pack: ${pack}`,
-          `Goal: ${report.goal || 'n/a'}`,
+          `Goal: ${reportGoal || 'n/a'}`,
           `Result: ${result}`,
           `Started: ${report.started_at || 'n/a'}`,
           `Ended: ${report.ended_at || 'n/a'}`,
@@ -285,7 +332,8 @@ async function main() {
           `Findings: ${JSON.stringify(report.compliance_findings || []).slice(0, 2000)}`,
         ].join('\n'),
         severity: level,
-        issueType: result === 'completed' ? 'enhancement' : 'ui_ux',
+        issueType,
+        currentPage: extractCurrentPageFromReport(report),
       }))
     }
   } else {

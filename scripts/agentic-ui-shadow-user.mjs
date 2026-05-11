@@ -96,7 +96,7 @@ Usage:
 
 Options:
   --goal <text>              Human test objective (required)
-  --pack <name>              Built-in pack: login-health | tender-shadow | ptt-zindex | crm-business-crossover | client-portal-isolation | live-ops
+  --pack <name>              Built-in pack: login-health | tender-shadow | ptt-zindex | crm-business-crossover | client-portal-isolation | live-ops | shared | dispatch | admin | admin-bug-reports
   --base-url <url>           App base URL (default: PLAYWRIGHT_BASE_URL or http://localhost:5173)
   --email <email>            Login email (fallback from Playwright env vars)
   --password <password>      Login password (fallback from Playwright env vars)
@@ -130,6 +130,10 @@ if (!config.goal && config.pack) {
     'crm-business-crossover': 'shadow run: crm and business cross-module page access check',
     'client-portal-isolation': 'shadow run: client portal isolation and admin-route block check',
     'live-ops': 'shadow run: live operations monitoring pages check',
+    shared: 'shadow run: shared profile/settings/notifications check',
+    dispatch: 'shadow run: dispatch route coverage check',
+    admin: 'shadow run: admin portal and bug report log check',
+    'admin-bug-reports': 'shadow run: admin bug report log direct access check',
   }
   config.goal = map[config.pack] || `shadow run pack: ${config.pack}`
 }
@@ -249,6 +253,58 @@ function buildPackPlan(pack) {
       { type: 'expectVisibleAny', value: 'text=/Live Patrol|Patrol|Operations|Active|FieldOps Manager|Portal Selection|Choose Portal|Admin Portal|Not Found/i', note: 'Verify live patrol or valid fallback state is visible' },
       { type: 'axeCheck', note: 'Quick a11y scan' },
       { type: 'done', note: 'Live ops pack complete' },
+    ]
+  }
+
+  if (pack === 'shared') {
+    return [
+      ...baseLogin,
+      { type: 'ensurePortalSelectionResolved', url: '/profile', note: 'Resolve portal selection before shared route checks' },
+      { type: 'goto', url: '/profile', note: 'Open profile page' },
+      { type: 'expectVisibleAny', value: 'text=/Profile|Account|User|Settings|FieldOps Manager|Portal Selection|Choose Portal|Login/i', note: 'Verify profile or valid fallback state is visible' },
+      { type: 'goto', url: '/settings', note: 'Open settings page' },
+      { type: 'expectVisibleAny', value: 'text=/Settings|Preferences|Profile|FieldOps Manager|Portal Selection|Choose Portal|Login/i', note: 'Verify settings or valid fallback state is visible' },
+      { type: 'goto', url: '/notifications', note: 'Open notifications page' },
+      { type: 'expectVisibleAny', value: 'text=/Notifications|Alerts|Messages|No notifications|FieldOps Manager|Portal Selection|Choose Portal|Login/i', note: 'Verify notifications or valid fallback state is visible' },
+      { type: 'axeCheck', note: 'Quick a11y scan' },
+      { type: 'done', note: 'Shared pack complete' },
+    ]
+  }
+
+  if (pack === 'dispatch') {
+    return [
+      ...baseLogin,
+      { type: 'ensurePortalSelectionResolved', url: '/dispatch', note: 'Resolve portal selection before dispatch checks' },
+      { type: 'goto', url: '/dispatch', note: 'Open dispatch dashboard' },
+      { type: 'expectVisibleAny', value: 'text=/Dispatch|Jobs|Assignments|Queue|FieldOps Manager|Portal Selection|Choose Portal|Login/i', note: 'Verify dispatch page or valid fallback state is visible' },
+      { type: 'goto', url: '/dispatch-jobs', note: 'Open dispatch jobs page' },
+      { type: 'expectVisibleAny', value: 'text=/Dispatch Jobs|Jobs|Assigned|Unassigned|Queue|FieldOps Manager|Portal Selection|Choose Portal|Login/i', note: 'Verify dispatch jobs page or valid fallback state is visible' },
+      { type: 'axeCheck', note: 'Quick a11y scan' },
+      { type: 'done', note: 'Dispatch pack complete' },
+    ]
+  }
+
+  if (pack === 'admin') {
+    return [
+      ...baseLogin,
+      { type: 'ensurePortalSelectionResolved', url: '/admin', note: 'Resolve portal selection before admin checks' },
+      { type: 'goto', url: '/admin', note: 'Open admin portal' },
+      { type: 'expectVisibleAny', value: 'text=/Admin|Dashboard|Portal|Management|FieldOps Manager|Portal Selection|Choose Portal|Login/i', note: 'Verify admin portal or valid fallback state is visible' },
+      { type: 'goto', url: '/bug-reports-log', note: 'Open bug reports log' },
+      { type: 'expectVisibleAny', value: 'text=/Bug Report Log|Bug Reports|Reports|Total Reports|FieldOps Manager|Portal Selection|Choose Portal|Login/i', note: 'Verify bug reports log or valid fallback state is visible' },
+      { type: 'axeCheck', note: 'Quick a11y scan' },
+      { type: 'done', note: 'Admin pack complete' },
+    ]
+  }
+
+  if (pack === 'admin-bug-reports') {
+    return [
+      ...baseLogin,
+      { type: 'ensurePortalSelectionResolved', url: '/bug-reports-log', note: 'Resolve portal selection before bug reports checks' },
+      { type: 'goto', url: '/bug-reports-log', note: 'Open bug reports log directly' },
+      { type: 'expectVisibleAny', value: 'text=/Bug Report Log|Bug Reports|Reports|Total Reports|FieldOps Manager|Portal Selection|Choose Portal|Login/i', note: 'Verify bug reports log or valid fallback state is visible' },
+      { type: 'axeCheck', note: 'Quick a11y scan' },
+      { type: 'done', note: 'Admin bug reports pack complete' },
     ]
   }
 

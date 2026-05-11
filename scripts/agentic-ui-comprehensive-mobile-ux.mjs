@@ -96,6 +96,10 @@ const testPacks = [
   { name: 'crm-business-crossover', desc: 'CRM and business cross-module page access' },
   { name: 'client-portal-isolation', desc: 'Client portal isolation and admin-route block' },
   { name: 'live-ops', desc: 'Live operations monitoring pages' },
+  { name: 'shared', desc: 'Shared profile/settings/notifications pages' },
+  { name: 'dispatch', desc: 'Dispatch and dispatch jobs coverage' },
+  { name: 'admin', desc: 'Admin portal and bug report log coverage' },
+  { name: 'admin-bug-reports', desc: 'Direct admin bug report log coverage' },
 ]
 
 // ─── Server readiness helpers ──────────────────────────────────────────────────
@@ -184,6 +188,21 @@ function run(cmd, opts = {}) {
   } catch (err) {
     return { success: false, error: err.message }
   }
+}
+
+/**
+ * Converts an app route path to a filesystem-safe directory slug.
+ * Removes leading slashes, normalizes non-word characters to dashes,
+ * trims edge dashes, and falls back to "root" if empty.
+ */
+function createPageSlug(page) {
+  // Remove leading slashes.
+  const noLeadingSlash = page.replace(/^\/+/, '')
+  // Replace non-word separators with dashes.
+  const normalized = noLeadingSlash.replace(/[^\w-]+/g, '-')
+  // Trim edge dashes introduced by normalization.
+  const trimmed = normalized.replace(/^-+|-+$/g, '')
+  return trimmed || 'root'
 }
 
 async function main() {
@@ -332,7 +351,8 @@ async function main() {
       for (const page of pageGroup.pages) {
         testCount += 1
         const testName = `${role}-${pageGroup.category}-${page.replace(/\//g, '-')}`
-        const testReportDir = path.join(reportDir, `role-${role}`, pageGroup.category)
+        const pageSlug = createPageSlug(page)
+        const testReportDir = path.join(reportDir, `role-${role}`, pageGroup.category, pageSlug)
         results.summary.total += 1
 
         // Goal for this test
