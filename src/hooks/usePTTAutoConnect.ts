@@ -8,6 +8,7 @@
 
 import { useEffect, useRef } from 'react'
 import { useLocation } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
 import { usePTTStore } from '@/stores/pttStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
@@ -18,6 +19,8 @@ import {
   resumePTTBackgroundReconnect,
   requestNotificationPermission,
 } from '@/lib/pttBackground'
+import { reconnectCurrentPTTChannel } from '@/lib/ptt'
+import { checkInferenceHealth } from '@/lib/proxyServices'
 
 /**
  * Hook to auto-connect PTT on login
@@ -36,10 +39,12 @@ export function usePTTAutoConnect(): void {
       : user?.organization_id || null
 
   // Background org-channel PTT should only auto-start for field-operational
-  // users. Platform/master users access CRM, pricing, and admin surfaces that
-  // must not depend on radio infrastructure being available.
+  // users and Platform Administrators (grand_master). Master/admin users on
+  // CRM or pricing surfaces also connect when their role demands radio access.
   const shouldAutoStartBackgroundPTT =
-    user?.role === 'officer' || user?.role === 'admin_officer'
+    user?.role === 'officer' ||
+    user?.role === 'admin_officer' ||
+    user?.role === 'grand_master'
 
   const isRadioRoute = location.pathname === '/radio'
 
@@ -103,6 +108,41 @@ export function usePTTAutoConnect(): void {
       console.warn('🎤 PTT: Connection error')
     }
   }, [connectionStatus])
+
+  // When Bob inference service transitions to 'ready' (online), trigger a PTT
+  // re-connection attempt so the radio bridge benefits from a fresh Bob session.
+  const { data: bobHealth } = useQuery({
+    queryKey: ['ptt-auto-connect-bob-health'],
+    queryFn: checkInferenceHealth,
+    enabled: isAuthenticated,
+    staleTime: 30_000,
+    refetchInterval: 45_000,
+  })
+
+  const prevBobStatusRef = useRef<string | undefined>(undefined)
+
+  useEffect(() => {
+    const currentStatus = bobHealth?.status
+    const prevStatus = prevBobStatusRef.current
+    prevBobStatusRef.current = currentStatus
+
+    // Only act on a rising-edge transition to 'online' (Bob becomes ready).
+    // The `prevStatus !== undefined` guard intentionally skips the very first
+    // poll so that a user who logs in while Bob is already online does not get
+    // an unnecessary reconnect — the PTT auto-start flow handles the initial
+    // connection independently.
+    if (currentStatus === 'online' && prevStatus !== 'online' && prevStatus !== undefined) {
+      // Use getState() for a point-in-time read: we only want to know the PTT
+      // status at the moment Bob transitions, not track it reactively here.
+      const pttStatus = usePTTStore.getState().connectionStatus
+      if (pttStatus === 'connected' || pttStatus === 'reconnecting' || pttStatus === 'connecting') {
+        console.log('🎤 PTT: Bob became ready — triggering hard re-connect')
+        reconnectCurrentPTTChannel().catch((err) => {
+          console.warn('🎤 PTT: Bob-ready re-connect failed', err)
+        })
+      }
+    }
+  }, [bobHealth?.status])
 }
 
 /**

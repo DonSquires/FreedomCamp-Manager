@@ -219,6 +219,12 @@ Deno.serve(async (req) => {
 
     const [scopeType, scopeId] = channelScope.split(':')
 
+    // Platform Administrator (grand_master) and master users bypass geofencing,
+    // GPS-location checks, and active client zone restrictions.
+    const isPrivilegedRole =
+      profile.role === 'grand_master' ||
+      profile.role === 'master'
+
     // Resolve effective organization context. For master/grand_master users who
     // may have organization_id = null, derive org context from channel scope.
     let effectiveOrganizationId: string | null = profile.organization_id ?? null
@@ -231,8 +237,9 @@ Deno.serve(async (req) => {
     }
 
     if (scopeType === 'org') {
-      const canAccessHomeOrg = canAccessChannelOrg(profile, scopeId)
-      const canAccess = canAccessHomeOrg
+      // Platform Administrator (grand_master/master) bypasses org membership checks and
+      // any GPS-location or active client zone restrictions.
+      const canAccess = isPrivilegedRole || canAccessChannelOrg(profile, scopeId)
       if (!canAccess) {
         return new Response(
           JSON.stringify({ 
@@ -258,7 +265,7 @@ Deno.serve(async (req) => {
         )
       }
 
-      const canAccess = canAccessChannelOrg(profile, incident.organization_id)
+      const canAccess = isPrivilegedRole || canAccessChannelOrg(profile, incident.organization_id)
       if (!canAccess) {
         return new Response(
           JSON.stringify({
@@ -279,7 +286,7 @@ Deno.serve(async (req) => {
         .single()
 
       if (pttChannel?.organization_id) {
-        const canAccess = canAccessChannelOrg(profile, pttChannel.organization_id)
+        const canAccess = isPrivilegedRole || canAccessChannelOrg(profile, pttChannel.organization_id)
         if (!canAccess) {
           return new Response(
             JSON.stringify({
@@ -289,6 +296,9 @@ Deno.serve(async (req) => {
           )
         }
         effectiveOrganizationId = pttChannel.organization_id
+      } else if (isPrivilegedRole) {
+        // Privileged role: fall through to scopeId as a direct channel identifier
+        effectiveOrganizationId = null
       } else {
         return new Response(
           JSON.stringify({
@@ -321,14 +331,13 @@ Deno.serve(async (req) => {
 
       let matchedDirectOrgId: string | null = null
       for (const candidateOrgId of directScopeCandidates) {
-        const canAccess = canAccessChannelOrg(profile, candidateOrgId)
-        if (canAccess) {
+        if (isPrivilegedRole || canAccessChannelOrg(profile, candidateOrgId)) {
           matchedDirectOrgId = candidateOrgId
           break
         }
       }
 
-      if (!matchedDirectOrgId) {
+      if (!matchedDirectOrgId && !isPrivilegedRole) {
         return new Response(
           JSON.stringify({
             error: PTT_AUTHORIZATION_ERROR,
@@ -337,10 +346,15 @@ Deno.serve(async (req) => {
         )
       }
 
+      // For privileged roles the target user may have no resolvable org (e.g. a
+      // master-tier user without an org assignment).  Null is acceptable here
+      // because the final guard below (`!effectiveOrganizationId && !isPrivilegedRole`)
+      // allows privileged users through regardless, and the mint call sends null
+      // as organizationId which the PTT bridge treats as an admin-level channel.
       effectiveOrganizationId = matchedDirectOrgId
     }
 
-    if (!effectiveOrganizationId) {
+    if (!effectiveOrganizationId && !isPrivilegedRole) {
       return new Response(
         JSON.stringify({
           error: 'Organization context required',
