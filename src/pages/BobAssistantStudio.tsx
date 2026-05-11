@@ -477,6 +477,13 @@ const VOICE_INACTIVITY_TIMEOUT_MS = 29_000
 const BOB_CHAT_RESPONSE_TIMEOUT_MS = 45_000
 const BOB_SERVICE_OUTAGE_KEY = 'bob-service-outage-until'
 const BOB_SERVICE_OUTAGE_COOLDOWN_MS = 2 * 60_000
+const BOB_HISTORY_TURN_LIMIT = 8
+const BOB_HISTORY_MESSAGE_CHAR_LIMIT = 1_200
+const BOB_KNOWLEDGE_CHAR_LIMIT = 2_400
+const BOB_LONG_TERM_MEMORY_CHAR_LIMIT = 1_400
+const BOB_REMOTE_MEMORY_CHAR_LIMIT = 1_400
+const BOB_CONTINUATION_MEMORY_CHAR_LIMIT = 1_600
+const BOB_TOTAL_PROMPT_CHAR_BUDGET = 12_000
 
 async function withPromiseTimeout<T>(
   promise: Promise<T>,
@@ -520,6 +527,23 @@ function markBobServiceOutage() {
 function clearBobServiceOutage() {
   if (typeof window === 'undefined') return
   window.localStorage.removeItem(BOB_SERVICE_OUTAGE_KEY)
+}
+
+function isLikelyBobServiceOutageError(error: unknown): boolean {
+  const text = String(error ?? '').toLowerCase()
+  if (!text) return false
+  return (
+    text.includes('temporarily unavailable') ||
+    text.includes('timeout') ||
+    text.includes('timed out') ||
+    text.includes('aborterror') ||
+    text.includes('failed to fetch') ||
+    text.includes('fetch failed') ||
+    text.includes('network error') ||
+    text.includes('503') ||
+    text.includes('504') ||
+    text.includes('provider failed')
+  )
 }
 
 function BobSketchPad() {
@@ -1875,14 +1899,14 @@ export default function BobAssistantStudio() {
 
     const buildRequestBody = () => {
       const historyMessages = chat
-        .slice(-16)
+        .slice(-BOB_HISTORY_TURN_LIMIT)
         .filter((m): m is ChatMessage & { role: 'user' | 'assistant' } => m.role === 'user' || m.role === 'assistant')
-        .map((m): { role: 'user' | 'assistant'; content: string } => ({ role: m.role, content: m.text }))
+        .map((m): { role: 'user' | 'assistant'; content: string } => ({ role: m.role, content: String(m.text || '').slice(0, BOB_HISTORY_MESSAGE_CHAR_LIMIT) }))
       const longTermMemory = buildBobLearningContext(learningUserId, 20)
-      const compactKnowledge = BOB_PROJECT_KNOWLEDGE.slice(0, 9_000)
-      const compactLongTermMemory = longTermMemory.slice(0, 5_000)
-      const compactRemoteMemory = remoteLearningContext.slice(0, 5_000)
-      const compactContinuationMemory = conversationContinuationContext.slice(0, 6_000)
+      const compactKnowledge = BOB_PROJECT_KNOWLEDGE.slice(0, BOB_KNOWLEDGE_CHAR_LIMIT)
+      const compactLongTermMemory = longTermMemory.slice(0, BOB_LONG_TERM_MEMORY_CHAR_LIMIT)
+      const compactRemoteMemory = remoteLearningContext.slice(0, BOB_REMOTE_MEMORY_CHAR_LIMIT)
+      const compactContinuationMemory = conversationContinuationContext.slice(0, BOB_CONTINUATION_MEMORY_CHAR_LIMIT)
 
       const rawMessages: Array<{ role: 'user' | 'assistant' | 'system'; content: string }> = []
       rawMessages.push({ role: 'assistant', content: compactKnowledge })
@@ -1902,10 +1926,22 @@ export default function BobAssistantStudio() {
           ].join(' | '),
         })
       }
-      rawMessages.push(...historyMessages, { role: 'user', content: message })
+      rawMessages.push(...historyMessages, { role: 'user', content: String(message || '').slice(0, 2_000) })
+
+      let consumedChars = 0
+      const budgetedMessages = rawMessages
+        .filter((entry) => typeof entry.content === 'string' && entry.content.trim().length > 0)
+        .reverse()
+        .filter((entry) => {
+          const length = entry.content.length
+          if (consumedChars + length > BOB_TOTAL_PROMPT_CHAR_BUDGET) return false
+          consumedChars += length
+          return true
+        })
+        .reverse()
 
       return {
-        messages: rawMessages,
+        messages: budgetedMessages,
         provider: 'auto' as const,
         context: {
           tone,
@@ -1937,18 +1973,7 @@ export default function BobAssistantStudio() {
     if (cooldown.active) {
       const retrySeconds = Math.max(10, Math.ceil(cooldown.remainingMs / 1000))
       setBobDegraded(true)
-      setChat((prev) => [
-        ...prev,
-        {
-          id: crypto.randomUUID(),
-          role: 'assistant',
-          text: `Bob/Ollama is still reconnecting. Please retry in about ${retrySeconds}s. I can still provide a quick local action checklist while AI service recovers.`,
-          createdAt: new Date().toISOString(),
-        },
-      ])
-      toast.error(`Bob/Ollama service recovering (retry in ~${retrySeconds}s)`)
-      setThinking(false)
-      return
+      toast.error(`Bob/Ollama recently failed; retrying now while service recovers (~${retrySeconds}s)`)
     }
 
     try {
@@ -2084,9 +2109,20 @@ export default function BobAssistantStudio() {
       }
     } catch (err: any) {
       console.error('Bob assistant invoke failed:', err)
-      markBobServiceOutage()
-      setBobDegraded(true)
-      const replyText = 'Bob/Ollama is temporarily unavailable right now. Please retry in a moment.'
+      const errorText = String(err?.message ?? err ?? '')
+      const likelyOutage = isLikelyBobServiceOutageError(errorText)
+
+      if (likelyOutage) {
+        markBobServiceOutage()
+        setBobDegraded(true)
+      } else {
+        clearBobServiceOutage()
+        setBobDegraded(false)
+      }
+
+      const replyText = likelyOutage
+        ? 'Bob/Ollama is temporarily unavailable right now. Please retry in a moment.'
+        : (errorText || 'Bob could not process that request right now. Please retry.')
       const bobMsg: ChatMessage = {
         id: crypto.randomUUID(),
         role: 'assistant',
