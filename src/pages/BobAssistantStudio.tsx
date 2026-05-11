@@ -2001,7 +2001,14 @@ export default function BobAssistantStudio() {
 
       return {
         messages: budgetedMessages,
+        // Route to the appropriate model based on what the user attached:
+        //   - Images → llama3.2-vision:11b for visual inference (smoke, vegetation, ALPR)
+        //   - Text / CSV / PDF → qwen2.5:7b with historyTrimmer (keeps under 4096-token limit)
+        //   - No attachment → auto (gateway picks the default balanced model)
         provider: 'auto' as const,
+        model: attachedDocument
+          ? (attachedDocument.type.startsWith('image/') ? 'llama3.2-vision:11b' : 'qwen2.5:7b')
+          : undefined,
         context: {
           tone,
           source: 'bob-studio',
@@ -2028,11 +2035,14 @@ export default function BobAssistantStudio() {
       }
     }
 
+    // If a previous outage was recorded but the service may have recovered,
+    // attempt the call anyway — the 200 OK path immediately clears all degraded
+    // state so staff don't wait for an arbitrary localStorage timer.
     const cooldown = isBobServiceInCooldown()
     if (cooldown.active) {
+      // Show a subtle toast but do NOT block the request — let the API answer
       const retrySeconds = Math.max(10, Math.ceil(cooldown.remainingMs / 1000))
-      setBobDegraded(true)
-      toast.error(`Bob/Ollama recently failed; retrying now while service recovers (~${retrySeconds}s)`)
+      toast.info(`Previous outage detected (~${retrySeconds}s ago) — trying Bob anyway…`, { duration: 2500 })
     }
 
     try {
@@ -2064,7 +2074,10 @@ export default function BobAssistantStudio() {
       }
 
       const replyText: string = data?.response || 'I could not generate a response. Please try again.'
-      setBobDegraded(data?.provider === 'local-fallback')
+      // 200 OK received — immediately clear any stale outage/degraded state.
+      // Only flag as degraded if the gateway explicitly fell back to a local model.
+      const isLocalFallback = data?.provider === 'local-fallback'
+      setBobDegraded(isLocalFallback)
       clearBobServiceOutage()
 
       const msgId = crypto.randomUUID()
