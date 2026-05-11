@@ -190,6 +190,10 @@ function run(cmd, opts = {}) {
   }
 }
 
+function createPageSlug(page) {
+  return page.replace(/^\/+/, '').replace(/[^\w-]+/g, '-').replace(/^-+|-+$/g, '') || 'root'
+}
+
 async function main() {
   const config = parseArgs()
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
@@ -336,7 +340,7 @@ async function main() {
       for (const page of pageGroup.pages) {
         testCount += 1
         const testName = `${role}-${pageGroup.category}-${page.replace(/\//g, '-')}`
-        const pageSlug = page.replace(/^\/+/, '').replace(/[^\w-]+/g, '-').replace(/^-+|-+$/g, '') || 'root'
+        const pageSlug = createPageSlug(page)
         const testReportDir = path.join(reportDir, `role-${role}`, pageGroup.category, pageSlug)
         results.summary.total += 1
 

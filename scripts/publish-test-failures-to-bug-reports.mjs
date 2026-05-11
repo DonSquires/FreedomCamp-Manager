@@ -173,7 +173,7 @@ function mkSummaryReport({ reporterUser, source, title, description, severity = 
   }
 }
 
-function deriveCurrentPage(report) {
+function extractCurrentPageFromReport(report) {
   const actions = Array.isArray(report?.actions) ? report.actions : []
   for (let i = actions.length - 1; i >= 0; i -= 1) {
     const action = actions[i]?.action
@@ -313,7 +313,7 @@ async function main() {
         ].join('\n'),
         severity: level,
         issueType: result === 'completed' ? 'enhancement' : result === 'blocked_auth' ? 'infra' : 'ui_ux',
-        currentPage: deriveCurrentPage(report),
+        currentPage: extractCurrentPageFromReport(report),
       }))
     }
   } else {
