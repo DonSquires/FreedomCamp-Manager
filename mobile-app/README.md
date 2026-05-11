@@ -167,6 +167,12 @@ On first launch after login, the app requests notification permission and regist
 
 To test: send a breach alert from the web admin portal — the officer's phone should receive a push within seconds.
 
+### Background / screen-off welfare behavior
+
+- If the officer is on shift and switches to another app (or the screen turns off), welfare and operational push alerts should still be delivered.
+- The app supports notification standby mode after operational logout, so welfare pushes can still wake the device notification channel.
+- For reliable delivery, keep OS notification permission enabled and disable aggressive battery optimization for the app on managed devices.
+
 ---
 
 ## Project Structure
@@ -213,4 +219,5 @@ No backend changes are needed to support the mobile app.
 | GPS permission denied | User must grant in device Settings → Location |
 | Login error "Invalid JWT" | Check EXPO_PUBLIC_SUPABASE_ANON_KEY in .env |
 | Upload fails | Verify the `scans` storage bucket exists with public access |
-| No push notifications | Ensure `push_token` is saved in user_profiles |
+| No push notifications | Ensure `push_token` is saved in `user_profiles` and notification permissions are granted |
+| Welfare alert did not fire while app backgrounded | Check device battery optimization settings and verify push token + notification permission are still active |
