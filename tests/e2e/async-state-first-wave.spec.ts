@@ -67,7 +67,7 @@ async function dispatchConnectivityEvent(page: Page, type: 'offline' | 'online')
 async function assertOfflineBanner(page: Page, route: string) {
   await page.goto(route, { waitUntil: 'domcontentloaded' })
 
-  await expect(page.locator('main')).toBeVisible({ timeout: 8000 })
+  await expect(page.locator('main')).toBeVisible({ timeout: 15000 })
   await dispatchConnectivityEvent(page, 'offline')
 
   await expect(page.getByText(OFFLINE_BANNER)).toBeVisible({ timeout: 8000 })

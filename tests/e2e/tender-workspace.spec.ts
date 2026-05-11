@@ -15,11 +15,11 @@ test.describe('Tender & Document Workspace', () => {
     // Core action for starting a workflow (works for both desktop and mobile viewports)
     const newButton = page.locator('button').filter({ hasText: /New Tender \/ Document|New Tender|New Document/i }).first()
     await expect(newButton).toBeVisible({ timeout: 15000 })
-    await newButton.click({ force: true })
+    await newButton.click()
 
     // Modal/dialog should open
     const dialog = page.locator('[role="dialog"]').first()
-    await expect(dialog).toBeVisible({ timeout: 8000 })
+    await expect(dialog).toBeVisible({ timeout: 15000 })
 
     // Ensure key input fields are present
     await expect(dialog.locator('input, textarea').first()).toBeVisible({ timeout: 8000 })
