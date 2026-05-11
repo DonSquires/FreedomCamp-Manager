@@ -165,6 +165,23 @@ function formatShiftDuration(startedAt: string): string {
   return `${mins}m`
 }
 
+function extractRapidReference(value: string | null | undefined): string | null {
+  if (!value) return null
+  const normalized = value.trim()
+  if (!normalized) return null
+
+  const patrolMatch = normalized.match(/\bpatrol\s*([a-z0-9-]{2,12})\b/i)
+  if (patrolMatch?.[1]) return patrolMatch[1].toUpperCase()
+
+  const callsignMatch = normalized.match(/\bcallsign\s*([a-z0-9-]{1,12})\b/i)
+  if (callsignMatch?.[1]) return callsignMatch[1].toUpperCase()
+
+  const numericMatch = normalized.match(/\b([0-9]{2,4}[a-z]?)\b/i)
+  if (numericMatch?.[1]) return numericMatch[1].toUpperCase()
+
+  return null
+}
+
 async function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
   let timeoutId: ReturnType<typeof setTimeout> | undefined
   try {
@@ -699,18 +716,25 @@ export default function FieldOfficerPortal() {
   const primaryDispatchJob = (myDispatchJobs as any[])[0] ?? null
   const speechActivityTarget = useMemo(() => {
     if (primaryDispatchJob) {
+      const dispatchReference = primaryDispatchJob.job_number
+        ? String(primaryDispatchJob.job_number)
+        : extractRapidReference(primaryDispatchJob.title ?? null)
+
       return {
         kind: 'dispatch' as const,
         id: primaryDispatchJob.id as string,
-        label: `${primaryDispatchJob.job_number ?? 'Dispatch'} · ${primaryDispatchJob.title ?? 'Untitled job'}`,
+        label: `${dispatchReference ? `Dispatch ${dispatchReference}` : 'Dispatch'} · ${primaryDispatchJob.title ?? 'Untitled job'}`,
+        rapidReference: dispatchReference,
       }
     }
 
     if (activeRouteInstance) {
+      const routeLabel = String(activeRouteInstance.patrol_route_name ?? 'Active patrol route')
       return {
         kind: 'patrol' as const,
         id: activeRouteInstance.id as string,
-        label: String(activeRouteInstance.patrol_route_name ?? 'Active patrol route'),
+        label: routeLabel,
+        rapidReference: extractRapidReference(routeLabel),
       }
     }
 
@@ -730,6 +754,7 @@ export default function FieldOfficerPortal() {
         source: 'assistive',
         authoritative_target: speechActivityTarget?.kind === 'dispatch' ? 'dispatch_job' : 'patrol_route_instance',
         target_label: speechActivityTarget?.label ?? 'Field session',
+        rapid_reference: speechActivityTarget?.rapidReference ?? null,
         transcript: speechResult.transcript,
         summary: speechResult.intent.summary,
         intent: speechResult.intent.intent,
@@ -773,6 +798,8 @@ export default function FieldOfficerPortal() {
           source: 'rapid-activity-listener',
           target_kind: speechActivityTarget.kind,
           target_id: speechActivityTarget.id,
+          target_label: speechActivityTarget.label,
+          rapid_reference: speechActivityTarget.rapidReference,
           dispatch_job_id: primaryDispatchJob?.id ?? null,
           patrol_route_instance_id: activeRouteInstance?.id ?? null,
           shift_id: activeShift?.id ?? null,
@@ -2462,6 +2489,11 @@ export default function FieldOfficerPortal() {
                     {speechActivityTarget && (
                       <Badge variant="outline" className="border-emerald-300 text-emerald-700 dark:text-emerald-300">
                         Target: {speechActivityTarget.label}
+                      </Badge>
+                    )}
+                    {speechActivityTarget?.rapidReference && (
+                      <Badge variant="outline" className="border-sky-300 text-sky-700 dark:text-sky-300">
+                        Rapid ref: {speechActivityTarget.rapidReference}
                       </Badge>
                     )}
                     <Badge variant="outline" className="capitalize">
