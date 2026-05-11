@@ -1724,42 +1724,6 @@ export default function App() {
             }
           />
 
-          {/* ── Health & Safety Reports (B-64) ───────────────────────────── */}
-          <Route
-            path="/health-safety-reports"
-            element={
-              <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
-                  <HealthSafetyReports />
-                </RoleRoute>
-              </ProtectedRoute>
-            }
-          />
-
-          {/* ── Welfare Check-in Log (B-65) ───────────────────────────────── */}
-          <Route
-            path="/welfare-checkins"
-            element={
-              <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
-                  <WelfareCheckinLog />
-                </RoleRoute>
-              </ProtectedRoute>
-            }
-          />
-
-          {/* ── Parking Permit Manager (B-66) ────────────────────────────── */}
-          <Route
-            path="/parking-permits"
-            element={
-              <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
-                  <ParkingPermitManager />
-                </RoleRoute>
-              </ProtectedRoute>
-            }
-          />
-
             <Route
               path="/messages"
               element={
@@ -2428,33 +2392,6 @@ export default function App() {
             }
           />
 
-          {/* Sprint 19–21: B-67–B-75 */}
-          <Route path="/roster-shifts" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><RosterShiftLog /></RoleRoute></ProtectedRoute>} />
-          <Route path="/noise-notices" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><NoiseNoticeLog /></RoleRoute></ProtectedRoute>} />
-          <Route path="/site-incidents" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><SiteIncidentLog /></RoleRoute></ProtectedRoute>} />
-          <Route path="/person-interactions" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><PersonInteractionLog /></RoleRoute></ProtectedRoute>} />
-          <Route path="/plate-scans-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><PlateScanLog /></RoleRoute></ProtectedRoute>} />
-          <Route path="/dispatch-events" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><DispatchEventLog /></RoleRoute></ProtectedRoute>} />
-          <Route path="/notices-to-vacate" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><NoticeToVacateLog /></RoleRoute></ProtectedRoute>} />
-          <Route path="/contractor-manager" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><ContractorManager /></RoleRoute></ProtectedRoute>} />
-          <Route path="/vehicle-discrepancies" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><VehicleDiscrepancyLog /></RoleRoute></ProtectedRoute>} />
-
-          {/* Sprint 22–26: B-76–B-90 */}
-          <Route path="/drift-events" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><DriftEventLog /></RoleRoute></ProtectedRoute>} />
-          <Route path="/investigation-job-config" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><InvestigationJobConfig /></RoleRoute></ProtectedRoute>} />
-          <Route path="/zone-legal-config" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><ZoneLegalConfigViewer /></RoleRoute></ProtectedRoute>} />
-          <Route path="/investigation-jobs-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><InvestigationJobLog /></RoleRoute></ProtectedRoute>} />
-          <Route path="/operational-cases-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><OperationalCaseLog /></RoleRoute></ProtectedRoute>} />
-          <Route path="/patrol-events-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><PatrolEventLog /></RoleRoute></ProtectedRoute>} />
-          <Route path="/checkpoint-visits-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><CheckpointVisitLog /></RoleRoute></ProtectedRoute>} />
-          <Route path="/ems-attendances-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><EmsAttendanceLog /></RoleRoute></ProtectedRoute>} />
-          <Route path="/parking-sessions-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><ParkingSessionLog /></RoleRoute></ProtectedRoute>} />
-          <Route path="/flagged-vehicles-manager" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><FlaggedVehicleManager /></RoleRoute></ProtectedRoute>} />
-          <Route path="/parking-payments-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><ParkingPaymentLog /></RoleRoute></ProtectedRoute>} />
-          <Route path="/zone-signage-evidence" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><ZoneSignageEvidence /></RoleRoute></ProtectedRoute>} />
-          <Route path="/officer-activity-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><OfficerActivityLog /></RoleRoute></ProtectedRoute>} />
-          <Route path="/credential-processing-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><CredentialProcessingLog /></RoleRoute></ProtectedRoute>} />
-          <Route path="/dispatch-ack-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><DispatchAcknowledgementLog /></RoleRoute></ProtectedRoute>} />
           {/* Sprint 27: B-91–B-93 */}
           <Route path="/compliance-audit-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><ComplianceAuditLog /></RoleRoute></ProtectedRoute>} />
           <Route path="/enforcement-events-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><EnforcementEventLog /></RoleRoute></ProtectedRoute>} />
