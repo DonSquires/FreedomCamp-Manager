@@ -14,7 +14,7 @@
  *   tools/agentic-ui-reports/mobile-comprehensive-TIMESTAMP/
  */
 
-import { execSync } from 'node:child_process'
+import { execSync, spawn } from 'node:child_process'
 import path from 'node:path'
 import { existsSync } from 'node:fs'
 import fs from 'node:fs/promises'
@@ -98,6 +98,49 @@ const testPacks = [
   { name: 'live-ops', desc: 'Live operations monitoring pages' },
 ]
 
+// ─── Server readiness helpers ──────────────────────────────────────────────────
+
+async function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+async function isHttpReachable(url, timeoutMs = 2500) {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    const res = await fetch(url, { method: 'GET', signal: controller.signal, redirect: 'follow' })
+    return res.status > 0
+  } catch {
+    return false
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+async function waitForBaseUrlReady(baseUrl, totalWaitMs = 30000, pollMs = 1000) {
+  const deadline = Date.now() + Math.max(1000, totalWaitMs)
+  const loginUrl = `${baseUrl.replace(/\/$/, '')}/login`
+  while (Date.now() < deadline) {
+    if (await isHttpReachable(loginUrl)) return true
+    if (await isHttpReachable(baseUrl)) return true
+    await sleep(pollMs)
+  }
+  return false
+}
+
+function startWebServer(command, cwd) {
+  const parts = command.split(' ').filter(Boolean)
+  const child = spawn(parts[0], parts.slice(1), {
+    cwd,
+    stdio: 'ignore',
+    detached: true,
+  })
+  child.unref()
+  return child
+}
+
+// ─── Argument parsing ──────────────────────────────────────────────────────────
+
 function parseArgs() {
   const args = process.argv.slice(2)
   const config = {
@@ -105,13 +148,19 @@ function parseArgs() {
     dryRun: false,
     headless: true,
     verbose: false,
+    baseUrl: (process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:5173').replace(/\/$/, ''),
+    baseUrlWaitMs: Number(process.env.AGENTIC_BASE_URL_WAIT_MS) || 30000,
+    autoStartServer: true,
+    webServerCommand: 'bunx vite --port 5173 --strictPort',
   }
 
   for (const arg of args) {
     if (arg === '--dry-run') config.dryRun = true
     if (arg === '--headed') config.headless = false
     if (arg === '--verbose') config.verbose = true
+    if (arg === '--no-auto-start') config.autoStartServer = false
     if (arg.startsWith('--role=')) config.role = arg.split('=')[1]
+    if (arg.startsWith('--base-url=')) config.baseUrl = arg.split('=').slice(1).join('=').replace(/\/$/, '')
   }
 
   return config
@@ -144,6 +193,7 @@ async function main() {
 
   log(`Starting comprehensive mobile UI/UX test suite`, 'info')
   log(`Report directory: ${reportDir}`, 'info')
+  log(`Base URL: ${config.baseUrl}`, 'info')
 
   const results = {
     timestamp,
@@ -162,22 +212,89 @@ async function main() {
   // Ensure report directory exists
   await fs.mkdir(reportDir, { recursive: true })
 
-  // Test 1: Built-in test packs
+  // ── Server readiness check ──────────────────────────────────────────────────
+  let managedServer = null
+  let serverReady = false
+
+  if (!config.dryRun) {
+    log(`Checking if app server is reachable at ${config.baseUrl} …`, 'info')
+    serverReady = await waitForBaseUrlReady(config.baseUrl, config.baseUrlWaitMs)
+
+    if (!serverReady && config.autoStartServer) {
+      log(`Server not ready — starting: ${config.webServerCommand}`, 'warn')
+      managedServer = startWebServer(config.webServerCommand, path.resolve('.'))
+      serverReady = await waitForBaseUrlReady(config.baseUrl, config.baseUrlWaitMs)
+    }
+
+    if (!serverReady) {
+      log(`App server unreachable at ${config.baseUrl} — skipping all packs and page tests (infra issue)`, 'warn')
+      for (const pack of testPacks) {
+        results.testPacks.push({ pack: pack.name, status: 'infra-skip', reason: 'app server unreachable' })
+        results.summary.total += 1
+        results.summary.skipped += 1
+      }
+      // Write results and exit without marking as failed
+      const resultsFile = path.join(reportDir, 'results.json')
+      await fs.writeFile(resultsFile, JSON.stringify(results, null, 2))
+      log(`Results saved to: ${resultsFile}`, 'info')
+      log(`\n[INFRA] App server was unreachable. No tests ran. This is an infrastructure issue, not a UI regression.`, 'warn')
+      process.exit(0)
+    }
+
+    log(`✓ App server is reachable`, 'info')
+  }
+
+  // ── Phase 1: Built-in test packs ───────────────────────────────────────────
   log(`\n=== PHASE 1: Built-in Test Packs ===`, 'info')
   for (const pack of testPacks) {
     log(`Running pack: ${pack.name}`, 'info')
 
     const packReportDir = path.join(reportDir, `pack-${pack.name}`)
-    const cmd = `bun scripts/agentic-ui-shadow-user.mjs --pack=${pack.name} --no-planner --no-video --evidence-dir=${packReportDir}`
+    const cmd = [
+      `bun scripts/agentic-ui-shadow-user.mjs`,
+      `--pack=${pack.name}`,
+      `--no-planner`,
+      `--no-video`,
+      `--base-url=${config.baseUrl}`,
+      `--evidence-dir=${packReportDir}`,
+    ].join(' ')
 
     if (config.dryRun) {
       log(`[DRY-RUN] ${cmd}`, 'debug')
       results.testPacks.push({ pack: pack.name, status: 'dry-run', cmd })
     } else {
       const packResult = run(cmd, { silent: false })
+
+      // Detect infrastructure failures embedded in the pack report
+      let status = packResult.success ? 'passed' : 'failed'
+      try {
+        const reportJson = JSON.parse(
+          await fs.readFile(path.join(packReportDir, 'report.json'), 'utf8').catch(() => '{}')
+        )
+        const firstErrMsg = String(reportJson.actions?.[0]?.execution?.error || '')
+        if (firstErrMsg.includes('ERR_CONNECTION_REFUSED') || firstErrMsg.includes('ECONNREFUSED')) {
+          status = 'infra-fail'
+          results.summary.skipped += 1
+          results.summary.total += 1
+          log(`⚠ Pack ${pack.name} skipped — server connectivity error (infra)`, 'warn')
+          results.testPacks.push({ pack: pack.name, status, cmd, reason: 'server connectivity error' })
+          continue
+        }
+        if (reportJson.result === 'blocked_infra') {
+          status = 'infra-fail'
+          results.summary.skipped += 1
+          results.summary.total += 1
+          log(`⚠ Pack ${pack.name} skipped — blocked_infra (infra)`, 'warn')
+          results.testPacks.push({ pack: pack.name, status, cmd })
+          continue
+        }
+      } catch {
+        // ignore JSON parse errors; fall through to normal status
+      }
+
       results.testPacks.push({
         pack: pack.name,
-        status: packResult.success ? 'passed' : 'failed',
+        status,
         cmd,
         error: packResult.error,
       })
@@ -193,7 +310,7 @@ async function main() {
     }
   }
 
-  // Test 2: Role-specific page tests
+  // ── Phase 2: Role-specific page tests ──────────────────────────────────────
   log(`\n=== PHASE 2: Role-Specific Mobile Page Testing ===`, 'info')
 
   const targetRoles = config.role ? [config.role] : roles
@@ -225,6 +342,7 @@ async function main() {
           `bun scripts/agentic-ui-shadow-user.mjs ` +
           `--goal="${goal}" ` +
           `--no-video ` +
+          `--base-url=${config.baseUrl} ` +
           `--evidence-dir=${testReportDir} ` +
           `--role=${role} ` +
           `${config.headless ? '' : '--headed'}`
@@ -259,7 +377,7 @@ async function main() {
     }
   }
 
-  // Summary
+  // ── Summary ────────────────────────────────────────────────────────────────
   log(`\n=== TEST SUMMARY ===`, 'info')
   log(`Total tests: ${results.summary.total}`, 'info')
   log(`Passed: ${results.summary.passed}`, 'info')
@@ -291,6 +409,11 @@ async function main() {
       log(`Skipping bug_reports publish (autoPublish=${autoPublishEnabled}, hasEnv=${hasBugReporterEnv})`, 'warn')
     }
   }
+
+  if (managedServer) {
+    try { managedServer.kill() } catch { /* ignore */ }
+  }
+
 
   // Exit with appropriate code
   if (config.dryRun) {

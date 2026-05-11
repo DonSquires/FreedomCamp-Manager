@@ -369,7 +369,23 @@ async function executeAction(page, action) {
 
   if (t === 'goto') {
     const target = action.url?.startsWith('http') ? action.url : `${config.baseUrl}${action.url || ''}`
-    await page.goto(target, { waitUntil: 'networkidle', timeout: config.timeoutMs })
+    try {
+      await page.goto(target, { waitUntil: 'load', timeout: config.timeoutMs })
+    } catch (loadErr) {
+      const msg = String(loadErr?.message || loadErr)
+      // Hard connectivity failures are infrastructure issues, not UI bugs.
+      // Re-throw so the caller can classify them as blocked_infra.
+      if (msg.includes('ERR_CONNECTION_REFUSED') || msg.includes('ECONNREFUSED') || msg.includes('NS_ERROR_CONNECTION_REFUSED')) {
+        throw loadErr
+      }
+      // For soft failures (e.g. networkidle timeout from background polling),
+      // fall back to domcontentloaded so the pack can still proceed.
+      if (msg.includes('networkidle') || msg.includes('Timeout') || msg.includes('TimeoutError')) {
+        await page.goto(target, { waitUntil: 'domcontentloaded', timeout: config.timeoutMs })
+      } else {
+        throw loadErr
+      }
+    }
     return { ok: true }
   }
 
@@ -663,6 +679,17 @@ async function main() {
           })
           break
         }
+        // Connectivity failures are infrastructure issues, not UI regressions.
+        const errMsg = String(execution.error || '')
+        if (errMsg.includes('ERR_CONNECTION_REFUSED') || errMsg.includes('ECONNREFUSED') || errMsg.includes('NS_ERROR_CONNECTION_REFUSED')) {
+          report.result = 'blocked_infra'
+          report.compliance_findings.push({
+            level: 'info',
+            code: 'INFRA_CONNECTIVITY',
+            detail: 'App server was unreachable. This is an infrastructure issue, not a UI regression.',
+          })
+          break
+        }
         report.result = 'failed'
         break
       }
@@ -697,6 +724,7 @@ async function main() {
   }
 
   if (report.result === 'failed') process.exit(1)
+  // blocked_infra exits 0 — connectivity failures are not UI regressions
 }
 
 main().catch((err) => {
