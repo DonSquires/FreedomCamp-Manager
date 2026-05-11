@@ -196,7 +196,13 @@ function run(cmd, opts = {}) {
  * trims edge dashes, and falls back to "root" if empty.
  */
 function createPageSlug(page) {
-  return page.replace(/^\/+/, '').replace(/[^\w-]+/g, '-').replace(/^-+|-+$/g, '') || 'root'
+  // Remove leading slashes.
+  const noLeadingSlash = page.replace(/^\/+/, '')
+  // Replace non-word separators with dashes.
+  const normalized = noLeadingSlash.replace(/[^\w-]+/g, '-')
+  // Trim edge dashes introduced by normalization.
+  const trimmed = normalized.replace(/^-+|-+$/g, '')
+  return trimmed || 'root'
 }
 
 async function main() {

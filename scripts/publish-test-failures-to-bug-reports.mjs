@@ -189,7 +189,8 @@ function extractCurrentPageFromReport(report) {
         const parsed = new URL(url)
         return parsed.pathname || '/bug-reports-log'
       } catch {
-        // Ignore invalid URLs and continue scanning.
+        // Invalid URL strings can appear in noisy test output; keep scanning
+        // for the next usable route instead of failing report publication.
       }
     }
   }
@@ -205,6 +206,12 @@ function hasConnectionRefusedError(report) {
     const message = String(step?.execution?.error || '')
     return message.includes('ERR_CONNECTION_REFUSED') || message.includes('ECONNREFUSED')
   })
+}
+
+function classifyIssueType(result) {
+  if (result === 'completed') return 'enhancement'
+  if (result === 'blocked_auth') return 'infra'
+  return 'ui_ux'
 }
 
 async function main() {
@@ -308,6 +315,7 @@ async function main() {
       const pack = String(report.pack || reportGoal || path.basename(path.dirname(filePath)))
       const result = String(report.result || 'unknown')
       const level = result === 'completed' ? 'low' : result === 'blocked_auth' ? 'medium' : 'high'
+      const issueType = classifyIssueType(result)
 
       payloads.push(mkSummaryReport({
         reporterUser,
@@ -324,7 +332,7 @@ async function main() {
           `Findings: ${JSON.stringify(report.compliance_findings || []).slice(0, 2000)}`,
         ].join('\n'),
         severity: level,
-        issueType: result === 'completed' ? 'enhancement' : result === 'blocked_auth' ? 'infra' : 'ui_ux',
+        issueType,
         currentPage: extractCurrentPageFromReport(report),
       }))
     }
