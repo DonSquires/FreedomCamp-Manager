@@ -16,6 +16,37 @@ import { findBobSchemaEntitiesForText, getBobSchemaRegistrySummary } from './bob
 
 const ACCESS_TOKEN_REFRESH_BUFFER_MS = 60_000
 const EDGE_FUNCTION_TIMEOUT_MS = 35_000
+
+// ---------------------------------------------------------------------------
+// trimHistoryToTokenBudget
+//
+// Trims a messages array to stay within a character budget before sending to
+// the inference provider (≈4000 tokens ≈ 16 000 chars at ~4 chars/token).
+// Always preserves all system messages and the last user message so context
+// and the current question are never dropped.
+// ---------------------------------------------------------------------------
+export function trimHistoryToTokenBudget(
+  messages: Array<{ role: string; content: string }>,
+  maxChars = 14_000,
+): Array<{ role: string; content: string }> {
+  const systemMessages = messages.filter((m) => m.role === 'system')
+  const conversationMessages = messages.filter((m) => m.role !== 'system')
+
+  const systemBudgetUsed = systemMessages.reduce((sum, m) => sum + m.content.length, 0)
+  let remaining = Math.max(0, maxChars - systemBudgetUsed)
+
+  // Walk newest → oldest keeping messages that fit; always keep the last message
+  const kept: Array<{ role: string; content: string }> = []
+  for (let i = conversationMessages.length - 1; i >= 0; i--) {
+    const msg = conversationMessages[i]
+    const len = msg.content.length
+    if (remaining - len < 0 && kept.length > 0) break // drop older messages once full
+    remaining -= len
+    kept.unshift(msg)
+  }
+
+  return [...systemMessages, ...kept]
+}
 function buildBobExecutionSystemPrompt() {
   const policy = getEffectiveBobExecutionPolicy()
   const modeDirective = policy.mode === 'owner_full'
@@ -1311,9 +1342,17 @@ export const edgeFunctions = {
         }
       : params
 
+    // Trim conversation history to ≤14 000 chars (≈3 500 tokens) before sending
+    // to the inference provider. This prevents prompt-truncation 500 errors while
+    // always preserving system messages and the current user message.
+    const trimmedRequestParams = {
+      ...requestParams,
+      messages: trimHistoryToTokenBudget(requestParams.messages || []),
+    }
+
     // AiAnalysis.tsx renders errors in the chat and shows its own toast, so
     // suppress the automatic toast here to avoid duplicate error notifications.
-    const result = await edgeFunctions.bobGateway(requestParams)
+    const result = await edgeFunctions.bobGateway(trimmedRequestParams)
 
     if (result.error || !result.data) {
       return result

@@ -20,14 +20,15 @@ import { useBobActionApproval } from '@/hooks/useBobActionApproval'
 import { listPendingBobActionProposals, type BobActionProposalRow } from '@/hooks/useBobApprovalD1'
 import { usePTTStore } from '@/stores/pttStore'
 import { supabase } from '@/lib/supabase'
-import { BrainCircuit, CheckCircle2, ClipboardList, FlaskConical, Loader2, MapPinned, Mic, MicOff, Paintbrush2, Play, Radio, Route, Send, Volume2, VolumeX, Wrench, Github, ShieldAlert, PhoneOff, SignalHigh, Stethoscope, XCircle } from 'lucide-react'
+import { BrainCircuit, CheckCircle2, ChevronDown, ClipboardList, Copy, FlaskConical, Loader2, MapPinned, Mic, MicOff, Paintbrush2, Play, Plus, Radio, Route, Send, Volume2, VolumeX, Wrench, Github, ShieldAlert, PhoneOff, SignalHigh, Stethoscope, XCircle } from 'lucide-react'
+import ReactMarkdown from 'react-markdown'
 import { toast } from 'sonner'
 import { edgeFunctions } from '@/lib/edgeFunctions'
 import { assertBobMutationAccess } from '@/lib/bobMutationCatalog'
 import { forwardGeocode } from '@/lib/geocoding'
 import { smokeTests, dataVerification, performanceTests, runBugFixDeepDive } from '@/lib/testUtils'
 import { consumeLatestBobCollaborationPacket, publishBobResponse, type BobCollaborationPacket } from '@/lib/bobCollaboration'
-import { BOB_PROJECT_KNOWLEDGE } from '@/lib/bobKnowledgeBase'
+import { BOB_PROJECT_KNOWLEDGE, BOB_DOCUMENT_GUARDRAILS } from '@/lib/bobKnowledgeBase'
 import { BobOrb, type BobOrbState } from '@/components/features/BobOrb'
 import {
   clearPTTCustomAudioSourceFactory,
@@ -494,6 +495,17 @@ const VOICE_INACTIVITY_TIMEOUT_MS = 29_000
 const BOB_CHAT_RESPONSE_TIMEOUT_MS = 45_000
 const BOB_SERVICE_OUTAGE_KEY = 'bob-service-outage-until'
 const BOB_SERVICE_OUTAGE_COOLDOWN_MS = 2 * 60_000
+const BOB_HISTORY_TURN_LIMIT = 8
+const BOB_HISTORY_MESSAGE_CHAR_LIMIT = 1_200
+const BOB_KNOWLEDGE_CHAR_LIMIT = 2_400
+const BOB_LONG_TERM_MEMORY_CHAR_LIMIT = 1_400
+const BOB_REMOTE_MEMORY_CHAR_LIMIT = 1_400
+const BOB_CONTINUATION_MEMORY_CHAR_LIMIT = 1_600
+const BOB_TOTAL_PROMPT_CHAR_BUDGET = 12_000
+
+// Document attachment limits (~4 chars per token)
+const DOC_TOKEN_WARNING_CHARS = 12_000  // ~3 000 tokens – show yellow warning
+const DOC_TOKEN_HARD_LIMIT_CHARS = 16_000 // ~4 000 tokens – truncate excerpt sent
 
 async function withPromiseTimeout<T>(
   promise: Promise<T>,
@@ -537,6 +549,23 @@ function markBobServiceOutage() {
 function clearBobServiceOutage() {
   if (typeof window === 'undefined') return
   window.localStorage.removeItem(BOB_SERVICE_OUTAGE_KEY)
+}
+
+function isLikelyBobServiceOutageError(error: unknown): boolean {
+  const text = String(error ?? '').toLowerCase()
+  if (!text) return false
+  return (
+    text.includes('temporarily unavailable') ||
+    text.includes('timeout') ||
+    text.includes('timed out') ||
+    text.includes('aborterror') ||
+    text.includes('failed to fetch') ||
+    text.includes('fetch failed') ||
+    text.includes('network error') ||
+    text.includes('503') ||
+    text.includes('504') ||
+    text.includes('provider failed')
+  )
 }
 
 function BobSketchPad() {
@@ -689,6 +718,7 @@ export default function BobAssistantStudio() {
   } | null>(null)
   const [listening, setListening] = useState(false)
   const [thinking, setThinking] = useState(false)
+  const [streamingMessageId, setStreamingMessageId] = useState<string | null>(null)
   const [isBobSpeaking, setIsBobSpeaking] = useState(false)
   const [bobDegraded, setBobDegraded] = useState(false)
   const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([])
@@ -790,6 +820,15 @@ export default function BobAssistantStudio() {
 
   const recognitionRef = useRef<any>(null)
   const chatEndRef = useRef<HTMLDivElement | null>(null)
+  const chatScrollContainerRef = useRef<HTMLDivElement | null>(null)
+  const docFileInputRef = useRef<HTMLInputElement | null>(null)
+  const [userScrolledUp, setUserScrolledUp] = useState(false)
+  const [attachedDocument, setAttachedDocument] = useState<{
+    name: string
+    type: string
+    extractedText: string
+    charCount: number
+  } | null>(null)
   const voiceConversationActiveRef = useRef(false)
   const speakingRef = useRef(false)
   const wakeUnlockedRef = useRef(false)
@@ -856,8 +895,10 @@ export default function BobAssistantStudio() {
   )
 
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [chat, thinking])
+    if (!userScrolledUp) {
+      chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }
+  }, [chat, thinking, userScrolledUp])
 
   useEffect(() => {
     let cancelled = false
@@ -1484,6 +1525,39 @@ export default function BobAssistantStudio() {
   }
   restartVoiceConversationRef.current = startVoiceConversation
 
+  const handleDocumentAttach = async (file: File) => {
+    let extractedText = ''
+    const name = file.name
+    const type = file.type
+
+    if (type.startsWith('image/')) {
+      extractedText = `[Attached image: ${name}. Bob will apply visual inference and Ringelmann assessment guidelines to any visible environmental or smoke evidence.]`
+    } else if (type === 'application/pdf' || name.toLowerCase().endsWith('.pdf')) {
+      // PDF text extraction requires a server-side tool; acknowledge and guide user
+      extractedText = `[Attached PDF: ${name}. For full text extraction use the Tender Document Processor. Paste key clauses here for immediate Bob analysis, or Bob will reference this attachment by name.]`
+    } else {
+      // CSV, TXT, JSON, XLSX-as-text etc. — read raw text
+      try {
+        extractedText = await file.text()
+      } catch {
+        extractedText = `[Could not read file content for ${name}. Please paste the relevant text directly into the chat.]`
+      }
+    }
+
+    const charCount = extractedText.length
+    const truncated = charCount > DOC_TOKEN_HARD_LIMIT_CHARS
+      ? extractedText.slice(0, DOC_TOKEN_HARD_LIMIT_CHARS) + `\n\n[…truncated at ${DOC_TOKEN_HARD_LIMIT_CHARS} chars to stay within context window. Full document: ${name}]`
+      : extractedText
+
+    setAttachedDocument({ name, type, extractedText: truncated, charCount })
+
+    if (charCount > DOC_TOKEN_WARNING_CHARS) {
+      toast.warning(`"${name}" is large (~${Math.round(charCount / 4)} tokens). Bob will use the first ${Math.round(DOC_TOKEN_HARD_LIMIT_CHARS / 4)} tokens. Use "Summarise document" to reduce first.`)
+    } else {
+      toast.success(`Attached: ${name}`)
+    }
+  }
+
   const sendMessage = async (override?: string) => {
     const message = (override ?? chatInput).trim()
     if (!message || thinking) return
@@ -2016,20 +2090,29 @@ export default function BobAssistantStudio() {
 
     const buildRequestBody = () => {
       const historyMessages = chat
-        .slice(-16)
+        .slice(-BOB_HISTORY_TURN_LIMIT)
         .filter((m): m is ChatMessage & { role: 'user' | 'assistant' } => m.role === 'user' || m.role === 'assistant')
-        .map((m): { role: 'user' | 'assistant'; content: string } => ({ role: m.role, content: m.text }))
+        .map((m): { role: 'user' | 'assistant'; content: string } => ({ role: m.role, content: String(m.text || '').slice(0, BOB_HISTORY_MESSAGE_CHAR_LIMIT) }))
       const longTermMemory = buildBobLearningContext(learningUserId, 20)
-      const compactKnowledge = BOB_PROJECT_KNOWLEDGE.slice(0, 9_000)
-      const compactLongTermMemory = longTermMemory.slice(0, 5_000)
-      const compactRemoteMemory = remoteLearningContext.slice(0, 5_000)
-      const compactContinuationMemory = conversationContinuationContext.slice(0, 6_000)
+      const compactKnowledge = BOB_PROJECT_KNOWLEDGE.slice(0, BOB_KNOWLEDGE_CHAR_LIMIT)
+      const compactLongTermMemory = longTermMemory.slice(0, BOB_LONG_TERM_MEMORY_CHAR_LIMIT)
+      const compactRemoteMemory = remoteLearningContext.slice(0, BOB_REMOTE_MEMORY_CHAR_LIMIT)
+      const compactContinuationMemory = conversationContinuationContext.slice(0, BOB_CONTINUATION_MEMORY_CHAR_LIMIT)
 
       const rawMessages: Array<{ role: 'user' | 'assistant' | 'system'; content: string }> = []
       rawMessages.push({ role: 'assistant', content: compactKnowledge })
       if (compactLongTermMemory) rawMessages.push({ role: 'assistant', content: compactLongTermMemory })
       if (compactRemoteMemory) rawMessages.push({ role: 'assistant', content: compactRemoteMemory })
       if (compactContinuationMemory) rawMessages.push({ role: 'assistant', content: compactContinuationMemory })
+
+      // Inject document guardrails + extracted content when a file is attached
+      if (attachedDocument) {
+        rawMessages.push({
+          role: 'system',
+          content: `${BOB_DOCUMENT_GUARDRAILS}\n\n---\n## Attached Document: ${attachedDocument.name}\n\n${attachedDocument.extractedText}`,
+        })
+      }
+
       if (command.intent !== 'unknown') {
         rawMessages.push({
           role: 'system',
@@ -2043,11 +2126,30 @@ export default function BobAssistantStudio() {
           ].join(' | '),
         })
       }
-      rawMessages.push(...historyMessages, { role: 'user', content: message })
+      rawMessages.push(...historyMessages, { role: 'user', content: String(message || '').slice(0, 2_000) })
+
+      let consumedChars = 0
+      const budgetedMessages = rawMessages
+        .filter((entry) => typeof entry.content === 'string' && entry.content.trim().length > 0)
+        .reverse()
+        .filter((entry) => {
+          const length = entry.content.length
+          if (consumedChars + length > BOB_TOTAL_PROMPT_CHAR_BUDGET) return false
+          consumedChars += length
+          return true
+        })
+        .reverse()
 
       return {
-        messages: rawMessages,
+        messages: budgetedMessages,
+        // Route to the appropriate model based on what the user attached:
+        //   - Images → llama3.2-vision:11b for visual inference (smoke, vegetation, ALPR)
+        //   - Text / CSV / PDF → qwen2.5:7b with historyTrimmer (keeps under 4096-token limit)
+        //   - No attachment → auto (gateway picks the default balanced model)
         provider: 'auto' as const,
+        model: attachedDocument
+          ? (attachedDocument.type.startsWith('image/') ? 'llama3.2-vision:11b' : 'qwen2.5:7b')
+          : undefined,
         context: {
           tone,
           source: 'bob-studio',
@@ -2074,22 +2176,14 @@ export default function BobAssistantStudio() {
       }
     }
 
+    // If a previous outage was recorded but the service may have recovered,
+    // attempt the call anyway — the 200 OK path immediately clears all degraded
+    // state so staff don't wait for an arbitrary localStorage timer.
     const cooldown = isBobServiceInCooldown()
     if (cooldown.active) {
+      // Show a subtle toast but do NOT block the request — let the API answer
       const retrySeconds = Math.max(10, Math.ceil(cooldown.remainingMs / 1000))
-      setBobDegraded(true)
-      setChat((prev) => [
-        ...prev,
-        {
-          id: crypto.randomUUID(),
-          role: 'assistant',
-          text: `Bob/Ollama is still reconnecting. Please retry in about ${retrySeconds}s. I can still provide a quick local action checklist while AI service recovers.`,
-          createdAt: new Date().toISOString(),
-        },
-      ])
-      toast.error(`Bob/Ollama service recovering (retry in ~${retrySeconds}s)`)
-      setThinking(false)
-      return
+      toast.info(`Previous outage detected (~${retrySeconds}s ago) — trying Bob anyway…`, { duration: 2500 })
     }
 
     try {
@@ -2121,11 +2215,15 @@ export default function BobAssistantStudio() {
       }
 
       const replyText: string = data?.response || 'I could not generate a response. Please try again.'
-      setBobDegraded(data?.provider === 'local-fallback')
+      // 200 OK received — immediately clear any stale outage/degraded state.
+      // Only flag as degraded if the gateway explicitly fell back to a local model.
+      const isLocalFallback = data?.provider === 'local-fallback'
+      setBobDegraded(isLocalFallback)
       clearBobServiceOutage()
 
+      const msgId = crypto.randomUUID()
       const bobMsg: ChatMessage = {
-        id: crypto.randomUUID(),
+        id: msgId,
         role: 'assistant',
         text: replyText,
         createdAt: new Date().toISOString(),
@@ -2135,7 +2233,10 @@ export default function BobAssistantStudio() {
         executionReview: (data as any)?.executionReview,
       }
 
+      setStreamingMessageId(msgId)
       setChat((prev) => [...prev, bobMsg])
+      // Clear the streaming cursor after a short delay so it feels like the text settled
+      setTimeout(() => setStreamingMessageId(null), 1200)
 
       // Run memory writes in background so chat UX is not blocked by DB latency.
       void (async () => {
@@ -2225,9 +2326,20 @@ export default function BobAssistantStudio() {
       }
     } catch (err: any) {
       console.error('Bob assistant invoke failed:', err)
-      markBobServiceOutage()
-      setBobDegraded(true)
-      const replyText = 'Bob/Ollama is temporarily unavailable right now. Please retry in a moment.'
+      const errorText = String(err?.message ?? err ?? '')
+      const likelyOutage = isLikelyBobServiceOutageError(errorText)
+
+      if (likelyOutage) {
+        markBobServiceOutage()
+        setBobDegraded(true)
+      } else {
+        clearBobServiceOutage()
+        setBobDegraded(false)
+      }
+
+      const replyText = likelyOutage
+        ? 'Bob/Ollama is temporarily unavailable right now. Please retry in a moment.'
+        : (errorText || 'Bob could not process that request right now. Please retry.')
       const bobMsg: ChatMessage = {
         id: crypto.randomUUID(),
         role: 'assistant',
@@ -4694,84 +4806,271 @@ export default function BobAssistantStudio() {
                 )}
               </div>
 
-              <div className="h-[45vh] min-h-[200px] overflow-auto rounded border p-3 space-y-2 bg-muted/20">
-                {chat.length === 0 && !thinking ? (
-                  <div className="text-sm text-muted-foreground">No messages yet. Ask Bob for import help, directions, or operational guidance.</div>
-                ) : (
-                  chat.map((message) => (
-                    <div
-                      key={message.id}
-                      className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                    >
-                      <div className={`max-w-[85%] rounded px-3 py-2 text-sm ${message.role === 'assistant' ? 'bg-primary text-primary-foreground mr-auto' : 'bg-background border ml-auto text-right'}`}>
-                        <div className="text-[11px] opacity-80 mb-1">{message.role === 'assistant' ? displayName : 'You'}</div>
-                        <div className="text-left">{message.text}</div>
-                        {message.role === 'assistant' && !!message.actionChecklist?.length && (
-                          <div className="mt-2 rounded border border-white/40 bg-white/10 p-2 space-y-1">
-                            <div className="text-xs font-semibold">Action Checklist</div>
-                            {message.actionChecklist.map((task, index) => {
-                              const key = `${message.id}-${index}`
-                              const done = !!completedChecklist[key]
-                              return (
-                                <button
-                                  key={key}
-                                  type="button"
-                                  className="block w-full text-left text-xs rounded border border-white/30 px-2 py-1 hover:bg-white/10"
-                                  onClick={() => setCompletedChecklist((prev) => ({ ...prev, [key]: !done }))}
-                                >
-                                  {done ? '[x]' : '[ ]'} {task}
-                                </button>
-                              )
-                            })}
-                          </div>
-                        )}
-                        {message.role === 'assistant' && !!message.executionReview && (
-                          <div className="mt-2 rounded border border-white/40 bg-white/10 p-2 space-y-1 text-xs">
-                            <div className="font-semibold">Execution Review</div>
-                            <div>Policy mode: {message.executionReview.policyMode || 'unknown'}</div>
-                            {!!message.executionReview.currentRoute && (
-                              <div>Current route: {message.executionReview.currentRoute}</div>
-                            )}
-                            {!!message.executionReview.matchedRoutes?.length && (
-                              <div>Matched routes: {message.executionReview.matchedRoutes.join(', ')}</div>
-                            )}
-                            {!!message.executionReview.matchedEntities?.length && (
-                              <div>Matched entities: {message.executionReview.matchedEntities.join(', ')}</div>
-                            )}
-                            {!!message.executionReview.candidateMutationContracts?.length && (
-                              <div>Candidate contracts: {message.executionReview.candidateMutationContracts.join(', ')}</div>
-                            )}
-                            {!!message.executionReview.requestedMutationContract && (
-                              <div>
-                                Requested contract: {message.executionReview.requestedMutationContract}
-                                {message.executionReview.mutationAccess
-                                  ? ` (${message.executionReview.mutationAccess.allowed ? 'allowed' : 'blocked'})`
-                                  : ''}
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))
-                )}
-                {thinking && (
-                  <div className="flex justify-start">
-                    <div className="max-w-[85%] rounded px-3 py-2 text-sm bg-primary/70 text-primary-foreground mr-auto flex items-center gap-2">
-                      <Loader2 className="h-3 w-3 animate-spin shrink-0" />
-                      <span>{displayName} is thinking…</span>
-                    </div>
+              {/* ── Copilot-style chat conversation area ─────────────────── */}
+              <div className="relative flex flex-col rounded-xl border border-border bg-[#F7F7F8] dark:bg-[#1F2937] overflow-hidden" style={{ minHeight: 360, maxHeight: '55vh' }}>
+
+                {/* Outage/degraded banner – non-blocking, sits above messages */}
+                {bobDegraded && (
+                  <div className="flex items-center gap-2 px-4 py-1.5 text-xs bg-amber-50 dark:bg-amber-950/30 border-b border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300">
+                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                    Bob is in degraded mode – responses may be slower or from a fallback provider.
                   </div>
                 )}
-                <div ref={chatEndRef} />
+
+                {/* Message list */}
+                <div
+                  ref={chatScrollContainerRef}
+                  className="flex-1 overflow-y-auto px-4 py-4 space-y-1"
+                  onScroll={() => {
+                    const el = chatScrollContainerRef.current
+                    if (!el) return
+                    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80
+                    setUserScrolledUp(!nearBottom)
+                  }}
+                >
+                  {chat.length === 0 && !thinking ? (
+                    <div className="flex flex-col items-center justify-center h-40 gap-2 text-muted-foreground">
+                      <BrainCircuit className="h-8 w-8 opacity-30" />
+                      <p className="text-sm">No messages yet. Ask Bob for import help, directions, or operational guidance.</p>
+                    </div>
+                  ) : (
+                    chat.map((message, idx) => {
+                      const isUser = message.role === 'user'
+                      const prevMsg = idx > 0 ? chat[idx - 1] : null
+                      const isNewTurn = !prevMsg || prevMsg.role !== message.role
+                      const isStreaming = !isUser && message.id === streamingMessageId
+                      return (
+                        <div
+                          key={message.id}
+                          className={`flex items-end gap-2 animate-in fade-in slide-in-from-bottom-1 duration-200 ${isUser ? 'flex-row-reverse' : 'flex-row'} ${isNewTurn ? 'mt-5' : 'mt-2'}`}
+                        >
+                          {/* Bob avatar — only on first message of a turn */}
+                          {!isUser ? (
+                            isNewTurn ? (
+                              <div className="shrink-0 w-7 h-7 rounded-full bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center text-white self-end">
+                                <BrainCircuit className="h-3.5 w-3.5" />
+                              </div>
+                            ) : (
+                              <div className="shrink-0 w-7" />
+                            )
+                          ) : null}
+
+                          {/* Bubble */}
+                          <div className={`group relative max-w-[75%] sm:max-w-[70%] flex flex-col ${isUser ? 'items-end' : 'items-start'}`}>
+                            {/* Sender label on first message of turn */}
+                            {isNewTurn && (
+                              <div className="text-[10px] font-semibold mb-0.5 opacity-50 px-1">
+                                {isUser ? 'You' : displayName}
+                              </div>
+                            )}
+
+                            <div
+                              className={[
+                                'px-3.5 py-2.5 text-sm leading-relaxed shadow-sm',
+                                // WhatsApp/Teams asymmetric rounding:
+                                // User: rounded except bottom-right corner
+                                // Bob:  rounded except bottom-left corner
+                                isUser
+                                  ? 'rounded-2xl rounded-br-sm bg-[#2563EB] text-white dark:bg-[#3B82F6]'
+                                  : 'rounded-2xl rounded-bl-sm bg-white dark:bg-[#374151] text-[#111827] dark:text-[#F9FAFB] border border-[#E5E7EB] dark:border-[#4B5563]',
+                              ].join(' ')}
+                            >
+                              {/* Message body with Markdown */}
+                              <div className={`prose prose-sm max-w-none break-words ${isUser ? 'prose-invert' : 'dark:prose-invert'}`}>
+                                <ReactMarkdown
+                                  components={{
+                                    code({ children, className, ...props }) {
+                                      const isBlock = className?.includes('language-')
+                                      return isBlock ? (
+                                        <code
+                                          className="block bg-[#111827] text-[#F9FAFB] rounded-lg p-3 text-xs font-mono my-2 overflow-x-auto whitespace-pre"
+                                          {...props}
+                                        >
+                                          {children}
+                                        </code>
+                                      ) : (
+                                        <code
+                                          className={`rounded px-1 py-0.5 text-xs font-mono ${isUser ? 'bg-white/20' : 'bg-black/10 dark:bg-white/10'}`}
+                                          {...props}
+                                        >
+                                          {children}
+                                        </code>
+                                      )
+                                    },
+                                    pre({ children }) {
+                                      return <pre className="not-prose my-0">{children}</pre>
+                                    },
+                                    p({ children }) {
+                                      return <p className="mb-1 last:mb-0">{children}</p>
+                                    },
+                                  }}
+                                >
+                                  {message.text}
+                                </ReactMarkdown>
+                                {/* Blinking cursor while this message is streaming */}
+                                {isStreaming && (
+                                  <span className="inline-block w-0.5 h-3.5 bg-current align-middle ml-0.5 animate-[blink_1s_step-end_infinite]" />
+                                )}
+                              </div>
+
+                              {/* Action checklist */}
+                              {!isUser && !!message.actionChecklist?.length && (
+                                <div className="mt-2.5 rounded-lg border border-[#E5E7EB] dark:border-[#4B5563] bg-[#F7F7F8] dark:bg-[#1F2937] p-2.5 space-y-1">
+                                  <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Action Checklist</div>
+                                  {message.actionChecklist.map((task, index) => {
+                                    const key = `${message.id}-${index}`
+                                    const done = !!completedChecklist[key]
+                                    return (
+                                      <button
+                                        key={key}
+                                        type="button"
+                                        className={`flex items-start gap-1.5 w-full text-left text-xs rounded px-2 py-1.5 transition-colors ${done ? 'text-muted-foreground line-through' : 'hover:bg-muted/50'}`}
+                                        onClick={() => setCompletedChecklist((prev) => ({ ...prev, [key]: !done }))}
+                                      >
+                                        <span className="mt-0.5 shrink-0">{done ? '✅' : '☐'}</span>
+                                        <span>{task}</span>
+                                      </button>
+                                    )
+                                  })}
+                                </div>
+                              )}
+
+                              {/* Execution review */}
+                              {!isUser && !!message.executionReview && (
+                                <div className="mt-2 rounded-lg border border-[#E5E7EB] dark:border-[#4B5563] bg-[#F7F7F8] dark:bg-[#1F2937] p-2 space-y-0.5 text-xs text-muted-foreground">
+                                  <div className="font-medium text-foreground">Execution Review · {message.executionReview.policyMode || 'unknown'}</div>
+                                  {!!message.executionReview.currentRoute && <div>Route: {message.executionReview.currentRoute}</div>}
+                                  {!!message.executionReview.matchedRoutes?.length && <div>Matched: {message.executionReview.matchedRoutes.join(', ')}</div>}
+                                  {!!message.executionReview.requestedMutationContract && (
+                                    <div>Contract: {message.executionReview.requestedMutationContract} {message.executionReview.mutationAccess ? `(${message.executionReview.mutationAccess.allowed ? '✓ allowed' : '✗ blocked'})` : ''}</div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Copy action — appears on hover, offset from bubble */}
+                          <button
+                            type="button"
+                            onClick={() => void navigator.clipboard.writeText(message.text)}
+                            className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground p-1 rounded-md self-center"
+                            title="Copy"
+                          >
+                            <Copy className="h-3.5 w-3.5" />
+                          </button>
+
+                          {/* Spacer keeps user messages right-aligned when no avatar shown */}
+                          {isUser && <div className="shrink-0 w-7" />}
+                        </div>
+                      )
+                    })
+                  )}
+
+                  {/* Typing indicator (3 bouncing dots) */}
+                  {thinking && (
+                    <div className="flex items-end gap-2 mt-5 animate-in fade-in duration-200">
+                      <div className="shrink-0 w-7 h-7 rounded-full bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center text-white self-end">
+                        <BrainCircuit className="h-3.5 w-3.5" />
+                      </div>
+                      <div className="rounded-2xl rounded-bl-sm bg-white dark:bg-[#374151] border border-[#E5E7EB] dark:border-[#4B5563] px-4 py-3 flex items-center gap-1.5 shadow-sm">
+                        <span className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-bounce [animation-delay:0ms]" />
+                        <span className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-bounce [animation-delay:150ms]" />
+                        <span className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-bounce [animation-delay:300ms]" />
+                      </div>
+                    </div>
+                  )}
+
+                  <div ref={chatEndRef} />
+                </div>
+
+                {/* ↓ New messages button — appears when user has scrolled up */}
+                {userScrolledUp && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setUserScrolledUp(false)
+                      chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+                    }}
+                    className="absolute bottom-3 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1.5 rounded-full bg-[#2563EB] text-white text-xs font-medium px-3 py-1.5 shadow-lg hover:bg-[#1D4ED8] transition-colors"
+                  >
+                    <ChevronDown className="h-3.5 w-3.5" />
+                    New messages
+                  </button>
+                )}
               </div>
 
-              <div className="flex gap-2 pb-safe">
+              {/* ── Sticky input bar ──────────────────────────────────────────
+                  pb-safe keeps the bar above the mobile OS keyboard/home bar.
+                  The rounded container sits on the page surface (z-0) so it
+                  never overlaps the last message – spacing is handled by the
+                  Card's space-y-4 gap above it.                              */}
+
+              {/* Hidden file input for document attachment */}
+              <input
+                ref={docFileInputRef}
+                type="file"
+                accept=".pdf,.csv,.xlsx,.txt,.json,image/*"
+                className="sr-only"
+                onChange={(e) => {
+                  const file = e.target.files?.[0]
+                  if (file) void handleDocumentAttach(file)
+                  // Reset so same file can be re-selected
+                  e.target.value = ''
+                }}
+              />
+
+              {/* Context Window Monitor — shown when a large doc is attached */}
+              {attachedDocument && (
+                <div className={`flex items-center gap-2 rounded-lg px-3 py-2 text-xs border ${attachedDocument.charCount > DOC_TOKEN_WARNING_CHARS ? 'bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300' : 'bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-800 text-green-700 dark:text-green-300'}`}>
+                  <span className="shrink-0">📎</span>
+                  <span className="truncate flex-1 font-medium">{attachedDocument.name}</span>
+                  <span className="shrink-0 tabular-nums">~{Math.round(attachedDocument.charCount / 4).toLocaleString()} tokens</span>
+                  {attachedDocument.charCount > DOC_TOKEN_WARNING_CHARS && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setChatInput(`Please summarise the attached document "${attachedDocument.name}" in 3 bullet points before we proceed.`)
+                        toast.info('Summarise command added to input — press Send to ask Bob to condense first.')
+                      }}
+                      className="shrink-0 rounded px-1.5 py-0.5 bg-amber-200 dark:bg-amber-800 hover:bg-amber-300 dark:hover:bg-amber-700 font-medium transition-colors"
+                    >
+                      Summarise first ↗
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setAttachedDocument(null)}
+                    className="shrink-0 rounded p-0.5 hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
+                    title="Remove attachment"
+                  >
+                    <XCircle className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              )}
+
+              <div className="rounded-2xl border border-[#E5E7EB] dark:border-[#4B5563] bg-white dark:bg-[#374151] shadow-sm px-3 py-2 flex items-end gap-2">
+                {/* + icon: attach PDF, CSV, image, or text documents */}
+                <button
+                  type="button"
+                  title="Attach document (PDF, CSV, image, text)"
+                  onClick={() => docFileInputRef.current?.click()}
+                  className="shrink-0 flex items-center justify-center w-8 h-8 rounded-full text-muted-foreground hover:bg-muted/60 transition-colors"
+                >
+                  <Plus className="h-4 w-4" />
+                </button>
+
                 <Textarea
                   value={chatInput}
-                  onChange={(e) => setChatInput(e.target.value)}
-                  placeholder="Ask Bob anything operational..."
-                  className="min-h-[72px] resize-none"
+                  onChange={(e) => {
+                    setChatInput(e.target.value)
+                    // Auto-expand up to ~5 lines (≈120px)
+                    const el = e.target
+                    el.style.height = 'auto'
+                    el.style.height = Math.min(el.scrollHeight, 120) + 'px'
+                  }}
+                  placeholder="Ask Bob anything operational…"
+                  className="flex-1 resize-none border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 text-sm min-h-[36px] max-h-[120px] py-1.5 px-0 placeholder:text-muted-foreground/60"
+                  rows={1}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && !e.shiftKey) {
                       e.preventDefault()
@@ -4779,17 +5078,38 @@ export default function BobAssistantStudio() {
                     }
                   }}
                 />
-              </div>
 
-              <div className="flex flex-wrap gap-2">
-                <Button onClick={() => sendMessage()} disabled={!chatInput.trim() || thinking}><Send className="h-4 w-4 mr-1" /> Send</Button>
-                <Button variant="outline" onClick={toggleListening}>
-                  {listening ? <MicOff className="h-4 w-4 mr-1" /> : <Mic className="h-4 w-4 mr-1" />}
-                  {listening ? 'Stop Listening' : 'Voice Input'}
-                </Button>
-                <Button variant="outline" onClick={() => speak('Hello, I am Bob. Ready when you are.')} disabled={!speechEnabled}>
-                  {speechEnabled ? <Volume2 className="h-4 w-4 mr-1" /> : <VolumeX className="h-4 w-4 mr-1" />} Test Voice
-                </Button>
+                {/* Mic / voice button */}
+                <button
+                  type="button"
+                  onClick={toggleListening}
+                  title={listening ? 'Stop listening' : 'Voice input'}
+                  className={`shrink-0 flex items-center justify-center w-8 h-8 rounded-full transition-colors ${listening ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400' : 'text-muted-foreground hover:bg-muted/60'}`}
+                >
+                  {listening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+                </button>
+
+                {/* Test voice button */}
+                <button
+                  type="button"
+                  onClick={() => speak('Hello, I am Bob. Ready when you are.')}
+                  disabled={!speechEnabled}
+                  title="Test voice"
+                  className="shrink-0 flex items-center justify-center w-8 h-8 rounded-full text-muted-foreground hover:bg-muted/60 transition-colors disabled:opacity-30"
+                >
+                  {speechEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
+                </button>
+
+                {/* Send button – primary blue, disabled when empty */}
+                <button
+                  type="button"
+                  onClick={() => sendMessage()}
+                  disabled={!chatInput.trim() || thinking}
+                  className="shrink-0 flex items-center justify-center w-8 h-8 rounded-full bg-[#2563EB] text-white transition-all hover:bg-[#1D4ED8] disabled:opacity-30 disabled:cursor-not-allowed"
+                  title="Send (Enter)"
+                >
+                  <Send className="h-4 w-4" />
+                </button>
               </div>
             </CardContent>
           </Card>
