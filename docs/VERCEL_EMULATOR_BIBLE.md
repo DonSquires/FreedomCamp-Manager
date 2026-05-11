@@ -25,7 +25,7 @@ In this repo, emulator coverage is delivered through two complementary paths:
 
 1. Agentic shadow-user flows:
 - Script: scripts/agentic-ui-shadow-user.mjs
-- Packs: login-health, tender-shadow, ptt-zindex, crm-business-crossover, client-portal-isolation
+- Packs: login-health, tender-shadow, ptt-zindex, crm-business-crossover, client-portal-isolation, live-ops
 - Output: tools/agentic-ui-reports/.../report.json plus step screenshots
 
 2. Human-style Playwright suites:

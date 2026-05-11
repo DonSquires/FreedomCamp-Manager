@@ -22,7 +22,8 @@
       "tender-shadow",
       "ptt-zindex",
       "crm-business-crossover",
-      "client-portal-isolation"
+      "client-portal-isolation",
+      "live-ops"
     ],
     "runAgenticPacks": true,
     "agenticNoPlanner": true,
