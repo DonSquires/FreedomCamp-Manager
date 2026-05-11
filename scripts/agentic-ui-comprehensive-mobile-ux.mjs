@@ -93,6 +93,7 @@ const testPacks = [
   { name: 'login-health', desc: 'Login health check' },
   { name: 'tender-shadow', desc: 'Tender compliance submission' },
   { name: 'ptt-zindex', desc: 'PTT control visibility and z-index' },
+  { name: 'shared', desc: 'Shared pages access check (profile, settings, notifications)' },
 ]
 
 function parseArgs() {
@@ -211,8 +212,10 @@ async function main() {
 
       for (const page of pageGroup.pages) {
         testCount += 1
-        const testName = `${role}-${pageGroup.category}-${page.replace(/\//g, '-')}`
-        const testReportDir = path.join(reportDir, `role-${role}`, pageGroup.category)
+        // Strip leading slash-converted dash (e.g. '/portal-selection' → 'portal-selection')
+        const pageSlug = page.replace(/\//g, '-').replace(/^-/, '')
+        const testName = `${role}-${pageGroup.category}-${pageSlug}`
+        const testReportDir = path.join(reportDir, `role-${role}`, pageGroup.category, pageSlug)
         results.summary.total += 1
 
         // Goal for this test

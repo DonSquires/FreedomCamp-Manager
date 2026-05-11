@@ -96,7 +96,7 @@ Usage:
 
 Options:
   --goal <text>              Human test objective (required)
-  --pack <name>              Built-in pack: login-health | tender-shadow | ptt-zindex
+  --pack <name>              Built-in pack: login-health | tender-shadow | ptt-zindex | crm-business-crossover | client-portal-isolation | shared
   --base-url <url>           App base URL (default: PLAYWRIGHT_BASE_URL or http://localhost:5173)
   --email <email>            Login email (fallback from Playwright env vars)
   --password <password>      Login password (fallback from Playwright env vars)
@@ -129,6 +129,7 @@ if (!config.goal && config.pack) {
     'ptt-zindex': 'shadow run: verify ptt control visibility and z-index safety',
     'crm-business-crossover': 'shadow run: crm and business cross-module page access check',
     'client-portal-isolation': 'shadow run: client portal isolation and admin-route block check',
+    'shared': 'shadow run: shared pages access check (profile, settings, notifications)',
   }
   config.goal = map[config.pack] || `shadow run pack: ${config.pack}`
 }
@@ -235,6 +236,21 @@ function buildPackPlan(pack) {
       { type: 'expectVisibleAny', value: 'text=/Access Restricted|Forbidden|Unauthorized|Login|Not Found|Portal Selection|Choose Portal|FieldOps Manager|Client Portal/i', note: 'Verify admin is blocked or redirected away for client-viewer role' },
       { type: 'axeCheck', note: 'Quick a11y scan' },
       { type: 'done', note: 'Client portal isolation pack complete' },
+    ]
+  }
+
+  if (pack === 'shared') {
+    return [
+      ...baseLogin,
+      { type: 'ensurePortalSelectionResolved', url: '/profile', note: 'Bypass portal selection for dual-role accounts' },
+      { type: 'goto', url: '/profile', note: 'Navigate to profile page' },
+      { type: 'expectVisibleAny', value: 'text=/Profile|Account|User|Settings|Portal Selection|Choose Portal|FieldOps Manager/i', note: 'Verify profile page or valid gate state is visible' },
+      { type: 'goto', url: '/settings', note: 'Navigate to settings page' },
+      { type: 'expectVisibleAny', value: 'text=/Settings|Preferences|Configuration|Portal Selection|Choose Portal|FieldOps Manager/i', note: 'Verify settings page or valid gate state is visible' },
+      { type: 'goto', url: '/notifications', note: 'Navigate to notifications page' },
+      { type: 'expectVisibleAny', value: 'text=/Notifications|Alerts|Messages|Portal Selection|Choose Portal|FieldOps Manager/i', note: 'Verify notifications page or valid gate state is visible' },
+      { type: 'axeCheck', note: 'Quick a11y scan on notifications page' },
+      { type: 'done', note: 'Shared pages pack complete' },
     ]
   }
 
@@ -548,6 +564,7 @@ async function main() {
     actions: [],
     result: 'unknown',
     pack: config.pack || null,
+    goal: config.goal || null,
     compliance_findings: [],
   }
 

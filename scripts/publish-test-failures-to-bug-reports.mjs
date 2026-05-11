@@ -266,7 +266,15 @@ async function main() {
       const report = await readJson(filePath).catch(() => null)
       if (!report) continue
 
-      const pack = String(report.pack || report.goal || path.basename(path.dirname(filePath)))
+      // Skip infra-level failures (connection refused = app server not running)
+      const firstActionError = String(report.actions?.[0]?.execution?.error || '')
+      if (firstActionError.includes('ERR_CONNECTION_REFUSED')) {
+        console.log(`[publish-test-failures] skipped infra failure (connection refused): ${filePath}`)
+        continue
+      }
+
+      const reportGoal = report.goal || report.config?.goal || null
+      const pack = String(report.pack || reportGoal || path.basename(path.dirname(filePath)))
       const result = String(report.result || 'unknown')
       const level = result === 'completed' ? 'low' : result === 'blocked_auth' ? 'medium' : 'high'
 
@@ -276,7 +284,7 @@ async function main() {
         title: `[Vercel Emulator][${pack}] Result: ${result.toUpperCase()}`,
         description: [
           `Pack: ${pack}`,
-          `Goal: ${report.goal || 'n/a'}`,
+          `Goal: ${reportGoal || 'n/a'}`,
           `Result: ${result}`,
           `Started: ${report.started_at || 'n/a'}`,
           `Ended: ${report.ended_at || 'n/a'}`,
