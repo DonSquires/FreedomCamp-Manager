@@ -96,7 +96,7 @@ Usage:
 
 Options:
   --goal <text>              Human test objective (required)
-  --pack <name>              Built-in pack: login-health | tender-shadow | ptt-zindex
+  --pack <name>              Built-in pack: login-health | tender-shadow | ptt-zindex | crm-business-crossover | client-portal-isolation | live-ops
   --base-url <url>           App base URL (default: PLAYWRIGHT_BASE_URL or http://localhost:5173)
   --email <email>            Login email (fallback from Playwright env vars)
   --password <password>      Login password (fallback from Playwright env vars)
@@ -129,6 +129,7 @@ if (!config.goal && config.pack) {
     'ptt-zindex': 'shadow run: verify ptt control visibility and z-index safety',
     'crm-business-crossover': 'shadow run: crm and business cross-module page access check',
     'client-portal-isolation': 'shadow run: client portal isolation and admin-route block check',
+    'live-ops': 'shadow run: live operations monitoring pages check',
   }
   config.goal = map[config.pack] || `shadow run pack: ${config.pack}`
 }
@@ -235,6 +236,19 @@ function buildPackPlan(pack) {
       { type: 'expectVisibleAny', value: 'text=/Access Restricted|Forbidden|Unauthorized|Login|Not Found|Portal Selection|Choose Portal|FieldOps Manager|Client Portal/i', note: 'Verify admin is blocked or redirected away for client-viewer role' },
       { type: 'axeCheck', note: 'Quick a11y scan' },
       { type: 'done', note: 'Client portal isolation pack complete' },
+    ]
+  }
+
+  if (pack === 'live-ops') {
+    return [
+      ...baseLogin,
+      { type: 'ensurePortalSelectionResolved', url: '/live-tracking', note: 'Resolve portal selection before live operations check' },
+      { type: 'goto', url: '/live-tracking', note: 'Open live tracking page' },
+      { type: 'expectVisibleAny', value: 'text=/Live Tracking|Live Operations|Operations Map|Active Patrols|Tracking|FieldOps Manager|Portal Selection|Choose Portal|Admin Portal|Not Found/i', note: 'Verify live tracking or valid fallback state is visible' },
+      { type: 'goto', url: '/live-patrol', note: 'Navigate to live patrol page' },
+      { type: 'expectVisibleAny', value: 'text=/Live Patrol|Patrol|Operations|Active|FieldOps Manager|Portal Selection|Choose Portal|Admin Portal|Not Found/i', note: 'Verify live patrol or valid fallback state is visible' },
+      { type: 'axeCheck', note: 'Quick a11y scan' },
+      { type: 'done', note: 'Live ops pack complete' },
     ]
   }
 
@@ -547,6 +561,7 @@ async function main() {
     config: redactConfigForReport(),
     actions: [],
     result: 'unknown',
+    goal: config.goal || null,
     pack: config.pack || null,
     compliance_findings: [],
   }

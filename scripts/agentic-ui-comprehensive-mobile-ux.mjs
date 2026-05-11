@@ -93,6 +93,9 @@ const testPacks = [
   { name: 'login-health', desc: 'Login health check' },
   { name: 'tender-shadow', desc: 'Tender compliance submission' },
   { name: 'ptt-zindex', desc: 'PTT control visibility and z-index' },
+  { name: 'crm-business-crossover', desc: 'CRM and business cross-module page access' },
+  { name: 'client-portal-isolation', desc: 'Client portal isolation and admin-route block' },
+  { name: 'live-ops', desc: 'Live operations monitoring pages' },
 ]
 
 function parseArgs() {
