@@ -67,8 +67,10 @@ jobs:
         run: |
           set -euo pipefail
           RAILWAY_CLI_VERSION="4.31.0"
-          TARGET="linux-amd64"
+          TARGET="x86_64-unknown-linux-gnu"
           URL="https://github.com/railwayapp/cli/releases/download/v${RAILWAY_CLI_VERSION}/railway-v${RAILWAY_CLI_VERSION}-${TARGET}.tar.gz"
+          TMP_DIR=$(mktemp -d)
+          cd "$TMP_DIR"
           curl -fsSL -o railway.tar.gz "$URL"
           tar -xzf railway.tar.gz
           mkdir -p "$HOME/.railway/bin"
