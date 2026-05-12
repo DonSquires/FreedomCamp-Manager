@@ -8,17 +8,30 @@ export const WAITING_FOR_SHIFT_PATH = '/waiting-for-shift'
 
 const DIRECTOR_OFFICER_ALLOWED_PATH_PREFIXES = [
   '/field-officer',
-  '/site-guard',
-  '/noise-officer',
   '/profile',
   '/settings',
   '/notifications',
   WAITING_FOR_SHIFT_PATH,
 ]
 
-export function isDirectorOfficerPathAllowed(pathname: string): boolean {
+type DirectorOfficerPathAllowOptions = {
+  noiseEnabled?: boolean
+  siteGuardEnabled?: boolean
+}
+
+export function isDirectorOfficerPathAllowed(pathname: string, options: DirectorOfficerPathAllowOptions = {}): boolean {
   const normalized = String(pathname || '').trim()
-  return DIRECTOR_OFFICER_ALLOWED_PATH_PREFIXES.some((prefix) =>
+  const allowedPrefixes = [...DIRECTOR_OFFICER_ALLOWED_PATH_PREFIXES]
+
+  if (options.noiseEnabled) {
+    allowedPrefixes.push('/noise-officer')
+  }
+
+  if (options.siteGuardEnabled) {
+    allowedPrefixes.push('/site-guard')
+  }
+
+  return allowedPrefixes.some((prefix) =>
     normalized === prefix || normalized.startsWith(`${prefix}/`)
   )
 }

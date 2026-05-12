@@ -620,8 +620,12 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
       })
     }
     if (siteToolPermissions.siteGuard) {
+      const siteGuardPath = rosteredShift?.client_site_id
+        ? `/site-guard?site=${rosteredShift.client_site_id}&roster=${rosteredShift.id}`
+        : '/field-officer'
+
       items.push({
-        path: '/site-guard',
+        path: siteGuardPath,
         icon: Shield,
         label: 'Site-Guard',
         roles: ['officer'],
@@ -629,7 +633,15 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
     }
 
     return items
-  }, [activeClientSiteId, isDirectorOfficerMode, siteToolPermissions.alpr, siteToolPermissions.noise, siteToolPermissions.siteGuard])
+  }, [
+    activeClientSiteId,
+    isDirectorOfficerMode,
+    rosteredShift?.client_site_id,
+    rosteredShift?.id,
+    siteToolPermissions.alpr,
+    siteToolPermissions.noise,
+    siteToolPermissions.siteGuard,
+  ])
 
   const visiblePinned = isDirectorOfficerMode
     ? injectedOfficerPinned

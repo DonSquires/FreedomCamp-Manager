@@ -9,13 +9,14 @@ import { usePTTAutoConnect } from '@/hooks/usePTTAutoConnect'
 import { useSessionGpsLogging } from '@/hooks/useSessionGpsLogging'
 import { useOrgModules } from '@/hooks/useOrgModules'
 import { useOrganization } from '@/hooks/useOrganization'
+import { useRosteredShift } from '@/hooks/useRosteredShift'
 import { OrganizationContext } from '@/contexts/OrganizationContext'
 import { useFeedbackCapture } from '@/hooks/useFeedbackCapture'
 import { useLiveSessionDiagnostics } from '@/hooks/useLiveSessionDiagnostics'
 import { getDefaultRouteForRole, getRoleConstrainedRedirect } from '@/navigation/rolePath'
 import { isRouteVisibleForRole } from '@/navigation/routeManifestAdapter'
 import { routeManifest, type AppRole } from '@/navigation/routeManifest'
-import { isDirectorOfficerPathAllowed, useDirectorRosterGate, WAITING_FOR_SHIFT_PATH } from '@/middleware'
+import { isDirectorOfficerPathAllowed, useDirectorRosterGate, useSiteToolPermissions, WAITING_FOR_SHIFT_PATH } from '@/middleware'
 import { ShieldOff } from 'lucide-react'
 
 // ---------------------------------------------------------------------------
@@ -545,6 +546,8 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading, ensureLoadingResolved } = useAuthStore()
   const location = useLocation()
   const directorGate = useDirectorRosterGate()
+  const { rosteredShift } = useRosteredShift()
+  const siteToolPermissions = useSiteToolPermissions(user?.id, rosteredShift?.client_site_id ?? null)
 
   // Auto-connect to PTT when authenticated
   usePTTAutoConnect()
@@ -614,7 +617,10 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     return <Navigate to="/field-officer" replace />
   }
 
-  if (user.role === 'officer' && !isDirectorOfficerPathAllowed(location.pathname)) {
+  if (user.role === 'officer' && !isDirectorOfficerPathAllowed(location.pathname, {
+    noiseEnabled: siteToolPermissions.noise,
+    siteGuardEnabled: siteToolPermissions.siteGuard,
+  })) {
     return <Navigate to="/field-officer" replace />
   }
 

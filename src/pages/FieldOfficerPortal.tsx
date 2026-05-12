@@ -2033,17 +2033,19 @@ export default function FieldOfficerPortal() {
             </div>
           )}
 
-          <OfficerFollowUpQueue
-            onCountChange={setFollowUpCount}
-            orgWorkflow={orgWorkflow || 'admin_first'}
-            onIssueAction={(p) => issueAction.mutate(p)}
-            isIssuingAction={issueAction.isPending}
-            onActivity={() => {
-              if (currentLocation?.latitude && currentLocation?.longitude) {
-                recordGPSUpdate(currentLocation.latitude, currentLocation.longitude)
-              }
-            }}
-          />
+          {!isDirectorOfficerMode && (
+            <OfficerFollowUpQueue
+              onCountChange={setFollowUpCount}
+              orgWorkflow={orgWorkflow || 'admin_first'}
+              onIssueAction={(p) => issueAction.mutate(p)}
+              isIssuingAction={issueAction.isPending}
+              onActivity={() => {
+                if (currentLocation?.latitude && currentLocation?.longitude) {
+                  recordGPSUpdate(currentLocation.latitude, currentLocation.longitude)
+                }
+              }}
+            />
+          )}
 
           {/* ═══════════════════════════════════════════════════════════
               FREEDOM CAMPING PATROL tools
