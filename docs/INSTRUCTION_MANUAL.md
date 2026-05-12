@@ -14,6 +14,7 @@
 
 1. [Introduction & Overview](#1-introduction--overview)
 1a. [UI/UX Design Standards](#1a-uiux-design-standards)
+1b. [Star Trek Rollout Checkpoint Governance](#1b-star-trek-rollout-checkpoint-governance)
 2. [Getting Started — Login & Navigation](#2-getting-started--login--navigation)
 3. [PART A — Owner](#part-a--owner)
    - [3.1 Grand Master](#31-grand-master)
@@ -259,6 +260,25 @@ Every officer portal has two persistent UI elements:
 - **PTT button** — hold to transmit, release to end; a pulsing animation indicates active transmission
 - Incoming transmissions show the speaker's name in a banner above the bar
 - Emergency transmissions show a red pulsing banner that cannot be dismissed until the transmission ends
+
+---
+
+## 1b. Star Trek Rollout Checkpoint Governance
+
+This manual is checkpoint-coupled to the active phased rollout defined in [docs/STAR_TREK_PHASED_ROLLOUT_PLAN.md](docs/STAR_TREK_PHASED_ROLLOUT_PLAN.md).
+
+Required governance at every Star Trek phase checkpoint:
+
+1. Update this manual with user-facing behavior changes introduced by the phase.
+2. Update [docs/STAGING.md](docs/STAGING.md) in the same change set with execution evidence and PASS/FAIL outcome.
+3. Do not declare phase completion unless both manual and staging updates are present.
+
+Phase-to-manual update scope:
+
+1. Phase 1 (Director): roster gate, welfare-only standby path, pre-shift tool restrictions.
+2. Phase 2 (Universal Translator): dual-path audio, wake-word/hold-to-talk logic, audio ducking behavior.
+3. Phase 3 (Sentient XO): Bob memory behavior, command gap prompts, administrative actuation rules.
+4. Phase 4 (Admiral's Bridge): tactical map alerts, pre-arrival safety dossier behavior, human signature requirement for enforcement print.
 
 ---
 

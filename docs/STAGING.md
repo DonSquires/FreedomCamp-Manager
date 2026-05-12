@@ -252,11 +252,18 @@ Read and apply in this order:
 1. `docs/INSTRUCTION_MANUAL.md` (product and operational baseline)
 2. `docs/ENTERPRISE_PAIR_REVIEW_CANONICAL.md` (canonical execution authority)
 3. `docs/ENTERPRISE_COLLAB_EXECUTION_PLAN_2026-05-02.md` (active phase plan)
-4. `docs/MODULE_ROADMAP.md` (route and role map)
-5. `docs/PHASE1_WORKFLOW_MATRIX_2026-05-02.json` (test workflow inventory)
-6. `docs/MASTER_IMPLEMENTATION_PLAN_2026-05-01.md` (historical baseline only)
-7. `docs/DECISIONS.md` and `docs/LESSONS_LEARNED.md` (durable guardrails)
-8. `spec.md` and `plan.md` (target-state roadmap, not assumed current state)
+4. `docs/STAR_TREK_PHASED_ROLLOUT_PLAN.md` (active phased rollout checkpoints and acceptance criteria)
+5. `docs/MODULE_ROADMAP.md` (route and role map)
+6. `docs/PHASE1_WORKFLOW_MATRIX_2026-05-02.json` (test workflow inventory)
+7. `docs/MASTER_IMPLEMENTATION_PLAN_2026-05-01.md` (historical baseline only)
+8. `docs/DECISIONS.md` and `docs/LESSONS_LEARNED.md` (durable guardrails)
+9. `spec.md` and `plan.md` (target-state roadmap, not assumed current state)
+
+Star Trek checkpoint rule:
+
+1. At each Star Trek phase checkpoint, update `docs/STAGING.md` with evidence and status.
+2. At each Star Trek phase checkpoint, update `docs/INSTRUCTION_MANUAL.md` with user-facing behavior changes.
+3. Do not mark a phase complete until both documents are updated in the same change set.
 
 ## 3. Restart-After-Crash Checklist
 
