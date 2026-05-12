@@ -104,9 +104,10 @@ Bob's own canonical deploy repo (`DonSquires/Bob`) should have:
 
 ### 1. Pull the LLM Model in Ollama
 
-Shell into the Ollama service and pull the model:
+Shell into the Ollama service and pull the required models:
 ```bash
 ollama pull qwen2.5:7b
+ollama pull llama3.2-vision:11b
 ```
 
 ### 2. Configure Bob Inference Environment Variables
@@ -128,6 +129,8 @@ In the Ollama service, also set:
 
 ```
 OLLAMA_NO_CLOUD=true
+OLLAMA_PREPULL_MODE=blocking
+OLLAMA_EXTRA_MODELS=llama3.2-vision:11b
 ```
 
 Plus from your **Supabase dashboard** (Settings → API):

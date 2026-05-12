@@ -3,25 +3,24 @@
 # then optionally pre-pulls the configured model.
 #
 # Why: Ollama defers model downloads until the first API call. Without this
-# script the first /api/chat after a fresh deploy may block for several
-# minutes while llama3.1:8b (~4.7 GB) downloads, causing Bob's circuit
-# breaker to trip (3 failures -> 60 s cooldown) and degrading AI chat.
+# script the first /api/chat after a fresh deploy may block while the required
+# Bob models download, causing Bob's circuit breaker to trip (3 failures ->
+# 60 s cooldown) and degrading AI chat.
 #
-# OLLAMA_MODEL env var controls which model is pulled (default: llama3.1:8b).
-# Set it on the Railway service to switch models without rebuilding the image.
-# OLLAMA_EXTRA_MODELS is optional and defaults to empty to keep the baseline
-# memory footprint low enough for a single 24 GB Railway replica.
-# OLLAMA_PREPULL_MODE controls pull behavior: off (default), background, blocking.
+# OLLAMA_MODEL controls the primary model pulled at boot (default: qwen2.5:7b).
+# OLLAMA_EXTRA_MODELS defaults to llama3.2-vision:11b so Railway loads the
+# vision model alongside the primary chat model.
+# OLLAMA_PREPULL_MODE controls pull behavior: blocking (default), background, off.
 # OLLAMA_PULL_DELAY_SECONDS inserts a pause between model pulls so download and
 # load activity ramps up more gradually on constrained Railway instances.
 # Note: This script also acts as a push-trigger anchor for Railway deploy workflow runs.
 
 set -e
 
-MODEL="${OLLAMA_MODEL:-llama3.1:8b}"
-EXTRA_MODELS="${OLLAMA_EXTRA_MODELS:-}"
+MODEL="${OLLAMA_MODEL:-qwen2.5:7b}"
+EXTRA_MODELS="${OLLAMA_EXTRA_MODELS:-llama3.2-vision:11b}"
 MAX_WAIT=120   # seconds to wait for daemon to become ready
-PREPULL_MODE="${OLLAMA_PREPULL_MODE:-off}"
+PREPULL_MODE="${OLLAMA_PREPULL_MODE:-blocking}"
 PULL_DELAY_SECONDS="${OLLAMA_PULL_DELAY_SECONDS:-20}"
 PORT="${PORT:-11434}"
 export OLLAMA_HOST="0.0.0.0:${PORT}"
