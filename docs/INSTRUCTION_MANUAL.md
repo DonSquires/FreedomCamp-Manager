@@ -263,6 +263,81 @@ Every officer portal has two persistent UI elements:
 
 ---
 
+### Iron Eagle Tactical Design Language
+
+> **Copilot instruction — locked aesthetic:** Every page, component, and micro-interaction must conform to the rules below. This is not optional; it is the visual identity of the platform.
+
+The Iron Eagle Visual Identity is a **dark tactical** design language derived directly from the Iron Eagle Security brand: **Black · Red · White/Silver**. It is applied through the token system described in the section above — never through per-component hardcoded colours.
+
+#### Palette Reference
+
+| Token | Hex | Usage |
+|---|---|---|
+| `--color-bg-base` | `#121212` | Global page background (all shells) |
+| `--color-bg-surface` | `#1E1E1E` | Card, panel, modal surfaces |
+| `--color-bg-elevated` | `#2A2A2A` | Hover states, dropdowns, tooltips |
+| `--color-brand-primary` | `#D32F2F` | Primary action buttons, active nav states |
+| `--color-brand-hover` | `#B71C1C` | Hover/pressed state on primary actions |
+| `--color-accent-silver` | `#9E9E9E` | Borders, inactive icons, standby states |
+| `--color-accent-silver-light` | `#BDBDBD` | Secondary labels, helper text |
+| `--color-text-primary` | `#FFFFFF` | All primary body text and headings |
+| `--color-text-secondary` | `#E0E0E0` | Secondary text, table data, metadata |
+| `--color-critical-alert` | `#C62828` | Armed Danger and Welfare critical alerts **only** |
+| `--color-critical-border` | `#EF5350` | Pulsing screen-border during Armed Danger events |
+
+> **Rule:** `--color-critical-alert` and `--color-critical-border` are **strictly reserved** for Armed Danger and Welfare man-down events. They must never be used for general error states or informational warnings.
+
+#### Typography
+
+- **Font family**: `Inter, Roboto, sans-serif` — in that order of preference.
+- **Body / data text**: 14–16 px, `--color-text-primary` (`#FFFFFF`) on dark surfaces.
+- **Labels and helper text**: 12–13 px, `--color-text-secondary` (`#E0E0E0`).
+- **Headings**: Semi-bold (600) weight; same white palette.
+- No decorative or serif fonts are used anywhere in the operational platform.
+
+#### Application per Context
+
+**1. Login & Standby Screen**
+
+- Background: `--color-bg-base` (`#121212`) — full-bleed dark.
+- Iron Eagle Security logo centred, with a subtle white drop-shadow (`box-shadow: 0 0 24px rgba(255,255,255,0.08)`) to create a "secure terminal" glow effect.
+- Sign In button: solid `--color-brand-primary` (`#D32F2F`), white label text, full-width on mobile.
+- Input fields: dark surface (`--color-bg-surface`) with a silver border (`--color-accent-silver`) that brightens to `--color-text-primary` on focus.
+- No light or white backgrounds on the login page.
+
+**2. Active Mission Interface (Officer Shell)**
+
+- All panel and card surfaces use `--color-bg-surface` on a `--color-bg-base` page background.
+- **PTT and Start Shift buttons**: `--color-brand-primary` fill — the officer's eye goes straight to the action button.
+- **Active transmission indicator**: `--color-brand-primary` pulsing ring around the PTT button.
+- **Map style**: Mapbox "Dark Tactical" custom style. Officer location markers use `--color-brand-primary`. Patrol route lines use a blue accent (`#1565C0`). Zone boundaries use `--color-accent-silver`.
+- **Radio "Active" indicator**: `--color-brand-primary` dot + label, never amber or green.
+- **Welfare OK / safe state**: Maintains the standard four-state scale (normal = grey-green, watch = amber, action = orange, critical = red). The brand red (`--color-brand-primary`) is **not** used for normal welfare states — only `--color-critical-alert` for man-down.
+
+**3. Admin & Master Shells**
+
+- Navigation sidebar background: `--color-bg-surface`.
+- Active navigation item: left border in `--color-brand-primary`; text colour `--color-text-primary`; background `--color-bg-elevated`.
+- Inactive icons: `--color-accent-silver`.
+- Primary action buttons (e.g. "Authorize", "Export", "Create"): `--color-brand-primary` fill.
+- Table rows, card borders, and dividers: `--color-accent-silver` at 30–40% opacity.
+
+**4. Bob AI Interaction**
+
+- The Ask Bob button idle state: outlined, `--color-accent-silver` border, white icon.
+- When Bob is **thinking** (awaiting response): a slow red pulsing ring — `box-shadow: 0 0 0 4px rgba(211,47,47,0.4)` — animates around the button, cycling at 1.5 s. Animation respects `prefers-reduced-motion` (falls back to a static red outline).
+- When Bob is **speaking**: the ring changes to a solid `--color-brand-primary` border (not pulsing).
+- Bob's response cards use `--color-bg-surface` with a `--color-brand-primary` top border accent (3 px) to visually anchor the AI response.
+
+**5. Armed Danger Micro-Interaction**
+
+- When an Armed Danger alert is triggered, the **entire viewport border** pulses in `--color-critical-border` (`#EF5350`).
+- Implementation: a fixed-position overlay element (`pointer-events: none; z-index: 9999`) with a `box-shadow: inset 0 0 0 4px #EF5350` that animates at 0.8 s intervals using `@keyframes danger-pulse`.
+- The pulse continues until a supervisor acknowledges the alert.
+- The animation respects `prefers-reduced-motion` — if set, replace the pulse with a static `#EF5350` border (no animation) plus an audible chime.
+
+---
+
 ## 1b. Star Trek Rollout Checkpoint Governance
 
 This manual is checkpoint-coupled to the active phased rollout defined in [docs/STAR_TREK_PHASED_ROLLOUT_PLAN.md](docs/STAR_TREK_PHASED_ROLLOUT_PLAN.md).

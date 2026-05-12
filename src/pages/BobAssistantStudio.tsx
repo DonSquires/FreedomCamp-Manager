@@ -5104,7 +5104,7 @@ export default function BobAssistantStudio() {
                 </div>
               )}
 
-              <div className="rounded-2xl border border-[#E5E7EB] dark:border-[#4B5563] bg-white dark:bg-[#374151] shadow-sm px-3 py-2 flex items-end gap-2">
+              <div className={`rounded-2xl border border-[#E5E7EB] dark:border-[#4B5563] bg-white dark:bg-[#374151] shadow-sm px-3 py-2 flex items-end gap-2 transition-all ${isBobSpeaking ? 'bob-speaking' : thinking ? 'bob-thinking' : ''}`}>
                 {/* + icon: attach PDF, CSV, image, or text documents */}
                 <button
                   type="button"

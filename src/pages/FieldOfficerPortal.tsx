@@ -1421,7 +1421,7 @@ export default function FieldOfficerPortal() {
       <div className={`flex items-center justify-between rounded-xl px-4 py-2.5 mb-4 transition-colors ${
         isNightPatrol
           ? 'bg-cyan-950 border border-cyan-700'
-          : 'bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700'
+          : 'bg-gray-100 dark:bg-[#1E1E1E] border border-gray-200 dark:border-[#9E9E9E]/20'
       }`}>
         <div className="flex items-center gap-2">
           {isNightPatrol

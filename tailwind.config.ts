@@ -7,6 +7,20 @@ export default {
   theme: {
     extend: {
       colors: {
+        // ── Iron Eagle tactical brand tokens ──────────────────────────────────
+        // Black · Red · White/Silver — dark tactical identity.
+        // Use as `bg-ie-bg-base`, `text-ie-brand`, `border-ie-silver`, etc.
+        ie: {
+          'bg-base': '#121212',
+          'bg-surface': '#1E1E1E',
+          'bg-elevated': '#2A2A2A',
+          brand: '#D32F2F',
+          'brand-hover': '#B71C1C',
+          silver: '#9E9E9E',
+          'silver-light': '#BDBDBD',
+          critical: '#C62828',
+          'critical-border': '#EF5350',
+        },
         border: 'hsl(var(--border))',
         input: 'hsl(var(--input))',
         ring: 'hsl(var(--ring))',

@@ -1,8 +1,134 @@
 # STAGING — Unified Execution To-Do and Crash Recovery Plan
 
-Date: 2026-05-11
+Date: 2026-05-12
 Owner: GitHub Copilot
-Status: Active staging checklist — Sprints 50-70 complete on main; no staged sprints remaining (2026-05-11)
+Status: Active staging checklist — Sprints 50-70 complete on main; Iron Eagle Visual Identity locked in docs (2026-05-12)
+
+Latest Session Snapshot (Iron Eagle Visual Identity — rollout phase 3 — 2026-05-12):
+
+- Timestamp (NZ): 2026-05-12 22:15 NZST
+- Current branch: `copilot/create-phased-role-out-plan`
+- Scope completed:
+  - Applied Iron Eagle dark palette to `AppLayout.tsx` (Admin Shell):
+    - Desktop sidebar bg: `dark:bg-[#1E1E1E]`; border: `dark:border-[#9E9E9E]/20`
+    - Sidebar header brand area: dark gradient replaced with `#121212` → `#1E1E1E`; user-name uses `#BDBDBD`; role label uses `#9E9E9E`; "Operations Console" badge switches to Iron Eagle red
+    - Active nav items: inherit Iron Eagle `--primary` red automatically (already updated); icon silver at rest `#9E9E9E`, white on hover
+    - Nav separator and accordion sub-item border: `dark:border-[#9E9E9E]/20`
+    - Logout button: `dark:border-[#9E9E9E]/30` / `dark:hover:bg-[#D32F2F]/10` / `dark:hover:border-[#D32F2F]/40`
+    - Desktop header: `dark:bg-[#1E1E1E]`; border: `dark:border-[#9E9E9E]/20`
+    - Mobile header: same surface colours
+    - Mobile SheetContent: `dark:bg-[#1E1E1E]`
+    - App root gradient (dark): `dark:from-[#121212] dark:via-[#121212] dark:to-[#121212]` (flat black)
+
+- Checklist:
+  | Item | Status |
+  |---|---|
+  | Desktop sidebar Iron Eagle dark identity | ✅ DONE |
+  | Sidebar brand header with red badge | ✅ DONE |
+  | Nav active/hover states use Iron Eagle tokens | ✅ DONE |
+  | Desktop header Iron Eagle dark bg | ✅ DONE |
+  | Mobile header + drawer Iron Eagle dark bg | ✅ DONE |
+  | App root dark bg flat Iron Eagle black | ✅ DONE |
+
+- Validation evidence:
+  | Command | Result | Notes |
+  |---|---|---|
+  | `bun run lint` | PASS | ESLint completed without errors |
+  | `bun run build` | PASS | TypeScript + Vite build succeeded in 32.47 s |
+
+- Next rollout steps:
+  1. **Officer Shell — FieldSafetyBar**: apply `ie-bg-surface` + `ie-silver/20` border so the safety strip matches the tactical dark theme.
+  2. **Officer Portal header**: update `FieldOfficerPortal` header gradient to Iron Eagle black/red.
+  3. **Card surfaces**: scan high-frequency admin pages (Dispatch, LiveTracking, Compliance) and ensure all `dark:bg-gray-*` surface references use `#1E1E1E` or `#2A2A2A`.
+
+Latest Session Snapshot (Iron Eagle Visual Identity — rollout phase 2 — 2026-05-12):
+
+- Timestamp (NZ): 2026-05-12 22:01 NZST
+- Current branch: `copilot/create-phased-role-out-plan`
+- Scope completed:
+  - Wired `<ArmedDangerOverlay>` into `FieldSafetyBar`: added `sosActive` local state, set to `true` on `fireSOS()` completion, overlay renders with `aria-live="assertive"` and the `.danger-overlay` CSS pulse until dismissed.
+  - Applied `.bob-thinking` / `.bob-speaking` ring utilities to the chat input container in `BobAssistantStudio`: the rounded-2xl input box pulsates red while Bob is computing (`thinking=true`) and shows a solid red ring while Bob is speaking (`isBobSpeaking=true`).
+
+- Checklist:
+  | Item | Status |
+  |---|---|
+  | `<ArmedDangerOverlay>` wired into `FieldSafetyBar` | ✅ DONE |
+  | `sosActive` state drives overlay visibility | ✅ DONE |
+  | `.bob-thinking` class on chat input container | ✅ DONE |
+  | `.bob-speaking` class on chat input container | ✅ DONE |
+
+- Validation evidence:
+  | Command | Result | Notes |
+  |---|---|---|
+  | `bun run lint` | PASS | ESLint completed without errors |
+  | `bun run build` | PASS | TypeScript + Vite build succeeded in 31.90 s |
+
+- Next rollout steps:
+  1. **Iron Eagle — Admin Shell**: apply `ie-bg-base` / `ie-bg-surface` background to `AppLayout.tsx` when dark mode is active; update sidebar active-nav indicator to use `ie-brand` red.
+  2. **Iron Eagle — Officer Shell**: update `FieldOfficerPortal` header and `FieldSafetyBar` strip to `ie-bg-surface` + `ie-silver` border.
+  3. **SOS dismiss flow**: add a supervisor acknowledgement mechanism so `sosActive` is cleared server-side (read from `officer_welfare_alerts` resolved state).
+
+Latest Session Snapshot (Iron Eagle Visual Identity — implementation — 2026-05-12):
+
+- Timestamp (NZ): 2026-05-12 21:48 NZST
+- Current branch: `copilot/create-phased-role-out-plan`
+- Scope completed:
+  - Added Iron Eagle brand token set to `tailwind.config.ts` under the `ie` namespace (`ie-bg-base`, `ie-bg-surface`, `ie-bg-elevated`, `ie-brand`, `ie-brand-hover`, `ie-silver`, `ie-silver-light`, `ie-critical`, `ie-critical-border`).
+  - Updated `.dark` CSS variables in `src/index.css` to Iron Eagle black/red/silver palette (replaces previous teal/cyan dark theme).
+  - Added `@keyframes danger-pulse` and `.danger-overlay` utility to `src/index.css`.
+  - Added `.bob-thinking` and `.bob-speaking` ring utilities to `src/index.css`; both respect `prefers-reduced-motion`.
+  - Restyled `src/pages/Login.tsx` to dark tactical design: `#121212` background, `#1E1E1E` card surfaces, silver borders, logo glow, solid `#D32F2F` Sign In button, white/silver text throughout.
+  - Created `src/components/features/ArmedDangerOverlay.tsx`: fixed viewport border pulse (0.8 s via `.danger-overlay`), `aria-live="assertive"`, reduced-motion safe.
+
+- Checklist:
+  | Item | Status |
+  |---|---|
+  | Iron Eagle tokens in `tailwind.config.ts` | ✅ DONE |
+  | `.dark` CSS variables updated to Iron Eagle palette | ✅ DONE |
+  | `danger-pulse` keyframe + `.danger-overlay` utility | ✅ DONE |
+  | `.bob-thinking` / `.bob-speaking` ring utilities | ✅ DONE |
+  | `Login.tsx` dark tactical restyle | ✅ DONE |
+  | `ArmedDangerOverlay.tsx` component created | ✅ DONE |
+
+- Validation evidence:
+  | Command | Result | Notes |
+  |---|---|---|
+  | `bun run lint` | PASS | ESLint completed without errors |
+  | `bun run build` | PASS | TypeScript + Vite build succeeded in 30.69 s |
+
+- Next steps:
+  1. Wire `<ArmedDangerOverlay>` into `FieldSafetyBar` or the officer portal layouts, reading the SOS/armed-danger state.
+  2. Apply `.bob-thinking` / `.bob-speaking` classes to the Ask Bob button in `BobAssistantStudio` or the Bob panel trigger.
+  3. Run the human module E2E suite and confirm login-page assertions still pass with the new dark layout.
+
+Latest Session Snapshot (Iron Eagle Visual Identity — doc lock-in — 2026-05-12):
+
+- Timestamp (NZ): 2026-05-12 20:23 NZST
+- Current branch: `copilot/create-phased-role-out-plan`
+- Scope completed:
+  - Added "Iron Eagle Tactical Design Language" subsection to `docs/INSTRUCTION_MANUAL.md` (section 1a — UI/UX Design Standards).
+  - Locked the full colour token palette: `--color-bg-base` (#121212), `--color-brand-primary` (#D32F2F), silver accents, critical-only crimson.
+  - Documented context-specific application rules for Login, Officer Shell, Admin/Master Shells, Bob AI interaction, and Armed Danger viewport-border pulse micro-interaction.
+  - Confirmed `--color-critical-alert` / `--color-critical-border` are strictly reserved for Armed Danger and Welfare man-down events.
+
+- Checklist:
+  | Item | Status |
+  |---|---|
+  | Iron Eagle palette token table in INSTRUCTION_MANUAL.md | ✅ DONE |
+  | Typography rules (Inter/Roboto, white-on-dark) | ✅ DONE |
+  | Login & Standby screen spec | ✅ DONE |
+  | Active Mission / Officer Shell spec | ✅ DONE |
+  | Admin & Master Shell active-nav and button spec | ✅ DONE |
+  | Bob AI thinking/speaking pulse ring spec | ✅ DONE |
+  | Armed Danger viewport-border pulse micro-interaction spec | ✅ DONE |
+  | `prefers-reduced-motion` fallback rules | ✅ DONE |
+
+- Validation: docs-only change; no TypeScript/Vite build impact.
+- Next visual-identity steps (implementation, not docs):
+  1. Wire tokens into `tailwind.config.ts` as custom colour extensions.
+  2. Apply dark-mode base class to `src/index.css` and confirm Tailwind dark variant propagation.
+  3. Update `src/pages/Login.tsx` to match the Login spec above.
+  4. Add `danger-pulse` keyframe and viewport-overlay component for Armed Danger events.
 
 Latest Session Snapshot (Phased rollout continuation — 2026-05-12):
 
