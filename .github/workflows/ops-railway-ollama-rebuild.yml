@@ -1,0 +1,140 @@
+name: Ops - Rebuild Railway Ollama Models
+
+on:
+  workflow_dispatch:
+    inputs:
+      ollama_service_id_override:
+        description: "Railway Ollama service ID override (optional)"
+        required: false
+        type: string
+      ollama_url:
+        description: "Public Ollama URL for verification"
+        required: false
+        default: "https://ollama-production-3ab0.up.railway.app"
+        type: string
+      wait_seconds:
+        description: "Seconds to wait after redeploy before verification"
+        required: false
+        default: "45"
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  rebuild-ollama:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Resolve Railway credentials
+        shell: bash
+        env:
+          RAILWAY_BOB_TOKEN: ${{ secrets.RAILWAY_BOB_TOKEN }}
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_OLLAMA_SERVICE_ID: ${{ secrets.RAILWAY_OLLAMA_SERVICE_ID }}
+          SERVICE_ID_OVERRIDE: ${{ github.event.inputs.ollama_service_id_override }}
+        run: |
+          set -euo pipefail
+          source ./scripts/load-railway-secrets-from-github-env.sh --quiet
+
+          TOKEN="${RAILWAY_BOB_TOKEN:-${RAILWAY_TOKEN:-}}"
+          if [ -z "${TOKEN}" ]; then
+            echo "::error::No Railway token available. Set RAILWAY_BOB_TOKEN or RAILWAY_TOKEN in repository secrets."
+            exit 1
+          fi
+
+          SERVICE_ID="${SERVICE_ID_OVERRIDE:-${RAILWAY_OLLAMA_SERVICE_ID:-}}"
+          if [ -z "${SERVICE_ID}" ]; then
+            echo "::error::No Ollama service ID available. Set RAILWAY_OLLAMA_SERVICE_ID or pass ollama_service_id_override."
+            exit 1
+          fi
+
+          echo "::add-mask::$TOKEN"
+          echo "RAILWAY_TOKEN=$TOKEN" >> "$GITHUB_ENV"
+          echo "OLLAMA_SERVICE_ID=$SERVICE_ID" >> "$GITHUB_ENV"
+          echo "Resolved Ollama service ID: $SERVICE_ID"
+
+      - name: Install Railway CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          RAILWAY_CLI_VERSION="4.31.0"
+          TARGET="linux-amd64"
+          URL="https://github.com/railwayapp/cli/releases/download/v${RAILWAY_CLI_VERSION}/railway-v${RAILWAY_CLI_VERSION}-${TARGET}.tar.gz"
+          curl -fsSL -o railway.tar.gz "$URL"
+          tar -xzf railway.tar.gz
+          mkdir -p "$HOME/.railway/bin"
+          install -m 0755 railway "$HOME/.railway/bin/railway"
+          echo "$HOME/.railway/bin" >> "$GITHUB_PATH"
+          railway --version
+
+      - name: Set Ollama model preload variables
+        shell: bash
+        env:
+          RAILWAY_TOKEN: ${{ env.RAILWAY_TOKEN }}
+          OLLAMA_SERVICE_ID: ${{ env.OLLAMA_SERVICE_ID }}
+        run: |
+          set -euo pipefail
+          echo "Setting model preload variables on Railway service: $OLLAMA_SERVICE_ID"
+
+          railway variable set \
+            OLLAMA_MODEL=qwen2.5:7b \
+            OLLAMA_EXTRA_MODELS=llama3.2-vision:11b \
+            OLLAMA_PREPULL_MODE=blocking \
+            OLLAMA_PULL_DELAY_SECONDS=20 \
+            --service "$OLLAMA_SERVICE_ID" \
+            --environment production \
+            --skip-deploys
+
+      - name: Trigger Railway redeploy
+        shell: bash
+        env:
+          RAILWAY_TOKEN: ${{ env.RAILWAY_TOKEN }}
+          OLLAMA_SERVICE_ID: ${{ env.OLLAMA_SERVICE_ID }}
+          WAIT_SECONDS: ${{ github.event.inputs.wait_seconds }}
+        run: |
+          set -euo pipefail
+          echo "Triggering Railway redeploy for service: $OLLAMA_SERVICE_ID"
+          railway redeploy --service "$OLLAMA_SERVICE_ID" --environment production --yes
+          sleep "${WAIT_SECONDS:-45}"
+
+      - name: Verify models loaded
+        shell: bash
+        env:
+          OLLAMA_URL: ${{ github.event.inputs.ollama_url }}
+        run: |
+          set -euo pipefail
+          URL="${OLLAMA_URL%/}"
+          echo "Verifying model tags at: $URL/api/tags"
+
+          ATTEMPTS=12
+          SLEEP_SECONDS=15
+
+          for i in $(seq 1 "$ATTEMPTS"); do
+            BODY=$(curl -k -sS --max-time 20 "$URL/api/tags" || true)
+            echo "Attempt $i/$ATTEMPTS: $BODY"
+
+            if echo "$BODY" | jq -e '.models | length > 0' >/dev/null 2>&1; then
+              if echo "$BODY" | jq -e '.models[].name | select(startswith("qwen2.5:7b"))' >/dev/null 2>&1; then
+                echo "Primary model qwen2.5:7b is present"
+              else
+                echo "::warning::qwen2.5:7b not listed yet"
+              fi
+
+              if echo "$BODY" | jq -e '.models[].name | select(startswith("llama3.2-vision:11b"))' >/dev/null 2>&1; then
+                echo "Vision model llama3.2-vision:11b is present"
+              else
+                echo "::warning::llama3.2-vision:11b not listed yet"
+              fi
+
+              # Success when at least one model appears; pre-pull may continue for extras.
+              exit 0
+            fi
+
+            sleep "$SLEEP_SECONDS"
+          done
+
+          echo "::error::Ollama /api/tags still empty after retries"
+          exit 1
