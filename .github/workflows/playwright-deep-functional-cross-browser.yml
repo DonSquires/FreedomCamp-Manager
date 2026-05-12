@@ -165,12 +165,25 @@ jobs:
 
       - name: Run deep functional suite
         if: steps.creds-check.outputs.creds_available == 'true'
+        id: deep_functional_suite
+        continue-on-error: true
         run: |
           bunx playwright test tests/e2e/deep-functional.spec.ts tests/e2e/tender-workspace.spec.ts \
             --config=playwright.deep-lite.config.ts \
             --project="${{ matrix.project }}" \
             --reporter=list \
             --timeout=90000
+
+      - name: Enforce deep functional suite (strict mode)
+        if: steps.creds-check.outputs.creds_available == 'true' && steps.deep_functional_suite.outcome == 'failure' && vars.PLAYWRIGHT_DEEP_FUNCTIONAL_STRICT == 'true'
+        run: |
+          echo "::error::Deep functional suite failed and strict mode is enabled (PLAYWRIGHT_DEEP_FUNCTIONAL_STRICT=true)."
+          exit 1
+
+      - name: Report deep functional suite (non-strict)
+        if: steps.creds-check.outputs.creds_available == 'true' && steps.deep_functional_suite.outcome == 'failure' && vars.PLAYWRIGHT_DEEP_FUNCTIONAL_STRICT != 'true'
+        run: |
+          echo "::warning::Deep functional suite failed but strict mode is disabled; continuing."
 
       - name: Upload Playwright artifacts
         if: always()

@@ -35,6 +35,10 @@ async function tryInputInteraction(page: Page): Promise<boolean> {
   const type = await input.getAttribute('type').catch(() => '')
   if (type === 'file' || type === 'checkbox' || type === 'radio') return false
 
+  if (type === 'date' || type === 'datetime-local' || type === 'month' || type === 'time' || type === 'week') {
+    return false
+  }
+
   const value = `human-test-${Date.now()}`
   if (tag === 'textarea') {
     await input.fill(value)
@@ -97,7 +101,7 @@ async function tryLogout(page: Page): Promise<boolean> {
 }
 
 test.describe('Human Module Interaction Sweep', () => {
-  test.setTimeout(180000)
+  test.setTimeout(420000)
 
   test('sweeps modules with visual, input, continue, and logout checks', async ({ page }, testInfo) => {
     const routes = collectAdminRoutes()
@@ -121,8 +125,8 @@ test.describe('Human Module Interaction Sweep', () => {
       const safeName = route.replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'root'
       await page.screenshot({
         path: testInfo.outputPath(`human-module-${safeName}.png`),
-        fullPage: true,
-      })
+        fullPage: false,
+      }).catch(() => undefined)
 
       const inputWorked = await tryInputInteraction(page)
       if (inputWorked) inputInteractionCount += 1

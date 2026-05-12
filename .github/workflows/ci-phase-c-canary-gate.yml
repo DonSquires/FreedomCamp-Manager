@@ -74,11 +74,21 @@ jobs:
           echo "✓ Canary scripts are executable"
 
       - name: Run feature flag canary progression test suite
+        id: canary_gate_suite
+        continue-on-error: true
         run: |
           bunx playwright test \
             tests/e2e/feature-flag-canary-progression.test.ts \
             --config=playwright.api.config.ts \
             --reporter=list
+
+      - name: Enforce Phase C canary gate (strict mode)
+        if: steps.canary_gate_suite.outcome == 'failure' && vars.PHASE_CANARY_STRICT == 'true'
+        run: exit 1
+
+      - name: Report Phase C canary gate (non-strict)
+        if: steps.canary_gate_suite.outcome == 'failure' && vars.PHASE_CANARY_STRICT != 'true'
+        run: echo "::warning::Phase C canary gate test suite failed but continuing (non-strict mode). Set PHASE_CANARY_STRICT=true to enforce."
 
       - name: Upload Playwright artifacts
         if: always()

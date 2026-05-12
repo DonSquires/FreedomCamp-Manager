@@ -211,7 +211,7 @@ Extract and include the EXACT text describing the behavior in "safety_descriptio
         // Find most recent observation once so we can scope downstream records.
         const { data: recentObs } = await supabaseAdmin
           .from('observations')
-          .select('organization_id, zone_id, recorded_at')
+          .select('organization_id, zone_id, loi_id, recorded_at')
           .eq('plate_number', plateNumber)
           .order('recorded_at', { ascending: false })
           .limit(1)
@@ -258,7 +258,20 @@ Extract and include the EXACT text describing the behavior in "safety_descriptio
           }
 
           const organizationId = recentObs.organization_id;
-          const zoneId = recentObs.zone_id;
+          let zoneId = recentObs.zone_id;
+          const loiId = (recentObs as any).loi_id ?? null;
+
+          if (!zoneId && loiId) {
+            const { data: zoneFromLoi } = await supabaseAdmin
+              .from('zones')
+              .select('id')
+              .eq('organization_id', organizationId)
+              .eq('loi_id', loiId)
+              .eq('is_active', true)
+              .limit(1)
+              .maybeSingle();
+            zoneId = zoneFromLoi?.id ?? null;
+          }
 
           // 1. Create/Update Flagged Vehicle
           try {
@@ -329,6 +342,11 @@ Extract and include the EXACT text describing the behavior in "safety_descriptio
                 status: 'pending',
                 severity: 'high',
                 recorded_at: record.date ? new Date(record.date) : new Date(),
+                metadata: {
+                  source: 'process-homeless-data',
+                  loi_id: loiId,
+                  imported_site: record.last_known_site || null,
+                },
               });
 
             if (incidentError) throw incidentError;

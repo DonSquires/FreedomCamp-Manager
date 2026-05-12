@@ -105,6 +105,7 @@ Deno.serve(async (req) => {
       due_date,
       service_method,
       recipient_name,
+      observation_id,
       organization_id,
       zone_id,
       payment_reference,
@@ -205,11 +206,46 @@ Deno.serve(async (req) => {
       }
     }
 
-    const { data: legalConfig } = await supabaseAdmin
-      .from('zone_legal_config')
-      .select('org_street_address, org_po_box, org_city, org_postcode, org_phone, org_email, org_website, enforcement_authority, payment_online_url, payment_bank_account, payment_instructions, objections_email, objections_postal_address')
-      .eq('zone_id', notice.zone_id)
-      .maybeSingle()
+    let resolvedZoneId: string | null = notice.zone_id ?? null
+
+    if (!resolvedZoneId && notice.observation_id) {
+      const { data: observationCtx } = await supabaseAdmin
+        .from('observations')
+        .select('zone_id, loi_id')
+        .eq('observation_id', notice.observation_id)
+        .maybeSingle()
+
+      resolvedZoneId = (observationCtx as any)?.zone_id ?? null
+
+      if (!resolvedZoneId && (observationCtx as any)?.loi_id) {
+        const { data: zoneFromLoi } = await supabaseAdmin
+          .from('zones')
+          .select('id')
+          .eq('loi_id', (observationCtx as any).loi_id)
+          .eq('is_active', true)
+          .limit(1)
+          .maybeSingle()
+        resolvedZoneId = zoneFromLoi?.id ?? null
+      }
+    }
+
+    let zoneContext = notice.zone
+    if (!zoneContext && resolvedZoneId) {
+      const { data: resolvedZone } = await supabaseAdmin
+        .from('zones')
+        .select('name, enforcement_authority, organizations!inner(id, name, address, contact_phone, contact_email)')
+        .eq('id', resolvedZoneId)
+        .maybeSingle()
+      zoneContext = resolvedZone ?? null
+    }
+
+    const { data: legalConfig } = resolvedZoneId
+      ? await supabaseAdmin
+          .from('zone_legal_config')
+          .select('org_street_address, org_po_box, org_city, org_postcode, org_phone, org_email, org_website, enforcement_authority, payment_online_url, payment_bank_account, payment_instructions, objections_email, objections_postal_address')
+          .eq('zone_id', resolvedZoneId)
+          .maybeSingle()
+      : { data: null }
 
     const legalOfficeAddress = joinAddressParts([
       legalConfig?.org_street_address,
@@ -226,25 +262,25 @@ Deno.serve(async (req) => {
       offenceDescription: notice.offence_description || 'Freedom camping offence',
       legalBasis: notice.legal_basis || 'Freedom Camping Act 2011',
       offenceDate: notice.offence_date ? new Date(notice.offence_date) : new Date(),
-      offenceLocation: notice.offence_location || notice.zone?.name || 'Unknown location',
+      offenceLocation: notice.offence_location || zoneContext?.name || 'Unknown location',
       offenceGps: notice.offence_location_gps || '',
-      jurisdiction: notice.zone?.name || '',
+      jurisdiction: zoneContext?.name || '',
       amountDollars: (((notice.amount_cents || 0) as number) / 100).toFixed(2),
       dueDt: notice.due_date ? new Date(notice.due_date) : new Date(),
       serviceMethod: notice.service_method || 'hand',
       recipientName: notice.recipient_name || undefined,
       issuerWarrantNumber: notice.issuer?.warrant_number || '',
-      issuerRole: notice.issuer?.issuing_authority || legalConfig?.enforcement_authority || notice.zone?.enforcement_authority || 'Authorised Enforcement Officer',
-      orgName: notice.zone?.organizations?.name || 'Issuing Authority',
-      orgAddress: legalOfficeAddress || notice.zone?.organizations?.address || '',
-      orgPhone: legalConfig?.org_phone || notice.zone?.organizations?.contact_phone || '',
-      orgEmail: legalConfig?.org_email || notice.zone?.organizations?.contact_email || '',
+      issuerRole: notice.issuer?.issuing_authority || legalConfig?.enforcement_authority || zoneContext?.enforcement_authority || 'Authorised Enforcement Officer',
+      orgName: zoneContext?.organizations?.name || 'Issuing Authority',
+      orgAddress: legalOfficeAddress || zoneContext?.organizations?.address || '',
+      orgPhone: legalConfig?.org_phone || zoneContext?.organizations?.contact_phone || '',
+      orgEmail: legalConfig?.org_email || zoneContext?.organizations?.contact_email || '',
       paymentOnlineUrl: legalConfig?.payment_online_url || legalConfig?.org_website || '',
       paymentBankAccount: legalConfig?.payment_bank_account || '',
       paymentInstructions: legalConfig?.payment_instructions || (notice.payment_reference ? `Use reference ${notice.payment_reference} when making payment.` : ''),
-      objectionsEmail: legalConfig?.objections_email || legalConfig?.org_email || notice.zone?.organizations?.contact_email || '',
-      objectionsPostalAddress: legalConfig?.objections_postal_address || legalOfficeAddress || notice.zone?.organizations?.address || '',
-      zoneName: notice.zone?.name || '',
+      objectionsEmail: legalConfig?.objections_email || legalConfig?.org_email || zoneContext?.organizations?.contact_email || '',
+      objectionsPostalAddress: legalConfig?.objections_postal_address || legalOfficeAddress || zoneContext?.organizations?.address || '',
+      zoneName: zoneContext?.name || '',
       summaryOfRights: notice.summary_of_rights || NZ_DEFAULT_SUMMARY_OF_RIGHTS,
     })
 

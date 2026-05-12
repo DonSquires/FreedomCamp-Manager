@@ -1804,9 +1804,9 @@ export default function PTTRadio() {
     
     if (channel1) {
       setActiveChannel(channel1)
-      if (radioMode === 'dispatch' || radioMode === 'direct') {
-        void connectToChannel(channel1)
-      }
+      // Auto-connect on initial load for all modes so officers land in an
+      // active channel without having to manually press Connect.
+      void connectToChannel(channel1)
       initialConnectRef.current = true
     }
   }, [connectToChannel, effectiveOrgId, channels, radioMode, radioTargetUserId])
@@ -1816,6 +1816,16 @@ export default function PTTRadio() {
     if (typeof window === 'undefined') return
     if (Notification.permission === 'default') setShowNotificationHint(true)
     requestNotificationPermission()
+  }, [])
+
+  // ── Microphone permission – auto-request on first load ────
+  // Request microphone access immediately so the browser permission dialog
+  // appears as soon as the officer opens the radio page instead of waiting
+  // for the first PTT press.
+  useEffect(() => {
+    if (microphoneReady) return
+    requestMicrophoneAccess()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // ── Hybrid handshake geolocation polling ─────────────────

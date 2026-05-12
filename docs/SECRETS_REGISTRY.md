@@ -86,11 +86,15 @@ The script sets canonical names and skips optional keys when blank.
 
 | Secret | Value |
 |---|---|
+| `TRANSCRIPTION_SERVICE_URL` | Preferred STT/transcribe endpoint for `transcribe-audio` (typically same as `BOB_SERVICE_URL`) |
 | `INFERENCE_SERVICE_URL` | Same as `BOB_SERVICE_URL` (Bob's public RunPod URL) |
 | `INFERENCE_API_KEY` | Same value as the GitHub Actions secret `INFERENCE_API_KEY` |
 | `PROXY_SERVER_URL` | Same as GitHub Actions `PROXY_SERVER_URL` |
 | `PTT_SERVER_URL` | Same as GitHub Actions `PTT_SERVER_URL` |
 | `PTT_PROXY_SECRET` | Generate: `openssl rand -hex 32` — set this exact value on the PTT VPS service and in Supabase vault |
+
+For STT migration, configure `TRANSCRIPTION_SERVICE_URL` as canonical for `supabase/functions/transcribe-audio`.
+`BOB_SERVICE_URL` and `INFERENCE_SERVICE_URL` remain accepted by fallback logic for backwards compatibility.
 
 ### Step 3 — RunPod: Bob service
 
@@ -264,6 +268,7 @@ These are available as `Deno.env.get('SECRET_NAME')` inside all Edge Functions. 
 
 | Secret | Canonical | Aliases Accepted | Required | Notes |
 |---|---|---|---|---|
+| `TRANSCRIPTION_SERVICE_URL` | ✅ | `BOB_SERVICE_URL`, `INFERENCE_SERVICE_URL` (fallback in `transcribe-audio`) | For STT/transcribe | Preferred canonical name for speech transcription endpoint |
 | `INFERENCE_SERVICE_URL` | ✅ | — | For AI features | Bob's public RunPod URL |
 | `INFERENCE_API_KEY` | ✅ | — | Recommended | Auth header sent to Bob; must match Bob service `INFERENCE_API_KEY` |
 | `PROXY_SERVER_URL` | ✅ | `NZSCV_PROXY_URL`, `RAILWAY_PROXY_URL`, `PROXY_BASE_URL` (deprecated) | For vehicle lookup | Proxy public Railway URL |
@@ -442,6 +447,7 @@ This table documents every alias accepted by `scripts/load-railway-secrets-from-
 | Canonical Secret | Accepted Aliases (deprecated) | Resolution |
 |---|---|---|
 | `RAILWAY_TOKEN` | `RAILWAY_CORE_TOKEN` | load-railway-secrets-from-github-env.sh |
+| `TRANSCRIPTION_SERVICE_URL` | `BOB_SERVICE_URL`, `INFERENCE_SERVICE_URL` | `supabase/functions/transcribe-audio/index.ts` fallback order |
 | `INFERENCE_SERVICE_URL` | `BOB_SERVICE_URL` | load-railway-secrets-from-github-env.sh (bidirectional) |
 | `BOB_SERVICE_URL` | `INFERENCE_SERVICE_URL` | load-railway-secrets-from-github-env.sh (bidirectional) |
 | `PROXY_SERVER_URL` | `PROXY_SERVICE_URL`, `NZSCV_PROXY_URL` | load-railway-secrets-from-github-env.sh |
@@ -518,6 +524,7 @@ Use this checklist when setting up a new environment or after team changes.
 
 ### Supabase Edge Function Secrets
 
+- [ ] `TRANSCRIPTION_SERVICE_URL`
 - [ ] `INFERENCE_SERVICE_URL`
 - [ ] `INFERENCE_API_KEY`
 - [ ] `PROXY_SERVER_URL`

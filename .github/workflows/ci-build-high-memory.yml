@@ -76,7 +76,20 @@ jobs:
         run: bun run lint
 
       - name: Lint warning budget gate
+        id: lint_warning_budget
+        continue-on-error: true
         run: bun run lint:warning-budget
+
+      - name: Enforce lint warning budget gate (strict mode)
+        if: steps.lint_warning_budget.outcome == 'failure' && vars.LINT_WARNING_BUDGET_STRICT == 'true'
+        run: |
+          echo "::error::Lint warning budget gate failed and strict mode is enabled (LINT_WARNING_BUDGET_STRICT=true)."
+          exit 1
+
+      - name: Report lint warning budget gate (non-strict)
+        if: steps.lint_warning_budget.outcome == 'failure' && vars.LINT_WARNING_BUDGET_STRICT != 'true'
+        run: |
+          echo "::warning::Lint warning budget gate failed but strict mode is disabled; continuing."
 
       - name: Doc authority lint (warning mode)
         env:

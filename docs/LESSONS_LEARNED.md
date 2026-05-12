@@ -13,6 +13,27 @@ Use this file to record concrete mistakes Bob and Dr Bob found during adversaria
 
 ## Current Lessons
 
+- Date: 2026-05-12
+- Trigger: Live-user reports — PTT not requesting permissions on first load and "PTT server unavailable" for regular officers.
+- Mistake: `getPlatformAdminFallbackScope()` had a `role !== 'grand_master'` guard that blocked the zone-error recovery path for all other roles. PTTRadio auto-connect only fired for `dispatch`/`direct` modes. No automatic microphone permission prompt existed on page mount.
+- Risk: Officers arriving at the radio page saw no browser permission dialog, no active channel connection, and an unrecoverable "unavailable" state whenever the PTT server reported a zone mismatch — effectively making PTT non-functional for first-time users.
+- Fix: Removed role guard from `getPlatformAdminFallbackScope` (all org users get zone bypass); added mount-time `requestMicrophoneAccess()` effect in PTTRadio; changed initial auto-connect to fire for all radio modes.
+- Prevention Rule: PTT availability must not depend on geofence state. Zone errors must always fall back to `org:<orgId>` scope for any user with an org assignment. Microphone permission must be requested on every first-mount of PTT pages.
+
+- Date: 2026-05-11
+- Trigger: Human-modules remediation lanes (`ui-comprehensive`, `human-module-interaction`) during six-hour staging review.
+- Mistake: Several E2E assertions treated role-guard redirects (`/portal-selection`, `/login`) as failures even when they were valid outcomes for the authenticated role/session state.
+- Risk: Persistent false-red pipelines, long rerun cycles, and misleading triage that blames route regressions instead of expected access-control behavior.
+- Fix: Added role-aware fallback handling in navigation helpers and scenario assertions; preserved strict expectations only where access must exist for the test intent.
+- Prevention Rule: For guarded routes, assertions must explicitly encode both expected privileged state and valid guard fallback state.
+
+- Date: 2026-05-11
+- Trigger: Mobile human interaction sweep timeout and malformed fill failures.
+- Mistake: Generic input interaction attempted free-text fills on date/time controls and used full-page screenshots on long sweeps, increasing timeout pressure.
+- Risk: Non-deterministic failures unrelated to product regressions, especially on constrained mobile browser runs.
+- Fix: Skipped date/time-like input types for generic text fill and switched sweep screenshots to non-blocking viewport capture with extended per-test timeout.
+- Prevention Rule: Generic form-fuzz helpers must respect input-type semantics and keep media capture bounded for long-route sweeps.
+
 - Date: 2026-05-09
 - Trigger: External NZ case study (Stuff, Laura Frykberg, 2026-05-08) describing ANPR-based parking notices issued to drivers who made separate short visits that were incorrectly merged into one overstay event.
 - Mistake: AI/computer-vision enforcement flow treated entry/exit snapshots as sufficient proof of a continuous parking stay, without proving stationary occupancy, multi-visit disambiguation, or evidentiary completeness.

@@ -41,7 +41,7 @@ export type PTTConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 
 export type PTTInputMode = 'ptt' | 'vox' | 'toggle'
 
 /** Channel type */
-export type PTTChannelType = 'org' | 'team' | 'deployment' | 'incident' | 'direct'
+export type PTTChannelType = 'org' | 'team' | 'deployment' | 'incident' | 'direct' | 'emergency'
 
 /** Bluetooth device info */
 export interface BluetoothDevice {

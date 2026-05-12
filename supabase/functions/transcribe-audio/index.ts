@@ -26,7 +26,11 @@ const TRANSCRIPTION_SERVICE_URL = normalizeBaseUrl(
   RUNPOD_DERIVED_URL ||
   '',
 )
-const BOB_FALLBACK_SERVICE_URL = normalizeBaseUrl(Deno.env.get('INFERENCE_SERVICE_FALLBACK_URL') || '')
+const TRANSCRIPTION_FALLBACK_SERVICE_URL = normalizeBaseUrl(
+  Deno.env.get('TRANSCRIPTION_FALLBACK_SERVICE_URL') ||
+  Deno.env.get('INFERENCE_SERVICE_FALLBACK_URL') ||
+  '',
+)
 const BOB_API_KEY =
   Deno.env.get('BOB_INFERENCE_API_KEY') ??
   Deno.env.get('INFERENCE_API_KEY') ??
@@ -36,8 +40,7 @@ const BOB_API_KEY =
 
 function buildServiceUrlPool(): string[] {
   const urls = [TRANSCRIPTION_SERVICE_URL]
-  if (BOB_FALLBACK_SERVICE_URL && BOB_FALLBACK_SERVICE_URL !== TRANSCRIPTION_SERVICE_URL) {
-    urls.push(BOB_FALLBACK_SERVICE_URL)
+    urls.push(TRANSCRIPTION_FALLBACK_SERVICE_URL)
   }
   return urls.filter(Boolean)
 }

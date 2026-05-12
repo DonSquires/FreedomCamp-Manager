@@ -35,6 +35,7 @@ import {
   connectToPTT,
   disconnectFromPTT,
   getPTTDiagnostics,
+  PTT_GLOBAL_EMERGENCY_SCOPE,
   setPTTCustomAudioSourceFactory,
   startSpeaking,
   stopSpeaking,
@@ -221,7 +222,11 @@ function hashScopeSeed(seed: string): string {
 }
 
 function getBobRadioChannelScope(channel: BobRadioChannel, effectiveOrgId: string): string {
-  if (channel.channel_type === 'primary' || channel.channel_type === 'emergency' || channel.channel_number === 1) {
+  if (channel.channel_type === 'emergency') {
+    return PTT_GLOBAL_EMERGENCY_SCOPE
+  }
+
+  if (channel.channel_type === 'primary' || channel.channel_number === 1) {
     return `org:${effectiveOrgId}`
   }
 

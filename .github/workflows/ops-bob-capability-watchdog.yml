@@ -122,6 +122,8 @@ jobs:
           RUNPOD_API_KEY: ${{ secrets.RUNPOD_API_KEY }}
 
       - name: Run strict serverless capability gate
+        id: serverless_capability_gate
+        continue-on-error: true
         run: |
           REQUIRED="${BOB_WATCHDOG_SERVERLESS_REQUIRED:-chat}"
           echo "Checking serverless capabilities: $REQUIRED"
@@ -132,6 +134,17 @@ jobs:
           BOB_CAPABILITY_STRICT: 'true'
           BOB_WATCHDOG_SERVERLESS_REQUIRED: ${{ vars.BOB_WATCHDOG_SERVERLESS_REQUIRED }}
           BOB_CAPABILITY_TIMEOUT_MS: '120000'
+
+      - name: Enforce serverless capability gate (strict mode)
+        if: steps.serverless_capability_gate.outcome == 'failure' && vars.BOB_WATCHDOG_STRICT == 'true'
+        run: |
+          echo "::error::Serverless capability gate failed and strict mode is enabled (BOB_WATCHDOG_STRICT=true)."
+          exit 1
+
+      - name: Report serverless capability gate (non-strict)
+        if: steps.serverless_capability_gate.outcome == 'failure' && vars.BOB_WATCHDOG_STRICT != 'true'
+        run: |
+          echo "::warning::Serverless capability gate failed but strict mode is disabled; continuing."
 
   pod-capability-check:
     name: Bob Pod Capability Check

@@ -14,6 +14,18 @@ When a pattern, platform, or architectural decision changes, append a dated note
 
 ## Current Standing Decisions
 
+- Date: 2026-05-12
+- Decision: PTT access must never be gated by geofence/zone membership — zone-bypass fallback applies to all authenticated users with an org ID, not only grand_master.
+- Scope: `src/lib/ptt.ts` (`getPlatformAdminFallbackScope`), `src/pages/PTTRadio.tsx` (auto-connect + mic permission prompt).
+- Reason: Live-user reports showed officers on first load received no microphone permission prompt and PTT was blocked with "PTT server unavailable" when the PTT server returned a "no active client zone" error. Regular officers had no bypass path; only grand_master could recover.
+- Consequences: `getPlatformAdminFallbackScope` must return `org:<orgId>` for any authenticated user. Auto-mic prompt and auto-channel-connect on mount must remain in PTTRadio. Location data (GPS → street address) is visual-only and must never gate PTT channel access.
+
+- Date: 2026-05-11
+- Decision: Human-modules Playwright suites must treat `/portal-selection` and `/login` as valid guarded fallback states unless the specific scenario explicitly requires in-page privileged UI.
+- Scope: `tests/e2e/ui-comprehensive.spec.ts`, `tests/e2e/human-module-interaction.spec.ts`, role-gated route assertions, and remediation lanes for human-modules approvals.
+- Reason: Recent runs showed repeated false-negative failures caused by role/portal guards and transient auth redirects being asserted as hard route regressions.
+- Consequences: New or updated UI E2E flows must (1) resolve portal selection by target area where possible, (2) allow guarded fallback states when appropriate, and (3) only hard-fail on access denials when scenario intent expects access.
+
 - Date: 2026-05-10
 - Decision: Bob patrol and dispatch intelligence must use deterministic pre-classification and plan verification before automating historical data placement.
 - Scope: `src/lib/bobSetupBlueprint.ts`, `src/lib/historicalDispatchIntelligence.ts`, `src/lib/patrolZoneFallbacks.ts`, `src/pages/AiAnalysis.tsx`, `src/pages/BobAssistantStudio.tsx`, Edge Functions, test suites (see ADR 013).

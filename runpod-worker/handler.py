@@ -3,8 +3,9 @@ RunPod Serverless Worker — FieldOps AI Engine (Bob)
 Uses official runpod Python SDK which handles heartbeats, job fetching, and result posting.
 
 OLLAMA_BASE_URL resolution order:
-  1. OLLAMA_EXTERNAL_URL — point at an external Ollama (Railway, VPS, etc.)
+    1. OLLAMA_EXTERNAL_URL — point at an external Ollama (Railway, VPS, etc.)
     2. OLLAMA_BASE_URL     — explicit base URL
+    3. OLLAMA_HOST         — host or full URL for Ollama
 
 Requires Ollama >= 0.3.x for /api/chat support (pinned in Dockerfile via OLLAMA_VERSION).
 """
@@ -20,12 +21,69 @@ import subprocess
 import requests
 import runpod
 
+
+def normalize_ollama_base(raw_value):
+    raw = str(raw_value or "").strip().rstrip("/")
+    if not raw:
+        return ""
+
+    if raw.startswith(("http://", "https://")):
+        return raw
+
+    parsed = urllib.parse.urlparse(f"http://{raw}")
+    hostname = parsed.hostname
+    if not hostname:
+        return f"http://{raw}"
+
+    host = f"[{hostname}]" if ":" in hostname and not hostname.startswith("[") else hostname
+    auth = ""
+    if parsed.username:
+        auth = parsed.username
+        if parsed.password:
+            auth += f":{parsed.password}"
+        auth += "@"
+
+    netloc = parsed.netloc
+    if parsed.port is None:
+        netloc = f"{auth}{host}:11434"
+
+    return urllib.parse.urlunparse((parsed.scheme or "http", netloc, parsed.path, "", parsed.query, "")).rstrip("/")
+
+
+def normalize_service_base(raw_value, default_port=None):
+    raw = str(raw_value or "").strip().rstrip("/")
+    if not raw:
+        return ""
+
+    if raw.startswith(("http://", "https://")):
+        return raw
+
+    parsed = urllib.parse.urlparse(f"http://{raw}")
+    hostname = parsed.hostname
+    if not hostname:
+        return f"http://{raw}"
+
+    host = f"[{hostname}]" if ":" in hostname and not hostname.startswith("[") else hostname
+    auth = ""
+    if parsed.username:
+        auth = parsed.username
+        if parsed.password:
+            auth += f":{parsed.password}"
+        auth += "@"
+
+    netloc = parsed.netloc
+    if parsed.port is None and default_port is not None:
+        netloc = f"{auth}{host}:{default_port}"
+
+    return urllib.parse.urlunparse((parsed.scheme or "http", netloc, parsed.path, "", parsed.query, "")).rstrip("/")
+
 # Resolve external Ollama endpoint. This worker no longer supports local Ollama mode.
 _ext = os.environ.get("OLLAMA_EXTERNAL_URL", "").strip().rstrip("/")
 _base = os.environ.get("OLLAMA_BASE_URL", "").strip().rstrip("/")
-OLLAMA_BASE = _ext if _ext else _base
+_host = os.environ.get("OLLAMA_HOST", "").strip().rstrip("/")
+OLLAMA_BASE = normalize_ollama_base(_ext if _ext else _base if _base else _host)
 if not OLLAMA_BASE:
-    raise RuntimeError("OLLAMA_EXTERNAL_URL or OLLAMA_BASE_URL must be set to an external Ollama endpoint")
+    raise RuntimeError("OLLAMA_EXTERNAL_URL, OLLAMA_BASE_URL, or OLLAMA_HOST must be set to an external Ollama endpoint")
 OLLAMA_MODEL        = os.environ.get("OLLAMA_MODEL", "qwen2.5:7b")
 OLLAMA_VISION_MODEL = os.environ.get("OLLAMA_VISION_MODEL", "llama3.2-vision:11b")
 BOB_ATTITUDE_PROFILE = os.environ.get("BOB_ATTITUDE_PROFILE", "operational").strip().lower()
@@ -314,6 +372,10 @@ def _messages_to_prompt(messages):
 
 def ollama_chat(messages, model=None, temperature=0.7):
     # Prefer /api/chat, but fall back to /api/generate for older Ollama builds.
+    ollama_host = normalize_ollama_base(OLLAMA_BASE or os.environ.get("OLLAMA_HOST", ""))
+    if not ollama_host:
+        raise RuntimeError("OLLAMA_EXTERNAL_URL, OLLAMA_BASE_URL, or OLLAMA_HOST must be set to an external Ollama endpoint")
+
     chat_payload = {
         "model": model or OLLAMA_MODEL,
         "messages": messages,
@@ -322,7 +384,7 @@ def ollama_chat(messages, model=None, temperature=0.7):
     }
 
     resp = requests.post(
-        f"{OLLAMA_BASE}/api/chat",
+        f"{ollama_host}/api/chat",
         json=chat_payload,
         timeout=TIMEOUT_S,
     )
@@ -335,7 +397,7 @@ def ollama_chat(messages, model=None, temperature=0.7):
             "options": {"temperature": temperature},
         }
         gen_resp = requests.post(
-            f"{OLLAMA_BASE}/api/generate",
+            f"{ollama_host}/api/generate",
             json=generate_payload,
             timeout=TIMEOUT_S,
         )
@@ -837,20 +899,24 @@ def handler(job):
         audio_base64 = str(inp.get("audio_base64") or "").strip()
         audio_mime_type = str(inp.get("audio_mime_type") or "audio/webm").strip()
         language = str(inp.get("language") or "en").strip()
-        whisper_url = str(os.environ.get("WHISPER_SERVICE_URL", "")).strip().rstrip("/")
+        whisper_url = normalize_service_base(os.environ.get("WHISPER_SERVICE_URL", ""))
 
         if audio_base64 and whisper_url:
             try:
-                w_resp = requests.post(
-                    f"{whisper_url}/infer/transcribe",
-                    json={
-                        "audio_base64": audio_base64,
-                        "audio_mime_type": audio_mime_type,
-                        "language": language,
-                    },
-                    timeout=60,
-                )
-                if w_resp.ok:
+                whisper_payload = {
+                    "audio_base64": audio_base64,
+                    "audio_mime_type": audio_mime_type,
+                    "language": language,
+                }
+                whisper_paths = ["/infer/transcribe", "/transcribe"]
+                for whisper_path in whisper_paths:
+                    w_resp = requests.post(
+                        f"{whisper_url}{whisper_path}",
+                        json=whisper_payload,
+                        timeout=60,
+                    )
+                    if not w_resp.ok:
+                        continue
                     w_data = w_resp.json()
                     transcript = w_data.get("transcript") or w_data.get("text")
                     if transcript:

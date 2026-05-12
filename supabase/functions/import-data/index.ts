@@ -147,6 +147,7 @@ ${fileContent}`;
 
     // Create zones that don't exist
     const zoneMap = new Map<string, string>();
+    const zoneLoiMap = new Map<string, string | null>();
 
     if (extractedData.zones && extractedData.zones.length > 0) {
       for (const zone of extractedData.zones) {
@@ -155,13 +156,14 @@ ${fileContent}`;
         // Check if zone exists
         const { data: existingZone } = await supabaseClient
           .from('zones')
-          .select('id')
+          .select('id, loi_id')
           .eq('name', zone.name)
           .eq('organization_id', targetOrgId)
           .single();
 
         if (existingZone) {
           zoneMap.set(zone.name, existingZone.id);
+          zoneLoiMap.set(zone.name, (existingZone as any).loi_id ?? null);
         } else {
           // Create new zone
           const { data: newZone, error: zoneError } = await supabaseClient
@@ -184,6 +186,7 @@ ${fileContent}`;
           }
 
           zoneMap.set(zone.name, newZone.id);
+          zoneLoiMap.set(zone.name, (newZone as any).loi_id ?? null);
           console.log('Created zone:', zone.name, newZone.id);
         }
       }
@@ -194,15 +197,38 @@ ${fileContent}`;
     const skippedRecords = [];
 
     for (const record of extractedData.records || []) {
-      // Must have at least plate number and zone
-      if (!record.plate_number || !record.zone_name) {
-        skippedRecords.push({ record, reason: 'Missing plate number or zone' });
+      // Must have plate number and either zone name or loi_id
+      if (!record.plate_number || (!record.zone_name && !record.loi_id)) {
+        skippedRecords.push({ record, reason: 'Missing plate number and zone/loi context' });
         continue;
       }
 
-      const zoneId = zoneMap.get(record.zone_name);
+      let zoneId = record.zone_name ? zoneMap.get(record.zone_name) : undefined;
+      let resolvedLoiId: string | null = record.loi_id ?? null;
+
+      if (!zoneId && resolvedLoiId) {
+        const { data: zoneFromLoi } = await supabaseClient
+          .from('zones')
+          .select('id, name, loi_id')
+          .eq('organization_id', targetOrgId)
+          .eq('loi_id', resolvedLoiId)
+          .eq('is_active', true)
+          .limit(1)
+          .maybeSingle();
+
+        if (zoneFromLoi) {
+          zoneId = zoneFromLoi.id;
+          zoneMap.set(zoneFromLoi.name, zoneFromLoi.id);
+          zoneLoiMap.set(zoneFromLoi.name, (zoneFromLoi as any).loi_id ?? null);
+        }
+      }
+
+      if (!resolvedLoiId && record.zone_name) {
+        resolvedLoiId = zoneLoiMap.get(record.zone_name) ?? null;
+      }
+
       if (!zoneId) {
-        skippedRecords.push({ record, reason: `Zone not found: ${record.zone_name}` });
+        skippedRecords.push({ record, reason: `Zone not found: ${record.zone_name ?? `loi_id=${record.loi_id}`}` });
         continue;
       }
 
@@ -227,6 +253,7 @@ ${fileContent}`;
       observationsToInsert.push({
         organization_id: targetOrgId,
         zone_id: zoneId,
+        loi_id: resolvedLoiId,
         plate_number: record.plate_number.toUpperCase(),
         self_contained: record.is_self_contained ?? false,
         recorded_at: timestamp,

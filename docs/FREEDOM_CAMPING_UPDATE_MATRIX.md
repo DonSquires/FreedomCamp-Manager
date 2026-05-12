@@ -103,15 +103,15 @@ Runtime files matching Freedom Camping functionality keywords (excluding docs-on
 - [ ] supabase/functions/generate-noise-notice/index.ts
 - [x] supabase/functions/generate-notice-to-vacate/index.ts
 - [x] supabase/functions/generate-warning-notice/index.ts
-- [ ] supabase/functions/import-data/index.ts
+- [x] supabase/functions/import-data/index.ts
 - [ ] supabase/functions/onspace-ai-chat/index.ts
 - [ ] supabase/functions/process-credential-document/index.ts
-- [ ] supabase/functions/process-homeless-data/index.ts
+- [x] supabase/functions/process-homeless-data/index.ts
 - [x] supabase/functions/process-officer-scan/index.ts
-- [ ] supabase/functions/public-case-lookup/index.ts
-- [ ] supabase/functions/render-infringement-notice/index.ts
+- [x] supabase/functions/public-case-lookup/index.ts
+- [x] supabase/functions/render-infringement-notice/index.ts
 - [ ] supabase/functions/send-invite-email/index.ts
 - [ ] supabase/functions/smoke-notice/index.ts
-- [ ] supabase/functions/submit-dispute-intake/index.ts
-- [ ] supabase/functions/submit-parking-appeal/index.ts
+- [x] supabase/functions/submit-dispute-intake/index.ts
+- [x] supabase/functions/submit-parking-appeal/index.ts
 - [ ] supabase/functions/sync-scv-list/index.ts

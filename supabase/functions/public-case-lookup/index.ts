@@ -66,13 +66,36 @@ Deno.serve(async (req) => {
       }
 
       let evidencePhotoUrl: string | null = null
+      let fallbackZoneName: string | null = null
       if ((infringement as any).observation_id) {
         const { data: obs } = await supabaseAdmin
           .from('observations')
-          .select('photo, photo_url')
+          .select('photo, photo_url, zone_id, loi_id')
           .eq('observation_id', (infringement as any).observation_id)
           .maybeSingle()
         evidencePhotoUrl = String((obs as any)?.photo || (obs as any)?.photo_url || '') || null
+
+        if (!(infringement as any)?.zone?.name) {
+          const obsZoneId = (obs as any)?.zone_id ?? null
+          const obsLoiId = (obs as any)?.loi_id ?? null
+          if (obsZoneId) {
+            const { data: zoneFromObs } = await supabaseAdmin
+              .from('zones')
+              .select('name')
+              .eq('id', obsZoneId)
+              .maybeSingle()
+            fallbackZoneName = zoneFromObs?.name ?? null
+          } else if (obsLoiId) {
+            const { data: zoneFromLoi } = await supabaseAdmin
+              .from('zones')
+              .select('name')
+              .eq('loi_id', obsLoiId)
+              .eq('is_active', true)
+              .limit(1)
+              .maybeSingle()
+            fallbackZoneName = zoneFromLoi?.name ?? null
+          }
+        }
       }
 
       return new Response(
@@ -85,7 +108,7 @@ Deno.serve(async (req) => {
             status: (infringement as any).status,
             issued_at: (infringement as any).issued_at,
             due_date: (infringement as any).due_date,
-            zone_name: (infringement as any)?.zone?.name || null,
+            zone_name: (infringement as any)?.zone?.name || fallbackZoneName,
             reason: (infringement as any).offence_description,
             legal_basis: (infringement as any).legal_basis,
             offence_date: (infringement as any).offence_date,
@@ -119,6 +142,7 @@ Deno.serve(async (req) => {
       }
 
       let evidencePhotoUrl: string | null = null
+      let fallbackZoneName: string | null = null
       if ((ntv as any).breach_alert_id) {
         const { data: breach } = await supabaseAdmin
           .from('breach_alerts')
@@ -130,10 +154,32 @@ Deno.serve(async (req) => {
         if (obsId) {
           const { data: obs } = await supabaseAdmin
             .from('observations')
-            .select('photo, photo_url')
+            .select('photo, photo_url, zone_id, loi_id')
             .eq('observation_id', obsId)
             .maybeSingle()
           evidencePhotoUrl = String((obs as any)?.photo || (obs as any)?.photo_url || '') || null
+
+          if (!(ntv as any)?.zone?.name) {
+            const obsZoneId = (obs as any)?.zone_id ?? null
+            const obsLoiId = (obs as any)?.loi_id ?? null
+            if (obsZoneId) {
+              const { data: zoneFromObs } = await supabaseAdmin
+                .from('zones')
+                .select('name')
+                .eq('id', obsZoneId)
+                .maybeSingle()
+              fallbackZoneName = zoneFromObs?.name ?? null
+            } else if (obsLoiId) {
+              const { data: zoneFromLoi } = await supabaseAdmin
+                .from('zones')
+                .select('name')
+                .eq('loi_id', obsLoiId)
+                .eq('is_active', true)
+                .limit(1)
+                .maybeSingle()
+              fallbackZoneName = zoneFromLoi?.name ?? null
+            }
+          }
         }
       }
 
@@ -147,7 +193,7 @@ Deno.serve(async (req) => {
             status: (ntv as any).status,
             issued_at: (ntv as any).issued_at,
             vacate_deadline: (ntv as any).vacate_deadline,
-            zone_name: (ntv as any)?.zone?.name || null,
+            zone_name: (ntv as any)?.zone?.name || fallbackZoneName,
             reason: (ntv as any).breach_reason,
             nights_stayed: (ntv as any).nights_stayed,
           },

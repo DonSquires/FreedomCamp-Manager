@@ -3,8 +3,7 @@ name: Triage Production Bug Reports
 on:
   push:
     branches: [main]
-    paths:
-      - '.github/workflows/triage-bug-reports.yml'
+  workflow_dispatch:
 
 jobs:
   triage:
@@ -23,6 +22,8 @@ jobs:
           echo "✅ Secrets present"
 
       - name: Fetch unresolved bug reports
+        id: fetch_bugs
+        continue-on-error: true
         run: |
           set -euo pipefail
           URL="${SUPABASE_BASE_URL%/}/rest/v1/bug_reports?select=id,title,severity,status,issue_type,current_page,created_at,description,console_errors,screenshot_metadata,app_version&status=neq.resolved&order=created_at.desc&limit=120"
@@ -84,3 +85,11 @@ print('\nTop error/event signatures:')
 for k,v in sig.most_common(15):
     print(f"- {v}x {k}")
 PY
+
+      - name: Enforce bug triage (strict mode)
+        if: steps.fetch_bugs.outcome == 'failure' && vars.TRIAGE_STRICT == 'true'
+        run: exit 1
+
+      - name: Report bug triage (non-strict)
+        if: steps.fetch_bugs.outcome == 'failure' && vars.TRIAGE_STRICT != 'true'
+        run: echo "::warning::Bug report triage failed but continuing (non-strict mode). Set TRIAGE_STRICT=true to enforce."

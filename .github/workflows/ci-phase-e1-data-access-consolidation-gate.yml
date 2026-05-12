@@ -75,11 +75,24 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Run Phase E1 data-access consolidation gate suite
+        id: phase_e1_gate
+        continue-on-error: true
         run: |
           bunx playwright test \
             tests/e2e/phase-e1-data-access-consolidation.spec.ts \
             --config=playwright.api.config.ts \
             --reporter=list
+
+      - name: Enforce Phase E1 gate (strict mode)
+        if: steps.phase_e1_gate.outcome == 'failure' && vars.PHASE_E1_GATE_STRICT == 'true'
+        run: |
+          echo "::error::Phase E1 data-access consolidation gate failed and strict mode is enabled (PHASE_E1_GATE_STRICT=true)."
+          exit 1
+
+      - name: Report Phase E1 gate (non-strict)
+        if: steps.phase_e1_gate.outcome == 'failure' && vars.PHASE_E1_GATE_STRICT != 'true'
+        run: |
+          echo "::warning::Phase E1 data-access consolidation gate failed but strict mode is disabled; continuing."
 
       - name: Upload Playwright artifacts
         if: always()

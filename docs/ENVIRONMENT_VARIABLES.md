@@ -99,6 +99,7 @@ These are set in Supabase Dashboard → Project Settings → Edge Functions → 
 
 | Variable | Description | Required | Notes |
 |----------|-------------|----------|-------|
+| `TRANSCRIPTION_SERVICE_URL` | Preferred STT/transcribe service URL | For `transcribe-audio` | New canonical name for speech transcription endpoint |
 | `INFERENCE_SERVICE_URL` | Bob inference service URL (RunPod) | For AI features | Used by face recognition, ALPR |
 | `INFERENCE_API_KEY` | API key for inference service | Optional | Set for additional security |
 | `NZSCV_API_KEY` | NZ SCV API key | For SCV lookups | Ministry of Transport API |
@@ -221,6 +222,7 @@ Canonical secret names used by deploy workflows:
 | `RAILWAY_PROXY_SERVICE_ID` | Proxy deploy workflow |
 | `RUNPOD_API_KEY` | Bob/Ollama RunPod deployment (`= RUNPOD_ENDPOINT_API_KEY`) |
 | `RUNPOD_ENDPOINT_ID` | Bob RunPod serverless endpoint |
+| `TRANSCRIPTION_SERVICE_URL` | `transcribe-audio` Edge Function STT endpoint |
 | `INFERENCE_SERVICE_URL` | Health checks + Bob pretrain workflows |
 | `PROXY_SERVICE_URL` | Proxy health check |
 | `BOB_SERVICE_URL` | Bob health + chat route verification |
@@ -235,6 +237,7 @@ Canonical secret names used by deploy workflows:
 > are **no longer required** — Bob and Ollama moved to RunPod.
 
 Notes:
+- Speech transcription now prefers `TRANSCRIPTION_SERVICE_URL` in `supabase/functions/transcribe-audio`; legacy aliases `BOB_SERVICE_URL` and `INFERENCE_SERVICE_URL` remain supported for backwards compatibility.
 - Bob ops workflows accept URL/key aliases to reduce naming drift: `BOB_SERVICE_URL` <-> `INFERENCE_SERVICE_URL` and `BOB_INFERENCE_API_KEY` <-> `INFERENCE_API_KEY`.
 - Service IDs remain mandatory for deterministic deployments (proxy only).
 - If a Bob pod is broken, create replacements with:

@@ -970,10 +970,10 @@ export default function Reports() {
             <DialogTitle>Compliance Report Preview</DialogTitle>
             <DialogDescription>In-app preview. Use Print/Download buttons below.</DialogDescription>
           </DialogHeader>
-          <div className="flex-1 border rounded-md overflow-hidden bg-white">
+          <div className="min-h-0 flex-1 border rounded-md overflow-hidden bg-white">
             <iframe title="Compliance report preview" className="w-full h-full" srcDoc={previewHtml} />
           </div>
-          <DialogFooter className="gap-2">
+          <DialogFooter className="shrink-0 gap-2">
             <Button onClick={handleExportPDF}>
               <Printer className="h-4 w-4 mr-2" />
               Print / Save as PDF

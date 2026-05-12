@@ -174,6 +174,20 @@ const PTT_WS_PROTOCOLS = ['ptt.v2', 'ptt.v1']
 const PTT_CLIENT_PROTOCOL_VERSION = '2.0.0'
 const PTT_INTEROP_PROFILE = 'fieldops-ptt-interop-v1'
 const MOCK_PTT_WS_URL = 'mock://ptt'
+export const PTT_GLOBAL_EMERGENCY_SCOPE = 'global:emergency'
+
+function getPTTChannelType(channelScope: string): PTTChannelType {
+  if (
+    channelScope === PTT_GLOBAL_EMERGENCY_SCOPE
+    || channelScope === 'emergency:global'
+    || channelScope.startsWith('emergency:')
+    || channelScope.startsWith('global:emergency')
+  ) {
+    return 'emergency'
+  }
+
+  return channelScope.split(':')[0] as PTTChannelType
+}
 
 function isPTTMockModeEnabled(): boolean {
   const runtimeFlag = (globalThis as typeof globalThis & { __PTT_MOCK_MODE__?: boolean }).__PTT_MOCK_MODE__
@@ -266,6 +280,24 @@ export function extractPTTRetryAfterSeconds(error: unknown): number | null {
   }
 
   return null
+}
+
+function isNoActiveClientZoneRestriction(error: unknown): boolean {
+  const raw = error instanceof Error ? error.message : String(error || '')
+  return /no active client zone|no_matching_zone_or_active_contract/i.test(raw)
+}
+
+function getPlatformAdminFallbackScope(): string | null {
+  const user = useAuthStore.getState().user
+  if (!user) return null
+
+  // PTT access must not be gated by geofence/zone membership — fall back to
+  // the user's primary org scope for any authenticated user so that a "no
+  // active client zone" error from the PTT server never blocks field officers.
+  const orgId = user.organization_id || user.employer_organization_id
+  if (!orgId) return null
+
+  return `org:${orgId}`
 }
 
 export function normalizePTTErrorMessage(error: unknown): string {
@@ -914,6 +946,7 @@ export async function requestPTTToken(channelScope: string): Promise<PTTTokenRes
     const TOKEN_MINT_RETRY_DELAY_MS = 2000
     let lastError: unknown = null
     let refreshedSessionAfterAuthError = false
+    let attemptedPlatformAdminBypass = false
 
     for (let attempt = 1; attempt <= MAX_TOKEN_MINT_RETRIES; attempt++) {
       const { data, error } = await edgeFunctions.pttSignalingToken({ channelScope })
@@ -931,6 +964,19 @@ export async function requestPTTToken(channelScope: string): Promise<PTTTokenRes
       }
 
       const errorStr = String((error as any)?.message ?? error ?? '')
+
+      if (!attemptedPlatformAdminBypass && isNoActiveClientZoneRestriction(error)) {
+        const fallbackScope = getPlatformAdminFallbackScope()
+        if (fallbackScope && fallbackScope !== channelScope) {
+          attemptedPlatformAdminBypass = true
+          console.warn('🎤 PTT: Applying Platform Administrator geofence bypass', { from: channelScope, to: fallbackScope })
+          const { data: bypassData, error: bypassError } = await edgeFunctions.pttSignalingToken({ channelScope: fallbackScope })
+          if (!bypassError && bypassData) {
+            return bypassData as PTTTokenResponse
+          }
+          lastError = bypassError || error
+        }
+      }
 
       // Some gateway responses surface auth failures as plain text instead of a
       // structured 401 error type. Force a session refresh once, then retry.
@@ -999,7 +1045,7 @@ export async function connectToPTT(channelScope: string, channelName?: string, f
   const sameChannel = store.channelId === channelScope
   if (!forceReconnect && sameChannel && ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
     if (channelName) {
-      const currentType = channelScope.split(':')[0] as PTTChannelType
+      const currentType = getPTTChannelType(channelScope)
       store.setChannel(channelScope, currentType, channelName)
     }
     return
@@ -1015,7 +1061,7 @@ export async function connectToPTT(channelScope: string, channelName?: string, f
   }
 
   store.setConnection('connecting')
-  const channelType = channelScope.split(':')[0] as PTTChannelType
+  const channelType = getPTTChannelType(channelScope)
   store.setChannel(channelScope, channelType, channelName || null)
   activeChannelScope = channelScope     // Remember for visibility-triggered reconnects
   if (channelName) activeChannelName = channelName  // Remember for reconnect restoration
@@ -1400,7 +1446,7 @@ function handleServerMessage(message: PTTMessage): void {
       if (activeChannelScope) {
         const restoredName = message.channelName || activeChannelName || store.channelName || null
         if (restoredName && restoredName !== store.channelName) {
-          const channelType = activeChannelScope.split(':')[0] as PTTChannelType
+          const channelType = getPTTChannelType(activeChannelScope)
           store.setChannel(activeChannelScope, channelType, restoredName)
         }
       }

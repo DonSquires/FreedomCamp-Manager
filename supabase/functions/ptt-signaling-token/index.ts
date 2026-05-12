@@ -205,25 +205,23 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Validate channel scope format - now supports org, incident, direct, team, deployment
+    // Validate channel scope format - now supports org, incident, direct, team,
+    // deployment, and the cross-org global emergency bridge.
+    const isGlobalEmergencyScope = channelScope === 'global:emergency'
     const validScopePattern = /^(org|incident|direct|team|deployment):[a-f0-9-]+$/
-    if (!channelScope || !validScopePattern.test(channelScope)) {
+    if (!channelScope || (!validScopePattern.test(channelScope) && !isGlobalEmergencyScope)) {
       return new Response(
         JSON.stringify({
           error: 'Invalid channelScope',
-          message: 'channelScope must be org:<uuid>, incident:<uuid>, direct:<uuid>, team:<uuid>, or deployment:<uuid>',
+          message: 'channelScope must be org:<uuid>, incident:<uuid>, direct:<uuid>, team:<uuid>, deployment:<uuid>, or global:emergency',
         }),
         { status: 400, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       )
     }
 
     const [scopeType, scopeId] = channelScope.split(':')
-
-    // Platform Administrator (grand_master) and master users bypass geofencing,
-    // GPS-location checks, and active client zone restrictions.
-    const isPrivilegedRole =
-      profile.role === 'grand_master' ||
-      profile.role === 'master'
+  const isPrivilegedRole = ['master', 'grand_master'].includes(profile.role)
+  const isEmergencyRole = ['admin', 'admin_officer', 'master', 'grand_master', 'officer'].includes(profile.role)
 
     // Resolve effective organization context. For master/grand_master users who
     // may have organization_id = null, derive org context from channel scope.
@@ -236,10 +234,22 @@ Deno.serve(async (req) => {
       )
     }
 
-    if (scopeType === 'org') {
-      // Platform Administrator (grand_master/master) bypasses org membership checks and
-      // any GPS-location or active client zone restrictions.
-      const canAccess = isPrivilegedRole || canAccessChannelOrg(profile, scopeId)
+      if (scopeType === 'global' && scopeId === 'emergency') {
+      if (!isEmergencyRole) {
+        return new Response(
+          JSON.stringify({
+            error: PTT_AUTHORIZATION_ERROR,
+            message: 'Role is not authorized for the global emergency bridge.',
+          }),
+          { status: 403, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
+        )
+      }
+
+      effectiveOrganizationId = profile.organization_id ?? profile.employer_organization_id ?? effectiveOrganizationId
+    } else if (scopeType === 'org') {
+      const canAccessHomeOrg = canAccessChannelOrg(profile, scopeId)
+      const canAccessCrossOrg = canUseCrossOrgScope(profile, channelScope, isPrivilegedRole)
+      const canAccess = canAccessHomeOrg || canAccessCrossOrg
       if (!canAccess) {
         return new Response(
           JSON.stringify({ 

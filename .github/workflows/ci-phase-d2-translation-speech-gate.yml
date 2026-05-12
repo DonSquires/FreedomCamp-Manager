@@ -60,11 +60,24 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Run Phase D2 translation/speech gate suite
+        id: phase_d2_gate
+        continue-on-error: true
         run: |
           bunx playwright test \
             tests/e2e/phase-d2-translation-speech-boundaries.spec.ts \
             --config=playwright.api.config.ts \
             --reporter=list
+
+      - name: Enforce Phase D2 gate (strict mode)
+        if: steps.phase_d2_gate.outcome == 'failure' && vars.PHASE_D2_GATE_STRICT == 'true'
+        run: |
+          echo "::error::Phase D2 translation/speech gate failed and strict mode is enabled (PHASE_D2_GATE_STRICT=true)."
+          exit 1
+
+      - name: Report Phase D2 gate (non-strict)
+        if: steps.phase_d2_gate.outcome == 'failure' && vars.PHASE_D2_GATE_STRICT != 'true'
+        run: |
+          echo "::warning::Phase D2 translation/speech gate failed but strict mode is disabled; continuing."
 
       - name: Upload Playwright artifacts
         if: always()

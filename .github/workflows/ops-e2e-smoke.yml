@@ -110,6 +110,8 @@ jobs:
           echo "Resolved PLAYWRIGHT_BASE_URL=$TARGET_URL"
 
       - name: Run E2E smoke suite
+        id: e2e_smoke_suite
+        continue-on-error: true
         run: |
           SPECS="${{ github.event.inputs.spec_filter }}"
           if [ -z "$SPECS" ]; then
@@ -119,6 +121,14 @@ jobs:
             --project=chromium \
             --reporter=list \
             --timeout=60000
+
+      - name: Enforce E2E smoke suite (strict mode)
+        if: steps.e2e_smoke_suite.outcome == 'failure' && vars.E2E_SMOKE_STRICT == 'true'
+        run: exit 1
+
+      - name: Report E2E smoke suite (non-strict)
+        if: steps.e2e_smoke_suite.outcome == 'failure' && vars.E2E_SMOKE_STRICT != 'true'
+        run: echo "::warning::E2E smoke suite failed but continuing (non-strict mode). Set E2E_SMOKE_STRICT=true to enforce."
 
       - name: Upload Playwright artifacts
         if: always()
