@@ -4,6 +4,33 @@ Date: 2026-05-12
 Owner: GitHub Copilot
 Status: Active staging checklist — Sprints 50-70 complete on main; Iron Eagle Visual Identity locked in docs (2026-05-12)
 
+Latest Session Snapshot (Iron Eagle Visual Identity — rollout phase 2 — 2026-05-12):
+
+- Timestamp (NZ): 2026-05-12 22:01 NZST
+- Current branch: `copilot/create-phased-role-out-plan`
+- Scope completed:
+  - Wired `<ArmedDangerOverlay>` into `FieldSafetyBar`: added `sosActive` local state, set to `true` on `fireSOS()` completion, overlay renders with `aria-live="assertive"` and the `.danger-overlay` CSS pulse until dismissed.
+  - Applied `.bob-thinking` / `.bob-speaking` ring utilities to the chat input container in `BobAssistantStudio`: the rounded-2xl input box pulsates red while Bob is computing (`thinking=true`) and shows a solid red ring while Bob is speaking (`isBobSpeaking=true`).
+
+- Checklist:
+  | Item | Status |
+  |---|---|
+  | `<ArmedDangerOverlay>` wired into `FieldSafetyBar` | ✅ DONE |
+  | `sosActive` state drives overlay visibility | ✅ DONE |
+  | `.bob-thinking` class on chat input container | ✅ DONE |
+  | `.bob-speaking` class on chat input container | ✅ DONE |
+
+- Validation evidence:
+  | Command | Result | Notes |
+  |---|---|---|
+  | `bun run lint` | PASS | ESLint completed without errors |
+  | `bun run build` | PASS | TypeScript + Vite build succeeded in 31.90 s |
+
+- Next rollout steps:
+  1. **Iron Eagle — Admin Shell**: apply `ie-bg-base` / `ie-bg-surface` background to `AppLayout.tsx` when dark mode is active; update sidebar active-nav indicator to use `ie-brand` red.
+  2. **Iron Eagle — Officer Shell**: update `FieldOfficerPortal` header and `FieldSafetyBar` strip to `ie-bg-surface` + `ie-silver` border.
+  3. **SOS dismiss flow**: add a supervisor acknowledgement mechanism so `sosActive` is cleared server-side (read from `officer_welfare_alerts` resolved state).
+
 Latest Session Snapshot (Iron Eagle Visual Identity — implementation — 2026-05-12):
 
 - Timestamp (NZ): 2026-05-12 21:48 NZST

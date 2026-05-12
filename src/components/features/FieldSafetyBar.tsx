@@ -30,6 +30,7 @@ import {
 import { CheckCircle, Siren, FileWarning, ShieldAlert, Wrench, ChevronDown, ChevronUp, Watch } from 'lucide-react'
 import { toast } from 'sonner'
 import { WearableStatus } from './WearableStatus'
+import { ArmedDangerOverlay } from './ArmedDangerOverlay'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -73,6 +74,7 @@ export function FieldSafetyBar({
   // ── SOS hold ──────────────────────────────────────────────────────────────
 
   const [sosProgress, setSosProgress]     = useState(0)
+  const [sosActive, setSosActive]         = useState(false)
   const sosIntervalRef                    = useRef<ReturnType<typeof setInterval> | null>(null)
 
   function startSosHold() {
@@ -111,6 +113,7 @@ export function FieldSafetyBar({
         escalation_level: 2,
       })
       toast.error('🚨 SOS ALERT SENT — Help is on the way', { duration: 0, id: 'sos-alert' })
+      setSosActive(true)
     } catch (err: any) {
       toast.error(err?.message ?? 'SOS failed — call emergency services directly')
     }
@@ -192,6 +195,12 @@ export function FieldSafetyBar({
 
   return (
     <>
+      {/* ── Armed Danger viewport overlay — active while SOS is unacknowledged ── */}
+      <ArmedDangerOverlay
+        active={sosActive}
+        label="SOS alert active — awaiting supervisor acknowledgement"
+      />
+
       {/* ── Safety Strip ───────────────────────────────────────────────────── */}
       <div className={`rounded-xl border mb-4 overflow-hidden transition-colors ${
         isOverdue
