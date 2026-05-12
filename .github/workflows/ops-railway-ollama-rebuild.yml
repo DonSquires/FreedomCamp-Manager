@@ -13,6 +13,11 @@ on:
         description: "Railway Ollama service ID override (optional)"
         required: false
         type: string
+      ollama_service_name:
+        description: "Railway Ollama service name fallback"
+        required: false
+        default: "ollama"
+        type: string
       ollama_url:
         description: "Public Ollama URL for verification"
         required: false
@@ -37,30 +42,31 @@ jobs:
       - name: Resolve Railway credentials
         shell: bash
         env:
+          RAILWAY_OLLAMA_TOKEN: ${{ secrets.RAILWAY_OLLAMA_TOKEN }}
           RAILWAY_BOB_TOKEN: ${{ secrets.RAILWAY_BOB_TOKEN }}
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
           RAILWAY_OLLAMA_SERVICE_ID: ${{ secrets.RAILWAY_OLLAMA_SERVICE_ID }}
           SERVICE_ID_OVERRIDE: ${{ github.event.inputs.ollama_service_id_override }}
+          SERVICE_NAME_INPUT: ${{ github.event.inputs.ollama_service_name }}
         run: |
           set -euo pipefail
           source ./scripts/load-railway-secrets-from-github-env.sh --quiet
 
-          TOKEN="${RAILWAY_BOB_TOKEN:-${RAILWAY_TOKEN:-}}"
+          TOKEN="${RAILWAY_OLLAMA_TOKEN:-${RAILWAY_BOB_TOKEN:-${RAILWAY_TOKEN:-}}}"
           if [ -z "${TOKEN}" ]; then
-            echo "::error::No Railway token available. Set RAILWAY_BOB_TOKEN or RAILWAY_TOKEN in repository secrets."
+            echo "::error::No Railway token available. Set RAILWAY_OLLAMA_TOKEN, RAILWAY_BOB_TOKEN, or RAILWAY_TOKEN in repository secrets."
             exit 1
           fi
 
           SERVICE_ID="${SERVICE_ID_OVERRIDE:-${RAILWAY_OLLAMA_SERVICE_ID:-}}"
-          if [ -z "${SERVICE_ID}" ]; then
-            echo "::error::No Ollama service ID available. Set RAILWAY_OLLAMA_SERVICE_ID or pass ollama_service_id_override."
-            exit 1
-          fi
+          SERVICE_NAME="${SERVICE_NAME_INPUT:-ollama}"
 
           echo "::add-mask::$TOKEN"
           echo "RAILWAY_TOKEN=$TOKEN" >> "$GITHUB_ENV"
           echo "OLLAMA_SERVICE_ID=$SERVICE_ID" >> "$GITHUB_ENV"
+          echo "OLLAMA_SERVICE_NAME=$SERVICE_NAME" >> "$GITHUB_ENV"
           echo "Resolved Ollama service ID: $SERVICE_ID"
+          echo "Resolved Ollama service name fallback: $SERVICE_NAME"
 
       - name: Install Railway CLI
         shell: bash
@@ -83,29 +89,60 @@ jobs:
         env:
           RAILWAY_TOKEN: ${{ env.RAILWAY_TOKEN }}
           OLLAMA_SERVICE_ID: ${{ env.OLLAMA_SERVICE_ID }}
+          OLLAMA_SERVICE_NAME: ${{ env.OLLAMA_SERVICE_NAME }}
         run: |
           set -euo pipefail
-          echo "Setting model preload variables on Railway service: $OLLAMA_SERVICE_ID"
+          set_vars_for_service() {
+            local service_ref="$1"
+            echo "Setting model preload variables on Railway service: $service_ref"
+            railway variable set \
+              OLLAMA_MODEL=qwen2.5:7b \
+              OLLAMA_EXTRA_MODELS=llama3.2-vision:11b \
+              OLLAMA_PREPULL_MODE=blocking \
+              OLLAMA_PULL_DELAY_SECONDS=20 \
+              OLLAMA_NO_CLOUD=true \
+              --service "$service_ref" \
+              --environment production \
+              --skip-deploys
+          }
 
-          railway variable set \
-            OLLAMA_MODEL=qwen2.5:7b \
-            OLLAMA_EXTRA_MODELS=llama3.2-vision:11b \
-            OLLAMA_PREPULL_MODE=blocking \
-            OLLAMA_PULL_DELAY_SECONDS=20 \
-            --service "$OLLAMA_SERVICE_ID" \
-            --environment production \
-            --skip-deploys
+          if [ -n "$OLLAMA_SERVICE_ID" ]; then
+            set_vars_for_service "$OLLAMA_SERVICE_ID" || true
+          fi
+
+          if [ -n "$OLLAMA_SERVICE_NAME" ]; then
+            set_vars_for_service "$OLLAMA_SERVICE_NAME"
+          elif [ -z "$OLLAMA_SERVICE_ID" ]; then
+            echo "::error::No service ID or service name available to set variables."
+            exit 1
+          fi
 
       - name: Trigger Railway redeploy
         shell: bash
         env:
           RAILWAY_TOKEN: ${{ env.RAILWAY_TOKEN }}
           OLLAMA_SERVICE_ID: ${{ env.OLLAMA_SERVICE_ID }}
+          OLLAMA_SERVICE_NAME: ${{ env.OLLAMA_SERVICE_NAME }}
           WAIT_SECONDS: ${{ github.event.inputs.wait_seconds }}
         run: |
           set -euo pipefail
-          echo "Triggering Railway redeploy for service: $OLLAMA_SERVICE_ID"
-          railway redeploy --service "$OLLAMA_SERVICE_ID" --environment production --yes
+          redeploy_service() {
+            local service_ref="$1"
+            echo "Triggering Railway redeploy for service: $service_ref"
+            railway redeploy --service "$service_ref" --environment production --yes
+          }
+
+          if [ -n "$OLLAMA_SERVICE_ID" ]; then
+            redeploy_service "$OLLAMA_SERVICE_ID" || true
+          fi
+
+          if [ -n "$OLLAMA_SERVICE_NAME" ]; then
+            redeploy_service "$OLLAMA_SERVICE_NAME"
+          elif [ -z "$OLLAMA_SERVICE_ID" ]; then
+            echo "::error::No service ID or service name available to redeploy."
+            exit 1
+          fi
+
           sleep "${WAIT_SECONDS:-45}"
 
       - name: Verify models loaded
