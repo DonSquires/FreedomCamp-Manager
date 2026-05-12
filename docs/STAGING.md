@@ -4,6 +4,39 @@ Date: 2026-05-12
 Owner: GitHub Copilot
 Status: Active staging checklist — Sprints 50-70 complete on main; Iron Eagle Visual Identity locked in docs (2026-05-12)
 
+Latest Session Snapshot (Iron Eagle Visual Identity — implementation — 2026-05-12):
+
+- Timestamp (NZ): 2026-05-12 21:48 NZST
+- Current branch: `copilot/create-phased-role-out-plan`
+- Scope completed:
+  - Added Iron Eagle brand token set to `tailwind.config.ts` under the `ie` namespace (`ie-bg-base`, `ie-bg-surface`, `ie-bg-elevated`, `ie-brand`, `ie-brand-hover`, `ie-silver`, `ie-silver-light`, `ie-critical`, `ie-critical-border`).
+  - Updated `.dark` CSS variables in `src/index.css` to Iron Eagle black/red/silver palette (replaces previous teal/cyan dark theme).
+  - Added `@keyframes danger-pulse` and `.danger-overlay` utility to `src/index.css`.
+  - Added `.bob-thinking` and `.bob-speaking` ring utilities to `src/index.css`; both respect `prefers-reduced-motion`.
+  - Restyled `src/pages/Login.tsx` to dark tactical design: `#121212` background, `#1E1E1E` card surfaces, silver borders, logo glow, solid `#D32F2F` Sign In button, white/silver text throughout.
+  - Created `src/components/features/ArmedDangerOverlay.tsx`: fixed viewport border pulse (0.8 s via `.danger-overlay`), `aria-live="assertive"`, reduced-motion safe.
+
+- Checklist:
+  | Item | Status |
+  |---|---|
+  | Iron Eagle tokens in `tailwind.config.ts` | ✅ DONE |
+  | `.dark` CSS variables updated to Iron Eagle palette | ✅ DONE |
+  | `danger-pulse` keyframe + `.danger-overlay` utility | ✅ DONE |
+  | `.bob-thinking` / `.bob-speaking` ring utilities | ✅ DONE |
+  | `Login.tsx` dark tactical restyle | ✅ DONE |
+  | `ArmedDangerOverlay.tsx` component created | ✅ DONE |
+
+- Validation evidence:
+  | Command | Result | Notes |
+  |---|---|---|
+  | `bun run lint` | PASS | ESLint completed without errors |
+  | `bun run build` | PASS | TypeScript + Vite build succeeded in 30.69 s |
+
+- Next steps:
+  1. Wire `<ArmedDangerOverlay>` into `FieldSafetyBar` or the officer portal layouts, reading the SOS/armed-danger state.
+  2. Apply `.bob-thinking` / `.bob-speaking` classes to the Ask Bob button in `BobAssistantStudio` or the Bob panel trigger.
+  3. Run the human module E2E suite and confirm login-page assertions still pass with the new dark layout.
+
 Latest Session Snapshot (Iron Eagle Visual Identity — doc lock-in — 2026-05-12):
 
 - Timestamp (NZ): 2026-05-12 20:23 NZST

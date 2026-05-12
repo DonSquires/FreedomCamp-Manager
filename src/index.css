@@ -26,26 +26,33 @@
     --radius: 0.75rem;
   }
 
+  /* ── Iron Eagle Tactical Dark Theme ────────────────────────────────────────
+   * Black (#121212) base · Red (#D32F2F) primary · Silver (#9E9E9E) accents.
+   * This is the canonical dark identity for the FieldOps Manager platform.
+   * ───────────────────────────────────────────────────────────────────────── */
   .dark {
-    --background: 200 30% 6%;
-    --foreground: 190 20% 95%;
-    --card: 200 30% 8%;
-    --card-foreground: 190 20% 95%;
-    --popover: 200 30% 8%;
-    --popover-foreground: 190 20% 95%;
-    --primary: 187 80% 48%;
-    --primary-foreground: 200 30% 6%;
-    --secondary: 200 25% 15%;
-    --secondary-foreground: 190 20% 95%;
-    --muted: 200 25% 15%;
-    --muted-foreground: 200 15% 60%;
-    --accent: 48 96% 53%;
-    --accent-foreground: 200 30% 6%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 200 25% 18%;
-    --input: 200 25% 18%;
-    --ring: 187 80% 48%;
+    /* Surface hierarchy: base → surface → elevated */
+    --background: 0 0% 7%;      /* #121212 */
+    --foreground: 0 0% 100%;    /* #FFFFFF */
+    --card: 0 0% 12%;           /* #1E1E1E */
+    --card-foreground: 0 0% 100%;
+    --popover: 0 0% 16%;        /* #2A2A2A */
+    --popover-foreground: 0 0% 100%;
+    /* Brand red as primary */
+    --primary: 0 64% 50%;       /* #D32F2F */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 0 0% 16%;      /* #2A2A2A */
+    --secondary-foreground: 0 0% 88%;   /* #E0E0E0 */
+    --muted: 0 0% 16%;
+    --muted-foreground: 0 0% 62%;       /* #9E9E9E silver */
+    --accent: 0 64% 50%;        /* same as primary for consistency */
+    --accent-foreground: 0 0% 100%;
+    /* Critical uses the critical crimson, not the brand red */
+    --destructive: 0 67% 41%;   /* #C62828 */
+    --destructive-foreground: 0 0% 100%;
+    --border: 0 0% 62%;         /* #9E9E9E at natural opacity */
+    --input: 0 0% 16%;          /* #2A2A2A */
+    --ring: 0 64% 50%;          /* brand red ring */
   }
 
   .high-contrast {
@@ -220,6 +227,72 @@
     .session-mesh {
       animation: none;
       opacity: 0.2;
+    }
+  }
+}
+
+@layer utilities {
+  /* ── Armed Danger viewport border pulse ──────────────────────────────────
+   * Used by <ArmedDangerOverlay> to signal an armed-danger / man-down event.
+   * Rendered as a fixed, pointer-events-none overlay at z-[9999].
+   * The pulse continues until a supervisor acknowledges the alert.
+   * ---------------------------------------------------------------------- */
+  @keyframes danger-pulse {
+    0%, 100% {
+      box-shadow: inset 0 0 0 4px #EF5350;
+      opacity: 1;
+    }
+    50% {
+      box-shadow: inset 0 0 0 4px #EF5350;
+      opacity: 0.35;
+    }
+  }
+
+  .danger-overlay {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 9999;
+    box-shadow: inset 0 0 0 4px #EF5350;
+    animation: danger-pulse 0.8s ease-in-out infinite;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .danger-overlay {
+      animation: none;
+      box-shadow: inset 0 0 0 4px #EF5350;
+      opacity: 1;
+    }
+  }
+
+  /* ── Bob AI pulse ring (thinking state) ─────────────────────────────────
+   * Applied to the Ask Bob button container while Bob is computing.
+   * Slow 1.5 s pulse; respects prefers-reduced-motion.
+   * ---------------------------------------------------------------------- */
+  @keyframes bob-thinking {
+    0%, 100% {
+      box-shadow: 0 0 0 4px rgba(211, 47, 47, 0.4);
+    }
+    50% {
+      box-shadow: 0 0 0 8px rgba(211, 47, 47, 0.1);
+    }
+  }
+
+  .bob-thinking {
+    box-shadow: 0 0 0 4px rgba(211, 47, 47, 0.4);
+    animation: bob-thinking 1.5s ease-in-out infinite;
+    border-radius: inherit;
+  }
+
+  .bob-speaking {
+    box-shadow: 0 0 0 3px #D32F2F;
+    border-radius: inherit;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .bob-thinking {
+      animation: none;
+      box-shadow: 0 0 0 3px #D32F2F;
     }
   }
 }
