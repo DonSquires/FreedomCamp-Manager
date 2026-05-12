@@ -30,7 +30,7 @@ export function isClientPersonaRole(role?: string | null): boolean {
 export function getDefaultRouteForRole(role?: string | null): string {
   switch (role) {
     case 'officer':
-      return '/officer-home'
+      return '/waiting-for-shift'
     case 'admin_officer':
       return '/portal-selection'
     case 'nzscv_monitor':

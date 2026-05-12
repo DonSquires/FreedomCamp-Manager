@@ -47,7 +47,7 @@ if [[ ${#missing[@]} -gt 0 ]]; then
   echo
   echo "If root install is unavailable, use the non-root rg fallback in docs/STAGING.md and ensure bun is in PATH:"
   echo "  export BUN_INSTALL=\"$HOME/.bun\""
-  echo "  export PATH=\"$PWD/.runtime/bin:$HOME/.local/bin:$BUN_INSTALL/bin:$PATH\""
+  echo "  export PATH=\"$PWD/.runtime/bin:$HOME/.local/bin:$HOME/.bun/bin:$PATH\""
   exit 1
 fi
 

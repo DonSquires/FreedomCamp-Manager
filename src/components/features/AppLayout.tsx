@@ -136,6 +136,8 @@ import { signalSessionActivity } from '@/hooks/useSessionInactivityLock'
 import { usePTTStore, usePTTAvailable, usePTTCanSpeak } from '@/stores/pttStore'
 import { startSpeaking, stopSpeaking } from '@/lib/ptt'
 import { checkInferenceHealth, checkPttHealth } from '@/lib/proxyServices'
+import { useRosteredShift } from '@/hooks/useRosteredShift'
+import { useSiteToolPermissions } from '@/middleware'
 
 function HeaderStatusPill({
   label,
@@ -551,6 +553,9 @@ function formatBreadcrumbSegment(segment: string) {
 function NavigationLinks({ onClick }: { onClick?: () => void }) {
   const location = useLocation()
   const { user } = useAuthStore()
+  const { rosteredShift } = useRosteredShift()
+  const activeClientSiteId = rosteredShift?.client_site_id ?? null
+  const siteToolPermissions = useSiteToolPermissions(user?.id, activeClientSiteId)
   const [openGroups, setOpenGroups] = useState<Set<string>>(new Set())
 
   // Keep the effective role aligned with route-manifest authority.
@@ -592,9 +597,57 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
     }
   }, [activeFeatureFlags, effectiveNavRole, location.pathname])
 
-  const visiblePinned = pinnedItems.filter(item =>
-    user && isRouteVisibleForRole(item.path, user.role as AppRole, routeManifest, activeFeatureFlags)
-  )
+  const isDirectorOfficerMode = user?.role === 'officer'
+
+  const injectedOfficerPinned: NavItem[] = useMemo(() => {
+    if (!isDirectorOfficerMode || !activeClientSiteId) return []
+
+    const items: NavItem[] = []
+    if (siteToolPermissions.alpr) {
+      items.push({
+        path: '/field-officer?service=freedom_camping',
+        icon: Tent,
+        label: 'ALPR',
+        roles: ['officer'],
+      })
+    }
+    if (siteToolPermissions.noise) {
+      items.push({
+        path: '/field-officer?service=noise',
+        icon: Volume2,
+        label: 'Noise',
+        roles: ['officer'],
+      })
+    }
+    if (siteToolPermissions.siteGuard) {
+      const siteGuardPath = rosteredShift?.client_site_id
+        ? `/site-guard?site=${rosteredShift.client_site_id}&roster=${rosteredShift.id}`
+        : '/field-officer'
+
+      items.push({
+        path: siteGuardPath,
+        icon: Shield,
+        label: 'Site-Guard',
+        roles: ['officer'],
+      })
+    }
+
+    return items
+  }, [
+    activeClientSiteId,
+    isDirectorOfficerMode,
+    rosteredShift?.client_site_id,
+    rosteredShift?.id,
+    siteToolPermissions.alpr,
+    siteToolPermissions.noise,
+    siteToolPermissions.siteGuard,
+  ])
+
+  const visiblePinned = isDirectorOfficerMode
+    ? injectedOfficerPinned
+    : pinnedItems.filter(item =>
+      user && isRouteVisibleForRole(item.path, user.role as AppRole, routeManifest, activeFeatureFlags)
+    )
 
   return (
     <nav className="space-y-2">
@@ -620,10 +673,16 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
         )
       })}
 
-      <div className="my-2 border-t border-gray-200/90 dark:border-[#9E9E9E]/20" />
+      {isDirectorOfficerMode && visiblePinned.length === 0 && !siteToolPermissions.isLoading && (
+        <div className="rounded-lg border border-dashed border-gray-300 px-3 py-2 text-xs text-gray-500 dark:border-gray-700 dark:text-gray-400">
+          No site tools are enabled for this shift.
+        </div>
+      )}
+
+      {!isDirectorOfficerMode && <div className="my-2 border-t border-gray-200/90 dark:border-[#9E9E9E]/20" />}
 
       {/* Grouped navigation with accordion */}
-      {navigationGroups.map((group) => {
+      {!isDirectorOfficerMode && navigationGroups.map((group) => {
         const GroupIcon = group.icon
         const visibleItems = group.items.filter(item =>
            isRouteVisibleForRole(item.path, effectiveNavRole as AppRole, routeManifest, activeFeatureFlags)

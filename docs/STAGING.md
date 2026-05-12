@@ -130,6 +130,62 @@ Latest Session Snapshot (Iron Eagle Visual Identity — doc lock-in — 2026-05-
   3. Update `src/pages/Login.tsx` to match the Login spec above.
   4. Add `danger-pulse` keyframe and viewport-overlay component for Armed Danger events.
 
+Latest Session Snapshot (Phased rollout continuation — 2026-05-12):
+
+- Timestamp (NZ): 2026-05-12 21:38 NZST
+- Current branch: main
+- Scope completed:
+  - Re-read staging instructions and resumed from active Phase A gate evidence tasks.
+  - Executed org isolation harness with environment credential injection via `scripts/playwright-codespace-credentials.sh`.
+  - Verified API org-isolation Playwright lane runs with mapped credentials and passes.
+
+- Validation evidence:
+  | Command | Result | Notes |
+  |---|---|---|
+  | `bash scripts/playwright-codespace-credentials.sh npm --prefix /workspaces/FreedomCamp-Manager exec -- vitest run tests/integration/org-isolation.test.ts` | PASS | 6/6 tests passed; summary confirms 5/5 org-isolation scenarios verified |
+  | `bash scripts/playwright-codespace-credentials.sh npm --prefix /workspaces/FreedomCamp-Manager exec -- playwright test -c playwright.api.config.ts tests/e2e/org-isolation-api.spec.ts --reporter=line` | PASS | 4 passed, 5 skipped |
+  | `bash scripts/playwright-codespace-credentials.sh npm --prefix /workspaces/FreedomCamp-Manager exec -- playwright test tests/e2e/bootstrap-routes.test.ts --project=chromium --reporter=line` | FAIL | Chromium headless shell launch fails in this Alpine host runtime (`ENOENT` at spawn) |
+
+- Open blockers:
+  | Blocker | Evidence | Impact |
+  |---|---|---|
+  | Browser-runtime compatibility for local full Playwright matrix | bootstrap-routes still fails at browser launch despite installed payloads | cannot produce local bootstrap-routes green evidence from this container |
+  | `gh` CLI unavailable in shell | `gh run list` command from restart checklist returns `command not found` | cannot query CI run list from local shell without alternative auth/tooling |
+
+- Next exact recovery steps:
+  1. Run bootstrap routes suite in GitHub Actions/Ubuntu runner (or another host with native Chromium runtime) and attach evidence.
+  2. Query CI run status for current HEAD with GitHub UI or install/configure `gh` CLI in the execution environment.
+  3. Keep ownership confirmation (GitHub team + Slack capacity sign-off) tracked as external gate evidence.
+
+Latest Session Snapshot (Star Trek takeover and continuation — 2026-05-12):
+
+- Timestamp (NZ): 2026-05-12 21:15 NZST
+- Current branch: main
+- Scope completed:
+  - Recovered and verified prior realignment session artifacts, including the Phase A docs commit now on main.
+  - Re-ran core quality and governance gates from repo root using npm prefix execution.
+  - Fixed a shell safety bug in toolchain verification script where an unset variable caused false failure under strict mode.
+
+- Validation evidence:
+  | Command | Result | Notes |
+  |---|---|---|
+  | `npm --prefix /workspaces/FreedomCamp-Manager run lint` | PASS | ESLint exit code 0 |
+  | `npm --prefix /workspaces/FreedomCamp-Manager run build` | PASS | TypeScript + Vite build succeeded |
+  | `npm --prefix /workspaces/FreedomCamp-Manager run test:bob:governance` | PASS | 6/6 governance tests passed |
+  | `npm --prefix /workspaces/FreedomCamp-Manager exec playwright test tests/e2e/bootstrap-routes.test.ts --reporter=line` | FAIL | Browser binaries not installed in container; command requests `npx playwright install` |
+  | `bash scripts/check-required-tools.sh` | PARTIAL | now reports missing tools cleanly; `rg` still missing in container |
+  | `bash scripts/check-required-tools.sh` (post-install) | PASS | all required tools now present, including `rg` |
+
+- Open blockers:
+  | Blocker | Evidence | Impact |
+  |---|---|---|
+  | Playwright browser payloads missing | bootstrap-routes run reports missing executable for chromium headless shell | cannot produce local bootstrap route gate pass evidence until browsers are installed |
+
+- Next exact recovery steps:
+  1. Install Playwright browsers with `npm --prefix /workspaces/FreedomCamp-Manager exec playwright install`.
+  2. Re-run Phase A bootstrap route E2E evidence command and attach result.
+  3. Keep org isolation CI harness evidence current from `.github/workflows/ci-org-isolation-api.yml`.
+
 Latest Session Snapshot (Mobile welfare background hardening + doc sync — 2026-05-11):
 
 - Timestamp (NZ): 2026-05-11 23:03 NZST
@@ -322,11 +378,18 @@ Read and apply in this order:
 1. `docs/INSTRUCTION_MANUAL.md` (product and operational baseline)
 2. `docs/ENTERPRISE_PAIR_REVIEW_CANONICAL.md` (canonical execution authority)
 3. `docs/ENTERPRISE_COLLAB_EXECUTION_PLAN_2026-05-02.md` (active phase plan)
-4. `docs/MODULE_ROADMAP.md` (route and role map)
-5. `docs/PHASE1_WORKFLOW_MATRIX_2026-05-02.json` (test workflow inventory)
-6. `docs/MASTER_IMPLEMENTATION_PLAN_2026-05-01.md` (historical baseline only)
-7. `docs/DECISIONS.md` and `docs/LESSONS_LEARNED.md` (durable guardrails)
-8. `spec.md` and `plan.md` (target-state roadmap, not assumed current state)
+4. `docs/STAR_TREK_PHASED_ROLLOUT_PLAN.md` (active phased rollout checkpoints and acceptance criteria)
+5. `docs/MODULE_ROADMAP.md` (route and role map)
+6. `docs/PHASE1_WORKFLOW_MATRIX_2026-05-02.json` (test workflow inventory)
+7. `docs/MASTER_IMPLEMENTATION_PLAN_2026-05-01.md` (historical baseline only)
+8. `docs/DECISIONS.md` and `docs/LESSONS_LEARNED.md` (durable guardrails)
+9. `spec.md` and `plan.md` (target-state roadmap, not assumed current state)
+
+Star Trek checkpoint rule:
+
+1. At each Star Trek phase checkpoint, update `docs/STAGING.md` with evidence and status.
+2. At each Star Trek phase checkpoint, update `docs/INSTRUCTION_MANUAL.md` with user-facing behavior changes.
+3. Do not mark a phase complete until both documents are updated in the same change set.
 
 ## 3. Restart-After-Crash Checklist
 

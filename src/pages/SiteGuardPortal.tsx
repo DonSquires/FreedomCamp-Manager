@@ -52,6 +52,8 @@ import { toast } from 'sonner'
 import { format, parseISO } from 'date-fns'
 import { useSiteGuardDashboard, type NewIncidentData, type SitePOI, type SiteIncident } from '@/hooks/useSiteGuardDashboard'
 import { uploadFile } from '@/lib/fileUpload'
+import { useRosteredShift } from '@/hooks/useRosteredShift'
+import { useSiteToolPermissions } from '@/middleware'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -254,6 +256,7 @@ export default function SiteGuardPortal() {
   const { user } = useAuthStore()
   useGeofenceOrgTransition({ enabled: true })
   const queryClient = useQueryClient()
+  const { rosteredShift, isLoading: rosteredShiftLoading } = useRosteredShift()
 
   const { gateApplies, canAccessPortal, canUseFeature, geofenceViolation, isLoading: gateLoading } = useShiftGate()
   useEffect(() => {
@@ -264,6 +267,18 @@ export default function SiteGuardPortal() {
 
   const clientSiteId = searchParams.get('site')
   const rosterShiftId = searchParams.get('roster')
+  const isDirectorOfficerMode = user?.role === 'officer'
+  const activeRosterSiteId = rosteredShift?.client_site_id ?? null
+  const siteToolPermissions = useSiteToolPermissions(user?.id, activeRosterSiteId)
+
+  const rosterSiteMatches = Boolean(activeRosterSiteId && clientSiteId && activeRosterSiteId === clientSiteId)
+  const rosterShiftMatches = Boolean(!rosterShiftId || (rosteredShift?.id && rosterShiftId === rosteredShift.id))
+
+  const directorSiteGuardAllowed = !isDirectorOfficerMode || (
+    siteToolPermissions.siteGuard &&
+    rosterSiteMatches &&
+    rosterShiftMatches
+  )
 
   const {
     site, siteLoading,
@@ -364,6 +379,32 @@ export default function SiteGuardPortal() {
           <p className="text-gray-500">No site selected.</p>
           <Button className="mt-4 rounded-xl" onClick={() => navigate('/field-officer')}>
             Go to Field Portal
+          </Button>
+        </div>
+      </AppLayout>
+    )
+  }
+
+  if (isDirectorOfficerMode && (gateLoading || rosteredShiftLoading || siteToolPermissions.isLoading)) {
+    return (
+      <AppLayout title="Site Guard" showBackButton>
+        <div className="flex flex-col items-center justify-center py-20 text-center">
+          <Clock className="h-12 w-12 text-gray-300 mb-4" />
+          <p className="text-gray-500">Validating rostered site access…</p>
+        </div>
+      </AppLayout>
+    )
+  }
+
+  if (isDirectorOfficerMode && !directorSiteGuardAllowed) {
+    return (
+      <AppLayout title="Site Guard" showBackButton>
+        <div className="flex flex-col items-center justify-center py-20 text-center">
+          <ShieldAlert className="h-12 w-12 text-red-300 mb-4" />
+          <p className="text-gray-700 font-medium">Access restricted to your active rostered site.</p>
+          <p className="text-gray-500 text-sm mt-1">Site-Guard links must match your current shift site and permission scope.</p>
+          <Button className="mt-4 rounded-xl" onClick={() => navigate('/field-officer')}>
+            Return to Field Portal
           </Button>
         </div>
       </AppLayout>

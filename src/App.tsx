@@ -9,12 +9,14 @@ import { usePTTAutoConnect } from '@/hooks/usePTTAutoConnect'
 import { useSessionGpsLogging } from '@/hooks/useSessionGpsLogging'
 import { useOrgModules } from '@/hooks/useOrgModules'
 import { useOrganization } from '@/hooks/useOrganization'
+import { useRosteredShift } from '@/hooks/useRosteredShift'
 import { OrganizationContext } from '@/contexts/OrganizationContext'
 import { useFeedbackCapture } from '@/hooks/useFeedbackCapture'
 import { useLiveSessionDiagnostics } from '@/hooks/useLiveSessionDiagnostics'
 import { getDefaultRouteForRole, getRoleConstrainedRedirect } from '@/navigation/rolePath'
 import { isRouteVisibleForRole } from '@/navigation/routeManifestAdapter'
 import { routeManifest, type AppRole } from '@/navigation/routeManifest'
+import { isDirectorOfficerPathAllowed, useDirectorRosterGate, useSiteToolPermissions, WAITING_FOR_SHIFT_PATH } from '@/middleware'
 import { ShieldOff } from 'lucide-react'
 
 // ---------------------------------------------------------------------------
@@ -204,6 +206,7 @@ const BobUIReview = lazy(() => import('@/pages/BobUIReview'))
 const OpsLivePlanReviewQueue = lazy(() => import('@/pages/OpsLivePlanReviewQueue'))
   const BobStudio = lazy(() => import('@/pages/BobStudio'))
 const OfficerHomePage = lazy(() => import('@/pages/OfficerHomePage'))
+const WaitingForShiftPage = lazy(() => import('@/pages/WaitingForShiftPage'))
 const TenderWorkspace = lazy(() => import('@/pages/TenderWorkspace'))
 const TenderWorkspaceDetail = lazy(() => import('@/pages/TenderWorkspaceDetail'))
 const TenderReferenceLibrary = lazy(() => import('@/pages/TenderReferenceLibrary'))
@@ -542,6 +545,9 @@ function AccessDenied({ requiredRoles, currentRole }: { requiredRoles: string[];
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading, ensureLoadingResolved } = useAuthStore()
   const location = useLocation()
+  const directorGate = useDirectorRosterGate()
+  const { rosteredShift } = useRosteredShift()
+  const siteToolPermissions = useSiteToolPermissions(user?.id, rosteredShift?.client_site_id ?? null)
 
   // Auto-connect to PTT when authenticated
   usePTTAutoConnect()
@@ -560,7 +566,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     return window.sessionStorage.getItem('adminOfficerPortalChoice') === 'selected'
   }
 
-  if (loading) {
+  if (loading || directorGate.isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center space-y-4">
@@ -601,6 +607,21 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   )
   if (roleConstrainedRedirect) {
     return <Navigate to={roleConstrainedRedirect} replace />
+  }
+
+  if (directorGate.shouldRestrictToWaiting && location.pathname !== WAITING_FOR_SHIFT_PATH) {
+    return <Navigate to={WAITING_FOR_SHIFT_PATH} replace />
+  }
+
+  if (directorGate.shouldReleaseFromWaiting && location.pathname === WAITING_FOR_SHIFT_PATH) {
+    return <Navigate to="/field-officer" replace />
+  }
+
+  if (user.role === 'officer' && !isDirectorOfficerPathAllowed(location.pathname, {
+    noiseEnabled: siteToolPermissions.noise,
+    siteGuardEnabled: siteToolPermissions.siteGuard,
+  })) {
+    return <Navigate to="/field-officer" replace />
   }
 
   return <>{children}</>
@@ -793,7 +814,19 @@ export default function App() {
             }
           />
 
-          {/* Officer home – shown when not rostered / outside geofence */}
+          {/* Waiting gate for rostered access */}
+          <Route
+            path="/waiting-for-shift"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['officer', 'admin_officer']}>
+                  <WaitingForShiftPage />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Legacy officer home (kept for backward compatibility) */}
           <Route
             path="/officer-home"
             element={
@@ -831,7 +864,7 @@ export default function App() {
           {/* Backward-compatibility redirect for legacy deep-links */}
           <Route
             path="/field"
-            element={<Navigate to="/field-officer?service=freedom_camping" replace />}
+            element={<Navigate to="/field-officer" replace />}
           />
           {/* Protected routes */}
           <Route
@@ -839,7 +872,7 @@ export default function App() {
             element={
               <ProtectedRoute>
                 {user?.role === 'officer' ? (
-                  <Navigate to="/officer-home" replace />
+                  <Navigate to="/waiting-for-shift" replace />
                 ) : user?.role === 'admin_officer' ? (
                   <Navigate to="/portal-selection" replace />
                 ) : user?.role === 'nzscv_monitor' ? (
