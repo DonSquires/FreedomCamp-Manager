@@ -13,12 +13,16 @@
 | `npm --prefix /workspaces/FreedomCamp-Manager run build` | ✅ PASS | TypeScript + Vite build succeeded |
 | `npm --prefix /workspaces/FreedomCamp-Manager run test:bob:governance` | ✅ PASS | 6/6 tests passed |
 | `npm --prefix /workspaces/FreedomCamp-Manager exec playwright test tests/e2e/bootstrap-routes.test.ts --reporter=line` | ❌ FAIL | Playwright browser binaries missing in local container (`npx playwright install` required) |
+| `bash scripts/playwright-codespace-credentials.sh npm --prefix /workspaces/FreedomCamp-Manager exec -- vitest run tests/integration/org-isolation.test.ts` | ✅ PASS | 6/6 passed; harness summary confirms 5/5 org-isolation scenarios verified |
+| `bash scripts/playwright-codespace-credentials.sh npm --prefix /workspaces/FreedomCamp-Manager exec -- playwright test -c playwright.api.config.ts tests/e2e/org-isolation-api.spec.ts --reporter=line` | ✅ PASS | 4 passed, 5 skipped |
+| `bash scripts/playwright-codespace-credentials.sh npm --prefix /workspaces/FreedomCamp-Manager exec -- playwright test tests/e2e/bootstrap-routes.test.ts --project=chromium --reporter=line` | ❌ FAIL | Alpine host runtime cannot launch Chromium headless shell (`spawn ... ENOENT`) |
 
 Takeover delta:
 - Added recovery continuity from the previous realignment session now present on main at commit `daea930d`.
 - Fixed strict-mode toolchain checker failure in `scripts/check-required-tools.sh` to avoid false negatives when `BUN_INSTALL` is unset.
 - Confirmed org isolation harness is wired in CI via `.github/workflows/ci-org-isolation-api.yml` with explicit run of `tests/integration/org-isolation.test.ts`.
 - Remaining prerequisite gates that still require CI/staging evidence are bootstrap routes smoke pass and strict org-isolation enforcement setting in runtime governance.
+- Local shell cannot run the checklist `gh run list` command because `gh` CLI is unavailable in this environment.
 
 ---
 
@@ -28,7 +32,7 @@ Per `docs/BUILD_REALIGNMENT_PLAN_2026-05-04.md` section 11.2 and 11.2a:
 
 | # | Prerequisite | Evidence Required | Current Status |
 |---|---|---|---|
-| 1 | Org isolation gate: 5 automated test scenarios pass in CI | `tests/integration/org-isolation.test.ts` (or equivalent) green in GitHub Actions | 🟡 Partial — `tests/e2e/org-isolation-api.spec.ts` passing; 5-scenario harness in place |
+| 1 | Org isolation gate: 5 automated test scenarios pass in CI | `tests/integration/org-isolation.test.ts` (or equivalent) green in GitHub Actions | 🟡 Partial — harness now passes locally (6/6); CI run confirmation for current HEAD still pending |
 | 2 | Case model and event contract published | Schema in staging, `src/types/database.ts` includes `operational_cases`; API docs + sample payloads | ✅ Complete — migrations deployed (B1–B4 bridges); TypeScript stubs added to `database.ts` for all 7 new tables + 2 column additions |
 | 3 | Feature flags and rollback controls exist for every Phase B slice | `feature_flags` table with `FF_PHASE_B_*` flags; `scripts/rollback-feature-flag.sh` tested; canary procedure documented | ✅ Complete — migration `202605_feature_flags.sql` deployed; rollback script at `scripts/rollback-feature-flag.sh`; canary script at `scripts/advance-canary-stage.sh` |
 | 4 | Bootstrap routes smoke test: 3 routes on case model in staging | `tests/e2e/bootstrap-routes.test.ts` passing for field-officer, dispatch-console, breaches | 🟡 Partial — Phase B slice tests created; bootstrap route E2E pending final pass |
@@ -218,4 +222,4 @@ The following artifacts were created as Phase B delivery infrastructure. They ar
 
 ---
 
-*Last updated: 2026-05-05 | Source: BUILD_REALIGNMENT_PLAN_2026-05-04.md + PR #506 infrastructure review + Week 3 route/role truth validation*
+*Last updated: 2026-05-12 | Source: BUILD_REALIGNMENT_PLAN_2026-05-04.md + PR #506 infrastructure review + Star Trek continuation evidence*

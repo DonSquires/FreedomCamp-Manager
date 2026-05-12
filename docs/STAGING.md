@@ -4,6 +4,33 @@ Date: 2026-05-11
 Owner: GitHub Copilot
 Status: Active staging checklist — Sprints 50-70 complete on main; no staged sprints remaining (2026-05-11)
 
+Latest Session Snapshot (Phased rollout continuation — 2026-05-12):
+
+- Timestamp (NZ): 2026-05-12 21:38 NZST
+- Current branch: main
+- Scope completed:
+  - Re-read staging instructions and resumed from active Phase A gate evidence tasks.
+  - Executed org isolation harness with environment credential injection via `scripts/playwright-codespace-credentials.sh`.
+  - Verified API org-isolation Playwright lane runs with mapped credentials and passes.
+
+- Validation evidence:
+  | Command | Result | Notes |
+  |---|---|---|
+  | `bash scripts/playwright-codespace-credentials.sh npm --prefix /workspaces/FreedomCamp-Manager exec -- vitest run tests/integration/org-isolation.test.ts` | PASS | 6/6 tests passed; summary confirms 5/5 org-isolation scenarios verified |
+  | `bash scripts/playwright-codespace-credentials.sh npm --prefix /workspaces/FreedomCamp-Manager exec -- playwright test -c playwright.api.config.ts tests/e2e/org-isolation-api.spec.ts --reporter=line` | PASS | 4 passed, 5 skipped |
+  | `bash scripts/playwright-codespace-credentials.sh npm --prefix /workspaces/FreedomCamp-Manager exec -- playwright test tests/e2e/bootstrap-routes.test.ts --project=chromium --reporter=line` | FAIL | Chromium headless shell launch fails in this Alpine host runtime (`ENOENT` at spawn) |
+
+- Open blockers:
+  | Blocker | Evidence | Impact |
+  |---|---|---|
+  | Browser-runtime compatibility for local full Playwright matrix | bootstrap-routes still fails at browser launch despite installed payloads | cannot produce local bootstrap-routes green evidence from this container |
+  | `gh` CLI unavailable in shell | `gh run list` command from restart checklist returns `command not found` | cannot query CI run list from local shell without alternative auth/tooling |
+
+- Next exact recovery steps:
+  1. Run bootstrap routes suite in GitHub Actions/Ubuntu runner (or another host with native Chromium runtime) and attach evidence.
+  2. Query CI run status for current HEAD with GitHub UI or install/configure `gh` CLI in the execution environment.
+  3. Keep ownership confirmation (GitHub team + Slack capacity sign-off) tracked as external gate evidence.
+
 Latest Session Snapshot (Star Trek takeover and continuation — 2026-05-12):
 
 - Timestamp (NZ): 2026-05-12 21:15 NZST
