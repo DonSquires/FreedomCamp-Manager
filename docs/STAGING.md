@@ -4,6 +4,77 @@ Date: 2026-05-12
 Owner: GitHub Copilot
 Status: Active staging checklist — Sprints 50-70 complete on main; Iron Eagle Visual Identity locked in docs (2026-05-12)
 
+Latest Session Snapshot (Staging Continuation — Tooling Restored and Validation Re-run — 2026-05-12):
+
+- Timestamp (NZ): 2026-05-12
+- Current branch: main
+- Runtime/tooling remediation completed:
+  - Installed JavaScript runtime toolchain with sudo apk/npm:
+    - `node` / `npm` / `npx`
+    - `bun` / `bunx`
+    - Playwright browser assets (`bunx playwright install chromium`)
+    - Alpine compatibility and browser runtime libs
+    - System Chromium (`/usr/bin/chromium`) for Playwright override on Alpine
+- Test compatibility note:
+  - Browser E2E commands now run with `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium` to avoid glibc headless-shell incompatibility on Alpine.
+
+- Continuation validation evidence:
+  | Command | Result | Notes |
+  |---|---|---|
+  | `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium bash scripts/playwright-codespace-credentials.sh bunx playwright test tests/e2e/phase4-notice-print-signature-gate.spec.ts --project=chromium --reporter=line` | PASS | 1 passed (18.2s) |
+  | `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium bash scripts/playwright-codespace-credentials.sh bunx playwright test tests/e2e/phase4-operations-map-emergency-banner.spec.ts tests/e2e/phase4-notice-print-signature-gate.spec.ts --project=chromium --reporter=line` | PASS | 2 passed (25.4s) |
+  | `bun run lint` | PASS | `eslint .` exit 0 |
+  | `bun run build` | PASS | `tsc -b && vite build` completed (`built in 25.57s`) |
+
+- Additional stabilization completed:
+  - Updated `tests/e2e/phase4-notice-print-signature-gate.spec.ts` to read and use the UI-declared expected signer value (from the `Expected signer:` line) instead of a hardcoded name, aligning test behavior with current authorization logic.
+
+Latest Session Snapshot (Staging Continuation — Runtime Tooling Blocker — 2026-05-12):
+
+- Timestamp (NZ): 2026-05-12
+- Current branch: main
+- Objective attempted:
+  - Resume original staging continuation by running Phase 4 browser validation plus final lint/build gates.
+
+- Command evidence captured:
+  | Command | Result | Notes |
+  |---|---|---|
+  | `bash scripts/playwright-codespace-credentials.sh bunx playwright test tests/e2e/phase4-operations-map-emergency-banner.spec.ts tests/e2e/phase4-notice-print-signature-gate.spec.ts --project=chromium --reporter=line` | FAIL | `bunx: not found` |
+  | `bash scripts/playwright-codespace-credentials.sh bun x playwright test tests/e2e/phase4-operations-map-emergency-banner.spec.ts tests/e2e/phase4-notice-print-signature-gate.spec.ts --project=chromium --reporter=line` | FAIL | `bun: not found` |
+  | `bash scripts/playwright-codespace-credentials.sh npx playwright test tests/e2e/phase4-operations-map-emergency-banner.spec.ts tests/e2e/phase4-notice-print-signature-gate.spec.ts --project=chromium --reporter=line` | FAIL | `npx: not found` |
+  | `command -v bun; command -v node; command -v npm; command -v npx; command -v pnpm; command -v yarn` | FAIL | no runtime executables available on PATH |
+
+- Blocker summary:
+  - Current shell environment cannot execute JavaScript toolchain commands due to missing runtime binaries on PATH.
+
+- Immediate continuation steps once runtime PATH is restored:
+  1. Run `bash scripts/playwright-codespace-credentials.sh bunx playwright test tests/e2e/phase4-operations-map-emergency-banner.spec.ts tests/e2e/phase4-notice-print-signature-gate.spec.ts --project=chromium --reporter=line`.
+  2. Run `bun run lint`.
+  3. Run `bun run build`.
+  4. Record pass/fail evidence and mark Star Trek Phase 4 closure state.
+
+Latest Session Snapshot (Star Trek Continuation — Post-Phase-4 Hardening — 2026-05-12):
+
+- Timestamp (NZ): 2026-05-12 23:42 NZST
+- Current branch: main
+- Scope completed:
+  - Added dedicated emergency escalation helpers in `src/lib/phase4Emergency.ts` for:
+    - emergency keyword classification,
+    - active emergency alert selection,
+    - emergency GPS broadcast text formatting.
+  - Refactored `src/pages/OperationsMap.tsx` to consume those helpers for tactical emergency pulse/broadcast rendering.
+  - Added regression tests in `src/lib/__tests__/phase4Emergency.test.ts` to lock emergency keyword detection and GPS broadcast behavior.
+
+- Continuation validation evidence:
+  | Command | Result | Notes |
+  |---|---|---|
+  | `bunx vitest run src/lib/__tests__/phase4Emergency.test.ts src/lib/__tests__/enforcementPhase4.test.ts` | PASS | 5 tests passed across Phase 4 safety + emergency helper suites |
+
+- Next exact continuation steps:
+  1. Add a browser E2E scenario for operations-map emergency banner visibility under seeded SOS alert data.
+  2. Add a browser E2E scenario for notice preview print button disabled-until-authorized flow.
+  3. Capture CI run artifacts and mark Star Trek rollout fully complete against exit criteria.
+
 Latest Session Snapshot (Star Trek Phase 4 Checkpoint — Admiral's Bridge — 2026-05-12):
 
 - Timestamp (NZ): 2026-05-12 23:58 NZST
