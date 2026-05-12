@@ -261,6 +261,33 @@ Every officer portal has two persistent UI elements:
 - Incoming transmissions show the speaker's name in a banner above the bar
 - Emergency transmissions show a red pulsing banner that cannot be dismissed until the transmission ends
 
+#### Phase 2: Universal Translator Audio Behavior
+
+The radio console now operates with two coordinated audio paths:
+
+1. **Stream A — Co-worker PTT**
+   - Continue using hold-to-talk for team voice traffic.
+   - Incoming team voice remains the primary tactical channel.
+2. **Stream B — Bob Intercom**
+   - Bob can be triggered by wake phrase: **Hey Bob**.
+   - Bob interpreter speech can be relayed from the interpreter panel using **Bob Intercom Speak**.
+
+Wake and interaction rules:
+
+- Saying **Hey Bob** opens the interpreter pathway and starts speech capture for translation input.
+- Hold-to-talk remains authoritative for co-worker transmission and is not replaced by wake-word mode.
+- Wake-word detection uses a short cooldown window to avoid repeated accidental triggers.
+
+Audio ducking safety rule:
+
+- When Bob intercom speech is active, co-worker playback volume is reduced to **20 percent**.
+- When Bob speech ends, co-worker playback is restored to normal volume.
+- Officers can toggle ducking on or off from the interpreter controls.
+
+Operational outcome:
+
+- Officers can stay eyes-up and continue co-worker PTT while receiving translated Bob relay output without channel masking or full-volume overlap.
+
 ---
 
 ### Iron Eagle Tactical Design Language

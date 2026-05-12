@@ -61,11 +61,13 @@ import {
   initBluetoothPTT,
   normalizePTTErrorMessage,
   primePTTRemoteAudioPlayback,
+  setPTTRemoteAudioVolume,
 } from '@/lib/ptt'
 import { requestWakeLock, releaseWakeLock, requestNotificationPermission } from '@/lib/pttBackground'
 import { radioFeatureFlags } from '@/lib/radio/radioFeatureFlags'
 import { radioCaptionService, type CaptionSegment } from '@/lib/radio/radioCaptionService'
 import { radioTranslationService, type TranslationSegment } from '@/lib/radio/radioTranslationService'
+import { containsWakeWord, getCoworkerChannelVolume } from '@/lib/radio/phase2AudioLogic'
 import { reverseGeocode } from '@/lib/geocoding'
 import { checkInferenceHealth } from '@/lib/proxyServices'
 import { AppLayout } from '@/components/features/AppLayout'
@@ -560,6 +562,9 @@ export default function PTTRadio() {
   const [interpreterPrefsHydrated, setInterpreterPrefsHydrated] = useState(false)
   const [isInterpreterListening, setIsInterpreterListening] = useState(false)
   const [isInterpreterTranslating, setIsInterpreterTranslating] = useState(false)
+  const [wakeWordEnabled, setWakeWordEnabled] = useState(false)
+  const [duckingEnabled, setDuckingEnabled] = useState(true)
+  const [bobIntercomSpeaking, setBobIntercomSpeaking] = useState(false)
   const radioMode = useMemo(() => {
     const search = new URLSearchParams(location.search)
     return search.get('mode') || ''
@@ -580,6 +585,8 @@ export default function PTTRadio() {
 
   const pttButtonRef = useRef<HTMLButtonElement>(null)
   const speechRecognitionRef = useRef<any>(null)
+  const wakeWordRecognitionRef = useRef<any>(null)
+  const wakeWordCooldownUntilRef = useRef(0)
   const scanTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const liveTxTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const wakeLockRef = useRef(false)
@@ -772,6 +779,15 @@ export default function PTTRadio() {
     () => recentTranslations.filter((seg) => seg.isLowConfidence).length,
     [recentTranslations],
   )
+
+  useEffect(() => {
+    const nextVolume = getCoworkerChannelVolume(bobIntercomSpeaking, duckingEnabled)
+    setPTTRemoteAudioVolume(nextVolume)
+
+    return () => {
+      setPTTRemoteAudioVolume(1)
+    }
+  }, [bobIntercomSpeaking, duckingEnabled])
   const delayedSyntheticRenderCount = useMemo(
     () => recentSyntheticRenders.filter((render) => (render.renderLatencyMs ?? 0) > SYNTHETIC_RELAY_DELAY_THRESHOLD_MS).length,
     [recentSyntheticRenders],
@@ -2608,6 +2624,114 @@ export default function PTTRadio() {
     recognition.start()
   }, [])
 
+  const speakInterpreterOutput = useCallback(() => {
+    const text = interpreterOutput.trim()
+    if (!text) return
+
+    if (typeof window === 'undefined' || !window.speechSynthesis) {
+      toast.error('Speech synthesis is not available on this device.')
+      return
+    }
+
+    window.speechSynthesis.cancel()
+    const utterance = new SpeechSynthesisUtterance(text)
+    utterance.lang = interpreterTargetLanguage || 'en-NZ'
+    utterance.rate = 1
+    utterance.pitch = 1
+
+    utterance.onstart = () => {
+      setBobIntercomSpeaking(true)
+    }
+
+    const clear = () => {
+      setBobIntercomSpeaking(false)
+    }
+
+    utterance.onend = clear
+    utterance.onerror = clear
+
+    window.speechSynthesis.speak(utterance)
+  }, [interpreterOutput, interpreterTargetLanguage])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const Ctor = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+
+    if (!wakeWordEnabled) {
+      if (wakeWordRecognitionRef.current) {
+        try {
+          wakeWordRecognitionRef.current.stop()
+        } catch {
+          // no-op
+        }
+      }
+      wakeWordRecognitionRef.current = null
+      return
+    }
+
+    if (!Ctor) {
+      toast.error('Wake word is not supported in this browser.')
+      setWakeWordEnabled(false)
+      return
+    }
+
+    const recognition = new Ctor()
+    wakeWordRecognitionRef.current = recognition
+    recognition.lang = 'en-NZ'
+    recognition.interimResults = true
+    recognition.continuous = true
+    recognition.maxAlternatives = 1
+
+    recognition.onresult = (event: any) => {
+      const now = Date.now()
+      if (now < wakeWordCooldownUntilRef.current) return
+
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const transcript = String(event.results?.[i]?.[0]?.transcript || '').trim()
+        if (!transcript) continue
+        if (!containsWakeWord(transcript)) continue
+
+        wakeWordCooldownUntilRef.current = now + 3500
+        setShowInterpreterPanel(true)
+        toast.success('Wake word detected. Bob intercom is listening...')
+        setTimeout(() => {
+          captureSpeechForInterpreter()
+        }, 150)
+        break
+      }
+    }
+
+    recognition.onerror = () => {
+      // Avoid noisy error toasts in continuous wake mode.
+    }
+
+    recognition.onend = () => {
+      if (!wakeWordEnabled) return
+      try {
+        recognition.start()
+      } catch {
+        // browser throttled restart; next toggle resumes
+      }
+    }
+
+    try {
+      recognition.start()
+      toast.success('Wake word enabled: say "Hey Bob"')
+    } catch {
+      toast.error('Could not start wake-word listener.')
+      setWakeWordEnabled(false)
+    }
+
+    return () => {
+      try {
+        recognition.stop()
+      } catch {
+        // no-op
+      }
+      wakeWordRecognitionRef.current = null
+    }
+  }, [wakeWordEnabled, captureSpeechForInterpreter])
+
   // ─────────────────────────────────────────────────────────
   // Render helpers
   // ─────────────────────────────────────────────────────────
@@ -3540,6 +3664,30 @@ export default function PTTRadio() {
                   {isInterpreterTranslating ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Languages className="h-3.5 w-3.5 mr-1" />}
                   Translate
                 </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={speakInterpreterOutput}
+                  disabled={!interpreterOutput.trim()}
+                  className="border-slate-700 bg-slate-800 text-slate-200"
+                >
+                  <Volume2 className="h-3.5 w-3.5 mr-1" />
+                  Bob Intercom Speak
+                </Button>
+              </div>
+
+              <div className="mt-1 space-y-2 rounded-md border border-slate-800 bg-slate-950/60 p-2">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="text-xs text-slate-300">Wake word ("Hey Bob")</div>
+                  <Switch checked={wakeWordEnabled} onCheckedChange={setWakeWordEnabled} />
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="text-xs text-slate-300">Audio ducking (coworker stream to 20%)</div>
+                  <Switch checked={duckingEnabled} onCheckedChange={setDuckingEnabled} />
+                </div>
+                <div className="text-[11px] text-slate-400">
+                  {bobIntercomSpeaking && duckingEnabled ? 'Bob speaking: coworker channel ducked to 20%' : 'Coworker channel at normal volume'}
+                </div>
               </div>
             </div>
             )}

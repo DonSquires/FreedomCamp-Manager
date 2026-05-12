@@ -4,6 +4,37 @@ Date: 2026-05-12
 Owner: GitHub Copilot
 Status: Active staging checklist — Sprints 50-70 complete on main; Iron Eagle Visual Identity locked in docs (2026-05-12)
 
+Latest Session Snapshot (Star Trek Phase 2 Checkpoint — Universal Translator — 2026-05-12):
+
+- Timestamp (NZ): 2026-05-12 22:56 NZST
+- Current branch: main
+- Scope completed:
+  - Implemented wake-word trigger for Bob intercom in `src/pages/PTTRadio.tsx`.
+  - Implemented audio ducking control that lowers co-worker channel volume to 20 percent while Bob intercom is speaking.
+  - Added Bob intercom speech relay action in interpreter panel (`Bob Intercom Speak`).
+  - Added remote audio runtime control in `src/lib/ptt.ts` via `setPTTRemoteAudioVolume`.
+  - Added Phase 2 audio logic helpers and unit tests in `src/lib/radio/phase2AudioLogic.ts` and `src/lib/radio/__tests__/phase2AudioLogic.test.ts`.
+
+- Phase 2 (Universal Translator: Voice and Audio Logic) Evidence:
+  | Component | Status | Notes |
+  |---|---|---|
+  | Dual-path audio controls | ✅ IMPLEMENTED | PTT hold-to-talk remains Stream A; Bob intercom speech action now available as Stream B |
+  | Wake word for Bob | ✅ IMPLEMENTED | "Hey Bob" listener triggers interpreter capture flow |
+  | Audio ducking to 20% | ✅ IMPLEMENTED | Co-worker audio volume set to 0.2 while Bob intercom is speaking |
+  | Bidirectional cloning rail | ✅ AVAILABLE | Existing synthetic render ingestion preserved in radio translation rail |
+  | Validation test coverage | ✅ IMPLEMENTED | New unit tests for wake-word detection and ducking volume rules |
+
+- Validation evidence:
+  | Command | Result | Notes |
+  |---|---|---|
+  | `bun run build` | PASS | TypeScript + Vite build succeeded after Phase 2 changes |
+  | `get_errors` on touched files | PASS | No TypeScript or lint diagnostics in modified files |
+
+- Next exact recovery steps for full Phase 2 close-out:
+  1. Run browser E2E in CI for wake-word and ducking behavior.
+  2. Verify translated cloned voice quality against RunPod synthetic render telemetry.
+  3. Record CI run IDs in this section for auditable checkpoint closure.
+
 Latest Session Snapshot (Iron Eagle Visual Identity — rollout phase 3 — 2026-05-12):
 
 - Timestamp (NZ): 2026-05-12 22:15 NZST

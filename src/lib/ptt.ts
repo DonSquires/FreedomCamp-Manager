@@ -562,6 +562,7 @@ let recordedChunks: Blob[] = []
 let recordingStartTime: number | null = null
 const remoteAudioElements: Map<string, HTMLAudioElement> = new Map()
 let remoteAudioPrimed = false
+let remoteAudioPlaybackVolume = 1
 let currentIceTransportPolicy: RTCIceTransportPolicy = 'all'
 const peerConnectionStates: Map<string, {
   connectionState: RTCPeerConnectionState
@@ -803,7 +804,7 @@ function getOrCreateRemoteAudio(peerId: string): HTMLAudioElement {
   audio.autoplay = true
   audio.controls = false
   audio.muted = false
-  audio.volume = 1
+  audio.volume = remoteAudioPlaybackVolume
   audio.setAttribute('playsinline', 'true')
   audio.setAttribute('webkit-playsinline', 'true')
   audio.style.position = 'fixed'
@@ -817,6 +818,23 @@ function getOrCreateRemoteAudio(peerId: string): HTMLAudioElement {
 
   remoteAudioElements.set(peerId, audio)
   return audio
+}
+
+function applyRemoteAudioPlaybackVolume(): void {
+  remoteAudioElements.forEach((audio) => {
+    audio.volume = remoteAudioPlaybackVolume
+  })
+}
+
+export function setPTTRemoteAudioVolume(volume: number): number {
+  const next = Number.isFinite(volume) ? Math.min(1, Math.max(0, volume)) : 1
+  remoteAudioPlaybackVolume = next
+  applyRemoteAudioPlaybackVolume()
+  return remoteAudioPlaybackVolume
+}
+
+export function getPTTRemoteAudioVolume(): number {
+  return remoteAudioPlaybackVolume
 }
 
 function getWebSocketReadyStateLabel(socket: WebSocket | null): string {
