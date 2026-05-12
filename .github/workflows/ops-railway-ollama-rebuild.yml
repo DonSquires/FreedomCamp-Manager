@@ -1,6 +1,12 @@
 name: Ops - Rebuild Railway Ollama Models
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - "ollama/start.sh"
+      - "ollama/.deploy-trigger"
+      - ".github/workflows/ops-railway-ollama-rebuild.yml"
   workflow_dispatch:
     inputs:
       ollama_service_id_override:
