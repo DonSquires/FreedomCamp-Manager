@@ -442,6 +442,49 @@ If you log in and **do have an active roster shift** for today:
 - If a new roster entry is created for you, the cache updates on the next poll cycle (max 60 second lag)
 - If you think you should have access but don't, try the **refresh** button on the welfare screen, or log out and log back in
 
+### 2.3c Phase 3: Sentient XO (Bob Memory and Administrative Actuation)
+
+**Who sees this:** Bob users with admin-authorized workflows
+**What it does:** Bob keeps operational memory context and can execute validated setup actions by command.
+
+#### Persistent memory behavior
+
+When you use Bob for operational setup and dispatch workflows, Bob now stores and reuses:
+
+1. Recent preferred site context
+2. Common phrases used in setup requests
+3. Recent shift intent patterns (day/night/standard)
+4. Friction events from failed or incomplete commands (for follow-up guidance)
+
+This memory is used to improve future prompts and reduce repeated data entry.
+
+#### Administrative actuation behavior
+
+For valid setup commands (example: creating a new client/site/shift bundle), Bob can execute a guarded actuation path that:
+
+1. Validates organization and actor context
+2. Validates required fields before any write
+3. Creates records in sequence (client, site, shift)
+4. Applies baseline rate rules and conflict checks
+5. Returns a success summary or a clarification request
+
+#### Gap detection and missing-field prompts
+
+If required data is missing, Bob will not write partial records. Instead Bob asks a targeted follow-up question, such as:
+
+- Missing client name
+- Missing site address
+- Missing shift start time
+- Overlap confirmation needed for conflicting shift times
+
+If emergency priority mode is active, Bob blocks administrative provisioning and returns an explicit safety-first message.
+
+#### Operator expectation
+
+- Successful commands produce an immediate completion summary.
+- Incomplete commands produce a clarification question and wait for your answer.
+- Blocked commands include a reason and preserve context for retry once constraints clear.
+
 ---
 
 ### 2.3 Portal Selection (Admin Officer role only)

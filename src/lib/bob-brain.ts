@@ -211,6 +211,20 @@ export async function upsertBobUserMemory(userId: string, contextKey: string, co
     }, { onConflict: 'user_id,context_key' })
 }
 
+async function recordBobFrictionMemory(userId: string, text: string, reason: string): Promise<void> {
+  if (!userId) return
+
+  const trimmedText = String(text || '').trim()
+  const trimmedReason = String(reason || '').trim()
+
+  const tasks = [
+    upsertBobUserMemory(userId, 'common_phrase_latest', trimmedText.slice(0, 160)),
+    upsertBobUserMemory(userId, 'friction_event_latest', trimmedReason.slice(0, 160)),
+  ]
+
+  await Promise.allSettled(tasks)
+}
+
 export function buildBobUserMemoryNote(memoryRows: BobUserMemoryRow[]): string {
   if (!memoryRows.length) return ''
 
@@ -285,6 +299,7 @@ export async function executeAdministrativeActuation(params: {
   if (!shouldActuate(text)) return null
 
   if (!params.organizationId || !params.actorUserId) {
+    await recordBobFrictionMemory(params.actorUserId || '', text, 'missing_context_for_secure_actuation')
     return {
       status: 'blocked',
       reason: 'Missing organization or user context for secure actuation.',
@@ -292,6 +307,7 @@ export async function executeAdministrativeActuation(params: {
   }
 
   if (params.emergencyPriorityActive) {
+    await recordBobFrictionMemory(params.actorUserId, text, 'emergency_priority_active')
     return {
       status: 'blocked',
       reason: 'Armed Danger Auto-Assist is active. Emergency workflow takes priority over administrative provisioning.',
@@ -308,6 +324,7 @@ export async function executeAdministrativeActuation(params: {
   if (!shiftIntent.startTime) missingFields.push('start_time')
 
   if (missingFields.length > 0) {
+    await recordBobFrictionMemory(params.actorUserId, text, `missing_fields:${missingFields.join(',')}`)
     return {
       status: 'needs_clarification',
       question: buildClarificationQuestion(missingFields, siteAddress),
@@ -365,6 +382,7 @@ export async function executeAdministrativeActuation(params: {
   })
 
   if (warnings.some((warning) => warning.toLowerCase().includes('overlap'))) {
+    await recordBobFrictionMemory(params.actorUserId, text, 'requires_overlap_confirmation')
     return {
       status: 'needs_clarification',
       question: `I found a possible overlap for ${siteAddress}. Do you want to proceed with this shift time anyway?`,
