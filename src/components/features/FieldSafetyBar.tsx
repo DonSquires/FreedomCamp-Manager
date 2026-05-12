@@ -198,6 +198,7 @@ export function FieldSafetyBar({
       {/* ── Armed Danger viewport overlay — active while SOS is unacknowledged ── */}
       <ArmedDangerOverlay
         active={sosActive}
+        onDismiss={() => setSosActive(false)}
         label="SOS alert active — awaiting supervisor acknowledgement"
       />
 
@@ -205,7 +206,7 @@ export function FieldSafetyBar({
       <div className={`rounded-xl border mb-4 overflow-hidden transition-colors ${
         isOverdue
           ? 'border-orange-400 bg-orange-50 dark:bg-orange-950/30'
-          : 'border-gray-200 bg-white dark:bg-gray-900'
+          : 'border-gray-200 bg-white dark:bg-[#1E1E1E] dark:border-[#9E9E9E]/20'
       }`}>
         {/* Header row — always visible */}
         <div className="flex items-center gap-2 px-3 py-2">
