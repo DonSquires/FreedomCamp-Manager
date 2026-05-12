@@ -19,6 +19,7 @@ import hashlib
 import urllib.parse
 import tempfile
 import subprocess
+import time
 import requests
 import runpod
 
@@ -85,17 +86,69 @@ _host = os.environ.get("OLLAMA_HOST", "").strip().rstrip("/")
 OLLAMA_BASE = normalize_ollama_base(_ext if _ext else _base if _base else _host)
 if not OLLAMA_BASE:
     raise RuntimeError("OLLAMA_EXTERNAL_URL, OLLAMA_BASE_URL, or OLLAMA_HOST must be set to an external Ollama endpoint")
-OLLAMA_BASE_CANDIDATES = [
-    OLLAMA_BASE,
-    normalize_ollama_base(os.environ.get("OLLAMA_CHAT_BASE_URL", "")),
-    normalize_ollama_base(os.environ.get("REQUIRED_OLLAMA_BASE_URL", "")),
-    normalize_ollama_base(os.environ.get("INFERENCE_OLLAMA_BASE_URL", "")),
-]
+
+
+def parse_bool_env(name, default=False):
+    raw = str(os.environ.get(name, "")).strip().lower()
+    if not raw:
+        return default
+    return raw in {"1", "true", "yes", "on"}
+
+
+def _candidate_variant_urls(base_url):
+    normalized = normalize_ollama_base(base_url)
+    if not normalized:
+        return []
+
+    variants = [normalized]
+    parsed = urllib.parse.urlparse(normalized)
+    host = parsed.hostname or ""
+    if not host:
+        return variants
+
+    auth = ""
+    if parsed.username:
+        auth = parsed.username
+        if parsed.password:
+            auth += f":{parsed.password}"
+        auth += "@"
+
+    host_label = f"[{host}]" if ":" in host and not host.startswith("[") else host
+    path = parsed.path or ""
+
+    if parsed.scheme == "http" and parsed.port == 11434:
+        variants.append(f"https://{auth}{host_label}{path}".rstrip("/"))
+        variants.append(f"http://{auth}{host_label}{path}".rstrip("/"))
+    elif parsed.scheme == "https" and parsed.port is None:
+        variants.append(f"http://{auth}{host_label}:11434{path}".rstrip("/"))
+
+    return variants
+
+
+def build_ollama_candidates():
+    sources = [
+        OLLAMA_BASE,
+        normalize_ollama_base(os.environ.get("OLLAMA_CHAT_BASE_URL", "")),
+        normalize_ollama_base(os.environ.get("REQUIRED_OLLAMA_BASE_URL", "")),
+        normalize_ollama_base(os.environ.get("INFERENCE_OLLAMA_BASE_URL", "")),
+    ]
+    candidates = []
+    for source in sources:
+        for variant in _candidate_variant_urls(source):
+            if variant and variant not in candidates:
+                candidates.append(variant)
+    return candidates
+
+
+OLLAMA_BASE_CANDIDATES = build_ollama_candidates()
 OLLAMA_MODEL        = os.environ.get("OLLAMA_MODEL", "qwen2.5:7b")
 OLLAMA_VISION_MODEL = os.environ.get("OLLAMA_VISION_MODEL", "llama3.2-vision:11b")
 BOB_ATTITUDE_PROFILE = os.environ.get("BOB_ATTITUDE_PROFILE", "operational").strip().lower()
 BOB_ATTITUDE_INSTRUCTIONS = os.environ.get("BOB_ATTITUDE_INSTRUCTIONS", "").strip()
 TIMEOUT_S           = int(os.environ.get("OLLAMA_TIMEOUT_MS", "120000")) // 1000
+OLLAMA_RETRY_ATTEMPTS = max(1, int(os.environ.get("OLLAMA_RETRY_ATTEMPTS", "3")))
+OLLAMA_RETRY_BACKOFF_MS = max(0, int(os.environ.get("OLLAMA_RETRY_BACKOFF_MS", "500")))
+OLLAMA_TLS_VERIFY = parse_bool_env("OLLAMA_TLS_VERIFY", True)
 TRAINING_MEMORY_PATH = os.environ.get("TRAINING_MEMORY_PATH", os.path.join(os.path.dirname(__file__), "training_memory.json"))
 MAX_RUNTIME_NOTES = 8
 OPENAI_REFERENCE_GATE_ENABLED = os.environ.get("OPENAI_REFERENCE_GATE_ENABLED", "true").strip().lower() in {"1", "true", "yes", "on"}
@@ -114,8 +167,11 @@ SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "").stri
 
 print(f"[worker] FieldOps AI Worker (Python/runpod) starting")
 print(f"[worker] OLLAMA_BASE: {OLLAMA_BASE} (external)")
+print(f"[worker] OLLAMA_BASE_CANDIDATES: {OLLAMA_BASE_CANDIDATES}")
 print(f"[worker] OLLAMA_MODEL: {OLLAMA_MODEL}")
 print(f"[worker] OLLAMA_VISION_MODEL: {OLLAMA_VISION_MODEL}")
+print(f"[worker] OLLAMA_RETRY_ATTEMPTS: {OLLAMA_RETRY_ATTEMPTS}")
+print(f"[worker] OLLAMA_TLS_VERIFY: {OLLAMA_TLS_VERIFY}")
 print(f"[worker] BOB_ATTITUDE_PROFILE: {BOB_ATTITUDE_PROFILE}")
 print(f"[worker] OPENAI_REFERENCE_GATE_ENABLED: {OPENAI_REFERENCE_GATE_ENABLED}")
 print(f"[worker] ALLOW_OPENAI_REFERENCE_PROVIDER: {ALLOW_OPENAI_REFERENCE_PROVIDER}")
@@ -519,42 +575,47 @@ def ollama_chat(messages, model=None, temperature=0.7):
 
     for ollama_host in candidates:
         attempted_hosts.append(ollama_host)
-        try:
-            resp = requests.post(
-                f"{ollama_host}/api/chat",
-                json=chat_payload,
-                timeout=TIMEOUT_S,
-            )
-
-            if resp.status_code == 404:
-                gen_resp = requests.post(
-                    f"{ollama_host}/api/generate",
-                    json=generate_payload,
+        for attempt in range(1, OLLAMA_RETRY_ATTEMPTS + 1):
+            try:
+                resp = requests.post(
+                    f"{ollama_host}/api/chat",
+                    json=chat_payload,
                     timeout=TIMEOUT_S,
+                    verify=OLLAMA_TLS_VERIFY,
                 )
-                if gen_resp.status_code == 404:
-                    last_error = f"{ollama_host} returned 404 for /api/chat and /api/generate"
-                    continue
 
-                gen_resp.raise_for_status()
-                gen_data = gen_resp.json()
-                gen_content = gen_data.get("response", "")
-                if not gen_content:
-                    raise ValueError("Ollama /api/generate returned empty content")
+                if resp.status_code == 404:
+                    gen_resp = requests.post(
+                        f"{ollama_host}/api/generate",
+                        json=generate_payload,
+                        timeout=TIMEOUT_S,
+                        verify=OLLAMA_TLS_VERIFY,
+                    )
+                    if gen_resp.status_code == 404:
+                        last_error = f"{ollama_host} returned 404 for /api/chat and /api/generate"
+                        break
+
+                    gen_resp.raise_for_status()
+                    gen_data = gen_resp.json()
+                    gen_content = gen_data.get("response", "")
+                    if not gen_content:
+                        raise ValueError("Ollama /api/generate returned empty content")
+
+                    _WORKING_OLLAMA_BASE = ollama_host
+                    return {"content": gen_content, "model": gen_data.get("model", model or OLLAMA_MODEL)}
+
+                resp.raise_for_status()
+                data = resp.json()
+                content = data.get("message", {}).get("content", "")
+                if not content:
+                    raise ValueError("Ollama returned empty content")
 
                 _WORKING_OLLAMA_BASE = ollama_host
-                return {"content": gen_content, "model": gen_data.get("model", model or OLLAMA_MODEL)}
-
-            resp.raise_for_status()
-            data = resp.json()
-            content = data.get("message", {}).get("content", "")
-            if not content:
-                raise ValueError("Ollama returned empty content")
-
-            _WORKING_OLLAMA_BASE = ollama_host
-            return {"content": content, "model": data.get("model", model or OLLAMA_MODEL)}
-        except Exception as exc:
-            last_error = f"{ollama_host}: {exc}"
+                return {"content": content, "model": data.get("model", model or OLLAMA_MODEL)}
+            except Exception as exc:
+                last_error = f"{ollama_host} attempt {attempt}/{OLLAMA_RETRY_ATTEMPTS}: {exc}"
+                if attempt < OLLAMA_RETRY_ATTEMPTS:
+                    time.sleep((OLLAMA_RETRY_BACKOFF_MS / 1000.0) * attempt)
 
     raise RuntimeError(
         "Failed to reach a working Ollama endpoint. "
