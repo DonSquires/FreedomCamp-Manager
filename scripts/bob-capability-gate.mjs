@@ -232,6 +232,14 @@ async function checkServerlessCapability(capability, targets, timeoutMs) {
       language: 'en',
     },
     run_playwright: { action: 'run_playwright', scope: 'quick', dry_run: true, timeout_ms: 15000 },
+    render_media_pack: {
+      action: 'render_media_pack',
+      title: 'Capability gate media pack',
+      objective: 'Generate a short field briefing media package for testing.',
+      language: 'en-NZ',
+      quality: 'low',
+      format: 'mp4',
+    },
   };
 
   const input = actionMap[capability];
@@ -257,7 +265,8 @@ async function checkServerlessCapability(capability, targets, timeoutMs) {
     output?.success !== false &&
     (capability !== 'transcribe' || typeof output?.transcript !== 'undefined' || output?.client_action === 'web_speech_recognition') &&
     (capability !== 'speak' || Boolean(output?.audio_base64 || output?.spoken_text || output?.client_action)) &&
-    (capability !== 'ui_vision' || !/image_b64 required/i.test(String(output?.error || result.data?.error || '')));
+    (capability !== 'ui_vision' || !/image_b64 required/i.test(String(output?.error || result.data?.error || ''))) &&
+    (capability !== 'render_media_pack' || Boolean(output?.picture?.image_base64 && output?.video?.video_base64 && output?.audio));
 
   return {
     capability,

@@ -787,6 +787,60 @@ def generate_briefing_video_artifact(inp):
     }
 
 
+def _xml_escape(value):
+    text = str(value or "")
+    return (
+        text.replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace('"', "&quot;")
+        .replace("'", "&apos;")
+    )
+
+
+def generate_picture_artifact(inp):
+    title = _xml_escape(inp.get("title") or "FieldOps Briefing")
+    prompt = _xml_escape(inp.get("prompt") or inp.get("message") or "Operational summary")
+    svg = f"""<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"1280\" height=\"720\" viewBox=\"0 0 1280 720\">\n  <defs>\n    <linearGradient id=\"g\" x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\">\n      <stop offset=\"0%\" stop-color=\"#0f172a\"/>\n      <stop offset=\"100%\" stop-color=\"#1e293b\"/>\n    </linearGradient>\n  </defs>\n  <rect width=\"1280\" height=\"720\" fill=\"url(#g)\"/>\n  <rect x=\"48\" y=\"48\" width=\"1184\" height=\"624\" rx=\"20\" fill=\"#0b1220\" stroke=\"#334155\"/>\n  <text x=\"88\" y=\"140\" fill=\"#e2e8f0\" font-family=\"Arial, Helvetica, sans-serif\" font-size=\"48\" font-weight=\"700\">{title}</text>\n  <text x=\"88\" y=\"220\" fill=\"#94a3b8\" font-family=\"Arial, Helvetica, sans-serif\" font-size=\"30\">Prompt</text>\n  <foreignObject x=\"88\" y=\"250\" width=\"1100\" height=\"360\">\n    <div xmlns=\"http://www.w3.org/1999/xhtml\" style=\"color:#cbd5e1;font-family:Arial,Helvetica,sans-serif;font-size:30px;line-height:1.35;\">{prompt}</div>\n  </foreignObject>\n</svg>"""
+
+    blob = svg.encode("utf-8")
+    digest = hashlib.sha256(blob).hexdigest()
+    return {
+        "success": True,
+        "provider": "runpod-svg-renderer",
+        "output_hash": digest,
+        "output_url": f"runpod-artifact://{digest}.svg",
+        "image_base64": base64.b64encode(blob).decode("ascii"),
+        "mime_type": "image/svg+xml",
+    }
+
+
+def transcribe_with_whisper(audio_base64, audio_mime_type="audio/wav", language="en"):
+    whisper_url = normalize_service_base(os.environ.get("WHISPER_SERVICE_URL", ""))
+    if not whisper_url or not audio_base64:
+        return {"success": False, "provider": "whisper", "error": "whisper unavailable"}
+
+    payload = {
+        "audio_base64": str(audio_base64),
+        "audio_mime_type": str(audio_mime_type or "audio/wav"),
+        "language": str(language or "en"),
+    }
+
+    for whisper_path in ["/infer/transcribe", "/transcribe"]:
+        try:
+            resp = requests.post(f"{whisper_url}{whisper_path}", json=payload, timeout=60)
+            if not resp.ok:
+                continue
+            data = resp.json()
+            transcript = data.get("transcript") or data.get("text")
+            if transcript:
+                return {"success": True, "provider": "whisper", "transcript": transcript}
+        except Exception:
+            continue
+
+    return {"success": False, "provider": "whisper", "error": "no transcript"}
+
+
 def handler(job):
     inp = job.get("input") or {}
     action = inp.get("action", "chat")
@@ -897,6 +951,35 @@ def handler(job):
             "memory_applied": bool(user_memory_context),
             "memory_items": len(user_memory_rows),
             "openai_purpose": resolve_openai_purpose(inp) if use_openai else None,
+        }
+
+    if action == "plan":
+        objective = str(inp.get("objective") or inp.get("task") or inp.get("message") or "").strip()
+        if not objective:
+            return {"success": False, "error": "objective or task required"}
+
+        result = ollama_chat([
+            {
+                "role": "system",
+                "content": "You are Bob, an operations planner. Return only JSON: {summary, milestones:[{title,owner,eta}], risks:[{risk,mitigation}], next_actions:[string]}",
+            },
+            {"role": "user", "content": objective},
+        ], inp.get("model"), 0.2)
+
+        structured = None
+        try:
+            m = re.search(r"\{[\s\S]*\}", result["content"])
+            if m:
+                structured = json.loads(m.group(0))
+        except Exception:
+            pass
+
+        return {
+            "success": True,
+            "plan": structured or result["content"],
+            "raw_response": result["content"],
+            "provider": "ollama-planner",
+            "model": result["model"],
         }
 
     if action == "review":
@@ -1109,6 +1192,74 @@ def handler(job):
             "client_action": "web_speech_recognition",
             "message": "No Whisper service configured/reachable. Use browser Web Speech API for transcription.",
             "provider": "client-fallback",
+        }
+
+    if action == "render_media_pack":
+        objective = str(inp.get("objective") or inp.get("message") or inp.get("prompt") or "Operational briefing").strip()
+        title = str(inp.get("title") or "Operational Media Pack").strip()
+        language = str(inp.get("language") or "en-NZ")
+
+        plan_result = ollama_chat([
+            {
+                "role": "system",
+                "content": "Create a concise operational media brief. Return ONLY JSON: {narration, image_prompt, video_notes, key_points:[string]}",
+            },
+            {"role": "user", "content": objective},
+        ], inp.get("model"), 0.2)
+
+        media_plan = None
+        try:
+            m = re.search(r"\{[\s\S]*\}", plan_result["content"])
+            if m:
+                media_plan = json.loads(m.group(0))
+        except Exception:
+            media_plan = None
+
+        narration = str((media_plan or {}).get("narration") or objective)
+        image_prompt = str((media_plan or {}).get("image_prompt") or objective)
+        video_notes = str((media_plan or {}).get("video_notes") or objective)
+
+        picture = generate_picture_artifact({"title": title, "prompt": image_prompt})
+        video = generate_briefing_video_artifact({
+            "title": title,
+            "notes": video_notes,
+            "quality": inp.get("quality") or "medium",
+            "format": inp.get("format") or "mp4",
+            "org_id": inp.get("org_id"),
+            "incident_id": inp.get("incident_id"),
+            "breach_id": inp.get("breach_id"),
+        })
+
+        tts = synthesize_with_espeak(
+            narration,
+            language=language,
+            voice_profile=inp.get("voice_profile") or {},
+            style=str(inp.get("style") or "default"),
+        )
+
+        audio = {
+            "success": bool(tts.get("ok")),
+            "provider": "espeak-ng" if tts.get("ok") else "client-fallback",
+            "spoken_text": narration,
+            "audio_base64": tts.get("audio_base64"),
+            "audio_mime_type": tts.get("audio_mime_type", "audio/wav"),
+            "warning": None if tts.get("ok") else f"Local TTS unavailable: {tts.get('error', 'unknown error')}",
+        }
+
+        whisper_check = transcribe_with_whisper(
+            audio.get("audio_base64") or "",
+            audio.get("audio_mime_type") or "audio/wav",
+            inp.get("transcribe_language") or "en",
+        )
+
+        return {
+            "success": True,
+            "provider": "bob-media-pack",
+            "plan": media_plan or plan_result["content"],
+            "picture": picture,
+            "video": video,
+            "audio": audio,
+            "whisper_link": whisper_check,
         }
 
     if action == "generate_briefing_video":
