@@ -40,6 +40,7 @@ import { useSpeechIntent, type SpeechIntentResult } from '@/hooks/useSpeechInten
 import { GeofenceWarningBanner } from '@/components/features/GeofenceWarningBanner'
 import { reverseGeocode } from '@/lib/geocoding'
 import { subscribeBobVoiceState } from '@/lib/bob-brain'
+import { useSiteToolPermissions } from '@/middleware'
 import { useThemePreferencesStore } from '@/stores/themePreferencesStore'
 import {
   Camera, Map, FileText, History, AlertTriangle, MapPin, QrCode,
@@ -200,6 +201,21 @@ function extractRapidReference(value: string | null | undefined): string | null 
   return null
 }
 
+function speakBobShiftHandshake(message: string): void {
+  if (typeof window === 'undefined' || !('speechSynthesis' in window)) return
+
+  try {
+    const utterance = new SpeechSynthesisUtterance(message)
+    utterance.rate = 1
+    utterance.pitch = 1
+    utterance.volume = 1
+    window.speechSynthesis.cancel()
+    window.speechSynthesis.speak(utterance)
+  } catch {
+    // Non-blocking fallback: toast remains visible even when TTS is unavailable.
+  }
+}
+
 async function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
   let timeoutId: ReturnType<typeof setTimeout> | undefined
   try {
@@ -343,16 +359,31 @@ export default function FieldOfficerPortal() {
       ? param as ServiceType
       : null
   })
+  const activeClientSiteId = rosteredShift?.client_site_id ?? null
+  const siteToolPermissions = useSiteToolPermissions(user?.id, activeClientSiteId)
+  const isDirectorOfficerMode = user?.role === 'officer'
+  const canUseAlpr = siteToolPermissions.alpr
+  const canUseNoise = siteToolPermissions.noise
+  const canUseSiteGuard = siteToolPermissions.siteGuard
+  const hasInjectedToolAccess = canUseAlpr || canUseNoise || canUseSiteGuard
 
   // Auto-select service type from rostered shift when no URL param was given
   useEffect(() => {
     if (activeService) return // URL param already set it
     if (!rosteredShift?.service_type) return
+
     const rosterService = rosteredShift.service_type as ServiceType
+    if (isDirectorOfficerMode) {
+      if (rosterService === 'freedom_camping' && canUseAlpr) setActiveService('freedom_camping')
+      if (rosterService === 'noise' && canUseNoise) setActiveService('noise')
+      if (rosterService === 'guarding' && canUseSiteGuard) setActiveService('guarding')
+      return
+    }
+
     if (['freedom_camping', 'guarding', 'parking', 'noise', 'biosecurity_inspection', 'smoke_complaint_ooh'].includes(rosterService)) {
       setActiveService(rosterService)
     }
-  }, [rosteredShift?.service_type]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [activeService, canUseAlpr, canUseNoise, canUseSiteGuard, isDirectorOfficerMode, rosteredShift?.service_type])
 
   // ── Scan mode: null = portal home, 'detail' = single-vehicle scan,
   //              'bulk' = quick area sweep, 'checkpoint' = QR check-in
@@ -914,7 +945,19 @@ export default function FieldOfficerPortal() {
         })
       }
 
-      toast.success('Shift started — welfare monitoring active')
+      const enabledToolNames = [
+        canUseAlpr ? 'ALPR' : null,
+        canUseNoise ? 'Noise Control' : null,
+        canUseSiteGuard ? 'Site-Guard (Trespass Watchlist and Face Rec)' : null,
+      ].filter(Boolean)
+
+      const siteLabel = rosteredShift?.client_site_name || 'assigned site'
+      const handshake = enabledToolNames.length > 0
+        ? `Shift started at ${siteLabel}. ${enabledToolNames.join(' and ')} are now active.`
+        : `Shift started at ${siteLabel}. No site tools are currently enabled.`
+
+      toast.success(handshake)
+      speakBobShiftHandshake(handshake)
 
       await refetchShift()
       queryClient.invalidateQueries({ queryKey: ['officer-active-shift'] })
@@ -923,7 +966,7 @@ export default function FieldOfficerPortal() {
     } finally {
       setIsStartingShift(false)
     }
-  }, [user, employerOrganizationId, zoneId, shiftOrgId, shiftZoneId, isServiceProviderMember, refetchShift, queryClient, accessibleOrgs, setOrganization, startOfficerShift])
+  }, [user, employerOrganizationId, zoneId, shiftOrgId, shiftZoneId, isServiceProviderMember, refetchShift, queryClient, accessibleOrgs, setOrganization, startOfficerShift, canUseAlpr, canUseNoise, canUseSiteGuard, rosteredShift?.client_site_name])
 
   const handleEndShift = useCallback(async () => {
     if (!activeShift?.id) return
@@ -1715,7 +1758,7 @@ export default function FieldOfficerPortal() {
         </div>
       )}
 
-      {/* ── Service Type Selector ────────────────────────────────────── */}
+      {/* ── Service Type Selector / Director Tool Injection ─────────────────── */}
       {!scanMode && !showCheckpoint && !detailCameraOpen && (
         <div className="mb-6">
           <h2 className={`text-sm font-semibold mb-3 flex items-center gap-2 ${isNightPatrol ? 'text-cyan-300' : 'text-gray-700 dark:text-gray-300'}`}>
@@ -1727,41 +1770,111 @@ export default function FieldOfficerPortal() {
               </Badge>
             )}
           </h2>
-          <div className="grid grid-cols-2 gap-2.5">
-            {(Object.entries(SERVICE_TYPE_CONFIG) as [ServiceType, typeof SERVICE_TYPE_CONFIG[ServiceType]][]).map(
-              ([key, cfg]) => {
-                const isActive = activeService === key
-                return (
-                  <button
-                    key={key}
-                    type="button"
-                    onClick={() => setActiveService(isActive ? null : key)}
-                    aria-pressed={isActive}
-                    className={`flex items-center gap-3 rounded-2xl border-2 px-3 py-4 text-left transition-all active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 ${
-                      isActive
-                        ? `${cfg.borderColor} ${cfg.bgColor} shadow-lg`
-                        : 'border-gray-200/70 dark:border-gray-700/70 bg-white/60 dark:bg-white/5 hover:bg-white/90 dark:hover:bg-white/10'
-                    }`}
-                  >
-                    <div className={`h-10 w-10 rounded-xl flex items-center justify-center shrink-0 shadow-sm ${isActive ? cfg.bgColor : 'bg-gray-100 dark:bg-gray-800'}`}>
-                      <cfg.Icon className={`h-5 w-5 ${isActive ? cfg.color : 'text-gray-500 dark:text-gray-400'}`} />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className={`text-sm font-semibold leading-tight ${isActive ? cfg.color : 'text-gray-800 dark:text-gray-200'}`}>
-                        {cfg.label}
-                      </p>
-                      <p className="text-[11px] text-muted-foreground leading-snug mt-0.5 line-clamp-2">
-                        {cfg.description}
-                      </p>
-                    </div>
-                    {isActive && (
-                      <CheckCircle className={`h-4 w-4 shrink-0 ${cfg.color}`} />
-                    )}
-                  </button>
-                )
-              }
-            )}
-          </div>
+
+          {isDirectorOfficerMode ? (
+            <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+              {canUseAlpr && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const offline = !navigator.onLine
+                    const noCamera = !navigator.mediaDevices?.getUserMedia
+                    setActiveService('freedom_camping')
+                    setScanMode('detail')
+                    setDetailCameraOpen(true)
+                    setShowManualEntry(offline || noCamera)
+                    setManualPlate('')
+                    setManualZoneId('')
+                    setShowDetailPanel(false)
+                    setDetailScanData(null)
+                  }}
+                  className="flex items-center gap-4 rounded-2xl border-2 border-blue-300 dark:border-blue-800 bg-blue-50/80 dark:bg-blue-950/30 px-4 py-4 text-left transition-all active:scale-[0.98] hover:shadow-lg hover:border-blue-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
+                >
+                  <div className="h-12 w-12 rounded-xl bg-blue-600 flex items-center justify-center shrink-0 shadow-md">
+                    <Search className="h-6 w-6 text-white" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-base font-semibold text-blue-900 dark:text-blue-100 leading-tight">ALPR</p>
+                    <p className="text-xs text-blue-600 dark:text-blue-300 mt-0.5 leading-snug">Vehicle scan tools enabled for this site</p>
+                  </div>
+                </button>
+              )}
+
+              {canUseNoise && (
+                <button
+                  type="button"
+                  onClick={() => navigate('/noise-officer')}
+                  className="flex items-center gap-4 rounded-2xl border-2 border-yellow-300 dark:border-yellow-800 bg-yellow-50/80 dark:bg-yellow-950/30 px-4 py-4 text-left transition-all active:scale-[0.98] hover:shadow-lg hover:border-yellow-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400"
+                >
+                  <div className="h-12 w-12 rounded-xl bg-yellow-500 flex items-center justify-center shrink-0 shadow-md">
+                    <Volume2 className="h-6 w-6 text-white" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-base font-semibold text-yellow-900 dark:text-yellow-100 leading-tight">Noise</p>
+                    <p className="text-xs text-yellow-700 dark:text-yellow-300 mt-0.5 leading-snug">Noise tools enabled for this site</p>
+                  </div>
+                </button>
+              )}
+
+              {canUseSiteGuard && rosteredShift?.client_site_id && (
+                <button
+                  type="button"
+                  onClick={() => navigate(`/site-guard?site=${rosteredShift.client_site_id}&roster=${rosteredShift.id}`)}
+                  className="flex items-center gap-4 rounded-2xl border-2 border-indigo-300 dark:border-indigo-800 bg-indigo-50/80 dark:bg-indigo-950/30 px-4 py-4 text-left transition-all active:scale-[0.98] hover:shadow-lg hover:border-indigo-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
+                >
+                  <div className="h-12 w-12 rounded-xl bg-indigo-600 flex items-center justify-center shrink-0 shadow-md">
+                    <Shield className="h-6 w-6 text-white" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-base font-semibold text-indigo-900 dark:text-indigo-100 leading-tight">Site-Guard</p>
+                    <p className="text-xs text-indigo-600 dark:text-indigo-300 mt-0.5 leading-snug">Trespass watchlist + face-rec access for this site</p>
+                  </div>
+                </button>
+              )}
+
+              {!siteToolPermissions.isLoading && !hasInjectedToolAccess && (
+                <div className="rounded-xl border border-dashed border-gray-300 dark:border-gray-700 px-4 py-5 text-sm text-gray-600 dark:text-gray-300 sm:col-span-2 lg:col-span-3">
+                  No tools are enabled for your active rostered site.
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-2.5">
+              {(Object.entries(SERVICE_TYPE_CONFIG) as [ServiceType, typeof SERVICE_TYPE_CONFIG[ServiceType]][]).map(
+                ([key, cfg]) => {
+                  const isActive = activeService === key
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => setActiveService(isActive ? null : key)}
+                      aria-pressed={isActive}
+                      className={`flex items-center gap-3 rounded-2xl border-2 px-3 py-4 text-left transition-all active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 ${
+                        isActive
+                          ? `${cfg.borderColor} ${cfg.bgColor} shadow-lg`
+                          : 'border-gray-200/70 dark:border-gray-700/70 bg-white/60 dark:bg-white/5 hover:bg-white/90 dark:hover:bg-white/10'
+                      }`}
+                    >
+                      <div className={`h-10 w-10 rounded-xl flex items-center justify-center shrink-0 shadow-sm ${isActive ? cfg.bgColor : 'bg-gray-100 dark:bg-gray-800'}`}>
+                        <cfg.Icon className={`h-5 w-5 ${isActive ? cfg.color : 'text-gray-500 dark:text-gray-400'}`} />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className={`text-sm font-semibold leading-tight ${isActive ? cfg.color : 'text-gray-800 dark:text-gray-200'}`}>
+                          {cfg.label}
+                        </p>
+                        <p className="text-[11px] text-muted-foreground leading-snug mt-0.5 line-clamp-2">
+                          {cfg.description}
+                        </p>
+                      </div>
+                      {isActive && (
+                        <CheckCircle className={`h-4 w-4 shrink-0 ${cfg.color}`} />
+                      )}
+                    </button>
+                  )
+                }
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -1935,7 +2048,7 @@ export default function FieldOfficerPortal() {
           {/* ═══════════════════════════════════════════════════════════
               FREEDOM CAMPING PATROL tools
               ═══════════════════════════════════════════════════════════ */}
-          {activeService === 'freedom_camping' && (
+          {!isDirectorOfficerMode && activeService === 'freedom_camping' && (
             <>
               <h3 className="text-xs font-bold text-green-700 dark:text-green-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                 <Tent className="h-3.5 w-3.5" />
@@ -2011,7 +2124,7 @@ export default function FieldOfficerPortal() {
           {/* ═══════════════════════════════════════════════════════════
               GUARDING tools
               ═══════════════════════════════════════════════════════════ */}
-          {activeService === 'guarding' && (
+          {!isDirectorOfficerMode && activeService === 'guarding' && (
             <>
               <h3 className="text-xs font-bold text-blue-700 dark:text-blue-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                 <Shield className="h-3.5 w-3.5" />
@@ -2145,7 +2258,7 @@ export default function FieldOfficerPortal() {
           {/* ═══════════════════════════════════════════════════════════
               PARKING ENFORCEMENT tools
               ═══════════════════════════════════════════════════════════ */}
-          {activeService === 'parking' && (
+          {!isDirectorOfficerMode && activeService === 'parking' && (
             <>
               <h3 className="text-xs font-bold text-orange-700 dark:text-orange-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                 <ParkingSquare className="h-3.5 w-3.5" />
@@ -2183,7 +2296,7 @@ export default function FieldOfficerPortal() {
           {/* ═══════════════════════════════════════════════════════════
               NOISE CONTROL tools
               ═══════════════════════════════════════════════════════════ */}
-          {activeService === 'noise' && (
+          {!isDirectorOfficerMode && activeService === 'noise' && (
             <>
               <h3 className="text-xs font-bold text-yellow-700 dark:text-yellow-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                 <Volume2 className="h-3.5 w-3.5" />
@@ -2209,7 +2322,7 @@ export default function FieldOfficerPortal() {
           {/* ═══════════════════════════════════════════════════════════
               BIOSECURITY INSPECTION tools
               ═══════════════════════════════════════════════════════════ */}
-          {activeService === 'biosecurity_inspection' && (
+          {!isDirectorOfficerMode && activeService === 'biosecurity_inspection' && (
             <>
               <h3 className="text-xs font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                 <Leaf className="h-3.5 w-3.5" />
@@ -2235,7 +2348,7 @@ export default function FieldOfficerPortal() {
           {/* ═══════════════════════════════════════════════════════════
               SMOKE COMPLAINT OOH tools
               ═══════════════════════════════════════════════════════════ */}
-          {activeService === 'smoke_complaint_ooh' && (
+          {!isDirectorOfficerMode && activeService === 'smoke_complaint_ooh' && (
             <>
               <h3 className="text-xs font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                 <Wind className="h-3.5 w-3.5" />
@@ -2261,7 +2374,7 @@ export default function FieldOfficerPortal() {
           {/* ═══════════════════════════════════════════════════════════
               COMMON TOOLS — always visible (shared across all services)
               ═══════════════════════════════════════════════════════════ */}
-          {!activeService && (
+          {!isDirectorOfficerMode && !activeService && (
             <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 mb-6">
               <button
                 onClick={() => setShowCheckpoint(true)}
@@ -2692,7 +2805,7 @@ export default function FieldOfficerPortal() {
           {activeService && (
             <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 mb-6">
               {/* My Scans — shown for freedom_camping and guarding */}
-              {(activeService === 'freedom_camping' || activeService === 'guarding') && (
+              {!isDirectorOfficerMode && (activeService === 'freedom_camping' || activeService === 'guarding') && (
                 <button
                   onClick={handleViewHistory}
                   className="flex items-center gap-4 w-full rounded-2xl border-2 border-orange-200 dark:border-orange-800 bg-orange-50 dark:bg-orange-950/40 p-4 text-left hover:border-orange-400 hover:shadow-md active:scale-[0.97] transition-all"
@@ -2708,7 +2821,7 @@ export default function FieldOfficerPortal() {
               )}
 
               {/* Breach Alerts — shown for freedom_camping */}
-              {activeService === 'freedom_camping' && (
+              {!isDirectorOfficerMode && activeService === 'freedom_camping' && (
                 <>
                   <button
                     onClick={() => navigate('/breaches')}
@@ -2750,7 +2863,7 @@ export default function FieldOfficerPortal() {
               )}
 
               {/* Create Report — shown for guarding */}
-              {activeService === 'guarding' && (
+              {!isDirectorOfficerMode && activeService === 'guarding' && (
                 <button
                   onClick={handleOpenQuickReport}
                   className="flex items-center gap-4 w-full rounded-2xl border-2 border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-950/40 p-4 text-left hover:border-purple-400 hover:shadow-md active:scale-[0.97] transition-all"

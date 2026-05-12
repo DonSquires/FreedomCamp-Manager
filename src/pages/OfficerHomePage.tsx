@@ -62,6 +62,20 @@ import { useOfficerLocale } from '@/hooks/useOfficerLocale'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
 import { nzNow } from '@/lib/timezone'
+import { useSiteToolPermissions } from '@/middleware'
+
+function speakBobShiftHandshake(message: string): void {
+  if (typeof window === 'undefined' || !('speechSynthesis' in window)) return
+  try {
+    const utterance = new SpeechSynthesisUtterance(message)
+    utterance.rate = 1
+    utterance.pitch = 1
+    window.speechSynthesis.cancel()
+    window.speechSynthesis.speak(utterance)
+  } catch {
+    // Non-blocking fallback.
+  }
+}
 
 export default function OfficerHomePage() {
   const navigate = useNavigate()
@@ -69,6 +83,7 @@ export default function OfficerHomePage() {
   const { rosteredShift } = useRosteredShift()
   const { geofenceViolation, isRostered, hasActiveShift, activeShiftId } = useShiftGate()
   const { operationalOrganizationId } = useOperationalOrganization()
+  const siteToolPermissions = useSiteToolPermissions(user?.id, rosteredShift?.client_site_id)
   const queryClient = useQueryClient()
   const { t } = useOfficerLocale()
   const startOfficerShift = useStartOfficerShift()
@@ -204,14 +219,26 @@ export default function OfficerHomePage() {
 
       queryClient.invalidateQueries({ queryKey: ['officer-active-shift-gate'] })
       queryClient.invalidateQueries({ queryKey: ['officer-active-shift'] })
-      toast.success('Shift started')
+      const enabledToolNames = [
+        siteToolPermissions.alpr ? 'ALPR' : null,
+        siteToolPermissions.noise ? 'Noise Control' : null,
+        siteToolPermissions.siteGuard ? 'Trespass Watchlist and Face Rec' : null,
+      ].filter(Boolean)
+
+      const siteLabel = rosteredShift?.client_site_name || 'assigned site'
+      const handshake = enabledToolNames.length > 0
+        ? `Shift started at ${siteLabel}. ${enabledToolNames.join(' and ')} are now active.`
+        : `Shift started at ${siteLabel}. No site tools are currently enabled.`
+
+      toast.success(handshake)
+      speakBobShiftHandshake(handshake)
       if (rosterPortalPath) navigate(rosterPortalPath)
     } catch (err: any) {
       toast.error(err?.message ?? 'Failed to start shift')
     } finally {
       setIsStartingShift(false)
     }
-  }, [navigate, operationalOrganizationId, queryClient, rosterPortalPath, rosteredShift, startOfficerShift, user])
+  }, [navigate, operationalOrganizationId, queryClient, rosterPortalPath, rosteredShift, siteToolPermissions.alpr, siteToolPermissions.noise, siteToolPermissions.siteGuard, startOfficerShift, user])
 
   const today = format(nzNow(), 'EEEE d MMMM yyyy')
 
