@@ -76,7 +76,7 @@ jobs:
           mkdir -p "$HOME/.railway/bin"
           install -m 0755 railway "$HOME/.railway/bin/railway"
           echo "$HOME/.railway/bin" >> "$GITHUB_PATH"
-          railway --version
+          "$HOME/.railway/bin/railway" --version
 
       - name: Set Ollama model preload variables
         shell: bash
