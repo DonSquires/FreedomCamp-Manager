@@ -375,6 +375,49 @@ Phase-to-manual update scope:
 The platform automatically locks your session after a period of inactivity. You will see a lock screen requiring you to re-enter your password. Your data and open tabs are preserved — you do not need to log out and back in.
 
 ### 2.3 Portal Selection (Admin Officer role only)
+### 2.3a Phase 1: Officer Roster Gate & Welfare Standby (Director Phase)
+
+**Who sees this:** Field officers (officers and officer-admins)
+**What it does:** Ensures officers cannot access tactical tools without an active shift assignment
+
+#### When you log in without a shift assignment
+
+If you log in and **do not have an active roster shift** for today:
+
+1. You are automatically redirected to the **Welfare Standby Screen** (`/waiting-for-shift`)
+2. The screen displays:
+   - Your name, organisation, and photo
+   - A **waiting status** message: "You are not currently assigned to a shift"
+   - A **refresh button** to check for updates (roster updates are pulled every 30 seconds automatically)
+   - Access to the **Emergency button** and basic wellness check-in tools only
+3. Tactical modules (patrol zones, incident tracking, notices, etc.) are **hidden** and inaccessible
+4. **Channel/PTT access** is restricted to SOS-only (Emergency mode)
+
+#### Pre-shift window (coming in Phase 1 v2)
+
+When your shift is scheduled to start within the next 15 minutes:
+
+- The system will automatically transition you to the field officer portal
+- During the 15-minute window, only **Radio (PTT)** and **Emergency tools** are available
+- Other tactical modules unlock after the shift start time passes
+
+#### When you log in with a scheduled shift
+
+If you log in and **do have an active roster shift** for today:
+
+1. You are directed automatically to the **field-officer portal** and your assigned site/zone
+2. All modules relevant to your shift type are immediately available
+3. The site-tool permissions (ALPR, Noise, Site Guard) depend on whether your roster record grants access for this specific site
+
+#### Roster updates during your session
+
+- Roster assignments are cached for 60 seconds
+- If a new roster entry is created for you, the cache updates on the next poll cycle (max 60 second lag)
+- If you think you should have access but don't, try the **refresh** button on the welfare screen, or log out and log back in
+
+---
+
+### 2.3 Portal Selection (Admin Officer role only)
 
 If your account carries the `admin_officer` (dual) role, you will be presented with the **Portal Selection** screen after login. Choose the workspace that matches your current shift:
 

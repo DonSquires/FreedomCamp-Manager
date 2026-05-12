@@ -131,6 +131,33 @@ Latest Session Snapshot (Iron Eagle Visual Identity — doc lock-in — 2026-05-
   4. Add `danger-pulse` keyframe and viewport-overlay component for Armed Danger events.
 
 Latest Session Snapshot (Phased rollout continuation — 2026-05-12):
+Latest Session Snapshot (Star Trek Phase 1 Checkpoint — 2026-05-12):
+
+- Timestamp (NZ): 2026-05-12 22:15 NZST
+- Current branch: main
+- Scope completed:
+  - Fixed Supabase migration deployment for bug_reports RLS.
+  - Created and tested triage-bug-reports workflow improvements.
+  - Implemented Phase 1 checkpoint test: `tests/e2e/phase1-director-roster-gate.spec.ts`.
+  - Verified Director roster gate middleware in `src/middleware.ts` and `src/App.tsx`.
+
+- Phase 1 (Director: Roster and Access Gate) Evidence:
+  | Component | Status | Notes |
+  |---|---|---|
+  | Roster-to-route handshake | ✅ IMPLEMENTED | `useDirectorRosterGate()` validates active roster_shifts |
+  | Non-rostered redirect | ✅ IMPLEMENTED | Redirects to `/waiting-for-shift` in `src/App.tsx` line 612 |
+  | Tactical module hiding | ✅ IMPLEMENTED | `isDirectorOfficerPathAllowed()` enforces path restrictions |
+  | Pre-shift buffer logic | ⏳ PENDING | 15-minute buffer awaiting backend implementation |
+  | Checkpoint test | ✅ CREATED | `phase1-director-roster-gate.spec.ts` test suite ready |
+  | STAGING evidence | ✅ HERE | This section documents implementation |
+  | INSTRUCTION_MANUAL update | ⏳ PENDING | User behavior docs in section 2 awaiting update |
+
+- Next exact recovery steps for Phase 1 completion:
+  1. Update INSTRUCTION_MANUAL.md section 2 with Phase 1 user-facing behavior.
+  2. Run Phase 1 checkpoint test via Playwright in codespace.
+  3. Commit both docs together to mark Phase 1 checkpoint complete.
+
+Latest Session Snapshot (Phased rollout continuation — 2026-05-12):
 
 - Timestamp (NZ): 2026-05-12 21:38 NZST
 - Current branch: main
