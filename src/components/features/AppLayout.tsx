@@ -611,16 +611,16 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
               'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150',
               isActive
                 ? 'bg-primary/10 text-primary shadow-[inset_3px_0_0_hsl(var(--primary))] dark:bg-primary/15 ring-1 ring-primary/20'
-                : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700/60 dark:hover:text-gray-100'
+                : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-[#BDBDBD] dark:hover:bg-[#D32F2F]/10 dark:hover:text-white'
             )}
           >
-            <Icon className={cn('h-4 w-4 shrink-0', isActive ? 'text-primary' : 'text-gray-400 dark:text-gray-500')} />
+            <Icon className={cn('h-4 w-4 shrink-0', isActive ? 'text-primary' : 'text-gray-400 dark:text-[#9E9E9E]')} />
             <span>{item.label}</span>
           </Link>
         )
       })}
 
-      <div className="my-2 border-t border-gray-200/90 dark:border-gray-700/80" />
+      <div className="my-2 border-t border-gray-200/90 dark:border-[#9E9E9E]/20" />
 
       {/* Grouped navigation with accordion */}
       {navigationGroups.map((group) => {
@@ -647,18 +647,18 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
                 'flex w-full items-center justify-between px-3 py-2.5 rounded-lg text-sm font-semibold transition-all duration-150',
                 hasActiveChild
                   ? 'text-primary bg-primary/5 dark:bg-primary/15'
-                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700/60 dark:hover:text-gray-100'
+                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-[#BDBDBD] dark:hover:bg-[#D32F2F]/10 dark:hover:text-white'
               )}
             >
               <span className="flex items-center gap-3">
-                <GroupIcon className={cn('h-4 w-4 shrink-0', hasActiveChild ? 'text-primary' : 'text-gray-400 dark:text-gray-500')} />
+                <GroupIcon className={cn('h-4 w-4 shrink-0', hasActiveChild ? 'text-primary' : 'text-gray-400 dark:text-[#9E9E9E]')} />
                 <span>{group.label}</span>
               </span>
               <ChevronDown className={cn('h-3.5 w-3.5 transition-transform duration-200', isOpen && 'rotate-180')} />
             </button>
 
             {isOpen && (
-              <div className="ml-4 mt-1 space-y-1 border-l border-gray-200 dark:border-gray-700 pl-3">
+              <div className="ml-4 mt-1 space-y-1 border-l border-gray-200 dark:border-[#9E9E9E]/25 pl-3">
                 {visibleItems.map((item) => {
                   const Icon = item.icon
                   const isActive = location.pathname === item.path
@@ -671,10 +671,10 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
                         'flex items-center gap-3 px-2.5 py-2 rounded-lg text-sm transition-all duration-150',
                         isActive
                           ? 'bg-primary/10 text-primary font-medium dark:bg-primary/15 ring-1 ring-primary/20'
-                          : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700/60 dark:hover:text-gray-100'
+                          : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-[#BDBDBD] dark:hover:bg-[#D32F2F]/10 dark:hover:text-white'
                       )}
                     >
-                      <Icon className={cn('h-3.5 w-3.5 shrink-0', isActive ? 'text-primary' : 'text-gray-400 dark:text-gray-500')} />
+                      <Icon className={cn('h-3.5 w-3.5 shrink-0', isActive ? 'text-primary' : 'text-gray-400 dark:text-[#9E9E9E]')} />
                       <span className="min-w-0">
                         <span className="block truncate">{item.label}</span>
                         {item.scopeHint && (
@@ -1018,10 +1018,10 @@ export function AppLayout({ children, title, description, showBackButton, immers
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-100 via-slate-50 to-cyan-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-900">
+    <div className="min-h-screen bg-gradient-to-br from-slate-100 via-slate-50 to-cyan-50 dark:from-[#121212] dark:via-[#121212] dark:to-[#121212]">
       {/* Mobile Header */}
       {!immersive && (
-      <header className="lg:hidden bg-white/95 dark:bg-gray-800/95 backdrop-blur shadow-sm sticky top-0 z-40 border-b border-gray-200/60 dark:border-gray-700/60">
+      <header className="lg:hidden bg-white/95 dark:bg-[#1E1E1E] backdrop-blur shadow-sm sticky top-0 z-40 border-b border-gray-200/60 dark:border-[#9E9E9E]/20">
         <div className="px-4 py-3 space-y-2">
           <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -1031,14 +1031,14 @@ export function AppLayout({ children, title, description, showBackButton, immers
                   <Menu className="h-6 w-6" />
                 </Button>
               </SheetTrigger>
-              <SheetContent side="left" className="w-64 p-0">
+              <SheetContent side="left" className="w-64 p-0 dark:bg-[#1E1E1E] dark:border-[#9E9E9E]/20">
                 <div className="flex flex-col h-full">
-                  <div className="p-4 border-b dark:border-gray-700">
+                  <div className="p-4 border-b dark:border-[#9E9E9E]/20">
                     <h2 className="font-semibold text-lg">FieldOps</h2>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                    <p className="text-sm text-gray-600 dark:text-[#BDBDBD]">
                       {user?.full_name}
                     </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-500">
+                    <p className="text-xs text-gray-500 dark:text-[#9E9E9E]">
                       {user?.role === 'grand_master' ? 'Platform Administrator' :
                        user?.role === 'master' ? 'System Admin' : 
                        user?.role === 'admin' ? 'Admin' :
@@ -1051,10 +1051,10 @@ export function AppLayout({ children, title, description, showBackButton, immers
                     <NavigationLinks onClick={() => setSidebarOpen(false)} />
                   </div>
 
-                  <div className="p-4 border-t dark:border-gray-700">
+                  <div className="p-4 border-t dark:border-[#9E9E9E]/20">
                     <Button 
                       variant="outline" 
-                      className="w-full justify-start"
+                      className="w-full justify-start dark:border-[#9E9E9E]/30 dark:text-[#BDBDBD] dark:hover:bg-[#D32F2F]/10 dark:hover:text-white dark:hover:border-[#D32F2F]/40"
                       onClick={handleLogout}
                     >
                       <LogOut className="h-4 w-4 mr-2" />
@@ -1113,33 +1113,33 @@ export function AppLayout({ children, title, description, showBackButton, immers
       {/* Desktop Sidebar */}
       <aside
         className={cn(
-          'hidden lg:block fixed inset-y-0 left-0 w-64 bg-white/95 dark:bg-gray-800/95 backdrop-blur border-r dark:border-gray-700 z-30 transition-transform duration-200 shadow-[2px_0_14px_-2px_rgba(0,0,0,0.1)] dark:shadow-[2px_0_14px_-2px_rgba(0,0,0,0.45)]',
+          'hidden lg:block fixed inset-y-0 left-0 w-64 bg-white/95 dark:bg-[#1E1E1E] backdrop-blur border-r dark:border-[#9E9E9E]/20 z-30 transition-transform duration-200 shadow-[2px_0_14px_-2px_rgba(0,0,0,0.1)] dark:shadow-[2px_0_14px_-2px_rgba(0,0,0,0.55)]',
           desktopNavOpen ? 'translate-x-0' : '-translate-x-full'
         )}
       >
         <div className="flex flex-col h-full">
-          <div className="p-5 border-b dark:border-gray-700 bg-gradient-to-br from-cyan-700 via-cyan-800 to-slate-900 dark:from-cyan-900 dark:via-cyan-950 dark:to-slate-950">
+          <div className="p-5 border-b dark:border-[#9E9E9E]/20 bg-gradient-to-br from-cyan-700 via-cyan-800 to-slate-900 dark:from-[#121212] dark:via-[#1E1E1E] dark:to-[#121212]">
             <div className="flex items-start justify-between">
               <div className="min-w-0">
                 <h2 className="font-bold text-xl text-white">FieldOps</h2>
-                <p className="text-sm text-cyan-100 mt-0.5 truncate">
+                <p className="text-sm text-cyan-100 dark:text-[#BDBDBD] mt-0.5 truncate">
                   {user?.full_name}
                 </p>
-                <p className="text-xs text-cyan-200 mt-0.5">
+                <p className="text-xs text-cyan-200 dark:text-[#9E9E9E] mt-0.5">
                   {user?.role === 'grand_master' ? 'Platform Administrator' :
                    user?.role === 'master' ? 'System Administrator' : 
                    user?.role === 'admin' ? 'Administrator' :
                   user?.role === 'admin_officer' ? 'Admin Officer' :
                   user?.role === 'nzscv_monitor' ? 'NZSCV Monitor' : 'Field Officer'}
                 </p>
-                <p className="mt-2 inline-flex rounded-full border border-cyan-200/30 bg-cyan-500/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-cyan-100">
+                <p className="mt-2 inline-flex rounded-full border border-cyan-200/30 dark:border-[#D32F2F]/40 bg-cyan-500/20 dark:bg-[#D32F2F]/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-cyan-100 dark:text-[#D32F2F]">
                   Operations Console
                 </p>
               </div>
               <button
                 onClick={toggleDesktopNav}
                 title="Collapse sidebar"
-                className="mt-0.5 shrink-0 rounded p-1 text-cyan-200 hover:bg-cyan-600/50 hover:text-white transition-colors"
+                className="mt-0.5 shrink-0 rounded p-1 text-cyan-200 dark:text-[#9E9E9E] hover:bg-cyan-600/50 dark:hover:bg-[#D32F2F]/20 hover:text-white dark:hover:text-white transition-colors"
               >
                 <ChevronLeft className="h-4 w-4" />
               </button>
@@ -1150,10 +1150,10 @@ export function AppLayout({ children, title, description, showBackButton, immers
             <NavigationLinks />
           </div>
 
-          <div className="p-4 border-t dark:border-gray-700">
+          <div className="p-4 border-t dark:border-[#9E9E9E]/20">
             <Button 
               variant="outline" 
-              className="w-full justify-start"
+              className="w-full justify-start dark:border-[#9E9E9E]/30 dark:text-[#BDBDBD] dark:hover:bg-[#D32F2F]/10 dark:hover:text-white dark:hover:border-[#D32F2F]/40"
               onClick={handleLogout}
             >
               <LogOut className="h-4 w-4 mr-2" />
@@ -1167,7 +1167,7 @@ export function AppLayout({ children, title, description, showBackButton, immers
       <div className={cn('transition-[padding] duration-200', desktopNavOpen ? 'lg:pl-64' : 'lg:pl-0')}>
         {/* Desktop Header */}
         {!immersive && (
-        <header className="hidden lg:block bg-white/95 dark:bg-gray-800/90 backdrop-blur shadow-[0_2px_8px_-2px_rgba(0,0,0,0.1)] dark:shadow-[0_2px_8px_-2px_rgba(0,0,0,0.4)] sticky top-0 z-20 border-b border-gray-100/90 dark:border-gray-700/60">
+        <header className="hidden lg:block bg-white/95 dark:bg-[#1E1E1E] backdrop-blur shadow-[0_2px_8px_-2px_rgba(0,0,0,0.1)] dark:shadow-[0_2px_8px_-2px_rgba(0,0,0,0.5)] sticky top-0 z-20 border-b border-gray-100/90 dark:border-[#9E9E9E]/20">
           <div className="px-6 py-4">
             <div className="flex items-center justify-between">
               <div className="flex items-start gap-3">

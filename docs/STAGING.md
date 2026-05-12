@@ -4,6 +4,43 @@ Date: 2026-05-12
 Owner: GitHub Copilot
 Status: Active staging checklist — Sprints 50-70 complete on main; Iron Eagle Visual Identity locked in docs (2026-05-12)
 
+Latest Session Snapshot (Iron Eagle Visual Identity — rollout phase 3 — 2026-05-12):
+
+- Timestamp (NZ): 2026-05-12 22:15 NZST
+- Current branch: `copilot/create-phased-role-out-plan`
+- Scope completed:
+  - Applied Iron Eagle dark palette to `AppLayout.tsx` (Admin Shell):
+    - Desktop sidebar bg: `dark:bg-[#1E1E1E]`; border: `dark:border-[#9E9E9E]/20`
+    - Sidebar header brand area: dark gradient replaced with `#121212` → `#1E1E1E`; user-name uses `#BDBDBD`; role label uses `#9E9E9E`; "Operations Console" badge switches to Iron Eagle red
+    - Active nav items: inherit Iron Eagle `--primary` red automatically (already updated); icon silver at rest `#9E9E9E`, white on hover
+    - Nav separator and accordion sub-item border: `dark:border-[#9E9E9E]/20`
+    - Logout button: `dark:border-[#9E9E9E]/30` / `dark:hover:bg-[#D32F2F]/10` / `dark:hover:border-[#D32F2F]/40`
+    - Desktop header: `dark:bg-[#1E1E1E]`; border: `dark:border-[#9E9E9E]/20`
+    - Mobile header: same surface colours
+    - Mobile SheetContent: `dark:bg-[#1E1E1E]`
+    - App root gradient (dark): `dark:from-[#121212] dark:via-[#121212] dark:to-[#121212]` (flat black)
+
+- Checklist:
+  | Item | Status |
+  |---|---|
+  | Desktop sidebar Iron Eagle dark identity | ✅ DONE |
+  | Sidebar brand header with red badge | ✅ DONE |
+  | Nav active/hover states use Iron Eagle tokens | ✅ DONE |
+  | Desktop header Iron Eagle dark bg | ✅ DONE |
+  | Mobile header + drawer Iron Eagle dark bg | ✅ DONE |
+  | App root dark bg flat Iron Eagle black | ✅ DONE |
+
+- Validation evidence:
+  | Command | Result | Notes |
+  |---|---|---|
+  | `bun run lint` | PASS | ESLint completed without errors |
+  | `bun run build` | PASS | TypeScript + Vite build succeeded in 32.47 s |
+
+- Next rollout steps:
+  1. **Officer Shell — FieldSafetyBar**: apply `ie-bg-surface` + `ie-silver/20` border so the safety strip matches the tactical dark theme.
+  2. **Officer Portal header**: update `FieldOfficerPortal` header gradient to Iron Eagle black/red.
+  3. **Card surfaces**: scan high-frequency admin pages (Dispatch, LiveTracking, Compliance) and ensure all `dark:bg-gray-*` surface references use `#1E1E1E` or `#2A2A2A`.
+
 Latest Session Snapshot (Iron Eagle Visual Identity — rollout phase 2 — 2026-05-12):
 
 - Timestamp (NZ): 2026-05-12 22:01 NZST
