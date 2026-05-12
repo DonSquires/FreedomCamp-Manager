@@ -4,6 +4,35 @@ Date: 2026-05-11
 Owner: GitHub Copilot
 Status: Active staging checklist — Sprints 50-70 complete on main; no staged sprints remaining (2026-05-11)
 
+Latest Session Snapshot (Star Trek takeover and continuation — 2026-05-12):
+
+- Timestamp (NZ): 2026-05-12 21:15 NZST
+- Current branch: main
+- Scope completed:
+  - Recovered and verified prior realignment session artifacts, including the Phase A docs commit now on main.
+  - Re-ran core quality and governance gates from repo root using npm prefix execution.
+  - Fixed a shell safety bug in toolchain verification script where an unset variable caused false failure under strict mode.
+
+- Validation evidence:
+  | Command | Result | Notes |
+  |---|---|---|
+  | `npm --prefix /workspaces/FreedomCamp-Manager run lint` | PASS | ESLint exit code 0 |
+  | `npm --prefix /workspaces/FreedomCamp-Manager run build` | PASS | TypeScript + Vite build succeeded |
+  | `npm --prefix /workspaces/FreedomCamp-Manager run test:bob:governance` | PASS | 6/6 governance tests passed |
+  | `npm --prefix /workspaces/FreedomCamp-Manager exec playwright test tests/e2e/bootstrap-routes.test.ts --reporter=line` | FAIL | Browser binaries not installed in container; command requests `npx playwright install` |
+  | `bash scripts/check-required-tools.sh` | PARTIAL | now reports missing tools cleanly; `rg` still missing in container |
+  | `bash scripts/check-required-tools.sh` (post-install) | PASS | all required tools now present, including `rg` |
+
+- Open blockers:
+  | Blocker | Evidence | Impact |
+  |---|---|---|
+  | Playwright browser payloads missing | bootstrap-routes run reports missing executable for chromium headless shell | cannot produce local bootstrap route gate pass evidence until browsers are installed |
+
+- Next exact recovery steps:
+  1. Install Playwright browsers with `npm --prefix /workspaces/FreedomCamp-Manager exec playwright install`.
+  2. Re-run Phase A bootstrap route E2E evidence command and attach result.
+  3. Keep org isolation CI harness evidence current from `.github/workflows/ci-org-isolation-api.yml`.
+
 Latest Session Snapshot (Mobile welfare background hardening + doc sync — 2026-05-11):
 
 - Timestamp (NZ): 2026-05-11 23:03 NZST

@@ -2,8 +2,23 @@
 
 **Document purpose**: Track the Phase A prerequisite gates and Phase B delivery slice status.  
 **Authoritative source**: `docs/BUILD_REALIGNMENT_PLAN_2026-05-04.md` sections 11.2, 11.2a, 12.1, and 12.1a  
-**Date**: 2026-05-05  
-**Status**: Phase A execution in progress (Week 2 complete — May 19–25)
+**Date**: 2026-05-12  
+**Status**: Phase A execution in progress (Star Trek takeover continued; local quality and governance gates green)
+
+## Star Trek Takeover Validation (2026-05-12)
+
+| Command | Result | Notes |
+|---|---|---|
+| `npm --prefix /workspaces/FreedomCamp-Manager run lint` | ✅ PASS | ESLint exit code 0 |
+| `npm --prefix /workspaces/FreedomCamp-Manager run build` | ✅ PASS | TypeScript + Vite build succeeded |
+| `npm --prefix /workspaces/FreedomCamp-Manager run test:bob:governance` | ✅ PASS | 6/6 tests passed |
+| `npm --prefix /workspaces/FreedomCamp-Manager exec playwright test tests/e2e/bootstrap-routes.test.ts --reporter=line` | ❌ FAIL | Playwright browser binaries missing in local container (`npx playwright install` required) |
+
+Takeover delta:
+- Added recovery continuity from the previous realignment session now present on main at commit `daea930d`.
+- Fixed strict-mode toolchain checker failure in `scripts/check-required-tools.sh` to avoid false negatives when `BUN_INSTALL` is unset.
+- Confirmed org isolation harness is wired in CI via `.github/workflows/ci-org-isolation-api.yml` with explicit run of `tests/integration/org-isolation.test.ts`.
+- Remaining prerequisite gates that still require CI/staging evidence are bootstrap routes smoke pass and strict org-isolation enforcement setting in runtime governance.
 
 ---
 
