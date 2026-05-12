@@ -485,6 +485,44 @@ If emergency priority mode is active, Bob blocks administrative provisioning and
 - Incomplete commands produce a clarification question and wait for your answer.
 - Blocked commands include a reason and preserve context for retry once constraints clear.
 
+### 2.3d Phase 4: Admiral's Bridge (Welfare and Enforcement)
+
+**Who sees this:** Administrators, supervisors, and officers issuing enforcement notices
+**What it does:** Adds emergency tactical escalation visibility and a mandatory human fire-control key for legal print actions.
+
+#### Tactical map emergency escalation
+
+When a welfare alert includes SOS / armed-danger indicators:
+
+1. The operations map enters emergency mode with a red pulsing map border.
+2. A persistent emergency broadcast banner appears with the officer name and live GPS coordinates.
+3. Supervisors can use the displayed coordinates as immediate dispatch guidance while the alert remains active.
+
+This behavior is intended to satisfy the Phase 4 check-and-balance requirement for armed-danger keyword escalation.
+
+#### Pre-arrival safety dossier (last 24 hours)
+
+Before issuing a Notice to Vacate for a selected zone, the issue workflow now displays a **24h Pre-arrival Safety Dossier** with:
+
+1. Observation count in the last 24 hours.
+2. Incident count in the last 24 hours.
+3. Welfare alert count in the last 24 hours.
+4. Aggression/friction signal count extracted from note text.
+5. Computed risk badge: low, medium, high, or critical.
+
+Operators must review this dossier before site arrival and adapt approach/de-escalation posture to the risk level shown.
+
+#### Enforcement print authorization (fire-control key)
+
+Notice preview now enforces a human-in-the-loop print gate:
+
+1. Officer opens notice preview.
+2. Officer types a digital signature (full account name).
+3. Officer clicks **Authorize Print**.
+4. Print button remains disabled until authorization succeeds.
+
+This guarantees Bob/system drafting does not bypass human legal authorization for printed enforcement output.
+
 ---
 
 ### 2.3 Portal Selection (Admin Officer role only)

@@ -18,14 +18,22 @@ name: Ops Bob Code Task
 #   7. git commit -am "..." && gh pr create
 #   8. POST /code/tasks/:id/result or /fail  → report outcome to Bob
 #
+# Manual fallback mode:
+#   - If Bob/Dr service is unavailable, workflow_dispatch with a non-empty
+#     task input can still execute local codegen + branch + PR flow.
+#
 # Triggers:
 #   - Scheduled: every hour
 #   - Manual: workflow_dispatch (with optional task and file list)
 #
-# Required repository secrets:
+# Required repository credentials (Secrets or Variables):
+#   BOB_CODE_TASK_SERVICE_URL              — preferred URL for /code/task endpoints
 #   BOB_SERVICE_URL or INFERENCE_SERVICE_URL    — Bob service URL (RunPod)
 #   BOB_INFERENCE_API_KEY or INFERENCE_API_KEY  — x-inference-api-key header
 #   (optional fallback) SUPABASE_SERVICE_ROLE_KEY — accepted by inference auth
+#   GitHub token with contents:write, pull-requests:write, models:read
+# Optional token override secret:
+#   BOB_GITHUB_TOKEN  — if set, used for Models API and gh CLI instead of github.token
 #
 # Optional:
 #   BOB_CODE_TASK_LIMIT  — max tasks per run (default: 3)
@@ -78,63 +86,174 @@ jobs:
           set -euo pipefail
 
           missing=""
-          BASE_URL="${BOB_SERVICE_URL:-${INFERENCE_SERVICE_URL:-}}"
+          EXECUTION_MODE="none"
+          MANUAL_TASK=""
 
-          [ -z "$BASE_URL" ] && missing="$missing BOB_SERVICE_URL-or-INFERENCE_SERVICE_URL"
+          if [ "${GITHUB_EVENT_NAME:-}" = "workflow_dispatch" ]; then
+            MANUAL_TASK=$(jq -r '.inputs.task // ""' "$GITHUB_EVENT_PATH")
+          fi
+
+          CANDIDATE_BASE_URL_NAMES=(
+            "BOB_CODE_TASK_SERVICE_URL"
+            "BOB_CODE_TASK_SERVICE_URL_VAR"
+            "BOB_SERVICE_URL"
+            "INFERENCE_SERVICE_URL"
+            "BOB_SERVICE_URL_VAR"
+            "INFERENCE_SERVICE_URL_VAR"
+          )
+
+          CANDIDATE_BASE_URLS=(
+            "${BOB_CODE_TASK_SERVICE_URL:-}"
+            "${BOB_CODE_TASK_SERVICE_URL_VAR:-}"
+            "${BOB_SERVICE_URL:-}"
+            "${INFERENCE_SERVICE_URL:-}"
+            "${BOB_SERVICE_URL_VAR:-}"
+            "${INFERENCE_SERVICE_URL_VAR:-}"
+          )
+
+          if [ -z "${GITHUB_TOKEN:-}" ]; then
+            missing="$missing github-token"
+          fi
 
           if [ -n "$missing" ]; then
-            echo "::warning::Missing required secrets:$missing — code task workflow skipped."
+            echo "::notice::Skipping Bob code task workflow. Missing required secrets:$missing"
             echo "can_run=false" >> "$GITHUB_OUTPUT"
+            echo "skip_reason=missing_required_credentials" >> "$GITHUB_OUTPUT"
+            echo "execution_mode=none" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          BASE_URL="${BASE_URL%/}"
-          [[ "$BASE_URL" != http://* && "$BASE_URL" != https://* ]] && BASE_URL="https://$BASE_URL"
+          HAS_BASE_URL="false"
+          SELECTED_BASE_URL=""
+          SELECTED_BASE_URL_NAME=""
+
+          CANDIDATE_KEY_NAMES=(
+            "BOB_INFERENCE_API_KEY"
+            "INFERENCE_API_KEY"
+            "SUPABASE_SERVICE_ROLE_KEY"
+            "BOB_INFERENCE_API_KEY_VAR"
+            "INFERENCE_API_KEY_VAR"
+          )
 
           CANDIDATE_KEYS=(
             "${BOB_INFERENCE_API_KEY:-}"
             "${INFERENCE_API_KEY:-}"
             "${SUPABASE_SERVICE_ROLE_KEY:-}"
+            "${BOB_INFERENCE_API_KEY_VAR:-}"
+            "${INFERENCE_API_KEY_VAR:-}"
           )
 
           SELECTED_KEY=""
-          for KEY in "${CANDIDATE_KEYS[@]}"; do
-            [ -z "$KEY" ] && continue
+          SELECTED_KEY_NAME=""
+          PROVIDED_KEY_COUNT=0
+          LAST_HTTP_STATUS=""
+          for urlIndex in "${!CANDIDATE_BASE_URLS[@]}"; do
+            BASE_URL_RAW="${CANDIDATE_BASE_URLS[$urlIndex]}"
+            BASE_URL_NAME="${CANDIDATE_BASE_URL_NAMES[$urlIndex]}"
+            [ -z "$BASE_URL_RAW" ] && continue
 
-            HTTP_STATUS=$(curl -s -o /tmp/pending-auth-probe.json -w "%{http_code}" \
-              --max-time 20 \
-              "${BASE_URL}/code/tasks/pending?limit=1" \
-              -H "x-inference-api-key: ${KEY}")
+            HAS_BASE_URL="true"
+            BASE_URL="${BASE_URL_RAW%/}"
+            [[ "$BASE_URL" != http://* && "$BASE_URL" != https://* ]] && BASE_URL="https://$BASE_URL"
 
-            if [ "$HTTP_STATUS" = "200" ]; then
-              SELECTED_KEY="$KEY"
-              break
-            fi
+            for i in "${!CANDIDATE_KEYS[@]}"; do
+              KEY="${CANDIDATE_KEYS[$i]}"
+              KEY_NAME="${CANDIDATE_KEY_NAMES[$i]}"
+              [ -z "$KEY" ] && continue
+              PROVIDED_KEY_COUNT=$((PROVIDED_KEY_COUNT + 1))
+
+              HTTP_STATUS=$(curl -s -o /tmp/pending-auth-probe.json -w "%{http_code}" \
+                --max-time 20 \
+                "${BASE_URL}/code/tasks/pending?limit=1" \
+                -H "x-inference-api-key: ${KEY}")
+              LAST_HTTP_STATUS="$HTTP_STATUS"
+
+              if [ "$HTTP_STATUS" = "200" ]; then
+                SELECTED_BASE_URL="$BASE_URL"
+                SELECTED_BASE_URL_NAME="$BASE_URL_NAME"
+                SELECTED_KEY="$KEY"
+                SELECTED_KEY_NAME="$KEY_NAME"
+                break 2
+              fi
+            done
           done
 
           if [ -z "$SELECTED_KEY" ]; then
-            echo "::warning::Could not reach Bob service at $BASE_URL — service may be offline. Code task workflow skipped."
-            echo "Tried: BOB_INFERENCE_API_KEY, INFERENCE_API_KEY, SUPABASE_SERVICE_ROLE_KEY"
+            if [ "$HAS_BASE_URL" != "true" ]; then
+              echo "::notice::Bob service URL not configured; Bob mode unavailable."
+              echo "skip_reason=bob_service_url_missing_or_unavailable" >> "$GITHUB_OUTPUT"
+            elif [ "$PROVIDED_KEY_COUNT" -eq 0 ]; then
+              echo "::notice::Bob service credentials not available (BOB_INFERENCE_API_KEY, INFERENCE_API_KEY, SUPABASE_SERVICE_ROLE_KEY)."
+              echo "skip_reason=missing_inference_api_key_or_unavailable_service" >> "$GITHUB_OUTPUT"
+            else
+              echo "::notice::Bob service probe did not find a working /code/tasks endpoint (last HTTP ${LAST_HTTP_STATUS:-unknown})."
+              echo "Attempted keys: BOB_INFERENCE_API_KEY, INFERENCE_API_KEY, SUPABASE_SERVICE_ROLE_KEY, BOB_INFERENCE_API_KEY_VAR, INFERENCE_API_KEY_VAR"
+              echo "Attempted service URLs: BOB_CODE_TASK_SERVICE_URL, BOB_SERVICE_URL, INFERENCE_SERVICE_URL (secrets and vars)"
+              echo "skip_reason=bob_service_unreachable_or_unauthorized_or_unavailable" >> "$GITHUB_OUTPUT"
+            fi
+          else
+            EXECUTION_MODE="bob"
+          fi
+
+          MODELS_STATUS=$(curl -s -o /tmp/models-auth-probe.json -w "%{http_code}" \
+            --max-time 20 \
+            -X POST "https://models.inference.ai.azure.com/chat/completions" \
+            -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d '{"model":"gpt-4o-mini","messages":[{"role":"user","content":"ping"}],"max_tokens":1}' 2>/dev/null || echo "000")
+
+          if [ "$MODELS_STATUS" != "200" ]; then
+            echo "::notice::Skipping Bob code task workflow. GitHub Models auth probe failed (HTTP ${MODELS_STATUS}). Ensure token has models:read permission."
             echo "can_run=false" >> "$GITHUB_OUTPUT"
+            echo "skip_reason=github_models_auth_failed" >> "$GITHUB_OUTPUT"
+            echo "execution_mode=none" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          echo "BOB_SERVICE_URL=$BASE_URL" >> "$GITHUB_ENV"
-          echo "::add-mask::$SELECTED_KEY"
-          echo "BOB_INFERENCE_API_KEY=$SELECTED_KEY" >> "$GITHUB_ENV"
-          echo "can_run=true" >> "$GITHUB_OUTPUT"
+          if [ "$EXECUTION_MODE" = "bob" ]; then
+            echo "BOB_SERVICE_URL=$SELECTED_BASE_URL" >> "$GITHUB_ENV"
+            echo "::add-mask::$SELECTED_KEY"
+            echo "BOB_INFERENCE_API_KEY=$SELECTED_KEY" >> "$GITHUB_ENV"
+            echo "BOB_SERVICE_URL_SOURCE=$SELECTED_BASE_URL_NAME" >> "$GITHUB_ENV"
+            echo "BOB_INFERENCE_KEY_SOURCE=$SELECTED_KEY_NAME" >> "$GITHUB_ENV"
+            echo "can_run=true" >> "$GITHUB_OUTPUT"
+            echo "skip_reason=none" >> "$GITHUB_OUTPUT"
+            echo "execution_mode=bob" >> "$GITHUB_OUTPUT"
+            echo "✅ Credential preflight passed ($SELECTED_BASE_URL_NAME + $SELECTED_KEY_NAME + GitHub Models token)"
+            exit 0
+          fi
+
+          if [ "${GITHUB_EVENT_NAME:-}" = "workflow_dispatch" ] && [ -n "$MANUAL_TASK" ]; then
+            echo "::notice::Bob service unavailable. Entering manual fallback mode using workflow_dispatch task input."
+            echo "can_run=true" >> "$GITHUB_OUTPUT"
+            echo "skip_reason=none" >> "$GITHUB_OUTPUT"
+            echo "execution_mode=manual_fallback" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "::notice::Skipping Bob code task workflow. Bob service unavailable and no manual fallback task provided."
+          echo "can_run=false" >> "$GITHUB_OUTPUT"
+          echo "skip_reason=bob_unavailable_and_no_manual_fallback_task" >> "$GITHUB_OUTPUT"
+          echo "execution_mode=none" >> "$GITHUB_OUTPUT"
         env:
+          BOB_CODE_TASK_SERVICE_URL: ${{ secrets.BOB_CODE_TASK_SERVICE_URL }}
           BOB_SERVICE_URL: ${{ secrets.BOB_SERVICE_URL }}
           INFERENCE_SERVICE_URL: ${{ secrets.INFERENCE_SERVICE_URL }}
           BOB_INFERENCE_API_KEY: ${{ secrets.BOB_INFERENCE_API_KEY }}
           INFERENCE_API_KEY: ${{ secrets.INFERENCE_API_KEY }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          BOB_CODE_TASK_SERVICE_URL_VAR: ${{ vars.BOB_CODE_TASK_SERVICE_URL }}
+          BOB_SERVICE_URL_VAR: ${{ vars.BOB_SERVICE_URL }}
+          INFERENCE_SERVICE_URL_VAR: ${{ vars.INFERENCE_SERVICE_URL }}
+          BOB_INFERENCE_API_KEY_VAR: ${{ vars.BOB_INFERENCE_API_KEY }}
+          INFERENCE_API_KEY_VAR: ${{ vars.INFERENCE_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.BOB_GITHUB_TOKEN || github.token }}
 
       # -----------------------------------------------------------------------
       # 2. Optional: queue a manually supplied task
       # -----------------------------------------------------------------------
       - name: Queue manual task (if provided)
-        if: steps.validate.outputs.can_run == 'true' && github.event_name == 'workflow_dispatch'
+        if: steps.validate.outputs.can_run == 'true' && steps.validate.outputs.execution_mode == 'bob' && github.event_name == 'workflow_dispatch'
         env:
           BOB_SERVICE_URL: ${{ env.BOB_SERVICE_URL }}
           BOB_INFERENCE_API_KEY: ${{ env.BOB_INFERENCE_API_KEY }}
@@ -177,7 +296,7 @@ jobs:
       # -----------------------------------------------------------------------
       - name: Fetch pending code tasks
         id: fetch
-        if: steps.validate.outputs.can_run == 'true'
+        if: steps.validate.outputs.can_run == 'true' && steps.validate.outputs.execution_mode == 'bob'
         env:
           BOB_SERVICE_URL: ${{ env.BOB_SERVICE_URL }}
           BOB_INFERENCE_API_KEY: ${{ env.BOB_INFERENCE_API_KEY }}
@@ -212,21 +331,47 @@ jobs:
             jq -r '.tasks[] | "  [\(.short_id)] (\(.priority)) \(.task[:80])"' /tmp/pending.json
           fi
 
+      - name: Build manual fallback task payload
+        id: fetch_fallback
+        if: steps.validate.outputs.can_run == 'true' && steps.validate.outputs.execution_mode == 'manual_fallback'
+        run: |
+          TASK=$(jq -r '.inputs.task // ""' "$GITHUB_EVENT_PATH")
+          PRIORITY=$(jq -r '.inputs.priority // "high"' "$GITHUB_EVENT_PATH")
+          TARGET_FILES=$(jq -r '.inputs.target_files // ""' "$GITHUB_EVENT_PATH")
+
+          FILES_JSON="[]"
+          if [ -n "$TARGET_FILES" ]; then
+            FILES_JSON=$(echo "$TARGET_FILES" | tr ',' '\n' | sed '/^$/d' | jq -R . | jq -s .)
+          fi
+
+          jq -n \
+            --arg task "$TASK" \
+            --arg priority "$PRIORITY" \
+            --arg short_id "manual-$(date +%s)" \
+            --arg id "manual-fallback-task" \
+            --arg context "Manual fallback execution (Bob service unavailable)." \
+            --arg bob_plan "" \
+            --argjson target_files "$FILES_JSON" \
+            '{count: 1, tasks: [{id: $id, short_id: $short_id, task: $task, priority: $priority, context: $context, bob_plan: $bob_plan, target_files: $target_files}]}' > /tmp/pending.json
+
+          echo "📋 Built 1 manual fallback task for local execution"
+          echo "task_count=1" >> "$GITHUB_OUTPUT"
+
       # -----------------------------------------------------------------------
       # 4. Checkout repo (needed for reading files and creating branches)
       # -----------------------------------------------------------------------
       - name: Checkout repository
-        if: steps.validate.outputs.can_run == 'true' && steps.fetch.outputs.task_count != '0'
+        if: steps.validate.outputs.can_run == 'true' && (steps.fetch.outputs.task_count != '0' || steps.fetch_fallback.outputs.task_count != '0')
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.BOB_GITHUB_TOKEN || github.token }}
 
       # -----------------------------------------------------------------------
       # 5. Set up bun
       # -----------------------------------------------------------------------
       - name: Set up bun
-        if: steps.validate.outputs.can_run == 'true' && steps.fetch.outputs.task_count != '0'
+        if: steps.validate.outputs.can_run == 'true' && (steps.fetch.outputs.task_count != '0' || steps.fetch_fallback.outputs.task_count != '0')
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
@@ -235,7 +380,7 @@ jobs:
       # 6. Configure git author for commits
       # -----------------------------------------------------------------------
       - name: Configure git identity
-        if: steps.validate.outputs.can_run == 'true' && steps.fetch.outputs.task_count != '0'
+        if: steps.validate.outputs.can_run == 'true' && (steps.fetch.outputs.task_count != '0' || steps.fetch_fallback.outputs.task_count != '0')
         run: |
           git config user.name  "Bob (FieldOps AI)"
           git config user.email "bob-ai[bot]@users.noreply.github.com"
@@ -244,12 +389,13 @@ jobs:
       # 7. Process each pending task
       # -----------------------------------------------------------------------
       - name: Execute code tasks
-        if: steps.validate.outputs.can_run == 'true' && steps.fetch.outputs.task_count != '0'
+        if: steps.validate.outputs.can_run == 'true' && (steps.fetch.outputs.task_count != '0' || steps.fetch_fallback.outputs.task_count != '0')
         env:
           BOB_SERVICE_URL: ${{ env.BOB_SERVICE_URL }}
           BOB_INFERENCE_API_KEY: ${{ env.BOB_INFERENCE_API_KEY }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.BOB_GITHUB_TOKEN || github.token }}
+          GH_TOKEN: ${{ secrets.BOB_GITHUB_TOKEN || github.token }}
+          EXECUTION_MODE: ${{ steps.validate.outputs.execution_mode }}
           CODE_MODEL: gpt-4o
         run: |
           set -e
@@ -314,10 +460,12 @@ jobs:
             echo "════════════════════════════════════════"
 
             # Mark task in_progress
-            curl -s --max-time 20 \
-              -X POST "${BOB_SERVICE_URL}/code/tasks/${TASK_ID}/start" \
-              -H "x-inference-api-key: ${BOB_INFERENCE_API_KEY}" \
-              > /dev/null
+            if [ "$EXECUTION_MODE" = "bob" ]; then
+              curl -s --max-time 20 \
+                -X POST "${BOB_SERVICE_URL}/code/tasks/${TASK_ID}/start" \
+                -H "x-inference-api-key: ${BOB_INFERENCE_API_KEY}" \
+                > /dev/null
+            fi
 
             # Ensure we start from a clean main branch state
             git checkout main 2>/dev/null || git checkout master 2>/dev/null || true
@@ -362,11 +510,13 @@ jobs:
             if [ "$MODELS_STATUS" != "200" ]; then
               echo "::error::Code generation failed (HTTP $MODELS_STATUS)"
               cat /tmp/codegen-raw.json
-              curl -s --max-time 20 \
-                -X POST "${BOB_SERVICE_URL}/code/tasks/${TASK_ID}/fail" \
-                -H "Content-Type: application/json" \
-                -H "x-inference-api-key: ${BOB_INFERENCE_API_KEY}" \
-                -d "{\"error\":\"GitHub Models API returned HTTP ${MODELS_STATUS}\"}" > /dev/null
+              if [ "$EXECUTION_MODE" = "bob" ]; then
+                curl -s --max-time 20 \
+                  -X POST "${BOB_SERVICE_URL}/code/tasks/${TASK_ID}/fail" \
+                  -H "Content-Type: application/json" \
+                  -H "x-inference-api-key: ${BOB_INFERENCE_API_KEY}" \
+                  -d "{\"error\":\"GitHub Models API returned HTTP ${MODELS_STATUS}\"}" > /dev/null
+              fi
               git checkout main 2>/dev/null || git checkout master 2>/dev/null || true
               git branch -D "$BRANCH" 2>/dev/null || true
               continue
@@ -376,11 +526,13 @@ jobs:
             CODEGEN_JSON=$(jq -r '.choices[0].message.content' /tmp/codegen-raw.json 2>/dev/null || echo "")
             if [ -z "$CODEGEN_JSON" ] || [ "$CODEGEN_JSON" = "null" ]; then
               echo "::error::Empty code generation response"
-              curl -s --max-time 20 \
-                -X POST "${BOB_SERVICE_URL}/code/tasks/${TASK_ID}/fail" \
-                -H "Content-Type: application/json" \
-                -H "x-inference-api-key: ${BOB_INFERENCE_API_KEY}" \
-                -d '{"error":"Empty response from code generation model"}' > /dev/null
+              if [ "$EXECUTION_MODE" = "bob" ]; then
+                curl -s --max-time 20 \
+                  -X POST "${BOB_SERVICE_URL}/code/tasks/${TASK_ID}/fail" \
+                  -H "Content-Type: application/json" \
+                  -H "x-inference-api-key: ${BOB_INFERENCE_API_KEY}" \
+                  -d '{"error":"Empty response from code generation model"}' > /dev/null
+              fi
               git checkout main 2>/dev/null || git checkout master 2>/dev/null || true
               git branch -D "$BRANCH" 2>/dev/null || true
               continue
@@ -395,11 +547,13 @@ jobs:
             if ! jq empty /tmp/codegen.json 2>/dev/null; then
               echo "::error::Code generation returned invalid JSON"
               echo "Raw response: $CODEGEN_JSON" | head -20
-              curl -s --max-time 20 \
-                -X POST "${BOB_SERVICE_URL}/code/tasks/${TASK_ID}/fail" \
-                -H "Content-Type: application/json" \
-                -H "x-inference-api-key: ${BOB_INFERENCE_API_KEY}" \
-                -d '{"error":"Code generation model returned invalid JSON"}' > /dev/null
+              if [ "$EXECUTION_MODE" = "bob" ]; then
+                curl -s --max-time 20 \
+                  -X POST "${BOB_SERVICE_URL}/code/tasks/${TASK_ID}/fail" \
+                  -H "Content-Type: application/json" \
+                  -H "x-inference-api-key: ${BOB_INFERENCE_API_KEY}" \
+                  -d '{"error":"Code generation model returned invalid JSON"}' > /dev/null
+              fi
               git checkout main 2>/dev/null || git checkout master 2>/dev/null || true
               git branch -D "$BRANCH" 2>/dev/null || true
               continue
@@ -413,11 +567,13 @@ jobs:
 
             if [ "$FILE_COUNT" -eq 0 ]; then
               echo "::warning::Code generation produced 0 file operations"
-              curl -s --max-time 20 \
-                -X POST "${BOB_SERVICE_URL}/code/tasks/${TASK_ID}/fail" \
-                -H "Content-Type: application/json" \
-                -H "x-inference-api-key: ${BOB_INFERENCE_API_KEY}" \
-                -d '{"error":"Code generation model returned no file operations"}' > /dev/null
+              if [ "$EXECUTION_MODE" = "bob" ]; then
+                curl -s --max-time 20 \
+                  -X POST "${BOB_SERVICE_URL}/code/tasks/${TASK_ID}/fail" \
+                  -H "Content-Type: application/json" \
+                  -H "x-inference-api-key: ${BOB_INFERENCE_API_KEY}" \
+                  -d '{"error":"Code generation model returned no file operations"}' > /dev/null
+              fi
               git checkout main 2>/dev/null || git checkout master 2>/dev/null || true
               git branch -D "$BRANCH" 2>/dev/null || true
               continue
@@ -455,11 +611,13 @@ jobs:
 
             if [ "$APPLY_ERROR" = "true" ]; then
               echo "::error::File operation rejected due to unsafe path"
-              curl -s --max-time 20 \
-                -X POST "${BOB_SERVICE_URL}/code/tasks/${TASK_ID}/fail" \
-                -H "Content-Type: application/json" \
-                -H "x-inference-api-key: ${BOB_INFERENCE_API_KEY}" \
-                -d '{"error":"Rejected unsafe file path in code generation response"}' > /dev/null
+              if [ "$EXECUTION_MODE" = "bob" ]; then
+                curl -s --max-time 20 \
+                  -X POST "${BOB_SERVICE_URL}/code/tasks/${TASK_ID}/fail" \
+                  -H "Content-Type: application/json" \
+                  -H "x-inference-api-key: ${BOB_INFERENCE_API_KEY}" \
+                  -d '{"error":"Rejected unsafe file path in code generation response"}' > /dev/null
+              fi
               git checkout main 2>/dev/null || git checkout master 2>/dev/null || true
               git branch -D "$BRANCH" 2>/dev/null || true
               continue
@@ -546,16 +704,20 @@ jobs:
                 pr_number: ($pr_number | if . == "" then null else tonumber end)
               }')
 
-            RESULT_STATUS=$(curl -s -o /tmp/result-resp.json -w "%{http_code}" \
-              --max-time 30 \
-              -X POST "${BOB_SERVICE_URL}/code/tasks/${TASK_ID}/result" \
-              -H "Content-Type: application/json" \
-              -H "x-inference-api-key: ${BOB_INFERENCE_API_KEY}" \
-              -d "$RESULT_PAYLOAD")
+            if [ "$EXECUTION_MODE" = "bob" ]; then
+              RESULT_STATUS=$(curl -s -o /tmp/result-resp.json -w "%{http_code}" \
+                --max-time 30 \
+                -X POST "${BOB_SERVICE_URL}/code/tasks/${TASK_ID}/result" \
+                -H "Content-Type: application/json" \
+                -H "x-inference-api-key: ${BOB_INFERENCE_API_KEY}" \
+                -d "$RESULT_PAYLOAD")
 
-            [ "$RESULT_STATUS" = "200" ] && \
-              echo "  📥 Result reported to Bob ✅" || \
-              echo "  ::warning::Failed to report result to Bob (HTTP $RESULT_STATUS)"
+              [ "$RESULT_STATUS" = "200" ] && \
+                echo "  📥 Result reported to Bob ✅" || \
+                echo "  ::warning::Failed to report result to Bob (HTTP $RESULT_STATUS)"
+            else
+              echo "  ℹ️ Manual fallback mode: Bob result callback skipped"
+            fi
 
             # Return to main for the next task
             git checkout main 2>/dev/null || git checkout master 2>/dev/null || true
@@ -571,7 +733,7 @@ jobs:
       # 8. Summary
       # -----------------------------------------------------------------------
       - name: Summary
-        if: steps.validate.outputs.can_run == 'true'
+        if: steps.validate.outputs.can_run == 'true' && steps.validate.outputs.execution_mode == 'bob'
         env:
           BOB_SERVICE_URL: ${{ env.BOB_SERVICE_URL }}
           BOB_INFERENCE_API_KEY: ${{ env.BOB_INFERENCE_API_KEY }}
@@ -582,13 +744,29 @@ jobs:
             -H "x-inference-api-key: ${BOB_INFERENCE_API_KEY}" | \
             jq '{counts: .state.counts}'
 
+      - name: Summary (manual fallback mode)
+        if: steps.validate.outputs.can_run == 'true' && steps.validate.outputs.execution_mode == 'manual_fallback'
+        run: |
+          echo "📊 Code task summary:"
+          echo "Manual fallback mode executed without Bob service callbacks."
+          echo "Check this run's branch/PR output for remediation progress."
+
       - name: Skipped (not configured)
         if: steps.validate.outputs.can_run != 'true'
         run: |
-          echo "ℹ️ Bob code task workflow skipped — configure secrets to enable."
+          echo "ℹ️ Bob code task workflow skipped — configure credentials to enable."
+          echo "Reason: ${{ steps.validate.outputs.skip_reason }}"
           echo ""
           echo "Setup:"
           echo "  1. GitHub → Settings → Secrets and variables → Actions"
-          echo "  2. Add: BOB_SERVICE_URL (or INFERENCE_SERVICE_URL) — Bob's service URL (RunPod)"
-          echo "  3. Add: BOB_INFERENCE_API_KEY (or INFERENCE_API_KEY) — Bob's auth key"
-          echo "  4. Re-run this workflow"
+          echo "  2. Add secret/variable: BOB_CODE_TASK_SERVICE_URL (preferred) or BOB_SERVICE_URL / INFERENCE_SERVICE_URL"
+          echo "     Use the URL that serves /code/task and /code/tasks/* endpoints"
+          echo "  3. Add secret/variable: BOB_INFERENCE_API_KEY (or INFERENCE_API_KEY) — Bob's auth key"
+          echo "  4. Ensure workflow token has: contents:write, pull-requests:write, models:read"
+          echo "  5. Optional: add secret BOB_GITHUB_TOKEN for explicit token override"
+          echo "  6. Re-run this workflow"
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "::error::Manual run requires valid credentials and token permissions."
+            exit 1
+          fi

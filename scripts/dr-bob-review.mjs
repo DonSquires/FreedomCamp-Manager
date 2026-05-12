@@ -23,8 +23,67 @@ const defaultRunpodUrl = String(
   (envRunpodEndpointId ? `https://api.runpod.ai/v2/${envRunpodEndpointId}/runsync` : '')
 ).trim();
 const drBobModel = String(process.env.DR_BOB_MODEL || process.env.OLLAMA_MODEL || '').trim();
+const localOllamaBaseUrl = String(process.env.DR_BOB_OLLAMA_BASE_URL || process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434')
+  .trim()
+  .replace(/\/+$/, '');
+const localOllamaModel = String(process.env.DR_BOB_MODEL || process.env.OLLAMA_MODEL || 'qwen2.5:7b').trim();
 const runpodPollIntervalMs = Number.parseInt(String(process.env.DR_BOB_RUNPOD_POLL_INTERVAL_MS || '2500'), 10) || 2500;
 const runpodPollTimeoutMs = Number.parseInt(String(process.env.DR_BOB_RUNPOD_POLL_TIMEOUT_MS || '120000'), 10) || 120000;
+
+function normalizeRunpodRunsyncUrl(rawUrl) {
+  const trimmed = String(rawUrl || '').trim().replace(/\/+$/, '');
+  if (!trimmed) return '';
+
+  const withScheme = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+
+  if (/\/runsync$/i.test(withScheme)) return withScheme;
+  if (/\/run-sync$/i.test(withScheme)) return withScheme.replace(/\/run-sync$/i, '/runsync');
+  if (/\/run$/i.test(withScheme)) return withScheme.replace(/\/run$/i, '/runsync');
+
+  if (/api\.runpod\.ai\/v2\//i.test(withScheme)) {
+    return `${withScheme}/runsync`;
+  }
+
+  return withScheme;
+}
+
+function resolveDrBobRunpodUrl() {
+  const candidates = [
+    process.env.DR_BOB_RUNPOD_URL,
+    process.env.RUNPOD_RUNSYNC_URL,
+    process.env.RUNPOD_SERVERLESS_URL,
+    process.env.RUNPOD_GATEWAY_URL,
+    process.env.RUNPOD_ENDPOINT_URL,
+    process.env.RUNPOD_API_URL,
+    process.env.BOB_SERVICE_URL,
+    process.env.INFERENCE_SERVICE_URL,
+    defaultRunpodUrl,
+  ];
+
+  for (const candidate of candidates) {
+    const normalized = normalizeRunpodRunsyncUrl(candidate);
+    if (normalized) return normalized;
+  }
+
+  return '';
+}
+
+function resolveDrBobApiKey() {
+  const candidates = [
+    process.env.RUNPOD_API_KEY,
+    process.env.RUNPOD_ENDPOINT_API_KEY,
+    process.env.DR_BOB_API,
+    process.env.BOB_INFERENCE_API_KEY,
+    process.env.INFERENCE_API_KEY,
+  ];
+
+  for (const candidate of candidates) {
+    const value = String(candidate || '').trim();
+    if (value) return value;
+  }
+
+  return '';
+}
 
 function getArg(name, fallback = '') {
   const flag = `--${name}`;
@@ -438,29 +497,35 @@ async function awaitRunpodCompletion({ runpodUrl, headers, initialText }) {
 }
 
 async function sendViaRunpod(message) {
-  const runpodUrl = String(
-    process.env.DR_BOB_RUNPOD_URL ||
-      process.env.RUNPOD_API_URL ||
-      process.env.RUNPOD_RUNSYNC_URL ||
-      defaultRunpodUrl
-  ).trim();
-  const runpodKey = String(
-    process.env.RUNPOD_API_KEY || process.env.DR_BOB_API || ''
-  ).trim();
+  const runpodUrl = resolveDrBobRunpodUrl();
+  const runpodKey = resolveDrBobApiKey();
   const orgId = String(
     process.env.BOB_ORG_ID || process.env.ORG_ID || process.env.DEFAULT_ORG_ID || ''
   ).trim();
 
   if (!runpodKey) {
-    throw new Error('RUNPOD_API_KEY or DR_BOB_API is required for Dr Bob review');
+    return {
+      sent: false,
+      ok: false,
+      channel: 'runpod-runsync',
+      status: 0,
+      text: 'Missing RunPod/Bob API key (RUNPOD_API_KEY, RUNPOD_ENDPOINT_API_KEY, DR_BOB_API, BOB_INFERENCE_API_KEY, INFERENCE_API_KEY)',
+    };
   }
   if (!runpodUrl) {
-    throw new Error('RunPod runsync URL is required (set DR_BOB_RUNPOD_URL, RUNPOD_RUNSYNC_URL, RUNPOD_SERVERLESS_URL, RUNPOD_GATEWAY_URL, or RUNPOD_ENDPOINT_ID)');
+    return {
+      sent: false,
+      ok: false,
+      channel: 'runpod-runsync',
+      status: 0,
+      text: 'Missing RunPod runsync URL (set DR_BOB_RUNPOD_URL, RUNPOD_RUNSYNC_URL, RUNPOD_SERVERLESS_URL, RUNPOD_GATEWAY_URL, RUNPOD_ENDPOINT_URL, BOB_SERVICE_URL, or INFERENCE_SERVICE_URL)',
+    };
   }
 
   const headers = {
     'Content-Type': 'application/json',
     Authorization: `Bearer ${runpodKey}`,
+    'x-inference-api-key': runpodKey,
   };
   if (orgId) headers['x-org-id'] = orgId;
 
@@ -492,6 +557,61 @@ async function sendViaRunpod(message) {
     status: lastFailure?.status || 0,
     text: lastFailure?.text || 'Dr Bob RunPod request failed',
   };
+}
+
+async function sendViaLocalOllama(message) {
+  try {
+    const response = await fetch(`${localOllamaBaseUrl}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: localOllamaModel,
+        stream: false,
+        messages: [
+          {
+            role: 'system',
+            content: 'You are Dr Bob, a strict adversarial architecture reviewer. Return only JSON that follows the requested schema.',
+          },
+          { role: 'user', content: message },
+        ],
+      }),
+    });
+
+    const text = await response.text();
+    if (!response.ok) {
+      return {
+        sent: false,
+        ok: false,
+        channel: 'ollama-local',
+        status: response.status,
+        text: text || `Ollama request failed (${response.status})`,
+      };
+    }
+
+    let parsed = null;
+    try {
+      parsed = text ? JSON.parse(text) : null;
+    } catch {
+      parsed = null;
+    }
+
+    const content = parsed?.message?.content || parsed?.response || text;
+    return {
+      sent: true,
+      ok: true,
+      channel: 'ollama-local',
+      status: response.status,
+      text: String(content || ''),
+    };
+  } catch (error) {
+    return {
+      sent: false,
+      ok: false,
+      channel: 'ollama-local',
+      status: 0,
+      text: String(error?.message || error || 'Local Ollama request failed'),
+    };
+  }
 }
 
 function buildReviewPrompt({ artifactType, artifactPath, artifactText, systemState, failOnRevision }) {
@@ -593,20 +713,38 @@ export async function runDrBobReview(options = {}) {
     finalPrompt = strictJson && attempt > 1 ? buildRetryPrompt(basePrompt, attempt) : basePrompt;
     delivery = await sendViaRunpod(finalPrompt);
     if (!delivery.sent) {
-      await recordScoredResponse({
-        target: 'Dr Bob',
-        channel: delivery.channel,
-        prompt: finalPrompt,
-        response: delivery.text,
-        delivery,
-        metadata: { sourceFile: artifactPath },
-      });
-      throw new Error(`Dr Bob review failed (${delivery.status}): ${delivery.text.slice(0, 300)}`);
+      const ollamaDelivery = await sendViaLocalOllama(finalPrompt);
+      if (ollamaDelivery.sent) {
+        delivery = ollamaDelivery;
+      } else {
+        await recordScoredResponse({
+          target: 'Dr Bob',
+          channel: delivery.channel,
+          prompt: finalPrompt,
+          response: `${delivery.text}\nFallback (${ollamaDelivery.channel}): ${ollamaDelivery.text}`,
+          delivery,
+          metadata: { sourceFile: artifactPath },
+        });
+        throw new Error(`Dr Bob review failed (runpod=${delivery.status}, ollama=${ollamaDelivery.status}): ${delivery.text.slice(0, 200)} | ${ollamaDelivery.text.slice(0, 200)}`);
+      }
     }
 
-    const parsed = parseReviewResponse(delivery.text);
+    let parsed = parseReviewResponse(delivery.text);
     review = parsed.review;
     structured = parsed.structured;
+
+    if (!structured && delivery.channel === 'runpod-runsync') {
+      const ollamaDelivery = await sendViaLocalOllama(finalPrompt);
+      if (ollamaDelivery.sent) {
+        const ollamaParsed = parseReviewResponse(ollamaDelivery.text);
+        if (ollamaParsed.structured) {
+          delivery = ollamaDelivery;
+          parsed = ollamaParsed;
+          review = parsed.review;
+          structured = true;
+        }
+      }
+    }
 
     if (structured || !strictJson) break;
   }

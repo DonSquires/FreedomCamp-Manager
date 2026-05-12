@@ -200,6 +200,15 @@ async function checkServerlessCapability(capability, targets, timeoutMs) {
       type: 'general',
       description: 'Synthetic capability gate assessment input',
     },
+    self_heal: {
+      action: 'self_heal',
+      report: {
+        summary: 'Capability gate synthetic check',
+        description: 'Synthetic check',
+        severity: 'low',
+        issue_type: 'bug',
+      },
+    },
     translate: {
       action: 'translate',
       text: 'Kia ora',

@@ -1,8 +1,8 @@
 {
-  "timestamp": "2026-05-10T14:51:32.405Z",
-  "sourceFile": "/workspaces/FreedomCamp-Manager/docs/UIUX_STRATEGIC_PLANS_2026.md",
-  "reviewArtifact": "/workspaces/FreedomCamp-Manager/data/dr-bob-reviews/UIUX_STRATEGIC_PLANS_2026.md.2026-05-10T14-51-32-392Z.json",
-  "escalationArtifact": "/workspaces/FreedomCamp-Manager/data/dr-bob-escalations/escalation.2026-05-10T14-51-32-404Z.json",
+  "timestamp": "2026-05-12T11:16:03.399Z",
+  "sourceFile": "/workspaces/FreedomCamp-Manager/plan.md",
+  "reviewArtifact": "/workspaces/FreedomCamp-Manager/data/dr-bob-reviews/plan.md.2026-05-12T11-16-03-378Z.json",
+  "escalationArtifact": "/workspaces/FreedomCamp-Manager/data/dr-bob-escalations/escalation.2026-05-12T11-16-03-398Z.json",
   "structured": false,
   "decision": "needs-revision",
   "reason": "unstructured-review",
@@ -13,5 +13,5 @@
   "selfHealSuccess": false,
   "handoffRequired": true,
   "copilotActionHint": "Investigate escalation artifact and implement targeted fix",
-  "responsePreview": "{\"delayTime\":269,\"error\":\"{\\\"error_type\\\": \\\"<class 'requests.exceptions.HTTPError'>\\\", \\\"error_message\\\": \\\"404 Client Error: Not Found for url: https://ollama-production-a142.up.railway.app/api/generate\\\", \\\"error_traceback\\\": \\\"Traceback (most recent call last):\\\\n  File \\\\\\\"/usr/local/lib/python"
+  "responsePreview": "{\"delayTime\":20,\"error\":\"{\\\"error_type\\\": \\\"<class 'requests.exceptions.HTTPError'>\\\", \\\"error_message\\\": \\\"404 Client Error: Not Found for url: https://ollama-production-3ab0.up.railway.app/api/generate\\\", \\\"error_traceback\\\": \\\"Traceback (most recent call last):\\\\n  File \\\\\\\"/usr/local/lib/python3"
 }

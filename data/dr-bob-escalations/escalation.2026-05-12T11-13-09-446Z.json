@@ -1,0 +1,24 @@
+{
+  "createdAt": "2026-05-12T11:13:09.446Z",
+  "sourceFile": "/workspaces/FreedomCamp-Manager/plan.md",
+  "outputPath": "/workspaces/FreedomCamp-Manager/data/dr-bob-reviews/plan.md.2026-05-12T11-13-09-434Z.json",
+  "decision": "needs-revision",
+  "structured": false,
+  "escalationReason": "unstructured-review",
+  "review": {
+    "decision": "needs-revision",
+    "summary": "Dr Bob returned an unstructured review. Inspect the raw response.",
+    "findings": [
+      {
+        "severity": "major",
+        "title": "Unstructured review response",
+        "evidence": "{\"delayTime\":17,\"error\":\"{\\\"error_type\\\": \\\"<class 'requests.exceptions.HTTPError'>\\\", \\\"error_message\\\": \\\"404 Client Error: Not Found for url: https://ollama-production-3ab0.up.railway.app/api/generate\\\", \\\"error_traceback\\\": \\\"Traceback (most recent call last):\\\\n  File \\\\\\\"/usr/local/lib/python3.12/site-packages/runpod/serverless/modules/rp_job.py\\\\\\\", line 182, in run_job\\\\n    handler_return = handler(job)\\\\n                     ^^^^^^^^^^^^\\\\n  File \\\\\\\"/app/handler.py\\\\\\\", line 604, in handler\\\\n    result = openai_chat(messages, inp.get(\\\\\\\"model\\\\\\\"), inp.get(\\\\\\\"temperature\\\\\\\", 0.2)) if use_openai else ollama_chat(messages, inp.get(\\\\\\\"model\\\\\\\"), inp.get(\\\\\\\"temperature\\\\\\\", 0.2))\\\\n                                                                                               ",
+        "requiredAction": "Rerun the review or tighten the prompt until valid JSON is returned."
+      }
+    ],
+    "verificationChecks": [],
+    "rawResponse": "{\"delayTime\":17,\"error\":\"{\\\"error_type\\\": \\\"<class 'requests.exceptions.HTTPError'>\\\", \\\"error_message\\\": \\\"404 Client Error: Not Found for url: https://ollama-production-3ab0.up.railway.app/api/generate\\\", \\\"error_traceback\\\": \\\"Traceback (most recent call last):\\\\n  File \\\\\\\"/usr/local/lib/python3.12/site-packages/runpod/serverless/modules/rp_job.py\\\\\\\", line 182, in run_job\\\\n    handler_return = handler(job)\\\\n                     ^^^^^^^^^^^^\\\\n  File \\\\\\\"/app/handler.py\\\\\\\", line 604, in handler\\\\n    result = openai_chat(messages, inp.get(\\\\\\\"model\\\\\\\"), inp.get(\\\\\\\"temperature\\\\\\\", 0.2)) if use_openai else ollama_chat(messages, inp.get(\\\\\\\"model\\\\\\\"), inp.get(\\\\\\\"temperature\\\\\\\", 0.2))\\\\n                                                                                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\\\n  File \\\\\\\"/app/handler.py\\\\\\\", line 341, in ollama_chat\\\\n    gen_resp.raise_for_status()\\\\n  File \\\\\\\"/usr/local/lib/python3.12/site-packages/requests/models.py\\\\\\\", line 1028, in raise_for_status\\\\n    raise HTTPError(http_error_msg, response=self)\\\\nrequests.exceptions.HTTPError: 404 Client Error: Not Found for url: https://ollama-production-3ab0.up.railway.app/api/generate\\\\n\\\", \\\"hostname\\\": \\\"cgxwtlrae5pwqe-64411a82\\\", \\\"worker_id\\\": \\\"cgxwtlrae5pwqe\\\", \\\"runpod_version\\\": \\\"1.9.0\\\"}\",\"executionTime\":525,\"id\":\"sync-6d6e20e1-bc0e-487d-8d40-92855d4e2878-u1\",\"status\":\"FAILED\",\"workerId\":\"cgxwtlrae5pwqe\"}\n"
+  },
+  "basicFixResult": null,
+  "requiredAction": "Escalate to Copilot for manual intervention beyond Dr Bob auto-fix scope."
+}

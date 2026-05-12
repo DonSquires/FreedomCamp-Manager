@@ -192,6 +192,7 @@ export default function OperationsMap() {
   const [tick, setTick] = useState(0)
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [historyMode, setHistoryMode] = useState(false)
+  const [emergencyPulse, setEmergencyPulse] = useState(false)
 
   const startDate = dateFrom ? nzDateToUTCStart(dateFrom) : null
   const endDate   = dateTo   ? nzDateToUTCEnd(dateTo)   : null
@@ -229,16 +230,49 @@ export default function OperationsMap() {
   const { data: officers = [] } = useQuery({
     queryKey: ['ops-map-officers', effectiveOrgId, tick],
     queryFn: async () => {
-      let q = (supabase as any)
+      let profileQ = (supabase as any)
         .from('user_profiles')
-        .select('id, first_name, last_name, role')
+        .select('id, first_name, last_name, role, last_gps_latitude, last_gps_longitude, last_gps_update, welfare_status, recent_scans, last_scan_zone')
         .in('role', ['officer', 'admin_officer'])
         .eq('is_active', true)
 
-      if (effectiveOrgId) q = q.eq('organization_id', effectiveOrgId)
+      if (effectiveOrgId) profileQ = profileQ.eq('organization_id', effectiveOrgId)
 
-      const { data } = await q.order('first_name', { ascending: true })
-      return (data ?? []).filter((o: any) => o.last_gps_latitude && o.last_gps_longitude)
+      const { data: profileData } = await profileQ.order('first_name', { ascending: true })
+
+      // Phase 4 spec calls out user_locations as the tactical map source. Where
+      // present, merge those coordinates as a higher-priority location feed.
+      let locationRows: any[] = []
+      const ids = (profileData ?? []).map((p: any) => p.id).filter(Boolean)
+      if (ids.length > 0) {
+        const locationsQ = (supabase as any)
+          .from('user_locations')
+          .select('user_id, latitude, longitude, recorded_at')
+          .in('user_id', ids)
+
+        const { data: locationData } = await locationsQ
+        locationRows = locationData ?? []
+      }
+
+      const latestByUser = new Map<string, any>()
+      for (const row of locationRows) {
+        const current = latestByUser.get(row.user_id)
+        if (!current || new Date(row.recorded_at).getTime() > new Date(current.recorded_at).getTime()) {
+          latestByUser.set(row.user_id, row)
+        }
+      }
+
+      return (profileData ?? [])
+        .map((o: any) => {
+          const loc = latestByUser.get(o.id)
+          return {
+            ...o,
+            last_gps_latitude: loc?.latitude ?? o.last_gps_latitude,
+            last_gps_longitude: loc?.longitude ?? o.last_gps_longitude,
+            last_gps_update: loc?.recorded_at ?? o.last_gps_update,
+          }
+        })
+        .filter((o: any) => o.last_gps_latitude && o.last_gps_longitude)
     },
     enabled: visibleLayers.officers || visibleLayers.welfare,
     refetchInterval: autoRefresh ? 30_000 : false,
@@ -259,6 +293,23 @@ export default function OperationsMap() {
     enabled: visibleLayers.welfare,
     refetchInterval: autoRefresh ? 30_000 : false,
   })
+
+  const activeEmergencyAlert = useMemo(() => {
+    return welfareAlerts.find((w: any) => {
+      const type = String(w.alert_type || '').toLowerCase()
+      return type.includes('sos') || type.includes('armed') || type.includes('danger') || type.includes('panic')
+    }) || null
+  }, [welfareAlerts])
+
+  useEffect(() => {
+    if (!activeEmergencyAlert) {
+      setEmergencyPulse(false)
+      return
+    }
+    setEmergencyPulse(true)
+    const timer = setInterval(() => setEmergencyPulse(v => !v), 700)
+    return () => clearInterval(timer)
+  }, [activeEmergencyAlert])
 
   // Freedom camping observations (zone-level aggregated hotspots)
   const { data: campingHotspots = [] } = useQuery({
@@ -584,7 +635,13 @@ export default function OperationsMap() {
           </div>
 
           {/* Map */}
-          <div className="flex-1 rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700 shadow-sm min-h-0">
+          <div className={`relative flex-1 rounded-xl overflow-hidden border shadow-sm min-h-0 ${
+            activeEmergencyAlert
+              ? emergencyPulse
+                ? 'border-red-600'
+                : 'border-red-300'
+              : 'border-gray-200 dark:border-gray-700'
+          }`}>
             <MapContainer
               center={NZ_CENTRE}
               zoom={DEFAULT_ZOOM}
@@ -869,6 +926,14 @@ export default function OperationsMap() {
               ))}
 
             </MapContainer>
+            {activeEmergencyAlert && (
+              <div className={`pointer-events-none absolute z-[1000] left-4 top-20 rounded-md px-3 py-2 text-xs font-semibold shadow ${
+                emergencyPulse ? 'bg-red-700 text-white' : 'bg-red-100 text-red-800'
+              }`}>
+                Emergency channel broadcast active: {activeEmergencyAlert.officer_name || 'Officer'} GPS {' '}
+                ({Number(activeEmergencyAlert.gps_latitude).toFixed(5)}, {Number(activeEmergencyAlert.gps_longitude).toFixed(5)})
+              </div>
+            )}
           </div>
         </div>
 

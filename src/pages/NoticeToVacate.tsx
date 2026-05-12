@@ -34,6 +34,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDateTime } from '@/lib/utils'
+import { computeSafetyDossierRisk, isDigitalSignatureValid } from '@/lib/enforcementPhase4'
 
 interface NoticeToVacateRecord {
   id: string
@@ -71,6 +72,14 @@ interface ZoneNoticeContactConfig {
   org_email: string | null
 }
 
+interface SafetyDossier {
+  observations24h: number
+  incidents24h: number
+  welfareAlerts24h: number
+  aggressionSignals24h: number
+  riskLevel: 'low' | 'medium' | 'high' | 'critical'
+}
+
 const STATUS_META: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
   issued:    { label: 'Issued',    variant: 'default' },
   complied:  { label: 'Complied', variant: 'secondary' },
@@ -97,6 +106,8 @@ export default function NoticeToVacate() {
   const [showHelp, setShowHelp] = useState(false)
   const [isIssueOpen, setIsIssueOpen] = useState(false)
   const [previewHtml, setPreviewHtml] = useState<string | null>(null)
+  const [signatureName, setSignatureName] = useState('')
+  const [signatureAccepted, setSignatureAccepted] = useState(false)
 
   // Issue form state
   const [form, setForm] = useState({
@@ -263,6 +274,71 @@ export default function NoticeToVacate() {
     staleTime: 30000,
   })
 
+  const { data: safetyDossier } = useQuery({
+    queryKey: ['zone-safety-dossier-24h', effectiveOrgId, form.zoneId],
+    queryFn: async () => {
+      if (!effectiveOrgId || !form.zoneId) return null
+
+      const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+
+      const [observationsRes, incidentsRes, welfareRes] = await Promise.all([
+        (supabase as any)
+          .from('observations')
+          .select('id, notes', { count: 'exact', head: false })
+          .eq('organization_id', effectiveOrgId)
+          .eq('zone_id', form.zoneId)
+          .gte('recorded_at', since),
+        (supabase as any)
+          .from('incidents')
+          .select('id, description, incident_notes', { count: 'exact', head: false })
+          .eq('organization_id', effectiveOrgId)
+          .eq('zone_id', form.zoneId)
+          .gte('created_at', since),
+        (supabase as any)
+          .from('officer_welfare_alerts')
+          .select('id, alert_type', { count: 'exact', head: false })
+          .eq('organization_id', effectiveOrgId)
+          .gte('alert_sent_at', since),
+      ])
+
+      if (observationsRes.error) throw observationsRes.error
+      if (incidentsRes.error) throw incidentsRes.error
+      if (welfareRes.error) throw welfareRes.error
+
+      const aggressionRegex = /(aggress|threat|violent|hostile|weapon|armed|abuse|intimidat)/i
+      const observationSignals = (observationsRes.data || []).reduce((acc: number, row: any) => {
+        const haystack = `${row?.notes || ''}`
+        return acc + (aggressionRegex.test(haystack) ? 1 : 0)
+      }, 0)
+      const incidentSignals = (incidentsRes.data || []).reduce((acc: number, row: any) => {
+        const haystack = `${row?.description || ''} ${row?.incident_notes || ''}`
+        return acc + (aggressionRegex.test(haystack) ? 1 : 0)
+      }, 0)
+
+      const observations24h = observationsRes.count || 0
+      const incidents24h = incidentsRes.count || 0
+      const welfareAlerts24h = welfareRes.count || 0
+      const aggressionSignals24h = observationSignals + incidentSignals
+      const riskLevel = computeSafetyDossierRisk({
+        observations24h,
+        incidents24h,
+        welfareAlerts24h,
+        aggressionSignals24h,
+      })
+
+      return {
+        observations24h,
+        incidents24h,
+        welfareAlerts24h,
+        aggressionSignals24h,
+        riskLevel,
+      } as SafetyDossier
+    },
+    enabled: !!effectiveOrgId && !!form.zoneId && isIssueOpen,
+    staleTime: 30000,
+    refetchOnWindowFocus: true,
+  })
+
   // Issue notice mutation
   const issueNotice = async () => {
     if (!form.zoneId || !form.plateNumber.trim()) {
@@ -304,6 +380,8 @@ export default function NoticeToVacate() {
       toast.success(`✅ Notice ${referenceNumber} issued`)
       if (data.notice?.html) {
         setPreviewHtml(data.notice.html)
+        setSignatureAccepted(false)
+        setSignatureName('')
       }
       setIsIssueOpen(false)
       setIssueFeedback(null)
@@ -363,6 +441,16 @@ export default function NoticeToVacate() {
   }
 
   const isAdmin = ['admin', 'admin_officer', 'master'].includes(user?.role || '')
+  const officerName = `${user?.first_name || ''} ${user?.last_name || ''}`.trim()
+  const signatureValid = isDigitalSignatureValid(signatureName, officerName)
+  const riskBadgeClass =
+    safetyDossier?.riskLevel === 'critical'
+      ? 'bg-red-100 text-red-800 border-red-300'
+      : safetyDossier?.riskLevel === 'high'
+        ? 'bg-orange-100 text-orange-800 border-orange-300'
+        : safetyDossier?.riskLevel === 'medium'
+          ? 'bg-amber-100 text-amber-800 border-amber-300'
+          : 'bg-green-100 text-green-800 border-green-300'
 
   return (
     <AppLayout title="Notices to Vacate" description="Issue and track legal notices to vacate">
@@ -614,6 +702,26 @@ export default function NoticeToVacate() {
               </div>
             )}
 
+            {form.zoneId && safetyDossier && (
+              <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm font-semibold text-blue-900">24h Pre-arrival Safety Dossier</p>
+                  <Badge className={riskBadgeClass}>{safetyDossier.riskLevel.toUpperCase()} RISK</Badge>
+                </div>
+                <p className="text-xs text-blue-800">
+                  Bob advisory: {safetyDossier.aggressionSignals24h > 0
+                    ? `Elevated friction indicators detected in last 24h (${safetyDossier.aggressionSignals24h} aggression signal${safetyDossier.aggressionSignals24h !== 1 ? 's' : ''}).`
+                    : 'No explicit aggression terms detected in last 24h notes.'}
+                </p>
+                <div className="grid grid-cols-2 gap-2 text-xs text-blue-900">
+                  <div>Observations: <span className="font-semibold">{safetyDossier.observations24h}</span></div>
+                  <div>Incidents: <span className="font-semibold">{safetyDossier.incidents24h}</span></div>
+                  <div>Welfare alerts: <span className="font-semibold">{safetyDossier.welfareAlerts24h}</span></div>
+                  <div>Aggression signals: <span className="font-semibold">{safetyDossier.aggressionSignals24h}</span></div>
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>Plate Number *</Label>
@@ -712,7 +820,14 @@ export default function NoticeToVacate() {
       </Dialog>
 
       {/* Notice Preview Dialog */}
-      <Dialog open={!!previewHtml} onOpenChange={() => setPreviewHtml(null)}>
+      <Dialog
+        open={!!previewHtml}
+        onOpenChange={() => {
+          setPreviewHtml(null)
+          setSignatureAccepted(false)
+          setSignatureName('')
+        }}
+      >
         <DialogContent className="max-w-4xl h-[90vh]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -730,6 +845,40 @@ export default function NoticeToVacate() {
               title="Notice to Vacate Preview"
             />
           </div>
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 space-y-2">
+            <p className="text-sm font-semibold text-amber-900">Human Authorization Required</p>
+            <p className="text-xs text-amber-800">
+              Type your full officer name exactly as your account name to authorize legal print output.
+            </p>
+            <div className="space-y-1.5">
+              <Label htmlFor="print-signature">Digital Signature</Label>
+              <Input
+                id="print-signature"
+                value={signatureName}
+                onChange={(e) => {
+                  setSignatureName(e.target.value)
+                  setSignatureAccepted(false)
+                }}
+                placeholder={officerName || 'Enter full name'}
+              />
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-xs text-muted-foreground">
+                Expected signer: <span className="font-medium">{officerName || 'Current officer account name'}</span>
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={!signatureValid}
+                onClick={() => {
+                  setSignatureAccepted(true)
+                  toast.success('Print authorization recorded')
+                }}
+              >
+                Authorize Print
+              </Button>
+            </div>
+          </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setPreviewHtml(null)}>Close</Button>
             <Button variant="outline" onClick={() => openPreviewWindow('open')}>
@@ -737,6 +886,7 @@ export default function NoticeToVacate() {
               Open in Tab
             </Button>
             <Button
+              disabled={!signatureAccepted}
               onClick={() => openPreviewWindow('print')}
             >
               <Printer className="h-4 w-4 mr-2" />

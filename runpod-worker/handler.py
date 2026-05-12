@@ -85,6 +85,12 @@ _host = os.environ.get("OLLAMA_HOST", "").strip().rstrip("/")
 OLLAMA_BASE = normalize_ollama_base(_ext if _ext else _base if _base else _host)
 if not OLLAMA_BASE:
     raise RuntimeError("OLLAMA_EXTERNAL_URL, OLLAMA_BASE_URL, or OLLAMA_HOST must be set to an external Ollama endpoint")
+OLLAMA_BASE_CANDIDATES = [
+    OLLAMA_BASE,
+    normalize_ollama_base(os.environ.get("OLLAMA_CHAT_BASE_URL", "")),
+    normalize_ollama_base(os.environ.get("REQUIRED_OLLAMA_BASE_URL", "")),
+    normalize_ollama_base(os.environ.get("INFERENCE_OLLAMA_BASE_URL", "")),
+]
 OLLAMA_MODEL        = os.environ.get("OLLAMA_MODEL", "qwen2.5:7b")
 OLLAMA_VISION_MODEL = os.environ.get("OLLAMA_VISION_MODEL", "llama3.2-vision:11b")
 BOB_ATTITUDE_PROFILE = os.environ.get("BOB_ATTITUDE_PROFILE", "operational").strip().lower()
@@ -115,6 +121,8 @@ print(f"[worker] OPENAI_REFERENCE_GATE_ENABLED: {OPENAI_REFERENCE_GATE_ENABLED}"
 print(f"[worker] ALLOW_OPENAI_REFERENCE_PROVIDER: {ALLOW_OPENAI_REFERENCE_PROVIDER}")
 print(f"[worker] ALLOW_OPENAI_RUNTIME: {ALLOW_OPENAI_RUNTIME}")
 print(f"[worker] OPENAI_ALLOWED_PURPOSES: {sorted(OPENAI_ALLOWED_PURPOSES)}")
+
+_WORKING_OLLAMA_BASE = None
 
 ATTITUDE_PRESETS = {
     "operational": "Tone: calm, decisive, and practical. Prioritize concise operational steps and clear outcomes.",
@@ -478,10 +486,20 @@ def _messages_to_prompt(messages):
 
 
 def ollama_chat(messages, model=None, temperature=0.7):
+    global _WORKING_OLLAMA_BASE
+
     # Prefer /api/chat, but fall back to /api/generate for older Ollama builds.
-    ollama_host = normalize_ollama_base(OLLAMA_BASE or os.environ.get("OLLAMA_HOST", ""))
-    if not ollama_host:
-        raise RuntimeError("OLLAMA_EXTERNAL_URL, OLLAMA_BASE_URL, or OLLAMA_HOST must be set to an external Ollama endpoint")
+    # Probe multiple configured hosts so one stale URL does not break Bob/Dr Bob.
+    candidates = []
+    if _WORKING_OLLAMA_BASE:
+        candidates.append(_WORKING_OLLAMA_BASE)
+    for candidate in OLLAMA_BASE_CANDIDATES:
+        normalized = normalize_ollama_base(candidate)
+        if normalized and normalized not in candidates:
+            candidates.append(normalized)
+
+    if not candidates:
+        raise RuntimeError("No Ollama endpoint candidates configured")
 
     chat_payload = {
         "model": model or OLLAMA_MODEL,
@@ -489,38 +507,59 @@ def ollama_chat(messages, model=None, temperature=0.7):
         "stream": False,
         "options": {"temperature": temperature},
     }
+    generate_payload = {
+        "model": model or OLLAMA_MODEL,
+        "prompt": _messages_to_prompt(messages),
+        "stream": False,
+        "options": {"temperature": temperature},
+    }
 
-    resp = requests.post(
-        f"{ollama_host}/api/chat",
-        json=chat_payload,
-        timeout=TIMEOUT_S,
+    last_error = None
+    attempted_hosts = []
+
+    for ollama_host in candidates:
+        attempted_hosts.append(ollama_host)
+        try:
+            resp = requests.post(
+                f"{ollama_host}/api/chat",
+                json=chat_payload,
+                timeout=TIMEOUT_S,
+            )
+
+            if resp.status_code == 404:
+                gen_resp = requests.post(
+                    f"{ollama_host}/api/generate",
+                    json=generate_payload,
+                    timeout=TIMEOUT_S,
+                )
+                if gen_resp.status_code == 404:
+                    last_error = f"{ollama_host} returned 404 for /api/chat and /api/generate"
+                    continue
+
+                gen_resp.raise_for_status()
+                gen_data = gen_resp.json()
+                gen_content = gen_data.get("response", "")
+                if not gen_content:
+                    raise ValueError("Ollama /api/generate returned empty content")
+
+                _WORKING_OLLAMA_BASE = ollama_host
+                return {"content": gen_content, "model": gen_data.get("model", model or OLLAMA_MODEL)}
+
+            resp.raise_for_status()
+            data = resp.json()
+            content = data.get("message", {}).get("content", "")
+            if not content:
+                raise ValueError("Ollama returned empty content")
+
+            _WORKING_OLLAMA_BASE = ollama_host
+            return {"content": content, "model": data.get("model", model or OLLAMA_MODEL)}
+        except Exception as exc:
+            last_error = f"{ollama_host}: {exc}"
+
+    raise RuntimeError(
+        "Failed to reach a working Ollama endpoint. "
+        f"Attempted: {attempted_hosts}. Last error: {last_error}"
     )
-
-    if resp.status_code == 404:
-        generate_payload = {
-            "model": model or OLLAMA_MODEL,
-            "prompt": _messages_to_prompt(messages),
-            "stream": False,
-            "options": {"temperature": temperature},
-        }
-        gen_resp = requests.post(
-            f"{ollama_host}/api/generate",
-            json=generate_payload,
-            timeout=TIMEOUT_S,
-        )
-        gen_resp.raise_for_status()
-        gen_data = gen_resp.json()
-        gen_content = gen_data.get("response", "")
-        if not gen_content:
-            raise ValueError("Ollama /api/generate returned empty content")
-        return {"content": gen_content, "model": gen_data.get("model", model or OLLAMA_MODEL)}
-
-    resp.raise_for_status()
-    data = resp.json()
-    content = data.get("message", {}).get("content", "")
-    if not content:
-        raise ValueError("Ollama returned empty content")
-    return {"content": content, "model": data.get("model", model or OLLAMA_MODEL)}
 
 
 def openai_chat(messages, model=None, temperature=0.7):
