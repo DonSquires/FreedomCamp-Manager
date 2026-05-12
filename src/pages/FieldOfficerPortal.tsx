@@ -39,6 +39,7 @@ import { useDispatchCompletion } from '@/hooks/useDispatchCompletion'
 import { useSpeechIntent, type SpeechIntentResult } from '@/hooks/useSpeechIntent'
 import { GeofenceWarningBanner } from '@/components/features/GeofenceWarningBanner'
 import { reverseGeocode } from '@/lib/geocoding'
+import { subscribeBobVoiceState } from '@/lib/bob-brain'
 import { useThemePreferencesStore } from '@/stores/themePreferencesStore'
 import {
   Camera, Map, FileText, History, AlertTriangle, MapPin, QrCode,
@@ -368,6 +369,27 @@ export default function FieldOfficerPortal() {
   const [manualPlate,       setManualPlate]        = useState('')
   const [manualZoneId,      setManualZoneId]       = useState('')
   const [manualSubmitting,  setManualSubmitting]   = useState(false)
+
+  // Voice-state morphing shell: Bob can open tactical modules hands-free.
+  useEffect(() => {
+    return subscribeBobVoiceState((payload) => {
+      if (payload.target === 'smoke_assessment') {
+        navigate('/smoke-officer')
+        toast.success('Bob opened Smoke Assessment')
+        return
+      }
+
+      if (payload.target === 'alpr_scanner') {
+        setActiveService('freedom_camping')
+        setScanMode('detail')
+        setDetailCameraOpen(true)
+        setShowManualEntry(false)
+        setShowDetailPanel(false)
+        setDetailScanData(null)
+        toast.success('Bob opened ALPR scanner')
+      }
+    })
+  }, [navigate])
 
   // Admin-assigned follow-up count — used to show badge on the queue card header
   const [followUpCount,     setFollowUpCount]      = useState(0)
@@ -807,6 +829,7 @@ export default function FieldOfficerPortal() {
     activeShift?.id,
     effectivePatrolZone,
     manualZoneId,
+    primaryDispatchJob?.client_site_id,
     primaryDispatchJob?.id,
     queryClient,
     speechActivityTarget,
@@ -1315,6 +1338,7 @@ export default function FieldOfficerPortal() {
     <AppLayout
       title="Field Officer Portal"
       description={`Welcome, ${user?.full_name || 'Officer'}${followUpCount > 0 ? ` · ${followUpCount} follow-up${followUpCount > 1 ? 's' : ''} assigned` : ''}`}
+      immersive
     >
 
       {/* Geofence violation warning — shown when officer drifts out of assigned zone */}

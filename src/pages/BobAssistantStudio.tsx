@@ -88,6 +88,13 @@ import {
   type ReferenceVerification,
   type TrainingModuleDraft,
 } from '@/lib/trainingComposerBridge'
+import {
+  buildBobUserMemoryNote,
+  executeAdministrativeActuation,
+  extractBobVoiceStateFromAssistant,
+  loadBobUserMemory,
+  publishBobVoiceState,
+} from '@/lib/bob-brain'
 
 type ChatMessage = {
   id: string
@@ -1656,6 +1663,9 @@ export default function BobAssistantStudio() {
     setThinking(true)
     setBobDegraded(false)
     const learningUserId = user?.id ?? 'anonymous'
+    const emergencyPriorityActive = dangerAutoAssistArmed && (
+      emergencyCountdownSeconds !== null || Date.now() < dangerCooldownUntil
+    )
 
     const pushAssistantReply = (text: string) => {
       const assistantMsg: ChatMessage = {
@@ -1664,8 +1674,54 @@ export default function BobAssistantStudio() {
         text,
         createdAt: new Date().toISOString(),
       }
+
+      const voiceState = extractBobVoiceStateFromAssistant(text)
+      if (voiceState) {
+        publishBobVoiceState(voiceState)
+      }
+
       setChat((prev) => [...prev, assistantMsg])
       return assistantMsg
+    }
+
+    if (emergencyPriorityActive && /\b(create|add|new|start)\b/i.test(message) && /\b(client|site|shift)\b/i.test(message)) {
+      pushAssistantReply('Armed Danger Auto-Assist is active. I have paused administrative provisioning until emergency priority clears.')
+      setThinking(false)
+      return
+    }
+
+    const actuationResult = await executeAdministrativeActuation({
+      text: message,
+      organizationId: effectiveOrgId,
+      actorUserId: user?.id ?? null,
+      emergencyPriorityActive,
+    })
+
+    if (actuationResult?.status === 'needs_clarification') {
+      pushAssistantReply(actuationResult.question)
+      setThinking(false)
+      return
+    }
+
+    if (actuationResult?.status === 'blocked') {
+      pushAssistantReply(actuationResult.reason)
+      setThinking(false)
+      return
+    }
+
+    if (actuationResult?.status === 'success') {
+      pushAssistantReply(`${actuationResult.summary} Living Wage applied: NZD ${actuationResult.computedLivingWage.toFixed(2)}.`)
+      if (actuationResult.warnings.length > 0) {
+        pushAssistantReply(`Validation notes: ${actuationResult.warnings.join(' ')}`)
+      }
+      setThinking(false)
+      return
+    }
+
+    let bobMemoryNote = ''
+    if (user?.id) {
+      const rows = await loadBobUserMemory(user.id)
+      bobMemoryNote = buildBobUserMemoryNote(rows)
     }
 
     if (command.intent === 'navigate' && command.args.route && !commandPolicy.requiresApproval) {
@@ -1713,7 +1769,9 @@ export default function BobAssistantStudio() {
         const { data, error } = await withPromiseTimeout(
           supabase.functions.invoke('ask-bob', {
             body: {
-              prompt: message,
+              prompt: bobMemoryNote
+                ? `${message}\n\nUser memory context: ${bobMemoryNote}`
+                : message,
               organization_id: orgId || undefined,
             },
           }),
@@ -1730,14 +1788,7 @@ export default function BobAssistantStudio() {
           throw new Error('ask-bob returned an empty video response')
         }
 
-        const bobMsg: ChatMessage = {
-          id: crypto.randomUUID(),
-          role: 'assistant',
-          text: replyText,
-          createdAt: new Date().toISOString(),
-        }
-
-        setChat((prev) => [...prev, bobMsg])
+        pushAssistantReply(replyText)
         setBobDegraded(false)
         clearBobServiceOutage()
 

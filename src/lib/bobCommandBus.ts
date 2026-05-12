@@ -54,6 +54,7 @@ const NAV_PATTERNS: Array<{ re: RegExp; route: string }> = [
 ]
 
 const CREATE_RECORD_PATTERNS: Array<{ re: RegExp; recordType: string; safety: 'safe' | 'review' }> = [
+  { re: /\b(create|add|new|start)\s+(client|site|shift|roster\s*shift)\b/i, recordType: 'admin_provisioning', safety: 'review' },
   { re: /\b(create|log|add|new)\s+(observation|obs)\b/i, recordType: 'observation', safety: 'safe' },
   { re: /\b(create|log|add|raise)\s+(breach|breach\s*alert)\b/i, recordType: 'breach', safety: 'review' },
   { re: /\b(create|log|add|raise)\s+(incident|incident\s*report)\b/i, recordType: 'incident', safety: 'review' },

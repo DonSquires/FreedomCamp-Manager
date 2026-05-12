@@ -12,6 +12,7 @@ Requires Ollama >= 0.3.x for /api/chat support (pinned in Dockerfile via OLLAMA_
 
 import os
 import json
+import re
 import shutil
 import base64
 import hashlib
@@ -102,6 +103,8 @@ OPENAI_ALLOWED_PURPOSES = {
     for item in os.environ.get("OPENAI_ALLOWED_PURPOSES", "research,training").split(",")
     if item.strip()
 }
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "").strip().rstrip("/")
+SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "").strip()
 
 print(f"[worker] FieldOps AI Worker (Python/runpod) starting")
 print(f"[worker] OLLAMA_BASE: {OLLAMA_BASE} (external)")
@@ -202,6 +205,110 @@ def load_training_memory():
 
 TRAINING_MEMORY = load_training_memory()
 RUNTIME_TRAINING_NOTES = []
+
+
+def _resolve_user_id(inp):
+    if not isinstance(inp, dict):
+        return ""
+
+    candidates = [
+        inp.get("user_id"),
+        inp.get("actor_user_id"),
+        (inp.get("context") or {}).get("user_id") if isinstance(inp.get("context"), dict) else None,
+    ]
+    for candidate in candidates:
+        value = str(candidate or "").strip()
+        if value:
+            return value
+    return ""
+
+
+def load_user_bob_memory(user_id):
+    if not user_id or not SUPABASE_URL or not SUPABASE_SERVICE_ROLE_KEY:
+        return []
+
+    try:
+        encoded_user = urllib.parse.quote(user_id, safe="")
+        url = (
+            f"{SUPABASE_URL}/rest/v1/bob_user_memory"
+            f"?user_id=eq.{encoded_user}&select=context_key,context_value,last_interaction"
+            f"&order=last_interaction.desc&limit=25"
+        )
+        headers = {
+            "apikey": SUPABASE_SERVICE_ROLE_KEY,
+            "Authorization": f"Bearer {SUPABASE_SERVICE_ROLE_KEY}",
+        }
+        response = requests.get(url, headers=headers, timeout=10)
+        if not response.ok:
+            return []
+        data = response.json()
+        return data if isinstance(data, list) else []
+    except Exception as exc:
+        print(f"[worker] bob_user_memory load failed: {exc}")
+        return []
+
+
+def persist_user_memory_hint(user_id, context_key, context_value):
+    if not user_id or not context_key or not context_value:
+        return
+    if not SUPABASE_URL or not SUPABASE_SERVICE_ROLE_KEY:
+        return
+
+    payload = {
+        "user_id": user_id,
+        "context_key": context_key,
+        "context_value": context_value,
+        "last_interaction": datetime_now_iso(),
+    }
+
+    try:
+        url = f"{SUPABASE_URL}/rest/v1/bob_user_memory?on_conflict=user_id,context_key"
+        headers = {
+            "apikey": SUPABASE_SERVICE_ROLE_KEY,
+            "Authorization": f"Bearer {SUPABASE_SERVICE_ROLE_KEY}",
+            "Content-Type": "application/json",
+            "Prefer": "resolution=merge-duplicates",
+        }
+        requests.post(url, headers=headers, json=payload, timeout=10)
+    except Exception as exc:
+        print(f"[worker] bob_user_memory upsert failed: {exc}")
+
+
+def format_user_memory_context(memory_rows):
+    if not memory_rows:
+        return ""
+
+    preferred_sites = []
+    common_phrases = []
+    shift_types = []
+
+    for row in memory_rows:
+        key = str(row.get("context_key") or "").lower()
+        value = str(row.get("context_value") or "").strip()
+        if not value:
+            continue
+        if key.startswith("preferred_site"):
+            preferred_sites.append(value)
+        elif key.startswith("common_phrase"):
+            common_phrases.append(value)
+        elif key.startswith("past_shift_type"):
+            shift_types.append(value)
+
+    lines = []
+    if preferred_sites:
+        lines.append("Preferred sites: " + ", ".join(preferred_sites[:5]))
+    if common_phrases:
+        lines.append("Common phrases: " + ", ".join(common_phrases[:5]))
+    if shift_types:
+        lines.append("Past shift types: " + ", ".join(shift_types[:5]))
+
+    return "\n".join(lines)
+
+
+def datetime_now_iso():
+    from datetime import datetime, timezone
+
+    return datetime.now(timezone.utc).isoformat()
 
 
 def detect_role(action, inp):
@@ -709,20 +816,47 @@ def handler(job):
                 "model": OLLAMA_MODEL,
                 "provider": "training-memory",
             }
+
+        user_id = _resolve_user_id(inp)
+        user_memory_rows = load_user_bob_memory(user_id)
+        user_memory_context = format_user_memory_context(user_memory_rows)
+        system_prompt = build_system_prompt(role, inp.get("system_prompt") or BOB_SYSTEM)
+        if user_memory_context:
+            system_prompt = system_prompt + "\n\nPersistent user memory:\n" + user_memory_context
+
         messages = [
-            {"role": "system", "content": build_system_prompt(role, inp.get("system_prompt") or BOB_SYSTEM)},
+            {"role": "system", "content": system_prompt},
             *(inp.get("history") or []),
             {"role": "user", "content": message},
         ]
         use_openai = wants_openai_provider(inp)
         result = openai_chat(messages, inp.get("model"), inp.get("temperature", 0.7)) if use_openai else ollama_chat(messages, inp.get("model"), inp.get("temperature", 0.7))
         provider_name = "openai" if use_openai else "ollama"
+
+        if user_id:
+            persist_user_memory_hint(user_id, "common_phrase_latest", str(message).strip()[:180])
+            lowered = str(message).lower()
+            if "night shift" in lowered:
+                persist_user_memory_hint(user_id, "past_shift_type_latest", "night")
+            elif "day shift" in lowered:
+                persist_user_memory_hint(user_id, "past_shift_type_latest", "day")
+
+            site_match = str(message).strip()
+            site_capture = None
+            site_pattern = re.search(r"\b(?:at|site|address)\b\s+(.+)$", site_match, re.IGNORECASE)
+            if site_pattern and site_pattern.group(1).strip():
+                site_capture = site_pattern.group(1).strip()[:180]
+            if site_capture:
+                persist_user_memory_hint(user_id, "preferred_site_latest", site_capture)
+
         return {
             "success": True,
             "response": result["content"],
             "message": result["content"],
             "model": result["model"],
             "provider": provider_name,
+            "memory_applied": bool(user_memory_context),
+            "memory_items": len(user_memory_rows),
             "openai_purpose": resolve_openai_purpose(inp) if use_openai else None,
         }
 
