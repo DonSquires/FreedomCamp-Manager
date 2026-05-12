@@ -1,8 +1,37 @@
 # STAGING — Unified Execution To-Do and Crash Recovery Plan
 
-Date: 2026-05-11
+Date: 2026-05-12
 Owner: GitHub Copilot
-Status: Active staging checklist — Sprints 50-70 complete on main; no staged sprints remaining (2026-05-11)
+Status: Active staging checklist — Sprints 50-70 complete on main; Iron Eagle Visual Identity locked in docs (2026-05-12)
+
+Latest Session Snapshot (Iron Eagle Visual Identity — doc lock-in — 2026-05-12):
+
+- Timestamp (NZ): 2026-05-12 20:23 NZST
+- Current branch: `copilot/create-phased-role-out-plan`
+- Scope completed:
+  - Added "Iron Eagle Tactical Design Language" subsection to `docs/INSTRUCTION_MANUAL.md` (section 1a — UI/UX Design Standards).
+  - Locked the full colour token palette: `--color-bg-base` (#121212), `--color-brand-primary` (#D32F2F), silver accents, critical-only crimson.
+  - Documented context-specific application rules for Login, Officer Shell, Admin/Master Shells, Bob AI interaction, and Armed Danger viewport-border pulse micro-interaction.
+  - Confirmed `--color-critical-alert` / `--color-critical-border` are strictly reserved for Armed Danger and Welfare man-down events.
+
+- Checklist:
+  | Item | Status |
+  |---|---|
+  | Iron Eagle palette token table in INSTRUCTION_MANUAL.md | ✅ DONE |
+  | Typography rules (Inter/Roboto, white-on-dark) | ✅ DONE |
+  | Login & Standby screen spec | ✅ DONE |
+  | Active Mission / Officer Shell spec | ✅ DONE |
+  | Admin & Master Shell active-nav and button spec | ✅ DONE |
+  | Bob AI thinking/speaking pulse ring spec | ✅ DONE |
+  | Armed Danger viewport-border pulse micro-interaction spec | ✅ DONE |
+  | `prefers-reduced-motion` fallback rules | ✅ DONE |
+
+- Validation: docs-only change; no TypeScript/Vite build impact.
+- Next visual-identity steps (implementation, not docs):
+  1. Wire tokens into `tailwind.config.ts` as custom colour extensions.
+  2. Apply dark-mode base class to `src/index.css` and confirm Tailwind dark variant propagation.
+  3. Update `src/pages/Login.tsx` to match the Login spec above.
+  4. Add `danger-pulse` keyframe and viewport-overlay component for Armed Danger events.
 
 Latest Session Snapshot (Mobile welfare background hardening + doc sync — 2026-05-11):
 
