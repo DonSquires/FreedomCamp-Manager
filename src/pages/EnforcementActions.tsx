@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
+import { isDigitalSignatureValid } from '@/lib/enforcementPhase4'
 import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
 import { useOperationalCases } from '@/hooks/useOperationalCases'
@@ -84,6 +85,10 @@ export default function EnforcementActions() {
   const [newActionType, setNewActionType] = useState<string>('warning')
   const [actionNotes, setActionNotes] = useState('')
   const [warningModalBreach, setWarningModalBreach] = useState<BreachAlert | null>(null)
+  // Phase 4: Fire-control signature gate
+  const [signatureGate, setSignatureGate] = useState<{ actionId: string; outcome: string } | null>(null)
+  const [signatureInput, setSignatureInput] = useState('')
+  const [signatureError, setSignatureError] = useState('')
   const queryClient = useQueryClient()
   const navigate = useNavigate()
 
@@ -710,10 +715,11 @@ export default function EnforcementActions() {
                         <Button
                           variant="default"
                           size="sm"
-                          onClick={() => completeMutation.mutate({ 
-                            actionId: action.id, 
-                            outcome: 'complied' 
-                          })}
+                          onClick={() => {
+                            setSignatureInput('')
+                            setSignatureError('')
+                            setSignatureGate({ actionId: action.id, outcome: 'complied' })
+                          }}
                           disabled={completeMutation.isPending}
                         >
                           <CheckCircle className="h-4 w-4 mr-1" />
@@ -722,10 +728,11 @@ export default function EnforcementActions() {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => completeMutation.mutate({ 
-                            actionId: action.id, 
-                            outcome: 'escalated' 
-                          })}
+                          onClick={() => {
+                            setSignatureInput('')
+                            setSignatureError('')
+                            setSignatureGate({ actionId: action.id, outcome: 'escalated' })
+                          }}
                           disabled={completeMutation.isPending}
                         >
                           <ArrowRight className="h-4 w-4 mr-1" />
@@ -894,6 +901,47 @@ export default function EnforcementActions() {
               }}
             />
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Phase 4: Fire-control signature gate */}
+      <Dialog open={signatureGate !== null} onOpenChange={(open) => { if (!open) setSignatureGate(null) }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Authorize Enforcement Action</DialogTitle>
+            <DialogDescription>
+              Type your full name to authorize this {signatureGate?.outcome === 'complied' ? 'compliance' : 'escalation'} outcome.
+              This creates a legally binding record.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <Label htmlFor="sig-input">Full Name (digital signature)</Label>
+            <Input
+              id="sig-input"
+              value={signatureInput}
+              onChange={(e) => { setSignatureInput(e.target.value); setSignatureError('') }}
+              placeholder={`${user?.first_name ?? ''} ${user?.last_name ?? ''}`}
+              autoFocus
+            />
+            {signatureError && <p className="text-sm text-destructive">{signatureError}</p>}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSignatureGate(null)}>Cancel</Button>
+            <Button
+              onClick={() => {
+                const fullName = `${user?.first_name ?? ''} ${user?.last_name ?? ''}`.trim()
+                if (!isDigitalSignatureValid(signatureInput, fullName)) {
+                  setSignatureError(`Please type your full name exactly: ${fullName}`)
+                  return
+                }
+                completeMutation.mutate({ actionId: signatureGate!.actionId, outcome: signatureGate!.outcome })
+                setSignatureGate(null)
+              }}
+              disabled={completeMutation.isPending}
+            >
+              Authorize
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </AppLayout>
