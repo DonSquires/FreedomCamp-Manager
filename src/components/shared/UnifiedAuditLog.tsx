@@ -6,7 +6,7 @@
  * See docs/ENTERPRISE_UI_CONSOLIDATION_PATTERNS.md §3
  */
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { formatDistanceToNow } from 'date-fns'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
@@ -56,11 +56,7 @@ export function UnifiedAuditLog({
   const [actionFilter, setActionFilter] = useState<string | undefined>()
   const [userSearch, setUserSearch] = useState('')
 
-  useEffect(() => {
-    loadAuditHistory()
-  }, [entityType, entityId, actionFilter, userSearch])
-
-  const loadAuditHistory = async () => {
+  const loadAuditHistory = useCallback(async () => {
     if (!entityType || !entityId) return
 
     setLoading(true)
@@ -82,7 +78,11 @@ export function UnifiedAuditLog({
     } finally {
       setLoading(false)
     }
-  }
+  }, [entityType, entityId, actionFilter, userSearch])
+
+  useEffect(() => {
+    void loadAuditHistory()
+  }, [loadAuditHistory])
 
   const getActionColor = (action: string) => {
     switch (action) {
