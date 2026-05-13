@@ -150,6 +150,9 @@ const EMSPortal = lazy(() => import('@/pages/EMSPortal'))
 const SiteGuardPortal = lazy(() => import('@/pages/SiteGuardPortal'))
 const AccessControlPage = lazy(() => import('@/pages/AccessControlPage'))
 const TeamChat = lazy(() => import('@/pages/TeamChat'))
+// New module imports (Phase 2)
+const ModuleDashboard = lazy(() => import('@/modules/dashboard/Dashboard'))
+const PatrolList = lazy(() => import('@/modules/patrol/PatrolList'))
 const PTTRadio = lazy(() => import('@/pages/PTTRadio'))
 const PTTTransmissionLog = lazy(() => import('@/pages/PTTTransmissionLog').then((m) => ({ default: m.PTTTransmissionLog })))
 const RadioAuditDashboard = lazy(() => import('@/pages/RadioAuditDashboard'))
@@ -903,6 +906,30 @@ export default function App() {
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
                   <AdminPortal />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* New module dashboard (consolidated KPI landing page) */}
+          <Route
+            path="/dashboard"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'officer']}>
+                  <ModuleDashboard />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Patrol module routes */}
+          <Route
+            path="/patrols"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'officer']}>
+                  <PatrolList />
                 </RoleRoute>
               </ProtectedRoute>
             }
