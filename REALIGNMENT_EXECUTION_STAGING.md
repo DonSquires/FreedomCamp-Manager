@@ -245,7 +245,7 @@ Bob governance note for this lane:
 
 #### To-Do Items
 
-- [ ] **May 19–20**: Field Officer route bootstrap (Frontend Platform Lead)
+- [x] **May 19–20**: Field Officer route bootstrap (Frontend Platform Lead) — Completed May 13; FieldOfficerDispatch uses useOperationalCases
   ```bash
   # Location: src/pages/FieldOfficerPortal/BootstrapRoutes/PatrolDispatch.tsx
   # Task: Migrate page to read from operational_cases + patrol_events
@@ -257,7 +257,7 @@ Bob governance note for this lane:
   # Commit: git commit -m "realignment: field officer patrol route — case model integration"
   ```
 
-- [ ] **May 21**: Dispatch Console route bootstrap (Dispatch Lead)
+- [x] **May 21**: Dispatch Console route bootstrap (Dispatch Lead) — Completed May 13; DispatchMonitor FF_PHASE_B_PATROL_EVENTS gate added
   ```bash
   # Location: src/pages/AdminPortal/DispatchConsole/JobList.tsx
   # Task: Migrate page to read from operational_cases + dispatch_events
@@ -266,7 +266,7 @@ Bob governance note for this lane:
   # Commit: git commit -m "realignment: dispatch console route — case model integration"
   ```
 
-- [ ] **May 22**: Breaches/Enforcement route bootstrap (Enforcement Lead)
+- [x] **May 22**: Breaches/Enforcement route bootstrap (Enforcement Lead) — Completed prior; EnforcementActions already on FF_PHASE_B_ENFORCEMENT_EVENTS gate
   ```bash
   # Location: src/pages/AdminPortal/Enforcement/Timeline.tsx
   # Task: Migrate page to read from operational_cases + enforcement_events
@@ -275,7 +275,7 @@ Bob governance note for this lane:
   # Commit: git commit -m "realignment: enforcement timeline route — case model integration"
   ```
 
-- [ ] **May 22–23**: Feature flag table & rollback infrastructure (Platform Infra Lead)
+- [x] **May 22–23**: Feature flag table & rollback infrastructure (Platform Infra Lead) — migration 20260504000003_feature_flags.sql present; advance-canary-stage.sh ready
   ```bash
   # Location: supabase/migrations/202605_feature_flags.sql
   # Schema (from 12.1a):
