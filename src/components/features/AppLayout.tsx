@@ -664,7 +664,7 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
               'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150',
               isActive
                 ? 'bg-primary/10 text-primary shadow-[inset_3px_0_0_hsl(var(--primary))] dark:bg-primary/15 ring-1 ring-primary/20'
-                : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700/60 dark:hover:text-gray-100'
+                : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-[#2A2A2A] dark:hover:text-gray-100'
             )}
           >
             <Icon className={cn('h-4 w-4 shrink-0', isActive ? 'text-primary' : 'text-gray-400 dark:text-gray-500')} />
@@ -674,12 +674,12 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
       })}
 
       {isDirectorOfficerMode && visiblePinned.length === 0 && !siteToolPermissions.isLoading && (
-        <div className="rounded-lg border border-dashed border-gray-300 px-3 py-2 text-xs text-gray-500 dark:border-gray-700 dark:text-gray-400">
+        <div className="rounded-lg border border-dashed border-gray-300 px-3 py-2 text-xs text-gray-500 dark:border-[#9E9E9E]/20 dark:text-gray-400">
           No site tools are enabled for this shift.
         </div>
       )}
 
-      {!isDirectorOfficerMode && <div className="my-2 border-t border-gray-200/90 dark:border-gray-700/80" />}
+      {!isDirectorOfficerMode && <div className="my-2 border-t border-gray-200/90 dark:border-[#9E9E9E]/20" />}
 
       {/* Grouped navigation with accordion */}
       {!isDirectorOfficerMode && navigationGroups.map((group) => {
@@ -697,7 +697,7 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
             key={group.label}
             className={cn(
               'rounded-xl p-1 transition-colors',
-              hasActiveChild ? 'bg-primary/5 dark:bg-primary/10' : 'bg-transparent'
+              hasActiveChild ? 'bg-primary/5 dark:bg-[#2A2A2A]/30' : 'bg-transparent'
             )}
           >
             <button
@@ -705,8 +705,8 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
               className={cn(
                 'flex w-full items-center justify-between px-3 py-2.5 rounded-lg text-sm font-semibold transition-all duration-150',
                 hasActiveChild
-                  ? 'text-primary bg-primary/5 dark:bg-primary/15'
-                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700/60 dark:hover:text-gray-100'
+                  ? 'text-primary bg-primary/5 dark:bg-[#2A2A2A]/40'
+                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-[#2A2A2A] dark:hover:text-gray-100'
               )}
             >
               <span className="flex items-center gap-3">
@@ -717,7 +717,7 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
             </button>
 
             {isOpen && (
-              <div className="ml-4 mt-1 space-y-1 border-l border-gray-200 dark:border-gray-700 pl-3">
+              <div className="ml-4 mt-1 space-y-1 border-l border-gray-200 dark:border-[#9E9E9E]/20 pl-3">
                 {visibleItems.map((item) => {
                   const Icon = item.icon
                   const isActive = location.pathname === item.path
@@ -729,8 +729,8 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
                       className={cn(
                         'flex items-center gap-3 px-2.5 py-2 rounded-lg text-sm transition-all duration-150',
                         isActive
-                          ? 'bg-primary/10 text-primary font-medium dark:bg-primary/15 ring-1 ring-primary/20'
-                          : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700/60 dark:hover:text-gray-100'
+                          ? 'bg-primary/10 text-primary font-medium dark:bg-[#2A2A2A]/40 ring-1 ring-primary/20'
+                          : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-[#2A2A2A] dark:hover:text-gray-100'
                       )}
                     >
                       <Icon className={cn('h-3.5 w-3.5 shrink-0', isActive ? 'text-primary' : 'text-gray-400 dark:text-gray-500')} />
@@ -1080,7 +1080,7 @@ export function AppLayout({ children, title, description, showBackButton, immers
     <div className="min-h-screen bg-gradient-to-br from-slate-100 via-slate-50 to-cyan-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-900">
       {/* Mobile Header */}
       {!immersive && (
-      <header className="lg:hidden bg-white/95 dark:bg-gray-800/95 backdrop-blur shadow-sm sticky top-0 z-40 border-b border-gray-200/60 dark:border-gray-700/60">
+      <header className="lg:hidden bg-white/95 dark:bg-[#1E1E1E]/95 backdrop-blur shadow-sm sticky top-0 z-40 border-b border-gray-200/60 dark:border-[#9E9E9E]/20">
         <div className="px-4 py-3 space-y-2">
           <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -1226,7 +1226,7 @@ export function AppLayout({ children, title, description, showBackButton, immers
       <div className={cn('transition-[padding] duration-200', desktopNavOpen ? 'lg:pl-64' : 'lg:pl-0')}>
         {/* Desktop Header */}
         {!immersive && (
-        <header className="hidden lg:block bg-white/95 dark:bg-gray-800/90 backdrop-blur shadow-[0_2px_8px_-2px_rgba(0,0,0,0.1)] dark:shadow-[0_2px_8px_-2px_rgba(0,0,0,0.4)] sticky top-0 z-20 border-b border-gray-100/90 dark:border-gray-700/60">
+        <header className="hidden lg:block bg-white/95 dark:bg-[#1E1E1E]/90 backdrop-blur shadow-[0_2px_8px_-2px_rgba(0,0,0,0.1)] dark:shadow-[0_2px_8px_-2px_rgba(0,0,0,0.4)] sticky top-0 z-20 border-b border-gray-100/90 dark:border-[#9E9E9E]/20">
           <div className="px-6 py-4">
             <div className="flex items-center justify-between">
               <div className="flex items-start gap-3">
@@ -1331,7 +1331,7 @@ export function AppLayout({ children, title, description, showBackButton, immers
               <PopoverTrigger asChild>
                 <button
                   title="Push-to-Talk / Team Chat"
-                  className="fixed bottom-16 right-4 z-40 flex items-center gap-2 rounded-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-lg px-3 py-2 text-xs font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-all hover:shadow-xl group"
+                  className="fixed bottom-16 right-4 z-40 flex items-center gap-2 rounded-full bg-white dark:bg-[#1E1E1E] border border-gray-200 dark:border-[#9E9E9E]/20 shadow-lg px-3 py-2 text-xs font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#2A2A2A] transition-all hover:shadow-xl group"
                 >
                   <span className="relative">
                     <Radio className="h-4 w-4 text-blue-500 group-hover:scale-110 transition-transform" />
@@ -1559,7 +1559,7 @@ export function AppLayout({ children, title, description, showBackButton, immers
                 <button
                   onClick={() => setFeedbackOpen(true)}
                   title="Send feedback or report an issue"
-                  className="flex items-center gap-2 rounded-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-lg px-3 py-2 text-xs font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-all hover:shadow-xl group"
+                  className="flex items-center gap-2 rounded-full bg-white dark:bg-[#1E1E1E] border border-gray-200 dark:border-[#9E9E9E]/20 shadow-lg px-3 py-2 text-xs font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#2A2A2A] transition-all hover:shadow-xl group"
                 >
                   <MessageSquarePlus className="h-4 w-4 text-violet-500 group-hover:scale-110 transition-transform" />
                   <span className="hidden sm:inline">Feedback</span>
