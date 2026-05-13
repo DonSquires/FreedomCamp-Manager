@@ -335,7 +335,7 @@ test.describe('Field Officer Portal — Quick Report', () => {
     if (await serviceIndicator.isVisible({ timeout: 5000 }).catch(() => false)) {
       await expect(serviceIndicator).toBeVisible({ timeout: 8000 })
     }
-    expect(page.url()).toMatch(/\/(field-officer|officer-home|portal-selection|login)/)
+    expect(page.url()).toMatch(/\/(field-officer|officer-home|portal-selection|waiting-for-shift|login)/)
   })
 
   test('opens Quick Report dialog from field portal', async ({ page }) => {
@@ -2106,7 +2106,7 @@ test.describe('Field Officer Portal — Patrol and Welfare', () => {
     }
 
     if (page.url().includes('/login') || page.url().includes('/portal-selection')) {
-      expect(page.url()).toMatch(/\/(field-officer|officer-home|portal-selection|login)/)
+      expect(page.url()).toMatch(/\/(field-officer|officer-home|portal-selection|waiting-for-shift|login)/)
       return
     }
 
@@ -2115,7 +2115,7 @@ test.describe('Field Officer Portal — Patrol and Welfare', () => {
     if (await welfareIndicator.isVisible({ timeout: 2000 }).catch(() => false)) {
       expect(await welfareIndicator.isVisible().catch(() => false)).toBe(true)
     }
-    expect(page.url()).toMatch(/\/(field-officer|officer-home|portal-selection|login)/)
+    expect(page.url()).toMatch(/\/(field-officer|officer-home|portal-selection|waiting-for-shift|login)/)
   })
 
   test('service type selector shows 4 options', async ({ page }) => {
@@ -2123,7 +2123,7 @@ test.describe('Field Officer Portal — Patrol and Welfare', () => {
     await go(page, '/field-officer')
 
     if (page.url().includes('/login') || page.url().includes('/portal-selection')) {
-      expect(page.url()).toMatch(/\/(field-officer|officer-home|portal-selection|login)/)
+      expect(page.url()).toMatch(/\/(field-officer|officer-home|portal-selection|waiting-for-shift|login)/)
       return
     }
 
@@ -2131,7 +2131,7 @@ test.describe('Field Officer Portal — Patrol and Welfare', () => {
     if (await serviceIndicator.isVisible({ timeout: 5000 }).catch(() => false)) {
       await expect(serviceIndicator).toBeVisible({ timeout: 8000 })
     }
-    expect(page.url()).toMatch(/\/(field-officer|officer-home|portal-selection|login)/)
+    expect(page.url()).toMatch(/\/(field-officer|officer-home|portal-selection|waiting-for-shift|login)/)
   })
 
   test('SOS button exists with correct aria-label', async ({ page }) => {
@@ -2139,7 +2139,7 @@ test.describe('Field Officer Portal — Patrol and Welfare', () => {
     await go(page, '/field-officer')
 
     if (page.url().includes('/login') || page.url().includes('/portal-selection')) {
-      expect(page.url()).toMatch(/\/(field-officer|officer-home|portal-selection|login)/)
+      expect(page.url()).toMatch(/\/(field-officer|officer-home|portal-selection|waiting-for-shift|login)/)
       return
     }
 
@@ -2154,7 +2154,7 @@ test.describe('Field Officer Portal — Patrol and Welfare', () => {
     await go(page, '/field-officer')
 
     if (page.url().includes('/login') || page.url().includes('/portal-selection')) {
-      expect(page.url()).toMatch(/\/(field-officer|officer-home|portal-selection|login)/)
+      expect(page.url()).toMatch(/\/(field-officer|officer-home|portal-selection|waiting-for-shift|login)/)
       return
     }
 
@@ -2162,7 +2162,7 @@ test.describe('Field Officer Portal — Patrol and Welfare', () => {
     if (await patrolBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
       await expect(patrolBtn).toBeVisible({ timeout: 8000 })
     }
-    expect(page.url()).toMatch(/\/(field-officer|officer-home|portal-selection|login)/)
+    expect(page.url()).toMatch(/\/(field-officer|officer-home|portal-selection|waiting-for-shift|login)/)
   })
 
   test('Welfare check-in button works', async ({ page }) => {
@@ -2355,7 +2355,7 @@ test.describe('Site Guard Portal', () => {
     if (await heading.isVisible({ timeout: 5000 }).catch(() => false)) {
       await expect(heading).toBeVisible({ timeout: 8000 })
     }
-    expect(page.url()).toMatch(/\/(site-guard|field-officer|officer-home|portal-selection|login)/)
+    expect(page.url()).toMatch(/\/(site-guard|field-officer|officer-home|portal-selection|waiting-for-shift|login)/)
   })
 })
 
