@@ -78,6 +78,24 @@ Deno.serve(withCors(async (req: Request) => {
       message.includes('failed for all configured endpoints') ||
       message.includes('HTTP 5') ||
       message.includes('OUTBOUND_HOST_NOT_ALLOWED')
-    return errorResponse(unavailable ? 'Translation service unreachable' : message, req, unavailable ? 502 : 500)
+    if (unavailable) {
+      // Degraded mode: return source text so caller UX can continue without hard failure.
+      return jsonResponse(
+        {
+          translated_text: text,
+          target_language,
+          detected_source: source_language ?? null,
+          translation_confidence: 0,
+          confidence_reason: 'Translation unavailable; returned source text in degraded mode.',
+          provider: 'fallback',
+          model: null,
+          fallback: true,
+          warning: 'Translation service unreachable',
+        },
+        req,
+      )
+    }
+
+    return errorResponse(message, req, 500)
   }
 }))

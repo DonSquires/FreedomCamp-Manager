@@ -40,6 +40,7 @@ const BOB_API_KEY =
 
 function buildServiceUrlPool(): string[] {
   const urls = [TRANSCRIPTION_SERVICE_URL]
+  if (TRANSCRIPTION_FALLBACK_SERVICE_URL) {
     urls.push(TRANSCRIPTION_FALLBACK_SERVICE_URL)
   }
   return urls.filter(Boolean)

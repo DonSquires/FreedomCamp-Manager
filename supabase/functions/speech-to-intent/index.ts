@@ -174,10 +174,30 @@ Deno.serve(withCors(async (req: Request) => {
       error_message: msg,
     })
 
+    if (isTimeout) {
+      return jsonResponse(
+        {
+          transcript: null,
+          intent: {
+            intent: null,
+            confidence: 0,
+            needs_confirmation: true,
+          },
+          provider: {
+            stt: 'browser_fallback',
+            intent: 'degraded',
+          },
+          client_action: 'web_speech_recognition',
+          warning: 'Speech router timed out',
+        },
+        req,
+      )
+    }
+
     return errorResponse(
-      isTimeout ? 'Speech router timed out' : `Speech router error: ${msg}`,
+      `Speech router error: ${msg}`,
       req,
-      isTimeout ? 504 : 502,
+      502,
     )
   }
 }))
