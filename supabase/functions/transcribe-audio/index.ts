@@ -109,12 +109,31 @@ Deno.serve(withCors(async (req: Request) => {
     let lastError: Error | null = null
     for (const serviceUrl of serviceUrls) {
       try {
+        const isDirectTranscribeEndpoint = /\/transcribe\/?$/i.test(serviceUrl) ||
+          serviceUrl.includes('railway-stt-production.up.railway.app')
+
         // Detect RunPod serverless URL and use action-based /runsync protocol
         const isRunpod = serviceUrl.includes('api.runpod.ai/v2') ||
           serviceUrl.includes('runpod.io')
 
         let inferResp: Response
-        if (isRunpod) {
+        if (isDirectTranscribeEndpoint && !isRunpod) {
+          const directUrl = /\/transcribe\/?$/i.test(serviceUrl)
+            ? serviceUrl
+            : `${serviceUrl}/transcribe`
+          inferResp = await fetchWithRetry(directUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(BOB_API_KEY ? { Authorization: `Bearer ${BOB_API_KEY}` } : {}),
+            },
+            body: JSON.stringify({
+              audio_base64: audioBase64,
+              audio_mime_type: audioMimeType,
+              language,
+            }),
+          }, { retries: 1, timeoutMs: 30_000, backoffMs: 600 })
+        } else if (isRunpod) {
           const runpodBase = serviceUrl.replace(/\/(runsync|run|status.*)$/i, '')
           inferResp = await fetchWithRetry(`${runpodBase}/runsync`, {
             method: 'POST',
@@ -167,6 +186,15 @@ Deno.serve(withCors(async (req: Request) => {
           const workerError = String(payload.error ?? 'transcribe action unavailable')
           console.error(`transcribe-audio: worker error from ${serviceUrl}`, workerError)
           lastError = new Error(workerError)
+          continue
+        }
+
+        const clientAction = String(payload.client_action ?? '').trim().toLowerCase()
+        const provider = String(payload.provider ?? '').trim().toLowerCase()
+        if (clientAction === 'web_speech_recognition' || provider === 'browser_fallback' || provider === 'client-fallback') {
+          const strictError = 'Transcription backend returned client fallback directive in strict mode'
+          console.error(`transcribe-audio: strict failure from ${serviceUrl}`, strictError)
+          lastError = new Error(strictError)
           continue
         }
         return jsonResponse(payload, req)

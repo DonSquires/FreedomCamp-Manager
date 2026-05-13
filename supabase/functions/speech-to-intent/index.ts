@@ -21,11 +21,14 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3'
 import { withCors, jsonResponse, errorResponse } from '../_shared/withCors.ts'
 import { requireAuth } from '../_shared/requireAuth.ts'
+import { bobChat } from '../_shared/bobInfer.ts'
 
 const SPEECH_ROUTER_URL = (Deno.env.get('SPEECH_ROUTER_URL') ?? '').trim().replace(/\/+$/, '')
 const SPEECH_ROUTER_FALLBACK_URL = (Deno.env.get('SPEECH_ROUTER_FALLBACK_URL') ?? '').trim().replace(/\/+$/, '')
 const SPEECH_ROUTER_KEY = (Deno.env.get('SPEECH_ROUTER_KEY') ?? '').trim()
 const TIMEOUT_MS = parseInt(Deno.env.get('SPEECH_ROUTER_TIMEOUT_MS') ?? '45000', 10)
+const BACKUP_STT_URL = (Deno.env.get('TRANSCRIPTION_SERVICE_URL') || Deno.env.get('RAILWAY_STT_URL') || '').trim().replace(/\/+$/, '')
+const BACKUP_STT_KEY = (Deno.env.get('INFERENCE_API_KEY') || Deno.env.get('BOB_INFERENCE_API_KEY') || '').trim()
 
 function buildSpeechRouterPool(): string[] {
   const urls = [SPEECH_ROUTER_URL]
@@ -33,6 +36,20 @@ function buildSpeechRouterPool(): string[] {
     urls.push(SPEECH_ROUTER_FALLBACK_URL)
   }
   return urls.filter(Boolean)
+}
+
+function parseJsonObject(text: string): Record<string, unknown> | null {
+  try {
+    return JSON.parse(text)
+  } catch {
+    const match = text.match(/\{[\s\S]*\}/)
+    if (!match) return null
+    try {
+      return JSON.parse(match[0])
+    } catch {
+      return null
+    }
+  }
 }
 
 function buildServiceClient() {
@@ -156,6 +173,71 @@ Deno.serve(withCors(async (req: Request) => {
         const msg = routerErr instanceof Error ? routerErr.message : String(routerErr)
         lastErrorMessage = msg
         continue
+      }
+    }
+
+    if (BACKUP_STT_URL) {
+      try {
+        const directUrl = /\/transcribe\/?$/i.test(BACKUP_STT_URL) ? BACKUP_STT_URL : `${BACKUP_STT_URL}/transcribe`
+        const backupSttRes = await fetch(directUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(BACKUP_STT_KEY ? { Authorization: `Bearer ${BACKUP_STT_KEY}` } : {}),
+          },
+          body: JSON.stringify({
+            audio_base64: body.audio_base64,
+            language: typeof body.language === 'string' ? body.language : 'en',
+          }),
+          signal: AbortSignal.timeout(TIMEOUT_MS),
+        })
+
+        if (backupSttRes.ok) {
+          const sttBody = await backupSttRes.json().catch(() => ({})) as Record<string, unknown>
+          const transcript = String(sttBody.transcript ?? sttBody.text ?? '').trim()
+
+          if (transcript) {
+            const intentPrompt = [
+              'Classify the transcript into a patrol intent.',
+              'Return strict JSON only: {"intent":"...","confidence":0.0,"needs_confirmation":false}.',
+              `Transcript: ${transcript}`,
+            ].join('\n')
+
+            const intentReply = await bobChat({ message: intentPrompt, temperature: 0, timeoutMs: 25_000 })
+            const parsed = parseJsonObject(intentReply.response) ?? {}
+
+            const backupResponse = {
+              transcript,
+              intent: {
+                intent: typeof parsed.intent === 'string' ? parsed.intent : 'unknown',
+                confidence: typeof parsed.confidence === 'number' ? parsed.confidence : 0.5,
+                needs_confirmation: parsed.needs_confirmation === true,
+              },
+              provider: {
+                stt: 'backup_stt',
+                intent: intentReply.provider || 'ollama',
+              },
+              warning: 'primary speech-router unavailable; backup pipeline used',
+            }
+
+            await persistAuditEvent(supabase, {
+              user_id: userId,
+              org_id: orgId,
+              transcript,
+              intent_name: backupResponse.intent.intent,
+              confidence: backupResponse.intent.confidence,
+              needs_confirmation: backupResponse.intent.needs_confirmation,
+              provider_stt: 'backup_stt',
+              provider_intent: intentReply.provider || 'ollama',
+              redacted: false,
+              error_message: lastErrorMessage ?? 'Speech router unavailable; backup pipeline used',
+            })
+
+            return jsonResponse(backupResponse, req)
+          }
+        }
+      } catch {
+        // Continue to hard failure after backup attempt.
       }
     }
 

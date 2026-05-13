@@ -373,6 +373,15 @@ verify_jwt = false
 [functions.translate-message]
 verify_jwt = false
 
+# speech-to-intent / transcribe-audio: keep gateway JWT verification disabled
+# to avoid pre-execution 401s from hosted gateway algorithm mismatch.
+# Both functions enforce auth inside the handler via requireAuth.
+[functions.speech-to-intent]
+verify_jwt = false
+
+[functions.transcribe-audio]
+verify_jwt = false
+
 # ptt-assess: Bob AI PTT diagnostics endpoint.  Validates auth internally.
 [functions.ptt-assess]
 verify_jwt = false

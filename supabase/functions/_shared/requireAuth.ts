@@ -33,7 +33,15 @@ export async function requireAuth(req: Request): Promise<AuthResult> {
   }
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
-  const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
+  const supabaseAnonKey =
+    Deno.env.get('SUPABASE_ANON_KEY') ??
+    Deno.env.get('SUPABASE_PUBLISHABLE_KEY') ??
+    req.headers.get('apikey') ??
+    '';
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    return { user: null, error: 'Unauthorized' };
+  }
 
   const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     auth: {
