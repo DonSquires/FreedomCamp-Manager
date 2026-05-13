@@ -60,6 +60,7 @@ grep_requested_output.txt
 .local/
 .venv-migrate/
 .venv-translator/
+.venv-tools/
 
 # E2E test artifacts
 playwright-report/
@@ -72,6 +73,7 @@ __pycache__/
 data/bob-last-runpod-self-test.json
 data/bob-response-scores.jsonl
 data/bob-failure-summary.json
+data/route-validation-*.json
 
 # Bob generated review and analysis artifacts
 data/dr-bob-reviews/
@@ -90,5 +92,3 @@ package-lock.json
 .env
 test-results/
 playwright-report/
-.venv-tools/
-data/route-validation-*.json
