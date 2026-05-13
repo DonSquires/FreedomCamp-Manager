@@ -152,7 +152,9 @@ const AccessControlPage = lazy(() => import('@/pages/AccessControlPage'))
 const TeamChat = lazy(() => import('@/pages/TeamChat'))
 // New module imports (Phase 2)
 const ModuleDashboard = lazy(() => import('@/modules/dashboard/Dashboard'))
-const PatrolList = lazy(() => import('@/modules/patrol/PatrolList'))
+const PatrolModule = lazy(() => import('@/modules/patrol/PatrolModule'))
+const PatrolDetail = lazy(() => import('@/modules/patrol/PatrolDetail'))
+const EnforcementModule = lazy(() => import('@/modules/enforcement/EnforcementModule'))
 const PTTRadio = lazy(() => import('@/pages/PTTRadio'))
 const PTTTransmissionLog = lazy(() => import('@/pages/PTTTransmissionLog').then((m) => ({ default: m.PTTTransmissionLog })))
 const RadioAuditDashboard = lazy(() => import('@/pages/RadioAuditDashboard'))
@@ -929,7 +931,29 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'officer']}>
-                  <PatrolList />
+                  <PatrolModule />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/patrols/:id"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'officer']}>
+                  <PatrolDetail />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/enforcement"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <EnforcementModule />
                 </RoleRoute>
               </ProtectedRoute>
             }

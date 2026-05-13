@@ -2,9 +2,10 @@
  * Patrol module hooks
  */
 
-import { useQuery, useMutation } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
 import { supabase } from '@/lib/supabase'
+import { toast } from 'sonner'
 import type { Patrol, PatrolFilter } from './types'
 
 export function usePatrols(filter?: PatrolFilter) {
@@ -114,15 +115,60 @@ export function usePatrolDetail(patrolId: string) {
 }
 
 export function useCreatePatrol() {
+  const { user } = useAuthStore()
+  const queryClient = useQueryClient()
+
   return useMutation({
-    mutationFn: async (patrol: any) => {
-      const { error } = await supabase.from('patrols').insert([patrol])
+    mutationFn: async (patrol: {
+      zone_id: string
+      patrol_date: string
+      shift: string
+      scheduled_start_time?: string | null
+      scheduled_end_time?: string | null
+      assigned_to?: string | null
+      notes?: string | null
+      description?: string | null
+      priority?: string | null
+    }) => {
+      if (!user?.organization_id) {
+        throw new Error('No organization available')
+      }
+
+      const { data, error } = await supabase
+        .from('patrols')
+        .insert({
+          organization_id: user.organization_id,
+          zone_id: patrol.zone_id,
+          patrol_date: patrol.patrol_date,
+          shift: patrol.shift,
+          scheduled_start_time: patrol.scheduled_start_time ?? null,
+          scheduled_end_time: patrol.scheduled_end_time ?? null,
+          assigned_to: patrol.assigned_to ?? null,
+          notes: patrol.notes ?? null,
+          description: patrol.description ?? null,
+          priority: patrol.priority ?? 'normal',
+          status: 'scheduled',
+        })
+        .select('id')
+        .single()
+
       if (error) throw error
+
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['patrols'] })
+      toast.success('Patrol scheduled')
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Failed to schedule patrol')
     },
   })
 }
 
 export function useUpdatePatrolStatus() {
+  const queryClient = useQueryClient()
+
   return useMutation({
     mutationFn: async ({ patrolId, status }: { patrolId: string; status: string }) => {
       const { error } = await supabase
@@ -131,6 +177,10 @@ export function useUpdatePatrolStatus() {
         .eq('id', patrolId)
 
       if (error) throw error
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['patrols'] })
+      queryClient.invalidateQueries({ queryKey: ['patrol-detail'] })
     },
   })
 }

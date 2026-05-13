@@ -6,6 +6,41 @@ Status: Active staging checklist — Sprints 50-70 complete on main; Iron Eagle 
 
 Latest Session Snapshot (Phased Rollout Continuation — Iron Eagle Navigation & Shell Styling — 2026-05-13):
 
+Latest Session Snapshot (Staging Continuation — Toolchain Restoration, GH CLI, and Bootstrap Routes Validation — 2026-05-13):
+
+- Timestamp (NZ): 2026-05-13
+- Current branch: main
+- Scope completed:
+  - Restored the local JavaScript/runtime toolchain in the Alpine container with `sudo apk` and Bun install:
+    - `node` / `npm` / `npx`
+    - `bun` / `bunx`
+    - `rg`
+    - `chromium` plus Playwright browser payloads
+  - Installed and verified GitHub CLI:
+    - `gh` available on PATH
+    - Authenticated session confirmed against `github.com`
+  - Re-ran repo validation after restoration:
+    - `scripts/check-required-tools.sh`
+    - `bun run build`
+    - `bun run lint`
+    - Playwright bootstrap routes smoke suite with Alpine Chromium override
+  - Confirmed CI visibility with `gh run list --limit 10`
+
+- Validation evidence:
+  | Command | Result | Notes |
+  |---|---|---|
+  | `bash scripts/check-required-tools.sh` | PASS | all required tools available after install |
+  | `gh auth status` | PASS | logged in via `GITHUB_TOKEN` |
+  | `gh run list --limit 10` | PASS | recent GitHub Actions runs visible on `main` |
+  | `bun run build` | PASS | TypeScript + Vite build succeeded (`built in 24.84s`) |
+  | `bun run lint` | PASS | ESLint exit 0; existing warning remains in `UnifiedAuditLog.tsx` |
+  | `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium npm --prefix /workspaces/FreedomCamp-Manager exec playwright test tests/e2e/bootstrap-routes.test.ts --reporter=line` | PASS | 45 passed (2.2m); Phase A bootstrap routes complete |
+
+- Open blockers with owner:
+  1. NONE.
+
+Latest Session Snapshot (Phased Rollout Continuation — Iron Eagle Navigation & Shell Styling — 2026-05-13):
+
 - Timestamp (NZ): 2026-05-13
 - Current branch: main
 - Scope completed:
