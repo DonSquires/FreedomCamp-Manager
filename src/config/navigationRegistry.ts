@@ -47,6 +47,13 @@ export const NAVIGATION_REGISTRY_V1: NavigationRegistryEntry[] = [
     allowedRoles: ['admin', 'admin_officer', 'master', 'grand_master'],
   },
   {
+    path: '/dashboard',
+    label: 'Module Dashboard',
+    section: 'Mission Control',
+    navSurface: 'sidebar',
+    allowedRoles: ['admin', 'admin_officer', 'master', 'officer'],
+  },
+  {
     path: '/field-officer',
     label: 'Field Officer',
     section: 'Field Operations',
@@ -54,8 +61,29 @@ export const NAVIGATION_REGISTRY_V1: NavigationRegistryEntry[] = [
     allowedRoles: ['officer', 'admin_officer'],
   },
   {
+    path: '/patrols',
+    label: 'Patrol Operations',
+    section: 'Field Operations',
+    navSurface: 'sidebar',
+    allowedRoles: ['admin', 'admin_officer', 'master', 'officer'],
+  },
+  {
+    path: '/patrols/:id',
+    label: 'Patrol Detail',
+    section: 'Field Operations',
+    navSurface: 'hidden',
+    allowedRoles: ['admin', 'admin_officer', 'master', 'officer'],
+  },
+  {
     path: '/compliance',
     label: 'Compliance',
+    section: 'Compliance and Enforcement',
+    navSurface: 'sidebar',
+    allowedRoles: ['admin', 'admin_officer', 'master'],
+  },
+  {
+    path: '/enforcement',
+    label: 'Enforcement Operations',
     section: 'Compliance and Enforcement',
     navSurface: 'sidebar',
     allowedRoles: ['admin', 'admin_officer', 'master'],
