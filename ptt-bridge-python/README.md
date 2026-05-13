@@ -28,6 +28,8 @@ pip install -r requirements.txt
 uvicorn main:app --host 0.0.0.0 --port 8274
 ```
 
+The whisper transcription stack is installed separately in `requirements.whisper.txt` and is intended for the Docker image or a glibc-based Linux environment. On Alpine-based hosts, use `BOB_TRANSLATOR_MOCK=true` for local smoke tests unless you run the container.
+
 ## Container
 
 ```bash

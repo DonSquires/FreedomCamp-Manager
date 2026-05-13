@@ -21,7 +21,14 @@ const nativeFirefoxExecutablePath = [
 ].find((candidate) => !!candidate && existsSync(candidate))
 
 const chromiumLaunchOptions = {
-  args: ['--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage'],
+  args: [
+    '--no-sandbox',
+    '--disable-gpu',
+    '--disable-dev-shm-usage',
+    '--disable-features=Vulkan',
+    '--use-angle=swiftshader',
+    '--use-gl=swiftshader',
+  ],
   ...(nativeChromiumExecutablePath ? { executablePath: nativeChromiumExecutablePath } : {}),
 }
 
