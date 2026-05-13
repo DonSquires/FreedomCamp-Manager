@@ -23,8 +23,17 @@ import { withCors, jsonResponse, errorResponse } from '../_shared/withCors.ts'
 import { requireAuth } from '../_shared/requireAuth.ts'
 
 const SPEECH_ROUTER_URL = (Deno.env.get('SPEECH_ROUTER_URL') ?? '').trim().replace(/\/+$/, '')
+const SPEECH_ROUTER_FALLBACK_URL = (Deno.env.get('SPEECH_ROUTER_FALLBACK_URL') ?? '').trim().replace(/\/+$/, '')
 const SPEECH_ROUTER_KEY = (Deno.env.get('SPEECH_ROUTER_KEY') ?? '').trim()
 const TIMEOUT_MS = parseInt(Deno.env.get('SPEECH_ROUTER_TIMEOUT_MS') ?? '45000', 10)
+
+function buildSpeechRouterPool(): string[] {
+  const urls = [SPEECH_ROUTER_URL]
+  if (SPEECH_ROUTER_FALLBACK_URL && SPEECH_ROUTER_FALLBACK_URL !== SPEECH_ROUTER_URL) {
+    urls.push(SPEECH_ROUTER_FALLBACK_URL)
+  }
+  return urls.filter(Boolean)
+}
 
 function buildServiceClient() {
   return createClient(
@@ -70,7 +79,8 @@ Deno.serve(withCors(async (req: Request) => {
     return errorResponse('Method not allowed', req, 405)
   }
 
-  if (!SPEECH_ROUTER_URL) {
+  const routerUrls = buildSpeechRouterPool()
+  if (!routerUrls.length) {
     return errorResponse('SPEECH_ROUTER_URL is not configured', req, 503)
   }
 
@@ -99,67 +109,72 @@ Deno.serve(withCors(async (req: Request) => {
     context: typeof body.context === 'object' && body.context !== null ? body.context : {},
   }
 
-  const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS)
-
   const supabase = buildServiceClient()
+  let lastErrorMessage: string | null = null
 
   try {
-    const routerRes = await fetch(`${SPEECH_ROUTER_URL}/v1/speech-to-intent`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(SPEECH_ROUTER_KEY ? { Authorization: `Bearer ${SPEECH_ROUTER_KEY}` } : {}),
-      },
-      body: JSON.stringify(routerPayload),
-      signal: controller.signal,
-    })
+    for (const routerUrl of routerUrls) {
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS)
+      try {
+        const routerRes = await fetch(`${routerUrl}/v1/speech-to-intent`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(SPEECH_ROUTER_KEY ? { Authorization: `Bearer ${SPEECH_ROUTER_KEY}` } : {}),
+          },
+          body: JSON.stringify(routerPayload),
+          signal: controller.signal,
+        })
+        clearTimeout(timeout)
 
-    clearTimeout(timeout)
+        const routerBody = await routerRes.json().catch(() => ({})) as Record<string, unknown>
+        if (!routerRes.ok) {
+          lastErrorMessage = (routerBody.detail as string) ?? `speech-router HTTP ${routerRes.status}`
+          continue
+        }
 
-    const routerBody = await routerRes.json().catch(() => ({})) as Record<string, unknown>
+        // 5. Persist audit event
+        const intent = routerBody.intent as Record<string, unknown> | undefined
+        const provider = routerBody.provider as Record<string, string> | undefined
+        await persistAuditEvent(supabase, {
+          user_id: userId,
+          org_id: orgId,
+          transcript: typeof routerBody.transcript === 'string' ? routerBody.transcript : '',
+          intent_name: typeof intent?.intent === 'string' ? intent.intent : null,
+          confidence: typeof intent?.confidence === 'number' ? intent.confidence : null,
+          needs_confirmation: intent?.needs_confirmation === true,
+          provider_stt: provider?.stt ?? 'unknown',
+          provider_intent: provider?.intent ?? 'unknown',
+          redacted: false,
+          error_message: null,
+        })
 
-    if (!routerRes.ok) {
-      await persistAuditEvent(supabase, {
-        user_id: userId,
-        org_id: orgId,
-        transcript: '',
-        intent_name: null,
-        confidence: null,
-        needs_confirmation: true,
-        provider_stt: '',
-        provider_intent: '',
-        redacted: false,
-        error_message: `speech-router HTTP ${routerRes.status}`,
-      })
-      return errorResponse(
-        (routerBody.detail as string) ?? `Upstream error ${routerRes.status}`,
-        req,
-        502,
-      )
+        return jsonResponse(routerBody, req)
+      } catch (routerErr: unknown) {
+        clearTimeout(timeout)
+        const msg = routerErr instanceof Error ? routerErr.message : String(routerErr)
+        lastErrorMessage = msg
+        continue
+      }
     }
 
-    // 5. Persist audit event
-    const intent = routerBody.intent as Record<string, unknown> | undefined
-    const provider = routerBody.provider as Record<string, string> | undefined
     await persistAuditEvent(supabase, {
-        user_id: userId,
-        org_id: orgId,
-        transcript: typeof routerBody.transcript === 'string' ? routerBody.transcript : '',
-      intent_name: typeof intent?.intent === 'string' ? intent.intent : null,
-      confidence: typeof intent?.confidence === 'number' ? intent.confidence : null,
-      needs_confirmation: intent?.needs_confirmation === true,
-      provider_stt: provider?.stt ?? 'unknown',
-      provider_intent: provider?.intent ?? 'unknown',
+      user_id: userId,
+      org_id: orgId,
+      transcript: '',
+      intent_name: null,
+      confidence: null,
+      needs_confirmation: true,
+      provider_stt: '',
+      provider_intent: '',
       redacted: false,
-      error_message: null,
+      error_message: lastErrorMessage ?? 'Speech router error',
     })
 
-    return jsonResponse(routerBody, req)
+    return errorResponse(lastErrorMessage ?? 'Speech router unavailable', req, 502)
   } catch (err: unknown) {
-    clearTimeout(timeout)
     const msg = err instanceof Error ? err.message : 'Unknown error'
-    const isTimeout = msg.includes('abort') || msg.includes('timeout')
 
     await persistAuditEvent(supabase, {
       user_id: userId,
@@ -173,26 +188,6 @@ Deno.serve(withCors(async (req: Request) => {
       redacted: false,
       error_message: msg,
     })
-
-    if (isTimeout) {
-      return jsonResponse(
-        {
-          transcript: null,
-          intent: {
-            intent: null,
-            confidence: 0,
-            needs_confirmation: true,
-          },
-          provider: {
-            stt: 'browser_fallback',
-            intent: 'degraded',
-          },
-          client_action: 'web_speech_recognition',
-          warning: 'Speech router timed out',
-        },
-        req,
-      )
-    }
 
     return errorResponse(
       `Speech router error: ${msg}`,

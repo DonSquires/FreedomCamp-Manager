@@ -164,19 +164,11 @@ Deno.serve(withCors(async (req: Request) => {
 
         const payloadSuccess = payload.success
         if (payloadSuccess === false) {
-          // RunPod worker may not support `transcribe` action yet.
-          // Return a browser STT directive to preserve Bob's ears in production.
-          return jsonResponse({
-            transcript: null,
-            language,
-            provider: 'browser_fallback',
-            client_action: 'web_speech_recognition',
-            message: 'Inference transcribe action unavailable; use browser speech recognition fallback.',
-          }, req)
+          const workerError = String(payload.error ?? 'transcribe action unavailable')
+          console.error(`transcribe-audio: worker error from ${serviceUrl}`, workerError)
+          lastError = new Error(workerError)
+          continue
         }
-
-        // If inference returns browser_fallback directive, pass it through so the
-        // client can activate Web Speech API transcription.
         return jsonResponse(payload, req)
       } catch (err: any) {
         lastError = err instanceof Error ? err : new Error(String(err?.message ?? err))

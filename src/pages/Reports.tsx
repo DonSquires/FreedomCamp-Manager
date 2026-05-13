@@ -597,13 +597,15 @@ export default function Reports() {
 
         {/* Tabbed data preview */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList>
-            <TabsTrigger value="summary">Summary</TabsTrigger>
-            <TabsTrigger value="observations">Observations ({totalObs})</TabsTrigger>
-            <TabsTrigger value="breaches">Breaches ({breaches.length})</TabsTrigger>
-            <TabsTrigger value="zones">Zones ({activeZones.length})</TabsTrigger>
-            <TabsTrigger value="enforcement">Enforcement ({enforcement.length})</TabsTrigger>
-          </TabsList>
+          <div className="w-full overflow-x-auto pb-1">
+            <TabsList className="inline-flex min-w-max">
+              <TabsTrigger value="summary">Summary</TabsTrigger>
+              <TabsTrigger value="observations">Observations ({totalObs})</TabsTrigger>
+              <TabsTrigger value="breaches">Breaches ({breaches.length})</TabsTrigger>
+              <TabsTrigger value="zones">Zones ({activeZones.length})</TabsTrigger>
+              <TabsTrigger value="enforcement">Enforcement ({enforcement.length})</TabsTrigger>
+            </TabsList>
+          </div>
 
           {/* Summary tab */}
           <TabsContent value="summary" className="space-y-6">

@@ -14,7 +14,15 @@
  *   Origin matching and headers are provided via getCorsHeaders from _shared/withCors.ts.
  */
 
+declare const Deno: {
+  env: {
+    get: (key: string) => string | undefined
+  }
+  serve: (handler: (req: Request) => Response | Promise<Response>) => void
+}
+
 import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/withCors.ts'
+// @ts-ignore Deno edge runtime URL import is valid at runtime.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3'
 import { fetchWithRetry } from '../_shared/fetchWithRetry.ts'
 
@@ -113,6 +121,39 @@ function canAccessChannelOrg(profile: {
   employer_organization_id?: string | null
 }, channelOrgId: string): boolean {
   return buildAllowedOrgIds(profile).has(channelOrgId)
+}
+
+function canUseCrossOrgScope(profile: {
+  organization_id?: string | null
+  employer_organization_id?: string | null
+  authorized_work_locations?: string[] | null
+  extra_organization_ids?: string[] | null
+  ptt_channel_access?: string[] | null
+}, channelScope: string, isPrivilegedRole: boolean): boolean {
+  if (isPrivilegedRole) return true
+  if (!channelScope.startsWith('org:')) return false
+
+  const targetOrgId = channelScope.slice(4)
+  if (!targetOrgId) return false
+
+  const allowedScopes = new Set(
+    Array.isArray(profile.ptt_channel_access)
+      ? profile.ptt_channel_access.filter((scope): scope is string => typeof scope === 'string' && scope.length > 0)
+      : [],
+  )
+
+  if (allowedScopes.has(channelScope)) {
+    return true
+  }
+
+  const allowedOrgIds = new Set<string>([
+    profile.organization_id,
+    profile.employer_organization_id,
+    ...(Array.isArray(profile.authorized_work_locations) ? profile.authorized_work_locations : []),
+    ...(Array.isArray(profile.extra_organization_ids) ? profile.extra_organization_ids : []),
+  ].filter((id): id is string => typeof id === 'string' && id.length > 0))
+
+  return allowedOrgIds.has(targetOrgId)
 }
 
 Deno.serve(async (req) => {
@@ -220,8 +261,8 @@ Deno.serve(async (req) => {
     }
 
     const [scopeType, scopeId] = channelScope.split(':')
-  const isPrivilegedRole = ['master', 'grand_master'].includes(profile.role)
-  const isEmergencyRole = ['admin', 'admin_officer', 'master', 'grand_master', 'officer'].includes(profile.role)
+    const isPrivilegedRole = ['master', 'grand_master'].includes(profile.role)
+    const isEmergencyRole = ['admin', 'admin_officer', 'master', 'grand_master', 'officer'].includes(profile.role)
 
     // Resolve effective organization context. For master/grand_master users who
     // may have organization_id = null, derive org context from channel scope.
@@ -234,7 +275,7 @@ Deno.serve(async (req) => {
       )
     }
 
-      if (scopeType === 'global' && scopeId === 'emergency') {
+    if (scopeType === 'global' && scopeId === 'emergency') {
       if (!isEmergencyRole) {
         return new Response(
           JSON.stringify({

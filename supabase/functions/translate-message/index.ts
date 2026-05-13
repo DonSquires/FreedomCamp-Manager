@@ -15,7 +15,7 @@
  *   INFERENCE_API_KEY       Optional bearer key
  */
 
-import { bobTranslate } from '../_shared/bobInfer.ts'
+import { bobTranslate, bobChat } from '../_shared/bobInfer.ts'
 import { withCors, jsonResponse, errorResponse } from '../_shared/withCors.ts'
 import { requireAuth } from '../_shared/requireAuth.ts'
 
@@ -73,29 +73,46 @@ Deno.serve(withCors(async (req: Request) => {
   } catch (err: any) {
     console.error('translate-message: shared translate helper failed', err)
     const message = String(err?.message ?? err)
-    const unavailable =
-      message.includes('not configured') ||
-      message.includes('failed for all configured endpoints') ||
-      message.includes('HTTP 5') ||
-      message.includes('OUTBOUND_HOST_NOT_ALLOWED')
-    if (unavailable) {
-      // Degraded mode: return source text so caller UX can continue without hard failure.
+    try {
+      // Redundant path: use Bob chat when translate action is unavailable.
+      const prompt = [
+        `Translate the following text into ${target_language}.`,
+        'Return ONLY the translated text with no explanations.',
+        source_language ? `Source language hint: ${source_language}.` : '',
+        `Text: ${text}`,
+      ].filter(Boolean).join('\n')
+
+      const chat = await bobChat({
+        message: prompt,
+        temperature: 0,
+        timeoutMs: 30_000,
+      })
+
+      const translated = String(chat.response ?? '').trim()
+      if (!translated) {
+        return errorResponse('Empty translation response from fallback chat path', req, 502)
+      }
+
       return jsonResponse(
         {
-          translated_text: text,
+          translated_text: translated,
           target_language,
           detected_source: source_language ?? null,
-          translation_confidence: 0,
-          confidence_reason: 'Translation unavailable; returned source text in degraded mode.',
-          provider: 'fallback',
-          model: null,
+          translation_confidence: 0.7,
+          confidence_reason: 'Fallback via Bob chat translation prompt.',
+          provider: chat.provider,
+          model: chat.model,
           fallback: true,
-          warning: 'Translation service unreachable',
+          warning: 'translate action unavailable; used chat fallback',
         },
         req,
       )
+    } catch {
+      return errorResponse(
+        message.includes('OUTBOUND_HOST_NOT_ALLOWED') ? 'Translation host policy blocked request' : 'Translation service unreachable',
+        req,
+        502,
+      )
     }
-
-    return errorResponse(message, req, 500)
   }
 }))
