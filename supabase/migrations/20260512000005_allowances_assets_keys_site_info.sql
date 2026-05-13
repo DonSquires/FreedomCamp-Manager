@@ -90,6 +90,7 @@ RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN NEW.updated_at = now(); RETURN NEW; END;
 $$;
 
+DROP TRIGGER IF EXISTS trg_allowance_types_updated_at ON public.allowance_types;
 CREATE TRIGGER trg_allowance_types_updated_at
   BEFORE UPDATE ON public.allowance_types
   FOR EACH ROW EXECUTE FUNCTION public.update_allowance_types_updated_at();
@@ -97,7 +98,6 @@ CREATE TRIGGER trg_allowance_types_updated_at
 ALTER TABLE public.allowance_types ENABLE ROW LEVEL SECURITY;
 
 -- Admins manage allowance types
-DROP POLICY IF EXISTS "admins_manage_allowance_types" ON public.allowance_types;
 DROP POLICY IF EXISTS "admins_manage_allowance_types" ON public.allowance_types;
 CREATE POLICY "admins_manage_allowance_types" ON public.allowance_types FOR ALL
   TO authenticated
@@ -109,7 +109,6 @@ CREATE POLICY "admins_manage_allowance_types" ON public.allowance_types FOR ALL
   );
 
 -- All authenticated users can read allowance types
-DROP POLICY IF EXISTS "auth_read_allowance_types" ON public.allowance_types;
 DROP POLICY IF EXISTS "auth_read_allowance_types" ON public.allowance_types;
 CREATE POLICY "auth_read_allowance_types" ON public.allowance_types FOR SELECT
   TO authenticated
@@ -196,6 +195,7 @@ BEGIN
 END;
 $$;
 
+DROP TRIGGER IF EXISTS trg_calculate_officer_allowance ON public.officer_allowances;
 CREATE TRIGGER trg_calculate_officer_allowance
   BEFORE INSERT OR UPDATE ON public.officer_allowances
   FOR EACH ROW EXECUTE FUNCTION public.calculate_officer_allowance_total();
@@ -203,7 +203,6 @@ CREATE TRIGGER trg_calculate_officer_allowance
 ALTER TABLE public.officer_allowances ENABLE ROW LEVEL SECURITY;
 
 -- Admins manage all allowances
-DROP POLICY IF EXISTS "admins_manage_officer_allowances" ON public.officer_allowances;
 DROP POLICY IF EXISTS "admins_manage_officer_allowances" ON public.officer_allowances;
 CREATE POLICY "admins_manage_officer_allowances" ON public.officer_allowances FOR ALL
   TO authenticated
@@ -215,7 +214,6 @@ CREATE POLICY "admins_manage_officer_allowances" ON public.officer_allowances FO
   );
 
 -- Officers can read their own allowances
-DROP POLICY IF EXISTS "officers_read_own_allowances" ON public.officer_allowances;
 DROP POLICY IF EXISTS "officers_read_own_allowances" ON public.officer_allowances;
 CREATE POLICY "officers_read_own_allowances" ON public.officer_allowances FOR SELECT
   TO authenticated
@@ -362,7 +360,6 @@ CREATE INDEX IF NOT EXISTS idx_asset_types_org
 ALTER TABLE public.asset_types ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "admins_manage_asset_types" ON public.asset_types;
-DROP POLICY IF EXISTS "admins_manage_asset_types" ON public.asset_types;
 CREATE POLICY "admins_manage_asset_types" ON public.asset_types FOR ALL
   TO authenticated
   USING (
@@ -372,7 +369,6 @@ CREATE POLICY "admins_manage_asset_types" ON public.asset_types FOR ALL
     get_user_role(auth.uid()) IN ('grand_master', 'master', 'admin', 'admin_officer')
   );
 
-DROP POLICY IF EXISTS "auth_read_asset_types" ON public.asset_types;
 DROP POLICY IF EXISTS "auth_read_asset_types" ON public.asset_types;
 CREATE POLICY "auth_read_asset_types" ON public.asset_types FOR SELECT
   TO authenticated
@@ -453,13 +449,13 @@ RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN NEW.updated_at = now(); RETURN NEW; END;
 $$;
 
+DROP TRIGGER IF EXISTS trg_officer_assets_updated_at ON public.officer_assets;
 CREATE TRIGGER trg_officer_assets_updated_at
   BEFORE UPDATE ON public.officer_assets
   FOR EACH ROW EXECUTE FUNCTION public.update_officer_assets_updated_at();
 
 ALTER TABLE public.officer_assets ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS "admins_manage_officer_assets" ON public.officer_assets;
 DROP POLICY IF EXISTS "admins_manage_officer_assets" ON public.officer_assets;
 CREATE POLICY "admins_manage_officer_assets" ON public.officer_assets FOR ALL
   TO authenticated
@@ -470,7 +466,6 @@ CREATE POLICY "admins_manage_officer_assets" ON public.officer_assets FOR ALL
     get_user_role(auth.uid()) IN ('grand_master', 'master', 'admin', 'admin_officer')
   );
 
-DROP POLICY IF EXISTS "officers_read_own_assets" ON public.officer_assets;
 DROP POLICY IF EXISTS "officers_read_own_assets" ON public.officer_assets;
 CREATE POLICY "officers_read_own_assets" ON public.officer_assets FOR SELECT
   TO authenticated
@@ -548,13 +543,13 @@ RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN NEW.updated_at = now(); RETURN NEW; END;
 $$;
 
+DROP TRIGGER IF EXISTS trg_site_documents_updated_at ON public.site_documents;
 CREATE TRIGGER trg_site_documents_updated_at
   BEFORE UPDATE ON public.site_documents
   FOR EACH ROW EXECUTE FUNCTION public.update_site_documents_updated_at();
 
 ALTER TABLE public.site_documents ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS "admins_manage_site_documents" ON public.site_documents;
 DROP POLICY IF EXISTS "admins_manage_site_documents" ON public.site_documents;
 CREATE POLICY "admins_manage_site_documents" ON public.site_documents FOR ALL
   TO authenticated
@@ -566,7 +561,6 @@ CREATE POLICY "admins_manage_site_documents" ON public.site_documents FOR ALL
   );
 
 -- Officers can read documents based on visibility
-DROP POLICY IF EXISTS "officers_read_site_documents" ON public.site_documents;
 DROP POLICY IF EXISTS "officers_read_site_documents" ON public.site_documents;
 CREATE POLICY "officers_read_site_documents" ON public.site_documents FOR SELECT
   TO authenticated
@@ -656,7 +650,6 @@ $$;
 ALTER TABLE public.site_access_codes ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "admins_manage_site_access_codes" ON public.site_access_codes;
-DROP POLICY IF EXISTS "admins_manage_site_access_codes" ON public.site_access_codes;
 CREATE POLICY "admins_manage_site_access_codes" ON public.site_access_codes FOR ALL
   TO authenticated
   USING (
@@ -667,7 +660,6 @@ CREATE POLICY "admins_manage_site_access_codes" ON public.site_access_codes FOR 
   );
 
 -- Officers can read codes based on visibility
-DROP POLICY IF EXISTS "officers_read_site_access_codes" ON public.site_access_codes;
 DROP POLICY IF EXISTS "officers_read_site_access_codes" ON public.site_access_codes;
 CREATE POLICY "officers_read_site_access_codes" ON public.site_access_codes FOR SELECT
   TO authenticated
@@ -735,13 +727,13 @@ RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN NEW.updated_at = now(); RETURN NEW; END;
 $$;
 
+DROP TRIGGER IF EXISTS trg_key_sets_updated_at ON public.key_sets;
 CREATE TRIGGER trg_key_sets_updated_at
   BEFORE UPDATE ON public.key_sets
   FOR EACH ROW EXECUTE FUNCTION public.update_key_sets_updated_at();
 
 ALTER TABLE public.key_sets ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS "admins_manage_key_sets" ON public.key_sets;
 DROP POLICY IF EXISTS "admins_manage_key_sets" ON public.key_sets;
 CREATE POLICY "admins_manage_key_sets" ON public.key_sets FOR ALL
   TO authenticated
@@ -753,13 +745,11 @@ CREATE POLICY "admins_manage_key_sets" ON public.key_sets FOR ALL
   );
 
 DROP POLICY IF EXISTS "officers_read_key_sets" ON public.key_sets;
-DROP POLICY IF EXISTS "officers_read_key_sets" ON public.key_sets;
 CREATE POLICY "officers_read_key_sets" ON public.key_sets FOR SELECT
   TO authenticated
   USING (true);
 
 -- Officers can update their own checked-out keys
-DROP POLICY IF EXISTS "officers_update_own_key_sets" ON public.key_sets;
 DROP POLICY IF EXISTS "officers_update_own_key_sets" ON public.key_sets;
 CREATE POLICY "officers_update_own_key_sets" ON public.key_sets FOR UPDATE
   TO authenticated
@@ -802,7 +792,6 @@ CREATE INDEX IF NOT EXISTS idx_keys_key_set
 ALTER TABLE public.keys ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "admins_manage_keys" ON public.keys;
-DROP POLICY IF EXISTS "admins_manage_keys" ON public.keys;
 CREATE POLICY "admins_manage_keys" ON public.keys FOR ALL
   TO authenticated
   USING (
@@ -812,7 +801,6 @@ CREATE POLICY "admins_manage_keys" ON public.keys FOR ALL
     get_user_role(auth.uid()) IN ('grand_master', 'master', 'admin', 'admin_officer')
   );
 
-DROP POLICY IF EXISTS "officers_read_keys" ON public.keys;
 DROP POLICY IF EXISTS "officers_read_keys" ON public.keys;
 CREATE POLICY "officers_read_keys" ON public.keys FOR SELECT
   TO authenticated
@@ -965,13 +953,13 @@ RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN NEW.updated_at = now(); RETURN NEW; END;
 $$;
 
+DROP TRIGGER IF EXISTS trg_key_custody_updated_at ON public.key_custody;
 CREATE TRIGGER trg_key_custody_updated_at
   BEFORE UPDATE ON public.key_custody
   FOR EACH ROW EXECUTE FUNCTION public.update_key_custody_updated_at();
 
 ALTER TABLE public.key_custody ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS "admins_manage_key_custody" ON public.key_custody;
 DROP POLICY IF EXISTS "admins_manage_key_custody" ON public.key_custody;
 CREATE POLICY "admins_manage_key_custody" ON public.key_custody FOR ALL
   TO authenticated
@@ -984,12 +972,10 @@ CREATE POLICY "admins_manage_key_custody" ON public.key_custody FOR ALL
 
 -- Officers can read all custody records and update their own
 DROP POLICY IF EXISTS "officers_read_key_custody" ON public.key_custody;
-DROP POLICY IF EXISTS "officers_read_key_custody" ON public.key_custody;
 CREATE POLICY "officers_read_key_custody" ON public.key_custody FOR SELECT
   TO authenticated
   USING (true);
 
-DROP POLICY IF EXISTS "officers_update_own_key_custody" ON public.key_custody;
 DROP POLICY IF EXISTS "officers_update_own_key_custody" ON public.key_custody;
 CREATE POLICY "officers_update_own_key_custody" ON public.key_custody FOR UPDATE
   TO authenticated
@@ -1058,13 +1044,13 @@ BEGIN
 END;
 $$;
 
+DROP TRIGGER IF EXISTS trg_key_custody_audit ON public.key_custody;
 CREATE TRIGGER trg_key_custody_audit
   AFTER INSERT OR UPDATE ON public.key_custody
   FOR EACH ROW EXECUTE FUNCTION public.log_key_custody_audit();
 
 ALTER TABLE public.key_audit_log ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS "admins_read_key_audit_log" ON public.key_audit_log;
 DROP POLICY IF EXISTS "admins_read_key_audit_log" ON public.key_audit_log;
 CREATE POLICY "admins_read_key_audit_log" ON public.key_audit_log FOR SELECT
   TO authenticated
