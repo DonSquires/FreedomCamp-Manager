@@ -30,6 +30,11 @@ import { usePatrolCheckpointProgress } from '@/hooks/usePatrolCheckpointProgress
 import { useRosteredShift } from '@/hooks/useRosteredShift'
 import { useShiftGate } from '@/hooks/useShiftGate'
 import {
+  useOperationalCases,
+  useCreatePatrolEvent,
+  useFeatureFlag,
+} from '@/hooks/useOperationalCases'
+import {
   useFieldOfficerRouteTestOverride,
   useOfficerActiveRouteInstance,
   usePatrolRouteInstanceStops,
@@ -351,6 +356,12 @@ export default function FieldOfficerPortal() {
       navigate('/officer-home', { replace: true })
     }
   }, [gateApplies, canAccessPortal, canUseFeature, gateLoading, navigate, routeTestOverride?.forceOperationalView])
+
+  // ── Phase A/B: Case model integration for patrol events ──────────────────
+  const { data: patrolEventsEnabled } = useFeatureFlag('FF_PHASE_B_PATROL_EVENTS')
+  const createPatrolEvent = useCreatePatrolEvent()
+  // For now, we'll track active patrol case by using the shift as the case anchor
+  // In Phase B, each patrol will have its own operational_case record
 
   // ── Service type selection — pre-fill from URL param or roster ────────────
   const [activeService, setActiveService] = useState<ServiceType | null>(() => {
@@ -1083,6 +1094,29 @@ export default function FieldOfficerPortal() {
         duration: CAPTURE_TOAST_DURATION_MS,
       })
 
+      // Phase B: Create patrol_event in case model if flag enabled
+      if (patrolEventsEnabled && rosteredShift?.id) {
+        try {
+          await createPatrolEvent.mutateAsync({
+            caseId: rosteredShift.id, // Shift acts as case anchor in Phase A
+            eventType: 'patrol_observation',
+            officerId: user.id,
+            payload: {
+              observation_id: result.observationId,
+              zone_id: zoneId,
+              location: {
+                lat: result.gpsLatitude,
+                lng: result.gpsLongitude,
+              },
+              recorded_at: result.recordedAt,
+            },
+          })
+        } catch (err) {
+          // Non-blocking: log but continue
+          console.warn('Failed to create patrol_event:', err)
+        }
+      }
+
       // Open the detail panel — it polls internally for enrichment
       setDetailScanData({
         observationId:       result.observationId,
@@ -1124,7 +1158,7 @@ export default function FieldOfficerPortal() {
       setIsProcessing(false)
       setScanProgressLabel(SCAN_PROGRESS_LABELS.gps)
     }
-  }, [user, zoneId, zoneName, recordGPSUpdate, refetchScans])
+  }, [user, zoneId, zoneName, recordGPSUpdate, refetchScans, patrolEventsEnabled, createPatrolEvent, rosteredShift])
 
   const handleManualEntrySubmit = useCallback(async () => {
     if (!user?.id || !user?.organization_id) {
@@ -1421,7 +1455,7 @@ export default function FieldOfficerPortal() {
       <div className={`flex items-center justify-between rounded-xl px-4 py-2.5 mb-4 transition-colors ${
         isNightPatrol
           ? 'bg-cyan-950 border border-cyan-700'
-          : 'bg-gray-100 dark:bg-[#1E1E1E] border border-gray-200 dark:border-[#9E9E9E]/20'
+          : 'bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700'
       }`}>
         <div className="flex items-center gap-2">
           {isNightPatrol
