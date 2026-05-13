@@ -111,9 +111,8 @@ export default function DispatchMonitor() {
   const { user } = useAuthStore()
   const { organizationId: filterOrgId } = useGlobalFiltersStore()
   const orgId = filterOrgId || user?.organization_id
-{ data: phaseBEnabled } = useFeatureFlag('FF_PHASE_B_PATROL_EVENTS')
+  const { data: phaseBEnabled } = useFeatureFlag('FF_PHASE_B_PATROL_EVENTS')
 
-  const 
   const [tick, setTick] = useState(0)
   const [activeJobFilter, setActiveJobFilter] = useState<string | null>(null)
   const [activeAlarmFilter, setActiveAlarmFilter] = useState<string | null>(null)
@@ -126,7 +125,10 @@ export default function DispatchMonitor() {
       setLastRefresh(new Date())
     }, 30_000)
     return () => clearInterval(t)
-  }, []), phaseBEnabled],
+  }, [])
+
+  const { data: stats, isLoading, refetch } = useQuery<MonitorStats>({
+    queryKey: ['dispatch-monitor-stats', orgId, activeJobFilter, activeAlarmFilter, tick, phaseBEnabled],
     queryFn: async () => {
       const now = new Date()
 
