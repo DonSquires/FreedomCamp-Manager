@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
 import { useOperationalCases } from '@/hooks/useOperationalCases'
+import { useCreateEnforcementEvent, useFeatureFlag } from '@/hooks/useOperationalCases'
 import { AppLayout } from '@/components/features/AppLayout'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -92,6 +93,10 @@ export default function EnforcementActions() {
     status: caseStatusFilter,
     limit: 100,
   })
+
+  // ── Phase A/B: Case model enforcement events (feature flagged) ────────────
+  const { data: enforcementEventsEnabled } = useFeatureFlag('FF_PHASE_B_ENFORCEMENT_EVENTS')
+  const createEnforcementEvent = useCreateEnforcementEvent()
 
   // Fetch enforcement actions
   const { data: actions, isLoading: actionsLoading, isFetching, isError } = useQuery({
@@ -203,7 +208,7 @@ export default function EnforcementActions() {
   const createActionMutation = useMutation({
     mutationFn: async (data: { breach_alert_id: string; action_type: string; notes: string }) => {
       // breach_alert_id is used to look up the breach; enforcement_actions links via observation_id
-      const { error } = await (supabase
+      const { error, data: newAction } = await (supabase
         .from('enforcement_actions') as any)
         .insert({
           action_type: data.action_type,
@@ -212,8 +217,34 @@ export default function EnforcementActions() {
           status: 'pending',
           notes: data.notes || null,
         })
+        .select()
+        .single()
 
       if (error) throw error
+
+      // Phase B: Create enforcement_event in case model if flag enabled
+      if (enforcementEventsEnabled && newAction) {
+        try {
+          await createEnforcementEvent.mutateAsync({
+            caseId: newAction.id, // Action acts as case anchor in Phase A
+            eventType: 'enforcement_notice_issued',
+            officerId: user?.id,
+            violationType: 'overnight_camping',
+            actionTaken: data.action_type, // 'warning', 'notice', 'trespass_order', etc
+            outcome: 'issued',
+            payload: {
+              action_id: newAction.id,
+              breach_alert_id: data.breach_alert_id,
+              notes: data.notes,
+              created_by: user?.id,
+              created_at: new Date().toISOString(),
+            },
+          })
+        } catch (err) {
+          // Non-blocking: log but continue
+          console.warn('Failed to create enforcement_event:', err)
+        }
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['enforcement-actions'] })
@@ -263,6 +294,29 @@ export default function EnforcementActions() {
         .eq('id', data.actionId)
 
       if (error) throw error
+
+      // Phase B: Create enforcement_event for completion if flag enabled
+      if (enforcementEventsEnabled && data.actionId) {
+        try {
+          await createEnforcementEvent.mutateAsync({
+            caseId: data.actionId,
+            eventType: 'enforcement_completed',
+            officerId: user?.id,
+            violationType: 'overnight_camping',
+            actionTaken: 'completion',
+            outcome: data.outcome,
+            payload: {
+              action_id: data.actionId,
+              outcome: data.outcome,
+              completed_at: new Date().toISOString(),
+              completed_by: user?.id,
+            },
+          })
+        } catch (err) {
+          // Non-blocking: log but continue
+          console.warn('Failed to create enforcement completion event:', err)
+        }
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['enforcement-actions'] })
