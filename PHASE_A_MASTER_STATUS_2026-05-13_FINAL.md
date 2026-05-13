@@ -172,7 +172,7 @@ if (flagEnabled && caseId) {
 **5 Prerequisites for Phase B Launch Approval**:
 
 1. **Org Isolation Tests**: 5/5 passing
-   - Status: ✅ Ready (tests written, can run in CI)
+   - Status: ⏸️ Blocked in local container (all 6 Vitest cases skipped on 2026-05-13 because `VITE_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and `VITE_SUPABASE_ANON_KEY` are unset)
    - File: `tests/integration/org-isolation.test.ts`
 
 2. **Bootstrap Routes Smoke Tests**: 3/3 passing
@@ -184,7 +184,7 @@ if (flagEnabled && caseId) {
    - Execution: `CANARY_ROLLOUT_EXECUTION_PLAN.md`
 
 4. **Route/Role Truth**: 100+ routes validated
-   - Status: 🟡 In Progress (validator script exists)
+   - Status: ✅ Bootstrap route validator green on 2026-05-13 (0 blockers, 1 non-critical finding)
    - File: `scripts/validate-route-role-truth.mjs`
 
 5. **Team Ownership**: Roles assigned & acknowledged
@@ -213,7 +213,9 @@ if (flagEnabled && caseId) {
 
 ### Testing & Validation
 - ✅ Smoke tests: 4/4 passing (code-level)
-- ✅ Org isolation: Tests ready for CI
+- ⏸️ Org isolation: Harness present, but local run skipped because required Supabase env vars are unset in this container
+- ✅ Route/role truth: Bootstrap validator passed on 2026-05-13
+- ✅ Bob governance regression: 6/6 tests passing on 2026-05-13
 - ✅ Build validation: Passing continuously
 - ✅ Lint validation: Clean throughout session
 

@@ -6,6 +6,32 @@ Status: Active staging checklist — Sprints 50-70 complete on main; Iron Eagle 
 
 Latest Session Snapshot (Phased Rollout Continuation — Iron Eagle Navigation & Shell Styling — 2026-05-13):
 
+Latest Session Snapshot (Phase A Week 3 Validation Continuation — Gate Evidence Refresh — 2026-05-13):
+
+- Timestamp (NZ): 2026-05-13
+- Current branch: main
+- Scope completed:
+  - Re-ran Week 3 validation gates against current `main`:
+    - `scripts/validate-route-role-truth.mjs`
+    - `bun run test:bob:governance`
+    - `node scripts/validate-bootstrap-routes.mjs`
+    - `bun x vitest run tests/integration/org-isolation.test.ts`
+  - Confirmed route/role truth validator is green for all 3 bootstrap surfaces.
+  - Confirmed Bob governance regression remains green.
+  - Confirmed bootstrap route smoke validator remains green.
+  - Identified the remaining Phase A gate blocker in this container: the org-isolation harness is skipped because Supabase env vars are unset.
+
+- Validation evidence:
+  | Command | Result | Notes |
+  |---|---|---|
+  | `node scripts/validate-route-role-truth.mjs` | PASS | 0 blockers, 1 non-critical finding; report written under `data/route-validation-*.json` |
+  | `bun run test:bob:governance` | PASS | 6/6 Vitest assertions passed |
+  | `node scripts/validate-bootstrap-routes.mjs` | PASS | 4/4 checks passed |
+  | `bun x vitest run tests/integration/org-isolation.test.ts` | BLOCKED | 6 tests skipped because `VITE_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and `VITE_SUPABASE_ANON_KEY` are unset |
+
+- Open blockers with owner:
+  1. Provide env-backed Supabase access for the Phase A org-isolation gate, then rerun `tests/integration/org-isolation.test.ts` to collect real 5/5 evidence.
+
 Latest Session Snapshot (Staging Continuation — Toolchain Restoration, GH CLI, and Bootstrap Routes Validation — 2026-05-13):
 
 - Timestamp (NZ): 2026-05-13
