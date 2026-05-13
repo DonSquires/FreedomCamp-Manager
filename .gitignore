@@ -90,3 +90,5 @@ package-lock.json
 .env
 test-results/
 playwright-report/
+.venv-tools/
+data/route-validation-*.json
