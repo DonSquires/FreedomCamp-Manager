@@ -62,6 +62,8 @@ Use the repository script to set canonical GitHub Actions secrets in one pass.
 - A GitHub token with permission to manage repository Actions secrets
 - `gh` authenticated with that token (`GH_TOKEN` or `GITHUB_TOKEN` in env)
 
+If your environment exposes the token as `GH_API`, export it to `GH_TOKEN` or `GITHUB_TOKEN` before running the bootstrap helper.
+
 ### Steps
 
 1. Copy the template:

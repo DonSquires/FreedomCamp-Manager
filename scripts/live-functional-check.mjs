@@ -179,16 +179,26 @@ async function run() {
     headers: authHeaders,
     body: JSON.stringify({ text: 'Operational check. Bob online.', style: 'default' }),
   })
-  const synthBody = await synthResp.json().catch(() => ({}))
+  const synthType = String(synthResp.headers.get('content-type') || '')
+  let synthBody = {}
+  let hasAudioBinary = false
+  if (synthResp.ok && synthType.includes('audio/')) {
+    const buf = await synthResp.arrayBuffer()
+    hasAudioBinary = buf.byteLength > 0
+  } else {
+    synthBody = await synthResp.json().catch(() => ({}))
+  }
   const synthOk = synthResp.ok && (
+    hasAudioBinary ||
     Boolean(synthBody?.audio_base64) ||
     Boolean(synthBody?.spoken_text) ||        // RunPod speech proxy response
     synthBody?.client_action === 'web_speech_synthesis'
   )
   add('edge:synthesize-speech', synthOk, {
     status: synthResp.status,
+    content_type: synthType || null,
     provider: synthBody?.provider || null,
-    has_audio: Boolean(synthBody?.audio_base64),
+    has_audio: hasAudioBinary || Boolean(synthBody?.audio_base64),
     has_spoken_text: Boolean(synthBody?.spoken_text),
     client_action: synthBody?.client_action || null,
     error: synthBody?.error || null,
