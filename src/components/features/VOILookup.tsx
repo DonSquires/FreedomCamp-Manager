@@ -90,7 +90,7 @@ export function VOILookup({ inline = false }: VOILookupProps) {
   const hasResult = submitted.length > 0
 
   return (
-    <div className={inline ? '' : 'rounded-xl border bg-white dark:bg-gray-900 shadow-sm'}>
+    <div className={inline ? '' : 'rounded-xl border bg-white dark:bg-[#1A1A1A] shadow-sm'}>
       {/* Search bar */}
       <div className={`flex gap-2 ${inline ? '' : 'p-3 border-b'}`}>
         <div className="relative flex-1">

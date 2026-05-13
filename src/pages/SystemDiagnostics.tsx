@@ -140,7 +140,7 @@ function IntegrityResultsDisplay({ results }: { results: IntegrityResults }) {
       {/* Issues Table */}
       {results.issues && results.issues.length > 0 && (
         <div className="border rounded-lg overflow-hidden">
-          <div className="bg-gray-50 dark:bg-gray-800 px-4 py-2 font-semibold">
+          <div className="bg-gray-50 dark:bg-[#1E1E1E] px-4 py-2 font-semibold">
             Issues Found ({results.issues.length})
           </div>
           <div className="divide-y max-h-64 overflow-y-auto">

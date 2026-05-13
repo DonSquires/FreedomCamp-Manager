@@ -55,7 +55,7 @@ export function ZoneGeofenceIndicator({ geometry, className, compact = false }: 
   }
 
   return (
-    <div className={className || 'rounded-md border p-2 bg-white/70 dark:bg-gray-900/40'}>
+    <div className={className || 'rounded-md border p-2 bg-white/70 dark:bg-[#1A1A1A]/40'}>
       <div className="flex items-center justify-between mb-2">
         <span className="text-xs font-medium text-gray-600 dark:text-gray-300">Geofence</span>
         {type === 'polygon' && (
@@ -78,7 +78,7 @@ export function ZoneGeofenceIndicator({ geometry, className, compact = false }: 
         )}
       </div>
 
-      <svg viewBox="0 0 120 44" className="w-full h-12 rounded border bg-gray-50 dark:bg-gray-800">
+      <svg viewBox="0 0 120 44" className="w-full h-12 rounded border bg-gray-50 dark:bg-[#1E1E1E]">
         <rect x="1" y="1" width="118" height="42" rx="5" fill="none" stroke="#d1d5db" strokeDasharray="3 2" />
 
         {type === 'polygon' && (

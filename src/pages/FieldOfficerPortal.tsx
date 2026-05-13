@@ -1455,7 +1455,7 @@ export default function FieldOfficerPortal() {
       <div className={`flex items-center justify-between rounded-xl px-4 py-2.5 mb-4 transition-colors ${
         isNightPatrol
           ? 'bg-cyan-950 border border-cyan-700'
-          : 'bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700'
+          : 'bg-gray-100 dark:bg-[#1E1E1E] border border-gray-200 dark:border-[#9E9E9E]/20'
       }`}>
         <div className="flex items-center gap-2">
           {isNightPatrol
@@ -1534,7 +1534,7 @@ export default function FieldOfficerPortal() {
                 <div className="flex-1">
                   <Label className="text-xs text-blue-700 dark:text-blue-300 mb-1 block">Organisation</Label>
                   <Select value={shiftOrgId} onValueChange={setShiftOrgId}>
-                    <SelectTrigger className="h-9 text-sm bg-white dark:bg-gray-900">
+                    <SelectTrigger className="h-9 text-sm bg-white dark:bg-[#1A1A1A]">
                       <SelectValue placeholder="Select organisation…" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1549,7 +1549,7 @@ export default function FieldOfficerPortal() {
                 <div className="flex-1">
                   <Label className="text-xs text-blue-700 dark:text-blue-300 mb-1 block">Zone / Location</Label>
                   <Select value={shiftZoneId} onValueChange={setShiftZoneId} disabled={!shiftOrgId || shiftZones.length === 0}>
-                    <SelectTrigger className="h-9 text-sm bg-white dark:bg-gray-900">
+                    <SelectTrigger className="h-9 text-sm bg-white dark:bg-[#1A1A1A]">
                       <SelectValue placeholder={shiftZones.length === 0 ? 'No zones available' : 'Select zone…'} />
                     </SelectTrigger>
                     <SelectContent>
@@ -1569,7 +1569,7 @@ export default function FieldOfficerPortal() {
               <div className="pt-2 border-t border-blue-200 dark:border-blue-700">
                 <Label className="text-xs text-blue-700 dark:text-blue-300 mb-1 block">Zone / Location</Label>
                 <Select value={shiftZoneId} onValueChange={setShiftZoneId}>
-                  <SelectTrigger className="h-9 text-sm bg-white dark:bg-gray-900">
+                  <SelectTrigger className="h-9 text-sm bg-white dark:bg-[#1A1A1A]">
                     <SelectValue placeholder="Select zone…" />
                   </SelectTrigger>
                   <SelectContent>
@@ -1867,7 +1867,7 @@ export default function FieldOfficerPortal() {
               )}
 
               {!siteToolPermissions.isLoading && !hasInjectedToolAccess && (
-                <div className="rounded-xl border border-dashed border-gray-300 dark:border-gray-700 px-4 py-5 text-sm text-gray-600 dark:text-gray-300 sm:col-span-2 lg:col-span-3">
+                <div className="rounded-xl border border-dashed border-gray-300 dark:border-[#9E9E9E]/20 px-4 py-5 text-sm text-gray-600 dark:text-gray-300 sm:col-span-2 lg:col-span-3">
                   No tools are enabled for your active rostered site.
                 </div>
               )}
@@ -1886,10 +1886,10 @@ export default function FieldOfficerPortal() {
                       className={`flex items-center gap-3 rounded-2xl border-2 px-3 py-4 text-left transition-all active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 ${
                         isActive
                           ? `${cfg.borderColor} ${cfg.bgColor} shadow-lg`
-                          : 'border-gray-200/70 dark:border-gray-700/70 bg-white/60 dark:bg-white/5 hover:bg-white/90 dark:hover:bg-white/10'
+                          : 'border-gray-200/70 dark:border-[#9E9E9E]/20/70 bg-white/60 dark:bg-white/5 hover:bg-white/90 dark:hover:bg-white/10'
                       }`}
                     >
-                      <div className={`h-10 w-10 rounded-xl flex items-center justify-center shrink-0 shadow-sm ${isActive ? cfg.bgColor : 'bg-gray-100 dark:bg-gray-800'}`}>
+                      <div className={`h-10 w-10 rounded-xl flex items-center justify-center shrink-0 shadow-sm ${isActive ? cfg.bgColor : 'bg-gray-100 dark:bg-[#1E1E1E]'}`}>
                         <cfg.Icon className={`h-5 w-5 ${isActive ? cfg.color : 'text-gray-500 dark:text-gray-400'}`} />
                       </div>
                       <div className="min-w-0 flex-1">
@@ -3000,7 +3000,7 @@ export default function FieldOfficerPortal() {
                   className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition-colors ${
                     scanTabFilter === key
                       ? style || 'bg-gray-900 text-white border-gray-900 dark:bg-white dark:text-gray-900'
-                      : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400'
+                      : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50 dark:border-[#9E9E9E]/20 dark:bg-[#1A1A1A] dark:text-gray-400'
                   }`}
                 >
                   {Icon && <Icon className="h-2.5 w-2.5" />}

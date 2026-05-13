@@ -39,7 +39,7 @@ export function StatCard({
             {title}
           </CardTitle>
           {Icon && (
-            <div className={cn('p-2 rounded-lg bg-gray-50 dark:bg-gray-800')}>
+            <div className={cn('p-2 rounded-lg bg-gray-50 dark:bg-[#1E1E1E]')}>
               <Icon className="h-4 w-4 text-gray-600" />
             </div>
           )}

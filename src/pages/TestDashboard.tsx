@@ -387,7 +387,7 @@ export default function TestDashboard() {
               </Button>
             </div>
           </div>
-          <div className="mt-4 rounded-lg bg-gray-50 dark:bg-gray-800 p-3 text-xs text-gray-700 dark:text-gray-300 space-y-1">
+          <div className="mt-4 rounded-lg bg-gray-50 dark:bg-[#1E1E1E] p-3 text-xs text-gray-700 dark:text-gray-300 space-y-1">
             <p><strong>Expected behavior:</strong></p>
             <p>1. Warning countdown should not auto-clear from mouse movement while warning is visible.</p>
             <p>2. Only Trigger Continue Event should clear warning and reset timers.</p>
@@ -442,7 +442,7 @@ export default function TestDashboard() {
                     {area.tests.map((test) => (
                       <div
                         key={test.id}
-                        className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-800 rounded text-sm"
+                        className="flex items-center justify-between p-2 bg-gray-50 dark:bg-[#1E1E1E] rounded text-sm"
                       >
                         <div className="flex items-center gap-2">
                           {getStatusIcon(test.status)}
@@ -483,22 +483,22 @@ export default function TestDashboard() {
         <CardContent>
           <div className="space-y-2 text-sm text-gray-600">
             <p><strong>Run Tests Locally:</strong></p>
-            <code className="block bg-gray-100 dark:bg-gray-800 p-2 rounded mt-1">
+            <code className="block bg-gray-100 dark:bg-[#1E1E1E] p-2 rounded mt-1">
               npx playwright test
             </code>
 
             <p className="pt-3"><strong>Run Specific Test Area:</strong></p>
-            <code className="block bg-gray-100 dark:bg-gray-800 p-2 rounded mt-1">
+            <code className="block bg-gray-100 dark:bg-[#1E1E1E] p-2 rounded mt-1">
               npx playwright test tests/e2e/scan-flow.spec.ts
             </code>
 
             <p className="pt-3"><strong>View Test Report:</strong></p>
-            <code className="block bg-gray-100 dark:bg-gray-800 p-2 rounded mt-1">
+            <code className="block bg-gray-100 dark:bg-[#1E1E1E] p-2 rounded mt-1">
               npx playwright show-report
             </code>
 
             <p className="pt-3"><strong>Debug Tests:</strong></p>
-            <code className="block bg-gray-100 dark:bg-gray-800 p-2 rounded mt-1">
+            <code className="block bg-gray-100 dark:bg-[#1E1E1E] p-2 rounded mt-1">
               npx playwright test --debug
             </code>
           </div>

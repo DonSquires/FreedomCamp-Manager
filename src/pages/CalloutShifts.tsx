@@ -121,7 +121,7 @@ const STATUS_CONFIG: Record<CalloutStatus, { label: string; color: string }> = {
   },
   cancelled: {
     label: 'Cancelled',
-    color: 'bg-gray-100 text-gray-600 dark:bg-gray-800/50 dark:text-gray-400',
+    color: 'bg-gray-100 text-gray-600 dark:bg-[#1E1E1E]/50 dark:text-gray-400',
   },
 }
 

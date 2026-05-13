@@ -497,7 +497,7 @@ export default function EnforcementCommandCenter() {
                   {breaches.map((breach) => (
                     <div
                       key={breach.id}
-                      className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg hover:shadow-md transition-shadow"
+                      className="p-4 bg-gray-50 dark:bg-[#1E1E1E] rounded-lg hover:shadow-md transition-shadow"
                     >
                       <ListCardRow
                         left={
@@ -592,7 +592,7 @@ export default function EnforcementCommandCenter() {
                   {actions.slice(0, 5).map((action) => (
                     <div
                       key={action.id}
-                      className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg"
+                      className="p-3 bg-gray-50 dark:bg-[#1E1E1E] rounded-lg"
                     >
                       <div className="flex items-center gap-2 mb-1">
                         <Badge variant="outline" className="text-xs">

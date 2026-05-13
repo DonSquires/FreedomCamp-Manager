@@ -147,7 +147,7 @@ export function SpatialComplianceMap({
                 ref={canvasRef} 
                 width={800} 
                 height={400} 
-                className="w-full h-64 bg-gray-50 dark:bg-gray-900 rounded-lg"
+                className="w-full h-64 bg-gray-50 dark:bg-[#1A1A1A] rounded-lg"
               />
               <div className="absolute top-2 right-2 flex gap-2">
                 <Badge variant="outline" className="bg-white/90 backdrop-blur">

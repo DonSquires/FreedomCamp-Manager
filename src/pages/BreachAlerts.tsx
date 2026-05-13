@@ -591,7 +591,7 @@ export default function BreachAlerts() {
       case 'acknowledged': return 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'
       case 'enforcement_started': return 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300'
       case 'resolved': return 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
-      case 'dismissed': return 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
+      case 'dismissed': return 'bg-gray-100 text-gray-600 dark:bg-[#2A2A2A] dark:text-gray-400'
       default: return 'bg-gray-100 text-gray-600'
     }
   }
@@ -642,7 +642,7 @@ export default function BreachAlerts() {
               {intelligenceAlerts.map((a: any) => (
                 <ListCardRow
                   key={a.id}
-                  className="bg-white dark:bg-gray-900"
+                  className="bg-white dark:bg-[#1A1A1A]"
                   left={(
                     <>
                       <ShieldAlert className="h-4 w-4 text-red-600" />
@@ -688,7 +688,7 @@ export default function BreachAlerts() {
               {safetyAlerts.map((a: any) => (
                 <ListCardRow
                   key={a.id}
-                  className="bg-white dark:bg-gray-900"
+                  className="bg-white dark:bg-[#1A1A1A]"
                   left={(
                     <>
                       <AlertTriangle className="h-4 w-4 text-orange-600" />
@@ -748,9 +748,9 @@ export default function BreachAlerts() {
       <div className="grid lg:grid-cols-[320px_1fr_288px] gap-4">
 
         {/* ── Zone 1: Queue (Left Rail) ─────────────────────────────────── */}
-        <div className="flex flex-col border rounded-lg bg-white dark:bg-gray-800 overflow-hidden" style={{ maxHeight: 'calc(100vh - 260px)' }}>
+        <div className="flex flex-col border rounded-lg bg-white dark:bg-[#1E1E1E] overflow-hidden" style={{ maxHeight: 'calc(100vh - 260px)' }}>
           {/* Search + Quick Filters */}
-          <div className="p-3 border-b dark:border-gray-700 flex-shrink-0">
+          <div className="p-3 border-b dark:border-[#9E9E9E]/20 flex-shrink-0">
             <div className="relative mb-2">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
               <Input
@@ -775,7 +775,7 @@ export default function BreachAlerts() {
                   className={`text-xs px-2 py-1 rounded-full transition-colors ${
                     statusFilter === key
                       ? 'bg-blue-600 text-white'
-                      : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                      : 'bg-gray-100 dark:bg-[#2A2A2A] text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-[#333333]'
                   }`}
                 >
                   {label}
@@ -799,7 +799,7 @@ export default function BreachAlerts() {
                   className={`text-xs px-2 py-1 rounded-full transition-colors ${
                     breachTypeFilter === key
                       ? 'bg-orange-600 text-white'
-                      : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                      : 'bg-gray-100 dark:bg-[#2A2A2A] text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-[#333333]'
                   }`}
                 >
                   {label}
@@ -810,7 +810,7 @@ export default function BreachAlerts() {
 
           {/* Select All + Bulk Actions */}
           {breaches && breaches.length > 0 && isAdmin && (
-            <div className="px-3 py-2 border-b dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50 flex items-center gap-2 flex-shrink-0">
+            <div className="px-3 py-2 border-b dark:border-[#9E9E9E]/20 bg-gray-50 dark:bg-[#2A2A2A]/50 flex items-center gap-2 flex-shrink-0">
               <Checkbox
                 id="select-all"
                 checked={allSelected || false}
@@ -862,7 +862,7 @@ export default function BreachAlerts() {
                 <div
                   key={breach.id}
                   onClick={() => handleSelectBreach(breach.id)}
-                  className={`flex items-start gap-2 p-3 border-b dark:border-gray-700 cursor-pointer transition-colors hover:bg-gray-50 dark:hover:bg-gray-700 ${
+                  className={`flex items-start gap-2 p-3 border-b dark:border-[#9E9E9E]/20 cursor-pointer transition-colors hover:bg-gray-50 dark:hover:bg-[#2A2A2A] ${
                     activeBreachId === breach.id
                       ? 'bg-blue-50 dark:bg-blue-900/20 border-l-4 border-l-blue-500'
                       : ''
@@ -910,13 +910,13 @@ export default function BreachAlerts() {
 
         {/* ── Zone 2: Evidence Stage (Center) ──────────────────────────── */}
         <div
-          className="hidden lg:flex flex-col border rounded-lg bg-white dark:bg-gray-800 overflow-hidden"
+          className="hidden lg:flex flex-col border rounded-lg bg-white dark:bg-[#1E1E1E] overflow-hidden"
           style={{ maxHeight: 'calc(100vh - 260px)' }}
         >
           {activeBreach ? (
             <>
               {/* Header */}
-              <div className="p-4 border-b dark:border-gray-700 flex-shrink-0">
+              <div className="p-4 border-b dark:border-[#9E9E9E]/20 flex-shrink-0">
                 <div className="flex items-center gap-2">
                   <Car className="h-5 w-5 text-gray-500" />
                   <span className="font-mono font-bold text-xl">{activeBreach.plate_number || 'Unknown'}</span>
@@ -1004,7 +1004,7 @@ export default function BreachAlerts() {
                 <TabsContent value="evidence" className="flex-1 overflow-y-auto p-4 mt-0 space-y-4">
                   {/* Breach details */}
                   {activeBreach.breach_details && Object.keys(activeBreach.breach_details).length > 0 && (
-                    <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
+                    <div className="bg-gray-50 dark:bg-[#2A2A2A]/50 rounded-lg p-3">
                       <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Breach Details</p>
                       <div className="flex flex-wrap gap-2">
                         {activeBreach.breach_details.nights_count && (
@@ -1074,7 +1074,7 @@ export default function BreachAlerts() {
 
                   {/* Homeless Claim Status */}
                   {triggeringObservation && (
-                    <div className={`rounded-lg p-3 text-sm border ${triggeringObservation.has_homeless_claim ? 'bg-amber-50 border-amber-200 dark:bg-amber-950/40 dark:border-amber-800' : 'bg-gray-50 border-gray-200 dark:bg-gray-700/50 dark:border-gray-600'}`}>
+                    <div className={`rounded-lg p-3 text-sm border ${triggeringObservation.has_homeless_claim ? 'bg-amber-50 border-amber-200 dark:bg-amber-950/40 dark:border-amber-800' : 'bg-gray-50 border-gray-200 dark:bg-[#2A2A2A]/50 dark:border-gray-600'}`}>
                       <p className="text-xs font-semibold text-gray-500 uppercase mb-1">Homeless Claim</p>
                       {triggeringObservation.has_homeless_claim ? (
                         <div>
@@ -1099,7 +1099,7 @@ export default function BreachAlerts() {
                         {evidencePhotos.map((photo: any) => (
                           <div
                             key={photo.id}
-                            className="relative rounded-lg overflow-hidden aspect-video cursor-pointer group border dark:border-gray-700"
+                            className="relative rounded-lg overflow-hidden aspect-video cursor-pointer group border dark:border-[#9E9E9E]/20"
                             onClick={() => window.open(photo.display_url, '_blank')}
                           >
                             <img
@@ -1156,7 +1156,7 @@ export default function BreachAlerts() {
                         ))}
                       </div>
                     ) : (
-                      <div className="text-center py-6 text-gray-400 border rounded-lg dark:border-gray-700">
+                      <div className="text-center py-6 text-gray-400 border rounded-lg dark:border-[#9E9E9E]/20">
                         <ImageIcon className="h-8 w-8 mx-auto mb-2 opacity-20" />
                         <p className="text-sm">No photos on file for this plate</p>
                       </div>
@@ -1278,7 +1278,7 @@ export default function BreachAlerts() {
                         Previous Breaches for {activeBreach.plate_number} ({vehicleHistory.length})
                       </p>
                       {vehicleHistory.map((b: any) => (
-                        <div key={b.id} className="border dark:border-gray-700 rounded-lg p-3 text-sm">
+                        <div key={b.id} className="border dark:border-[#9E9E9E]/20 rounded-lg p-3 text-sm">
                           <div className="flex items-center gap-2 mb-1">
                             <Badge className={`${getStatusColor(b.status)} flex items-center gap-1 text-xs`}>
                               {getStatusIcon(b.status)}
@@ -1334,12 +1334,12 @@ export default function BreachAlerts() {
 
         {/* ── Zone 3: Decision Dock (Right) ─────────────────────────────── */}
         <div
-          className="hidden lg:flex flex-col border rounded-lg bg-white dark:bg-gray-800 overflow-hidden"
+          className="hidden lg:flex flex-col border rounded-lg bg-white dark:bg-[#1E1E1E] overflow-hidden"
           style={{ maxHeight: 'calc(100vh - 260px)' }}
         >
           {activeBreach ? (
             <div className="flex flex-col h-full">
-              <div className="p-4 border-b dark:border-gray-700 flex-shrink-0">
+              <div className="p-4 border-b dark:border-[#9E9E9E]/20 flex-shrink-0">
                 <h3 className="font-semibold">Decision Dock</h3>
                 <p className="text-xs text-gray-500">What is the verdict?</p>
               </div>
@@ -1448,7 +1448,7 @@ export default function BreachAlerts() {
                   </div>
                 )}
 
-                <div className="border-t dark:border-gray-700 pt-3">
+                <div className="border-t dark:border-[#9E9E9E]/20 pt-3">
                   <Label className="text-xs text-gray-500">Rejection Reason</Label>
                   <Select value={rejectionReason} onValueChange={setRejectionReason}>
                     <SelectTrigger className="h-9 mt-1 text-sm">
@@ -1503,7 +1503,7 @@ export default function BreachAlerts() {
               </div>
 
               {/* Keyboard Shortcuts Footer */}
-              <div className="p-3 border-t dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50 flex-shrink-0">
+              <div className="p-3 border-t dark:border-[#9E9E9E]/20 bg-gray-50 dark:bg-[#2A2A2A]/50 flex-shrink-0">
                 <div className="flex items-center gap-1.5 mb-1.5 text-xs font-medium text-gray-500">
                   <Keyboard className="h-3.5 w-3.5" />
                   Keyboard Shortcuts
@@ -1523,7 +1523,7 @@ export default function BreachAlerts() {
                 <Shield className="h-14 w-14 mx-auto mb-4 opacity-20" />
                 <p className="font-medium text-gray-500">Decision Dock</p>
                 <p className="text-sm mt-2">Select a breach from the queue to make a decision</p>
-                <div className="mt-5 space-y-2 text-left border dark:border-gray-700 rounded p-3 bg-gray-50 dark:bg-gray-700/50">
+                <div className="mt-5 space-y-2 text-left border dark:border-[#9E9E9E]/20 rounded p-3 bg-gray-50 dark:bg-[#2A2A2A]/50">
                   <p className="text-xs font-semibold text-gray-500 flex items-center gap-1.5">
                     <Keyboard className="h-3.5 w-3.5" /> Keyboard Shortcuts
                   </p>
@@ -1543,8 +1543,8 @@ export default function BreachAlerts() {
 
       {/* ── Mobile: Detail view below queue when selected ─────────────── */}
       {activeBreach && (
-        <div className="lg:hidden mt-4 border rounded-lg bg-white dark:bg-gray-800 overflow-hidden">
-          <div className="p-4 border-b dark:border-gray-700">
+        <div className="lg:hidden mt-4 border rounded-lg bg-white dark:bg-[#1E1E1E] overflow-hidden">
+          <div className="p-4 border-b dark:border-[#9E9E9E]/20">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Car className="h-5 w-5 text-gray-500" />
@@ -1597,7 +1597,7 @@ export default function BreachAlerts() {
                 {evidencePhotos.slice(0, 4).map((photo: any) => (
                   <div
                     key={photo.id}
-                    className="aspect-video rounded overflow-hidden cursor-pointer border dark:border-gray-700"
+                    className="aspect-video rounded overflow-hidden cursor-pointer border dark:border-[#9E9E9E]/20"
                     onClick={() => window.open(photo.display_url, '_blank')}
                   >
                     <img src={photo.display_url} className="w-full h-full object-cover" alt="Evidence" />

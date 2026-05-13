@@ -275,7 +275,7 @@ export default function IncidentReports() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'pending':
-        return 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300'
+        return 'bg-gray-100 text-gray-800 dark:bg-[#1E1E1E] dark:text-gray-300'
       case 'resolved':
         return 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
       default:
@@ -532,7 +532,7 @@ export default function IncidentReports() {
               <CardContent>
                 <div className="space-y-3">
                   {/* Description */}
-                  <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3">
+                  <div className="bg-gray-50 dark:bg-[#1E1E1E] rounded-lg p-3">
                     <p className="text-sm text-gray-700 dark:text-gray-300">
                       {incident.description}
                     </p>
@@ -664,7 +664,7 @@ export default function IncidentReports() {
 
               <div>
                 <span className="text-sm font-medium text-gray-600">Description</span>
-                <p className="mt-1 p-3 bg-gray-50 dark:bg-gray-800 rounded">{selectedIncident.description}</p>
+                <p className="mt-1 p-3 bg-gray-50 dark:bg-[#1E1E1E] rounded">{selectedIncident.description}</p>
               </div>
 
               {/* ── Linked Person section ── */}
@@ -726,7 +726,7 @@ export default function IncidentReports() {
                       </p>
                     )}
                     {linkPersonResults.length > 0 && (
-                      <div className="border rounded divide-y text-sm bg-white dark:bg-gray-900 shadow-sm max-h-36 overflow-y-auto">
+                      <div className="border rounded divide-y text-sm bg-white dark:bg-[#1A1A1A] shadow-sm max-h-36 overflow-y-auto">
                         {linkPersonResults.map((p) => (
                           <button
                             key={p.id}

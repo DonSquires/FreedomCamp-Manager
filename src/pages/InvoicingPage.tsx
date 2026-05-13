@@ -80,14 +80,14 @@ function formatDate(d: string | null | undefined): string {
 }
 
 const INVOICE_STATUS_STYLE: Record<string, string> = {
-  draft:     'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300',
+  draft:     'bg-gray-100 text-gray-600 dark:bg-[#1E1E1E] dark:text-gray-300',
   sent:      'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
   viewed:    'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300',
   partially_paid: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
   paid:      'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
   overdue:   'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
-  voided:    'bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-500',
-  cancelled: 'bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-500',
+  voided:    'bg-gray-100 text-gray-400 dark:bg-[#1E1E1E] dark:text-gray-500',
+  cancelled: 'bg-gray-100 text-gray-400 dark:bg-[#1E1E1E] dark:text-gray-500',
 }
 
 const CONTRACT_STATUS_STYLE: Record<string, string> = {
@@ -235,7 +235,7 @@ function InvoiceRow({
       </TableRow>
 
       {expanded && lines.length > 0 && (
-        <TableRow className="bg-gray-50/80 dark:bg-gray-800/30">
+        <TableRow className="bg-gray-50/80 dark:bg-[#1E1E1E]/30">
           <TableCell colSpan={11} className="py-3 px-6">
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Line Items</p>
             <div className="space-y-1">
@@ -697,7 +697,7 @@ export default function InvoicingPage() {
             { label: 'Overdue',        value: overdueCount,                  Icon: AlertCircle,   colour: overdueCount > 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-400' },
             { label: 'Contracts',      value: contracts.length,              Icon: FileText,      colour: 'text-blue-600 dark:text-blue-400' },
           ].map(({ label, value, Icon, colour }) => (
-            <Card key={label} className="bg-white dark:bg-gray-900 shadow-sm">
+            <Card key={label} className="bg-white dark:bg-[#1A1A1A] shadow-sm">
               <CardContent className="p-4 flex items-center gap-3">
                 <Icon className={`h-5 w-5 shrink-0 ${colour}`} />
                 <div>
@@ -798,7 +798,7 @@ export default function InvoicingPage() {
 
           {/* Invoices tab */}
           <TabsContent value="invoices" className="mt-4">
-            <Card className="bg-white dark:bg-gray-900 shadow-sm">
+            <Card className="bg-white dark:bg-[#1A1A1A] shadow-sm">
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between gap-3">
                   <div>
@@ -876,7 +876,7 @@ export default function InvoicingPage() {
 
           {/* Contracts tab */}
           <TabsContent value="contracts" className="mt-4">
-            <Card className="bg-white dark:bg-gray-900 shadow-sm">
+            <Card className="bg-white dark:bg-[#1A1A1A] shadow-sm">
               <CardHeader className="pb-3">
                 <CardTitle className="text-base flex items-center gap-2">
                   <FileText className="h-4 w-4 text-blue-600" />
@@ -901,7 +901,7 @@ export default function InvoicingPage() {
                     {filteredContracts.map((contract: any) => {
                       const lines: any[] = contract.lines ?? []
                       return (
-                        <div key={contract.id} className="border rounded-xl p-4 bg-gray-50/50 dark:bg-gray-800/30 dark:border-gray-700">
+                        <div key={contract.id} className="border rounded-xl p-4 bg-gray-50/50 dark:bg-[#1E1E1E]/30 dark:border-[#9E9E9E]/20">
                           <div className="flex items-start justify-between gap-3">
                             <div className="min-w-0">
                               <div className="flex items-center gap-2 flex-wrap">
@@ -946,13 +946,13 @@ export default function InvoicingPage() {
 
                           {/* Contract line items */}
                           {lines.length > 0 && (
-                            <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+                            <div className="mt-3 pt-3 border-t border-gray-200 dark:border-[#9E9E9E]/20">
                               <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-2">
                                 Services & Rates
                               </p>
                               <div className="grid gap-1.5 sm:grid-cols-2">
                                 {lines.filter((l: any) => l.is_active !== false).map((line: any) => (
-                                  <div key={line.id} className="flex items-center justify-between rounded-lg bg-white dark:bg-gray-700/40 px-3 py-2 text-xs">
+                                  <div key={line.id} className="flex items-center justify-between rounded-lg bg-white dark:bg-[#2A2A2A]/40 px-3 py-2 text-xs">
                                     <span className="text-gray-700 dark:text-gray-300 truncate">{line.description}</span>
                                     <span className="font-semibold ml-2 shrink-0">
                                       {formatCents(line.unit_price_cents)}

@@ -469,7 +469,7 @@ export default function LivePatrolMonitor() {
       case 'scheduled':
         return <Badge className="bg-blue-100 text-blue-800 border-blue-300 dark:bg-blue-900/30 dark:text-blue-400">Scheduled</Badge>
       case 'completed':
-        return <Badge className="bg-gray-100 text-gray-800 border-gray-300 dark:bg-gray-900/30 dark:text-gray-400">Completed</Badge>
+        return <Badge className="bg-gray-100 text-gray-800 border-gray-300 dark:bg-[#1A1A1A]/30 dark:text-gray-400">Completed</Badge>
       case 'cancelled':
         return <Badge variant="outline" className="text-red-600 border-red-300">Cancelled</Badge>
       default:
@@ -712,7 +712,7 @@ export default function LivePatrolMonitor() {
                   </div>
 
                   {/* Check-in Details */}
-                  <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3">
+                  <div className="bg-gray-50 dark:bg-[#1E1E1E] rounded-lg p-3">
                     <ListCardRow
                       className="bg-transparent p-0"
                       left={(
@@ -757,7 +757,7 @@ export default function LivePatrolMonitor() {
 
                   {/* Contact Info */}
                   {patrol.officer.phone && (
-                    <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3">
+                    <div className="bg-gray-50 dark:bg-[#1E1E1E] rounded-lg p-3">
                       <ListCardRow
                         className="bg-transparent p-0"
                         left={(
@@ -780,7 +780,7 @@ export default function LivePatrolMonitor() {
 
                   {/* Notes */}
                   {patrol.notes && (
-                    <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3">
+                    <div className="bg-gray-50 dark:bg-[#1E1E1E] rounded-lg p-3">
                       <p className="text-sm text-gray-600 dark:text-gray-400">
                         <span className="font-semibold">Notes:</span> {patrol.notes}
                       </p>
@@ -796,7 +796,7 @@ export default function LivePatrolMonitor() {
                       </div>
                       <div className="space-y-2 max-h-40 overflow-y-auto">
                         {officerActivity.slice(0, 10).map((activity, idx) => (
-                          <div key={idx} className="text-xs bg-white dark:bg-gray-800 rounded p-2">
+                          <div key={idx} className="text-xs bg-white dark:bg-[#1E1E1E] rounded p-2">
                             <div className="flex justify-between items-start">
                               <span className="text-gray-600 dark:text-gray-400">
                                 {formatDateTime(activity.recorded_at)}

@@ -82,7 +82,7 @@ interface CamperRegistration {
 const STATUS_CONFIG: Record<RegStatus, { label: string; colour: string }> = {
   active:    { label: 'Active',    colour: 'text-green-700 bg-green-50 dark:bg-green-900/30' },
   departed:  { label: 'Departed',  colour: 'text-blue-700 bg-blue-50 dark:bg-blue-900/30'   },
-  cancelled: { label: 'Cancelled', colour: 'text-gray-600 bg-gray-100 dark:bg-gray-800'     },
+  cancelled: { label: 'Cancelled', colour: 'text-gray-600 bg-gray-100 dark:bg-[#1E1E1E]'     },
 }
 
 const VEHICLE_LABELS: Record<string, string> = {

@@ -118,7 +118,7 @@ const STATUS_COLOURS: Record<string, string> = {
   active:        'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
   expiring_soon: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300',
   expired:       'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300',
-  inactive:      'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400',
+  inactive:      'bg-gray-100 text-gray-700 dark:bg-[#1E1E1E] dark:text-gray-400',
 }
 
 const STATUS_LABEL: Record<string, string> = {

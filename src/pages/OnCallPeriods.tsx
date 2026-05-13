@@ -128,7 +128,7 @@ const STATUS_CONFIG: Record<OcpStatus, { label: string; color: string }> = {
   },
   completed: {
     label: 'Completed',
-    color: 'bg-gray-100 text-gray-700 dark:bg-gray-800/50 dark:text-gray-300',
+    color: 'bg-gray-100 text-gray-700 dark:bg-[#1E1E1E]/50 dark:text-gray-300',
   },
   cancelled: {
     label: 'Cancelled',

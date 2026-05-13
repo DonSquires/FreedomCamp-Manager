@@ -80,7 +80,7 @@ export function ComplianceStatusIndicator({
       case 'exempt':
         return 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
       case 'pending':
-        return 'border-gray-300 bg-gray-50 dark:bg-gray-900/20'
+        return 'border-gray-300 bg-gray-50 dark:bg-[#1A1A1A]/20'
     }
   }
 

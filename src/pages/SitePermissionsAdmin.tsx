@@ -357,7 +357,7 @@ export default function SitePermissionsAdmin() {
                   key={label}
                   type="button"
                   onClick={() => navigate(path)}
-                  className="text-left rounded-lg border bg-white dark:bg-gray-900 px-3 py-3 transition-colors hover:bg-blue-100/60 dark:hover:bg-blue-900/20"
+                  className="text-left rounded-lg border bg-white dark:bg-[#1A1A1A] px-3 py-3 transition-colors hover:bg-blue-100/60 dark:hover:bg-blue-900/20"
                 >
                   <div className="flex items-center gap-1.5 text-sm font-medium text-gray-900 dark:text-gray-100">
                     <Icon className="h-4 w-4 text-blue-600" />

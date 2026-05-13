@@ -294,7 +294,7 @@ export default function InvestigationJobConfig() {
                                   <CheckCircle2 className="h-3 w-3 mr-1" />Active
                                 </Badge>
                               ) : (
-                                <Badge className="bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400">
+                                <Badge className="bg-gray-100 text-gray-600 dark:bg-[#1E1E1E] dark:text-gray-400">
                                   Inactive
                                 </Badge>
                               )}
@@ -401,7 +401,7 @@ export default function InvestigationJobConfig() {
                               {t.is_system_default ? (
                                 <Badge className="bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300 text-xs">System</Badge>
                               ) : (
-                                <Badge className="bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400 text-xs">Custom</Badge>
+                                <Badge className="bg-gray-100 text-gray-600 dark:bg-[#1E1E1E] dark:text-gray-400 text-xs">Custom</Badge>
                               )}
                             </TableCell>
                             <TableCell>
@@ -410,7 +410,7 @@ export default function InvestigationJobConfig() {
                                   <CheckCircle2 className="h-3 w-3 mr-1" />Active
                                 </Badge>
                               ) : (
-                                <Badge className="bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400">
+                                <Badge className="bg-gray-100 text-gray-600 dark:bg-[#1E1E1E] dark:text-gray-400">
                                   Inactive
                                 </Badge>
                               )}

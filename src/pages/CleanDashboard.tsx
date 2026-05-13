@@ -156,7 +156,7 @@ interface KPIProps {
 
 function KPICard({ title, value, icon: Icon, color, sub }: KPIProps) {
   return (
-    <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-5 shadow-sm">
+    <div className="bg-white dark:bg-[#1A1A1A] rounded-xl border border-gray-200 dark:border-[#9E9E9E]/20 p-5 shadow-sm">
       <div className="flex items-center justify-between mb-3">
         <span className="text-sm font-medium text-gray-500 dark:text-gray-400">{title}</span>
         <div className={cn('p-2 rounded-lg', color)}>
@@ -291,7 +291,7 @@ function OverviewTab() {
       </div>
 
       {/* Recent activity */}
-      <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
+      <div className="bg-white dark:bg-[#1A1A1A] rounded-xl border border-gray-200 dark:border-[#9E9E9E]/20 shadow-sm">
         <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-800">
           <h2 className="font-semibold text-gray-900 dark:text-white">Recent Observations</h2>
           <p className="text-xs text-gray-400 mt-0.5">Latest 10 records from the observations table</p>
@@ -379,7 +379,7 @@ function ObservationsTab() {
             placeholder="Search by plate number…"
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(0); }}
-            className="w-full pl-9 pr-4 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full pl-9 pr-4 py-2 text-sm rounded-lg border border-gray-200 dark:border-[#9E9E9E]/20 bg-white dark:bg-[#1A1A1A] text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
         <div className="flex gap-2">
@@ -391,7 +391,7 @@ function ObservationsTab() {
                 'px-3 py-2 text-xs rounded-lg border font-medium capitalize transition-colors',
                 complianceFilter === f
                   ? 'bg-blue-600 border-blue-600 text-white'
-                  : 'bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50'
+                  : 'bg-white dark:bg-[#1A1A1A] border-gray-200 dark:border-[#9E9E9E]/20 text-gray-600 dark:text-gray-300 hover:bg-gray-50'
               )}
             >
               {f}
@@ -401,7 +401,7 @@ function ObservationsTab() {
       </div>
 
       {/* Table */}
-      <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
+      <div className="bg-white dark:bg-[#1A1A1A] rounded-xl border border-gray-200 dark:border-[#9E9E9E]/20 shadow-sm overflow-hidden">
         <div className="px-5 py-3 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
           <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
             {data?.total.toLocaleString() ?? '…'} observations
@@ -417,7 +417,7 @@ function ObservationsTab() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="bg-gray-50 dark:bg-gray-800/50 text-left">
+                <tr className="bg-gray-50 dark:bg-[#1E1E1E]/50 text-left">
                   <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-400">Plate</th>
                   <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-400 hidden md:table-cell">Vehicle</th>
                   <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-400">Zone</th>
@@ -481,14 +481,14 @@ function ObservationsTab() {
               <button
                 disabled={page === 0}
                 onClick={() => setPage((p) => Math.max(0, p - 1))}
-                className="p-1.5 rounded border border-gray-200 dark:border-gray-700 disabled:opacity-30 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                className="p-1.5 rounded border border-gray-200 dark:border-[#9E9E9E]/20 disabled:opacity-30 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
               >
                 <ChevronLeft className="w-4 h-4" />
               </button>
               <button
                 disabled={page >= totalPages - 1}
                 onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
-                className="p-1.5 rounded border border-gray-200 dark:border-gray-700 disabled:opacity-30 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                className="p-1.5 rounded border border-gray-200 dark:border-[#9E9E9E]/20 disabled:opacity-30 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
               >
                 <ChevronRight className="w-4 h-4" />
               </button>
@@ -541,7 +541,7 @@ function VehiclesTab() {
             placeholder="Search by plate number…"
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(0); }}
-            className="w-full pl-9 pr-4 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full pl-9 pr-4 py-2 text-sm rounded-lg border border-gray-200 dark:border-[#9E9E9E]/20 bg-white dark:bg-[#1A1A1A] text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
         <div className="flex gap-2">
@@ -553,7 +553,7 @@ function VehiclesTab() {
                 'px-3 py-2 text-xs rounded-lg border font-medium capitalize transition-colors',
                 flagFilter === f
                   ? 'bg-blue-600 border-blue-600 text-white'
-                  : 'bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50'
+                  : 'bg-white dark:bg-[#1A1A1A] border-gray-200 dark:border-[#9E9E9E]/20 text-gray-600 dark:text-gray-300 hover:bg-gray-50'
               )}
             >
               {f}
@@ -562,7 +562,7 @@ function VehiclesTab() {
         </div>
       </div>
 
-      <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
+      <div className="bg-white dark:bg-[#1A1A1A] rounded-xl border border-gray-200 dark:border-[#9E9E9E]/20 shadow-sm overflow-hidden">
         <div className="px-5 py-3 border-b border-gray-100 dark:border-gray-800">
           <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
             {data?.total.toLocaleString() ?? '…'} vehicles in canonical registry
@@ -577,7 +577,7 @@ function VehiclesTab() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="bg-gray-50 dark:bg-gray-800/50 text-left">
+                <tr className="bg-gray-50 dark:bg-[#1E1E1E]/50 text-left">
                   <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-400">Photo</th>
                   <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-400">Plate</th>
                   <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-400 hidden md:table-cell">Vehicle</th>
@@ -594,7 +594,7 @@ function VehiclesTab() {
                       {v.profile_photo ? (
                         <img src={v.profile_photo} alt={v.plate_number} className="w-12 h-10 object-cover rounded" />
                       ) : (
-                        <div className="w-12 h-10 bg-gray-100 dark:bg-gray-800 rounded flex items-center justify-center">
+                        <div className="w-12 h-10 bg-gray-100 dark:bg-[#1E1E1E] rounded flex items-center justify-center">
                           <Car className="w-5 h-5 text-gray-300" />
                         </div>
                       )}
@@ -646,10 +646,10 @@ function VehiclesTab() {
               Page {page + 1} of {totalPages}
             </span>
             <div className="flex gap-2">
-              <button disabled={page === 0} onClick={() => setPage((p) => p - 1)} className="p-1.5 rounded border border-gray-200 dark:border-gray-700 disabled:opacity-30 hover:bg-gray-50 dark:hover:bg-gray-800">
+              <button disabled={page === 0} onClick={() => setPage((p) => p - 1)} className="p-1.5 rounded border border-gray-200 dark:border-[#9E9E9E]/20 disabled:opacity-30 hover:bg-gray-50 dark:hover:bg-gray-800">
                 <ChevronLeft className="w-4 h-4" />
               </button>
-              <button disabled={page >= totalPages - 1} onClick={() => setPage((p) => p + 1)} className="p-1.5 rounded border border-gray-200 dark:border-gray-700 disabled:opacity-30 hover:bg-gray-50 dark:hover:bg-gray-800">
+              <button disabled={page >= totalPages - 1} onClick={() => setPage((p) => p + 1)} className="p-1.5 rounded border border-gray-200 dark:border-[#9E9E9E]/20 disabled:opacity-30 hover:bg-gray-50 dark:hover:bg-gray-800">
                 <ChevronRight className="w-4 h-4" />
               </button>
             </div>
@@ -740,9 +740,9 @@ function ZonesTab() {
               <div
                 key={zone.id}
                 className={cn(
-                  'bg-white dark:bg-gray-900 rounded-xl border shadow-sm p-5',
+                  'bg-white dark:bg-[#1A1A1A] rounded-xl border shadow-sm p-5',
                   zone.is_active
-                    ? 'border-gray-200 dark:border-gray-700'
+                    ? 'border-gray-200 dark:border-[#9E9E9E]/20'
                     : 'border-gray-100 dark:border-gray-800 opacity-60'
                 )}
               >
@@ -756,7 +756,7 @@ function ZonesTab() {
                       'shrink-0 text-xs px-2 py-0.5 rounded-full font-medium',
                       zone.is_active
                         ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
-                        : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'
+                        : 'bg-gray-100 text-gray-500 dark:bg-[#1E1E1E] dark:text-gray-400'
                     )}
                   >
                     {zone.is_active ? 'Active' : 'Inactive'}
@@ -775,7 +775,7 @@ function ZonesTab() {
                       Self-contained required
                     </span>
                   )}
-                  <span className="text-xs bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400 px-2 py-0.5 rounded-full border border-gray-200 dark:border-gray-700">
+                  <span className="text-xs bg-gray-50 dark:bg-[#1E1E1E] text-gray-600 dark:text-gray-400 px-2 py-0.5 rounded-full border border-gray-200 dark:border-[#9E9E9E]/20">
                     {zone.nights_per_month}n/mo · {zone.max_consecutive_nights}consec
                   </span>
                 </div>
@@ -861,11 +861,11 @@ function UsersTab() {
       ) : !users?.length ? (
         <EmptyState message="No user profiles found" />
       ) : (
-        <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
+        <div className="bg-white dark:bg-[#1A1A1A] rounded-xl border border-gray-200 dark:border-[#9E9E9E]/20 shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="bg-gray-50 dark:bg-gray-800/50 text-left">
+                <tr className="bg-gray-50 dark:bg-[#1E1E1E]/50 text-left">
                   <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-400">Name</th>
                   <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-400">Role</th>
                   <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-400 hidden md:table-cell">Organisation</th>
@@ -955,7 +955,7 @@ function OrganisationsTab() {
             const breaches = orgBreachCounts?.[org.id] ?? 0;
             const rate = obs > 0 ? Math.round(((obs - breaches) / obs) * 100) : null;
             return (
-              <div key={org.id} className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-5">
+              <div key={org.id} className="bg-white dark:bg-[#1A1A1A] rounded-xl border border-gray-200 dark:border-[#9E9E9E]/20 shadow-sm p-5">
                 <div className="flex items-center gap-3 mb-4">
                   <div className="p-2 rounded-lg bg-blue-50 dark:bg-blue-900/30">
                     <Building2 className="w-5 h-5 text-blue-600 dark:text-blue-400" />
@@ -1086,9 +1086,9 @@ export default function CleanDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex flex-col">
+    <div className="min-h-screen bg-gray-50 dark:bg-[#0F0F0F] flex flex-col">
       {/* Header */}
-      <header className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 shadow-sm sticky top-0 z-10">
+      <header className="bg-white dark:bg-[#1A1A1A] border-b border-gray-200 dark:border-[#9E9E9E]/20 shadow-sm sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 py-3 flex flex-col gap-3">
           <div className="h-1.5 rounded-full bg-gradient-to-r from-blue-600 via-cyan-500 to-emerald-500" />
 
@@ -1107,7 +1107,7 @@ export default function CleanDashboard() {
             <button
               onClick={handleRefresh}
               disabled={refreshing}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 dark:border-gray-700 px-2.5 py-1.5 text-xs font-semibold text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors disabled:opacity-60"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 dark:border-[#9E9E9E]/20 px-2.5 py-1.5 text-xs font-semibold text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors disabled:opacity-60"
               title="Refresh active dashboard data"
             >
               <RefreshCw className={cn('w-3.5 h-3.5', refreshing && 'animate-spin')} />
@@ -1142,7 +1142,7 @@ export default function CleanDashboard() {
       </header>
 
       {/* Tab bar */}
-      <nav className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
+      <nav className="bg-white dark:bg-[#1A1A1A] border-b border-gray-200 dark:border-[#9E9E9E]/20">
         <div className="max-w-7xl mx-auto px-4">
           <div className="flex gap-1 overflow-x-auto scrollbar-hide">
             {TABS.map(({ id, label, icon: Icon }) => (

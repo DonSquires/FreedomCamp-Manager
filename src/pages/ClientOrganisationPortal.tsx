@@ -141,7 +141,7 @@ function StatCard({ title, value, icon: Icon, colour = 'blue', description, onCl
   const s = styles[colour]
   return (
     <Card
-      className={`bg-white dark:bg-gray-900 shadow-sm transition-shadow ${onClick ? 'cursor-pointer hover:shadow-md' : ''}`}
+      className={`bg-white dark:bg-[#1A1A1A] shadow-sm transition-shadow ${onClick ? 'cursor-pointer hover:shadow-md' : ''}`}
       onClick={onClick}
     >
       <CardContent className="p-5">
@@ -573,7 +573,7 @@ export default function ClientOrganisationPortal() {
 
           {/* Patrols tab */}
           <TabsContent value="patrols" className="mt-4">
-            <Card className="bg-white dark:bg-gray-900 shadow-sm">
+            <Card className="bg-white dark:bg-[#1A1A1A] shadow-sm">
               <CardHeader className="pb-3">
                 <CardTitle className="text-base flex items-center gap-2">
                   <Activity className="h-4 w-4 text-green-600" />
@@ -595,7 +595,7 @@ export default function ClientOrganisationPortal() {
                         ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
                         : p.status === 'in_progress'
                           ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
-                          : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300'
+                          : 'bg-gray-100 text-gray-600 dark:bg-[#1E1E1E] dark:text-gray-300'
                       return (
                         <div key={p.id} className="flex items-center justify-between py-2.5 gap-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 px-1 rounded-md transition-colors">
                           <div className="flex items-center gap-3 min-w-0">
@@ -624,7 +624,7 @@ export default function ClientOrganisationPortal() {
 
           {/* Breaches tab */}
           <TabsContent value="breaches" className="mt-4">
-            <Card className="bg-white dark:bg-gray-900 shadow-sm">
+            <Card className="bg-white dark:bg-[#1A1A1A] shadow-sm">
               <CardHeader className="pb-3">
                 <CardTitle className="text-base flex items-center gap-2">
                   <AlertTriangle className="h-4 w-4 text-red-600" />
@@ -645,7 +645,7 @@ export default function ClientOrganisationPortal() {
                       return (
                         <div key={b.id} className="flex items-center justify-between py-2.5 gap-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 px-1 rounded-md transition-colors">
                           <div className="flex items-center gap-3 min-w-0">
-                            <div className={`p-1.5 rounded-lg shrink-0 ${isPending ? 'bg-red-100 dark:bg-red-900/40' : 'bg-gray-100 dark:bg-gray-800'}`}>
+                            <div className={`p-1.5 rounded-lg shrink-0 ${isPending ? 'bg-red-100 dark:bg-red-900/40' : 'bg-gray-100 dark:bg-[#1E1E1E]'}`}>
                               <AlertTriangle className={`h-3.5 w-3.5 ${isPending ? 'text-red-600' : 'text-gray-500'}`} />
                             </div>
                             <div className="min-w-0">
@@ -654,7 +654,7 @@ export default function ClientOrganisationPortal() {
                             </div>
                           </div>
                           <div className="flex items-center gap-2 shrink-0">
-                            <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium capitalize ${isPending ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300' : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300'}`}>{b.status}</span>
+                            <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium capitalize ${isPending ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300' : 'bg-gray-100 text-gray-600 dark:bg-[#1E1E1E] dark:text-gray-300'}`}>{b.status}</span>
                             <span className="text-xs text-muted-foreground">{formatDateTime(b.created_at)}</span>
                           </div>
                         </div>
@@ -668,7 +668,7 @@ export default function ClientOrganisationPortal() {
 
           {/* Enforcement tab */}
           <TabsContent value="enforcement" className="mt-4">
-            <Card className="bg-white dark:bg-gray-900 shadow-sm">
+            <Card className="bg-white dark:bg-[#1A1A1A] shadow-sm">
               <CardHeader className="pb-3">
                 <CardTitle className="text-base flex items-center gap-2">
                   <FileText className="h-4 w-4 text-amber-600" />
@@ -709,7 +709,7 @@ export default function ClientOrganisationPortal() {
 
           {/* Zones tab */}
           <TabsContent value="zones" className="mt-4">
-            <Card className="bg-white dark:bg-gray-900 shadow-sm">
+            <Card className="bg-white dark:bg-[#1A1A1A] shadow-sm">
               <CardHeader className="pb-3">
                 <CardTitle className="text-base flex items-center gap-2">
                   <MapPin className="h-4 w-4 text-purple-600" />
@@ -726,7 +726,7 @@ export default function ClientOrganisationPortal() {
                 ) : (
                   <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                     {zones.map((zone: any) => (
-                      <div key={zone.id} className="flex items-start gap-3 p-3 border rounded-xl bg-gray-50 dark:bg-gray-800/40 dark:border-gray-700 hover:border-purple-200 dark:hover:border-purple-700 transition-colors">
+                      <div key={zone.id} className="flex items-start gap-3 p-3 border rounded-xl bg-gray-50 dark:bg-[#1E1E1E]/40 dark:border-[#9E9E9E]/20 hover:border-purple-200 dark:hover:border-purple-700 transition-colors">
                         <div className="p-1.5 rounded-lg bg-purple-100 dark:bg-purple-900/40 shrink-0">
                           <MapPin className="h-3.5 w-3.5 text-purple-600" />
                         </div>
@@ -748,7 +748,7 @@ export default function ClientOrganisationPortal() {
 
           {/* Sites tab */}
           <TabsContent value="sites" className="mt-4">
-            <Card className="bg-white dark:bg-gray-900 shadow-sm">
+            <Card className="bg-white dark:bg-[#1A1A1A] shadow-sm">
               <CardHeader className="pb-3">
                 <CardTitle className="text-base flex items-center gap-2">
                   <Building2 className="h-4 w-4 text-purple-600" />
@@ -774,7 +774,7 @@ export default function ClientOrganisationPortal() {
                         return s.name?.toLowerCase().includes(q) || s.city?.toLowerCase().includes(q) || s.address?.toLowerCase().includes(q) || s.site_code?.toLowerCase().includes(q)
                       })
                       .map((site: any) => (
-                        <div key={site.id} className="border rounded-xl p-4 bg-gray-50 dark:bg-gray-800/40 dark:border-gray-700 space-y-2">
+                        <div key={site.id} className="border rounded-xl p-4 bg-gray-50 dark:bg-[#1E1E1E]/40 dark:border-[#9E9E9E]/20 space-y-2">
                           <div className="flex items-start justify-between gap-2">
                             <div className="flex items-start gap-2.5">
                               <div className="p-1.5 rounded-lg bg-purple-100 dark:bg-purple-900/40 shrink-0">
@@ -797,7 +797,7 @@ export default function ClientOrganisationPortal() {
                             <p className="text-xs text-muted-foreground border-l-2 border-gray-200 dark:border-gray-600 pl-2">{site.notes}</p>
                           )}
                           {(site.contact_name || site.contact_phone || site.emergency_contact_name) && (
-                            <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs pt-1 border-t dark:border-gray-700">
+                            <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs pt-1 border-t dark:border-[#9E9E9E]/20">
                               {site.contact_name && <span className="flex items-center gap-1 text-muted-foreground"><Users className="h-3 w-3" />{site.contact_name}</span>}
                               {site.contact_phone && <span className="flex items-center gap-1 text-muted-foreground"><Phone className="h-3 w-3" />{site.contact_phone}</span>}
                               {site.emergency_contact_name && (

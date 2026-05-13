@@ -77,13 +77,13 @@ const NOTICE_STATUS_COLOURS: Record<string, string> = {
   served:    'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
   complied:  'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
   escalated: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300',
-  withdrawn: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400',
+  withdrawn: 'bg-gray-100 text-gray-700 dark:bg-[#1E1E1E] dark:text-gray-400',
 }
 
 const SEIZURE_STATUS_COLOURS: Record<string, string> = {
   active:   'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300',
   returned: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
-  disposed: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400',
+  disposed: 'bg-gray-100 text-gray-700 dark:bg-[#1E1E1E] dark:text-gray-400',
   forfeited:'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300',
 }
 

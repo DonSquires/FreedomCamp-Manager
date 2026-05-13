@@ -268,7 +268,7 @@ export function VehicleDetailsModal({
                   {observations.map((obs) => (
                     <div 
                       key={obs.id}
-                      className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg text-sm"
+                      className="flex items-center justify-between p-3 bg-gray-50 dark:bg-[#1E1E1E] rounded-lg text-sm"
                     >
                       <div className="flex items-center gap-3">
                         <MapPin className="h-4 w-4 text-gray-400" />

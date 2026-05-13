@@ -59,7 +59,7 @@ const STATUS_CONFIG: Record<NoiseStatus, { label: string; colour: string }> = {
   assigned:        { label: 'Assigned',        colour: 'text-orange-700 bg-orange-50 dark:bg-orange-900/30' },
   on_scene:        { label: 'On Scene',        colour: 'text-purple-700 bg-purple-50 dark:bg-purple-900/30' },
   resolved:        { label: 'Resolved',        colour: 'text-green-700 bg-green-50 dark:bg-green-900/30'  },
-  no_action_taken: { label: 'No Action Taken', colour: 'text-gray-600 bg-gray-100 dark:bg-gray-800'       },
+  no_action_taken: { label: 'No Action Taken', colour: 'text-gray-600 bg-gray-100 dark:bg-[#1E1E1E]'       },
 }
 
 const NOISE_TYPE_LABELS: Record<string, string> = {

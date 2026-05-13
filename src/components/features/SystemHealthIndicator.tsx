@@ -211,7 +211,7 @@ export function SystemHealthIndicator() {
                 {storageHealth.usedSpace} / {storageHealth.totalSpace} {storageHealth.unit}
               </span>
             </div>
-            <div className="mt-2 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+            <div className="mt-2 h-2 bg-gray-200 dark:bg-[#2A2A2A] rounded-full overflow-hidden">
               <div
                 className="h-full bg-primary"
                 style={{

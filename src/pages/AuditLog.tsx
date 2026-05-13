@@ -169,7 +169,7 @@ export default function AuditLog() {
       case 'delete':
         return 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
       default:
-        return 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300'
+        return 'bg-gray-100 text-gray-800 dark:bg-[#1E1E1E] dark:text-gray-300'
     }
   }
 
@@ -403,7 +403,7 @@ export default function AuditLog() {
 
                     {/* Show changes if update */}
                     {entry.action === 'update' && entry.old_values && entry.new_values && (
-                      <div className="mt-3 p-3 bg-gray-50 dark:bg-gray-800 rounded text-xs">
+                      <div className="mt-3 p-3 bg-gray-50 dark:bg-[#1E1E1E] rounded text-xs">
                         <div className="font-semibold mb-1">Changes:</div>
                         <div className="space-y-1">
                           {Object.keys(entry.new_values).map((key) => {

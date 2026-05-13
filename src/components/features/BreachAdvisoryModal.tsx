@@ -203,7 +203,7 @@ export function BreachAdvisoryModal({
             <Card>
               <CardContent className="pt-4">
                 <h4 className="font-semibold mb-3">Violation Details</h4>
-                <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 text-sm space-y-1">
+                <div className="bg-gray-50 dark:bg-[#1E1E1E] rounded-lg p-3 text-sm space-y-1">
                   {Object.entries(breach.breach_details).map(([key, value]) => (
                     <div key={key} className="flex justify-between">
                       <span className="text-gray-600 capitalize">{key.replace(/_/g, ' ')}:</span>

@@ -629,7 +629,7 @@ export default function CustomReportBuilder() {
                         ? 'bg-blue-500 text-white'
                         : currentStep > step
                         ? 'bg-green-500 text-white'
-                        : 'bg-gray-200 dark:bg-gray-700'
+                        : 'bg-gray-200 dark:bg-[#2A2A2A]'
                     }`}>
                       {currentStep > step ? <CheckCircle className="h-5 w-5" /> : <Icon className="h-5 w-5" />}
                     </div>
@@ -678,7 +678,7 @@ export default function CustomReportBuilder() {
                           className={`p-4 rounded-lg border text-left transition-all hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 ${
                             selectedSource?.id === source.id
                               ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                              : 'border-gray-200 dark:border-gray-700'
+                              : 'border-gray-200 dark:border-[#9E9E9E]/20'
                           }`}
                         >
                           <div className="flex items-start justify-between">
@@ -723,7 +723,7 @@ export default function CustomReportBuilder() {
                         className={`flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-colors ${
                           selectedFields.includes(field.key)
                             ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                            : 'border-gray-200 dark:border-gray-700 hover:border-gray-300'
+                            : 'border-gray-200 dark:border-[#9E9E9E]/20 hover:border-gray-300'
                         }`}
                         onClick={() => toggleField(field.key)}
                       >
@@ -1086,7 +1086,7 @@ export default function CustomReportBuilder() {
                       <button
                         key={template.id}
                         onClick={() => loadTemplate(template)}
-                        className="w-full p-3 text-left rounded-lg border border-gray-200 dark:border-gray-700 hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                        className="w-full p-3 text-left rounded-lg border border-gray-200 dark:border-[#9E9E9E]/20 hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
                       >
                         <div className="flex items-start justify-between">
                           <div>

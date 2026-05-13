@@ -69,7 +69,7 @@ const STATUS_COLOURS: Record<string, string> = {
   complied:   'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
   escalated:  'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300',
   overdue:    'bg-red-200 text-red-900 dark:bg-red-900/50 dark:text-red-200',
-  withdrawn:  'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400',
+  withdrawn:  'bg-gray-100 text-gray-700 dark:bg-[#1E1E1E] dark:text-gray-400',
 }
 
 function deadlineColour(vacate_deadline: string | null | undefined, status: string | null) {

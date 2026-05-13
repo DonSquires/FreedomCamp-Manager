@@ -503,19 +503,19 @@ export default function PhotoReingest() {
 
               {liveRun && (
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  <div className="bg-white dark:bg-gray-800 p-3 rounded-lg">
+                  <div className="bg-white dark:bg-[#1E1E1E] p-3 rounded-lg">
                     <div className="text-xs text-gray-600">Matched</div>
                     <div className="text-lg font-semibold mt-1">{liveRun.matched.toLocaleString()}</div>
                   </div>
-                  <div className="bg-white dark:bg-gray-800 p-3 rounded-lg">
+                  <div className="bg-white dark:bg-[#1E1E1E] p-3 rounded-lg">
                     <div className="text-xs text-gray-600">Processed</div>
                     <div className="text-lg font-semibold mt-1">{liveRun.processed.toLocaleString()}</div>
                   </div>
-                  <div className="bg-white dark:bg-gray-800 p-3 rounded-lg">
+                  <div className="bg-white dark:bg-[#1E1E1E] p-3 rounded-lg">
                     <div className="text-xs text-gray-600">Updated</div>
                     <div className="text-lg font-semibold text-green-600 mt-1">{liveRun.updated.toLocaleString()}</div>
                   </div>
-                  <div className="bg-white dark:bg-gray-800 p-3 rounded-lg">
+                  <div className="bg-white dark:bg-[#1E1E1E] p-3 rounded-lg">
                     <div className="text-xs text-gray-600">Failed</div>
                     <div className="text-lg font-semibold text-red-600 mt-1">{liveRun.failed.toLocaleString()}</div>
                   </div>
@@ -540,31 +540,31 @@ export default function PhotoReingest() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                <div className="bg-white dark:bg-gray-800 p-4 rounded-lg">
+                <div className="bg-white dark:bg-[#1E1E1E] p-4 rounded-lg">
                   <div className="text-sm text-gray-600">Matched</div>
                   <div className="text-2xl font-bold mt-1">
                     {result.matched.toLocaleString()}
                   </div>
                 </div>
-                <div className="bg-white dark:bg-gray-800 p-4 rounded-lg">
+                <div className="bg-white dark:bg-[#1E1E1E] p-4 rounded-lg">
                   <div className="text-sm text-gray-600">Processed</div>
                   <div className="text-2xl font-bold mt-1">
                     {result.processed.toLocaleString()}
                   </div>
                 </div>
-                <div className="bg-white dark:bg-gray-800 p-4 rounded-lg">
+                <div className="bg-white dark:bg-[#1E1E1E] p-4 rounded-lg">
                   <div className="text-sm text-gray-600">Updated</div>
                   <div className="text-2xl font-bold text-green-600 mt-1">
                     {result.updated.toLocaleString()}
                   </div>
                 </div>
-                <div className="bg-white dark:bg-gray-800 p-4 rounded-lg">
+                <div className="bg-white dark:bg-[#1E1E1E] p-4 rounded-lg">
                   <div className="text-sm text-gray-600">Failed</div>
                   <div className="text-2xl font-bold text-red-600 mt-1">
                     {result.failed.toLocaleString()}
                   </div>
                 </div>
-                <div className="bg-white dark:bg-gray-800 p-4 rounded-lg">
+                <div className="bg-white dark:bg-[#1E1E1E] p-4 rounded-lg">
                   <div className="text-sm text-gray-600">Duration</div>
                   <div className="text-2xl font-bold text-purple-600 mt-1">
                     {result.duration_seconds}s

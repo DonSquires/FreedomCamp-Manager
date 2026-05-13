@@ -472,7 +472,7 @@ export function ZoneGeofenceEditor({
             ) : (
               <div className="space-y-3">
                 {polygonPoints.map((point, index) => (
-                  <div key={index} className="flex items-center gap-2 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                  <div key={index} className="flex items-center gap-2 p-3 bg-gray-50 dark:bg-[#1E1E1E] rounded-lg">
                     <Badge variant="outline" className="w-8 h-8 flex items-center justify-center">
                       {index + 1}
                     </Badge>

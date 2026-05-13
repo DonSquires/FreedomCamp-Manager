@@ -181,7 +181,7 @@ async function withTimeout<T>(promise: PromiseLike<T>, ms: number, label: string
 function renderInline(text: string): React.ReactNode {
   return text.split(/(\*\*[^*]+\*\*|`[^`]+`)/g).map((part, i) => {
     if (/^\*\*[^*]+\*\*$/.test(part)) return <strong key={i}>{part.slice(2, -2)}</strong>
-    if (/^`[^`]+`$/.test(part)) return <code key={i} className="bg-gray-100 dark:bg-gray-800 rounded px-1 text-xs font-mono">{part.slice(1, -1)}</code>
+    if (/^`[^`]+`$/.test(part)) return <code key={i} className="bg-gray-100 dark:bg-[#1E1E1E] rounded px-1 text-xs font-mono">{part.slice(1, -1)}</code>
     return part
   })
 }
@@ -512,7 +512,7 @@ export function AiFeedbackChat({ onSubmitted, onCancel }: AiFeedbackChatProps) {
 
       {/* ── Messages ───────────────────────────────────────────────────── */}
       <ScrollArea
-        className="flex-1 rounded-lg border dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50"
+        className="flex-1 rounded-lg border dark:border-[#9E9E9E]/20 bg-gray-50 dark:bg-[#1A1A1A]/50"
         style={{ maxHeight: 340 }}
       >
         <div className="p-3 space-y-3">
@@ -523,7 +523,7 @@ export function AiFeedbackChat({ onSubmitted, onCancel }: AiFeedbackChatProps) {
               <div className="w-7 h-7 rounded-full bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shrink-0 mt-0.5">
                 <Bot className="h-3.5 w-3.5 text-white" />
               </div>
-              <div className="bg-white dark:bg-gray-800 rounded-2xl rounded-tl-sm px-3 py-2 flex items-center gap-2 shadow-sm">
+              <div className="bg-white dark:bg-[#1E1E1E] rounded-2xl rounded-tl-sm px-3 py-2 flex items-center gap-2 shadow-sm">
                 <Loader2 className="h-3.5 w-3.5 animate-spin text-violet-500" />
                 <span className="text-xs text-muted-foreground">Connecting…</span>
               </div>
@@ -536,7 +536,7 @@ export function AiFeedbackChat({ onSubmitted, onCancel }: AiFeedbackChatProps) {
               <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 mt-0.5 text-white text-[10px] font-bold ${msg.role === 'user' ? 'bg-blue-600' : 'bg-gradient-to-br from-violet-500 to-indigo-600'}`}>
                 {msg.role === 'user' ? 'Me' : <Bot className="h-3.5 w-3.5" />}
               </div>
-              <div className={`max-w-[82%] rounded-2xl px-3 py-2 shadow-sm text-sm leading-relaxed ${msg.role === 'user' ? 'bg-blue-600 text-white rounded-tr-sm' : 'bg-white dark:bg-gray-800 rounded-tl-sm'}`}>
+              <div className={`max-w-[82%] rounded-2xl px-3 py-2 shadow-sm text-sm leading-relaxed ${msg.role === 'user' ? 'bg-blue-600 text-white rounded-tr-sm' : 'bg-white dark:bg-[#1E1E1E] rounded-tl-sm'}`}>
                 {msg.content.split('\n').map((line, i) => (
                   <p key={i} className={line.trim() === '' ? 'h-2' : ''}>
                     {line.trim() === '' ? null : renderInline(line)}
@@ -552,7 +552,7 @@ export function AiFeedbackChat({ onSubmitted, onCancel }: AiFeedbackChatProps) {
               <div className="w-7 h-7 rounded-full bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shrink-0 mt-0.5">
                 <Bot className="h-3.5 w-3.5 text-white" />
               </div>
-              <div className="bg-white dark:bg-gray-800 rounded-2xl rounded-tl-sm px-3 py-2 flex items-center gap-1.5 shadow-sm">
+              <div className="bg-white dark:bg-[#1E1E1E] rounded-2xl rounded-tl-sm px-3 py-2 flex items-center gap-1.5 shadow-sm">
                 <span className="w-1.5 h-1.5 bg-violet-400 rounded-full animate-bounce [animation-delay:0ms]" />
                 <span className="w-1.5 h-1.5 bg-violet-400 rounded-full animate-bounce [animation-delay:150ms]" />
                 <span className="w-1.5 h-1.5 bg-violet-400 rounded-full animate-bounce [animation-delay:300ms]" />

@@ -117,7 +117,7 @@ const MATERIAL_TYPE_COLORS: Record<MaterialType, string> = {
   legal: 'bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300 border-red-200',
   past_tender: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-950 dark:text-yellow-300 border-yellow-200',
   nz_reference: 'bg-teal-100 text-teal-800 dark:bg-teal-950 dark:text-teal-300 border-teal-200',
-  other: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300 border-gray-200',
+  other: 'bg-gray-100 text-gray-700 dark:bg-[#1E1E1E] dark:text-gray-300 border-gray-200',
 }
 
 const EXTRACTION_STATUS_CONFIG: Record<ExtractionStatus, { label: string; color: string; icon: typeof CheckCircle2 }> = {

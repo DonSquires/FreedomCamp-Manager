@@ -285,7 +285,7 @@ export default function DispatchWizard() {
                       className={`w-full text-left p-3 rounded-md border transition-all ${
                         state.client_site_id === s.id
                           ? 'bg-blue-50 border-blue-400 dark:bg-blue-950/30'
-                          : 'bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 border-gray-100 dark:border-gray-700'
+                          : 'bg-white dark:bg-[#1E1E1E] hover:bg-gray-50 dark:hover:bg-[#2A2A2A] border-gray-100 dark:border-[#9E9E9E]/20'
                       }`}
                     >
                       <div className="flex items-center gap-2">
@@ -378,7 +378,7 @@ export default function DispatchWizard() {
                   <button
                     onClick={() => setState(s => ({ ...s, assigned_to: '', officer_name: '', call_sign: '' }))}
                     className={`w-full text-left p-3 rounded-md border transition-all ${
-                      !state.assigned_to ? 'bg-blue-50 border-blue-400 dark:bg-blue-950/30' : 'bg-white dark:bg-gray-800 border-gray-100 dark:border-gray-700 hover:bg-gray-50'
+                      !state.assigned_to ? 'bg-blue-50 border-blue-400 dark:bg-blue-950/30' : 'bg-white dark:bg-[#1E1E1E] border-gray-100 dark:border-[#9E9E9E]/20 hover:bg-gray-50'
                     }`}
                   >
                     <span className="text-sm text-muted-foreground italic">No assignment (Pending)</span>
@@ -390,7 +390,7 @@ export default function DispatchWizard() {
                       className={`w-full text-left p-3 rounded-md border transition-all ${
                         state.assigned_to === o.id
                           ? 'bg-blue-50 border-blue-400 dark:bg-blue-950/30'
-                          : 'bg-white dark:bg-gray-800 border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'
+                          : 'bg-white dark:bg-[#1E1E1E] border-gray-100 dark:border-[#9E9E9E]/20 hover:bg-gray-50 dark:hover:bg-[#2A2A2A]'
                       }`}
                     >
                       <ListCardRow

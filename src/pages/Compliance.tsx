@@ -520,8 +520,8 @@ export default function Compliance() {
                                   className={cn(
                                     'flex items-center justify-between p-3 rounded-lg border',
                                     z.is_active
-                                      ? 'bg-white dark:bg-gray-900 border-gray-200'
-                                      : 'bg-gray-50 dark:bg-gray-800 border-gray-100 opacity-60'
+                                      ? 'bg-white dark:bg-[#1A1A1A] border-gray-200'
+                                      : 'bg-gray-50 dark:bg-[#1E1E1E] border-gray-100 opacity-60'
                                   )}
                                 >
                                   <div className="flex items-center gap-2 min-w-0">
@@ -617,7 +617,7 @@ export default function Compliance() {
                       {recentActivity.map((activity: any) => (
                         <div
                           key={activity.id}
-                          className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg"
+                          className="flex items-center justify-between p-3 bg-gray-50 dark:bg-[#1E1E1E] rounded-lg"
                         >
                           <div className="flex items-center gap-3">
                             <Car className="h-5 w-5 text-gray-400" />

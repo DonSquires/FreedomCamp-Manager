@@ -160,7 +160,7 @@ export function BobActionApprovalDialog({
 
           {/* Entity reference */}
           {recommendation.entityType && recommendation.entityId && (
-            <div className="p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg border border-gray-200 dark:border-gray-700 text-sm">
+            <div className="p-3 bg-gray-50 dark:bg-[#1A1A1A]/50 rounded-lg border border-gray-200 dark:border-[#9E9E9E]/20 text-sm">
               <span className="text-gray-600 dark:text-gray-400">
                 Affects: <code className="font-mono font-medium text-gray-900 dark:text-gray-100">{recommendation.entityType}:{recommendation.entityId}</code>
               </span>

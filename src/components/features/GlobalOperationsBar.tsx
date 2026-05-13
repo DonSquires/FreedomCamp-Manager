@@ -22,7 +22,7 @@ function OperationRow({ op, onDismiss }: { op: Operation; onDismiss: () => void 
     : Math.round((Date.now() - op.startedAt) / 1000)
 
   return (
-    <div className="border-t border-gray-200 dark:border-gray-700 first:border-t-0">
+    <div className="border-t border-gray-200 dark:border-[#9E9E9E]/20 first:border-t-0">
       <div className="flex items-center gap-2 px-3 py-2 min-h-[44px]">
         {/* Status icon */}
         {op.status === 'running' && (
@@ -161,10 +161,10 @@ export function GlobalOperationsBar() {
       role="region"
       aria-label="Operations progress"
       aria-live="polite"
-      className="fixed bottom-4 right-4 z-50 w-[380px] max-w-[calc(100vw-2rem)] rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-lg overflow-hidden"
+      className="fixed bottom-4 right-4 z-50 w-[380px] max-w-[calc(100vw-2rem)] rounded-lg border border-gray-200 dark:border-[#9E9E9E]/20 bg-white dark:bg-[#1A1A1A] shadow-lg overflow-hidden"
     >
       {/* Header */}
-      <div className="flex items-center justify-between gap-2 px-3 py-2 bg-gray-50 dark:bg-gray-800">
+      <div className="flex items-center justify-between gap-2 px-3 py-2 bg-gray-50 dark:bg-[#1E1E1E]">
         <button
           type="button"
           className="flex flex-1 items-center gap-2 cursor-pointer select-none text-left"

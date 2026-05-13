@@ -244,7 +244,7 @@ function KPICard({ icon, label, value, sub }: {
     <Card>
       <CardContent className="pt-6">
         <div className="flex items-start gap-3">
-          <div className="p-2 bg-gray-100 dark:bg-gray-800 rounded-lg shrink-0">
+          <div className="p-2 bg-gray-100 dark:bg-[#1E1E1E] rounded-lg shrink-0">
             {icon}
           </div>
           <div>

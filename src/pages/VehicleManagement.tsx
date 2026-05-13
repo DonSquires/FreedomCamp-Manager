@@ -364,7 +364,7 @@ export default function VehicleManagement() {
               >
                 {/* Profile Photo — prominent, clickable to enlarge */}
                 <div
-                  className="relative w-full h-44 bg-gray-100 dark:bg-gray-800 overflow-hidden"
+                  className="relative w-full h-44 bg-gray-100 dark:bg-[#1E1E1E] overflow-hidden"
                   onClick={(e) => {
                     if (profileUrl) {
                       e.stopPropagation()
@@ -562,7 +562,7 @@ export default function VehicleManagement() {
               <TabsContent value="info" className="space-y-5 mt-4">
                 {/* Prominent profile photo */}
                 <div
-                  className="relative rounded-lg overflow-hidden h-56 bg-gray-100 dark:bg-gray-800 cursor-pointer group"
+                  className="relative rounded-lg overflow-hidden h-56 bg-gray-100 dark:bg-[#1E1E1E] cursor-pointer group"
                   onClick={() => {
                     const url = selectedVehicle.profile_photo
                     if (url) setEnlargedPhoto(url)
@@ -645,7 +645,7 @@ export default function VehicleManagement() {
 
                 {/* Last enforcement */}
                 {selectedVehicle.last_enforcement_at && (
-                  <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg text-sm">
+                  <div className="p-3 bg-gray-50 dark:bg-[#1E1E1E] rounded-lg text-sm">
                     <div className="font-semibold mb-1">Last Enforcement</div>
                     <div className="text-gray-600">
                       {formatDateTime(selectedVehicle.last_enforcement_at)}

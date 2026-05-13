@@ -699,7 +699,7 @@ export function ScanDetailPanel({
               <img src={obs.photoUrl} alt="Vehicle"
                 className="h-14 w-14 rounded-lg object-cover border shrink-0" />
             ) : (
-              <div className="h-14 w-14 rounded-lg bg-gray-100 dark:bg-gray-800 flex items-center justify-center shrink-0 border">
+              <div className="h-14 w-14 rounded-lg bg-gray-100 dark:bg-[#1E1E1E] flex items-center justify-center shrink-0 border">
                 <Camera className="h-6 w-6 text-gray-400" />
               </div>
             )}

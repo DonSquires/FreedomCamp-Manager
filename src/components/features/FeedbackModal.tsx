@@ -52,7 +52,7 @@ interface FeedbackModalProps {
   onClose: () => void
 }
 
-const inputCls = 'w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 resize-none'
+const inputCls = 'w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#1E1E1E] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 resize-none'
 const labelCls = 'block text-xs font-medium text-muted-foreground mb-1'
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -186,13 +186,13 @@ export function FeedbackModal({ open, onClose }: FeedbackModalProps) {
         </DialogHeader>
 
         {/* ── Mode toggle ───────────────────────────────────────────────── */}
-        <div className="flex gap-1 rounded-lg border border-gray-200 dark:border-gray-700 p-1 bg-gray-50 dark:bg-gray-800/50">
+        <div className="flex gap-1 rounded-lg border border-gray-200 dark:border-[#9E9E9E]/20 p-1 bg-gray-50 dark:bg-[#1E1E1E]/50">
           <button
             type="button"
             onClick={() => setMode('form')}
             className={`flex-1 flex items-center justify-center gap-1.5 rounded-md py-1.5 text-xs font-medium transition-colors ${
               mode === 'form'
-                ? 'bg-white dark:bg-gray-700 shadow-sm text-foreground'
+                ? 'bg-white dark:bg-[#2A2A2A] shadow-sm text-foreground'
                 : 'text-muted-foreground hover:text-foreground'
             }`}
           >
@@ -203,7 +203,7 @@ export function FeedbackModal({ open, onClose }: FeedbackModalProps) {
             onClick={() => setMode('chat')}
             className={`flex-1 flex items-center justify-center gap-1.5 rounded-md py-1.5 text-xs font-medium transition-colors ${
               mode === 'chat'
-                ? 'bg-white dark:bg-gray-700 shadow-sm text-foreground'
+                ? 'bg-white dark:bg-[#2A2A2A] shadow-sm text-foreground'
                 : 'text-muted-foreground hover:text-foreground'
             }`}
           >
@@ -233,7 +233,7 @@ export function FeedbackModal({ open, onClose }: FeedbackModalProps) {
                 className={`flex items-center gap-2 rounded-lg border px-3 py-2.5 text-xs font-medium transition-colors ${
                   type === t
                     ? TYPE_CONFIG[t].color
-                    : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'
+                    : 'border-gray-200 dark:border-[#9E9E9E]/20 hover:bg-gray-50 dark:hover:bg-gray-800'
                 }`}
               >
                 {TYPE_CONFIG[t].icon}
@@ -267,7 +267,7 @@ export function FeedbackModal({ open, onClose }: FeedbackModalProps) {
                     className={`rounded-full px-3 py-1 text-xs font-medium border transition-colors ${
                       severity === s
                         ? SEVERITY_COLORS[s] + ' border-current'
-                        : 'border-gray-200 dark:border-gray-700 text-muted-foreground hover:border-gray-300'
+                        : 'border-gray-200 dark:border-[#9E9E9E]/20 text-muted-foreground hover:border-gray-300'
                     }`}
                   >
                     {s.charAt(0).toUpperCase() + s.slice(1)}
@@ -311,10 +311,10 @@ export function FeedbackModal({ open, onClose }: FeedbackModalProps) {
           )}
 
           {/* Context preview — what will be sent */}
-          <div className="rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+          <div className="rounded-lg border border-gray-200 dark:border-[#9E9E9E]/20 overflow-hidden">
             <button
               type="button"
-              className="w-full flex items-center justify-between px-3 py-2.5 text-xs font-medium bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+              className="w-full flex items-center justify-between px-3 py-2.5 text-xs font-medium bg-gray-50 dark:bg-[#1E1E1E] hover:bg-gray-100 dark:hover:bg-[#2A2A2A] transition-colors"
               onClick={() => setShowContextPreview(v => !v)}
             >
               <span className="flex items-center gap-2">
@@ -337,7 +337,7 @@ export function FeedbackModal({ open, onClose }: FeedbackModalProps) {
                   <p className="font-medium text-muted-foreground flex items-center gap-1 mb-1">
                     <Navigation className="h-3 w-3" /> Current page
                   </p>
-                  <code className="block bg-gray-100 dark:bg-gray-800 rounded px-2 py-1 font-mono">
+                  <code className="block bg-gray-100 dark:bg-[#1E1E1E] rounded px-2 py-1 font-mono">
                     {snapshot.currentPage || '/'}
                   </code>
                 </div>

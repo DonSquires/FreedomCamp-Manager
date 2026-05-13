@@ -65,7 +65,7 @@ export function VehicleCard({ vehicle, onViewDetails, showActions = true }: Vehi
           )}
 
           {/* Vehicle Details */}
-          <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 space-y-2">
+          <div className="bg-gray-50 dark:bg-[#1E1E1E] rounded-lg p-3 space-y-2">
             <div className="flex items-center justify-between text-sm">
               <span className="text-gray-600 flex items-center gap-1">
                 <Shield className="h-3 w-3" />

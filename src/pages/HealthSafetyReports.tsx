@@ -66,7 +66,7 @@ const SEVERITY_COLOURS: Record<string, string> = {
 const STATUS_COLOURS: Record<string, string> = {
   open:        'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
   in_progress: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300',
-  closed:      'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400',
+  closed:      'bg-gray-100 text-gray-700 dark:bg-[#1E1E1E] dark:text-gray-400',
 }
 
 const STATUS_NEXT: Record<string, string> = {

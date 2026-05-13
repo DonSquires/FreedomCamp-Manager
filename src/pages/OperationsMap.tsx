@@ -567,7 +567,7 @@ export default function OperationsMap() {
           <div className={`transition-all duration-200 ${sidebarOpen ? 'w-56' : 'w-8'} shrink-0 flex flex-col gap-0`}>
             <button
               onClick={() => setSidebarOpen(v => !v)}
-              className="flex items-center justify-between w-full rounded-t-lg bg-gray-100 dark:bg-gray-800 px-2 py-1.5 text-xs font-semibold text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+              className="flex items-center justify-between w-full rounded-t-lg bg-gray-100 dark:bg-[#1E1E1E] px-2 py-1.5 text-xs font-semibold text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-[#2A2A2A] transition-colors"
             >
               {sidebarOpen ? (
                 <>
@@ -580,7 +580,7 @@ export default function OperationsMap() {
             </button>
 
             {sidebarOpen && (
-              <div className="flex-1 overflow-y-auto rounded-b-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 divide-y divide-gray-100 dark:divide-gray-800">
+              <div className="flex-1 overflow-y-auto rounded-b-lg bg-white dark:bg-[#1A1A1A] border border-gray-200 dark:border-[#9E9E9E]/20 divide-y divide-gray-100 dark:divide-gray-800">
                 {LAYERS.map(layer => {
                   const Icon = layer.icon
                   const count = layerCounts[layer.id] ?? 0
@@ -640,7 +640,7 @@ export default function OperationsMap() {
               ? emergencyPulse
                 ? 'border-red-600'
                 : 'border-red-300'
-              : 'border-gray-200 dark:border-gray-700'
+              : 'border-gray-200 dark:border-[#9E9E9E]/20'
           }`}>
             <MapContainer
               center={NZ_CENTRE}

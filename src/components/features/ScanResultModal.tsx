@@ -75,7 +75,7 @@ export function ScanResultModal({ open, onClose, result, onCreateObservation, on
 
           {/* Vehicle info */}
           {vehicleLabel && (
-            <div className="bg-gray-50 dark:bg-gray-800 rounded-lg px-4 py-3 space-y-1 text-sm">
+            <div className="bg-gray-50 dark:bg-[#1E1E1E] rounded-lg px-4 py-3 space-y-1 text-sm">
               <div className="flex justify-between">
                 <span className="text-gray-500">Vehicle</span>
                 <span className="font-medium">{vehicleLabel}</span>

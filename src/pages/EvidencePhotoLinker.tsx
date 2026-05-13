@@ -48,7 +48,7 @@ const STATUS_COLOUR: Record<string, string> = {
   updated: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-200',
   dry_run_would_update: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200',
   matched_no_update: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-200',
-  not_in_db: 'bg-gray-100 text-gray-700 dark:bg-gray-700/50 dark:text-gray-300',
+  not_in_db: 'bg-gray-100 text-gray-700 dark:bg-[#2A2A2A]/50 dark:text-gray-300',
   no_plate: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-200',
   download_error: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-200',
   lookup_error: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-200',
@@ -263,7 +263,7 @@ export default function EvidencePhotoLinker() {
                     { label: 'No plate', value: result.no_plate, colour: 'text-orange-600' },
                     { label: 'Not in DB', value: result.not_in_db, colour: 'text-gray-500' },
                   ].map(({ label, value, colour }) => (
-                    <div key={label} className="bg-white dark:bg-gray-800 p-3 rounded-lg text-center">
+                    <div key={label} className="bg-white dark:bg-[#1E1E1E] p-3 rounded-lg text-center">
                       <div className="text-xs text-gray-600">{label}</div>
                       <div className={`text-xl font-bold mt-1 ${colour}`}>{value}</div>
                     </div>

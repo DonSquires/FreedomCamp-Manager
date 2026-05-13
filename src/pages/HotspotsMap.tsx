@@ -372,7 +372,7 @@ export default function HotspotsMap() {
                     className={`p-3 rounded-lg border-2 cursor-pointer transition-all ${
                       selectedZone === hotspot.zone_id
                         ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/20'
-                        : 'border-gray-200 dark:border-gray-700 hover:border-blue-400'
+                        : 'border-gray-200 dark:border-[#9E9E9E]/20 hover:border-blue-400'
                     }`}
                     onClick={() => setSelectedZone(
                       selectedZone === hotspot.zone_id ? null : hotspot.zone_id
@@ -394,15 +394,15 @@ export default function HotspotsMap() {
                       className="mb-2"
                     />
                     <div className="grid grid-cols-3 gap-2 text-xs">
-                      <div className="bg-gray-100 dark:bg-gray-800 rounded p-2 text-center">
+                      <div className="bg-gray-100 dark:bg-[#1E1E1E] rounded p-2 text-center">
                         <div className="font-bold text-blue-600">{hotspot.total_observations}</div>
                         <div className="text-gray-600 dark:text-gray-400">Observations</div>
                       </div>
-                      <div className="bg-gray-100 dark:bg-gray-800 rounded p-2 text-center">
+                      <div className="bg-gray-100 dark:bg-[#1E1E1E] rounded p-2 text-center">
                         <div className="font-bold text-red-600">{hotspot.breach_count}</div>
                         <div className="text-gray-600 dark:text-gray-400">Breaches</div>
                       </div>
-                      <div className="bg-gray-100 dark:bg-gray-800 rounded p-2 text-center">
+                      <div className="bg-gray-100 dark:bg-[#1E1E1E] rounded p-2 text-center">
                         <div className="font-bold text-purple-600">{hotspot.unique_vehicles}</div>
                         <div className="text-gray-600 dark:text-gray-400">Vehicles</div>
                       </div>

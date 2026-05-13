@@ -135,7 +135,7 @@ export function GlobalFilterRibbon({
   }
 
   return (
-    <div className={cn('bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700', className)}>
+    <div className={cn('bg-white dark:bg-[#1E1E1E] border-b border-gray-200 dark:border-[#9E9E9E]/20', className)}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
         <div className="flex flex-wrap items-center gap-3">
           {/* Date Filter */}

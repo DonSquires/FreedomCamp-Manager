@@ -138,7 +138,7 @@ function KPI({
   sub?: string;
 }) {
   return (
-    <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-5 shadow-sm">
+    <div className="bg-white dark:bg-[#1A1A1A] rounded-xl border border-gray-200 dark:border-[#9E9E9E]/20 p-5 shadow-sm">
       <div className="flex items-center justify-between mb-3">
         <span className="text-sm font-medium text-gray-500 dark:text-gray-400">{label}</span>
         <div className={cn('p-2 rounded-lg', color)}>
@@ -278,7 +278,7 @@ function BreachesTab({
             placeholder="Search plate number…"
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(0); }}
-            className="w-full pl-9 pr-4 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500"
+            className="w-full pl-9 pr-4 py-2 text-sm rounded-lg border border-gray-200 dark:border-[#9E9E9E]/20 bg-white dark:bg-[#1A1A1A] text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500"
           />
         </div>
         <span className="self-center text-sm text-gray-500">
@@ -287,7 +287,7 @@ function BreachesTab({
         </span>
       </div>
 
-      <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
+      <div className="bg-white dark:bg-[#1A1A1A] rounded-xl border border-gray-200 dark:border-[#9E9E9E]/20 shadow-sm overflow-hidden">
         {isLoading ? (
           <Spinner />
         ) : isError ? (
@@ -357,14 +357,14 @@ function BreachesTab({
               <button
                 disabled={page === 0}
                 onClick={() => setPage((p) => p - 1)}
-                className="p-1.5 rounded border border-gray-200 dark:border-gray-700 disabled:opacity-30"
+                className="p-1.5 rounded border border-gray-200 dark:border-[#9E9E9E]/20 disabled:opacity-30"
               >
                 <ChevronLeft className="w-4 h-4" />
               </button>
               <button
                 disabled={page >= totalPages - 1}
                 onClick={() => setPage((p) => p + 1)}
-                className="p-1.5 rounded border border-gray-200 dark:border-gray-700 disabled:opacity-30"
+                className="p-1.5 rounded border border-gray-200 dark:border-[#9E9E9E]/20 disabled:opacity-30"
               >
                 <ChevronRight className="w-4 h-4" />
               </button>
@@ -403,8 +403,8 @@ function ZonesTab({
         <div
           key={z.zone_id}
           className={cn(
-            'bg-white dark:bg-gray-900 rounded-xl border shadow-sm p-4',
-            z.is_active ? 'border-gray-200 dark:border-gray-700' : 'border-gray-100 dark:border-gray-800 opacity-60'
+            'bg-white dark:bg-[#1A1A1A] rounded-xl border shadow-sm p-4',
+            z.is_active ? 'border-gray-200 dark:border-[#9E9E9E]/20' : 'border-gray-100 dark:border-gray-800 opacity-60'
           )}
         >
           <div className="flex items-center gap-4 flex-wrap">
@@ -414,7 +414,7 @@ function ZonesTab({
                 <MapPin className="w-4 h-4 text-blue-500 shrink-0" />
                 <span className="font-semibold text-gray-900 dark:text-white truncate">{z.zone_name}</span>
                 {!z.is_active && (
-                  <span className="text-xs bg-gray-100 dark:bg-gray-800 text-gray-500 px-1.5 py-0.5 rounded">
+                  <span className="text-xs bg-gray-100 dark:bg-[#1E1E1E] text-gray-500 px-1.5 py-0.5 rounded">
                     Inactive
                   </span>
                 )}
@@ -465,7 +465,7 @@ function ZonesTab({
                     {z.compliance_pct}%
                   </span>
                 </div>
-                <div className="h-2 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+                <div className="h-2 bg-gray-100 dark:bg-[#1E1E1E] rounded-full overflow-hidden">
                   <div
                     className={cn(
                       'h-full rounded-full transition-all',
@@ -516,8 +516,8 @@ function JurisdictionTab({
         <div
           key={z.zone_id}
           className={cn(
-            'bg-white dark:bg-gray-900 rounded-xl border shadow-sm p-4',
-            z.is_active ? 'border-gray-200 dark:border-gray-700' : 'border-gray-100 dark:border-gray-800 opacity-60'
+            'bg-white dark:bg-[#1A1A1A] rounded-xl border shadow-sm p-4',
+            z.is_active ? 'border-gray-200 dark:border-[#9E9E9E]/20' : 'border-gray-100 dark:border-gray-800 opacity-60'
           )}
         >
           <div className="flex items-center gap-4 flex-wrap">
@@ -527,7 +527,7 @@ function JurisdictionTab({
                 <Building2 className="w-4 h-4 text-indigo-500 shrink-0" />
                 <span className="font-semibold text-gray-900 dark:text-white truncate">{z.zone_name}</span>
                 {!z.is_active && (
-                  <span className="text-xs bg-gray-100 dark:bg-gray-800 text-gray-500 px-1.5 py-0.5 rounded">
+                  <span className="text-xs bg-gray-100 dark:bg-[#1E1E1E] text-gray-500 px-1.5 py-0.5 rounded">
                     Inactive
                   </span>
                 )}
@@ -578,7 +578,7 @@ function JurisdictionTab({
                     {z.compliance_pct}%
                   </span>
                 </div>
-                <div className="h-2 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+                <div className="h-2 bg-gray-100 dark:bg-[#1E1E1E] rounded-full overflow-hidden">
                   <div
                     className={cn(
                       'h-full rounded-full transition-all',
@@ -1089,7 +1089,7 @@ export default function CompliancePage() {
         <OverviewTab dateFrom={effectiveDateFrom} dateTo={effectiveDateTo} orgId={effectiveOrgId} zoneId={zoneId} />
 
         {/* Tabbed detail sections */}
-        <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
+        <div className="bg-white dark:bg-[#1A1A1A] rounded-xl border border-gray-200 dark:border-[#9E9E9E]/20 shadow-sm">
           <div className="border-b border-gray-100 dark:border-gray-800 flex gap-1 px-4 overflow-x-auto">
             {TABS.map(({ id, label, icon: Icon }) => (
               <button

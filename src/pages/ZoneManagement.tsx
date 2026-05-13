@@ -648,7 +648,7 @@ export default function ZoneManagement() {
                   <ZoneGeofenceIndicator geometry={zone.geometry || zone.geom} />
 
                   {/* Compliance Rules */}
-                  <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 space-y-2">
+                  <div className="bg-gray-50 dark:bg-[#1E1E1E] rounded-lg p-3 space-y-2">
                     <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Compliance Rules</h4>
                     
                     <div className="flex items-center justify-between text-sm">
@@ -773,7 +773,7 @@ export default function ZoneManagement() {
             {user?.role !== 'master' && selectedZone?.organization && (
               <div>
                 <Label>Organisation</Label>
-                <div className="flex items-center gap-2 p-2 bg-gray-50 dark:bg-gray-800 rounded-md">
+                <div className="flex items-center gap-2 p-2 bg-gray-50 dark:bg-[#1E1E1E] rounded-md">
                   <Building2 className="h-4 w-4 text-gray-500" />
                   <span className="text-sm font-medium">{selectedZone.organization.name}</span>
                 </div>

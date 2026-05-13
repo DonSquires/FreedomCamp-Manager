@@ -1092,7 +1092,7 @@ export function AppLayout({ children, title, description, showBackButton, immers
               </SheetTrigger>
               <SheetContent side="left" className="w-64 p-0">
                 <div className="flex flex-col h-full">
-                  <div className="p-4 border-b dark:border-gray-700">
+                  <div className="p-4 border-b dark:border-[#9E9E9E]/20">
                     <h2 className="font-semibold text-lg">FieldOps</h2>
                     <p className="text-sm text-gray-600 dark:text-gray-400">
                       {user?.full_name}
@@ -1110,7 +1110,7 @@ export function AppLayout({ children, title, description, showBackButton, immers
                     <NavigationLinks onClick={() => setSidebarOpen(false)} />
                   </div>
 
-                  <div className="p-4 border-t dark:border-gray-700">
+                  <div className="p-4 border-t dark:border-[#9E9E9E]/20">
                     <Button 
                       variant="outline" 
                       className="w-full justify-start"
@@ -1139,7 +1139,7 @@ export function AppLayout({ children, title, description, showBackButton, immers
             title="Alerts"
             aria-label="Alerts"
             onClick={() => navigate('/notifications')}
-            className="relative flex items-center justify-center h-9 w-9 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+            className="relative flex items-center justify-center h-9 w-9 rounded-lg hover:bg-gray-100 dark:hover:bg-[#2A2A2A] transition-colors"
           >
             <Bell className="h-5 w-5 text-gray-500 dark:text-gray-400" />
             {notifCount > 0 && (
@@ -1172,12 +1172,12 @@ export function AppLayout({ children, title, description, showBackButton, immers
       {/* Desktop Sidebar */}
       <aside
         className={cn(
-          'hidden lg:block fixed inset-y-0 left-0 w-64 bg-white/95 dark:bg-gray-800/95 backdrop-blur border-r dark:border-gray-700 z-30 transition-transform duration-200 shadow-[2px_0_14px_-2px_rgba(0,0,0,0.1)] dark:shadow-[2px_0_14px_-2px_rgba(0,0,0,0.45)]',
+          'hidden lg:block fixed inset-y-0 left-0 w-64 bg-white/95 dark:bg-[#1E1E1E]/95 backdrop-blur border-r dark:border-[#9E9E9E]/20 z-30 transition-transform duration-200 shadow-[2px_0_14px_-2px_rgba(0,0,0,0.1)] dark:shadow-[2px_0_14px_-2px_rgba(0,0,0,0.45)]',
           desktopNavOpen ? 'translate-x-0' : '-translate-x-full'
         )}
       >
         <div className="flex flex-col h-full">
-          <div className="p-5 border-b dark:border-gray-700 bg-gradient-to-br from-cyan-700 via-cyan-800 to-slate-900 dark:from-cyan-900 dark:via-cyan-950 dark:to-slate-950">
+          <div className="p-5 border-b dark:border-[#9E9E9E]/20 bg-gradient-to-br from-cyan-700 via-cyan-800 to-slate-900 dark:from-cyan-900 dark:via-cyan-950 dark:to-slate-950">
             <div className="flex items-start justify-between">
               <div className="min-w-0">
                 <h2 className="font-bold text-xl text-white">FieldOps</h2>
@@ -1209,7 +1209,7 @@ export function AppLayout({ children, title, description, showBackButton, immers
             <NavigationLinks />
           </div>
 
-          <div className="p-4 border-t dark:border-gray-700">
+          <div className="p-4 border-t dark:border-[#9E9E9E]/20">
             <Button 
               variant="outline" 
               className="w-full justify-start"
@@ -1292,7 +1292,7 @@ export function AppLayout({ children, title, description, showBackButton, immers
                   aria-label="Notifications"
                   data-testid="notification-bell"
                   onClick={() => navigate('/notifications')}
-                  className="relative flex items-center justify-center h-9 w-9 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                  className="relative flex items-center justify-center h-9 w-9 rounded-lg hover:bg-gray-100 dark:hover:bg-[#2A2A2A] transition-colors"
                 >
                   <Bell className="h-5 w-5 text-gray-500 dark:text-gray-400" />
                   {notifCount > 0 && (

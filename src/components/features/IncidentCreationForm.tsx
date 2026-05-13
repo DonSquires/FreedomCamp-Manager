@@ -406,7 +406,7 @@ export function IncidentCreationForm({
                   </p>
                 )}
                 {personResults.length > 0 && (
-                  <div className="border rounded divide-y text-sm bg-white dark:bg-gray-900 shadow-sm max-h-40 overflow-y-auto">
+                  <div className="border rounded divide-y text-sm bg-white dark:bg-[#1A1A1A] shadow-sm max-h-40 overflow-y-auto">
                     {personResults.map((p) => (
                       <button
                         key={p.id}

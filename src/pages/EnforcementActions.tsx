@@ -383,7 +383,7 @@ export default function EnforcementActions() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'pending':
-        return 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300'
+        return 'bg-gray-100 text-gray-800 dark:bg-[#1E1E1E] dark:text-gray-300'
       case 'assigned':
         return 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
       case 'completed':
@@ -647,7 +647,7 @@ export default function EnforcementActions() {
                 <div className="space-y-4">
                   {/* Officer Assignment */}
                   {action.user_profile && (
-                    <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3">
+                    <div className="bg-gray-50 dark:bg-[#1E1E1E] rounded-lg p-3">
                       <div className="flex items-center gap-2 text-sm">
                         <User className="h-4 w-4 text-gray-400" />
                         <span className="text-gray-600 dark:text-gray-400">Created by:</span>
@@ -698,7 +698,7 @@ export default function EnforcementActions() {
 
                   {/* Notes */}
                   {action.notes && (
-                    <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3">
+                    <div className="bg-gray-50 dark:bg-[#1E1E1E] rounded-lg p-3">
                       <p className="text-sm text-gray-600 dark:text-gray-400">
                         <span className="font-semibold">Notes:</span> {action.notes}
                       </p>

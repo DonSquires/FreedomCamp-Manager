@@ -353,7 +353,7 @@ export default function AccessControlPage() {
                   key={label}
                   type="button"
                   onClick={() => navigate(path)}
-                  className="text-left rounded-lg border bg-white dark:bg-gray-900 px-3 py-2 transition-colors hover:bg-blue-100/60 dark:hover:bg-blue-900/20"
+                  className="text-left rounded-lg border bg-white dark:bg-[#1A1A1A] px-3 py-2 transition-colors hover:bg-blue-100/60 dark:hover:bg-blue-900/20"
                 >
                   <div className="flex items-center gap-1.5 text-sm font-medium text-gray-900 dark:text-gray-100">
                     <Icon className="h-4 w-4 text-blue-600" />
@@ -561,7 +561,7 @@ export default function AccessControlPage() {
                         className={`flex items-center gap-2 rounded-lg border px-3 py-2 cursor-pointer transition-colors ${
                           editPortalAccess.includes(code)
                             ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/30'
-                            : 'border-gray-200 dark:border-gray-700 hover:border-gray-300'
+                            : 'border-gray-200 dark:border-[#9E9E9E]/20 hover:border-gray-300'
                         }`}
                       >
                         <Checkbox

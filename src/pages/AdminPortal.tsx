@@ -749,7 +749,7 @@ export default function AdminPortal() {
           ragStatus === 'green' ? 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-300 dark:border-emerald-700'
           : ragStatus === 'amber' ? 'bg-amber-50 dark:bg-amber-950/20 border-amber-300 dark:border-amber-700'
           : ragStatus === 'red'   ? 'bg-red-50 dark:bg-red-950/20 border-red-300 dark:border-red-700'
-          : 'bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700'
+          : 'bg-gray-50 dark:bg-[#1E1E1E] border-gray-200 dark:border-[#9E9E9E]/20'
         }`}>
           <div className={`h-3 w-3 rounded-full shrink-0 ${
             ragStatus === 'green' ? 'bg-emerald-500'
@@ -893,7 +893,7 @@ export default function AdminPortal() {
         {/* ── TODAY'S ROSTER — Deputy / InTime Rostering inspired ──────────────────── */}
         {todayRosterShifts.length > 0 && (
           <section>
-            <Card className="bg-white dark:bg-gray-900 shadow-sm overflow-hidden">
+            <Card className="bg-white dark:bg-[#1A1A1A] shadow-sm overflow-hidden">
               <div className="h-1 w-full bg-gradient-to-r from-indigo-500 to-violet-600" />
               <CardHeader className="pb-3 pt-4">
                 <CardTitle className="flex items-center justify-between text-base">
@@ -926,7 +926,7 @@ export default function AdminPortal() {
                         className={`min-h-20 rounded-lg border p-3 text-sm ${
                           isActive
                             ? 'border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-950/20'
-                            : 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/40'
+                            : 'border-gray-200 dark:border-[#9E9E9E]/20 bg-gray-50 dark:bg-[#1E1E1E]/40'
                         }`}
                       >
                         <ListCardRow
@@ -954,7 +954,7 @@ export default function AdminPortal() {
 
         {/* ── ALL SYSTEMS HUB — integrated navigation grid ─────────────────────────── */}
         <section>
-          <Card className="bg-white dark:bg-gray-900 shadow-sm overflow-hidden">
+          <Card className="bg-white dark:bg-[#1A1A1A] shadow-sm overflow-hidden">
             <div className="h-1 w-full bg-gradient-to-r from-slate-400 to-slate-600" />
             <CardHeader className="pb-3 pt-4">
               <CardTitle className="flex items-center gap-2 text-sm font-semibold">
@@ -1045,7 +1045,7 @@ export default function AdminPortal() {
                   {[
                     { path: '/vehicles',               label: 'Vehicles',          Icon: Car,           color: 'text-slate-600',  bg: 'bg-slate-50 dark:bg-slate-900/30' },
                     { path: '/asset-management',       label: 'Assets',            Icon: Package,       color: 'text-amber-700',  bg: 'bg-amber-50 dark:bg-amber-900/20' },
-                    { path: '/vehicle-registry',       label: 'Registry',          Icon: Database,      color: 'text-gray-600',   bg: 'bg-gray-100 dark:bg-gray-800/30' },
+                    { path: '/vehicle-registry',       label: 'Registry',          Icon: Database,      color: 'text-gray-600',   bg: 'bg-gray-100 dark:bg-[#1E1E1E]/30' },
                     { path: '/zones',                  label: 'Zones',             Icon: MapPin,        color: 'text-green-600',  bg: 'bg-green-50 dark:bg-green-900/20' },
                     { path: '/hotspots',               label: 'Hotspots',          Icon: Map,           color: 'text-red-600',    bg: 'bg-red-50 dark:bg-red-900/20' },
                     { path: '/admin/nzscv',            label: 'NZSCV Monitor',     Icon: Shield,        color: 'text-blue-600',   bg: 'bg-blue-50 dark:bg-blue-900/20', badge: (data as any)?.scvExpiringSoon > 0 ? (data as any)?.scvExpiringSoon : undefined },
@@ -1213,11 +1213,11 @@ export default function AdminPortal() {
                 </p>
                 <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-6 gap-2">
                   {[
-                    { path: '/reports-hub',         label: 'Reports Hub',         Icon: FileBarChart,  color: 'text-gray-600',   bg: 'bg-gray-100 dark:bg-gray-800/30' },
+                    { path: '/reports-hub',         label: 'Reports Hub',         Icon: FileBarChart,  color: 'text-gray-600',   bg: 'bg-gray-100 dark:bg-[#1E1E1E]/30' },
                     { path: '/ai-analysis',          label: 'Bob Analysis',        Icon: Sparkles,      color: 'text-violet-600', bg: 'bg-violet-50 dark:bg-violet-900/20' },
                     { path: '/compliance-analytics', label: 'Compliance Analytics',Icon: PieChart,      color: 'text-blue-600',   bg: 'bg-blue-50 dark:bg-blue-900/20' },
                     { path: '/observations-report',  label: 'Obs. Report',         Icon: LayoutGrid,    color: 'text-indigo-600', bg: 'bg-indigo-50 dark:bg-indigo-900/20' },
-                    { path: '/audit-log',            label: 'Audit Log',           Icon: ScrollText,    color: 'text-gray-600',   bg: 'bg-gray-100 dark:bg-gray-800/30' },
+                    { path: '/audit-log',            label: 'Audit Log',           Icon: ScrollText,    color: 'text-gray-600',   bg: 'bg-gray-100 dark:bg-[#1E1E1E]/30' },
                     { path: '/bug-reports-log',      label: 'Bug Reports',          Icon: Bug,           color: 'text-orange-600', bg: 'bg-orange-50 dark:bg-orange-900/20' },
                     { path: '/users',                label: 'Users',               Icon: Users,         color: 'text-slate-600',  bg: 'bg-slate-50 dark:bg-slate-900/30' },
                     // Sprint 43: B-139–B-141

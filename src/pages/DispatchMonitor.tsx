@@ -465,7 +465,7 @@ export default function DispatchMonitor() {
                     className={`px-2.5 py-1 rounded-md text-xs font-medium border transition-colors ${
                       activeJobFilter === t
                         ? 'bg-blue-700 text-white border-blue-700'
-                        : 'bg-white dark:bg-gray-800 text-blue-700 border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/30'
+                        : 'bg-white dark:bg-[#1E1E1E] text-blue-700 border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/30'
                     }`}
                   >
                     {t}
@@ -484,7 +484,7 @@ export default function DispatchMonitor() {
                     className={`px-2.5 py-1 rounded-md text-xs font-medium border transition-colors ${
                       activeAlarmFilter === t
                         ? 'bg-blue-700 text-white border-blue-700'
-                        : 'bg-white dark:bg-gray-800 text-blue-700 border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/30'
+                        : 'bg-white dark:bg-[#1E1E1E] text-blue-700 border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/30'
                     }`}
                   >
                     {t}

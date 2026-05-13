@@ -254,7 +254,7 @@ export default function FlaggedVehicleManager() {
                           <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">Yes</Badge>
                         )}
                         {e.confirmed_homeless === false && (
-                          <Badge className="bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400">No</Badge>
+                          <Badge className="bg-gray-100 text-gray-700 dark:bg-[#1E1E1E] dark:text-gray-400">No</Badge>
                         )}
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">{e.last_known_site ?? '—'}</TableCell>

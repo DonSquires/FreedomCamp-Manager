@@ -344,7 +344,7 @@ export default function ContractorManager() {
                               {d.is_current ? (
                                 <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">Current</Badge>
                               ) : (
-                                <Badge className="bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400">Archived</Badge>
+                                <Badge className="bg-gray-100 text-gray-600 dark:bg-[#1E1E1E] dark:text-gray-400">Archived</Badge>
                               )}
                             </TableCell>
                             <TableCell>

@@ -244,7 +244,7 @@ export default function PersonInteractionLog() {
                           </TableCell>
                           <TableCell className="text-sm whitespace-nowrap">{fmtDate(i.interaction_at)}</TableCell>
                           <TableCell>
-                            <Badge className={`capitalize ${TYPE_COLOURS[i.interaction_type] ?? 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'}`}>
+                            <Badge className={`capitalize ${TYPE_COLOURS[i.interaction_type] ?? 'bg-gray-100 text-gray-700 dark:bg-[#1E1E1E] dark:text-gray-300'}`}>
                               {i.interaction_type?.replace(/_/g, ' ')}
                             </Badge>
                           </TableCell>

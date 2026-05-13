@@ -568,27 +568,27 @@ export default function ComplianceRecalculation() {
 
               {liveRun && (
                 <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                  <div className="bg-white dark:bg-gray-800 p-3 rounded-lg">
+                  <div className="bg-white dark:bg-[#1E1E1E] p-3 rounded-lg">
                     <div className="text-xs text-gray-600">Target</div>
                     <div className="text-lg font-semibold mt-1">{liveRun.total.toLocaleString()}</div>
                   </div>
-                  <div className="bg-white dark:bg-gray-800 p-3 rounded-lg">
+                  <div className="bg-white dark:bg-[#1E1E1E] p-3 rounded-lg">
                     <div className="text-xs text-gray-600">Processed</div>
                     <div className="text-lg font-semibold mt-1">{liveRun.processed.toLocaleString()}</div>
                   </div>
-                  <div className="bg-white dark:bg-gray-800 p-3 rounded-lg">
+                  <div className="bg-white dark:bg-[#1E1E1E] p-3 rounded-lg">
                     <div className="text-xs text-gray-600">Changed</div>
                     <div className="text-lg font-semibold text-orange-600 mt-1">{liveRun.changed.toLocaleString()}</div>
                   </div>
-                  <div className="bg-white dark:bg-gray-800 p-3 rounded-lg">
+                  <div className="bg-white dark:bg-[#1E1E1E] p-3 rounded-lg">
                     <div className="text-xs text-gray-600">Breaches</div>
                     <div className="text-lg font-semibold text-red-600 mt-1">{liveRun.breachesCreated.toLocaleString()}</div>
                   </div>
-                  <div className="bg-white dark:bg-gray-800 p-3 rounded-lg">
+                  <div className="bg-white dark:bg-[#1E1E1E] p-3 rounded-lg">
                     <div className="text-xs text-gray-600">Dismissed</div>
                     <div className="text-lg font-semibold text-green-600 mt-1">{liveRun.breachesDismissed.toLocaleString()}</div>
                   </div>
-                  <div className="bg-white dark:bg-gray-800 p-3 rounded-lg col-span-2 md:col-span-5">
+                  <div className="bg-white dark:bg-[#1E1E1E] p-3 rounded-lg col-span-2 md:col-span-5">
                     <div className="text-xs text-gray-600">Skipped (No Rules)</div>
                     <div className="text-lg font-semibold text-blue-600 mt-1">{liveRun.skippedNoRules.toLocaleString()}</div>
                   </div>
@@ -614,42 +614,42 @@ export default function ComplianceRecalculation() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="bg-white dark:bg-gray-800 p-4 rounded-lg">
+                <div className="bg-white dark:bg-[#1E1E1E] p-4 rounded-lg">
                   <div className="text-sm text-gray-600">Observations</div>
                   <div className="text-2xl font-bold mt-1">
                     {result.observations_processed.toLocaleString()}
                   </div>
                 </div>
                 
-                <div className="bg-white dark:bg-gray-800 p-4 rounded-lg">
+                <div className="bg-white dark:bg-[#1E1E1E] p-4 rounded-lg">
                   <div className="text-sm text-gray-600">Changed</div>
                   <div className="text-2xl font-bold text-orange-600 mt-1">
                     {result.compliance_changed.toLocaleString()}
                   </div>
                 </div>
                 
-                <div className="bg-white dark:bg-gray-800 p-4 rounded-lg">
+                <div className="bg-white dark:bg-[#1E1E1E] p-4 rounded-lg">
                   <div className="text-sm text-gray-600">Breaches Created</div>
                   <div className="text-2xl font-bold text-red-600 mt-1">
                     {result.breaches_created.toLocaleString()}
                   </div>
                 </div>
 
-                <div className="bg-white dark:bg-gray-800 p-4 rounded-lg">
+                <div className="bg-white dark:bg-[#1E1E1E] p-4 rounded-lg">
                   <div className="text-sm text-gray-600">Breaches Dismissed</div>
                   <div className="text-2xl font-bold text-green-600 mt-1">
                     {result.breaches_dismissed.toLocaleString()}
                   </div>
                 </div>
                 
-                <div className="bg-white dark:bg-gray-800 p-4 rounded-lg">
+                <div className="bg-white dark:bg-[#1E1E1E] p-4 rounded-lg">
                   <div className="text-sm text-gray-600">Duration</div>
                   <div className="text-2xl font-bold text-purple-600 mt-1">
                     {result.duration_seconds}s
                   </div>
                 </div>
 
-                <div className="bg-white dark:bg-gray-800 p-4 rounded-lg">
+                <div className="bg-white dark:bg-[#1E1E1E] p-4 rounded-lg">
                   <div className="text-sm text-gray-600">Skipped (No Rules)</div>
                   <div className="text-2xl font-bold text-blue-600 mt-1">
                     {result.skipped_no_rules.toLocaleString()}

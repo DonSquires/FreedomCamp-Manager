@@ -222,7 +222,7 @@ function renderInline(text: string): React.ReactNode {
     }
     if (/^`[^`]+`$/.test(part)) {
       return (
-        <code key={i} className="bg-gray-100 dark:bg-gray-800 rounded px-1 py-0.5 text-xs font-mono">
+        <code key={i} className="bg-gray-100 dark:bg-[#1E1E1E] rounded px-1 py-0.5 text-xs font-mono">
           {part.slice(1, -1)}
         </code>
       )
@@ -1080,7 +1080,7 @@ export default function AiAnalysis() {
                             ? 'bg-blue-600 text-white rounded-tr-sm'
                             : msg.isError
                               ? 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 rounded-tl-sm'
-                              : 'bg-gray-100 dark:bg-gray-800 rounded-tl-sm'
+                              : 'bg-gray-100 dark:bg-[#1E1E1E] rounded-tl-sm'
                         }`}>
                           {msg.role === 'user'
                             ? <p>{msg.content}</p>
@@ -1147,7 +1147,7 @@ export default function AiAnalysis() {
                       <div className="shrink-0 w-7 h-7 rounded-full bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center mt-1">
                         <Bot className="h-3.5 w-3.5 text-white" />
                       </div>
-                      <div className="bg-gray-100 dark:bg-gray-800 rounded-2xl rounded-tl-sm px-4 py-3 flex items-center gap-2">
+                      <div className="bg-gray-100 dark:bg-[#1E1E1E] rounded-2xl rounded-tl-sm px-4 py-3 flex items-center gap-2">
                         <Loader2 className="h-4 w-4 animate-spin text-violet-500" />
                         <span className="text-sm text-muted-foreground">Thinking…</span>
                       </div>

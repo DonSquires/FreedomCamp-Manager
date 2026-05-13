@@ -86,7 +86,7 @@ const STATUS_CONFIG: Record<AppealStatus, { label: string; variant: 'default' | 
   under_review: { label: 'Under Review', variant: 'default',      colour: 'text-yellow-700 bg-yellow-50 dark:bg-yellow-900/30' },
   upheld:       { label: 'Upheld',       variant: 'outline',      colour: 'text-green-700 bg-green-50 dark:bg-green-900/30' },
   dismissed:    { label: 'Dismissed',    variant: 'destructive',  colour: 'text-red-700 bg-red-50 dark:bg-red-900/30' },
-  withdrawn:    { label: 'Withdrawn',    variant: 'secondary',    colour: 'text-gray-600 bg-gray-100 dark:bg-gray-800' },
+  withdrawn:    { label: 'Withdrawn',    variant: 'secondary',    colour: 'text-gray-600 bg-gray-100 dark:bg-[#1E1E1E]' },
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────

@@ -91,7 +91,7 @@ export function ZoneActivityChart({
             {chartData.slice(0, 6).map((zone, index) => (
               <div 
                 key={zone.zone_name} 
-                className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg"
+                className="p-3 bg-gray-50 dark:bg-[#1E1E1E] rounded-lg"
               >
                 <div className="flex items-center justify-between mb-2">
                   <div className="font-medium text-sm truncate">{zone.zone_name}</div>

@@ -288,7 +288,7 @@ function ClientPricingCard({
   const activeRows = rows.filter((r) => r.is_active)
 
   return (
-    <Card className="bg-white dark:bg-gray-900 shadow-sm overflow-hidden">
+    <Card className="bg-white dark:bg-[#1A1A1A] shadow-sm overflow-hidden">
       <div
         className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
         onClick={() => setExpanded((v) => !v)}

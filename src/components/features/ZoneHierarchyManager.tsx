@@ -264,7 +264,7 @@ export function ZoneHierarchyManager({
         </CardHeader>
         <CardContent>
           {parentZones.length === 0 ? (
-            <div className="bg-gray-100 dark:bg-gray-800 rounded-lg h-32 flex items-center justify-center text-gray-500">
+            <div className="bg-gray-100 dark:bg-[#1E1E1E] rounded-lg h-32 flex items-center justify-center text-gray-500">
               No parent zone configured
             </div>
           ) : (

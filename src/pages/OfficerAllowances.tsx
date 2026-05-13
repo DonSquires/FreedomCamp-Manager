@@ -134,7 +134,7 @@ const STATUS_CONFIG: Record<AllowanceStatus, { label: string; color: string }> =
   approved:  { label: 'Approved',  color: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300' },
   rejected:  { label: 'Rejected',  color: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300' },
   paid:      { label: 'Paid',      color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300' },
-  cancelled: { label: 'Cancelled', color: 'bg-gray-100 text-gray-600 dark:bg-gray-800/50 dark:text-gray-400' },
+  cancelled: { label: 'Cancelled', color: 'bg-gray-100 text-gray-600 dark:bg-[#1E1E1E]/50 dark:text-gray-400' },
 }
 
 const CATEGORY_LABELS: Record<AllowanceCategory, string> = {

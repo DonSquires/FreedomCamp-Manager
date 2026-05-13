@@ -467,7 +467,7 @@ function buildPeopleIncidentsPilotGroup(role?: AppRole): AdminNavGroup {
 
 // Dropdown panel: responsive grid, scrollable on narrow screens
 const MORE_DROPDOWN_CLS =
-  'absolute left-0 top-full mt-1 z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg p-2 ' +
+  'absolute left-0 top-full mt-1 z-50 bg-white dark:bg-[#1E1E1E] border border-gray-200 dark:border-[#9E9E9E]/20 rounded-lg shadow-lg p-2 ' +
   'min-w-[720px] max-w-[96vw] grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-4 gap-y-1'
 
 export function AdminNavigationMenu() {
@@ -526,7 +526,7 @@ export function AdminNavigationMenu() {
   const isActive = (to: string) => location.pathname === to
 
   return (
-    <nav className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm sticky top-0 z-40">
+    <nav className="bg-white dark:bg-[#1E1E1E] border-b border-gray-200 dark:border-[#9E9E9E]/20 shadow-sm sticky top-0 z-40">
       <div className="max-w-7xl mx-auto px-4">
         <div className="flex items-center h-14 gap-1">
           {/* Brand */}
@@ -561,7 +561,7 @@ export function AdminNavigationMenu() {
                 className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded text-sm transition-colors whitespace-nowrap shrink-0 ${
                   isActive(to)
                     ? 'bg-primary/10 text-primary font-medium'
-                    : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white'
+                    : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#2A2A2A] hover:text-gray-900 dark:hover:text-white'
                 }`}
               >
                 <Icon className="h-3.5 w-3.5" />
@@ -576,7 +576,7 @@ export function AdminNavigationMenu() {
                 className={`flex items-center gap-1 px-2.5 py-1.5 rounded text-sm transition-colors whitespace-nowrap ${
                   moreOpen
                     ? 'bg-primary/10 text-primary'
-                    : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white'
+                    : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#2A2A2A] hover:text-gray-900 dark:hover:text-white'
                 }`}
               >
                 <span className="hidden md:block">More</span>
@@ -597,7 +597,7 @@ export function AdminNavigationMenu() {
                           className={`flex items-center gap-2 px-2 py-1.5 rounded text-sm transition-colors ${
                             isActive(to)
                               ? 'bg-primary/10 text-primary font-medium'
-                              : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                              : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#2A2A2A]'
                           }`}
                         >
                           <Icon className="h-3.5 w-3.5 shrink-0" />

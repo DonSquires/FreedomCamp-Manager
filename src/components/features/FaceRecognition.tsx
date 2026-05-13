@@ -550,7 +550,7 @@ export function FaceRecognition({
       )}
 
       {/* ── Results feed ───────────────────────────────────────────────── */}
-      <div className="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-900">
+      <div className="flex-1 overflow-y-auto bg-gray-50 dark:bg-[#1A1A1A]">
         {results.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-gray-400 gap-2 p-6">
             {checkingService ? (
