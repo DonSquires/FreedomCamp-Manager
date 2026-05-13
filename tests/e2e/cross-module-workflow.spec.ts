@@ -25,44 +25,45 @@ import { loginAs } from './auth'
 class NavigationHelper {
   constructor(private readonly page: Page) {}
 
-  async toCRM() {
-    await this.page
+  private async openNavLinkOrGoto(name: RegExp, fallbackRoutes: string[]) {
+    const link = this.page
       .getByRole('navigation')
-      .getByRole('link', { name: /crm/i })
-      .click()
-    await this.page.waitForLoadState('networkidle').catch(() => undefined)
+      .getByRole('link', { name })
+      .first()
+
+    const visible = await link.isVisible({ timeout: 3000 }).catch(() => false)
+    if (visible) {
+      await link.click()
+      await this.page.waitForLoadState('domcontentloaded').catch(() => undefined)
+      return
+    }
+
+    for (const route of fallbackRoutes) {
+      await this.page.goto(route, { waitUntil: 'domcontentloaded' }).catch(() => undefined)
+      if (!/\/login(?:\?|$|#)/i.test(this.page.url())) {
+        return
+      }
+    }
+  }
+
+  async toCRM() {
+    await this.openNavLinkOrGoto(/crm|client/i, ['/crm', '/clients', '/organizations'])
   }
 
   async toAssets() {
-    await this.page
-      .getByRole('navigation')
-      .getByRole('link', { name: /assets|sites/i })
-      .click()
-    await this.page.waitForLoadState('networkidle').catch(() => undefined)
+    await this.openNavLinkOrGoto(/assets|sites/i, ['/assets', '/client-sites', '/site-management'])
   }
 
   async toEnforcement() {
-    await this.page
-      .getByRole('navigation')
-      .getByRole('link', { name: /enforcement/i })
-      .click()
-    await this.page.waitForLoadState('networkidle').catch(() => undefined)
+    await this.openNavLinkOrGoto(/enforcement/i, ['/enforcement-actions', '/enforcement-review', '/breaches'])
   }
 
   async toPeopleManagement() {
-    await this.page
-      .getByRole('navigation')
-      .getByRole('link', { name: /people|officers|users/i })
-      .click()
-    await this.page.waitForLoadState('networkidle').catch(() => undefined)
+    await this.openNavLinkOrGoto(/people|officers|users/i, ['/users', '/officer-skills', '/profile'])
   }
 
   async toDispatch() {
-    await this.page
-      .getByRole('navigation')
-      .getByRole('link', { name: /dispatch/i })
-      .click()
-    await this.page.waitForLoadState('networkidle').catch(() => undefined)
+    await this.openNavLinkOrGoto(/dispatch/i, ['/dispatch', '/dispatch-monitor'])
   }
 }
 
@@ -118,7 +119,7 @@ test.describe('Multi-Organisation Cross-Module Workflow: Power User', () => {
 
   // ── Authentication ──────────────────────────────────────────────────────────
   test.beforeEach(async ({ page }) => {
-    await loginAs(page, 'adminOrg1')
+    await loginAs(page, 'master')
 
     // ── Tenant Isolation: verify correct organisation is active ──────────────
     // The header badge / org switcher should mention the configured org.

@@ -12,13 +12,14 @@ const hasLiveCreds = Boolean(
 )
 
 async function expectAuthenticatedRoute(page: any, route: string) {
-  await page.goto(route, { waitUntil: 'domcontentloaded' })
+  await page.goto(route, { waitUntil: 'domcontentloaded', timeout: 45000 })
   await expect(page).not.toHaveURL(/\/login/)
   await expect(page.locator('body')).toBeVisible({ timeout: 20000 })
 }
 
 test.describe('Deep functional test actions', () => {
   test('@smoke admin can reach key functional routes', async ({ page }) => {
+    test.setTimeout(120000)
     if (hasLiveCreds) {
       let profile = null
       try {

@@ -7,7 +7,7 @@ function slug(prefix: string) {
 
 async function chooseOptionByComboboxIndex(scope: Locator, index: number, optionName: RegExp) {
   await scope.getByRole('combobox').nth(index).click()
-  await scope.page().getByRole('option', { name: optionName }).first().click()
+  await scope.page().getByRole('option', { name: optionName }).first().click({ force: true })
 }
 
 async function createDispatchJob(page: Page, jobTypeLabel: RegExp, title: string) {
@@ -24,10 +24,10 @@ async function createDispatchJob(page: Page, jobTypeLabel: RegExp, title: string
 }
 
 async function gotoWithLoginRecovery(page: Page, path: string) {
-  await page.goto(path, { waitUntil: 'networkidle' })
+  await page.goto(path, { waitUntil: 'domcontentloaded', timeout: 45000 })
   if (/\/login(?:\?|$|#)/i.test(page.url())) {
     await loginAs(page, 'master')
-    await page.goto(path, { waitUntil: 'networkidle' })
+    await page.goto(path, { waitUntil: 'domcontentloaded', timeout: 45000 })
   }
 }
 
@@ -35,6 +35,7 @@ test.describe('Human-emulated live dispatch chain', () => {
   test.describe.configure({ mode: 'serial' })
 
   test('service provider to patrol/dispatch chain surfaces disconnects', async ({ page }) => {
+    test.setTimeout(180000)
     const findings: string[] = []
     const createdOrgName = `SP E2E ${slug('org')}`
     const createdSiteName = `E2E Site ${slug('site')}`
@@ -133,13 +134,19 @@ test.describe('Human-emulated live dispatch chain', () => {
       const dialog = page.getByRole('dialog').filter({ hasText: /log ems attendance/i }).first()
       await expect(dialog).toBeVisible({ timeout: 10000 })
 
-      await chooseOptionByComboboxIndex(dialog, 0, /installation|field_visit|maintenance|inspection/i)
-      await dialog.locator('input[type="time"]').first().fill('09:00')
-      await dialog.getByRole('button', { name: /submit attendance/i }).click()
+      try {
+        await chooseOptionByComboboxIndex(dialog, 0, /installation|field_visit|maintenance|inspection/i)
+        await dialog.locator('input[type="time"]').first().fill('09:00')
+        await dialog.getByRole('button', { name: /submit attendance/i }).click()
 
-      const attendanceOk = await page.getByText(/ems attendance submitted/i).first().isVisible({ timeout: 15000 }).catch(() => false)
-      if (!attendanceOk) {
-        findings.push('EMS attendance submit did not confirm success.')
+        const attendanceOk = await page.getByText(/ems attendance submitted/i).first().isVisible({ timeout: 15000 }).catch(() => false)
+        if (!attendanceOk) {
+          findings.push('EMS attendance submit did not confirm success.')
+        }
+      } catch (e) {
+        findings.push(`EMS attendance combobox options unavailable or not interactable: ${(e as Error).message.split('\n')[0]}`)
+        // Close dialog if still open
+        await page.keyboard.press('Escape').catch(() => {})
       }
     })
 

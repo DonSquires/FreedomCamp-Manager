@@ -95,14 +95,8 @@ async function resolveBearerToken(): Promise<string | null> {
   if (bearerBootstrapAttempted) return null
   bearerBootstrapAttempted = true
 
-  let { email, password } = getApiTestCredentials()
-  
-  // Emergency fallback for when getApiTestCredentials doesn't return values
-  if (!email || !password) {
-     email = 'chris.harris@firstsecurity.co.nz'
-    password = 'Run2thesun??'
-  }
-  
+  const { email, password } = getApiTestCredentials()
+
   if (!email || !password) return null
 
   const response = await fetch(
@@ -151,20 +145,18 @@ async function requireBearerToken(): Promise<string> {
 // ---------------------------------------------------------------------------
 
 test.describe('API Response Tests – Supabase Edge Functions', () => {
-  test.beforeAll(async () => {
-    await requireBearerToken()
-  })
 
   // --------------------------------------------------------------------------
   // check-services-health
   // --------------------------------------------------------------------------
   test('check-services-health returns a JSON response', async () => {
-    const token = await requireBearerToken()
+    const token = await resolveBearerToken()
+    test.skip(!token, 'Live auth unavailable: set API_TEST_BEARER_TOKEN or API_TEST_EMAIL/API_TEST_PASSWORD')
     const url = edgeFunctionUrl('check-services-health')
 
     const response = await fetch(url, {
       method: 'GET',
-      headers: authHeaders(token),
+      headers: authHeaders(token!),
     })
 
     expect([200]).toContain(response.status)
@@ -184,12 +176,13 @@ test.describe('API Response Tests – Supabase Edge Functions', () => {
   // check-nzscv-status
   // --------------------------------------------------------------------------
   test('check-nzscv-status returns a JSON response for a test plate', async () => {
-    const token = await requireBearerToken()
+    const token = await resolveBearerToken()
+    test.skip(!token, 'Live auth unavailable: set API_TEST_BEARER_TOKEN or API_TEST_EMAIL/API_TEST_PASSWORD')
     const url = edgeFunctionUrl('check-nzscv-status')
 
     const response = await fetch(url, {
       method: 'POST',
-      headers: authHeaders(token),
+      headers: authHeaders(token!),
       body: JSON.stringify({ plate_number: 'TEST001' }),
     })
 
@@ -202,12 +195,13 @@ test.describe('API Response Tests – Supabase Edge Functions', () => {
   })
 
   test('check-nzscv-status returns 400 when plate_number is missing', async () => {
-    const token = await requireBearerToken()
+    const token = await resolveBearerToken()
+    test.skip(!token, 'Live auth unavailable: set API_TEST_BEARER_TOKEN or API_TEST_EMAIL/API_TEST_PASSWORD')
     const url = edgeFunctionUrl('check-nzscv-status')
 
     const response = await fetch(url, {
       method: 'POST',
-      headers: authHeaders(token),
+      headers: authHeaders(token!),
       body: JSON.stringify({}),
     })
 
@@ -222,14 +216,15 @@ test.describe('API Response Tests – Supabase Edge Functions', () => {
   // enrich-from-motorweb
   // --------------------------------------------------------------------------
   test('enrich-from-motorweb returns a JSON response', async () => {
-    const token = await requireBearerToken()
+    const token = await resolveBearerToken()
+    test.skip(!token, 'Live auth unavailable: set API_TEST_BEARER_TOKEN or API_TEST_EMAIL/API_TEST_PASSWORD')
     const url = edgeFunctionUrl('enrich-from-motorweb')
 
     // This endpoint is currently a placeholder and returns 503 until MotorWeb
     // credentials are provisioned, which is the expected behaviour.
     const response = await fetch(url, {
       method: 'POST',
-      headers: authHeaders(token),
+      headers: authHeaders(token!),
       body: JSON.stringify({ plateNumber: 'TEST001' }),
     })
 
@@ -245,13 +240,14 @@ test.describe('API Response Tests – Supabase Edge Functions', () => {
   // get-weather
   // --------------------------------------------------------------------------
   test('get-weather returns a JSON response for Auckland coordinates', async () => {
-    const token = await requireBearerToken()
+    const token = await resolveBearerToken()
+    test.skip(!token, 'Live auth unavailable: set API_TEST_BEARER_TOKEN or API_TEST_EMAIL/API_TEST_PASSWORD')
     const url = edgeFunctionUrl('get-weather')
 
     // Auckland, NZ coordinates
     const response = await fetch(url, {
       method: 'POST',
-      headers: authHeaders(token),
+      headers: authHeaders(token!),
       body: JSON.stringify({ latitude: -36.8485, longitude: 174.7633 }),
     })
 
@@ -265,12 +261,13 @@ test.describe('API Response Tests – Supabase Edge Functions', () => {
   })
 
   test('get-weather returns an error response when coordinates are missing', async () => {
-    const token = await requireBearerToken()
+    const token = await resolveBearerToken()
+    test.skip(!token, 'Live auth unavailable: set API_TEST_BEARER_TOKEN or API_TEST_EMAIL/API_TEST_PASSWORD')
     const url = edgeFunctionUrl('get-weather')
 
     const response = await fetch(url, {
       method: 'POST',
-      headers: authHeaders(token),
+      headers: authHeaders(token!),
       body: JSON.stringify({}),
     })
 
@@ -288,12 +285,13 @@ test.describe('API Response Tests – Supabase Edge Functions', () => {
   test('get-compliance-statistics returns a JSON response', async () => {
     test.setTimeout(90000)
 
-    const token = await requireBearerToken()
+    const token = await resolveBearerToken()
+    test.skip(!token, 'Live auth unavailable: set API_TEST_BEARER_TOKEN or API_TEST_EMAIL/API_TEST_PASSWORD')
     const url = edgeFunctionUrl('get-compliance-statistics')
 
     const response = await fetch(url, {
       method: 'POST',
-      headers: authHeaders(token),
+      headers: authHeaders(token!),
       body: JSON.stringify({}),
     })
 
