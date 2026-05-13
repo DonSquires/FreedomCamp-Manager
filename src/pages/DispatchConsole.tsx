@@ -26,7 +26,11 @@ import {
   useDispatchClientSitesLookup,
   useDispatchZonesLookup,
 } from '@/hooks/useDispatchConsoleData'
-import { useOperationalCases } from '@/hooks/useOperationalCases'
+import {
+  useOperationalCases,
+  useCreateDispatchEvent,
+  useFeatureFlag,
+} from '@/hooks/useOperationalCases'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
 import { AppLayout } from '@/components/features/AppLayout'
@@ -290,6 +294,10 @@ export default function DispatchConsole() {
     limit: 100,
   })
 
+  // ── Phase A/B: Case model dispatch events (feature flagged) ────────────────
+  const { data: dispatchEventsEnabled } = useFeatureFlag('FF_PHASE_B_DISPATCH_EVENTS')
+  const createDispatchEvent = useCreateDispatchEvent()
+
   // ── Officers query — uses proximity ranking when selected job has GPS ──────
   const { data: officers = [], isLoading: officersLoading, isError: officersError } = useQuery<OfficerStatus[]>({
     queryKey: ['dispatch-officers', orgId, tick, selectedJob?.id ?? null],
@@ -389,6 +397,29 @@ export default function DispatchConsole() {
         dispatchedBy: user?.id,
       })
       if (!dispatchResult.ok) throw dispatchResult.error
+
+      // Phase B: Create dispatch_event in case model if flag enabled
+      if (dispatchEventsEnabled && jobId) {
+        try {
+          const job = jobs.find(j => j.id === jobId)
+          if (job) {
+            await createDispatchEvent.mutateAsync({
+              caseId: jobId, // Dispatch job acts as case anchor in Phase A
+              eventType: 'dispatch_assigned',
+              dispatchJobId: jobId,
+              statusAtEvent: 'dispatched',
+              payload: {
+                assigned_officer_id: officerId,
+                dispatched_by: user?.id,
+                assigned_at: new Date().toISOString(),
+              },
+            })
+          }
+        } catch (err) {
+          // Non-blocking: log but continue
+          console.warn('Failed to create dispatch_event:', err)
+        }
+      }
 
       // Notify the officer
       const job = jobs.find(j => j.id === jobId)
@@ -904,7 +935,7 @@ export default function DispatchConsole() {
                         const rankColors = [
                           'border-green-300 bg-green-50 dark:bg-green-950/20',
                           'border-blue-200 bg-blue-50 dark:bg-blue-950/20',
-                          'border-gray-200 bg-gray-50 dark:bg-gray-900/20',
+                          'border-gray-200 bg-gray-50 dark:bg-[#1E1E1E]/70',
                         ]
                         const rankBadgeColors = [
                           'bg-green-100 text-green-700',
