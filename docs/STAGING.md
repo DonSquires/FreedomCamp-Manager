@@ -4,6 +4,37 @@ Date: 2026-05-12
 Owner: GitHub Copilot
 Status: Active staging checklist — Sprints 50-70 complete on main; Iron Eagle Visual Identity locked in docs (2026-05-12)
 
+Latest Session Snapshot (Phased Rollout Continuation — Iron Eagle Navigation & Shell Styling — 2026-05-13):
+
+- Timestamp (NZ): 2026-05-13
+- Current branch: main
+- Scope completed:
+  - Continued Iron Eagle dark-surface rollout to admin shell navigation and container elements:
+    - **AppLayout.tsx** (Primary component):
+      - All primary nav items: inactive hover backgrounds now use `dark:hover:bg-[#2A2A2A]` (ie-bg-elevated) instead of gray
+      - All nav group containers: active state uses `dark:bg-[#2A2A2A]/30-40` for subtle tactical surface
+      - All nav borders: updated from `dark:border-gray-700` to `dark:border-[#9E9E9E]/20` (ie-silver)
+      - Mobile header: `dark:bg-gray-800/95` → `dark:bg-[#1E1E1E]/95` (ie-bg-surface with opacity)
+      - Desktop header: `dark:bg-gray-800/90` → `dark:bg-[#1E1E1E]/90` (ie-bg-surface)
+      - Desktop sidebar: `dark:bg-gray-800/95` → `dark:bg-[#1E1E1E]/95` (ie-bg-surface)
+      - Floating PTT/Feedback buttons: backgrounds and hovers now use tactical palette
+  - Maintained primary color (blue) for active nav indicators to preserve existing UI-learned behavior
+  - Applied consistent Iron Eagle surface treatment to all shell containers
+
+- Validation status:
+  | Element | Changes | Lint Status | Notes |
+  |---|---|---|---|
+  | NavLinks hover/group | 6 instances of `gray-700/60` → `[#2A2A2A]` | Pending | Only styling values changed; no logic/structure modifications |
+  | Header/sidebar backgrounds | 4 instances of `gray-800/90-95` → `[#1E1E1E]/90-95` | Pending | Opacity preservation maintained |
+  | Borders | 6 instances of `gray-700` → `[#9E9E9E]/20` | Pending | Silver @ 20% opacity consistent with palette |
+  | TypeScript | AppLayout.tsx TSC check initiated | Pre-existing errors only | No new errors introduced by styling changes |
+
+- Next exact rollout steps:
+  1. ✅ Commit AppLayout nav/shell migrations (1 file, 16 styling value changes)
+  2. Continue rollout: identify remaining client portal shells (login, auth flows)
+  3. Capture before/after visual regression proof
+  4. Mark Iron Eagle rollout complete against checklist
+
 Latest Session Snapshot (Phased Rollout Continuation — Iron Eagle Surface Migration Validated — 2026-05-13):
 
 - Timestamp (NZ): 2026-05-13
