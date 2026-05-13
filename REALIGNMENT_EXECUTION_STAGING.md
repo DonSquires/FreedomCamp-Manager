@@ -2,7 +2,7 @@
 
 **Status**: ✅ Blueprint Approved (May 4, 2026)  
 **Phase A Kickoff**: May 12, 2026  
-**Critical Path Dates**: May 12 → May 19 (Org Isolation Gate, Accelerated) → June 10 (Phase B Launch, Accelerated)
+**Critical Path Dates**: May 12 → May 19 (Org Isolation Gate, Accelerated) → May 20 (Phase B Launch, Accelerated)
 
 ---
 
@@ -335,7 +335,7 @@ Bob governance note for this lane:
 
 #### To-Do Items
 
-- [ ] **May 14–15**: Route/role truth validation (Platform Arch Lead)
+- [x] **May 14–15**: Route/role truth validation (Platform Arch Lead) — Completed early on May 13
   ```bash
   # Task: Verify all 3 bootstrap routes have correct role guards
   # Validation script location: scripts/validate-route-role-truth.mjs
@@ -344,14 +344,15 @@ Bob governance note for this lane:
   # - Org isolation checks on each route
   # - Missing role guards (blockers)
   # Run: node scripts/validate-route-role-truth.mjs
+  # Latest result: PASS (route_truth_exit=0), 0 critical blockers
   # Fix any blockers immediately
   # Docs: Add validation summary to section 6.2 (Bob executability)
   # Commit: git commit -m "realignment: route/role truth validation — [BLOCKERS_FIXED]"
   ```
 
-- [ ] **May 15–16**: Bob approval path specification (Bob/AI Lead)
+- [x] **May 15–16**: Bob approval path specification (Bob/AI Lead) — Completed early on May 13
   ```bash
-  # Location: docs/BOB_APPROVAL_PATHS_PHASE_B.md (new file)
+  # Location: docs/BOB_APPROVAL_PATHS_PHASE_B.md
   # Content (from 6.2):
   # - Minimum executable approval workflow for Phase B modules
   # - SLA targets (e.g., approval decision within 2 hours)
@@ -366,9 +367,9 @@ Bob governance note for this lane:
   # Commit: git commit -m "realignment: bob approval paths phase B — SLA/escalation/audit"
   ```
 
-- [ ] **May 16–17**: Event sequencing documentation (Data Platform Lead)
+- [x] **May 16–17**: Event sequencing documentation (Data Platform Lead) — Completed early on May 13
   ```bash
-  # Location: docs/EVENT_SEQUENCING_ROADMAP.md (new file)
+  # Location: docs/EVENT_SEQUENCING_ROADMAP.md
   # Content (from 3.3a):
   # - Phase A event families: (none — schema only)
   # - Phase B event families: patrol_events, dispatch_events, enforcement_events
@@ -379,9 +380,9 @@ Bob governance note for this lane:
   # Commit: git commit -m "realignment: event sequencing roadmap — phases A–E event families"
   ```
 
-- [ ] **May 17–18**: Bob audit trail spec (Bob/QA Lead)
+- [x] **May 17–18**: Bob audit trail spec (Bob/QA Lead) — Completed (migration already present)
   ```bash
-  # Location: supabase/migrations/202605_bob_audit.sql
+  # Location: supabase/migrations/20260504000004_bob_audit.sql
   # Schema (from 6.4):
   # - Table: bob_approval_audit
   # - Columns: id, proposal_id, approver_id, decision (approve/reject), reasoning (TEXT),
@@ -393,10 +394,11 @@ Bob governance note for this lane:
   # Commit: git commit -m "realignment: bob audit trail schema — proposal tracking & appeal workflow"
   ```
 
-- [ ] **May 18–19**: Finalize Phase A gate & prepare Phase B kickoff
+- [ ] **May 18–19**: Finalize Phase A gate & prepare Phase B kickoff (in progress)
   ```bash
   # Verify all Week 3 tasks complete:
   bun run build && bun run lint
+  bash scripts/phase-a-fast-track.sh --skip-build --skip-lint
   bun test tests/integration/org-isolation.test.ts
   bunx playwright test tests/e2e/bootstrap-routes.test.ts
   # Update docs/BUILD_REALIGNMENT_PLAN_2026-05-04.md:
@@ -544,10 +546,10 @@ Phase A is **COMPLETE** when:
 | `tests/integration/org-isolation.test.ts` | TypeScript | QA | May 16 |
 | `tests/e2e/bootstrap-routes.test.ts` | TypeScript | QA | May 20 |
 | `scripts/rollback-feature-flag.sh` | Bash | Platform Infra | May 23 |
-| `scripts/validate-route-role-truth.mjs` | JavaScript | Platform Arch | May 27 |
+| `scripts/validate-route-role-truth.mjs` | JavaScript | Platform Arch | May 14 (accelerated) |
 | `docs/EVENT_FAMILY_CONTRACT_2026-05-04.md` | Markdown | Data Eng | May 17 |
-| `docs/BOB_APPROVAL_PATHS_PHASE_B.md` | Markdown | Bob/AI | May 28 |
-| `docs/EVENT_SEQUENCING_ROADMAP.md` | Markdown | Data Eng | May 29 |
+| `docs/BOB_APPROVAL_PATHS_PHASE_B.md` | Markdown | Bob/AI | May 15 (accelerated) |
+| `docs/EVENT_SEQUENCING_ROADMAP.md` | Markdown | Data Eng | May 16 (accelerated) |
 
 ---
 

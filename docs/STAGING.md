@@ -705,6 +705,20 @@ cd /workspaces/FreedomCamp-Manager
 bash scripts/check-required-tools.sh
 ```
 
+PowerShell extension recovery order (do 1, and only if needed do 2):
+
+1. Reload VS Code window first:
+```text
+Developer: Reload Window
+```
+
+2. If the PowerShell extension still reports "Unable to find PowerShell", set an explicit Linux path:
+```json
+"powershell.powerShellAdditionalExePaths": {
+  "Linux": "/usr/bin/pwsh"
+}
+```
+
 If `apk` install is unavailable (non-root container), install `rg` in user/workspace space:
 
 ```bash
