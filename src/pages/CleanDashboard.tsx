@@ -429,7 +429,7 @@ function ObservationsTab() {
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                 {data.rows.map((obs) => (
-                  <tr key={obs.observation_id} className="hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors">
+                  <tr key={obs.observation_id} className="hover:bg-gray-50 dark:hover:bg-[#2A2A2A]/30 transition-colors">
                     <td className="px-4 py-3 font-mono font-bold text-gray-900 dark:text-white">
                       {obs.plate_number}
                     </td>
@@ -481,14 +481,14 @@ function ObservationsTab() {
               <button
                 disabled={page === 0}
                 onClick={() => setPage((p) => Math.max(0, p - 1))}
-                className="p-1.5 rounded border border-gray-200 dark:border-[#9E9E9E]/20 disabled:opacity-30 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                className="p-1.5 rounded border border-gray-200 dark:border-[#9E9E9E]/20 disabled:opacity-30 hover:bg-gray-50 dark:hover:bg-[#2A2A2A] transition-colors"
               >
                 <ChevronLeft className="w-4 h-4" />
               </button>
               <button
                 disabled={page >= totalPages - 1}
                 onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
-                className="p-1.5 rounded border border-gray-200 dark:border-[#9E9E9E]/20 disabled:opacity-30 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                className="p-1.5 rounded border border-gray-200 dark:border-[#9E9E9E]/20 disabled:opacity-30 hover:bg-gray-50 dark:hover:bg-[#2A2A2A] transition-colors"
               >
                 <ChevronRight className="w-4 h-4" />
               </button>
@@ -589,7 +589,7 @@ function VehiclesTab() {
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                 {data.rows.map((v) => (
-                  <tr key={v.vehicle_id} className="hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors">
+                  <tr key={v.vehicle_id} className="hover:bg-gray-50 dark:hover:bg-[#2A2A2A]/30 transition-colors">
                     <td className="px-4 py-3">
                       {v.profile_photo ? (
                         <img src={v.profile_photo} alt={v.plate_number} className="w-12 h-10 object-cover rounded" />
@@ -646,10 +646,10 @@ function VehiclesTab() {
               Page {page + 1} of {totalPages}
             </span>
             <div className="flex gap-2">
-              <button disabled={page === 0} onClick={() => setPage((p) => p - 1)} className="p-1.5 rounded border border-gray-200 dark:border-[#9E9E9E]/20 disabled:opacity-30 hover:bg-gray-50 dark:hover:bg-gray-800">
+              <button disabled={page === 0} onClick={() => setPage((p) => p - 1)} className="p-1.5 rounded border border-gray-200 dark:border-[#9E9E9E]/20 disabled:opacity-30 hover:bg-gray-50 dark:hover:bg-[#2A2A2A]">
                 <ChevronLeft className="w-4 h-4" />
               </button>
-              <button disabled={page >= totalPages - 1} onClick={() => setPage((p) => p + 1)} className="p-1.5 rounded border border-gray-200 dark:border-[#9E9E9E]/20 disabled:opacity-30 hover:bg-gray-50 dark:hover:bg-gray-800">
+              <button disabled={page >= totalPages - 1} onClick={() => setPage((p) => p + 1)} className="p-1.5 rounded border border-gray-200 dark:border-[#9E9E9E]/20 disabled:opacity-30 hover:bg-gray-50 dark:hover:bg-[#2A2A2A]">
                 <ChevronRight className="w-4 h-4" />
               </button>
             </div>
@@ -874,7 +874,7 @@ function UsersTab() {
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                 {users.map((u) => (
-                  <tr key={u.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/30">
+                  <tr key={u.id} className="hover:bg-gray-50 dark:hover:bg-[#2A2A2A]/30">
                     <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">
                       {u.first_name} {u.last_name}
                     </td>
@@ -1107,7 +1107,7 @@ export default function CleanDashboard() {
             <button
               onClick={handleRefresh}
               disabled={refreshing}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 dark:border-[#9E9E9E]/20 px-2.5 py-1.5 text-xs font-semibold text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors disabled:opacity-60"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 dark:border-[#9E9E9E]/20 px-2.5 py-1.5 text-xs font-semibold text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#2A2A2A] transition-colors disabled:opacity-60"
               title="Refresh active dashboard data"
             >
               <RefreshCw className={cn('w-3.5 h-3.5', refreshing && 'animate-spin')} />
@@ -1121,7 +1121,7 @@ export default function CleanDashboard() {
             </div>
             <button
               onClick={handleLogout}
-              className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+              className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-[#2A2A2A] transition-colors"
               title="Sign out"
             >
               <LogOut className="w-4 h-4 text-gray-500" />

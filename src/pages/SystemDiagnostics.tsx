@@ -145,7 +145,7 @@ function IntegrityResultsDisplay({ results }: { results: IntegrityResults }) {
           </div>
           <div className="divide-y max-h-64 overflow-y-auto">
             {results.issues.map((issue, idx) => (
-              <div key={idx} className="p-3 hover:bg-gray-50 dark:hover:bg-gray-800">
+              <div key={idx} className="p-3 hover:bg-gray-50 dark:hover:bg-[#2A2A2A]">
                 <div className="flex items-center gap-2 mb-1">
                   <Badge variant={issue.severity === 'critical' ? 'destructive' : 'secondary'}>
                     {issue.severity}

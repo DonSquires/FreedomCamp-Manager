@@ -1518,7 +1518,7 @@ export function ScanDetailPanel({
                 {obs.observationId && (
                   <Button
                     variant="outline"
-                    className="w-full justify-start h-14 border-gray-300 text-gray-600 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
+                    className="w-full justify-start h-14 border-gray-300 text-gray-600 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-[#2A2A2A]"
                     onClick={() => {
                       navigate(`/infringements?observation_id=${encodeURIComponent(obs.observationId)}`)
                       onActivity?.()

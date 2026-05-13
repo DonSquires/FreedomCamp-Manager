@@ -597,7 +597,7 @@ export default function ClientOrganisationPortal() {
                           ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
                           : 'bg-gray-100 text-gray-600 dark:bg-[#1E1E1E] dark:text-gray-300'
                       return (
-                        <div key={p.id} className="flex items-center justify-between py-2.5 gap-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 px-1 rounded-md transition-colors">
+                        <div key={p.id} className="flex items-center justify-between py-2.5 gap-3 hover:bg-gray-50 dark:hover:bg-[#2A2A2A]/50 px-1 rounded-md transition-colors">
                           <div className="flex items-center gap-3 min-w-0">
                             <div className={`p-1.5 rounded-lg shrink-0 ${p.status === 'in_progress' ? 'bg-blue-100 dark:bg-blue-900/40' : 'bg-green-100 dark:bg-green-900/40'}`}>
                               <Shield className={`h-3.5 w-3.5 ${p.status === 'in_progress' ? 'text-blue-600' : 'text-green-600'}`} />
@@ -643,7 +643,7 @@ export default function ClientOrganisationPortal() {
                     {filteredBreaches.map((b: any) => {
                       const isPending = b.status === 'pending' || b.status === 'open'
                       return (
-                        <div key={b.id} className="flex items-center justify-between py-2.5 gap-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 px-1 rounded-md transition-colors">
+                        <div key={b.id} className="flex items-center justify-between py-2.5 gap-3 hover:bg-gray-50 dark:hover:bg-[#2A2A2A]/50 px-1 rounded-md transition-colors">
                           <div className="flex items-center gap-3 min-w-0">
                             <div className={`p-1.5 rounded-lg shrink-0 ${isPending ? 'bg-red-100 dark:bg-red-900/40' : 'bg-gray-100 dark:bg-[#1E1E1E]'}`}>
                               <AlertTriangle className={`h-3.5 w-3.5 ${isPending ? 'text-red-600' : 'text-gray-500'}`} />
@@ -685,7 +685,7 @@ export default function ClientOrganisationPortal() {
                 ) : (
                   <div className="divide-y divide-gray-100 dark:divide-gray-800">
                     {filteredEnforcement.map((action: any) => (
-                      <div key={action.id} className="flex items-center justify-between py-2.5 gap-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 px-1 rounded-md transition-colors">
+                      <div key={action.id} className="flex items-center justify-between py-2.5 gap-3 hover:bg-gray-50 dark:hover:bg-[#2A2A2A]/50 px-1 rounded-md transition-colors">
                         <div className="flex items-center gap-3 min-w-0">
                           <div className="p-1.5 rounded-lg bg-amber-100 dark:bg-amber-900/40 shrink-0">
                             <FileText className="h-3.5 w-3.5 text-amber-600" />

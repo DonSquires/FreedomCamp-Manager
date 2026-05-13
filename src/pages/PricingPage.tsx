@@ -290,7 +290,7 @@ function ClientPricingCard({
   return (
     <Card className="bg-white dark:bg-[#1A1A1A] shadow-sm overflow-hidden">
       <div
-        className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
+        className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-[#2A2A2A]/50 transition-colors"
         onClick={() => setExpanded((v) => !v)}
       >
         <div className="flex items-center gap-3">
@@ -332,7 +332,7 @@ function ClientPricingCard({
           ) : (
             <div className="divide-y divide-gray-100 dark:divide-gray-800 border-t border-gray-100 dark:border-gray-800">
               {activeRows.map((row) => (
-                <div key={row.id} className="flex items-center justify-between py-2.5 gap-3 hover:bg-gray-50/50 dark:hover:bg-gray-800/30 -mx-1 px-1 rounded transition-colors">
+                <div key={row.id} className="flex items-center justify-between py-2.5 gap-3 hover:bg-gray-50/50 dark:hover:bg-[#2A2A2A]/30 -mx-1 px-1 rounded transition-colors">
                   <div className="min-w-0">
                     <p className="text-sm font-medium text-gray-800 dark:text-gray-200">
                       {SERVICE_LABELS[row.service_type] ?? row.service_type}

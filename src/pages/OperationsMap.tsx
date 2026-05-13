@@ -589,7 +589,7 @@ export default function OperationsMap() {
                     <button
                       key={layer.id}
                       onClick={() => toggle(layer.id)}
-                      className={`w-full flex items-center gap-2 px-2.5 py-2 text-left transition-colors hover:bg-gray-50 dark:hover:bg-gray-800/50 ${
+                      className={`w-full flex items-center gap-2 px-2.5 py-2 text-left transition-colors hover:bg-gray-50 dark:hover:bg-[#2A2A2A]/50 ${
                         !on ? 'opacity-40' : ''
                       }`}
                     >

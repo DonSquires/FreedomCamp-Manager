@@ -233,7 +233,7 @@ export function FeedbackModal({ open, onClose }: FeedbackModalProps) {
                 className={`flex items-center gap-2 rounded-lg border px-3 py-2.5 text-xs font-medium transition-colors ${
                   type === t
                     ? TYPE_CONFIG[t].color
-                    : 'border-gray-200 dark:border-[#9E9E9E]/20 hover:bg-gray-50 dark:hover:bg-gray-800'
+                    : 'border-gray-200 dark:border-[#9E9E9E]/20 hover:bg-gray-50 dark:hover:bg-[#2A2A2A]'
                 }`}
               >
                 {TYPE_CONFIG[t].icon}

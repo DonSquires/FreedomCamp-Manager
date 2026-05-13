@@ -412,7 +412,7 @@ export default function OfficerHomePage() {
           {/* Team Chat — always available */}
           <button
             onClick={() => navigate('/team-chat')}
-            className="w-full min-h-14 flex items-center justify-between bg-white rounded-xl border border-gray-200 shadow-sm p-4 hover:bg-gray-50 dark:bg-[#1A1A1A] dark:border-[#9E9E9E]/20 dark:hover:bg-gray-800 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+            className="w-full min-h-14 flex items-center justify-between bg-white rounded-xl border border-gray-200 shadow-sm p-4 hover:bg-gray-50 dark:bg-[#1A1A1A] dark:border-[#9E9E9E]/20 dark:hover:bg-[#2A2A2A] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
           >
             <div className="flex items-center gap-3">
               <div className="h-10 w-10 rounded-lg bg-indigo-100 dark:bg-indigo-950/50 flex items-center justify-center">
@@ -429,7 +429,7 @@ export default function OfficerHomePage() {
           {/* Open Shifts */}
           <button
             onClick={() => navigate('/leave-management')}
-            className="w-full min-h-14 flex items-center justify-between bg-white rounded-xl border border-gray-200 shadow-sm p-4 hover:bg-gray-50 dark:bg-[#1A1A1A] dark:border-[#9E9E9E]/20 dark:hover:bg-gray-800 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+            className="w-full min-h-14 flex items-center justify-between bg-white rounded-xl border border-gray-200 shadow-sm p-4 hover:bg-gray-50 dark:bg-[#1A1A1A] dark:border-[#9E9E9E]/20 dark:hover:bg-[#2A2A2A] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
           >
             <div className="flex items-center gap-3">
               <div className="h-10 w-10 rounded-lg bg-cyan-100 dark:bg-cyan-950/50 flex items-center justify-center">
@@ -445,7 +445,7 @@ export default function OfficerHomePage() {
 
           <button
             onClick={() => navigate('/open-shifts')}
-            className="w-full min-h-14 flex items-center justify-between bg-white rounded-xl border border-gray-200 shadow-sm p-4 hover:bg-gray-50 dark:bg-[#1A1A1A] dark:border-[#9E9E9E]/20 dark:hover:bg-gray-800 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+            className="w-full min-h-14 flex items-center justify-between bg-white rounded-xl border border-gray-200 shadow-sm p-4 hover:bg-gray-50 dark:bg-[#1A1A1A] dark:border-[#9E9E9E]/20 dark:hover:bg-[#2A2A2A] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
           >
             <div className="flex items-center gap-3">
               <div className="h-10 w-10 rounded-lg bg-green-100 dark:bg-green-950/50 flex items-center justify-center">
@@ -462,7 +462,7 @@ export default function OfficerHomePage() {
           {/* Request Ad-hoc Shift */}
           <button
             onClick={() => setShowAdhocDialog(true)}
-            className="w-full min-h-14 flex items-center justify-between bg-white rounded-xl border border-gray-200 shadow-sm p-4 hover:bg-gray-50 dark:bg-[#1A1A1A] dark:border-[#9E9E9E]/20 dark:hover:bg-gray-800 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+            className="w-full min-h-14 flex items-center justify-between bg-white rounded-xl border border-gray-200 shadow-sm p-4 hover:bg-gray-50 dark:bg-[#1A1A1A] dark:border-[#9E9E9E]/20 dark:hover:bg-[#2A2A2A] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
           >
             <div className="flex items-center gap-3">
               <div className="h-10 w-10 rounded-lg bg-amber-100 dark:bg-amber-950/50 flex items-center justify-center">

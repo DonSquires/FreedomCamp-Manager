@@ -204,7 +204,7 @@ function InvoiceRow({
   return (
     <>
       <TableRow
-        className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50"
+        className="cursor-pointer hover:bg-gray-50 dark:hover:bg-[#2A2A2A]/50"
         onClick={() => setExpanded((v) => !v)}
       >
         <TableCell className="font-mono text-xs font-semibold">{invoice.invoice_number}</TableCell>

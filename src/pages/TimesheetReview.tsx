@@ -588,7 +588,7 @@ export default function TimesheetReview() {
                     'w-full text-left rounded-lg border px-3 py-2.5 text-sm transition-colors',
                     exportFormat === opt.value
                       ? 'border-primary bg-primary/5 ring-1 ring-primary'
-                      : 'hover:border-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800',
+                      : 'hover:border-gray-300 hover:bg-gray-50 dark:hover:bg-[#2A2A2A]',
                   ].join(' ')}
                 >
                   <p className="font-medium">{opt.label}</p>

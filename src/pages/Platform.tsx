@@ -585,7 +585,7 @@ Be specific. Name exact files and line-level changes where possible.`
                       <button
                         key={item.path}
                         onClick={() => navigate(item.path)}
-                        className="flex items-center gap-2.5 rounded-lg border bg-white dark:bg-[#1A1A1A] px-3 py-2.5 text-left hover:bg-gray-50 dark:hover:bg-gray-800 hover:border-primary/40 transition-all shadow-sm group"
+                        className="flex items-center gap-2.5 rounded-lg border bg-white dark:bg-[#1A1A1A] px-3 py-2.5 text-left hover:bg-gray-50 dark:hover:bg-[#2A2A2A] hover:border-primary/40 transition-all shadow-sm group"
                       >
                         <item.icon className="h-4 w-4 shrink-0 text-muted-foreground group-hover:text-primary transition-colors" />
                         <span className="text-sm font-medium leading-tight truncate">{item.label}</span>
@@ -965,7 +965,7 @@ function FeedbackReportCard({
     <Card className={`overflow-hidden transition-shadow ${expanded ? 'shadow-md' : 'shadow-sm'}`}>
       {/* Header row */}
       <button
-        className="w-full flex items-start gap-3 px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
+        className="w-full flex items-start gap-3 px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-[#2A2A2A]/50 transition-colors"
         onClick={onToggle}
       >
         <div className="mt-0.5 shrink-0">{ISSUE_ICON[report.issue_type] ?? <Bug className="h-4 w-4 text-gray-400" />}</div>
