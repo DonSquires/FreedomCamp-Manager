@@ -2,7 +2,7 @@
 
 **Status**: ✅ Blueprint Approved (May 4, 2026)  
 **Phase A Kickoff**: May 12, 2026  
-**Critical Path Dates**: May 12 → June 9 (Org Isolation Gate) → July 28 (Phase B Launch)
+**Critical Path Dates**: May 12 → May 19 (Org Isolation Gate, Accelerated) → June 10 (Phase B Launch, Accelerated)
 
 ---
 
@@ -329,13 +329,13 @@ Bob governance note for this lane:
 
 ---
 
-### Week 3 (May 26–Jun 1): Route/Role Truth & Approval Workflows
+### Accelerated Week 3 (May 14–May 18): Route/Role Truth & Approval Workflows
 
 **Goal**: Route/role authorization truth validated, Bob approval paths defined.
 
 #### To-Do Items
 
-- [ ] **May 26–27**: Route/role truth validation (Platform Arch Lead)
+- [ ] **May 14–15**: Route/role truth validation (Platform Arch Lead)
   ```bash
   # Task: Verify all 3 bootstrap routes have correct role guards
   # Validation script location: scripts/validate-route-role-truth.mjs
@@ -349,7 +349,7 @@ Bob governance note for this lane:
   # Commit: git commit -m "realignment: route/role truth validation — [BLOCKERS_FIXED]"
   ```
 
-- [ ] **May 27–28**: Bob approval path specification (Bob/AI Lead)
+- [ ] **May 15–16**: Bob approval path specification (Bob/AI Lead)
   ```bash
   # Location: docs/BOB_APPROVAL_PATHS_PHASE_B.md (new file)
   # Content (from 6.2):
@@ -366,7 +366,7 @@ Bob governance note for this lane:
   # Commit: git commit -m "realignment: bob approval paths phase B — SLA/escalation/audit"
   ```
 
-- [ ] **May 28–29**: Event sequencing documentation (Data Platform Lead)
+- [ ] **May 16–17**: Event sequencing documentation (Data Platform Lead)
   ```bash
   # Location: docs/EVENT_SEQUENCING_ROADMAP.md (new file)
   # Content (from 3.3a):
@@ -379,7 +379,7 @@ Bob governance note for this lane:
   # Commit: git commit -m "realignment: event sequencing roadmap — phases A–E event families"
   ```
 
-- [ ] **May 29–30**: Bob audit trail spec (Bob/QA Lead)
+- [ ] **May 17–18**: Bob audit trail spec (Bob/QA Lead)
   ```bash
   # Location: supabase/migrations/202605_bob_audit.sql
   # Schema (from 6.4):
@@ -393,7 +393,7 @@ Bob governance note for this lane:
   # Commit: git commit -m "realignment: bob audit trail schema — proposal tracking & appeal workflow"
   ```
 
-- [ ] **May 31–Jun 1**: Finalize Phase A gate & prepare Phase B kickoff
+- [ ] **May 18–19**: Finalize Phase A gate & prepare Phase B kickoff
   ```bash
   # Verify all Week 3 tasks complete:
   bun run build && bun run lint
@@ -401,15 +401,15 @@ Bob governance note for this lane:
   bunx playwright test tests/e2e/bootstrap-routes.test.ts
   # Update docs/BUILD_REALIGNMENT_PLAN_2026-05-04.md:
   # - Section 12.1 Phase A Gate: Mark all criteria GREEN
-  # - Add timestamp: "**Phase A Gate Completion**: June 1, [TIME]"
+  # - Add timestamp: "**Phase A Gate Completion**: May 19, [TIME]"
   # Slack announcement:
-  # "🟢 PHASE A COMPLETE — June 1, 2026
+  # "🟢 PHASE A COMPLETE — May 19, 2026
   # ✅ Case model schema deployed
   # ✅ Org isolation tests: 5/5 passing
   # ✅ Bootstrap routes: 3/3 migrated
   # ✅ Feature flags: infrastructure live
   # ✅ Bob approval paths: documented
-  # Next: Phase B Kickoff — June 2, 2026"
+  # Next: Phase B Kickoff — May 20, 2026"
   # Final commit & push:
   git add .
   git commit -m "realignment: phase A complete — all gate criteria green ✅"
@@ -422,7 +422,7 @@ Bob governance note for this lane:
 
 | Date | Gate / Milestone | Criteria | Owner | Slack Channel |
 |------|------------------|----------|-------|---------------|
-| **Jun 9** | **PHASE A → B Go/No-Go** | Org isolation tests: 5/5 ✅<br/>Bootstrap routes: 3/3 ✅<br/>Feature flags: live & tested ✅ | Platform Arch Lead | #realignment-kickoff |
+| **May 19** | **PHASE A → B Go/No-Go (Accelerated)** | Org isolation tests: 5/5 ✅<br/>Bootstrap routes: 3/3 ✅<br/>Feature flags: live & tested ✅ | Platform Arch Lead | #realignment-kickoff |
 | Jul 28 | Dispatch acceptance live | Callsign binding + dispatch ack flows E2E | Dispatch Lead | #phase-b-dispatch |
 | Sep 29 | Bob approval phase D ready | Bob service integrated & tested | Bob/AI Lead | #phase-d-bob |
 | Jan 31 | Phase E consolidation done | All 5 phases launched, data queries optimized | Full Team | #go-live |
@@ -530,7 +530,7 @@ Phase A is **COMPLETE** when:
 - ✅ Bob approval audit trail table created with sample records
 - ✅ Event family contract and boot sequence documentation published
 - ✅ All team roles assigned and acknowledged in GitHub team + Slack confirmation thread
-- ✅ June 9 Go/No-Go date confirmed (if all above ✅, proceed to Phase B June 2)
+- ✅ May 19 accelerated Go/No-Go date confirmed (if all above ✅, proceed to Phase B May 20)
 
 ---
 

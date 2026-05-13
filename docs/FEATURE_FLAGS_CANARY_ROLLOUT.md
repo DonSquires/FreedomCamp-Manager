@@ -159,9 +159,9 @@ This sets `enabled = false` and resets `rollout_percentage = 5`.
 
 | Flag Name | Route | Activation | Rollout Schedule |
 |---|---|---|---|
-| `FF_PHASE_B_PATROL_EVENTS` | Field Officer Patrol Dispatch | May 19–20 | 5% (May 20) → 25% (May 27) → 100% (Jun 3) |
-| `FF_PHASE_B_DISPATCH_EVENTS` | Dispatch Console | May 21 | 5% (May 21) → 25% (May 28) → 100% (Jun 4) |
-| `FF_PHASE_B_ENFORCEMENT_EVENTS` | Enforcement Timeline | May 22 | 5% (May 22) → 25% (May 29) → 100% (Jun 5) |
+| `FF_PHASE_B_PATROL_EVENTS` | Field Officer Patrol Dispatch | May 20 | 5% (May 20) → 25% (May 22) → 50% (May 24) → 100% (May 27) |
+| `FF_PHASE_B_DISPATCH_EVENTS` | Dispatch Console | May 20 | 5% (May 20) → 25% (May 23) → 50% (May 25) → 100% (May 28) |
+| `FF_PHASE_B_ENFORCEMENT_EVENTS` | Enforcement Timeline | May 20 | 5% (May 20) → 25% (May 24) → 50% (May 26) → 100% (May 29) |
 
 ---
 

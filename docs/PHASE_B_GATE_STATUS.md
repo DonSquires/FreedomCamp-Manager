@@ -194,28 +194,28 @@ The following artifacts were created as Phase B delivery infrastructure. They ar
 
 | # | Blocker | Owner | Priority | Target |
 |---|---|---|---|---|
-| 1 | Phase A gate: Org isolation 5-scenario automated CI harness (`tests/integration/org-isolation.test.ts`) not yet merged | Platform Architecture Lead | High | Week 3 (May 26) |
+| 1 | Phase A gate: Org isolation 5-scenario automated CI harness (`tests/integration/org-isolation.test.ts`) not yet merged | Platform Architecture Lead | High | Accelerated Week 3 (May 14) |
 | 2 | ~~Phase A gate: TypeScript type generation for `operational_cases` deferred~~ — **RESOLVED** (`operational_cases` was already present; all 7 Phase B table stubs now added to `database.ts`) | — | — | ✅ Done |
-| 3 | Phase A gate: Bootstrap routes E2E full pass not yet confirmed in CI | Frontend Platform Lead | High | Week 4 (Jun 2) |
-| 4 | Phase A gate: Ownership confirmation (GitHub team + Slack `#realignment-kickoff`) | Operations Product Lead | High | Jun 9 |
-| 5 | Phase B go-no-go gate: June 9 deadline — if Phase A not green → 2-week deferral | Program Lead | Critical | Jun 9 |
+| 3 | Phase A gate: Bootstrap routes E2E full pass not yet confirmed in CI | Frontend Platform Lead | High | Accelerated Week 3 (May 16) |
+| 4 | Phase A gate: Ownership confirmation (GitHub team + Slack `#realignment-kickoff`) | Operations Product Lead | High | May 19 |
+| 5 | Phase B go-no-go gate: May 19 accelerated deadline — if Phase A not green → 1-week deferral | Program Lead | Critical | May 19 |
 
 ---
 
 ## Next Actions (ordered)
 
-1. **Week 3 (May 26–Jun 1)**:
+1. **Accelerated Week 3 (May 14–May 19)**:
    - ~~Route/role truth validation across 122 production routes~~ — **Done** (all 3 validators green: validate-route-role-truth ✅, validate-roadmap-grounding ✅, validate-roadmap-role-gates ✅; fixed compliance-recalculation role gate to include admin+admin_officer)
    - Confirm `tests/integration/org-isolation.test.ts` is running in CI with all 5 scenarios
    - ~~Generate or stub TypeScript types for `operational_cases` + Phase B tables~~ — **Done** (completed in previous session)
    - Run bootstrap routes E2E suite against staging
 
-2. **Week 4 (Jun 2–9)**:
-   - Phase A gate final verification pass
-   - Ownership confirmation: update GitHub team `@DonSquires/team-realignment`; post capacity sign-off in Slack `#realignment-kickoff`
-   - Go/No-Go decision by June 9
+2. **May 19 Final Gate Day**:
+  - Phase A gate final verification pass
+  - Ownership confirmation: update GitHub team `@DonSquires/team-realignment`; post capacity sign-off in Slack `#realignment-kickoff`
+  - Accelerated Go/No-Go decision by May 19
 
-3. **Phase B Kick-off (Jun 10, if gate green)**:
+3. **Phase B Kick-off (May 20, if gate green)**:
    - Enable `FF_PHASE_B_PATROL_EVENTS` at 5% canary for B1 delivery
    - Monitor error rate (< 1%) and p95 latency (< 500 ms) per canary thresholds
    - Advance canary via `scripts/advance-canary-stage.sh` as thresholds are met
