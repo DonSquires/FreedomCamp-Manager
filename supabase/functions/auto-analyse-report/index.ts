@@ -179,6 +179,24 @@ function normalizeServiceBaseUrl(value: string): string {
   return withScheme.replace(/\/+$/, '')
 }
 
+function getInferenceCandidates(): string[] {
+  const runpodEndpointId = String(Deno.env.get('RUNPOD_ENDPOINT_ID') ?? '').trim()
+  const derivedRunpodUrl = runpodEndpointId ? `https://api.runpod.ai/v2/${runpodEndpointId}` : ''
+
+  return Array.from(new Set([
+    normalizeServiceBaseUrl(Deno.env.get('RUNPOD_ENDPOINT_URL') ?? ''),
+    normalizeServiceBaseUrl(Deno.env.get('INFERENCE_SERVICE_URL_RUNPOD') ?? ''),
+    normalizeServiceBaseUrl(derivedRunpodUrl),
+    normalizeServiceBaseUrl(Deno.env.get('INFERENCE_SERVICE_URL') ?? ''),
+    normalizeServiceBaseUrl(Deno.env.get('INFERENCE_SERVICE_URL_SECONDARY') ?? ''),
+    normalizeServiceBaseUrl(Deno.env.get('BOB_SERVICE_URL') ?? ''),
+    ...String(Deno.env.get('BOB_INFERENCE_URLS') ?? '')
+      .split(',')
+      .map((entry) => normalizeServiceBaseUrl(entry))
+      .filter(Boolean),
+  ].filter(Boolean)))
+}
+
 async function fallbackAnalyseWithOnspaceChat(
   report: any,
   navHistory: any[],
@@ -318,7 +336,8 @@ Deno.serve(async (req: Request) => {
     const consoleErrors: any[] = Array.isArray(report.console_errors) ? report.console_errors : []
 
     // ── Inference-service self-heal provider ────────────────────────────────
-    const inferenceUrl = normalizeServiceBaseUrl(Deno.env.get('INFERENCE_SERVICE_URL') ?? '')
+    const inferenceCandidates = getInferenceCandidates()
+    const inferenceUrl = inferenceCandidates[0] || ''
     const inferenceApiKey =
       Deno.env.get('INFERENCE_API_KEY') ??
       Deno.env.get('RUNPOD_ENDPOINT_API_KEY') ??
@@ -367,29 +386,41 @@ Deno.serve(async (req: Request) => {
       healHeaders['Authorization'] = `Bearer ${inferenceApiKey}`
     }
 
-    let healResp: Response
-    if (isRunpodServerless(inferenceUrl)) {
-      // RunPod serverless: use /runsync self_heal action
-      healResp = await fetch(`${inferenceUrl}/runsync`, {
-        method: 'POST',
-        headers: healHeaders,
-        body: JSON.stringify({
-          executionTimeout: 60000,
-          input: {
-            action: 'self_heal',
-            ...healPayload,
-          },
-        }),
-        signal: AbortSignal.timeout(70_000),
-      })
-    } else {
-      // inference-service HTTP route
-      healResp = await fetch(`${inferenceUrl}/self-heal/bug-report`, {
-        method: 'POST',
-        headers: healHeaders,
-        body: JSON.stringify(healPayload),
-        signal: AbortSignal.timeout(55_000),
-      })
+    let healResp: Response | null = null
+    let attemptedCandidates: string[] = []
+
+    for (const candidateUrl of inferenceCandidates) {
+      attemptedCandidates = [...attemptedCandidates, candidateUrl]
+      try {
+        const candidateResp = isRunpodServerless(candidateUrl)
+          ? await fetch(`${candidateUrl}/runsync`, {
+              method: 'POST',
+              headers: healHeaders,
+              body: JSON.stringify({
+                executionTimeout: 60000,
+                input: {
+                  action: 'self_heal',
+                  ...healPayload,
+                },
+              }),
+              signal: AbortSignal.timeout(70_000),
+            })
+          : await fetch(`${candidateUrl}/self-heal/bug-report`, {
+              method: 'POST',
+              headers: healHeaders,
+              body: JSON.stringify(healPayload),
+              signal: AbortSignal.timeout(55_000),
+            })
+
+        healResp = candidateResp
+        if (candidateResp.ok) break
+      } catch (err) {
+        console.warn(`[auto-analyse] self-heal candidate failed for report ${report_id}: ${candidateUrl} (${String((err as Error)?.message || err)})`)
+      }
+    }
+
+    if (!healResp) {
+      console.warn(`[auto-analyse] no inference candidate succeeded for report ${report_id}: ${attemptedCandidates.join(', ')}`)
     }
 
     let healJson: any = null
@@ -398,7 +429,7 @@ Deno.serve(async (req: Request) => {
     let analysisProvider = 'inference-self-heal'
     let fallbackReason: string | null = null
 
-    if (healResp.ok) {
+    if (healResp?.ok) {
       const rawHeal = await healResp.json()
       // Unwrap RunPod envelope: { output: { plan, ... } }
       healJson = rawHeal?.output ?? rawHeal
@@ -410,8 +441,8 @@ Deno.serve(async (req: Request) => {
         responseText = planToText(healJson?.plan)
       }
     } else {
-      const details = await healResp.text()
-      fallbackReason = `Inference self-heal returned ${healResp.status}: ${details.slice(0, 300)}`
+      const details = healResp ? await healResp.text() : 'No inference candidate responded'
+      fallbackReason = `Inference self-heal returned ${healResp?.status ?? 'unavailable'}: ${details.slice(0, 300)}`
     }
 
     // If primary path failed, try onspace-ai-chat fallback

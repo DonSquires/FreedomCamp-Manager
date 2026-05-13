@@ -4,6 +4,37 @@ Date: 2026-05-12
 Owner: GitHub Copilot
 Status: Active staging checklist — Sprints 50-70 complete on main; Iron Eagle Visual Identity locked in docs (2026-05-12)
 
+Latest Session Snapshot (Phased Rollout Continuation — Iron Eagle Surface Migration Validated — 2026-05-13):
+
+- Timestamp (NZ): 2026-05-13
+- Current branch: main
+- Scope completed:
+  - Continued Iron Eagle dark-surface rollout across all identified dispatch, compliance, and officer tracking interfaces:
+    - **DispatchMonitor.tsx**: Job and alarm filter buttons now use `dark:bg-[#2A2A2A]` (ie-bg-elevated) background
+    - **DispatchWizard.tsx**: Client site selection and officer assignment panels now use tactical palette
+    - **DispatchEventLog.tsx**: Event list containers updated to Dark Surface palette
+    - **DispatchAcknowledgementLog.tsx**: Acknowledgement log surfaces updated
+    - **Compliance.tsx**: Compliance tracking surfaces migrated
+    - **CompliancePage.tsx**: Primary compliance dashboard containers use `#1E1E1E` and `#2A2A2A`
+    - **ComplianceDashboard.tsx**: Dashboard panels updated
+    - **ComplianceRecalculation.tsx**: Recalculation view surfaces migrated
+  - Replaced all remaining legacy `dark:bg-gray-*` and `dark:border-gray-*` with Iron Eagle hex equivalents
+
+- Validation evidence:
+  | Command | Result | Notes |
+  |---|---|---|
+  | `bun run lint` | PASS | exit 0; no new violations from surface migrations |
+  | `bun run build` | BLOCKED* | 6 pre-existing Phase B integration errors (not from rollout) |
+  | Clean HEAD build | BLOCKED* | Same 6 errors exist on HEAD (confirms pre-existing nature) |
+
+  *Build blocked by unrelated Phase B integration issues: missing `payload` type fields, missing `isNavItemVisibleForRole` export, missing `setPTTRemoteAudioVolume` in ptt module.*
+
+- Next exact rollout steps:
+  1. ✅ Commit phased rollout surface migrations (8 files completed)
+  2. Push to origin/main
+  3. Continue rollout: admin shell nav active-state indicators (AppLayout)
+  4. Continue rollout: client portal header and navigation
+
 Latest Session Snapshot (Staging Continuation — Tooling Restored and Validation Re-run — 2026-05-12):
 
 - Timestamp (NZ): 2026-05-12
