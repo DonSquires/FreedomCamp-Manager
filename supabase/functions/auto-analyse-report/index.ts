@@ -387,6 +387,7 @@ Deno.serve(async (req: Request) => {
     }
 
     let healResp: Response | null = null
+    let successfulInferenceUrl: string | null = null
     let attemptedCandidates: string[] = []
 
     for (const candidateUrl of inferenceCandidates) {
@@ -413,7 +414,10 @@ Deno.serve(async (req: Request) => {
             })
 
         healResp = candidateResp
-        if (candidateResp.ok) break
+        if (candidateResp.ok) {
+          successfulInferenceUrl = candidateUrl
+          break
+        }
       } catch (err) {
         console.warn(`[auto-analyse] self-heal candidate failed for report ${report_id}: ${candidateUrl} (${String((err as Error)?.message || err)})`)
       }
@@ -442,7 +446,7 @@ Deno.serve(async (req: Request) => {
       }
     } else {
       const details = healResp ? await healResp.text() : 'No inference candidate responded'
-      fallbackReason = `Inference self-heal returned ${healResp?.status ?? 'unavailable'}: ${details.slice(0, 300)}`
+      fallbackReason = `Inference self-heal returned ${healResp?.status ?? 'unavailable'}: ${details.slice(0, 300)} (candidates: ${attemptedCandidates.join(', ') || 'none'})`
     }
 
     // If primary path failed, try onspace-ai-chat fallback
@@ -505,6 +509,20 @@ Deno.serve(async (req: Request) => {
     let escalationResult: EscalationResult | null = null
     if (shouldEscalateToGithubAssist) {
       try {
+        const patchInferenceUrl =
+          (successfulInferenceUrl && !isRunpodServerless(successfulInferenceUrl) ? successfulInferenceUrl : null) ??
+          inferenceCandidates.find((url) => !isRunpodServerless(url)) ??
+          ''
+
+        if (!patchInferenceUrl) {
+          escalationResult = {
+            requested: true,
+            routed_to: 'github_assist',
+            complexity,
+            error: 'No non-RunPod inference endpoint available for /self-heal/patch-task',
+            details: `candidates=${attemptedCandidates.join(', ') || 'none'}`,
+          }
+        } else {
         const patchPayload = {
           report: {
             summary: `${report.title ?? 'Untitled'}: ${report.description ?? ''}`.trim(),
@@ -520,7 +538,7 @@ Deno.serve(async (req: Request) => {
           plan: healJson?.plan,
         }
 
-        const patchResp = await fetch(`${inferenceUrl}/self-heal/patch-task`, {
+        const patchResp = await fetch(`${patchInferenceUrl}/self-heal/patch-task`, {
           method: 'POST',
           headers: healHeaders,
           body: JSON.stringify(patchPayload),
@@ -545,6 +563,7 @@ Deno.serve(async (req: Request) => {
             error: `patch-task returned HTTP ${patchResp.status}`,
             details: patchErrText.slice(0, 300),
           }
+        }
         }
       } catch (patchErr: any) {
         escalationResult = {
@@ -599,7 +618,7 @@ Deno.serve(async (req: Request) => {
     }
 
     return new Response(
-      JSON.stringify({ success: true, report_id, provider: 'inference-self-heal' }),
+      JSON.stringify({ success: true, report_id, provider: analysisProvider }),
       { status: 200, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
     )
   } catch (err: any) {
