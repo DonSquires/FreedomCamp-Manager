@@ -407,12 +407,8 @@ export default function DispatchConsole() {
               caseId: jobId, // Dispatch job acts as case anchor in Phase A
               eventType: 'dispatch_assigned',
               dispatchJobId: jobId,
+              assignedTo: officerId,
               statusAtEvent: 'dispatched',
-              payload: {
-                assigned_officer_id: officerId,
-                dispatched_by: user?.id,
-                assigned_at: new Date().toISOString(),
-              },
             })
           }
         } catch (err) {

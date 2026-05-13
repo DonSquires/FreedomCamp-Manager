@@ -1101,15 +1101,10 @@ export default function FieldOfficerPortal() {
             caseId: rosteredShift.id, // Shift acts as case anchor in Phase A
             eventType: 'patrol_observation',
             officerId: user.id,
-            payload: {
-              observation_id: result.observationId,
-              zone_id: zoneId,
-              location: {
-                lat: result.gpsLatitude,
-                lng: result.gpsLongitude,
-              },
-              recorded_at: result.recordedAt,
-            },
+            patrolType: 'observation',
+            observationText: result.observationId,
+            gpsLat: result.gpsLatitude ?? undefined,
+            gpsLng: result.gpsLongitude ?? undefined,
           })
         } catch (err) {
           // Non-blocking: log but continue

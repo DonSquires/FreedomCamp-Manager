@@ -232,13 +232,6 @@ export default function EnforcementActions() {
             violationType: 'overnight_camping',
             actionTaken: data.action_type, // 'warning', 'notice', 'trespass_order', etc
             outcome: 'issued',
-            payload: {
-              action_id: newAction.id,
-              breach_alert_id: data.breach_alert_id,
-              notes: data.notes,
-              created_by: user?.id,
-              created_at: new Date().toISOString(),
-            },
           })
         } catch (err) {
           // Non-blocking: log but continue
@@ -305,12 +298,6 @@ export default function EnforcementActions() {
             violationType: 'overnight_camping',
             actionTaken: 'completion',
             outcome: data.outcome,
-            payload: {
-              action_id: data.actionId,
-              outcome: data.outcome,
-              completed_at: new Date().toISOString(),
-              completed_by: user?.id,
-            },
           })
         } catch (err) {
           // Non-blocking: log but continue

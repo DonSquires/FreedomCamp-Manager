@@ -190,6 +190,15 @@ type NavItem = {
   scopeHint?: string
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
+export function isNavItemVisibleForRole(
+  item: NavItem,
+  role: string,
+  _activeFeatureFlags: Set<string>,
+): boolean {
+  return item.roles.includes(role)
+}
+
 // Pinned items always visible at the top of the sidebar
 // eslint-disable-next-line react-refresh/only-export-components
 export const pinnedItems: NavItem[] = [
