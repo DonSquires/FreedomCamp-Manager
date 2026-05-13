@@ -419,24 +419,48 @@ jobs:
           PROTECTED_LABEL="✅ Yes"
           $is_public && PROTECTED_LABEL="🔓 No"
 
-          if $is_public; then
-            if echo "$HTTP_CODE" | grep -qE '^5'; then
-              echo "::error::$fn returned HTTP $HTTP_CODE (server error — function may have crashed)"
-              exit 1
+            if $is_public; then
+              if echo "$HTTP_CODE" | grep -qE '^5'; then
+                echo "::error::$fn returned HTTP $HTTP_CODE (server error — function may have crashed)"
+                exit 1
+              else
+                echo "  ✅ $fn is live (HTTP $HTTP_CODE)"
+              fi
             else
-              echo "  ✅ $fn is live (HTTP $HTTP_CODE)"
+              if echo "$HTTP_CODE" | grep -qE '^5'; then
+                echo "::error::$fn returned HTTP $HTTP_CODE (server error — function may have crashed)"
+                exit 1
+              elif [ "$HTTP_CODE" = "200" ]; then
+                echo "::error::$fn returned HTTP 200 without a JWT — JWT verification may be misconfigured"
+                exit 1
+              elif [ "$HTTP_CODE" = "401" ]; then
+                echo "  ✅ $fn is live and correctly requires JWT (HTTP 401)"
+              else
+                echo "  ⚠️  $fn returned unexpected HTTP $HTTP_CODE"
+                echo "::warning::$fn returned unexpected HTTP $HTTP_CODE"
+              fi
             fi
-          else
-            if echo "$HTTP_CODE" | grep -qE '^5'; then
-              echo "::error::$fn returned HTTP $HTTP_CODE (server error — function may have crashed)"
-              exit 1
-            elif [ "$HTTP_CODE" = "200" ]; then
-              echo "::error::$fn returned HTTP 200 without a JWT — JWT verification may be misconfigured"
-              exit 1
-            elif [ "$HTTP_CODE" = "401" ]; then
-              echo "  ✅ $fn is live and correctly requires JWT (HTTP 401)"
-            else
-              echo "  ⚠️  $fn returned unexpected HTTP $HTTP_CODE"
-              echo "::warning::$fn returned unexpected HTTP $HTTP_CODE"
-            fi
-          fi
+
+      - name: Setup Node.js (strict uptime gate)
+        if: >-
+          steps.check-secrets.outputs.secrets_present == 'true' &&
+          (github.event.inputs.mode == 'deploy+verify' || github.event.inputs.mode == 'verify-only') &&
+          vars.STRICT_UPTIME_GATE_ENFORCE == 'true'
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Run strict uptime gate
+        if: >-
+          steps.check-secrets.outputs.secrets_present == 'true' &&
+          (github.event.inputs.mode == 'deploy+verify' || github.event.inputs.mode == 'verify-only') &&
+          vars.STRICT_UPTIME_GATE_ENFORCE == 'true'
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          API_TEST_EMAIL: ${{ secrets.API_TEST_EMAIL }}
+          API_TEST_PASSWORD: ${{ secrets.API_TEST_PASSWORD }}
+        run: |
+          set -euo pipefail
+          npm install --no-audit --no-fund dotenv
+          node scripts/strict-uptime-gate.mjs
