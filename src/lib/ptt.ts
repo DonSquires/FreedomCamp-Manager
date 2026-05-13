@@ -1596,6 +1596,13 @@ async function handleSignalMessage(message: SignalMessage): Promise<void> {
   const store = usePTTStore.getState()
   const fromUserId = message.fromUserId
   const signal = message.signal
+  const currentUserId = useAuthStore.getState().user?.id
+
+  // Ignore malformed or self-echoed signaling payloads. Self-signals can occur
+  // during reconnect races and must not create loopback peer connections.
+  if (!fromUserId || !signal?.type || (currentUserId && fromUserId === currentUserId)) {
+    return
+  }
 
   markNegotiationAttempt(fromUserId, `incoming_${signal.type}`)
 

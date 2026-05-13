@@ -25,6 +25,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3'
 import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/withCors.ts'
 import { requireAuth } from '../_shared/requireAuth.ts'
+import { buildAccessibleOrgIds, orgAccessDenied } from '../_shared/orgAccess.ts'
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
@@ -65,12 +66,7 @@ Deno.serve(async (req: Request) => {
       throw new Error('Insufficient permissions')
     }
 
-    const allowedOrganizationIds = new Set<string>([
-      (profile as any).organization_id,
-      (profile as any).employer_organization_id,
-      ...(((profile as any).extra_organization_ids ?? []) as string[]),
-      ...(((profile as any).authorized_work_locations ?? []) as string[]),
-    ].filter((id): id is string => typeof id === 'string' && id.length > 0))
+    const allowedOrganizationIds = await buildAccessibleOrgIds(supabaseAdmin, profile)
 
     const canOverrideIssuedBy = ['admin', 'admin_officer', 'master'].includes(profile.role)
     if (!canOverrideIssuedBy && issued_by !== authResult.user.id) {
@@ -95,7 +91,7 @@ Deno.serve(async (req: Request) => {
 
     if (noticeErr || !notice) throw new Error('Notice not found')
 
-    if (profile.role !== 'master' && !allowedOrganizationIds.has(notice.organization_id as string)) {
+    if (profile.role !== 'master' && orgAccessDenied(allowedOrganizationIds, notice.organization_id as string)) {
       throw new Error('Forbidden')
     }
 

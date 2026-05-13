@@ -16,6 +16,15 @@ This plan defines a four-phase rollout called Star Trek and binds each phase to:
 
 No phase may move to the next phase until all three are completed.
 
+## Non-Regression Guard (Mandatory During Consolidation)
+
+While routes, RLS, and module structure are being consolidated, Bob's actionable control paths must remain operational:
+
+1. Message control path (`ask-bob`, Bob studio/proposal flows) must continue to resolve valid organization scope and execute approved actions.
+2. Voice control path (wake word + PTT-linked Bob intercom and command extraction) must remain usable for field operations.
+3. Any access-control refactor must use shared restriction gates, not remove Bob's approved write-actuation workflow.
+4. If a security hardening change would block Bob actionability, the change must be shipped with an equivalent approved path in the same release.
+
 ## Phase 1: The Director (Roster and Access Gate)
 
 Objective: establish Bob as gatekeeper so no officer enters tactical workflows without active assignment.
@@ -71,6 +80,8 @@ Objective: enable eyes-up operations where Bob translates and communicates witho
    - Add evidence block for translation + ducking validation.
 2. INSTRUCTION_MANUAL.md:
    - Update PTT and Bob audio behavior sections for dual stream, wake word, and ducking rules.
+3. Regression evidence:
+   - Include proof that Bob voice and Bob message command paths still execute at least one approved operational action end-to-end.
 
 ## Phase 3: The Sentient XO (Memory and Administrative Actuation)
 
@@ -98,6 +109,8 @@ Objective: give Bob persistent memory and voice-operated administrative actuatio
    - Add audit evidence for command, validation, and successful write.
 2. INSTRUCTION_MANUAL.md:
    - Update Bob operations section with memory behavior, actuation permissions, and missing-data prompt logic.
+3. Regression evidence:
+   - Include proof that RLS/policy changes did not break Bob command-to-action workflows.
 
 ## Phase 4: The Admiral's Bridge (Welfare and Enforcement)
 

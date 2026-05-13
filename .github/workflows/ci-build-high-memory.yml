@@ -91,13 +91,7 @@ jobs:
         run: |
           echo "::warning::Lint warning budget gate failed but strict mode is disabled; continuing."
 
-      - name: Doc authority lint (warning mode)
-        env:
-          DOC_AUTHORITY_DIFF_RANGE: ${{ github.event_name == 'pull_request' && format('origin/{0}...{1}', github.base_ref, github.sha) || format('{0}..{1}', github.event.before, github.sha) }}
-        run: bun run lint:doc-authority
-
-      - name: Doc authority lint (strict policy)
-        if: github.event_name != 'pull_request' && vars.DOC_AUTHORITY_STRICT_POLICY == 'true'
+      - name: Doc authority lint (mandatory)
         env:
           DOC_AUTHORITY_STRICT: 'true'
           DOC_AUTHORITY_DIFF_RANGE: ${{ github.event_name == 'pull_request' && format('origin/{0}...{1}', github.base_ref, github.sha) || format('{0}..{1}', github.event.before, github.sha) }}

@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3'
 import { getCorsHeaders } from '../_shared/withCors.ts'
+import { collectDirectOrgIds } from '../_shared/orgAccess.ts'
 
 const INFERENCE_SERVICE_URL = (Deno.env.get('INFERENCE_SERVICE_URL') || '').replace(/\/$/, '')
 const INFERENCE_API_KEY =
@@ -122,8 +123,12 @@ Deno.serve(async (req: Request) => {
 
   const requestedOrgId = String(body.org_id || '').trim()
   const primaryOrgId = String(profile.organization_id || '').trim()
-  const extraOrgIds = parseUuidArray(profile.extra_organization_ids)
-  const allowedOrgIds = new Set([primaryOrgId, ...extraOrgIds].filter(Boolean))
+  const allowedOrgIds = collectDirectOrgIds({
+    organization_id: primaryOrgId || null,
+    employer_organization_id: null,
+    extra_organization_ids: parseUuidArray(profile.extra_organization_ids),
+    authorized_work_locations: null,
+  })
   const orgId = requestedOrgId || primaryOrgId
 
   if (!orgId || !allowedOrgIds.has(orgId)) {

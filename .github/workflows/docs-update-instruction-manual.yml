@@ -1,8 +1,11 @@
-name: Docs — Flag Instruction Manual for Update
+name: Docs — Flag Canonical Manual Drift
 
-# Monitors key source files. When any of them change on main, opens a GitHub
-# issue that lists the changed files and which manual sections are likely
-# affected, so a developer knows to review and update the manual.
+# Monitors key source files. When any of them change on main without the
+# corresponding governance process catching them earlier, opens a GitHub issue
+# that lists the changed files and which manual sections are likely affected.
+#
+# The instruction manual is the canonical product intent document. This
+# workflow is a fallback drift detector, not the primary enforcement path.
 #
 # No secrets required — uses the built-in GITHUB_TOKEN.
 #
@@ -46,7 +49,7 @@ permissions:
 
 jobs:
   flag-manual-for-update:
-    name: Flag INSTRUCTION_MANUAL.md for update
+    name: Flag INSTRUCTION_MANUAL.md contract drift
     runs-on: ubuntu-latest
 
     steps:
@@ -212,10 +215,10 @@ jobs:
             const commitUrl   = `https://github.com/${context.repo.owner}/${context.repo.repo}/commit/${context.sha}`;
 
             const body = [
-              `## 📋 INSTRUCTION_MANUAL.md — update needed`,
+              `## 📋 INSTRUCTION_MANUAL.md — canonical contract drift`,
               ``,
               `A push to \`main\` touched files that are cross-referenced in [\`docs/INSTRUCTION_MANUAL.md\`](../blob/main/docs/INSTRUCTION_MANUAL.md).`,
-              `Please review the manual and update any affected sections.`,
+              `The instruction manual is the canonical product contract, so this should be treated as contract drift unless the manual was intentionally updated in the same change set.`,
               ``,
               `### Commit`,
               `[${commitSha}](${commitUrl}) — ${context.actor}`,
@@ -232,7 +235,7 @@ jobs:
               `2. Review the sections listed above.`,
               `3. Update any stale routes, role descriptions, table names, or feature lists.`,
               `4. Update the **Last reviewed** date at the top of the file.`,
-              `5. Close this issue once the manual is up to date.`,
+              `5. Close this issue once the manual is up to date and aligned to intended behavior.`,
               ``,
               `---`,
               `*Triggered by [workflow run #${context.runId}](${runUrl})*`,
@@ -262,7 +265,7 @@ jobs:
               const issue = await github.rest.issues.create({
                 owner: context.repo.owner,
                 repo:  context.repo.repo,
-                title: 'docs: INSTRUCTION_MANUAL.md may need updating',
+                title: 'docs: INSTRUCTION_MANUAL.md contract drift detected',
                 body,
                 labels: ['docs', 'manual-update-needed'],
               });

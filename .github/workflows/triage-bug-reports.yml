@@ -26,7 +26,7 @@ jobs:
         continue-on-error: true
         run: |
           set -euo pipefail
-          URL="${SUPABASE_BASE_URL%/}/rest/v1/bug_reports?select=id,title,severity,status,issue_type,current_page,created_at,description,console_errors,screenshot_metadata,app_version&status=neq.resolved&order=created_at.desc&limit=120"
+          URL="${SUPABASE_BASE_URL%/}/rest/v1/bug_reports?select=id,title,severity,status,issue_type,current_page,created_at,description,console_errors,screenshot_metadata,app_version&status=not.in.(resolved,closed,wont_fix,duplicate)&order=created_at.desc&limit=120"
           
           code=$(curl -sS -o /tmp/bugs.json -w "%{http_code}" "$URL" \
             -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \

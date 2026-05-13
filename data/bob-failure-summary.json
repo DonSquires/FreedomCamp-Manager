@@ -1,13 +1,23 @@
 {
-  "generatedAt": "2026-05-10T12:33:15.723Z",
+  "generatedAt": "2026-05-13T07:42:20.457Z",
   "windowHours": 24,
-  "totalEntries": 0,
-  "lowScoreCount": 0,
-  "topFailureReasons": [],
+  "totalEntries": 4,
+  "lowScoreCount": 2,
+  "topFailureReasons": [
+    {
+      "name": "quality_gate_failed",
+      "count": 2
+    }
+  ],
   "topHallucinationPatterns": [],
   "repeatedHallucinations": [],
-  "topFlaggedArtifacts": [],
+  "topFlaggedArtifacts": [
+    {
+      "name": "/workspaces/FreedomCamp-Manager/plan.md",
+      "count": 4
+    }
+  ],
   "recommendations": [
-    "No repeated failure mode crossed the automatic threshold in this window."
+    "Re-read docs/BOB_TRAINING_TRUTH_PROTOCOL.md before the next redesign response."
   ]
 }

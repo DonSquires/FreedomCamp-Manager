@@ -191,9 +191,9 @@ function ModuleCard({ card }: { card: HubCard }) {
 
       <CardContent className="pt-0 space-y-3">
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
-          {card.quickLinks.map(({ path, label, Icon }) => (
+          {card.quickLinks.map(({ path, label, Icon }, idx) => (
             <button
-              key={path}
+              key={`${card.id}:${path}:${label}:${idx}`}
               onClick={(e) => { e.stopPropagation(); navigate(path) }}
               className="flex flex-col items-center gap-1 rounded-lg px-1.5 py-2 text-center bg-white/70 dark:bg-white/10 hover:bg-white dark:hover:bg-white/20 border border-white/80 dark:border-white/20 hover:border-white/95 dark:hover:border-white/30 transition-all group/link"
             >

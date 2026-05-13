@@ -26,6 +26,7 @@
 // ============================================================================
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3';
+import { collectDirectOrgIds } from '../_shared/orgAccess.ts';
 import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/withCors.ts';
 
 const SUPABASE_URL              = Deno.env.get('SUPABASE_URL')!;
@@ -87,11 +88,7 @@ type UserScopeProfile = {
 };
 
 function getScopedOrganizationIds(profile: UserScopeProfile): string[] {
-  return [...new Set([
-    ...(profile.organization_id ? [profile.organization_id] : []),
-    ...(profile.authorized_work_locations ?? []),
-    ...(profile.extra_organization_ids ?? []),
-  ])];
+  return [...collectDirectOrgIds(profile)];
 }
 
 function canAccessOrganization(profile: UserScopeProfile, organizationId: string): boolean {

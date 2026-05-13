@@ -1,0 +1,8 @@
+{
+  "checked_at": "2026-05-13T07:42:20.096Z",
+  "monitor_version": "2026-05-13.enterprise.v1",
+  "error_count": 0,
+  "unique_error_signatures": 0,
+  "window_minutes": 15,
+  "threshold": 5
+}

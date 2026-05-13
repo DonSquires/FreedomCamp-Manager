@@ -62,8 +62,10 @@ function isNoise(message: string): boolean {
 // ── Dedup + rate-limit (module-level, survives re-renders) ────────────────────
 
 const _reportedHashes = new Set<string>()
+const _reportedPrimaryErrors = new Map<string, number>()
 let _lastAutoReportMs = 0
 const MIN_INTERVAL_MS = 5 * 60 * 1000 // 5 minutes between auto-reports
+const PRIMARY_ERROR_SUPPRESS_MS = 30 * 60 * 1000 // suppress same root error for 30 minutes
 const CHECK_INTERVAL_MS = 90_000        // check every 90 seconds
 // Delay before the first check: long enough for the initial page render and
 // React hydration to complete so transient startup errors are not captured.
@@ -114,8 +116,17 @@ export function useAutoErrorReporter() {
       )
       if (_reportedHashes.has(errorKey)) return
 
+      // Stronger dedupe: suppress repeated reports for the same leading error
+      // message for a longer window even if surrounding errors vary.
+      const primaryErrorKey = hashString(recent[0].message.slice(0, 180).toLowerCase())
+      const lastPrimaryReportAt = _reportedPrimaryErrors.get(primaryErrorKey)
+      if (typeof lastPrimaryReportAt === 'number' && (now - lastPrimaryReportAt) < PRIMARY_ERROR_SUPPRESS_MS) {
+        return
+      }
+
       // All checks passed — submit the auto-report
       _reportedHashes.add(errorKey)
+      _reportedPrimaryErrors.set(primaryErrorKey, now)
       _lastAutoReportMs = now
 
       try {

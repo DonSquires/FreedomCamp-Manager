@@ -1,6 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3'
 import { withCors, jsonResponse, errorResponse } from '../_shared/withCors.ts'
 import { requireAuth } from '../_shared/requireAuth.ts'
+import { buildAccessibleOrgIds } from '../_shared/orgAccess.ts'
 
 type AskBobRequest = {
   prompt?: string
@@ -259,13 +260,18 @@ Deno.serve(withCors(async (req: Request) => {
 
   const { data: profile } = await supabaseAdmin
     .from('user_profiles')
-    .select('organization_id, extra_organization_ids')
+    .select('role, organization_id, employer_organization_id, extra_organization_ids, authorized_work_locations')
     .eq('id', authResult.user.id)
     .maybeSingle()
 
   const primaryOrgId = String(profile?.organization_id || '').trim() || null
-  const extraOrgIds = parseUuidArray(profile?.extra_organization_ids)
-  const allowedOrgIds = [primaryOrgId, ...extraOrgIds].filter(Boolean) as string[]
+  const allowedOrgIds = Array.from(await buildAccessibleOrgIds(supabaseAdmin as any, {
+    role: String((profile as any)?.role || '').trim(),
+    organization_id: primaryOrgId,
+    employer_organization_id: String((profile as any)?.employer_organization_id || '').trim() || null,
+    extra_organization_ids: parseUuidArray((profile as any)?.extra_organization_ids),
+    authorized_work_locations: parseUuidArray((profile as any)?.authorized_work_locations),
+  }))
 
   const providerOrgId = String(body.organization_id || primaryOrgId || '').trim() || null
   const resolvedOrgId = providerOrgId && allowedOrgIds.includes(providerOrgId)

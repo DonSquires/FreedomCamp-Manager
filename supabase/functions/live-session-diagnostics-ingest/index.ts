@@ -48,6 +48,16 @@ function isActionableConsoleError(entry: unknown): boolean {
     return false
   }
 
+  // React development warnings can be emitted via console.error and should not
+  // be treated as actionable platform failures.
+  if (/^warning:/i.test(message)) {
+    return false
+  }
+
+  if (/encountered two children with the same key/i.test(message)) {
+    return false
+  }
+
   return true
 }
 

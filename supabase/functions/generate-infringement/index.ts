@@ -34,6 +34,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3'
 import { SMTPClient } from 'https://deno.land/x/denomailer@1.0.0/mod.ts'
 import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/withCors.ts'
+import { buildAccessibleOrgIds, orgAccessDenied } from '../_shared/orgAccess.ts'
 
 const PRINT_ARTIFACT_BUCKET = 'notice-artifacts'
 const FUNCTION_BUILD = 'generate-infringement-2026-03-17f'
@@ -330,14 +331,9 @@ Deno.serve(async (req) => {
       )
     }
 
-    const allowedOrganizationIds = new Set<string>([
-      (profile as any).organization_id,
-      (profile as any).employer_organization_id,
-      ...(((profile as any).extra_organization_ids ?? []) as string[]),
-      ...(((profile as any).authorized_work_locations ?? []) as string[]),
-    ].filter((id): id is string => typeof id === 'string' && id.length > 0))
+    const allowedOrganizationIds = await buildAccessibleOrgIds(supabaseAdmin, profile)
 
-    if (profile.role !== 'master' && zoneOrgId && !allowedOrganizationIds.has(zoneOrgId)) {
+    if (profile.role !== 'master' && zoneOrgId && orgAccessDenied(allowedOrganizationIds, zoneOrgId)) {
       return new Response(
         JSON.stringify({ success: false, error: 'Selected zone is outside your organization scope.' }),
         { status: 403, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }

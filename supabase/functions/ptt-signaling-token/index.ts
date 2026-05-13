@@ -25,6 +25,7 @@ import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_share
 // @ts-ignore Deno edge runtime URL import is valid at runtime.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3'
 import { fetchWithRetry } from '../_shared/fetchWithRetry.ts'
+import { collectDirectOrgIds } from '../_shared/orgAccess.ts'
 
 const PTT_SERVER_URL =
   Deno.env.get('PTT_SERVER_URL') ||
@@ -100,27 +101,11 @@ function isProductionRuntime(): boolean {
 
 const PTT_AUTHORIZATION_ERROR = 'Not authorized for this channel. PTT access requires an organization_id or employer_organization_id match.'
 
-function buildAllowedOrgIds(profile: {
-  organization_id?: string | null
-  employer_organization_id?: string | null
-}): Set<string> {
-  const allowed = new Set<string>()
-
-  const add = (value?: string | null) => {
-    if (typeof value === 'string' && value.length > 0) allowed.add(value)
-  }
-
-  add(profile.organization_id)
-  add(profile.employer_organization_id)
-
-  return allowed
-}
-
 function canAccessChannelOrg(profile: {
   organization_id?: string | null
   employer_organization_id?: string | null
 }, channelOrgId: string): boolean {
-  return buildAllowedOrgIds(profile).has(channelOrgId)
+  return collectDirectOrgIds(profile).has(channelOrgId)
 }
 
 function canUseCrossOrgScope(profile: {
@@ -146,12 +131,7 @@ function canUseCrossOrgScope(profile: {
     return true
   }
 
-  const allowedOrgIds = new Set<string>([
-    profile.organization_id,
-    profile.employer_organization_id,
-    ...(Array.isArray(profile.authorized_work_locations) ? profile.authorized_work_locations : []),
-    ...(Array.isArray(profile.extra_organization_ids) ? profile.extra_organization_ids : []),
-  ].filter((id): id is string => typeof id === 'string' && id.length > 0))
+  const allowedOrgIds = collectDirectOrgIds(profile)
 
   return allowedOrgIds.has(targetOrgId)
 }

@@ -145,7 +145,7 @@ jobs:
                   body: JSON.stringify({
                     status: 'resolved',
                     resolved_at: new Date().toISOString(),
-                    resolution_note: `Resolved by PR #${pr.number}: ${pr.title}`,
+                    resolution_notes: `Resolved by PR #${pr.number}: ${pr.title}`,
                   }),
                 }
               )

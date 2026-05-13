@@ -141,7 +141,7 @@ async function fetchExistingOpenTitles(baseUrl, serviceRole) {
   const openTitles = new Set()
   for (const row of res.data) {
     const status = normalizeStatus(row?.status)
-    if (status === 'resolved' || status === 'closed' || status === 'dismissed') continue
+    if (status === 'resolved' || status === 'closed' || status === 'wont_fix' || status === 'duplicate') continue
     const title = String(row?.title || '').trim()
     if (title) openTitles.add(title)
   }
@@ -210,7 +210,7 @@ function hasConnectionRefusedError(report) {
 
 function classifyIssueType(result) {
   if (result === 'completed') return 'enhancement'
-  if (result === 'blocked_auth') return 'infra'
+  if (result === 'blocked_auth') return 'data_issue'
   return 'ui_ux'
 }
 

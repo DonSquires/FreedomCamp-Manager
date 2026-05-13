@@ -622,18 +622,18 @@ For each architecture-impacting change:
 4. If external model review is needed, regenerate docs/OPENAI_REDACTED_REVIEW_PACKET.md.
 5. Attach commit hash and date in this file.
 
-## Doc-Authority Strict Policy Rollout
+## Current Cycle Snapshot (2026-05-13)
 
-This policy controls when DOC_AUTHORITY_STRICT_POLICY should be enabled in CI.
+1. Instruction manual authority has been tightened: `docs/INSTRUCTION_MANUAL.md` is now treated as the normative product contract for intended behavior, not as a passive reflection of implementation drift.
+2. CI policy has been hardened: covered product changes must update `docs/INSTRUCTION_MANUAL.md` in the same change set or fail the doc-authority gate.
+3. The fallback issue workflow remains in place only as drift detection after the fact; it is no longer the primary enforcement mechanism.
 
-1. Stage 1 (default): warning mode only.
-   - Scope: pull requests and routine mainline changes.
-   - Requirement: doc-authority warning appears but does not fail CI.
-2. Stage 2 (guarded strict mode): mainline strict mode for architecture-impacting changes.
-   - Enable by setting repository variable DOC_AUTHORITY_STRICT_POLICY=true.
-   - Apply when release manager confirms canonical doc update discipline is stable for two consecutive cycles.
-3. Stage 3 (operational hardening): strict mode remains enabled for mainline; pull requests stay warning mode unless a dedicated governance gate is introduced.
-   - Requirement: target-state gap register is actively maintained and evidence artifacts are attached to cycle closures.
+## Doc-Authority Policy (Current State)
+
+1. `docs/INSTRUCTION_MANUAL.md` is mandatory for changes affecting routes, pages, role access, permissions, edge functions, migrations, or other user-visible workflow behavior.
+2. `docs/ENTERPRISE_PAIR_REVIEW_CANONICAL.md` remains mandatory for architecture-impacting changes.
+3. CI now treats doc-authority as a blocking gate in the high-memory build workflow for covered changes.
+4. The operating rule is manual-first or manual-with-change-set, never implementation-drift-first.
 
 ## Next Cycle TODO (Closed)
 

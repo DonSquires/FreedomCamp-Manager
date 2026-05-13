@@ -162,6 +162,12 @@ curl -X POST http://localhost:3000/chat \
 
 Build-aware self-healing planning endpoint for bug report automation.
 
+Enterprise contract:
+- Accepts `x-request-id` for trace correlation
+- Accepts `x-idempotency-key` for safe client retries
+- Returns `request_id`, `idempotency`, and `meta` in the response envelope
+- Writes audit entries to `data/self-heal-audit.jsonl`
+
 It returns:
 - Bug classification
 - Reproduction checklist
@@ -174,6 +180,8 @@ It returns:
 curl -X POST http://localhost:3000/self-heal/bug-report \
   -H "Content-Type: application/json" \
   -H "x-inference-api-key: $INFERENCE_API_KEY" \
+  -H "x-request-id: self-heal-demo-001" \
+  -H "x-idempotency-key: self-heal-demo-001" \
   -d '{
     "report": {
       "summary": "Inference endpoint intermittently returns 500 on large uploads",
@@ -191,15 +199,25 @@ Returns loaded knowledge packs used by the self-healing planner:
 - NZ compliance context
 - Structured coding/problem-solving context
 
+Enterprise contract:
+- Dedicated read rate limit via `SELF_HEAL_READ_RATE_LIMIT_RPM`
+- Structured response envelope with `request_id`
+
 ### **POST /self-heal/patch-task**
 
 Generates a machine-readable patch task payload for your auto-fix worker.
+
+Enterprise contract:
+- Dedicated write rate limit via `SELF_HEAL_WRITE_RATE_LIMIT_RPM`
+- Supports `x-idempotency-key` replay protection
+- Structured error codes for automation callers
 
 **Request:**
 ```bash
 curl -X POST http://localhost:3000/self-heal/patch-task \
   -H "Content-Type: application/json" \
   -H "x-inference-api-key: $INFERENCE_API_KEY" \
+  -H "x-idempotency-key: patch-task-demo-001" \
   -d '{
     "report": {
       "summary": "TypeError in patrol sync route",
@@ -573,7 +591,18 @@ ALLOWED_ORIGINS=https://your-project.supabase.co
 
 ### **Rate Limiting**
 
-Add rate limiting middleware (optional):
+Self-heal routes now use dedicated enterprise limits:
+
+```env
+SELF_HEAL_READ_RATE_LIMIT_RPM=60
+SELF_HEAL_WRITE_RATE_LIMIT_RPM=20
+SELF_HEAL_IDEMPOTENCY_TTL_MS=86400000
+SELF_HEAL_IDEMPOTENCY_MAX_ENTRIES=500
+SELF_HEAL_AUDIT_LOG_PATH=./data/self-heal-audit.jsonl
+SELF_HEAL_IDEMPOTENCY_PATH=./data/self-heal-idempotency.json
+```
+
+Generic inference middleware still uses `express-rate-limit`:
 
 ```bash
 npm install express-rate-limit

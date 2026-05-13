@@ -36,6 +36,7 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3';
 import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/withCors.ts';
+import { buildAccessibleOrgIds, orgAccessDenied } from '../_shared/orgAccess.ts';
 import { alprWithBytes } from '../_shared/alpr.ts';
 import { nzHour, toValidBreachType } from '../_shared/compliance.ts';
 
@@ -818,12 +819,7 @@ Deno.serve(async (req: Request) => {
     }
 
     // Build set of authorized organizations from profile
-    const allowedOrganizationIds = new Set<string>([
-      (profile as any).organization_id,
-      (profile as any).employer_organization_id,
-      ...(((profile as any).extra_organization_ids ?? []) as string[]),
-      ...(((profile as any).authorized_work_locations ?? []) as string[]),
-    ].filter((id): id is string => typeof id === 'string' && id.length > 0));
+    const allowedOrganizationIds = await buildAccessibleOrgIds(supabase, profile);
 
     // Verify officer owns this observation, unless explicit admin override is enabled.
     // Reingest uses this override so admin/admin_officer can reprocess historical

@@ -19,6 +19,7 @@ import {
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { toast } from 'sonner'
 import { PaperworkSearchAnimation } from '@/components/features/PaperworkSearchAnimation'
 import { 
@@ -1202,257 +1203,288 @@ export default function UserManagement() {
               Create a user account with a password. The user can sign in immediately.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 overflow-y-auto flex-1 pr-1">
-            <div>
-              <Label htmlFor="email">Email *</Label>
-              <Input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="user@example.com"
-              />
-              {hasEmailInput && !isEmailValid && (
-                <p className="text-xs text-red-500 mt-1">Enter a valid email address (for example user@example.com)</p>
-              )}
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="firstName">First Name *</Label>
-                <Input
-                  id="firstName"
-                  value={firstName}
-                  onChange={(e) => setFirstName(e.target.value)}
-                />
-              </div>
-              <div>
-                <Label htmlFor="lastName">Last Name *</Label>
-                <Input
-                  id="lastName"
-                  value={lastName}
-                  onChange={(e) => setLastName(e.target.value)}
-                />
-              </div>
-            </div>
-            <div>
-              <Label htmlFor="role">Role *</Label>
-              <Select value={role} onValueChange={setRole}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="officer">Officer</SelectItem>
-                  <SelectItem value="nzscv_monitor">NZSCV Monitor</SelectItem>
-                  <SelectItem value="admin_officer">Admin Officer</SelectItem>
-                  <SelectItem value="admin">Admin</SelectItem>
-                  <SelectItem value="client_officer">Client Officer</SelectItem>
-                  <SelectItem value="client_admin">Client Admin</SelectItem>
-                  <SelectItem value="client_viewer">Client Viewer</SelectItem>
-                  {(user?.role === 'master' || user?.role === 'grand_master') && (
-                    <SelectItem value="master">Master</SelectItem>
+          <div className="overflow-y-auto flex-1 pr-1">
+            <Tabs defaultValue="setup" className="space-y-4">
+              <TabsList className="grid w-full grid-cols-4">
+                <TabsTrigger value="setup">User Setup</TabsTrigger>
+                <TabsTrigger value="access">Access</TabsTrigger>
+                <TabsTrigger value="skills">Training & Skills</TabsTrigger>
+                <TabsTrigger value="assets">Assets & HR Files</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="setup" className="space-y-4">
+                <div>
+                  <Label htmlFor="email">Email *</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="user@example.com"
+                  />
+                  {hasEmailInput && !isEmailValid && (
+                    <p className="text-xs text-red-500 mt-1">Enter a valid email address (for example user@example.com)</p>
                   )}
-                  {user?.role === 'grand_master' && (
-                    <SelectItem value="grand_master">Grand Master</SelectItem>
-                  )}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label htmlFor="jobTitle">Job Title</Label>
-              <Select value={jobTitle || 'none'} onValueChange={(v) => {
-                const title = v === 'none' ? '' : v
-                setJobTitle(title)
-                setRequiresDriverLicense(
-                  title === 'Field Services Officer' || title === 'Patrol Officer'
-                )
-              }}>
-                <SelectTrigger id="jobTitle">
-                  <SelectValue placeholder="Select job title (optional)" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">— None —</SelectItem>
-                  <SelectItem value="Rostering Team Admin">Rostering Team Admin</SelectItem>
-                  <SelectItem value="Branch Manager">Branch Manager</SelectItem>
-                  <SelectItem value="Operations Manager">Operations Manager</SelectItem>
-                  <SelectItem value="Sales Team">Sales Team</SelectItem>
-                  <SelectItem value="Dispatch Team">Dispatch Team</SelectItem>
-                  <SelectItem value="Welfare Team">Welfare Team</SelectItem>
-                  <SelectItem value="Supervisor">Supervisor</SelectItem>
-                  <SelectItem value="Field Services Officer">Field Services Officer 🚗</SelectItem>
-                  <SelectItem value="Patrol Officer">Patrol Officer 🚗</SelectItem>
-                  <SelectItem value="Static Guard - Permanent">Static Guard – Permanent</SelectItem>
-                  <SelectItem value="Static Guard - Part-Time">Static Guard – Part-Time</SelectItem>
-                  <SelectItem value="Static Guard - Casual">Static Guard – Casual</SelectItem>
-                  <SelectItem value="Contractor">Contractor</SelectItem>
-                </SelectContent>
-              </Select>
-              {requiresDriverLicense && (
-                <p className="text-xs text-amber-600 mt-1">⚠️ This position requires a valid full NZ driver licence.</p>
-              )}
-            </div>
-            <div>
-              <Label htmlFor="phone">Phone</Label>
-              <Input
-                id="phone"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="+64 21 123 4567"
-              />
-            </div>
-            <div>
-              <Label htmlFor="createOrg">Organisation</Label>
-              <Select
-                value={organizationId || 'none'}
-                onValueChange={(v) => {
-                  const nextOrgId = v === 'none' ? '' : v
-                  setOrganizationId(nextOrgId)
-                  if (nextOrgId) {
-                    setExtraOrganizationIds((prev) => prev.filter((id) => id !== nextOrgId))
-                  }
-                }}
-              >
-                <SelectTrigger id="createOrg">
-                  <SelectValue placeholder="Select organisation" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">No Organisation</SelectItem>
-                  {availableOrgs.map((org) => (
-                    <SelectItem key={org.id} value={org.id}>{org.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Authorised Additional Organisations</Label>
-              <p className="text-xs text-gray-500 mt-1">
-                Select any extra organisations this user can work across.
-              </p>
-              <div className="mt-2 max-h-36 overflow-y-auto rounded-md border divide-y">
-                {availableOrgs.filter((org) => org.id !== organizationId).map((org) => (
-                  <label key={org.id} className="flex items-center gap-2 px-3 py-2 hover:bg-muted/50 cursor-pointer">
-                    <Checkbox
-                      checked={extraOrganizationIds.includes(org.id)}
-                      onCheckedChange={() => toggleExtraOrganization(org.id)}
-                    />
-                    <span className="text-sm text-gray-800">{org.name}</span>
-                  </label>
-                ))}
-                {availableOrgs.filter((org) => org.id !== organizationId).length === 0 && (
-                  <div className="px-3 py-2 text-xs text-gray-500">No additional organisations available.</div>
-                )}
-              </div>
-            </div>
-            <div>
-              <Label htmlFor="createEmployerOrg">Employer Organisation</Label>
-              <Select value={employerOrgId || 'none'} onValueChange={(v) => setEmployerOrgId(v === 'none' ? '' : v)}>
-                <SelectTrigger id="createEmployerOrg">
-                  <SelectValue placeholder="Select employer organisation" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">No Employer Organisation</SelectItem>
-                  {availableOrgs.map((org) => (
-                    <SelectItem key={org.id} value={org.id}>{org.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Portal Area Access (Pre-authorize)</Label>
-              <p className="text-xs text-gray-500 mt-1">
-                Leave empty to use role defaults. Select areas to pre-authorize specific portal routes.
-              </p>
-              <div className="mt-2 max-h-44 overflow-y-auto rounded-md border divide-y">
-                {(Object.keys(PORTAL_AREA_LABELS) as PortalAreaCode[]).map((area) => (
-                  <label key={area} className="flex items-center gap-2 px-3 py-2 hover:bg-muted/50 cursor-pointer">
-                    <Checkbox
-                      checked={portalAccess.includes(area)}
-                      onCheckedChange={() => togglePortalAccess(area)}
-                    />
-                    <span className="text-sm text-gray-800">{PORTAL_AREA_LABELS[area]}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-            <div>
-              <Label>Authorized Work Locations</Label>
-              <p className="text-xs text-gray-500 mt-1">
-                Saved from Organisation + Additional Organisations selections.
-              </p>
-              <div className="mt-2 flex flex-wrap gap-2 rounded-md border p-2 min-h-[2.5rem]">
-                {derivedAuthorizedWorkLocations.length === 0 ? (
-                  <span className="text-xs text-gray-500">No locations selected yet.</span>
-                ) : (
-                  derivedAuthorizedWorkLocations.map((orgId) => {
-                    const orgName = availableOrgs.find((org) => org.id === orgId)?.name || orgId
-                    return (
-                      <Badge key={orgId} variant="outline" className="text-xs">
-                        {orgName}
-                      </Badge>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="firstName">First Name *</Label>
+                    <Input id="firstName" value={firstName} onChange={(e) => setFirstName(e.target.value)} />
+                  </div>
+                  <div>
+                    <Label htmlFor="lastName">Last Name *</Label>
+                    <Input id="lastName" value={lastName} onChange={(e) => setLastName(e.target.value)} />
+                  </div>
+                </div>
+                <div>
+                  <Label htmlFor="role">Role *</Label>
+                  <Select value={role} onValueChange={setRole}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="officer">Officer</SelectItem>
+                      <SelectItem value="nzscv_monitor">NZSCV Monitor</SelectItem>
+                      <SelectItem value="admin_officer">Admin Officer</SelectItem>
+                      <SelectItem value="admin">Admin</SelectItem>
+                      <SelectItem value="client_officer">Client Officer</SelectItem>
+                      <SelectItem value="client_admin">Client Admin</SelectItem>
+                      <SelectItem value="client_viewer">Client Viewer</SelectItem>
+                      {(user?.role === 'master' || user?.role === 'grand_master') && (
+                        <SelectItem value="master">Master</SelectItem>
+                      )}
+                      {user?.role === 'grand_master' && (
+                        <SelectItem value="grand_master">Grand Master</SelectItem>
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="jobTitle">Job Title</Label>
+                  <Select value={jobTitle || 'none'} onValueChange={(v) => {
+                    const title = v === 'none' ? '' : v
+                    setJobTitle(title)
+                    setRequiresDriverLicense(
+                      title === 'Field Services Officer' || title === 'Patrol Officer'
                     )
-                  })
+                  }}>
+                    <SelectTrigger id="jobTitle">
+                      <SelectValue placeholder="Select job title (optional)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">— None —</SelectItem>
+                      <SelectItem value="Rostering Team Admin">Rostering Team Admin</SelectItem>
+                      <SelectItem value="Branch Manager">Branch Manager</SelectItem>
+                      <SelectItem value="Operations Manager">Operations Manager</SelectItem>
+                      <SelectItem value="Sales Team">Sales Team</SelectItem>
+                      <SelectItem value="Dispatch Team">Dispatch Team</SelectItem>
+                      <SelectItem value="Welfare Team">Welfare Team</SelectItem>
+                      <SelectItem value="Supervisor">Supervisor</SelectItem>
+                      <SelectItem value="Field Services Officer">Field Services Officer 🚗</SelectItem>
+                      <SelectItem value="Patrol Officer">Patrol Officer 🚗</SelectItem>
+                      <SelectItem value="Static Guard - Permanent">Static Guard – Permanent</SelectItem>
+                      <SelectItem value="Static Guard - Part-Time">Static Guard – Part-Time</SelectItem>
+                      <SelectItem value="Static Guard - Casual">Static Guard – Casual</SelectItem>
+                      <SelectItem value="Contractor">Contractor</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {requiresDriverLicense && (
+                    <p className="text-xs text-amber-600 mt-1">⚠️ This position requires a valid full NZ driver licence.</p>
+                  )}
+                </div>
+                <div>
+                  <Label htmlFor="phone">Phone</Label>
+                  <Input
+                    id="phone"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    placeholder="+64 21 123 4567"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="createPassword">Password *</Label>
+                    <Input
+                      id="createPassword"
+                      type="password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="Min. 8 characters"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="createConfirmPassword">Confirm Password *</Label>
+                    <Input
+                      id="createConfirmPassword"
+                      type="password"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="Re-enter password"
+                    />
+                  </div>
+                </div>
+                {password && confirmPassword && password !== confirmPassword && (
+                  <p className="text-xs text-red-500">Passwords do not match</p>
                 )}
-              </div>
-            </div>
-            <div>
-              <Label>Explicit PTT Scopes (Optional)</Label>
-              <p className="text-xs text-gray-500 mt-1">
-                Add explicit cross-org/direct scopes now (for example org:&lt;uuid&gt; or direct:&lt;uuid&gt;).
-              </p>
-              <div className="mt-2 flex gap-2">
-                <Input
-                  placeholder="org:&lt;uuid&gt; or direct:&lt;uuid&gt;"
-                  value={createPttScopeInput}
-                  onChange={(e) => setCreatePttScopeInput(e.target.value)}
-                />
-                <Button type="button" variant="outline" onClick={addCreatePttScope}>
-                  <Plus className="h-4 w-4" />
-                </Button>
-              </div>
-              <div className="mt-2 flex flex-wrap gap-2">
-                {createPttScopes.length === 0 ? (
-                  <span className="text-xs text-gray-500">No explicit PTT scopes set.</span>
-                ) : (
-                  createPttScopes.map((scope) => (
-                    <Badge key={scope} variant="outline" className="flex items-center gap-1">
-                      {scope}
-                      <button
-                        type="button"
-                        onClick={() => removeCreatePttScope(scope)}
-                        className="inline-flex items-center"
-                        aria-label={`Remove ${scope}`}
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </Badge>
-                  ))
-                )}
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="createPassword">Password *</Label>
-                <Input
-                  id="createPassword"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Min. 8 characters"
-                />
-              </div>
-              <div>
-                <Label htmlFor="createConfirmPassword">Confirm Password *</Label>
-                <Input
-                  id="createConfirmPassword"
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="Re-enter password"
-                />
-              </div>
-            </div>
-            {password && confirmPassword && password !== confirmPassword && (
-              <p className="text-xs text-red-500">Passwords do not match</p>
-            )}
+              </TabsContent>
+
+              <TabsContent value="access" className="space-y-4">
+                <div>
+                  <Label htmlFor="createOrg">Organisation</Label>
+                  <Select
+                    value={organizationId || 'none'}
+                    onValueChange={(v) => {
+                      const nextOrgId = v === 'none' ? '' : v
+                      setOrganizationId(nextOrgId)
+                      if (nextOrgId) {
+                        setExtraOrganizationIds((prev) => prev.filter((id) => id !== nextOrgId))
+                      }
+                    }}
+                  >
+                    <SelectTrigger id="createOrg">
+                      <SelectValue placeholder="Select organisation" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No Organisation</SelectItem>
+                      {availableOrgs.map((org) => (
+                        <SelectItem key={org.id} value={org.id}>{org.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Authorised Additional Organisations</Label>
+                  <p className="text-xs text-gray-500 mt-1">Select any extra organisations this user can work across.</p>
+                  <div className="mt-2 max-h-36 overflow-y-auto rounded-md border divide-y">
+                    {availableOrgs.filter((org) => org.id !== organizationId).map((org) => (
+                      <label key={org.id} className="flex items-center gap-2 px-3 py-2 hover:bg-muted/50 cursor-pointer">
+                        <Checkbox
+                          checked={extraOrganizationIds.includes(org.id)}
+                          onCheckedChange={() => toggleExtraOrganization(org.id)}
+                        />
+                        <span className="text-sm text-gray-800">{org.name}</span>
+                      </label>
+                    ))}
+                    {availableOrgs.filter((org) => org.id !== organizationId).length === 0 && (
+                      <div className="px-3 py-2 text-xs text-gray-500">No additional organisations available.</div>
+                    )}
+                  </div>
+                </div>
+                <div>
+                  <Label htmlFor="createEmployerOrg">Employer Organisation</Label>
+                  <Select value={employerOrgId || 'none'} onValueChange={(v) => setEmployerOrgId(v === 'none' ? '' : v)}>
+                    <SelectTrigger id="createEmployerOrg">
+                      <SelectValue placeholder="Select employer organisation" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No Employer Organisation</SelectItem>
+                      {availableOrgs.map((org) => (
+                        <SelectItem key={org.id} value={org.id}>{org.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Portal Area Access (Pre-authorize)</Label>
+                  <p className="text-xs text-gray-500 mt-1">Leave empty to use role defaults. Select areas to pre-authorize specific portal routes.</p>
+                  <div className="mt-2 max-h-44 overflow-y-auto rounded-md border divide-y">
+                    {(Object.keys(PORTAL_AREA_LABELS) as PortalAreaCode[]).map((area) => (
+                      <label key={area} className="flex items-center gap-2 px-3 py-2 hover:bg-muted/50 cursor-pointer">
+                        <Checkbox
+                          checked={portalAccess.includes(area)}
+                          onCheckedChange={() => togglePortalAccess(area)}
+                        />
+                        <span className="text-sm text-gray-800">{PORTAL_AREA_LABELS[area]}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <Label>Authorized Work Locations</Label>
+                  <p className="text-xs text-gray-500 mt-1">Saved from Organisation + Additional Organisations selections.</p>
+                  <div className="mt-2 flex flex-wrap gap-2 rounded-md border p-2 min-h-[2.5rem]">
+                    {derivedAuthorizedWorkLocations.length === 0 ? (
+                      <span className="text-xs text-gray-500">No locations selected yet.</span>
+                    ) : (
+                      derivedAuthorizedWorkLocations.map((orgId) => {
+                        const orgName = availableOrgs.find((org) => org.id === orgId)?.name || orgId
+                        return (
+                          <Badge key={orgId} variant="outline" className="text-xs">
+                            {orgName}
+                          </Badge>
+                        )
+                      })
+                    )}
+                  </div>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="skills" className="space-y-3">
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base">Training and Skills</CardTitle>
+                    <CardDescription>Use the dedicated skills module to manage licences, expiries, reminders, and competency records.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="pt-0">
+                    <Button type="button" variant="outline" onClick={() => navigate('/officer-skills')}>
+                      Open Officer Skills Module
+                    </Button>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="assets" className="space-y-3">
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base">Assets and HR Files</CardTitle>
+                    <CardDescription>
+                      Equipment allocation is tracked in Asset Management. Employment/credential files are managed from the user credentials workflow after user creation.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="pt-0 flex gap-2 flex-wrap">
+                    <Button type="button" variant="outline" onClick={() => navigate('/assets')}>
+                      Open Asset Management
+                    </Button>
+                    <Button type="button" variant="outline" onClick={() => navigate('/users')}>
+                      Manage Credentials and Files
+                    </Button>
+                  </CardContent>
+                </Card>
+                <div>
+                  <Label>Explicit PTT Scopes (Optional)</Label>
+                  <p className="text-xs text-gray-500 mt-1">Add explicit cross-org/direct scopes now (for example org:&lt;uuid&gt; or direct:&lt;uuid&gt;).</p>
+                  <div className="mt-2 flex gap-2">
+                    <Input
+                      placeholder="org:&lt;uuid&gt; or direct:&lt;uuid&gt;"
+                      value={createPttScopeInput}
+                      onChange={(e) => setCreatePttScopeInput(e.target.value)}
+                    />
+                    <Button type="button" variant="outline" onClick={addCreatePttScope}>
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {createPttScopes.length === 0 ? (
+                      <span className="text-xs text-gray-500">No explicit PTT scopes set.</span>
+                    ) : (
+                      createPttScopes.map((scope) => (
+                        <Badge key={scope} variant="outline" className="flex items-center gap-1">
+                          {scope}
+                          <button
+                            type="button"
+                            onClick={() => removeCreatePttScope(scope)}
+                            className="inline-flex items-center"
+                            aria-label={`Remove ${scope}`}
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </Badge>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </TabsContent>
+            </Tabs>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowCreateDialog(false)}>

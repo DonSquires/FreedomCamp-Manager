@@ -4,6 +4,41 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
+MONITOR_VERSION="2026-05-13.enterprise.v1"
+MONITOR_LOCK_DIR="${BOB_MONITOR_LOCK_DIR:-tmp/locks/monitor-bob.lock}"
+MONITOR_HEARTBEAT_FILE="${BOB_MONITOR_HEARTBEAT_FILE:-data/monitor-heartbeat.json}"
+MONITOR_ERROR_REGEX="${BOB_MONITOR_ERROR_REGEX:-(^|[^0-9])500([^0-9]|$)|status=500|HTTP 500|Internal Server Error}"
+MONITOR_LOG_LINES="${BOB_MONITOR_LOG_LINES:-500}"
+
+acquire_lock() {
+  mkdir -p "$(dirname "$MONITOR_LOCK_DIR")"
+  if mkdir "$MONITOR_LOCK_DIR" 2>/dev/null; then
+    echo "$$" > "$MONITOR_LOCK_DIR/pid"
+    trap 'rm -rf "$MONITOR_LOCK_DIR"' EXIT
+    return 0
+  fi
+
+  local existing_pid=""
+  if [[ -f "$MONITOR_LOCK_DIR/pid" ]]; then
+    existing_pid="$(cat "$MONITOR_LOCK_DIR/pid" 2>/dev/null || true)"
+  fi
+
+  if [[ -n "$existing_pid" ]] && kill -0 "$existing_pid" 2>/dev/null; then
+    echo "Bob monitor: another monitor run is active (pid=$existing_pid); skipping this cycle."
+    exit 0
+  fi
+
+  rm -rf "$MONITOR_LOCK_DIR" 2>/dev/null || true
+  mkdir "$MONITOR_LOCK_DIR" 2>/dev/null || {
+    echo "Bob monitor: failed to acquire lock after stale cleanup"
+    exit 3
+  }
+  echo "$$" > "$MONITOR_LOCK_DIR/pid"
+  trap 'rm -rf "$MONITOR_LOCK_DIR"' EXIT
+}
+
+acquire_lock
+
 # Guard: this script is for VPS/production monitoring only.
 # In CI environments (e.g. GitHub Actions) journalctl contains runner system
 # logs that produce false-positive 500-error matches unrelated to the
@@ -48,7 +83,7 @@ trap cleanup EXIT
 
 collect_logs() {
   if command -v pm2 >/dev/null 2>&1; then
-    pm2 logs --nostream --lines 500 2>/dev/null || true
+    pm2 logs --nostream --lines "$MONITOR_LOG_LINES" 2>/dev/null || true
   fi
 
   if command -v journalctl >/dev/null 2>&1; then
@@ -56,23 +91,25 @@ collect_logs() {
   fi
 
   if [[ -f /var/log/syslog ]]; then
-    tail -n 1000 /var/log/syslog 2>/dev/null || true
+    tail -n "$((MONITOR_LOG_LINES * 2))" /var/log/syslog 2>/dev/null || true
   fi
 }
 
 collect_logs > "$TMP_INPUT"
 
-ERROR_COUNT="$({ grep -Eic '(^|[^0-9])500([^0-9]|$)|status=500|HTTP 500|Internal Server Error' "$TMP_INPUT"; } || true)"
+ERROR_COUNT="$({ grep -Eic "$MONITOR_ERROR_REGEX" "$TMP_INPUT"; } || true)"
+UNIQUE_ERROR_COUNT="$({ grep -Ei "$MONITOR_ERROR_REGEX" "$TMP_INPUT" | sed 's/[[:space:]]\+/ /g' | cut -c1-220 | sort -u | wc -l; } || true)"
 
 if [[ ! -f system_state.json ]]; then
   bash scripts/system-check.sh
 fi
 
-node - "$ROOT_DIR/system_state.json" "$ERROR_COUNT" "$ERROR_THRESHOLD" "$WINDOW_MINUTES" <<'EOF_NODE'
+node - "$ROOT_DIR/system_state.json" "$ERROR_COUNT" "$UNIQUE_ERROR_COUNT" "$ERROR_THRESHOLD" "$WINDOW_MINUTES" "$MONITOR_VERSION" <<'EOF_NODE'
 const fs = require('fs');
 
-const [filePath, errorCountRaw, thresholdRaw, windowMinutesRaw] = process.argv.slice(2);
+const [filePath, errorCountRaw, uniqueErrorCountRaw, thresholdRaw, windowMinutesRaw, monitorVersion] = process.argv.slice(2);
 const errorCount = Number(errorCountRaw || '0');
+const uniqueErrorCount = Number(uniqueErrorCountRaw || '0');
 const threshold = Number(thresholdRaw || '5');
 const windowMinutes = Number(windowMinutesRaw || '15');
 
@@ -82,9 +119,11 @@ const state = JSON.parse(raw);
 state.monitor = {
   ...(state.monitor || {}),
   checked_at: new Date().toISOString(),
+  monitor_version: monitorVersion || 'unknown',
   window_minutes: windowMinutes,
   error_threshold: threshold,
   recent_500_errors: errorCount,
+  unique_500_error_signatures: uniqueErrorCount,
 };
 
 // Non-CI monitor runs should not keep a stale CI skip note.
@@ -101,8 +140,24 @@ if (errorCount >= threshold) {
 fs.writeFileSync(filePath, `${JSON.stringify(state, null, 2)}\n`);
 EOF_NODE
 
+mkdir -p "$(dirname "$MONITOR_HEARTBEAT_FILE")"
+node - "$MONITOR_HEARTBEAT_FILE" "$ERROR_COUNT" "$UNIQUE_ERROR_COUNT" "$WINDOW_MINUTES" "$ERROR_THRESHOLD" "$MONITOR_VERSION" <<'EOF_HEARTBEAT'
+const fs = require('fs');
+
+const [filePath, errorCountRaw, uniqueErrorCountRaw, windowMinutesRaw, thresholdRaw, monitorVersion] = process.argv.slice(2);
+const payload = {
+  checked_at: new Date().toISOString(),
+  monitor_version: monitorVersion,
+  error_count: Number(errorCountRaw || '0'),
+  unique_error_signatures: Number(uniqueErrorCountRaw || '0'),
+  window_minutes: Number(windowMinutesRaw || '15'),
+  threshold: Number(thresholdRaw || '5'),
+};
+fs.writeFileSync(filePath, `${JSON.stringify(payload, null, 2)}\n`);
+EOF_HEARTBEAT
+
 if [[ "$LIVE_DIAG_SELF_HEAL_ENABLED" == "true" ]]; then
-  node scripts/self-heal-live-session-diagnostics.mjs --window-minutes "$LIVE_DIAG_WINDOW_MINUTES" || true
+  node scripts/self-heal-live-session-diagnostics.mjs --window-minutes "$LIVE_DIAG_WINDOW_MINUTES" --retries "${LIVE_DIAG_HTTP_RETRIES:-2}" --timeout-ms "${LIVE_DIAG_HTTP_TIMEOUT_MS:-12000}" || true
 
   if [[ -f "$LIVE_DIAG_SUMMARY_FILE" ]]; then
     node - "$ROOT_DIR/system_state.json" "$LIVE_DIAG_SUMMARY_FILE" <<'EOF_LIVE_DIAG'
@@ -138,17 +193,19 @@ EOF_LIVE_DIAG
   fi
 fi
 
-echo "Bob monitor checked logs: ${ERROR_COUNT} server-side 500 errors in last ${WINDOW_MINUTES} minutes"
+echo "Bob monitor checked logs: ${ERROR_COUNT} server-side 500 errors (${UNIQUE_ERROR_COUNT} unique signatures) in last ${WINDOW_MINUTES} minutes"
 
 if [[ "${ESCALATE_TO_DR_BOB}" == "true" && "$ERROR_COUNT" -ge "$ERROR_THRESHOLD" ]]; then
   mkdir -p "$(dirname "$INCIDENT_FILE")"
-  LAST_ERRORS="$({ grep -Ei '(^|[^0-9])500([^0-9]|$)|status=500|HTTP 500|Internal Server Error' "$TMP_INPUT" | tail -n 40; } || true)"
+  LAST_ERRORS="$({ grep -Ei "$MONITOR_ERROR_REGEX" "$TMP_INPUT" | tail -n 40; } || true)"
 
   cat > "$INCIDENT_FILE" <<EOF_INCIDENT
 # Live Bob Monitor Incident
 
 - Detected at: $(date -u '+%Y-%m-%dT%H:%M:%SZ')
+- Monitor version: ${MONITOR_VERSION}
 - Error count: ${ERROR_COUNT}
+- Unique signatures: ${UNIQUE_ERROR_COUNT}
 - Window minutes: ${WINDOW_MINUTES}
 - Threshold: ${ERROR_THRESHOLD}
 - Source: scripts/monitor-bob.sh

@@ -1,5 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3'
 import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/withCors.ts'
+import { buildAccessibleOrgIds, orgAccessDenied } from '../_shared/orgAccess.ts'
 import { generateNoticeHtml, NZ_DEFAULT_SUMMARY_OF_RIGHTS } from '../_shared/infringement-notice.ts'
 
 const PRINT_ARTIFACT_BUCKET = 'notice-artifacts'
@@ -145,14 +146,9 @@ Deno.serve(async (req) => {
       notice = noticeWithArtifact
     }
 
-    const allowedOrganizationIds = new Set<string>([
-      (profile as any).organization_id,
-      (profile as any).employer_organization_id,
-      ...(((profile as any).extra_organization_ids ?? []) as string[]),
-      ...(((profile as any).authorized_work_locations ?? []) as string[]),
-    ].filter((id): id is string => typeof id === 'string' && id.length > 0))
+    const allowedOrganizationIds = await buildAccessibleOrgIds(supabaseAdmin, profile)
 
-    if (profile.role !== 'master' && !allowedOrganizationIds.has(notice.organization_id as string)) {
+    if (profile.role !== 'master' && orgAccessDenied(allowedOrganizationIds, notice.organization_id as string)) {
       return new Response(JSON.stringify({ success: false, error: 'Forbidden' }), {
         status: 403,
         headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' },

@@ -23,6 +23,7 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3'
 import { withCors, getCorsHeaders } from '../_shared/withCors.ts'
+import { collectDirectOrgIds } from '../_shared/orgAccess.ts'
 
 const INFERENCE_SERVICE_URL = (Deno.env.get('INFERENCE_SERVICE_URL') || '').replace(/\/$/, '')
 const INFERENCE_API_KEY =
@@ -238,12 +239,7 @@ Deno.serve(withCors(async (req: Request) => {
     .eq('id', user.id)
     .single()
 
-  const allowedOrganizationIds = new Set<string>([
-    (profile as any)?.organization_id,
-    (profile as any)?.employer_organization_id,
-    ...((((profile as any)?.extra_organization_ids) ?? []) as string[]),
-    ...((((profile as any)?.authorized_work_locations) ?? []) as string[]),
-  ].filter((id): id is string => typeof id === 'string' && id.length > 0))
+  const allowedOrganizationIds = collectDirectOrgIds(profile as any)
 
   if (!profile || (profile.role !== 'master' && !allowedOrganizationIds.has(doc.organization_id as string))) {
     return json({ error: 'Forbidden' }, 403)

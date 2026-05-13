@@ -27,7 +27,7 @@ async function main() {
     process.exit(1)
   }
 
-  const url = `${supabaseUrl}/rest/v1/bug_reports?select=id,title,severity,status,created_at,issue_type,current_page,app_version&status=neq.resolved&order=created_at.desc&limit=${Number.isFinite(limit) ? limit : 20}`
+  const url = `${supabaseUrl}/rest/v1/bug_reports?select=id,title,severity,status,created_at,issue_type,current_page,app_version&status=not.in.(resolved,closed,wont_fix,duplicate)&order=created_at.desc&limit=${Number.isFinite(limit) ? limit : 20}`
 
   const response = await fetch(url, {
     headers: {

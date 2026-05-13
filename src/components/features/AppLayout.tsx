@@ -661,12 +661,12 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
   return (
     <nav className="space-y-2">
       {/* Pinned items */}
-      {visiblePinned.map((item) => {
+      {visiblePinned.map((item, idx) => {
         const Icon = item.icon
         const isActive = location.pathname === item.path
         return (
           <Link
-            key={`pinned:${item.path}`}
+            key={`pinned:${item.path}:${item.label}:${idx}`}
             to={item.path}
             onClick={onClick}
             className={cn(
@@ -727,12 +727,12 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
 
             {isOpen && (
               <div className="ml-4 mt-1 space-y-1 border-l border-gray-200 dark:border-[#9E9E9E]/20 pl-3">
-                {visibleItems.map((item) => {
+                {visibleItems.map((item, idx) => {
                   const Icon = item.icon
                   const isActive = location.pathname === item.path
                   return (
                     <Link
-                      key={`group:${group.label}:${item.path}`}
+                      key={`group:${group.label}:${item.path}:${item.label}:${idx}`}
                       to={item.path}
                       onClick={onClick}
                       className={cn(

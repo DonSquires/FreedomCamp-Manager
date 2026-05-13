@@ -451,6 +451,204 @@ const faceRateLimit = rateLimit({
   message:          { error: 'Too many face detection requests — please slow down' },
 });
 
+const selfHealReadRateLimit = rateLimit({
+  windowMs:        60 * 1000,
+  max:             Number(process.env.SELF_HEAL_READ_RATE_LIMIT_RPM ?? 60),
+  standardHeaders: true,
+  legacyHeaders:   false,
+  message:         { error: 'Too many self-heal read requests — please slow down' },
+});
+
+const selfHealWriteRateLimit = rateLimit({
+  windowMs:        60 * 1000,
+  max:             Number(process.env.SELF_HEAL_WRITE_RATE_LIMIT_RPM ?? 20),
+  standardHeaders: true,
+  legacyHeaders:   false,
+  message:         { error: 'Too many self-heal write requests — please slow down' },
+});
+
+const SELF_HEAL_AUDIT_LOG_PATH = process.env.SELF_HEAL_AUDIT_LOG_PATH || path.join(__dirname, 'data', 'self-heal-audit.jsonl');
+const SELF_HEAL_IDEMPOTENCY_PATH = process.env.SELF_HEAL_IDEMPOTENCY_PATH || path.join(__dirname, 'data', 'self-heal-idempotency.json');
+const SELF_HEAL_IDEMPOTENCY_TTL_MS = Number(process.env.SELF_HEAL_IDEMPOTENCY_TTL_MS || (24 * 60 * 60 * 1000));
+const SELF_HEAL_IDEMPOTENCY_MAX_ENTRIES = Number(process.env.SELF_HEAL_IDEMPOTENCY_MAX_ENTRIES || 500);
+
+function ensureParentDir(filePath) {
+  const dir = path.dirname(filePath);
+  fs.mkdirSync(dir, { recursive: true });
+}
+
+function appendJsonlLine(filePath, payload) {
+  ensureParentDir(filePath);
+  fs.appendFileSync(filePath, `${JSON.stringify(payload)}\n`);
+}
+
+function readSelfHealIdempotencyStore() {
+  try {
+    if (!fs.existsSync(SELF_HEAL_IDEMPOTENCY_PATH)) return { version: 1, entries: [] };
+    const parsed = JSON.parse(fs.readFileSync(SELF_HEAL_IDEMPOTENCY_PATH, 'utf8'));
+    if (!parsed || !Array.isArray(parsed.entries)) return { version: 1, entries: [] };
+    return parsed;
+  } catch {
+    return { version: 1, entries: [] };
+  }
+}
+
+function writeSelfHealIdempotencyStore(state) {
+  ensureParentDir(SELF_HEAL_IDEMPOTENCY_PATH);
+  const cutoff = Date.now() - SELF_HEAL_IDEMPOTENCY_TTL_MS;
+  const entries = Array.isArray(state?.entries)
+    ? state.entries.filter((entry) => Number(entry?.created_at_ms || 0) >= cutoff).slice(-SELF_HEAL_IDEMPOTENCY_MAX_ENTRIES)
+    : [];
+  const tmp = `${SELF_HEAL_IDEMPOTENCY_PATH}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify({ version: 1, entries }, null, 2));
+  fs.renameSync(tmp, SELF_HEAL_IDEMPOTENCY_PATH);
+}
+
+function getSelfHealRequestId(req) {
+  const headerValue = String(req.get('x-request-id') || req.get('x-correlation-id') || '').trim();
+  if (headerValue) return headerValue.slice(0, 120);
+  return `shr_${randomUUID()}`;
+}
+
+function buildSelfHealRequestFingerprint(req) {
+  const payload = req.body && typeof req.body === 'object' ? req.body : {};
+  return createHash('sha256')
+    .update(JSON.stringify({ method: req.method, path: req.path, payload }))
+    .digest('hex');
+}
+
+function attachSelfHealRequestContext(req, _res, next) {
+  req.selfHealContext = {
+    requestId: getSelfHealRequestId(req),
+    startedAtMs: Date.now(),
+    idempotencyKey: String(req.get('x-idempotency-key') || '').trim().slice(0, 180) || null,
+    fingerprint: buildSelfHealRequestFingerprint(req),
+  };
+  return next();
+}
+
+function buildSelfHealEnvelope(req, payload) {
+  const ctx = req.selfHealContext || {};
+  return {
+    ...payload,
+    request_id: ctx.requestId || null,
+    idempotency: {
+      key: ctx.idempotencyKey || null,
+      replayed: false,
+    },
+    meta: {
+      auth_method: req.inferenceAuth?.method || null,
+      duration_ms: typeof ctx.startedAtMs === 'number' ? Date.now() - ctx.startedAtMs : null,
+    },
+  };
+}
+
+function appendSelfHealAuditEntry(req, statusCode, outcome, extra = {}) {
+  const ctx = req.selfHealContext || {};
+  appendJsonlLine(SELF_HEAL_AUDIT_LOG_PATH, {
+    at: new Date().toISOString(),
+    request_id: ctx.requestId || null,
+    path: req.path,
+    method: req.method,
+    status_code: statusCode,
+    outcome,
+    auth_method: req.inferenceAuth?.method || null,
+    idempotency_key: ctx.idempotencyKey || null,
+    duration_ms: typeof ctx.startedAtMs === 'number' ? Date.now() - ctx.startedAtMs : null,
+    ...extra,
+  });
+}
+
+function maybeReplaySelfHealIdempotentResponse(req, res) {
+  const ctx = req.selfHealContext || {};
+  if (!ctx.idempotencyKey) return false;
+
+  const store = readSelfHealIdempotencyStore();
+  const conflicting = store.entries.find((entry) =>
+    entry.idempotency_key === ctx.idempotencyKey
+    && entry.path === req.path
+    && entry.fingerprint !== ctx.fingerprint
+  );
+  if (conflicting) {
+    appendSelfHealAuditEntry(req, 409, 'idempotency_conflict', { conflicting_request_path: req.path });
+    sendSelfHealError(
+      req,
+      res,
+      409,
+      'IDEMPOTENCY_KEY_REUSED',
+      'The supplied x-idempotency-key was already used with a different request payload.'
+    );
+    return true;
+  }
+
+  const match = store.entries.find((entry) =>
+    entry.idempotency_key === ctx.idempotencyKey
+    && entry.path === req.path
+    && entry.fingerprint === ctx.fingerprint
+  );
+
+  if (!match || !match.response || typeof match.status_code !== 'number') {
+    return false;
+  }
+
+  const replayBody = {
+    ...match.response,
+    request_id: ctx.requestId || match.response.request_id || null,
+    idempotency: {
+      key: ctx.idempotencyKey,
+      replayed: true,
+      original_request_id: match.response.request_id || null,
+    },
+    meta: {
+      ...(match.response.meta || {}),
+      replayed_at: new Date().toISOString(),
+    },
+  };
+
+  appendSelfHealAuditEntry(req, match.status_code, 'replayed', { replay_of_request_id: match.response.request_id || null });
+  res.set('x-self-heal-replayed', 'true');
+  res.set('x-request-id', ctx.requestId || '');
+  res.status(match.status_code).json(replayBody);
+  return true;
+}
+
+function persistSelfHealIdempotentResponse(req, statusCode, responseBody) {
+  const ctx = req.selfHealContext || {};
+  if (!ctx.idempotencyKey) return;
+
+  const store = readSelfHealIdempotencyStore();
+  store.entries.push({
+    idempotency_key: ctx.idempotencyKey,
+    fingerprint: ctx.fingerprint,
+    path: req.path,
+    created_at_ms: Date.now(),
+    status_code: statusCode,
+    response: responseBody,
+  });
+  writeSelfHealIdempotencyStore(store);
+}
+
+function sendSelfHealSuccess(req, res, payload, options = {}) {
+  const statusCode = Number(options.statusCode || 200);
+  const responseBody = buildSelfHealEnvelope(req, payload);
+  persistSelfHealIdempotentResponse(req, statusCode, responseBody);
+  appendSelfHealAuditEntry(req, statusCode, 'success', { response_success: Boolean(responseBody.success) });
+  res.set('x-request-id', responseBody.request_id || '');
+  return res.status(statusCode).json(responseBody);
+}
+
+function sendSelfHealError(req, res, statusCode, code, message, details) {
+  const responseBody = buildSelfHealEnvelope(req, {
+    success: false,
+    error: message,
+    code,
+    details: details || undefined,
+  });
+  appendSelfHealAuditEntry(req, statusCode, 'error', { code, details: details || null });
+  res.set('x-request-id', responseBody.request_id || '');
+  return res.status(statusCode).json(responseBody);
+}
+
 function normalizeProvider(value, fallback) {
   const provider = String(value || fallback || '').toLowerCase().trim();
   if (provider === 'chatgpt') return 'openai';
@@ -1895,8 +2093,14 @@ async function requireInferenceAuth(req, res, next) {
       return next();
     }
 
+    if (req.path && req.path.startsWith('/self-heal/')) {
+      return sendSelfHealError(req, res, 401, 'UNAUTHORIZED_INFERENCE_REQUEST', 'Unauthorized inference request');
+    }
     return res.status(401).json({ error: 'Unauthorized inference request' });
   } catch (error) {
+    if (req.path && req.path.startsWith('/self-heal/')) {
+      return sendSelfHealError(req, res, 401, 'UNAUTHORIZED_INFERENCE_REQUEST', 'Unauthorized inference request', error.message);
+    }
     return res.status(401).json({ error: 'Unauthorized inference request', details: error.message });
   }
 }
@@ -4136,19 +4340,21 @@ app.post('/tender/train', inferenceRateLimit, requireInferenceAuth, async (req, 
   }
 });
 
-app.post('/self-heal/bug-report', inferenceRateLimit, requireInferenceAuth, async (req, res) => {
+app.post('/self-heal/bug-report', selfHealWriteRateLimit, attachSelfHealRequestContext, requireInferenceAuth, async (req, res) => {
   try {
+    if (maybeReplaySelfHealIdempotentResponse(req, res)) return;
+
     if (!SELF_HEALING_ENABLED) {
-      return res.status(503).json({ error: 'Self-healing assistant is disabled' });
+      return sendSelfHealError(req, res, 503, 'SELF_HEAL_DISABLED', 'Self-healing assistant is disabled');
     }
 
     const report = req.body?.report;
     if (!report || typeof report !== 'object') {
-      return res.status(400).json({ error: 'report object is required' });
+      return sendSelfHealError(req, res, 400, 'INVALID_REPORT', 'report object is required');
     }
 
     if (typeof report.summary !== 'string' || !report.summary.trim()) {
-      return res.status(400).json({ error: 'report.summary must be a non-empty string' });
+      return sendSelfHealError(req, res, 400, 'INVALID_REPORT_SUMMARY', 'report.summary must be a non-empty string');
     }
 
     // Build the heuristic plan first — used as fallback and to populate bug_type/summary.
@@ -4240,7 +4446,7 @@ app.post('/self-heal/bug-report', inferenceRateLimit, requireInferenceAuth, asyn
                 analysis_provider: 'ollama',
               };
 
-              return res.json({
+              return sendSelfHealSuccess(req, res, {
                 success: true,
                 self_healing_enabled: true,
                 plan: enhancedPlan,
@@ -4258,30 +4464,31 @@ app.post('/self-heal/bug-report', inferenceRateLimit, requireInferenceAuth, asyn
       }
     }
 
-    return res.json({
+    return sendSelfHealSuccess(req, res, {
       success: true,
       self_healing_enabled: true,
       plan: { ...heuristicPlan, analysis_provider: 'heuristic' },
     });
   } catch (error) {
     console.error('Self-heal endpoint error:', error);
-    return res.status(500).json({ error: 'Self-heal planning failed', message: error.message });
+    return sendSelfHealError(req, res, 500, 'SELF_HEAL_PLAN_FAILED', 'Self-heal planning failed', error.message);
   }
 });
 
-app.get('/self-heal/knowledge', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true, legacyHeaders: false }), requireInferenceAuth, (req, res) => {
-  return res.json({
+app.get('/self-heal/knowledge', selfHealReadRateLimit, attachSelfHealRequestContext, requireInferenceAuth, (req, res) => {
+  return sendSelfHealSuccess(req, res, {
     success: true,
     self_healing_enabled: SELF_HEALING_ENABLED,
     knowledge: getKnowledgePacks(),
   });
 });
 
-app.post('/self-heal/knowledge', inferenceRateLimit, requireInferenceAuth, (req, res) => {
+app.post('/self-heal/knowledge', selfHealWriteRateLimit, attachSelfHealRequestContext, requireInferenceAuth, (req, res) => {
   try {
+    if (maybeReplaySelfHealIdempotentResponse(req, res)) return;
     const payload = req.body && typeof req.body === 'object' ? req.body : {};
     const result = updateKnowledgePacks(payload);
-    return res.json({
+    return sendSelfHealSuccess(req, res, {
       success: true,
       self_healing_enabled: SELF_HEALING_ENABLED,
       ...result,
@@ -4289,19 +4496,21 @@ app.post('/self-heal/knowledge', inferenceRateLimit, requireInferenceAuth, (req,
     });
   } catch (error) {
     console.error('Self-heal knowledge update error:', error);
-    return res.status(500).json({ error: 'Knowledge update failed', message: error.message });
+    return sendSelfHealError(req, res, 500, 'SELF_HEAL_KNOWLEDGE_UPDATE_FAILED', 'Knowledge update failed', error.message);
   }
 });
 
-app.post('/self-heal/patch-task', inferenceRateLimit, requireInferenceAuth, async (req, res) => {
+app.post('/self-heal/patch-task', selfHealWriteRateLimit, attachSelfHealRequestContext, requireInferenceAuth, async (req, res) => {
   try {
+    if (maybeReplaySelfHealIdempotentResponse(req, res)) return;
+
     if (!SELF_HEALING_ENABLED) {
-      return res.status(503).json({ error: 'Self-healing assistant is disabled' });
+      return sendSelfHealError(req, res, 503, 'SELF_HEAL_DISABLED', 'Self-healing assistant is disabled');
     }
 
     const report = req.body?.report;
     if (!report || typeof report !== 'object' || !String(report.summary || '').trim()) {
-      return res.status(400).json({ error: 'report with non-empty summary is required' });
+      return sendSelfHealError(req, res, 400, 'INVALID_REPORT', 'report with non-empty summary is required');
     }
 
     const plan = req.body?.plan && typeof req.body.plan === 'object'
@@ -4310,19 +4519,19 @@ app.post('/self-heal/patch-task', inferenceRateLimit, requireInferenceAuth, asyn
 
     const patchTask = buildPatchTask(report, plan);
 
-    return res.json({
+    return sendSelfHealSuccess(req, res, {
       success: true,
       patch_task: patchTask,
     });
   } catch (error) {
     console.error('Patch task endpoint error:', error);
-    return res.status(500).json({ error: 'Patch task generation failed', message: error.message });
+    return sendSelfHealError(req, res, 500, 'SELF_HEAL_PATCH_TASK_FAILED', 'Patch task generation failed', error.message);
   }
 });
 
-app.get('/self-heal/computer-use/readiness', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true, legacyHeaders: false }), requireInferenceAuth, (req, res) => {
+app.get('/self-heal/computer-use/readiness', selfHealReadRateLimit, attachSelfHealRequestContext, requireInferenceAuth, (req, res) => {
   try {
-    return res.json({
+    return sendSelfHealSuccess(req, res, {
       success: true,
       self_healing_enabled: SELF_HEALING_ENABLED,
       readiness: getComputerUseReadinessSummary(),
@@ -4334,21 +4543,23 @@ app.get('/self-heal/computer-use/readiness', rateLimit({ windowMs: 60_000, max: 
       ],
     });
   } catch (error) {
-    return res.status(500).json({ error: 'Computer-use readiness check failed', message: error.message });
+    return sendSelfHealError(req, res, 500, 'SELF_HEAL_COMPUTER_USE_READINESS_FAILED', 'Computer-use readiness check failed', error.message);
   }
 });
 
-app.post('/self-heal/computer-use/preflight', inferenceRateLimit, requireInferenceAuth, async (req, res) => {
+app.post('/self-heal/computer-use/preflight', selfHealWriteRateLimit, attachSelfHealRequestContext, requireInferenceAuth, async (req, res) => {
   try {
+    if (maybeReplaySelfHealIdempotentResponse(req, res)) return;
+
     if (!SELF_HEALING_ENABLED) {
-      return res.status(503).json({ error: 'Self-healing assistant is disabled' });
+      return sendSelfHealError(req, res, 503, 'SELF_HEAL_DISABLED', 'Self-healing assistant is disabled');
     }
 
     const action = req.body?.action && typeof req.body.action === 'object' ? req.body.action : {};
     const context = req.body?.context && typeof req.body.context === 'object' ? req.body.context : {};
     const policy = await resolveComputerUsePolicy(req, context, action);
 
-    return res.json({
+    return sendSelfHealSuccess(req, res, {
       success: true,
       computer_use_allowed: policy.allowed,
       policy,
@@ -4357,29 +4568,31 @@ app.post('/self-heal/computer-use/preflight', inferenceRateLimit, requireInferen
         : 'Block execution and request manual operator review.',
     });
   } catch (error) {
-    return res.status(500).json({ error: 'Computer-use preflight failed', message: error.message });
+    return sendSelfHealError(req, res, 500, 'SELF_HEAL_COMPUTER_USE_PREFLIGHT_FAILED', 'Computer-use preflight failed', error.message);
   }
 });
 
-app.post('/self-heal/computer-use/kill-switch', inferenceRateLimit, requireInferenceAuth, async (req, res) => {
+app.post('/self-heal/computer-use/kill-switch', selfHealWriteRateLimit, attachSelfHealRequestContext, requireInferenceAuth, async (req, res) => {
   try {
+    if (maybeReplaySelfHealIdempotentResponse(req, res)) return;
+
     if (!isAdminLikeRole(req.inferenceAuth?.role)) {
-      return res.status(403).json({ error: 'Forbidden', message: 'Admin role required.' });
+      return sendSelfHealError(req, res, 403, 'FORBIDDEN', 'Admin role required.');
     }
 
     const enabled = req.body?.enabled;
     if (typeof enabled !== 'boolean') {
-      return res.status(400).json({ error: 'enabled boolean is required' });
+      return sendSelfHealError(req, res, 400, 'INVALID_ENABLED_FLAG', 'enabled boolean is required');
     }
 
     BOB_COMPUTER_USE_KILL_SWITCH_RUNTIME = enabled;
-    return res.json({
+    return sendSelfHealSuccess(req, res, {
       success: true,
       kill_switch_active: BOB_COMPUTER_USE_KILL_SWITCH_RUNTIME,
       note: 'Runtime-only toggle applied. Persist with BOB_COMPUTER_USE_KILL_SWITCH env var if required.',
     });
   } catch (error) {
-    return res.status(500).json({ error: 'Kill switch update failed', message: error.message });
+    return sendSelfHealError(req, res, 500, 'SELF_HEAL_KILL_SWITCH_UPDATE_FAILED', 'Kill switch update failed', error.message);
   }
 });
 

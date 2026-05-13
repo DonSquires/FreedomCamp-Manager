@@ -13,6 +13,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.3";
 import { withCors, jsonResponse, errorResponse, getCorsHeaders } from "../_shared/withCors.ts";
+import { buildAccessibleOrgIds, orgAccessDenied } from "../_shared/orgAccess.ts";
 import { alprWithBytes } from "../_shared/alpr.ts";
 
 const PHOTO_FETCH_TIMEOUT_MS = Number(Deno.env.get("INGEST_PHOTO_FETCH_TIMEOUT_MS") ?? "8000");
@@ -429,12 +430,7 @@ Deno.serve(async (req) => {
       has_gps: gpsLatitude !== null && gpsLongitude !== null,
     });
 
-    const allowedOrganizationIds = new Set<string>([
-      (profile as any).organization_id,
-      (profile as any).employer_organization_id,
-      ...(((profile as any).extra_organization_ids ?? []) as string[]),
-      ...(((profile as any).authorized_work_locations ?? []) as string[]),
-    ].filter((id): id is string => typeof id === "string" && id.length > 0));
+    const allowedOrganizationIds = await buildAccessibleOrgIds(supabase, profile);
 
     if (isUpdateExistingMode && photoUrlInput) {
       const canonicalPhotoRef = canonicalizePhotoReference(photoUrlInput);

@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3'
 import { getCorsHeaders } from '../_shared/withCors.ts'
+import { collectDirectOrgIds } from '../_shared/orgAccess.ts'
 
 const ALLOWED_ROLES = new Set(['admin', 'admin_officer', 'master'])
 
@@ -65,9 +66,12 @@ Deno.serve(async (req: Request) => {
   const reason = String(body.reason || 'revoked_by_operator').trim()
   if (!videoPackId) return json(req, { error: 'video_pack_id is required' }, 400)
 
-  const primaryOrgId = String(profile.organization_id || '').trim()
-  const extraOrgIds = parseUuidArray(profile.extra_organization_ids)
-  const allowedOrgIds = new Set([primaryOrgId, ...extraOrgIds].filter(Boolean))
+  const allowedOrgIds = collectDirectOrgIds({
+    organization_id: String(profile.organization_id || '').trim() || null,
+    employer_organization_id: null,
+    extra_organization_ids: parseUuidArray(profile.extra_organization_ids),
+    authorized_work_locations: null,
+  })
 
   const { data: pack, error: packError } = await (supabaseAdmin.from('video_briefing_packs') as any)
     .select('id, org_id, media_log_id, revoked_at')

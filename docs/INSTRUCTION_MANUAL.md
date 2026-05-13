@@ -4,9 +4,10 @@
 **Version**: 2026 (multi-organisation edition)  
 **Timezone**: All dates and times operate in **NZ Standard / Daylight Time (Pacific/Auckland)**
 
-> **Living document** — this manual is updated automatically when source files change.  
-> See [`.github/workflows/docs-update-instruction-manual.yml`](../.github/workflows/docs-update-instruction-manual.yml) for the update trigger rules.  
-> Last reviewed: 2026-05-11
+> **Canonical product authority** — this manual defines what the application is intended to do and how users are meant to use it. It is not a passive dump of current implementation details.  
+> If code, routes, role behavior, workflows, edge functions, schema-backed user flows, or operational UX change, the corresponding sections in this manual must be updated in the same change set.  
+> If the app currently behaves differently from this manual, that drift is a defect to resolve or an explicit product decision to document here first.  
+> Last reviewed: 2026-05-13
 
 ---
 
@@ -37,6 +38,7 @@
    - [6.3 Client Admin](#63-client-admin)
 7. [PART E — Public Portals](#part-e--public-portals)
    - [7.1 Public Dispute Submission Portal](#71-public-dispute-submission-portal)
+   - [7.2 Public Parking Prepayment Portal](#72-public-parking-prepayment-portal)
 8. [PART F — Technical Reference (Systems Administrator)](#part-f--technical-reference-systems-administrator)
    - [8.1 Architecture Overview](#81-architecture-overview)
    - [8.2 Environment Setup](#82-environment-setup)
@@ -77,6 +79,36 @@ The platform uses a **role-based access control (RBAC)** model with nine distinc
 | **Service Provider** | `admin`, `admin_officer`, `nzscv_monitor` |
 | **Client Organisation** | `client_admin`, `client_officer`, `client_viewer` |
 | **Field** | `officer` (auto-routed per service type) |
+
+### Ownership Terminology (Canonical)
+
+To avoid ambiguity, this manual uses these terms consistently:
+
+- **Platform Owner**: Iron Eagle Security / OnSpace AI (the software provider and platform operator).
+- **App Owner**: A paying customer organisation that purchases use of the app from the Platform Owner.
+- **Service Provider**: An organisation delivering field services.
+- **Client**: The contracted end-customer receiving the service outcomes at sites/zones/locations.
+
+An App Owner can operate in two valid business patterns:
+
+1. **Direct Operator Pattern**
+   - Platform Owner -> App Owner (operates as service provider) -> Client sites/zones/locations
+2. **Contracted Provider Pattern**
+   - Platform Owner -> App Owner (principal customer) -> Service Provider -> Client sites/zones/locations
+
+In both patterns, the hierarchy is represented in `organizations` via `parent_organization_id`.
+
+### Multi-Client Contractor Rule (Critical)
+
+If a service provider (for example, First Security) serves multiple clients, including a client that directly contracts them, the provider must continue operating all clients concurrently in the same platform.
+
+To support this safely:
+
+- Do not re-parent the service provider per contract.
+- Keep the provider's operational org context stable.
+- Scope data flow by contract and site/zone assignment (service agreements and linked client sites), not by moving org hierarchy for each engagement.
+
+This prevents cross-client leakage while allowing one provider to serve many clients at once.
 
 ---
 
@@ -368,6 +400,13 @@ The Iron Eagle Visual Identity is a **dark tactical** design language derived di
 ## 1b. Star Trek Rollout Checkpoint Governance
 
 This manual is checkpoint-coupled to the active phased rollout defined in [docs/STAR_TREK_PHASED_ROLLOUT_PLAN.md](docs/STAR_TREK_PHASED_ROLLOUT_PLAN.md).
+
+Normative authority rules:
+
+1. This manual describes intended product behavior, user workflow, and operational expectations.
+2. Implementation changes must conform to this manual, or this manual must be explicitly updated first in the same change set.
+3. No route, role-access, workflow, edge-function-backed user flow, or major UI behavior change is complete until the corresponding manual section is updated.
+4. Review workflows may compare the app against the manual, but they must not silently rewrite the manual to match accidental implementation drift.
 
 Required governance at every Star Trek phase checkpoint:
 
@@ -965,23 +1004,23 @@ Flags inconsistencies in vehicle data — e.g. plate numbers that have been capt
 | Live Patrol Monitor | `/live-patrol-monitor` | Real-time officer locations and patrol status |
 | Live Officer Tracking | `/live-officer-tracking` | Map view of all active officers |
 | Patrol Checkpoint Management | `/patrol-checkpoints` | Manage QR checkpoint locations |
-| Patrol Schedule Management | `/patrol-schedules` | Set up recurring patrol routes |
-| Patrol KPI Dashboard | `/patrol-kpi` | Performance metrics per officer and zone |
-| Roster Planner | `/roster-planner` | Build and publish shift rosters |
+| Patrol Schedule Management | `/patrol-schedule` | Set up recurring patrol routes |
+| Patrol KPI Dashboard | `/patrol-kpis` | Performance metrics per officer and zone |
+| Roster Planner | `/roster` | Build and publish shift rosters |
 | Open Shifts | `/open-shifts` | View and fill unfilled shifts |
 | Timesheet Review | `/timesheets` | Review and approve officer timesheets |
-| Officer Availability | `/officer-availability` | View officer availability for scheduling |
+| Officer Availability | `/availability` | View officer availability for scheduling |
 | Officer Skills | `/officer-skills` | Skill and qualification records per officer |
 
 ---
 
-###### Patrol Schedule Management (`/patrol-schedules`)
+###### Patrol Schedule Management (`/patrol-schedule`)
 
 Patrol schedules define *when* and *where* officers are expected to patrol. A patrol schedule record is an admin-authored template that generates individual patrol session records when an officer starts their shift.
 
 **Creating a patrol schedule:**
 
-1. Navigate to `/patrol-schedules` → **New Schedule**.
+1. Navigate to `/patrol-schedule` → **New Schedule**.
 2. Fill in the schedule fields:
    - **Zone** — enforcement zone the patrol covers
    - **Assigned officer** — pre-assign or leave blank for open assignment
@@ -1080,7 +1119,7 @@ Filters available: date range, organisation, zone, officer, and service type.
 
 ---
 
-###### Roster Planner (`/roster-planner`)
+###### Roster Planner (`/roster`)
 
 The Roster Planner provides a **weekly visual roster board** — officers as rows, days as columns, shift cards in cells — inspired by InTime / Deputy workforce management tools.
 
@@ -1459,7 +1498,7 @@ Clients with an approved **Service Agreement** that has `allows_client_submissio
 | Access Control | `/access-control` | Configure portal area access per user |
 | Client Master List | `/client-master-list` | All client organisations and contacts |
 | Client Sites | `/client-sites` | Manage client site records |
-| Site Permissions Admin | `/site-permissions-admin` | Configure who can access which sites |
+| Site Permissions Admin | `/site-permissions` | Configure who can access which sites |
 | Asset Management | `/assets` | Manage vehicles, radios, and equipment assigned to officers |
 
 **Creating a user:**
@@ -1510,10 +1549,34 @@ Sidebar → Business → **CRM** (or go directly to `/crm`)
 - Click a contact row to open their profile
 
 **Creating a new client account:**
-1. Navigate to `/crm` → Accounts tab → click **+ New Client**.
-2. A new `organization` record is created with type `client`.
-3. Fill in: organisation name, contact email, contact phone, parent organisation (if applicable).
-4. Save — the new client appears in the CRM list and can be linked to client sites.
+1. Navigate to `/organizations` (Master or Grand Master role required) → click **New Organisation**.
+2. Set organisation type to `client`.
+3. Fill in: organisation name, parent organisation (if applicable), enforcement workflow, overnight verification mode, contact email, and contact phone.
+4. Click **Create Organisation**.
+5. Return to `/crm` to manage the client account profile, contacts, and linked records.
+
+**Model decision (canonical):**
+- There is one tenancy entity: `organizations`.
+- A "client" is an organization where `organization_type = client`.
+- CRM is the operational account workspace; organisation creation happens in `/organizations`.
+
+###### Human Workflow: Client Setup to Patrol Operations
+
+Use this sequence to onboard a client and begin live operations without AI dependency:
+
+1. **Create client organisation**
+   - `/organizations` → **New Organisation** → set type `client` → save.
+2. **Create client site**
+   - `/client-sites` → **Add Site** → enter site name and address (plus contacts and service settings) → save.
+3. **Set jurisdiction/geofence**
+   - In `/client-sites`, enter address or GPS so coordinates are resolved and linked to a zone.
+   - For boundary refinement, edit zone geometry in `/zones/:id`.
+4. **Roster staff for static or patrol work**
+   - `/roster` → add shift with officer, time window, site, and zone.
+5. **Create patrol/dispatch run using client site context**
+   - `/dispatch-console` (or `/dispatch-wizard`) → create job → select LOI and client site where relevant → dispatch resource.
+
+This sequence is the required human-first path. Bob/self-heal may assist in the background, but is not required for execution.
 
 ---
 
@@ -2327,6 +2390,26 @@ A confirmation screen shows a dispute reference number (format: `DS-XXXXXXXXX`).
 5. An admin processes the dispute via the **Disputes** page in the admin portal (see [Disputes](#disputes-disputes)).
 6. When a decision is made, the disputant receives an email informing them of the outcome.
 
+### 7.2 Public Parking Prepayment Portal
+
+**URL**: `https://fcmanager.co.nz/public/pay-by-plate`
+**Who uses it**: Members of the public purchasing parking time without signing into the app.
+
+This is a public-only flow and is isolated from authenticated operator/admin/client portals.
+
+#### Core Flow
+
+1. Enter plate number and zone/location.
+2. Select duration and verify pricing.
+3. Complete payment details and confirm.
+4. Receive receipt and payment reference.
+
+#### Security Rules
+
+- Public users cannot query internal enforcement or customer data.
+- Public flows only create/retrieve their own payment session context.
+- Payment records are stored org-scoped and remain visible only through authenticated RLS-controlled views.
+
 ---
 
 ## PART F — Technical Reference (Systems Administrator)
@@ -2363,8 +2446,8 @@ src/
   lib/            — supabase.ts, edgeFunctions.ts, fileUpload.ts, geocoding.ts
   types/          — database.ts (Supabase-generated types)
 supabase/
-  functions/      — 30 production Edge Functions (Deno/TypeScript)
-  migrations/     — 70+ SQL migrations (prefix YYYYMMDD_*)
+  functions/      — Edge Functions (Deno/TypeScript)
+  migrations/     — SQL migrations (prefix YYYYMMDD_*)
 proxy-server/     — NZSCV/MotorWeb proxy (own package.json)
 inference-service/ — ONNX AI inference (own package.json)
 ```
@@ -2464,7 +2547,7 @@ supabase db push --linked
 
 #### Row-Level Security (RLS)
 
-All tables enforce RLS. The key function is `get_user_organization_ids()`:
+All tables enforce RLS. The base scope function is `get_user_organization_ids()`, and the canonical restriction gate is `org_access_allowed(target_org_id, service_type)`.
 
 | Role | Scope |
 |---|---|
@@ -2473,11 +2556,25 @@ All tables enforce RLS. The key function is `get_user_organization_ids()`:
 | `grand_master` | All orgs |
 | `client_viewer/officer/admin` | Own client org only |
 
+The canonical gate also supports configurable cross-organisation visibility through explicit commercial rules:
+
+- Provider-client grants (`provider_client_access_grants`)
+- Temporary JWT authorised organisations (when issued)
+- Active contractor/workspace handshake grants (`contractor_access` + `workspaces`)
+
+This is the required backend path for Bob restriction checks and reusable RLS policy logic.
+
 > **Never bypass RLS** using the service role key in frontend code. Service role is for server-to-server Edge Function calls only.
 
 #### Multi-Org Access Pattern
 
-The `get_user_organization_ids()` SQL function returns the full set of org IDs accessible to a user. All data queries in Edge Functions must filter by `organization_id = ANY(get_user_organization_ids())`.
+The `get_user_organization_ids()` SQL function returns direct org scope. For access decisions that include contractual cross-org visibility, use `org_access_allowed(organization_id, service_type)`.
+
+Edge Function guidance:
+
+- Use `organization_id = ANY(get_user_organization_ids())` for strict direct membership checks.
+- Use `org_access_allowed(...)` when provider-client agreements may extend visibility.
+- Do not duplicate org access logic across functions when an RPC restriction gate is available.
 
 ---
 
@@ -2485,7 +2582,7 @@ The `get_user_organization_ids()` SQL function returns the full set of org IDs a
 
 Located in `supabase/functions/<name>/index.ts`. All functions are Deno TypeScript.
 
-**30 production Edge Functions** are active. Key ones:
+The platform relies on a substantial Edge Function estate. The list below names key functions that define core intended behavior; it is not meant to be a brittle count of every function directory present in the repository.
 
 | Function | Purpose |
 |---|---|
@@ -2659,6 +2756,23 @@ The `bug_reports.auto_reported` column distinguishes machine-generated incidents
 
 ### 8.8 User & Organisation Provisioning
 
+**Canonical data model:** `organizations` is the source-of-truth tenancy table. Clients are not a separate top-level entity; they are organisation records with `organization_type = client`.
+
+**Commercial mapping (authoritative):**
+- Platform Owner (software vendor/operator): `organization_type = owner`
+- App Owner (paying tenant/customer): usually `organization_type = service_provider` when they run operations directly, or `organization_type = client` when they are the principal customer that contracts another provider
+- Service Provider: `organization_type = service_provider` (if distinct from app owner)
+- Client delivery entities: `organization_type = client`
+
+If a tenant purchases the app and uses a dedicated provider model, you may model the tenant as parent and provider as child in the hierarchy. If the provider is shared across multiple clients, keep provider hierarchy stable and use service-agreement/site/zone scoping for engagement-level isolation.
+
+**Data-flow decision for shared providers (authoritative):**
+- A service provider that has many clients remains a single provider org context.
+- Each client engagement is isolated by service agreement, assigned client sites, and assigned zones.
+- Provider users can operate across all client engagements they are entitled to.
+- Client users only see their own organisation data, contracted sites, and related jobs/notices.
+- No client should ever inherit visibility of another client's records through shared provider relationships.
+
 #### Creating a New Organisation
 
 1. Grand Master or Master navigates to `/organizations`.
@@ -2739,6 +2853,12 @@ All data is stored in Supabase. For New Zealand government contracts, ensure the
 #### Audit Logging
 
 All significant actions (breach creation, notice issuance, user management, login events) are recorded in the audit log (`/audit-log`). The audit log is append-only and cannot be edited.
+
+#### Report Export and Data Retention
+
+- Reporting outputs must support CSV and PDF exports.
+- Retention settings must be configurable per organisation and aligned with NZ Privacy Act obligations.
+- Contractual requirements may demand stricter retention windows than defaults; org-level policy settings must take precedence where configured.
 
 #### RLS Policy Validation
 

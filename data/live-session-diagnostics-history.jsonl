@@ -1,0 +1,2 @@
+{"checked_at":"2026-05-13T07:41:44.034Z","status":"stale","reason":"No live session diagnostic events detected in last 20m.","execution_ms":465,"query":{"source_table":"bug_reports","source_fallback":true,"attempts":1,"status":200,"duration_ms":41}}
+{"checked_at":"2026-05-13T07:42:20.169Z","status":"stale","reason":"No live session diagnostic events detected in last 20m.","execution_ms":198,"query":{"source_table":"bug_reports","source_fallback":true,"attempts":1,"status":200,"duration_ms":38}}

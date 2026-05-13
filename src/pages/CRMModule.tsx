@@ -108,6 +108,7 @@ export default function CRMModule() {
   const { user } = useAuthStore()
   const navigate = useNavigate()
   const { orgIds, isLoading: orgIdsLoading } = useClientOrgIds()
+  const canCreateClientOrganizations = user?.role === 'master' || user?.role === 'grand_master'
 
   const [accountSearch, setAccountSearch]   = useState('')
   const [typeFilter, setTypeFilter]         = useState('all')
@@ -299,9 +300,14 @@ export default function CRMModule() {
         <CardContent className="p-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <p className="text-sm font-medium text-slate-900">CRM workspace</p>
-            <p className="text-sm text-gray-500">Use CRM as the account hub, then move into site and access administration without losing org context.</p>
+            <p className="text-sm text-gray-500">Use CRM as the account hub, then move into site and access administration without losing org context. Client accounts are organization records with type "client".</p>
           </div>
           <div className="flex flex-wrap gap-2">
+            {canCreateClientOrganizations && (
+              <Button size="sm" variant="default" className="gap-1.5" onClick={() => navigate('/organizations')}>
+                <Building2 className="h-4 w-4" /> New Client Organisation
+              </Button>
+            )}
             <Button size="sm" variant="outline" className="gap-1.5" onClick={() => navigate('/client-sites')}>
               <MapPinned className="h-4 w-4" /> Client Sites
             </Button>

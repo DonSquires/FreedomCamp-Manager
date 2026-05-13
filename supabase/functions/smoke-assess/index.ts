@@ -21,6 +21,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3'
 import { getCorsHeaders, withCors, jsonResponse, errorResponse } from '../_shared/withCors.ts'
 import { requireAuth } from '../_shared/requireAuth.ts'
+import { buildAccessibleOrgIds, orgAccessDenied } from '../_shared/orgAccess.ts'
 
 function isRunpodServerless(url: string): boolean {
   return /api\.runpod\.ai\/v2\/[^/]+(?:\/(?:run|runsync))?\/?$/i.test(url)
@@ -82,19 +83,14 @@ Deno.serve(withCors(async (req: Request) => {
 
   const body = await req.json()
 
-  const allowedOrganizationIds = new Set<string>([
-    (profile as any).organization_id,
-    (profile as any).employer_organization_id,
-    ...(((profile as any).extra_organization_ids ?? []) as string[]),
-    ...(((profile as any).authorized_work_locations ?? []) as string[]),
-  ].filter((id): id is string => typeof id === 'string' && id.length > 0))
+  const allowedOrganizationIds = await buildAccessibleOrgIds(supabase, profile)
 
   const requestedOrganizationId =
     typeof body.organization_id === 'string' && body.organization_id.trim().length > 0
       ? body.organization_id.trim()
       : null
 
-  if (requestedOrganizationId && !allowedOrganizationIds.has(requestedOrganizationId)) {
+  if (requestedOrganizationId && orgAccessDenied(allowedOrganizationIds, requestedOrganizationId)) {
     return errorResponse('Requested organization is outside your authorized scope', req, 403)
   }
 

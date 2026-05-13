@@ -2079,6 +2079,12 @@ export default function AssetManagement() {
   const [custody, setCustody] = useState<KeyCustody[]>([])
   const [officers, setOfficers] = useState<OfficerOption[]>([])
 
+  const [showCreateTypeDialog, setShowCreateTypeDialog] = useState(false)
+  const [creatingType, setCreatingType] = useState(false)
+  const [newTypeCode, setNewTypeCode] = useState('')
+  const [newTypeName, setNewTypeName] = useState('')
+  const [newTypeCategory, setNewTypeCategory] = useState<'uniform' | 'ppe' | 'communication' | 'computing' | 'vehicle' | 'tool' | 'access' | 'other'>('other')
+
   const load = useCallback(async () => {
     if (!orgId) return
     setLoading(true)
@@ -2146,6 +2152,45 @@ export default function AssetManagement() {
 
   useEffect(() => { load() }, [load])
 
+  async function handleCreateAssetType() {
+    const code = newTypeCode.trim().toUpperCase()
+    const name = newTypeName.trim()
+
+    if (!orgId) {
+      toast.error('Organization context is required')
+      return
+    }
+    if (!code || !name) {
+      toast.error('Asset type code and name are required')
+      return
+    }
+
+    setCreatingType(true)
+    const { error } = await (supabase as any)
+      .from('asset_types')
+      .insert({
+        organization_id: orgId,
+        code,
+        name,
+        category: newTypeCategory,
+        created_by: userId || null,
+      })
+
+    setCreatingType(false)
+
+    if (error) {
+      toast.error(error.message || 'Failed to create asset type')
+      return
+    }
+
+    toast.success('Asset type created')
+    setShowCreateTypeDialog(false)
+    setNewTypeCode('')
+    setNewTypeName('')
+    setNewTypeCategory('other')
+    await load()
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -2156,9 +2201,14 @@ export default function AssetManagement() {
 
   return (
     <div className="p-4 md:p-6 space-y-4">
-      <div>
-        <h1 className="text-2xl font-bold">Asset Management</h1>
-        <p className="text-muted-foreground text-sm">Equipment, stock inventory, stocktakes and key management</p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold">Asset Management</h1>
+          <p className="text-muted-foreground text-sm">Equipment, stock inventory, stocktakes and key management</p>
+        </div>
+        <Button onClick={() => setShowCreateTypeDialog(true)} className="gap-2">
+          <Plus className="h-4 w-4" /> Add Asset Type
+        </Button>
       </div>
 
       <Tabs defaultValue="overview">
@@ -2200,6 +2250,59 @@ export default function AssetManagement() {
           <KeyManagementTab keySets={keySets} custody={custody} officers={officers} orgId={orgId} onRefresh={load} />
         </TabsContent>
       </Tabs>
+
+      <Dialog open={showCreateTypeDialog} onOpenChange={setShowCreateTypeDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Asset Type</DialogTitle>
+            <DialogDescription>
+              Create a reusable equipment type for assignment, stock, and stocktake workflows.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label>Code *</Label>
+              <Input
+                value={newTypeCode}
+                onChange={(e) => setNewTypeCode(e.target.value)}
+                placeholder="e.g. RADIO_HANDHELD"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Name *</Label>
+              <Input
+                value={newTypeName}
+                onChange={(e) => setNewTypeName(e.target.value)}
+                placeholder="e.g. Handheld Radio"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Category</Label>
+              <Select value={newTypeCategory} onValueChange={(v: any) => setNewTypeCategory(v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="uniform">Uniform</SelectItem>
+                  <SelectItem value="ppe">PPE</SelectItem>
+                  <SelectItem value="communication">Communication</SelectItem>
+                  <SelectItem value="computing">Computing</SelectItem>
+                  <SelectItem value="vehicle">Vehicle</SelectItem>
+                  <SelectItem value="tool">Tool</SelectItem>
+                  <SelectItem value="access">Access</SelectItem>
+                  <SelectItem value="other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCreateTypeDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleCreateAssetType} disabled={creatingType}>
+              {creatingType ? 'Creating…' : 'Create Asset Type'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
