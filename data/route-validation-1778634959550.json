@@ -1,0 +1,23 @@
+{
+  "timestamp": "2026-05-13T01:15:59.481Z",
+  "totalBlockers": 0,
+  "totalFindings": 1,
+  "routes": [
+    {
+      "route": "Field Officer Portal - Patrol Dispatch",
+      "blockers": 0,
+      "findings": 1
+    },
+    {
+      "route": "Admin Portal - Dispatch Console",
+      "blockers": 0,
+      "findings": 0
+    },
+    {
+      "route": "Admin Portal - Enforcement Timeline",
+      "blockers": 0,
+      "findings": 0
+    }
+  ],
+  "status": "PASSED"
+}
