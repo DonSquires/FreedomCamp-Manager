@@ -16,6 +16,7 @@ import { AppLayout } from '@/components/features/AppLayout'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
 import { runDispatchJobsQueryWithAlarmTypeFallback } from '@/lib/dispatchJobs'
 import { summarizeDispatchParity } from '@/lib/rapidFieldParity'
+import { useFeatureFlag } from '@/hooks/useOperationalCases'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -110,7 +111,9 @@ export default function DispatchMonitor() {
   const { user } = useAuthStore()
   const { organizationId: filterOrgId } = useGlobalFiltersStore()
   const orgId = filterOrgId || user?.organization_id
+{ data: phaseBEnabled } = useFeatureFlag('FF_PHASE_B_PATROL_EVENTS')
 
+  const 
   const [tick, setTick] = useState(0)
   const [activeJobFilter, setActiveJobFilter] = useState<string | null>(null)
   const [activeAlarmFilter, setActiveAlarmFilter] = useState<string | null>(null)
@@ -123,13 +126,52 @@ export default function DispatchMonitor() {
       setLastRefresh(new Date())
     }, 30_000)
     return () => clearInterval(t)
-  }, [])
-
-  const { data: stats, isLoading, refetch } = useQuery<MonitorStats>({
-    queryKey: ['dispatch-monitor-stats', orgId, tick],
+  }, []), phaseBEnabled],
     queryFn: async () => {
       const now = new Date()
-      const nowIso = now.toISOString()
+
+      // ── Phase B path: operational_cases + dispatch_events ──────────────────
+      if (phaseBEnabled) {
+        const { data: cases, error } = await supabase
+          .from('operational_cases')
+          .select('id, status, priority, created_at, dispatch_events(*)')
+          .eq('organization_id', orgId ?? '')
+          .gte('created_at', new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString()) as any
+
+        if (error) throw error
+
+        const all = (cases ?? []) as any[]
+        const active = all.filter((c: any) => !['closed', 'cancelled'].includes(c.status))
+        const closedCancelled = all.filter((c: any) => ['closed', 'cancelled'].includes(c.status))
+        const duress = all.filter((c: any) => c.priority === 'critical' && !['closed', 'cancelled'].includes(c.status))
+        const autoDispatched = all.filter((c: any) => c.status === 'dispatched')
+        const notDispatched = all.filter((c: any) => c.status === 'open')
+        const notAcknowledged = all.filter((c: any) => c.status === 'dispatched' && !(c.dispatch_events ?? []).some((e: any) => e.event_type === 'acknowledged'))
+        const overResponseTime = active.filter((c: any) => {
+          if (!c.created_at) return false
+          const ageMin = (now.getTime() - new Date(c.created_at).getTime()) / 60_000
+          return ageMin > RESPONSE_SLA_THRESHOLD_MIN
+        })
+        const readyToClose = all.filter((c: any) => {
+          if (c.status !== 'on_scene') return false
+          const onSceneEvent = (c.dispatch_events ?? []).find((e: any) => e.event_type === 'on_scene')
+          if (!onSceneEvent?.created_at) return false
+          const ageMin = (now.getTime() - new Date(onSceneEvent.created_at).getTime()) / 60_000
+          return ageMin >= 5
+        })
+        return {
+          active: active.length,
+          closed_cancelled: closedCancelled.length,
+          duress: duress.length,
+          auto_dispatched: autoDispatched.length,
+          not_dispatched: notDispatched.length,
+          not_acknowledged: notAcknowledged.length,
+          over_response_time: overResponseTime.length,
+          ready_to_close: readyToClose.length,
+        }
+      }
+
+      // ── Legacy path: dispatch_jobs ─────────────────────────────────────────
 
       // Fetch all jobs for today onwards
       const { data: jobs, error } = await runDispatchJobsQueryWithAlarmTypeFallback<any[]>((includeAlarmType) =>
