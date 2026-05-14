@@ -209,6 +209,34 @@ Latest Session Snapshot (Phase A Canary Readiness Refresh — Acceptance Gates R
   1. Canary rollout status execution evidence (5%→25%→50%→100% with thresholds) is still operational and owner-driven, not code-blocked.
   2. Leadership ownership/capacity sign-off remains external (GitHub team + Slack confirmation thread evidence).
 
+Latest Session Snapshot (Phase A Canary Execution Kit — Operator Evidence Runbook + Safe Script Modes — 2026-05-14):
+
+- Timestamp (NZ): 2026-05-14
+- Current branch: main
+- Scope completed:
+  - Hardened canary promotion helper for safe operations:
+    - Added `--help` path to `scripts/advance-canary-stage.sh`.
+    - Added `--dry-run` mode to preview stage transitions without PATCH/POST writes.
+    - Added `SUPABASE_URL` fallback support in addition to `VITE_SUPABASE_URL`.
+    - Made dry-run non-interactive (no confirmation prompt), suitable for evidence automation.
+  - Added dedicated runbook: `docs/CANARY_EXECUTION_EVIDENCE_CHECKLIST.md` with:
+    - preflight checks,
+    - dry-run proof,
+    - stage promotion sequence,
+    - rollout history capture,
+    - emergency rollback validation,
+    - evidence bundle structure.
+
+- Validation evidence:
+  | Command | Result | Notes |
+  |---|---|---|
+  | `bash scripts/advance-canary-stage.sh --help` | PASS | usage/help path exits cleanly |
+  | `set -a && . ./.env.playwright.local && set +a && bash scripts/advance-canary-stage.sh --dry-run FF_PHASE_B_PATROL_EVENTS` | PASS | read-only stage calculation shown; no writes performed |
+
+- Open blockers with owner:
+  1. Live 5%→25%→50%→100% execution remains operations-owned and should be performed in the agreed maintenance window.
+  2. Threshold telemetry proof (error rate, p95 latency) must be attached by on-call owner before each promotion.
+
 Latest Session Snapshot (Historical Data Enrichment Continuation — Patrol/Alarm Workflow Grounding — 2026-05-14):
 
 - Timestamp (NZ): 2026-05-14

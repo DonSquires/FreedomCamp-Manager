@@ -21,6 +21,7 @@ set -e
 FLAG_NAME=${1:-}
 TARGET_PCT=${2:-}   # optional – omit to auto-detect next stage
 ORG_ID=${3:-}       # optional – reserved for future org-scoped rollout
+DRY_RUN=0
 
 # ── Colour codes ─────────────────────────────────────────────────────────────
 RED='\033[0;31m'
@@ -37,16 +38,19 @@ STAGES=("5:canary" "25:early_adopters" "50:rollout" "100:general_availability")
 # ── Helpers ───────────────────────────────────────────────────────────────────
 usage() {
   echo "Usage: bash scripts/advance-canary-stage.sh <FLAG_NAME> [target_pct] [org_id]"
+  echo "       bash scripts/advance-canary-stage.sh --help"
+  echo "       bash scripts/advance-canary-stage.sh --dry-run <FLAG_NAME> [target_pct] [org_id]"
   echo ""
   echo "  FLAG_NAME    Feature flag name (e.g. FF_PHASE_B_PATROL_EVENTS)"
   echo "  target_pct   Target rollout percentage: 5 | 25 | 50 | 100 (default: next stage)"
   echo "  org_id       Optional org UUID for future org-scoped rollouts"
+  echo "  --dry-run    Show calculated rollout transition without writing updates"
   echo ""
   echo "Examples:"
   echo "  bash scripts/advance-canary-stage.sh FF_PHASE_B_PATROL_EVENTS        # promote to next stage"
   echo "  bash scripts/advance-canary-stage.sh FF_PHASE_B_PATROL_EVENTS 25     # jump to early_adopters"
   echo "  bash scripts/advance-canary-stage.sh FF_PHASE_B_ENFORCEMENT_TIMELINE  # auto-promote"
-  exit 1
+  echo "  bash scripts/advance-canary-stage.sh --dry-run FF_PHASE_B_PATROL_EVENTS"
 }
 
 stage_name_for_pct() {
@@ -82,9 +86,22 @@ next_stage_for_pct() {
 }
 
 # ── Validate inputs ────────────────────────────────────────────────────────────
+if [ "$FLAG_NAME" = "--help" ] || [ "$FLAG_NAME" = "-h" ]; then
+  usage
+  exit 0
+fi
+
+if [ "$FLAG_NAME" = "--dry-run" ]; then
+  DRY_RUN=1
+  FLAG_NAME=${2:-}
+  TARGET_PCT=${3:-}
+  ORG_ID=${4:-}
+fi
+
 if [ -z "$FLAG_NAME" ]; then
   echo -e "${RED}❌ Error: FLAG_NAME is required${NC}"
   usage
+  exit 1
 fi
 
 if [ -n "$TARGET_PCT" ] && ! [[ "$TARGET_PCT" =~ ^[0-9]+$ ]]; then
@@ -92,11 +109,12 @@ if [ -n "$TARGET_PCT" ] && ! [[ "$TARGET_PCT" =~ ^[0-9]+$ ]]; then
   usage
 fi
 
-SUPABASE_URL="${VITE_SUPABASE_URL:-}"
+SUPABASE_URL="${SUPABASE_URL:-${VITE_SUPABASE_URL:-}}"
 SUPABASE_SERVICE_ROLE_KEY="${SUPABASE_SERVICE_ROLE_KEY:-}"
 
 if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
   echo -e "${RED}❌ Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY${NC}"
+  echo "  export SUPABASE_URL=https://your-project.supabase.co"
   echo "  export VITE_SUPABASE_URL=https://your-project.supabase.co"
   echo "  export SUPABASE_SERVICE_ROLE_KEY=your_service_role_key"
   exit 1
@@ -148,6 +166,10 @@ STAGE_NAME=$(stage_name_for_pct "$TARGET_PCT")
 echo ""
 echo -e "${BLUE}📈 Advancing:${NC} ${YELLOW}${CURRENT_PCT}%${NC} → ${GREEN}${TARGET_PCT}%${NC} (${STAGE_NAME})"
 
+if [ "$DRY_RUN" = "1" ]; then
+  echo -e "${YELLOW}🧪 Dry run enabled: no PATCH/POST writes will be sent.${NC}"
+fi
+
 # ── Canary threshold reminder ──────────────────────────────────────────────────
 echo ""
 echo -e "${CYAN}📋 Phase B canary thresholds (monitor before advancing further):${NC}"
@@ -156,7 +178,7 @@ echo "   p95 latency:  < 500ms (auto-rollback trigger)"
 echo ""
 
 # ── Confirm before advancing past canary ──────────────────────────────────────
-if [ "$TARGET_PCT" -gt 5 ] && [ -t 0 ]; then
+if [ "$DRY_RUN" = "0" ] && [ "$TARGET_PCT" -gt 5 ] && [ -t 0 ]; then
   echo -e "${YELLOW}⚠  Advancing beyond canary (5%). Confirm thresholds have been verified.${NC}"
   read -r -p "Continue? [y/N] " CONFIRM
   if [[ ! "$CONFIRM" =~ ^[Yy]$ ]]; then
@@ -165,48 +187,52 @@ if [ "$TARGET_PCT" -gt 5 ] && [ -t 0 ]; then
   fi
 fi
 
-# ── Apply the percentage update ────────────────────────────────────────────────
-PATCH_RESULT=$(curl -sf -X PATCH \
-  "${SUPABASE_URL}/rest/v1/feature_flags?id=eq.${FLAG_ID}" \
-  -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
-  -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
-  -H "Content-Type: application/json" \
-  -H "Prefer: return=representation" \
-  -d "{
-    \"enabled\": true,
-    \"rollout_percentage\": ${TARGET_PCT},
-    \"updated_at\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"
-  }")
+if [ "$DRY_RUN" = "0" ]; then
+  # ── Apply the percentage update ──────────────────────────────────────────────
+  PATCH_RESULT=$(curl -sf -X PATCH \
+    "${SUPABASE_URL}/rest/v1/feature_flags?id=eq.${FLAG_ID}" \
+    -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+    -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+    -H "Content-Type: application/json" \
+    -H "Prefer: return=representation" \
+    -d "{
+      \"enabled\": true,
+      \"rollout_percentage\": ${TARGET_PCT},
+      \"updated_at\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"
+    }")
 
-if ! echo "$PATCH_RESULT" | grep -q '"id"'; then
-  echo -e "${RED}❌ Failed to update flag: ${PATCH_RESULT}${NC}"
-  exit 1
-fi
+  if ! echo "$PATCH_RESULT" | grep -q '"id"'; then
+    echo -e "${RED}❌ Failed to update flag: ${PATCH_RESULT}${NC}"
+    exit 1
+  fi
 
-echo -e "${GREEN}✓ Flag updated to ${TARGET_PCT}%${NC}"
+  echo -e "${GREEN}✓ Flag updated to ${TARGET_PCT}%${NC}"
 
-# ── Record rollout history ─────────────────────────────────────────────────────
-echo -e "${BLUE}📝 Recording rollout history...${NC}"
+  # ── Record rollout history ───────────────────────────────────────────────────
+  echo -e "${BLUE}📝 Recording rollout history...${NC}"
 
-LOG_RESULT=$(curl -sf -X POST \
-  "${SUPABASE_URL}/rest/v1/feature_flag_rollout_history" \
-  -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
-  -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
-  -H "Content-Type: application/json" \
-  -H "Prefer: return=representation" \
-  -d "{
-    \"flag_id\": \"${FLAG_ID}\",
-    \"from_percentage\": ${CURRENT_PCT},
-    \"to_percentage\": ${TARGET_PCT},
-    \"stage\": \"${STAGE_NAME}\",
-    \"change_reason\": \"manual_increase\",
-    \"monitoring_notes\": \"Stage advance via advance-canary-stage.sh at $(date -u +%Y-%m-%dT%H:%M:%SZ)\"
-  }")
+  LOG_RESULT=$(curl -sf -X POST \
+    "${SUPABASE_URL}/rest/v1/feature_flag_rollout_history" \
+    -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+    -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+    -H "Content-Type: application/json" \
+    -H "Prefer: return=representation" \
+    -d "{
+      \"flag_id\": \"${FLAG_ID}\",
+      \"from_percentage\": ${CURRENT_PCT},
+      \"to_percentage\": ${TARGET_PCT},
+      \"stage\": \"${STAGE_NAME}\",
+      \"change_reason\": \"manual_increase\",
+      \"monitoring_notes\": \"Stage advance via advance-canary-stage.sh at $(date -u +%Y-%m-%dT%H:%M:%SZ)\"
+    }")
 
-if echo "$LOG_RESULT" | grep -q '"id"'; then
-  echo -e "${GREEN}✓ Rollout history recorded${NC}"
+  if echo "$LOG_RESULT" | grep -q '"id"'; then
+    echo -e "${GREEN}✓ Rollout history recorded${NC}"
+  else
+    echo -e "${YELLOW}⚠ Stage advance succeeded but history logging failed (non-critical)${NC}"
+  fi
 else
-  echo -e "${YELLOW}⚠ Stage advance succeeded but history logging failed (non-critical)${NC}"
+  echo -e "${GREEN}✓ Dry run complete — rollout calculation validated.${NC}"
 fi
 
 # ── Summary ────────────────────────────────────────────────────────────────────
