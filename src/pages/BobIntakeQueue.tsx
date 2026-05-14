@@ -10,6 +10,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { formatDateTime } from '@/lib/utils'
+import { buildHistoricalImportAuditPayload, recordHistoricalImportAudit } from '@/lib/historicalImportAudit'
 import { BrainCircuit, CheckCircle2, Clock3, ExternalLink, FileWarning, ShieldCheck } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -81,6 +82,27 @@ export default function BobIntakeQueue() {
         .update({ status: params.status, action_summary: summary })
         .eq('id', params.id)
       if (error) throw error
+
+      await recordHistoricalImportAudit(supabase, buildHistoricalImportAuditPayload({
+        organizationId: existing?.organization_id || user?.organization_id || '',
+        performedBy: user?.id || null,
+        intakeId: params.id,
+        oldStatus: existing?.status || null,
+        newStatus: params.status,
+        actionTargetTable: existing?.action_target_table || null,
+        actionTargetId: existing?.action_target_id || null,
+        actionSummary: summary,
+        fileName: existing?.file_name || null,
+        fileKind: existing?.file_kind || null,
+        sourceSystem: existing?.source_system || null,
+        extraOldValues: {
+          recommended_table: existing?.recommended_table || null,
+          recommendation_score: existing?.recommendation_score ?? null,
+        },
+        extraNewValues: {
+          reviewed_from_queue: true,
+        },
+      }))
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['bob-intake-queue'] })
@@ -180,15 +202,19 @@ export default function BobIntakeQueue() {
                 <div className="flex flex-wrap items-center gap-2">
                   <Button size="sm" variant="outline" onClick={() => updateStatus.mutate({ id: row.id, status: 'review_pending' })} disabled={updateStatus.isPending}>
                     <FileWarning className="h-4 w-4 mr-1" />
-                    Mark Review Pending
+                    Stage for Review
                   </Button>
                   <Button size="sm" variant="outline" onClick={() => updateStatus.mutate({ id: row.id, status: 'actioned' })} disabled={updateStatus.isPending}>
                     <CheckCircle2 className="h-4 w-4 mr-1" />
-                    Mark Actioned
+                    Approve Import
                   </Button>
                   <Button size="sm" variant="outline" onClick={() => updateStatus.mutate({ id: row.id, status: 'failed' })} disabled={updateStatus.isPending}>
                     <ShieldCheck className="h-4 w-4 mr-1" />
-                    Mark Failed
+                    Reject Import
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => updateStatus.mutate({ id: row.id, status: 'historical_started' })} disabled={updateStatus.isPending}>
+                    <Clock3 className="h-4 w-4 mr-1" />
+                    Replay Import
                   </Button>
                   {row.file_public_url && (
                     <Button size="sm" variant="secondary" asChild>

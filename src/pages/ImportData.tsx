@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
+import { buildHistoricalImportAuditPayload, recordHistoricalImportAudit } from '@/lib/historicalImportAudit'
 import { edgeFunctions } from '@/lib/edgeFunctions'
 import { useAuthStore } from '@/stores/authStore'
 import { AppLayout } from '@/components/features/AppLayout'
@@ -731,6 +732,8 @@ export default function ImportData() {
     if (file && fileKind !== 'spreadsheet') throw new Error('Historical import requires a CSV or Excel file')
     if (!selectedOrgId) throw new Error('Please select the target organisation for these historical records')
 
+    const importName = file?.name || `${batchName.trim() || 'pasted-historical-import'}.csv`
+
     let data: any = null
     let error: any = null
     let storagePath: string | null = null
@@ -758,7 +761,6 @@ export default function ImportData() {
       }))
     } else {
       let encoded = ''
-      const importName = file?.name || `${batchName.trim() || 'pasted-historical-import'}.csv`
 
       if (pastedTextInput.trim()) {
         encoded = btoa(unescape(encodeURIComponent(pastedTextInput.trim())))
@@ -789,6 +791,22 @@ export default function ImportData() {
       storagePath,
       filePublicUrl,
     })
+
+    await recordHistoricalImportAudit(supabase, buildHistoricalImportAuditPayload({
+      organizationId: selectedOrgId,
+      performedBy: user?.id || null,
+      intakeId,
+      oldStatus: 'draft',
+      newStatus: 'historical_started',
+      actionTargetTable: 'ai_import_intakes',
+      actionSummary: `Historical import replay started for ${file?.name || 'pasted historical input'}`,
+      fileName: file?.name || importName,
+      fileKind,
+      sourceSystem: sourceSystem || null,
+      extraNewValues: {
+        batch_id: data?.batchId || null,
+      },
+    }))
 
     return {
       success: true,

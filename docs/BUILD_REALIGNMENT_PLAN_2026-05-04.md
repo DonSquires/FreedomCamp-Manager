@@ -11,8 +11,8 @@ Status: 🚀 PHASE A UNDER EXECUTION — Week 2 Complete (Foundations + Bootstra
 1. Wire the normalized historical patrol draft into the actual import execution path. **Completed May 14**: Bob Assistant Studio now stages normalized historical patrol exports into `ai_import_intakes` under the approved `import_historical_patrol_data` contract.
 2. Add a backend contract for normalized patrol and alarm payload staging. **Completed May 14**: shared normalized import staging contract now lives in `src/lib/importStagingContract.ts` and is threaded through patrol/alarm review flows and Bob staging prompts.
 3. Convert geofence hints into site-resolution suggestions and zone fallback behavior.
-4. Add org-safe audit rows for historical import acceptance, rejection, and replay.
-5. Add reviewer actions for approve, stage, and reject on normalized imports.
+4. Add org-safe audit rows for historical import acceptance, rejection, and replay. **Completed May 14**: historical import replay and intake review transitions now record org-scoped `audit_log` rows with action metadata.
+5. Add reviewer actions for approve, stage, and reject on normalized imports. **Completed May 14**: Bob Intake Queue now exposes stage / approve / reject / replay actions for intake review.
 6. Preserve idempotent external IDs end-to-end for patrol and alarm import lanes.
 Scope: Whole-of-product realignment across core modules, assistive modules, Bob/AI systems, transition systems, communications, and data movement.
 
