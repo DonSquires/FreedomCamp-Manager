@@ -4,6 +4,8 @@ Complete reference for all environment variables used in FieldOps Manager.
 
 > **Looking for secrets setup instructions?** See the **[Secrets Registry](SECRETS_REGISTRY.md)** for a complete list of every secret — what it does, where to configure it (GitHub Actions, Supabase vault, or Railway service), accepted aliases, and a copy-paste setup checklist.
 
+> **Need Bob staging login setup?** Use the Bob login runbook in **[STAGING](STAGING.md)** under the “Bob Staging Login Provisioning” section.
+
 ## Table of Contents
 
 1. [Frontend (Vite) Variables](#frontend-vite-variables)

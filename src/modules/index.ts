@@ -25,3 +25,11 @@ export {
   type ModulePricing,
   type ServiceModule,
 } from './registry'
+
+// Module surfaces
+export * from './enforcement'
+export * from './patrol'
+export * from './dashboard'
+export * from './shared'
+export * from './messaging'
+export { default as MessagingPage } from './messaging'
