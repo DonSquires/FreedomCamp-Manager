@@ -11,6 +11,14 @@
 // - Railway inference for plate detection (graceful fallback to manual entry)
 // ============================================================================
 
+declare const Deno: {
+  env: {
+    get: (key: string) => string | undefined
+  }
+  serve: (handler: (req: Request) => Response | Promise<Response>) => void
+}
+
+// @ts-ignore Deno edge runtime URL import is valid at runtime.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.3";
 import { withCors, jsonResponse, errorResponse, getCorsHeaders } from "../_shared/withCors.ts";
 import { buildAccessibleOrgIds, orgAccessDenied } from "../_shared/orgAccess.ts";
@@ -52,7 +60,11 @@ function decodeJwtPayload(token: string): Record<string, unknown> | null {
 }
 
 async function sha256Hash(data: Uint8Array): Promise<string> {
-  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  const inputBuffer = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) as ArrayBuffer;
+  const hashBuffer = await crypto.subtle.digest(
+    "SHA-256",
+    inputBuffer,
+  );
   const hashArray = Array.from(new Uint8Array(hashBuffer));
   return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
 }
@@ -223,7 +235,7 @@ async function downloadPhotoBytes(
   };
 }
 
-Deno.serve(async (req) => {
+Deno.serve(async (req: Request) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return new Response("ok", { status: 200, headers: getCorsHeaders(req) });
