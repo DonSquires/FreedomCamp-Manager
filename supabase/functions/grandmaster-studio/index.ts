@@ -138,6 +138,10 @@ function normalizeBaseUrl(raw?: string | null): string {
   return String(raw ?? '').trim().replace(/\/+$/, '')
 }
 
+function isRunpodServerlessBaseUrl(url: string): boolean {
+  return /https:\/\/api\.runpod\.ai\/v2\//i.test(String(url || ''))
+}
+
 async function runpodGraphql(apiKey: string, query: string) {
   const response = await fetch('https://api.runpod.io/graphql', {
     method: 'POST',
@@ -568,6 +572,18 @@ Deno.serve(async (req: Request) => {
     }
 
     if (action === 'intel_bulletin_submit') {
+      if (isRunpodServerlessBaseUrl(inferenceUrl)) {
+        return new Response(
+          JSON.stringify({
+            error: 'Intel ingest route not available on runsync-only RunPod endpoint',
+            inferenceUrl,
+            requiredRoute: '/intel/ingest-bulletin',
+            guidance: 'Set INFERENCE_SERVICE_URL to a Bob host/gateway that exposes /intel/* routes, or configure INTEL_INGEST_URL in feeder workflows.',
+          }),
+          { status: 409, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } },
+        )
+      }
+
       const { title, summary, type, source, metadata } = body
       if (!title || typeof title !== 'string') return json400('title is required', req)
       if (!summary || typeof summary !== 'string') return json400('summary is required', req)
@@ -607,6 +623,18 @@ Deno.serve(async (req: Request) => {
     }
 
     if (action === 'intel_state') {
+      if (isRunpodServerlessBaseUrl(inferenceUrl)) {
+        return new Response(
+          JSON.stringify({
+            error: 'Intel state route not available on runsync-only RunPod endpoint',
+            inferenceUrl,
+            requiredRoute: '/intel/state',
+            guidance: 'Set INFERENCE_SERVICE_URL to a Bob host/gateway that exposes /intel/* routes, or use runsync chat fallback for non-durable context.',
+          }),
+          { status: 409, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } },
+        )
+      }
+
       const result = await bobGet('/intel/state')
       return proxyResponse(result, req)
     }
