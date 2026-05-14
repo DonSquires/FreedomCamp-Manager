@@ -2,10 +2,18 @@
 
 Date: 2026-05-04
 Status: 🚀 PHASE A UNDER EXECUTION — Week 2 Complete (Foundations + Bootstrap Routes + Tests + Validators)
-**Last Updated**: May 13, 2026, 22:45 UTC
-**Phase A Progress**: 70% — Schemas deployed, bootstrap routes validated, route/role truth green, Bob governance green, org-isolation execution still blocked on missing Supabase env
-**Phase A Gate Target**: June 9, 2026 (Org Isolation Tests env-backed run pending + Bootstrap Routes 3/3 ✅ + Route/Role Truth ✅ + Bob Governance ✅)
-**Next Execution**: unblock env-backed org-isolation run, then refresh Phase A gate evidence and canary status
+**Last Updated**: May 13, 2026, 22:50 UTC
+**Phase A Progress**: 80% — Schemas deployed, bootstrap routes validated, org-isolation green, route/role truth green, Bob governance green, canary/ownership evidence still open
+**Phase A Gate Target**: June 9, 2026 (Org Isolation Tests 5/5 ✅ + Bootstrap Routes 3/3 ✅ + Route/Role Truth ✅ + Bob Governance ✅ + Canary/ownership evidence pending)
+**Next Execution**: refresh the final Phase A gate summary, then move into canary status verification and Phase B backlog preparation
+### 11.2b Phase B Execution Backlog
+
+1. Wire the normalized historical patrol draft into the actual import execution path. **Completed May 14**: Bob Assistant Studio now stages normalized historical patrol exports into `ai_import_intakes` under the approved `import_historical_patrol_data` contract.
+2. Add a backend contract for normalized patrol and alarm payload staging.
+3. Convert geofence hints into site-resolution suggestions and zone fallback behavior.
+4. Add org-safe audit rows for historical import acceptance, rejection, and replay.
+5. Add reviewer actions for approve, stage, and reject on normalized imports.
+6. Preserve idempotent external IDs end-to-end for patrol and alarm import lanes.
 Scope: Whole-of-product realignment across core modules, assistive modules, Bob/AI systems, transition systems, communications, and data movement.
 
 ## 1. Objective

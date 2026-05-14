@@ -25,7 +25,7 @@ import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_share
 // @ts-ignore Deno edge runtime URL import is valid at runtime.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3'
 import { fetchWithRetry } from '../_shared/fetchWithRetry.ts'
-import { collectDirectOrgIds } from '../_shared/orgAccess.ts'
+import { collectDirectOrgIds, buildAccessibleOrgIds } from '../_shared/orgAccess.ts'
 
 const PTT_SERVER_URL =
   Deno.env.get('PTT_SERVER_URL') ||

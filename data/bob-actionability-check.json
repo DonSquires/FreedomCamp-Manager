@@ -1,0 +1,45 @@
+{
+  "timestamp": "2026-05-14T02:29:49.977Z",
+  "version": "2026-05-13.bob-actionability-v1",
+  "checks": [
+    {
+      "check": "Org access helper exports",
+      "outcome": "PASS",
+      "details": "all exports present"
+    },
+    {
+      "check": "Ask Bob org access integration",
+      "outcome": "PASS",
+      "details": "import + usage found"
+    },
+    {
+      "check": "PTT signaling org access import",
+      "outcome": "PASS",
+      "details": "import found"
+    },
+    {
+      "check": "Smoke notice org access integration",
+      "outcome": "PASS",
+      "details": "import + usage found"
+    },
+    {
+      "check": "Generate infringement org access integration",
+      "outcome": "PASS",
+      "details": "import + usage found"
+    },
+    {
+      "check": "Org access gate migrations",
+      "outcome": "PASS",
+      "details": "both read + write migrations present"
+    },
+    {
+      "check": "Star Trek non-regression checkpoint",
+      "outcome": "PASS",
+      "details": "guard + evidence checkpoint found"
+    }
+  ],
+  "summary": {
+    "passed": 7,
+    "failed": 0
+  }
+}

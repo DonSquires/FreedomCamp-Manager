@@ -8,6 +8,7 @@ LOG_DIR="${BOB_AUTONOMOUS_LOG_DIR:-${REPO_ROOT}/logs}"
 PID_FILE="${BOB_AUTONOMOUS_PID_FILE:-${PID_DIR}/bob-autonomous-daemon.pid}"
 LOG_FILE="${BOB_AUTONOMOUS_LOG_FILE:-${LOG_DIR}/bob-autonomous-cycle.log}"
 INTERVAL_MINUTES="${BOB_AUTONOMOUS_INTERVAL_MINUTES:-60}"
+CYCLE_SCRIPT="${BOB_AUTONOMOUS_CYCLE_SCRIPT:-scripts/run-autonomous-learning-cycle.sh}"
 
 mkdir -p "${PID_DIR}" "${LOG_DIR}"
 
@@ -31,7 +32,14 @@ start_daemon() {
   fi
 
   local runner
-  runner="cd \"${REPO_ROOT}\" && while true; do echo \"[bob-autonomous-daemon] cycle start $(date -u '+%Y-%m-%dT%H:%M:%SZ')\"; bash scripts/run-autonomous-learning-cycle.sh >> \"${LOG_FILE}\" 2>&1 || true; echo \"[bob-autonomous-daemon] cycle done; sleeping ${INTERVAL_MINUTES}m\" >> \"${LOG_FILE}\"; sleep $((INTERVAL_MINUTES * 60)); done"
+  if [[ ! -f "${REPO_ROOT}/${CYCLE_SCRIPT}" ]]; then
+    echo "Cycle script not found: ${CYCLE_SCRIPT}"
+    exit 2
+  fi
+
+  local cycle_cmd
+  cycle_cmd="bash \"${CYCLE_SCRIPT}\""
+  runner="cd \"${REPO_ROOT}\" && while true; do echo \"[bob-autonomous-daemon] cycle start $(date -u '+%Y-%m-%dT%H:%M:%SZ')\"; ${cycle_cmd} >> \"${LOG_FILE}\" 2>&1 || true; echo \"[bob-autonomous-daemon] cycle done; sleeping ${INTERVAL_MINUTES}m\" >> \"${LOG_FILE}\"; sleep $((INTERVAL_MINUTES * 60)); done"
 
   nohup bash -lc "${runner}" >> "${LOG_FILE}" 2>&1 &
   echo "$!" > "${PID_FILE}"
@@ -62,6 +70,7 @@ status_daemon() {
   fi
   echo "PID file: ${PID_FILE}"
   echo "Log file: ${LOG_FILE}"
+  echo "Cycle script: ${CYCLE_SCRIPT}"
   if [[ -f "${LOG_FILE}" ]]; then
     echo "Recent log lines:"
     tail -n 5 "${LOG_FILE}" || true
@@ -74,6 +83,7 @@ Usage: bash scripts/manage-autonomous-daemon.sh <start|stop|status>
 
 Environment overrides:
   BOB_AUTONOMOUS_INTERVAL_MINUTES  Run interval in minutes (default: 60)
+  BOB_AUTONOMOUS_CYCLE_SCRIPT      Cycle script path relative to repo root (default: scripts/run-autonomous-learning-cycle.sh)
   BOB_AUTONOMOUS_LOG_FILE          Log file path (default: <repo>/logs/bob-autonomous-cycle.log)
   BOB_AUTONOMOUS_PID_FILE          PID file path (default: <repo>/tmp/bob-autonomous-daemon.pid)
 EOF

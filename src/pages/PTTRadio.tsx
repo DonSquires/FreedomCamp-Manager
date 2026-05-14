@@ -238,6 +238,7 @@ const TRANSLATION_LANGUAGE_OPTIONS = [
 ] as const
 
 const TEAM_CHAT_TRANSLATION_PREF_KEY = 'team-chat-translation-pref-v1'
+const RADIO_INTERPRETER_PREF_KEY = 'radio-interpreter-audio-pref-v1'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 const CHANNEL_SWITCH_DEBOUNCE_MS = 400
@@ -562,8 +563,28 @@ export default function PTTRadio() {
   const [interpreterPrefsHydrated, setInterpreterPrefsHydrated] = useState(false)
   const [isInterpreterListening, setIsInterpreterListening] = useState(false)
   const [isInterpreterTranslating, setIsInterpreterTranslating] = useState(false)
-  const [wakeWordEnabled, setWakeWordEnabled] = useState(false)
-  const [duckingEnabled, setDuckingEnabled] = useState(true)
+  const [wakeWordEnabled, setWakeWordEnabled] = useState(() => {
+    if (typeof window === 'undefined') return false
+    try {
+      const raw = window.localStorage.getItem(RADIO_INTERPRETER_PREF_KEY)
+      if (!raw) return false
+      const parsed = JSON.parse(raw)
+      return parsed?.wakeWordEnabled === true
+    } catch {
+      return false
+    }
+  })
+  const [duckingEnabled, setDuckingEnabled] = useState(() => {
+    if (typeof window === 'undefined') return true
+    try {
+      const raw = window.localStorage.getItem(RADIO_INTERPRETER_PREF_KEY)
+      if (!raw) return true
+      const parsed = JSON.parse(raw)
+      return parsed?.duckingEnabled !== false
+    } catch {
+      return true
+    }
+  })
   const [bobIntercomSpeaking, setBobIntercomSpeaking] = useState(false)
   const radioMode = useMemo(() => {
     const search = new URLSearchParams(location.search)
@@ -2170,6 +2191,20 @@ export default function PTTRadio() {
     return () => clearTimeout(timer)
   }, [user?.id, interpreterTargetLanguage, interpreterPrefsHydrated, saveInterpreterTargetLanguagePreference])
 
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(
+        RADIO_INTERPRETER_PREF_KEY,
+        JSON.stringify({
+          wakeWordEnabled,
+          duckingEnabled,
+        }),
+      )
+    } catch {
+      // Ignore storage errors.
+    }
+  }, [wakeWordEnabled, duckingEnabled])
+
   // Auto-transcribe the latest incoming PTT clip whenever it changes
   useEffect(() => {
     const clip = lastClips[0]
@@ -3518,6 +3553,7 @@ export default function PTTRadio() {
                   <TooltipTrigger asChild>
                     <button
                       ref={pttButtonRef}
+                      data-testid="ptt-hold-to-talk"
                       className={[
                         // Mobile: bottom full-width control; Desktop: round control.
                         'select-none touch-none flex items-center justify-center transition-all duration-100 border-4 w-full',
@@ -3559,7 +3595,7 @@ export default function PTTRadio() {
                         )}
                         <span className={`text-[11px] md:text-xs font-bold tracking-widest uppercase ${
                           isTransmitting ? 'text-white' : isMuted ? 'text-red-400' : 'text-emerald-200'
-                        }`}>
+                        }`} data-testid={isTransmitting ? 'ptt-transmitting-indicator' : 'ptt-idle-indicator'}>
                           {isTransmitting
                             ? `TX  ${formatDuration(liveTxSeconds)}`
                             : isMuted
@@ -3592,6 +3628,7 @@ export default function PTTRadio() {
               <Button
                 variant="outline"
                 size="sm"
+                data-testid="show-interpreter-toggle"
                 className={`border-slate-700 bg-slate-800 text-slate-200 ${showInterpreterPanel ? 'border-blue-500 text-blue-300' : ''}`}
                 onClick={() => setShowInterpreterPanel((prev) => !prev)}
               >
@@ -3647,6 +3684,7 @@ export default function PTTRadio() {
                 <Button
                   variant="outline"
                   size="sm"
+                  data-testid="capture-speech-button"
                   onClick={captureSpeechForInterpreter}
                   disabled={isInterpreterListening}
                   className="border-slate-700 bg-slate-800 text-slate-200"
@@ -3657,6 +3695,7 @@ export default function PTTRadio() {
                 <Button
                   variant="outline"
                   size="sm"
+                  data-testid="translate-interpreter-button"
                   onClick={translateInterpreterInput}
                   disabled={!interpreterInput.trim() || isInterpreterTranslating}
                   className="border-slate-700 bg-slate-800 text-slate-200"
@@ -3667,6 +3706,7 @@ export default function PTTRadio() {
                 <Button
                   variant="outline"
                   size="sm"
+                  data-testid="bob-intercom-speak-button"
                   onClick={speakInterpreterOutput}
                   disabled={!interpreterOutput.trim()}
                   className="border-slate-700 bg-slate-800 text-slate-200"
@@ -3679,13 +3719,13 @@ export default function PTTRadio() {
               <div className="mt-1 space-y-2 rounded-md border border-slate-800 bg-slate-950/60 p-2">
                 <div className="flex items-center justify-between gap-3">
                   <div className="text-xs text-slate-300">Wake word ("Hey Bob")</div>
-                  <Switch checked={wakeWordEnabled} onCheckedChange={setWakeWordEnabled} />
+                  <Switch data-testid="wake-word-switch" checked={wakeWordEnabled} onCheckedChange={setWakeWordEnabled} />
                 </div>
                 <div className="flex items-center justify-between gap-3">
                   <div className="text-xs text-slate-300">Audio ducking (coworker stream to 20%)</div>
-                  <Switch checked={duckingEnabled} onCheckedChange={setDuckingEnabled} />
+                  <Switch data-testid="audio-ducking-switch" checked={duckingEnabled} onCheckedChange={setDuckingEnabled} />
                 </div>
-                <div className="text-[11px] text-slate-400">
+                <div className="text-[11px] text-slate-400" data-testid="audio-ducking-status">
                   {bobIntercomSpeaking && duckingEnabled ? 'Bob speaking: coworker channel ducked to 20%' : 'Coworker channel at normal volume'}
                 </div>
               </div>

@@ -252,6 +252,60 @@ If Bob receives a collaboration packet, he processes it fully and publishes the 
 Schema last verified: 2026-04-25 (migration 20260425000001)
 Live row counts: observations 30,789 / canonical_vehicles 61,535 / zones 3,731 / breach_alerts 1,484 / user_profiles 7 / compliance_results 1,959
 Build: 88 React pages, 72 edge functions, 180+ DB tables, 200+ migrations
+
+---
+
+## 15. Marlborough Parking Warden Operational Guidance (May 2026)
+
+Source: NZTA Warden training guidelines stored in the Supabase Storage bucket Parking-Managment, used for First Security Blenheim branch parking officers working for Marlborough District Council / Marlborough Roads.
+
+Operational stance:
+- Treat parking enforcement as a public-safety and traffic-flow function, not just ticket issuance.
+- Marlborough uses a zero-tolerance enforcement posture for illegal parking in controlled areas.
+- Officers are ambassadors for Marlborough District Council and the wider region: professional appearance, clear communication, courtesy, and local knowledge are part of the job.
+
+Street conduct rules:
+- Always put safety first for yourself, teammates, and the public.
+- Do not wear headsets or ear plugs while on street patrol because they compromise situational awareness.
+- Keep all personal information confidential.
+- Remain calm under provocation, avoid escalation, and walk away if the situation becomes unsafe.
+- Empathise with the public, but do not sympathise away the enforcement decision.
+- Do not use internal jargon with the public; explain the full meaning plainly.
+
+Parking enforcement proof test:
+To prove a stationary vehicle offence, confirm all three:
+1. It is a motor vehicle.
+2. It is on a road.
+3. It is committing an offence.
+
+Road definition note:
+- For parking enforcement, road includes places the public has access to, including streets, highways, riverbeds, beaches, wharves, and car parks.
+
+Key legal grounding:
+- Land Transport Act 1998
+- Land Transport (Road User) Rule 2004
+- Land Transport (Motor Vehicle Registration and Licensing) Regulations 2011
+- Land Transport (Offences and Penalties) Regulations 1999
+- Marlborough District Council Parking Bylaw 2017
+- Parking warden powers are conferred under section 128E of the Land Transport Act 1998.
+
+Operational signage note:
+- Zone parking restrictions rely on entry and exit signs, with repeater signs no more than 200 metres apart.
+
+Document-anchored Blenheim focus areas:
+- Reserved parking and enforcement hotspots named in the manual include Kinross Street car park, Seymour Street car park, Wynen Street car park, Alfred Street car park building, and Clubs of Marlborough.
+- The manual also calls out Central Blenheim CBD time-restricted parking, kerbside meters, loading zones, mobility spaces, and reserved parks as repeated enforcement areas.
+- The parking training source includes map and enforcement-area references for Blenheim and Picton; treat those as setup guidance when drafting client sites, zones, and geofence blockers.
+
+Parking governance and org-routing rule:
+- First Security - Blenheim is the delivery branch for Marlborough Roads parking work.
+- Marlborough Roads is jointly owned by Marlborough District Council and NZTA.
+- Marlborough District Council is the governing organization for parking setup and Bob should treat NZTA as a joint-ownership stakeholder, not the governing client.
+- When creating parking setup drafts, Bob should place client-owned sites under Marlborough District Council and keep delivery ownership under First Security - Blenheim.
+
+Bob behavior rule for Marlborough parking workflows:
+- When Bob assists with Marlborough parking enforcement, prefer advice that is evidence-led, safety-first, legally grounded, and appropriate for a public-facing parking warden rather than a generic security guard workflow.
+- When the user provides enough setup detail, Bob should draft client-site, zone, and geofence creation work instead of stopping at advice-only output.
 `
 
 // ---------------------------------------------------------------------------

@@ -26,6 +26,7 @@ import { toast } from 'sonner'
 import { edgeFunctions } from '@/lib/edgeFunctions'
 import { assertBobMutationAccess } from '@/lib/bobMutationCatalog'
 import { forwardGeocode } from '@/lib/geocoding'
+import { extractDocumentData } from '@/lib/documentExtraction'
 import { smokeTests, dataVerification, performanceTests, runBugFixDeepDive } from '@/lib/testUtils'
 import { consumeLatestBobCollaborationPacket, publishBobResponse, type BobCollaborationPacket } from '@/lib/bobCollaboration'
 import { BOB_PROJECT_KNOWLEDGE, BOB_DOCUMENT_GUARDRAILS } from '@/lib/bobKnowledgeBase'
@@ -81,6 +82,38 @@ import {
   reviewHistoricalPatrolPerformance,
   type PatrolSetupBlueprint,
 } from '@/lib/bobSetupBlueprint'
+import {
+  buildHistoricalPatrolImportDraft,
+  buildHistoricalPatrolPlacementReview,
+  formatHistoricalPatrolImportSummary,
+  looksLikeHistoricalPatrolImport,
+  type HistoricalPatrolImportDraft,
+  type HistoricalRoutingModule,
+} from '@/lib/historicalPatrolIntelligence'
+import {
+  buildParkingTrainingFocus,
+  formatParkingTrainingFocusSummary,
+  looksLikeParkingTrainingDocument,
+  type ParkingOperationalSnapshot,
+  type ParkingTrainingFocus,
+} from '@/lib/parkingTrainingIntelligence'
+import {
+  buildServiceContractMatchContext,
+  formatServiceContractPromptSupplement,
+  isContentScanCandidatePath,
+  isReadableServiceContractPath,
+  scoreServiceContractRecord,
+  type ServiceContractFileRecord,
+  type ServiceContractMatchContext,
+  type ServiceContractDocumentSource,
+} from '@/lib/serviceContractsIntelligence'
+import { getFirstSecurityParkingHierarchyContext } from '@/lib/orgClientTemplate'
+import {
+  buildOrganizationSetupFollowUpQuestions,
+  extractOrganizationSetupDraft,
+  looksLikeOrganizationSetupRequest,
+  type OrganizationSetupDraft,
+} from '@/lib/organizationSetupIntelligence'
 import { resolvePatrolZoneFallback } from '@/lib/patrolZoneFallbacks'
 import { radioTranslationService } from '@/lib/radio/radioTranslationService'
 import {
@@ -178,6 +211,14 @@ interface CodeChangeRequest {
   confirmed: boolean
 }
 
+interface ParkingTrainingIntakeDraft {
+  sourceText: string
+  fileName: string
+  mimeType: string
+  focus: ParkingTrainingFocus
+  summary: string
+}
+
 type DoctorPlaybookId = 'ollama_recovery' | 'ptt_token_path_repair' | 'edge_auth_alignment'
 
 interface BobRadioChannel {
@@ -272,6 +313,140 @@ function buildEmergencyAssistPhrase(params: {
 
 function isHazardReviewRequiredPlan(planType: PlanType): boolean {
   return planType === 'risk_assessment' || planType === 'hs_plan'
+}
+
+function isParkingSetupRequest(message: string, fileName?: string | null): boolean {
+  const sample = `${fileName || ''}\n${message}`
+  return /(parking|warden|blenheim|marlborough)/i.test(sample)
+    && /(train|training|stage|import|zone|zoning|geofence|client|site|setup|add)/i.test(sample)
+}
+
+function buildParkingPromptSupplement(
+  snapshot: ParkingOperationalSnapshot | null,
+  focus: ParkingTrainingFocus | null,
+  serviceContractContext: ServiceContractMatchContext | null,
+  hierarchyContext?: ReturnType<typeof getFirstSecurityParkingHierarchyContext> | null,
+): string {
+  const lines: string[] = [
+    'Parking setup protocol active.',
+    'If the user provides setup details, Bob should draft client sites, linked zones, and geofence blockers instead of stopping at advisory output.',
+  ]
+
+  if (hierarchyContext) {
+    lines.push(`Delivery branch: ${hierarchyContext.branchName}.`)
+    lines.push(`Governing organization: ${hierarchyContext.governingOrganization}.`)
+    lines.push(`Contract context: ${hierarchyContext.deliveryContract}.`)
+    lines.push(...hierarchyContext.ownershipNotes)
+    lines.push(hierarchyContext.operationalRule)
+  }
+
+  if (snapshot) {
+    lines.push(`Selected organization: ${snapshot.organizationName || 'Unknown organization'}.`)
+    lines.push(`Live active parking_zones: ${snapshot.liveParkingZoneCount}.`)
+    if (snapshot.liveParkingZoneCount > 0) {
+      lines.push(`Parking zones: ${snapshot.liveParkingZoneNames.join(', ')}.`)
+    } else {
+      lines.push('No active parking_zones are configured yet for the selected organization; use document zoning guidance as the interim source of focus areas.')
+    }
+    lines.push(`Live active client sites: ${snapshot.liveClientSiteCount}.`)
+    if (snapshot.liveClientSiteCount > 0) {
+      lines.push(`Client site context: ${snapshot.liveClientSiteNames.join(', ')}.`)
+    }
+  }
+
+  if (focus) {
+    if (focus.includesMapReferences) {
+      lines.push('The attached parking document includes map or enforcement-area references.')
+    }
+    if (focus.enforcementAreas.length > 0) {
+      lines.push(`Document focus areas: ${focus.enforcementAreas.join('; ')}.`)
+    }
+    if (focus.reservedParkingLocations.length > 0) {
+      lines.push(`Reserved parking locations: ${focus.reservedParkingLocations.join('; ')}.`)
+    }
+    if (focus.zoningRules.length > 0) {
+      lines.push(`Preserve these zoning rules: ${focus.zoningRules.join('; ')}.`)
+    }
+  }
+
+  lines.push(formatServiceContractPromptSupplement(serviceContractContext))
+
+  return lines.join('\n')
+}
+
+function buildContractPriorityPlan(context: ServiceContractMatchContext): string {
+  const highestRanked = context.topRankedPaths[0] || 'none available'
+  const supporting = context.topContentRankedPaths.slice(0, 3)
+  const instructions = context.instructionLines.slice(0, 4)
+
+  return [
+    '## Approved Contract Source Priority',
+    `Primary source: ${highestRanked}`,
+    `Supporting content sources: ${supporting.join('; ') || 'none extracted'}`,
+    `Reason: highest-ranked signed/current contract source selected for patrol and parking setup grounding.`,
+    `Conflict count: ${context.conflictWarnings.length}`,
+    '',
+    '## Operational Instructions To Preserve',
+    instructions.length > 0 ? instructions.join('\n') : 'No content-derived instructions extracted in this run.',
+  ].join('\n')
+}
+
+type ContractComparisonResolution = 'primary' | 'secondary' | 'manual'
+
+function getComparisonResolutionLabel(resolution: ContractComparisonResolution | undefined): string {
+  if (resolution === 'primary') return 'Use primary source'
+  if (resolution === 'secondary') return 'Use comparison source'
+  if (resolution === 'manual') return 'Manual override required'
+  return 'Not selected'
+}
+
+function getComparisonResolutionKey(item: ServiceContractMatchContext['comparisonSummary'][number]): string {
+  return `${item.category}:${item.primarySource}:${item.secondarySource}`
+}
+
+function buildContractConflictReviewPlan(
+  context: ServiceContractMatchContext,
+  resolutions: Record<string, ContractComparisonResolution>,
+): string {
+  return [
+    '## Service Contract Conflict Review',
+    `Priority-ranked sources: ${context.topRankedPaths.join('; ') || 'none available'}`,
+    `Priority-ranked content sources: ${context.topContentRankedPaths.join('; ') || 'none available'}`,
+    '',
+    '## Comparison (Service, Time, Cost, Impact)',
+    context.comparisonSummary.length > 0
+      ? context.comparisonSummary.map((item) => [
+        `- ${item.summary}`,
+        `  Resolution: ${getComparisonResolutionLabel(resolutions[getComparisonResolutionKey(item)])}`,
+        `  Primary: ${item.primaryEvidence}`,
+        `  Comparison: ${item.secondaryEvidence}`,
+      ].join('\n')).join('\n')
+      : 'No structured comparison was available in this run.',
+    '',
+    '## Conflicts Requiring Review',
+    context.conflictWarnings.length > 0 ? context.conflictWarnings.join('\n') : 'No conflicts detected in this run.',
+    '',
+    '## Evidence Lines',
+    context.contentEvidence.length > 0 ? context.contentEvidence.join('\n') : 'No content evidence extracted in this run.',
+  ].join('\n')
+}
+
+function formatHistoricalRoutingLabel(module: HistoricalRoutingModule): string {
+  if (module === 'noise_control') return 'Noise Control'
+  if (module === 'alarm_response') return 'Alarm Response'
+  return 'Patrol Response'
+}
+
+function getHistoricalDefaultRoutingBySite(draft: HistoricalPatrolImportDraft | null): Record<string, HistoricalRoutingModule> {
+  if (!draft || draft.siteCoverage.length === 0) return {}
+  const next: Record<string, HistoricalRoutingModule> = {}
+  for (const site of draft.siteCoverage) {
+    const top = site.modules[0]?.module
+    if (top) {
+      next[site.siteName] = top
+    }
+  }
+  return next
 }
 
 const PLAN_TYPE_LABELS: Record<PlanType, string> = {
@@ -775,6 +950,9 @@ export default function BobAssistantStudio() {
   })
   const [generatedPlan, setGeneratedPlan] = useState('')
   const [pendingPatrolSetupBlueprint, setPendingPatrolSetupBlueprint] = useState<PatrolSetupBlueprint | null>(null)
+  const [pendingHistoricalPatrolImportDraft, setPendingHistoricalPatrolImportDraft] = useState<HistoricalPatrolImportDraft | null>(null)
+  const [pendingParkingTrainingDraft, setPendingParkingTrainingDraft] = useState<ParkingTrainingIntakeDraft | null>(null)
+  const [pendingOrganizationSetupDraft, setPendingOrganizationSetupDraft] = useState<OrganizationSetupDraft | null>(null)
   const [collaborationPacket, setCollaborationPacket] = useState<BobCollaborationPacket | null>(null)
   const [voiceSupported, setVoiceSupported] = useState(false)
   const [codeTaskLoading, setCodeTaskLoading] = useState(false)
@@ -792,6 +970,10 @@ export default function BobAssistantStudio() {
   const [memorySnapshot, setMemorySnapshot] = useState<BobMemorySnapshot | null>(null)
   const [memoryLoading, setMemoryLoading] = useState(false)
   const [memoryPanelOpen, setMemoryPanelOpen] = useState(false)
+  const [parkingOperationalContext, setParkingOperationalContext] = useState<ParkingOperationalSnapshot | null>(null)
+  const [serviceContractMatchContext, setServiceContractMatchContext] = useState<ServiceContractMatchContext | null>(null)
+  const [contractComparisonResolutions, setContractComparisonResolutions] = useState<Record<string, ContractComparisonResolution>>({})
+  const [historicalAssortmentOverrides, setHistoricalAssortmentOverrides] = useState<Record<string, HistoricalRoutingModule>>({})
   const [radioChannels, setRadioChannels] = useState<BobRadioChannel[]>(DEFAULT_BOB_RADIO_CHANNELS)
   const [radioChannelsLoading, setRadioChannelsLoading] = useState(false)
   const [selectedRadioChannelId, setSelectedRadioChannelId] = useState(DEFAULT_BOB_RADIO_CHANNELS[0].id)
@@ -868,6 +1050,195 @@ export default function BobAssistantStudio() {
         : user?.organization_id || null,
     [organizationId, user?.organization_id, user?.role],
   )
+
+  const parkingTrainingDocumentAttached = useMemo(
+    () => !!attachedDocument && looksLikeParkingTrainingDocument(attachedDocument.extractedText, attachedDocument.name),
+    [attachedDocument],
+  )
+
+  useEffect(() => {
+    let cancelled = false
+
+    const loadParkingOperationalContext = async () => {
+      if (!effectiveOrgId) {
+        setParkingOperationalContext(null)
+        return
+      }
+
+      try {
+        const [organizationResult, parkingZonesResult, clientSitesResult] = await Promise.all([
+          (supabase as any)
+            .from('organizations')
+            .select('name')
+            .eq('id', effectiveOrgId)
+            .single(),
+          (supabase as any)
+            .from('parking_zones')
+            .select('name')
+            .eq('organization_id', effectiveOrgId)
+            .eq('is_active', true)
+            .order('name', { ascending: true })
+            .limit(12),
+          (supabase as any)
+            .from('client_sites')
+            .select('name')
+            .eq('organization_id', effectiveOrgId)
+            .eq('is_active', true)
+            .order('name', { ascending: true })
+            .limit(12),
+        ])
+
+        if (cancelled) return
+        if (organizationResult.error) throw organizationResult.error
+        if (parkingZonesResult.error) throw parkingZonesResult.error
+        if (clientSitesResult.error) throw clientSitesResult.error
+
+        const liveParkingZoneNames = (parkingZonesResult.data ?? []).map((row: any) => String(row.name || '')).filter(Boolean)
+        const liveClientSiteNames = (clientSitesResult.data ?? []).map((row: any) => String(row.name || '')).filter(Boolean)
+
+        setParkingOperationalContext({
+          organizationName: organizationResult.data?.name || null,
+          liveParkingZoneCount: liveParkingZoneNames.length,
+          liveParkingZoneNames,
+          liveClientSiteCount: liveClientSiteNames.length,
+          liveClientSiteNames,
+        })
+      } catch {
+        if (!cancelled) {
+          setParkingOperationalContext(null)
+        }
+      }
+    }
+
+    void loadParkingOperationalContext()
+
+    return () => {
+      cancelled = true
+    }
+  }, [effectiveOrgId])
+
+  useEffect(() => {
+    let cancelled = false
+
+    const MAX_FILES = 400
+    const MAX_DEPTH = 6
+    const MAX_READABLE_FILES = 30
+    const MAX_FILE_TEXT_CHARS = 24000
+
+    const scanServiceContracts = async () => {
+      const files: ServiceContractFileRecord[] = []
+      const readableDocuments: ServiceContractDocumentSource[] = []
+
+      const walk = async (prefix: string, depth: number): Promise<void> => {
+        if (depth > MAX_DEPTH || files.length >= MAX_FILES) return
+
+        const { data, error } = await supabase.storage.from('service-contracts').list(prefix, {
+          limit: 100,
+          sortBy: { column: 'name', order: 'asc' },
+        })
+
+        if (error) throw error
+
+        for (const item of data ?? []) {
+          const name = String((item as any)?.name || '').trim()
+          if (!name || name === '.emptyFolderPlaceholder') continue
+
+          const path = prefix ? `${prefix}/${name}` : name
+          const looksLikeFolder = !((item as any)?.id)
+
+          if (looksLikeFolder) {
+            await walk(path, depth + 1)
+            continue
+          }
+
+          files.push({
+            path,
+            updatedAt: String((item as any)?.updated_at || (item as any)?.created_at || '' || '') || null,
+            sizeBytes: typeof (item as any)?.metadata?.size === 'number' ? (item as any).metadata.size : null,
+          })
+          if (files.length >= MAX_FILES) break
+        }
+      }
+
+      try {
+        await walk('', 0)
+        const readableCandidatePaths = files
+          .filter((record) => isContentScanCandidatePath(record.path))
+          .filter((record) => /(parking|blenheim|marlborough|zone|geofence|patrol|warden|contract)/i.test(record.path))
+          .sort((left, right) => scoreServiceContractRecord(right) - scoreServiceContractRecord(left))
+          .slice(0, MAX_READABLE_FILES)
+
+        for (const record of readableCandidatePaths) {
+          if (cancelled) return
+
+          try {
+            const path = record.path
+            const { data, error } = await supabase.storage.from('service-contracts').download(path)
+            if (error || !data) continue
+
+            let content = ''
+            if (isReadableServiceContractPath(path)) {
+              content = (await data.text()).slice(0, MAX_FILE_TEXT_CHARS)
+            } else {
+              const extension = path.split('.').pop()?.toLowerCase() || ''
+              const fallbackMimeType = extension === 'pdf'
+                ? 'application/pdf'
+                : extension === 'docx'
+                  ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+                  : 'application/octet-stream'
+
+              const extractionFile = new File(
+                [data],
+                path.split('/').pop() || path,
+                { type: (data as Blob).type || fallbackMimeType },
+              )
+              const extracted = await extractDocumentData(extractionFile)
+              content = String(extracted.text || '').slice(0, MAX_FILE_TEXT_CHARS)
+            }
+
+            if (!content.trim()) continue
+
+            readableDocuments.push({ path, content, updatedAt: record.updatedAt ?? null })
+          } catch {
+            // Best effort only: continue scanning other files.
+          }
+        }
+
+        if (cancelled) return
+        setServiceContractMatchContext(buildServiceContractMatchContext(files, readableDocuments))
+      } catch {
+        if (!cancelled) {
+          setServiceContractMatchContext(null)
+        }
+      }
+    }
+
+    void scanServiceContracts()
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!serviceContractMatchContext || serviceContractMatchContext.comparisonSummary.length === 0) {
+      setContractComparisonResolutions({})
+      return
+    }
+
+    setContractComparisonResolutions((previous) => {
+      const next: Record<string, ContractComparisonResolution> = {}
+      for (const item of serviceContractMatchContext.comparisonSummary) {
+        const key = getComparisonResolutionKey(item)
+        next[key] = previous[key] || 'primary'
+      }
+      return next
+    })
+  }, [serviceContractMatchContext])
+
+  useEffect(() => {
+    setHistoricalAssortmentOverrides(getHistoricalDefaultRoutingBySite(pendingHistoricalPatrolImportDraft))
+  }, [pendingHistoricalPatrolImportDraft])
 
   const selectedRadioChannel = useMemo(
     () => radioChannels.find((channel) => channel.id === selectedRadioChannelId) || radioChannels[0] || null,
@@ -1949,6 +2320,266 @@ export default function BobAssistantStudio() {
       }
     }
 
+    const parkingTrainingSourceText = attachedDocument?.extractedText?.trim() || message
+    if (looksLikeOrganizationSetupRequest(message, attachedDocument?.name)) {
+      try {
+        const sourceText = parkingTrainingSourceText
+        const { data, error } = await withPromiseTimeout(
+          edgeFunctions.aiChat({
+            provider: 'auto',
+            messages: [
+              {
+                role: 'system',
+                content: 'You extract organization setup details for FieldOps Manager. Return strict JSON only with keys organizationName, organizationType, organizationLevel, parentOrganizationName, address, contactEmail, contactPhone, isActive, notes, childSiteNames, childZoneNames, childGeofenceNames, missingFields, followUpQuestions. If a field is unknown, set it to an empty string or empty array and add the field name to missingFields plus a short followUpQuestion.',
+              },
+              {
+                role: 'user',
+                content: `Source material:\n${sourceText}`,
+              },
+            ],
+          }),
+          BOB_CHAT_RESPONSE_TIMEOUT_MS,
+          `Bob organization setup timeout after ${Math.round(BOB_CHAT_RESPONSE_TIMEOUT_MS / 1000)}s`,
+        )
+
+        if (error || !data?.response) {
+          throw new Error(error || 'Bob returned no organization setup content')
+        }
+
+        const parsed = extractJsonObject(String(data.response || ''))
+        if (!parsed?.organizationName) {
+          throw new Error('Could not parse Bob organization setup JSON')
+        }
+
+        const organizationDraft = extractOrganizationSetupDraft(parsed, sourceText)
+        if (!organizationDraft) {
+          throw new Error('Could not parse Bob organization setup JSON')
+        }
+
+        const needsMoreInfo = organizationDraft.missingFields.length > 0
+          || !organizationDraft.organizationName
+          || !organizationDraft.organizationType
+          || !organizationDraft.organizationLevel
+
+        if (needsMoreInfo) {
+          const questions = buildOrganizationSetupFollowUpQuestions(organizationDraft)
+
+          pushAssistantReply([
+            `I can create this organization, but I still need a few details for ${organizationDraft.organizationName || 'the requested organization'}.`,
+            ...questions.map((question) => `- ${question}`),
+          ].join('\n'))
+          setGeneratedPlan([
+            '## Organization Setup Follow-up Required',
+            `Target: ${organizationDraft.organizationName || 'unknown'}`,
+            `Type: ${organizationDraft.organizationType}`,
+            `Level: ${organizationDraft.organizationLevel}`,
+            `Parent: ${organizationDraft.parentOrganizationName || 'none specified'}`,
+            `Child sites: ${organizationDraft.childSiteNames.join(', ') || 'none specified'}`,
+            `Child zones: ${organizationDraft.childZoneNames.join(', ') || 'none specified'}`,
+            `Child geofences: ${organizationDraft.childGeofenceNames.join(', ') || 'none specified'}`,
+          ].join('\n'))
+          setThinking(false)
+          return
+        }
+
+        const { data: existingOrganizations, error: searchError } = await (supabase as any)
+          .from('organizations')
+          .select('id, name, organization_type, organization_level, parent_organization_id')
+          .ilike('name', `%${organizationDraft.organizationName}%`)
+          .limit(5)
+
+        if (searchError) {
+          throw searchError
+        }
+
+        const exactMatch = (existingOrganizations ?? []).find((row: any) => String(row.name || '').trim().toLowerCase() === organizationDraft.organizationName.toLowerCase())
+        if (exactMatch || (existingOrganizations ?? []).length > 0) {
+          pushAssistantReply(`The organization ${organizationDraft.organizationName} already exists, so I am not creating a duplicate. I can now help stage any missing client sites, zones, or geofences once you provide the setup details.`)
+          setGeneratedPlan([
+            '## Organization Already Exists',
+            `Organization: ${organizationDraft.organizationName}`,
+            `Existing matches: ${(existingOrganizations ?? []).map((row: any) => row.name).join(', ') || 'n/a'}`,
+            `Next step: provide client site, zone, and geofence details for staging.`,
+          ].join('\n'))
+          setThinking(false)
+          return
+        }
+
+        setPendingOrganizationSetupDraft(organizationDraft)
+        setGeneratedPlan([
+          '## Missing Organization Setup Draft',
+          `Organization: ${organizationDraft.organizationName}`,
+          `Type: ${organizationDraft.organizationType}`,
+          `Level: ${organizationDraft.organizationLevel}`,
+          `Parent: ${organizationDraft.parentOrganizationName || 'none specified'}`,
+          `Address: ${organizationDraft.address || 'not provided'}`,
+          `Child sites: ${organizationDraft.childSiteNames.join(', ') || 'none specified'}`,
+          `Child zones: ${organizationDraft.childZoneNames.join(', ') || 'none specified'}`,
+          `Child geofences: ${organizationDraft.childGeofenceNames.join(', ') || 'none specified'}`,
+          '',
+          'Bob can create the organization row first, then stage client sites, zones, and geofences from the same brief when you approve the draft.',
+        ].join('\n'))
+
+        const recommendation: BobRecommendation = {
+          id: `bob-organization-setup-${Date.now()}`,
+          actionType: 'create_organization_structure',
+          title: `Approve creation of ${organizationDraft.organizationName}`,
+          description: 'Bob detected a missing organization and prepared a creation draft so the requested client, site, zone, and geofence setup can be staged from the supplied details.',
+          entityType: 'organization',
+          entityId: organizationDraft.organizationName,
+          confidence: 88,
+          riskLevel: organizationDraft.organizationType === 'client' ? 'medium' : 'low',
+          evidence: [
+            `Organization type: ${organizationDraft.organizationType}`,
+            `Organization level: ${organizationDraft.organizationLevel}`,
+            `Parent organization: ${organizationDraft.parentOrganizationName || 'not specified'}`,
+            `Child sites: ${organizationDraft.childSiteNames.join(', ') || 'none specified'}`,
+            `Child zones: ${organizationDraft.childZoneNames.join(', ') || 'none specified'}`,
+            `Child geofences: ${organizationDraft.childGeofenceNames.join(', ') || 'none specified'}`,
+          ],
+          suggestedPayload: {
+            organizationName: organizationDraft.organizationName,
+            organizationType: organizationDraft.organizationType,
+            organizationLevel: organizationDraft.organizationLevel,
+            parentOrganizationName: organizationDraft.parentOrganizationName,
+            address: organizationDraft.address,
+            contactEmail: organizationDraft.contactEmail,
+            contactPhone: organizationDraft.contactPhone,
+            isActive: organizationDraft.isActive,
+            notes: organizationDraft.notes,
+            childSiteNames: organizationDraft.childSiteNames,
+            childZoneNames: organizationDraft.childZoneNames,
+            childGeofenceNames: organizationDraft.childGeofenceNames,
+          },
+        }
+
+        pushAssistantReply(`I can create ${organizationDraft.organizationName} now. Review the draft and approve it when you want Bob to write the organization row.`)
+        bobActionApproval.showDialog(recommendation)
+        toast.success('Organization creation draft ready for approval')
+        setBobDegraded(false)
+        clearBobServiceOutage()
+      } catch (err: any) {
+        pushAssistantReply(`Bob organization setup failed: ${String(err?.message ?? err)}`)
+        toast.error(err?.message || 'Could not structure the organization setup')
+      } finally {
+        setThinking(false)
+      }
+      return
+    }
+
+    if (attachedDocument
+      && looksLikeParkingTrainingDocument(parkingTrainingSourceText, attachedDocument.name)
+      && isParkingSetupRequest(message, attachedDocument.name)) {
+      try {
+        const focus = buildParkingTrainingFocus(parkingTrainingSourceText)
+        const summary = formatParkingTrainingFocusSummary(focus, parkingOperationalContext)
+        const draft: ParkingTrainingIntakeDraft = {
+          sourceText: parkingTrainingSourceText,
+          fileName: attachedDocument.name,
+          mimeType: attachedDocument.type || 'application/octet-stream',
+          focus,
+          summary,
+        }
+
+        setPendingParkingTrainingDraft(draft)
+        setGeneratedPlan(['## Parking Training Intake Draft', summary].join('\n\n'))
+
+        const recommendation: BobRecommendation = {
+          id: `bob-parking-training-${Date.now()}`,
+          actionType: 'stage_parking_training_manual',
+          title: 'Approve Bob parking training staging',
+          description: 'Bob structured a parking training manual and wants to stage it for review so it can drive client-site, zone, and geofence setup work.',
+          entityType: 'ai_import_intake',
+          entityId: attachedDocument.name,
+          confidence: parkingOperationalContext?.liveParkingZoneCount ? 93 : 89,
+          riskLevel: parkingOperationalContext?.liveParkingZoneCount ? 'low' : 'medium',
+          evidence: [
+            `Selected org: ${parkingOperationalContext?.organizationName || effectiveOrgId || 'unknown'}`,
+            `Live parking zones: ${parkingOperationalContext?.liveParkingZoneCount || 0}`,
+            `Map references detected: ${focus.includesMapReferences ? 'yes' : 'no'}`,
+            `Blenheim focus areas: ${focus.enforcementAreas.join('; ') || 'none detected'}`,
+            `Reserved parking locations: ${focus.reservedParkingLocations.join('; ') || 'none detected'}`,
+            `Operational hotspots: ${focus.operationalHotspots.join('; ') || 'none detected'}`,
+          ],
+          suggestedPayload: {
+            organizationId: effectiveOrgId,
+            fileName: attachedDocument.name,
+            liveParkingZoneCount: parkingOperationalContext?.liveParkingZoneCount || 0,
+            focusAreaCount: focus.enforcementAreas.length + focus.reservedParkingLocations.length,
+          },
+        }
+
+        pushAssistantReply([
+          'Parking training intake draft ready for approval.',
+          summary,
+        ].join(' '))
+        bobActionApproval.showDialog(recommendation)
+        toast.success('Parking training manual ready for approval and staging')
+        setBobDegraded(false)
+        clearBobServiceOutage()
+      } catch (err: any) {
+        pushAssistantReply(`Bob parking training intake failed: ${String(err?.message ?? err)}`)
+        toast.error(err?.message || 'Could not structure the parking training intake')
+      } finally {
+        setThinking(false)
+      }
+      return
+    }
+
+    const historicalPatrolSourceText = attachedDocument?.extractedText?.trim() || message
+    if (looksLikeHistoricalPatrolImport(historicalPatrolSourceText)) {
+      try {
+        const draft = buildHistoricalPatrolImportDraft(historicalPatrolSourceText)
+        const placementReview = buildHistoricalPatrolPlacementReview(historicalPatrolSourceText)
+
+        setPendingHistoricalPatrolImportDraft(draft)
+        setGeneratedPlan([
+          '## Historical Patrol Import Draft',
+          formatHistoricalPatrolImportSummary(draft, placementReview),
+        ].join('\n'))
+
+        const recommendation: BobRecommendation = {
+          id: `bob-historical-patrol-import-${Date.now()}`,
+          actionType: 'import_historical_patrol_data',
+          title: 'Approve Bob historical patrol import staging',
+          description: 'Bob normalized a historical patrol export and wants to stage it in the intake queue for review and controlled import.',
+          entityType: 'ai_import_intake',
+          entityId: `${draft.totalRows} historical rows`,
+          confidence: draft.rowsRequiringReview > 0 ? 84 : 94,
+          riskLevel: draft.rowsRequiringReview > 0 ? 'medium' : 'low',
+          evidence: [
+            `Historical rows detected: ${draft.totalRows}`,
+            `Rows requiring review: ${draft.rowsRequiringReview}`,
+            `Zone coverage: ${draft.zoneCoverage.map((entry) => `${entry.zoneCode} (${entry.count})`).join(', ') || 'n/a'}`,
+            `Completed rows: ${placementReview.completedRows}`,
+            `Missed rows: ${placementReview.missedRows}`,
+            `Training tips: ${placementReview.trainingTips.join(' | ') || 'none'}`,
+          ],
+          suggestedPayload: {
+            fileName: attachedDocument?.name || 'historical-patrol-import.txt',
+            sourceSystem: 'historical_patrol_export',
+            totalRows: draft.totalRows,
+            rowsRequiringReview: draft.rowsRequiringReview,
+          },
+        }
+
+        pushAssistantReply([
+          'Historical patrol import draft ready for approval.',
+          formatHistoricalPatrolImportSummary(draft, placementReview),
+        ].join(' '))
+        bobActionApproval.showDialog(recommendation)
+        toast.success('Historical patrol import draft ready for approval and staging')
+        setBobDegraded(false)
+        clearBobServiceOutage()
+      } catch (err: any) {
+        pushAssistantReply(`Bob historical patrol import failed: ${String(err?.message ?? err)}`)
+        toast.error(err?.message || 'Could not structure the historical patrol import draft')
+      } finally {
+        setThinking(false)
+      }
+      return
+    }
+
     if (looksLikePatrolSetupBrief(message)) {
       try {
         const { data, error } = await withPromiseTimeout(
@@ -2001,6 +2632,8 @@ export default function BobAssistantStudio() {
         }
 
         const historicalPerformance = reviewHistoricalPatrolPerformance(blueprint)
+        const contractInstructionLines = serviceContractMatchContext?.instructionLines || []
+        const contractTrainingChecklist = serviceContractMatchContext?.trainingChecklist || []
 
         let orgOptionsSummary = 'Organization patrol option scan was not available for this request.'
         let orgOptionEvidence = 'Organization patrol option scan unavailable'
@@ -2090,6 +2723,14 @@ export default function BobAssistantStudio() {
           '## Historical Performance Review',
           formatHistoricalPerformanceAdminFeedback(historicalPerformance),
           '',
+          '## Contract Instruction Overlay',
+          contractInstructionLines.length > 0
+            ? `Contract instructions: ${contractInstructionLines.join(' | ')}`
+            : 'Contract instructions: none extracted in this run.',
+          contractTrainingChecklist.length > 0
+            ? `Training checklist: ${contractTrainingChecklist.join(' | ')}`
+            : 'Training checklist: none extracted in this run.',
+          '',
           '## Organization Option Analysis',
           orgOptionsSummary,
         ].join('\n'))
@@ -2166,6 +2807,18 @@ export default function BobAssistantStudio() {
         rawMessages.push({
           role: 'system',
           content: `${BOB_DOCUMENT_GUARDRAILS}\n\n---\n## Attached Document: ${attachedDocument.name}\n\n${attachedDocument.extractedText}`,
+        })
+      }
+
+      const parkingFocus = parkingTrainingDocumentAttached && attachedDocument
+        ? buildParkingTrainingFocus(attachedDocument.extractedText)
+        : null
+      const parkingHierarchyContext = getFirstSecurityParkingHierarchyContext(effectiveOrgId)
+      const isParkingRequest = parkingTrainingDocumentAttached || /(parking|warden|blenheim|marlborough|geofence|parking zone|client site)/i.test(`${message}\n${attachedDocument?.name || ''}`)
+      if (isParkingRequest) {
+        rawMessages.push({
+          role: 'system',
+          content: buildParkingPromptSupplement(parkingOperationalContext, parkingFocus, serviceContractMatchContext, parkingHierarchyContext),
         })
       }
 
@@ -3542,6 +4195,8 @@ export default function BobAssistantStudio() {
     let updatedSites = 0
     let createdZones = 0
     const scheduleZoneIds: string[] = []
+    const contractInstructionLines = serviceContractMatchContext?.instructionLines || []
+    const contractTrainingChecklist = serviceContractMatchContext?.trainingChecklist || []
 
     for (const facility of pendingPatrolSetupBlueprint.facilities) {
       const clientOrgId = matchedClientOrgId || providerOrgId
@@ -3610,13 +4265,15 @@ export default function BobAssistantStudio() {
         gps_lat: geocodeCandidate?.latitude ?? null,
         gps_lng: geocodeCandidate?.longitude ?? null,
         geofence_radius_metres: fallbackPatrolZone?.radiusMetres ?? 250,
-        access_instructions: facility.extent.join('; ') || null,
+        access_instructions: [...facility.extent, ...contractInstructionLines.slice(0, 4)].filter(Boolean).join('; ') || null,
         hazards: facility.notes.join('; ') || null,
-        special_instructions: facility.serviceCoverage.join('; ') || null,
+        special_instructions: [...facility.serviceCoverage, ...contractTrainingChecklist.slice(0, 4)].filter(Boolean).join('; ') || null,
         notes: [
           ...facility.frequencies,
           ...facility.setupActions,
           ...findSopStepsForFacility(pendingPatrolSetupBlueprint, facility.name),
+          ...contractInstructionLines,
+          ...contractTrainingChecklist,
           ...pendingPatrolSetupBlueprint.blockers,
         ].filter(Boolean).join('; ') || null,
         default_response_minutes: 45,
@@ -3700,6 +4357,8 @@ export default function BobAssistantStudio() {
               primaryShift
                 ? `Contract timing: ${primaryShift.code} ${primaryShift.startTime}-${primaryShift.endTime}; breaks: ${primaryShift.breaks.join(', ') || 'none listed'}; paid breaks: ${primaryShift.allBreaksPaid ? 'yes' : 'no'}`
                 : 'Contract timing: default fallback schedule used',
+              contractInstructionLines.length > 0 ? `Contract instructions: ${contractInstructionLines.join(' | ')}` : 'Contract instructions: none extracted',
+              contractTrainingChecklist.length > 0 ? `Officer training checklist: ${contractTrainingChecklist.join(' | ')}` : 'Officer training checklist: none extracted',
             ].join(' | '),
             scheduled_start_time: `${patrolDate}T${shiftStart}:00`,
             scheduled_end_time: `${patrolEndDate}T${shiftEnd}:00`,
@@ -3748,11 +4407,357 @@ export default function BobAssistantStudio() {
     toast.success(`Patrol setup draft applied: provider patrol zone in service provider org, ${createdSites} client site(s) created, ${updatedSites} updated, ${createdZones} client geofence zone(s) created${attachedPatrolId ? createdPatrolSchedule ? ', 1 provider patrol schedule created' : ', attached to active provider patrol' : ''}`)
   }
 
+  const executeCreateHistoricalPatrolImportDraft = async () => {
+    const mutationAccess = assertBobMutationAccess('import_historical_patrol_data', effectivePolicy.mode)
+    if (!mutationAccess.allowed) {
+      throw new Error(mutationAccess.reason)
+    }
+    if (!user?.organization_id) {
+      throw new Error('Your user profile is missing organization context')
+    }
+    if (!pendingHistoricalPatrolImportDraft || pendingHistoricalPatrolImportDraft.totalRows === 0) {
+      throw new Error('No historical patrol import draft is ready to execute')
+    }
+
+    const placementReview = buildHistoricalPatrolPlacementReview(pendingHistoricalPatrolImportDraft.sourceText)
+
+    const effectiveNormalizedRows = pendingHistoricalPatrolImportDraft.normalizedRows.map((row: any) => {
+      const selected = historicalAssortmentOverrides[row.site_name] || row.routing_module
+      if (!selected || selected === row.routing_module) return row
+      return {
+        ...row,
+        routing_module: selected,
+        routing_reason: `manual site override (${row.routing_module} -> ${selected})`,
+      }
+    })
+
+    const routingCounter = new Map<HistoricalRoutingModule, number>()
+    const siteCounter = new Map<string, { total: number; byModule: Map<HistoricalRoutingModule, number> }>()
+
+    for (const row of effectiveNormalizedRows) {
+      const module = row.routing_module as HistoricalRoutingModule
+      routingCounter.set(module, (routingCounter.get(module) ?? 0) + 1)
+
+      const siteName = String(row.site_name || row.client_name || 'Unknown site')
+      const siteState = siteCounter.get(siteName) ?? { total: 0, byModule: new Map<HistoricalRoutingModule, number>() }
+      siteState.total += 1
+      siteState.byModule.set(module, (siteState.byModule.get(module) ?? 0) + 1)
+      siteCounter.set(siteName, siteState)
+    }
+
+    const effectiveRoutingCoverage = Array.from(routingCounter.entries())
+      .map(([module, count]) => ({ module, count }))
+      .sort((a, b) => b.count - a.count)
+
+    const effectiveSiteCoverage = Array.from(siteCounter.entries())
+      .map(([siteName, value]) => ({
+        siteName,
+        rowCount: value.total,
+        modules: Array.from(value.byModule.entries())
+          .map(([module, count]) => ({ module, count }))
+          .sort((a, b) => b.count - a.count),
+      }))
+      .sort((a, b) => b.rowCount - a.rowCount)
+
+    const effectiveDraft: HistoricalPatrolImportDraft = {
+      ...pendingHistoricalPatrolImportDraft,
+      normalizedRows: effectiveNormalizedRows,
+      routingCoverage: effectiveRoutingCoverage,
+      siteCoverage: effectiveSiteCoverage,
+    }
+    const headerLine = pendingHistoricalPatrolImportDraft.sourceText
+      .split(/\r?\n/)
+      .find((line) => line.trim().length > 0) || ''
+    const extractedHeaders = headerLine.includes('\t')
+      ? headerLine.split('\t').map((header) => header.trim()).filter(Boolean)
+      : headerLine.split(',').map((header) => header.trim()).filter(Boolean)
+    const fileName = attachedDocument?.name || 'historical-patrol-import.txt'
+
+    const historicalImportRow: Record<string, any> = {}
+    historicalImportRow.organization_id = user.organization_id
+    historicalImportRow.created_by = user.id ?? null
+    historicalImportRow.assistant_name = 'Bob'
+    historicalImportRow.purpose = 'historical_patrol_import'
+    historicalImportRow.file_name = fileName
+    historicalImportRow.file_kind = 'historical_patrol_csv'
+    historicalImportRow.mime_type = attachedDocument?.type || 'text/plain'
+    historicalImportRow.storage_bucket = null
+    historicalImportRow.storage_path = null
+    historicalImportRow.file_public_url = null
+    historicalImportRow.source_system = 'historical_patrol_export'
+    historicalImportRow.date_range = null
+    historicalImportRow.operator_notes = `Historical patrol rows staged for review (${pendingHistoricalPatrolImportDraft.totalRows} rows, ${pendingHistoricalPatrolImportDraft.rowsRequiringReview} requiring review).`
+    historicalImportRow.context = {
+      source: 'bob-assistant-studio',
+      review: placementReview,
+      draft: effectiveDraft,
+      assortment_overrides: historicalAssortmentOverrides,
+      routing_policy: 'Noise-control jobs (including legacy Wilsar/Rapid sourced rows) must assort into noise_control workflows, not alarm_response workflows.',
+    }
+    historicalImportRow.extracted_text = effectiveDraft.sourceText
+    historicalImportRow.assistant_brief = formatHistoricalPatrolImportSummary(effectiveDraft, placementReview)
+    historicalImportRow.recommended_table = 'ai_import_intakes'
+    historicalImportRow.recommendation_score = effectiveDraft.rowsRequiringReview > 0 ? 84 : 94
+    historicalImportRow.recommendations = {
+      row_count: effectiveDraft.totalRows,
+      rows_requiring_review: effectiveDraft.rowsRequiringReview,
+      zone_coverage: effectiveDraft.zoneCoverage,
+      routing_coverage: effectiveDraft.routingCoverage,
+      site_coverage: effectiveDraft.siteCoverage.slice(0, 40),
+      noise_control_rows: effectiveDraft.normalizedRows.filter((row: any) => row.routing_module === 'noise_control').length,
+      alarm_response_rows: effectiveDraft.normalizedRows.filter((row: any) => row.routing_module === 'alarm_response').length,
+      patrol_response_rows: effectiveDraft.normalizedRows.filter((row: any) => row.routing_module === 'patrol_response').length,
+      assortment_overrides: historicalAssortmentOverrides,
+      assortment_rule: 'Route noise_control rows to noise-control enrichment and keep alarm_response rows separate.',
+      training_tips: placementReview.trainingTips,
+      normalized_rows: effectiveDraft.normalizedRows.slice(0, 25),
+    }
+    historicalImportRow.status = 'staged'
+    historicalImportRow.action_target_table = 'ai_import_intakes'
+    historicalImportRow.action_target_id = null
+    historicalImportRow.action_summary = `Historical patrol import staged from ${fileName}`
+    historicalImportRow.extracted_headers = extractedHeaders
+
+    const { data, error } = await (supabase as any)
+      .from('ai_import_intakes')
+      .insert(historicalImportRow)
+      .select('id')
+      .single()
+
+    if (error) {
+      throw error
+    }
+
+    await queryClient.invalidateQueries({ queryKey: ['bob-intake-queue'] })
+
+    setPendingHistoricalPatrolImportDraft(null)
+    toast.success(`Historical patrol import staged (${pendingHistoricalPatrolImportDraft.totalRows} rows)`)
+    return data
+  }
+
+  const executeCreateOrganizationStructure = async () => {
+    const mutationAccess = assertBobMutationAccess('create_organization_structure', effectivePolicy.mode)
+    if (!mutationAccess.allowed) {
+      throw new Error(mutationAccess.reason)
+    }
+
+    if (!pendingOrganizationSetupDraft) {
+      throw new Error('No organization setup draft is ready to execute')
+    }
+
+    let parentOrganizationId: string | null = null
+    if (pendingOrganizationSetupDraft.parentOrganizationName.trim()) {
+      const { data: parentRows, error: parentError } = await (supabase as any)
+        .from('organizations')
+        .select('id, name')
+        .ilike('name', `%${pendingOrganizationSetupDraft.parentOrganizationName}%`)
+        .limit(10)
+
+      if (parentError) {
+        throw parentError
+      }
+
+      const parentMatch = (parentRows ?? []).find((row: any) => String(row.name || '').trim().toLowerCase() === pendingOrganizationSetupDraft.parentOrganizationName.trim().toLowerCase())
+      parentOrganizationId = parentMatch?.id || (parentRows ?? [])[0]?.id || null
+    }
+
+    const insertRow: Record<string, any> = {}
+    insertRow.name = pendingOrganizationSetupDraft.organizationName
+    insertRow.organization_type = pendingOrganizationSetupDraft.organizationType
+    insertRow.organization_level = pendingOrganizationSetupDraft.organizationLevel
+    insertRow.parent_organization_id = parentOrganizationId
+    insertRow.address = pendingOrganizationSetupDraft.address || null
+    insertRow.contact_email = pendingOrganizationSetupDraft.contactEmail || null
+    insertRow.contact_phone = pendingOrganizationSetupDraft.contactPhone || null
+    insertRow.is_active = pendingOrganizationSetupDraft.isActive
+    insertRow.enforcement_workflow = pendingOrganizationSetupDraft.notes || null
+
+    const { data, error } = await (supabase as any)
+      .from('organizations')
+      .insert(insertRow)
+      .select('id')
+      .single()
+
+    if (error) {
+      throw error
+    }
+
+    await queryClient.invalidateQueries({ queryKey: ['bob-intake-queue'] })
+
+    setPendingOrganizationSetupDraft(null)
+    toast.success(`Organization created: ${pendingOrganizationSetupDraft.organizationName}`)
+    return data
+  }
+
+  const executeStageParkingTrainingManual = async () => {
+    const mutationAccess = assertBobMutationAccess('stage_parking_training_manual', effectivePolicy.mode)
+    if (!mutationAccess.allowed) {
+      throw new Error(mutationAccess.reason)
+    }
+
+    const targetOrganizationId = effectiveOrgId || user?.organization_id || null
+    if (!targetOrganizationId) {
+      throw new Error('No operational organization is selected for parking training staging')
+    }
+    if (!pendingParkingTrainingDraft) {
+      throw new Error('No parking training draft is ready to execute')
+    }
+
+    const parkingTrainingRow: Record<string, any> = {}
+    parkingTrainingRow.organization_id = targetOrganizationId
+    parkingTrainingRow.created_by = user?.id ?? null
+    parkingTrainingRow.assistant_name = 'Bob'
+    parkingTrainingRow.purpose = 'parking_training_manual'
+    parkingTrainingRow.file_name = pendingParkingTrainingDraft.fileName
+    parkingTrainingRow.file_kind = 'parking_training_docx'
+    parkingTrainingRow.mime_type = pendingParkingTrainingDraft.mimeType
+    parkingTrainingRow.storage_bucket = null
+    parkingTrainingRow.storage_path = null
+    parkingTrainingRow.file_public_url = null
+    parkingTrainingRow.source_system = 'parking_training_manual'
+    parkingTrainingRow.date_range = null
+    parkingTrainingRow.operator_notes = 'Parking training manual staged for Blenheim/Marlborough review and future client-site, zone, and geofence setup work.'
+    parkingTrainingRow.context = {
+      source: 'bob-assistant-studio',
+      parking_focus: pendingParkingTrainingDraft.focus,
+      parking_snapshot: parkingOperationalContext,
+      setup_role: 'When given operational details, Bob should create draft client sites, linked zones, and geofence blockers from this source.',
+    }
+    parkingTrainingRow.extracted_text = pendingParkingTrainingDraft.sourceText
+    parkingTrainingRow.assistant_brief = pendingParkingTrainingDraft.summary
+    parkingTrainingRow.recommended_table = 'ai_import_intakes'
+    parkingTrainingRow.recommendation_score = parkingOperationalContext?.liveParkingZoneCount ? 93 : 89
+    parkingTrainingRow.recommendations = {
+      enforcement_areas: pendingParkingTrainingDraft.focus.enforcementAreas,
+      reserved_parking_locations: pendingParkingTrainingDraft.focus.reservedParkingLocations,
+      operational_hotspots: pendingParkingTrainingDraft.focus.operationalHotspots,
+      zoning_rules: pendingParkingTrainingDraft.focus.zoningRules,
+      legal_references: pendingParkingTrainingDraft.focus.legalReferences,
+      includes_map_references: pendingParkingTrainingDraft.focus.includesMapReferences,
+      live_parking_zone_count: parkingOperationalContext?.liveParkingZoneCount || 0,
+      live_client_site_count: parkingOperationalContext?.liveClientSiteCount || 0,
+    }
+    parkingTrainingRow.status = 'staged'
+    parkingTrainingRow.action_target_table = 'ai_import_intakes'
+    parkingTrainingRow.action_target_id = null
+    parkingTrainingRow.action_summary = `Parking training manual staged from ${pendingParkingTrainingDraft.fileName}`
+    parkingTrainingRow.extracted_headers = []
+
+    const { data, error } = await (supabase as any)
+      .from('ai_import_intakes')
+      .insert(parkingTrainingRow)
+      .select('id')
+      .single()
+
+    if (error) {
+      throw error
+    }
+
+    await queryClient.invalidateQueries({ queryKey: ['bob-intake-queue'] })
+
+    setPendingParkingTrainingDraft(null)
+    toast.success('Parking training manual staged for Bob intake review')
+    return data
+  }
+
+  const executeAdoptServiceContractPriority = async () => {
+    if (!serviceContractMatchContext || serviceContractMatchContext.topRankedPaths.length === 0) {
+      throw new Error('No ranked service-contract source is available to apply')
+    }
+
+    const highestRanked = serviceContractMatchContext.topRankedPaths[0]
+    setGeneratedPlan(buildContractPriorityPlan(serviceContractMatchContext))
+    toast.success(`Highest-ranked contract source adopted: ${highestRanked}`)
+    return { adoptedSource: highestRanked }
+  }
+
+  const executeReviewServiceContractConflicts = async () => {
+    if (!serviceContractMatchContext || serviceContractMatchContext.conflictWarnings.length === 0) {
+      throw new Error('No service-contract conflicts are available to review')
+    }
+
+    setGeneratedPlan(buildContractConflictReviewPlan(serviceContractMatchContext, contractComparisonResolutions))
+    toast.success('Contract conflict review staged')
+    return { conflictCount: serviceContractMatchContext.conflictWarnings.length }
+  }
+
   const resolveRecommendationExecutor = (actionType?: string) => {
     if (actionType === 'create_live_plan') return executeSaveLivePlan
     if (actionType === 'create_patrol_setup_draft') return executeCreatePatrolSetupDraft
+    if (actionType === 'create_organization_structure') return executeCreateOrganizationStructure
+    if (actionType === 'import_historical_patrol_data') return executeCreateHistoricalPatrolImportDraft
+    if (actionType === 'stage_parking_training_manual') return executeStageParkingTrainingManual
     if (actionType === 'generate_code_patch_task') return executeGenerateCodeChangeTask
+    if (actionType === 'adopt_service_contract_priority') return executeAdoptServiceContractPriority
+    if (actionType === 'review_service_contract_conflicts') return executeReviewServiceContractConflicts
     return undefined
+  }
+
+  const requestAdoptServiceContractPriority = () => {
+    if (!serviceContractMatchContext || serviceContractMatchContext.topRankedPaths.length === 0) {
+      toast.error('No ranked contract source is available yet')
+      return
+    }
+
+    const highestRanked = serviceContractMatchContext.topRankedPaths[0]
+    bobActionApproval.showDialog({
+      id: `bob-contract-priority-${Date.now()}`,
+      actionType: 'adopt_service_contract_priority',
+      title: 'Approve highest-ranked contract source',
+      description: 'Bob will mark the highest-ranked service-contract file as the primary contract authority for this setup session.',
+      entityType: 'service_contract_source',
+      entityId: highestRanked,
+      confidence: 86,
+      riskLevel: serviceContractMatchContext.conflictWarnings.length > 0 ? 'medium' : 'low',
+      evidence: [
+        `Primary source: ${highestRanked}`,
+        `Supporting content files: ${serviceContractMatchContext.topContentRankedPaths.join('; ') || 'none extracted'}`,
+        `Conflict warnings: ${serviceContractMatchContext.conflictWarnings.join('; ') || 'none detected'}`,
+        `Comparison summary: ${serviceContractMatchContext.comparisonSummary.map((item) => item.summary).join(' | ') || 'none available'}`,
+      ],
+      suggestedPayload: {
+        primarySource: highestRanked,
+        supportingSources: serviceContractMatchContext.topContentRankedPaths,
+        conflictWarnings: serviceContractMatchContext.conflictWarnings,
+        comparisonSummary: serviceContractMatchContext.comparisonSummary,
+      },
+    })
+  }
+
+  const requestServiceContractConflictReview = () => {
+    if (!serviceContractMatchContext || serviceContractMatchContext.conflictWarnings.length === 0) {
+      toast.error('No service-contract conflicts are available to review')
+      return
+    }
+
+    bobActionApproval.showDialog({
+      id: `bob-contract-conflict-review-${Date.now()}`,
+      actionType: 'review_service_contract_conflicts',
+      title: 'Approve service-contract conflict review',
+      description: 'Bob will stage the conflicting contract sources and extracted evidence for manual review before finalizing setup.',
+      entityType: 'service_contract_conflict_review',
+      entityId: serviceContractMatchContext.topRankedPaths[0] || 'service-contract-review',
+      confidence: 91,
+      riskLevel: 'medium',
+      evidence: [
+        `Priority-ranked sources: ${serviceContractMatchContext.topRankedPaths.join('; ') || 'none available'}`,
+        `Conflicts: ${serviceContractMatchContext.conflictWarnings.join('; ')}`,
+        `Comparison summary: ${serviceContractMatchContext.comparisonSummary.map((item) => item.summary).join(' | ') || 'none available'}`,
+        `Comparison decisions: ${serviceContractMatchContext.comparisonSummary.map((item) => `${item.category}=${getComparisonResolutionLabel(contractComparisonResolutions[getComparisonResolutionKey(item)])}`).join(' | ') || 'none selected'}`,
+      ],
+      suggestedPayload: {
+        topRankedPaths: serviceContractMatchContext.topRankedPaths,
+        topContentRankedPaths: serviceContractMatchContext.topContentRankedPaths,
+        conflictWarnings: serviceContractMatchContext.conflictWarnings,
+        contentEvidence: serviceContractMatchContext.contentEvidence,
+        comparisonSummary: serviceContractMatchContext.comparisonSummary,
+        comparisonDecisions: serviceContractMatchContext.comparisonSummary.map((item) => ({
+          category: item.category,
+          resolution: contractComparisonResolutions[getComparisonResolutionKey(item)] || 'primary',
+          resolutionLabel: getComparisonResolutionLabel(contractComparisonResolutions[getComparisonResolutionKey(item)]),
+        })),
+      },
+    })
   }
 
   const submitCodeChangeRequest = async () => {
@@ -4495,6 +5500,155 @@ export default function BobAssistantStudio() {
               </div>
             </CardContent>
           </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2"><ClipboardList className="h-4 w-4" /> Service Contract Intelligence</CardTitle>
+              <CardDescription>
+                Ranked contract sources and any conflicts Bob found while scanning the service-contracts bucket.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3 text-xs">
+              {!serviceContractMatchContext ? (
+                <div className="rounded border p-3 text-muted-foreground">
+                  Contract scan context is unavailable in this run.
+                </div>
+              ) : (
+                <>
+                  <div className="flex flex-wrap gap-2">
+                    <Badge variant="outline">Matched: {serviceContractMatchContext.matchedFileCount}</Badge>
+                    <Badge variant="outline">Content: {serviceContractMatchContext.contentMatchedFileCount}</Badge>
+                    <Badge variant={serviceContractMatchContext.conflictWarnings.length > 0 ? 'destructive' : 'default'}>
+                      Conflicts: {serviceContractMatchContext.conflictWarnings.length}
+                    </Badge>
+                  </div>
+
+                  {serviceContractMatchContext.topRankedPaths.length > 0 && (
+                    <div className="rounded border p-3 space-y-2">
+                      <div className="font-medium text-muted-foreground">Priority-ranked contract sources</div>
+                      {serviceContractMatchContext.topRankedPaths.map((path) => (
+                        <div key={path} className="break-all">{path}</div>
+                      ))}
+                    </div>
+                  )}
+
+                  {serviceContractMatchContext.topContentRankedPaths.length > 0 && (
+                    <div className="rounded border p-3 space-y-2">
+                      <div className="font-medium text-muted-foreground">Priority-ranked content files</div>
+                      {serviceContractMatchContext.topContentRankedPaths.map((path) => (
+                        <div key={path} className="break-all">{path}</div>
+                      ))}
+                    </div>
+                  )}
+
+                  {serviceContractMatchContext.conflictWarnings.length > 0 && (
+                    <div className="rounded border border-red-200 bg-red-50 p-3 space-y-2 text-red-900 dark:border-red-900/40 dark:bg-red-950/20 dark:text-red-200">
+                      <div className="flex items-center gap-2 font-medium"><XCircle className="h-4 w-4" /> Contract conflicts to resolve</div>
+                      {serviceContractMatchContext.conflictWarnings.map((warning) => (
+                        <div key={warning}>{warning}</div>
+                      ))}
+                      <div className="text-[11px] text-red-800/80 dark:text-red-300/80">
+                        Bob should prefer the higher-ranked signed/current source, explain the differences in plain language, and call out the mismatch before finalizing patrol or parking setup.
+                      </div>
+                    </div>
+                  )}
+
+                  {serviceContractMatchContext.comparisonSummary.length > 0 && (
+                    <div className="rounded border p-3 space-y-2">
+                      <div className="font-medium text-muted-foreground">Comparison snapshot (service, times, cost, impact)</div>
+                      {serviceContractMatchContext.comparisonSummary.map((item) => (
+                        <div key={`${item.category}-${item.summary}`} className="rounded border bg-muted/20 p-2 space-y-1">
+                          <div className="font-medium">{item.summary}</div>
+                          <div className="text-[11px]">Decision: {getComparisonResolutionLabel(contractComparisonResolutions[getComparisonResolutionKey(item)])}</div>
+                          <div className="text-[11px] text-muted-foreground">Primary: {item.primaryEvidence}</div>
+                          <div className="text-[11px] text-muted-foreground">Comparison: {item.secondaryEvidence}</div>
+                          <div className="flex flex-wrap gap-2 pt-1">
+                            <Button
+                              size="sm"
+                              variant={contractComparisonResolutions[getComparisonResolutionKey(item)] === 'primary' ? 'secondary' : 'outline'}
+                              onClick={() => setContractComparisonResolutions((prev) => ({ ...prev, [getComparisonResolutionKey(item)]: 'primary' }))}
+                            >
+                              Accept Primary
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant={contractComparisonResolutions[getComparisonResolutionKey(item)] === 'secondary' ? 'secondary' : 'outline'}
+                              onClick={() => setContractComparisonResolutions((prev) => ({ ...prev, [getComparisonResolutionKey(item)]: 'secondary' }))}
+                            >
+                              Accept Comparison
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant={contractComparisonResolutions[getComparisonResolutionKey(item)] === 'manual' ? 'secondary' : 'outline'}
+                              onClick={() => setContractComparisonResolutions((prev) => ({ ...prev, [getComparisonResolutionKey(item)]: 'manual' }))}
+                            >
+                              Manual Override
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {serviceContractMatchContext.instructionLines.length > 0 && (
+                    <div className="rounded border p-3 space-y-2">
+                      <div className="font-medium text-muted-foreground">Extracted operational instructions</div>
+                      {serviceContractMatchContext.instructionLines.slice(0, 4).map((line) => (
+                        <div key={line}>{line}</div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={requestAdoptServiceContractPriority}
+                      disabled={serviceContractMatchContext.topRankedPaths.length === 0}
+                    >
+                      Use Highest-Ranked Source
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={requestServiceContractConflictReview}
+                      disabled={serviceContractMatchContext.conflictWarnings.length === 0}
+                    >
+                      Review Conflict
+                    </Button>
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
+
+          {pendingHistoricalPatrolImportDraft && pendingHistoricalPatrolImportDraft.siteCoverage.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2"><ClipboardList className="h-4 w-4" /> Historical Assortment Review</CardTitle>
+                <CardDescription>
+                  Override per-site routing before staging historical rows. Noise-control work should route to Noise Control, not Alarm Response.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3 text-xs">
+                {pendingHistoricalPatrolImportDraft.siteCoverage.slice(0, 8).map((site) => {
+                  const selected = historicalAssortmentOverrides[site.siteName] || site.modules[0]?.module || 'patrol_response'
+                  return (
+                    <div key={site.siteName} className="rounded border p-3 space-y-2">
+                      <div className="font-medium">{site.siteName}</div>
+                      <div className="text-muted-foreground">Rows: {site.rowCount} · Module mix: {site.modules.map((entry) => `${formatHistoricalRoutingLabel(entry.module)} (${entry.count})`).join(', ')}</div>
+                      <div>Selected route: {formatHistoricalRoutingLabel(selected)}</div>
+                      <div className="flex flex-wrap gap-2">
+                        <Button size="sm" variant={selected === 'noise_control' ? 'secondary' : 'outline'} onClick={() => setHistoricalAssortmentOverrides((prev) => ({ ...prev, [site.siteName]: 'noise_control' }))}>Route To Noise Control</Button>
+                        <Button size="sm" variant={selected === 'alarm_response' ? 'secondary' : 'outline'} onClick={() => setHistoricalAssortmentOverrides((prev) => ({ ...prev, [site.siteName]: 'alarm_response' }))}>Route To Alarm Response</Button>
+                        <Button size="sm" variant={selected === 'patrol_response' ? 'secondary' : 'outline'} onClick={() => setHistoricalAssortmentOverrides((prev) => ({ ...prev, [site.siteName]: 'patrol_response' }))}>Route To Patrol Response</Button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </CardContent>
+            </Card>
+          )}
 
           <Card>
             <CardHeader>

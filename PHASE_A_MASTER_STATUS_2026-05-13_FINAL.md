@@ -1,11 +1,28 @@
-# Phase A Realignment — Master Status Update (May 13, 2026)
+# Phase A Realignment — Master Status Update (May 14, 2026)
 
 **Phase**: A (Weeks 1-4 of 4-week plan)  
-**Current Status**: Week 2 COMPLETE — All bootstrap routes migrated + flags deployed  
+**Current Status**: Week 2 COMPLETE — All bootstrap routes migrated + flags deployed; historical patrol/alarm enrichment grounded in-app  
 **Phase B Launch Target**: June 10, 2026  
 **Phase A Gate Target**: June 2-9, 2026  
 
 ---
+
+## Session Recap (May 14, 2026)
+
+### What Was Delivered
+
+| Category | Item | Status | Evidence |
+|---|---|---|---|
+| **Intake** | Historical patrol normalization draft | ✅ | `src/lib/historicalPatrolIntelligence.ts` |
+| **Intake** | Historical patrol preflight UI | ✅ | `src/pages/AiAnalysis.tsx` |
+| **Intake** | Historical dispatch parser hardening | ✅ | `src/lib/historicalDispatchIntelligence.ts` |
+| **Tests** | Patrol/dispatch/geofence validation | ✅ | `src/lib/__tests__/historicalPatrolIntelligence.test.ts` |
+
+### Notes
+
+- Nelson City Council patrol exports now generate a normalized draft with geofence hints and workflow actions before import.
+- Wilsar/Rapid alarm and dispatch samples are now parsed with multiline-safe rules and broader aliases.
+- This work strengthens Phase B planning evidence without changing the Phase A gate criteria.
 
 ## Session Recap (May 12-13, 2026)
 
@@ -172,7 +189,7 @@ if (flagEnabled && caseId) {
 **5 Prerequisites for Phase B Launch Approval**:
 
 1. **Org Isolation Tests**: 5/5 passing
-   - Status: ⏸️ Blocked in local container (all 6 Vitest cases skipped on 2026-05-13 because `VITE_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and `VITE_SUPABASE_ANON_KEY` are unset)
+   - Status: ✅ Passed on 2026-05-13 via `.env.playwright.local` (6/6 Vitest assertions green, including the summary gate)
    - File: `tests/integration/org-isolation.test.ts`
 
 2. **Bootstrap Routes Smoke Tests**: 3/3 passing
@@ -213,7 +230,7 @@ if (flagEnabled && caseId) {
 
 ### Testing & Validation
 - ✅ Smoke tests: 4/4 passing (code-level)
-- ⏸️ Org isolation: Harness present, but local run skipped because required Supabase env vars are unset in this container
+- ✅ Org isolation: 6/6 Vitest assertions passed on 2026-05-13 when the workspace credentials from `.env.playwright.local` were exported into the shell
 - ✅ Route/role truth: Bootstrap validator passed on 2026-05-13
 - ✅ Bob governance regression: 6/6 tests passing on 2026-05-13
 - ✅ Build validation: Passing continuously

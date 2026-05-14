@@ -1,13 +1,13 @@
 # Bob Failure Summary
 
-Generated: 2026-05-13T07:42:20.457Z
+Generated: 2026-05-14T09:21:08.657Z
 Window: last 24 hours
-Entries analyzed: 4
-Low-score entries: 2
+Entries analyzed: 0
+Low-score entries: 0
 
 ## Top Failure Reasons
 
-- quality_gate_failed (2)
+- none
 
 ## Top Hallucination Patterns
 
@@ -19,8 +19,8 @@ Low-score entries: 2
 
 ## Most-Flagged Artifacts
 
-- /workspaces/FreedomCamp-Manager/plan.md (4)
+- none
 
 ## Recommendations
 
-- Re-read docs/BOB_TRAINING_TRUTH_PROTOCOL.md before the next redesign response.
+- No repeated failure mode crossed the automatic threshold in this window.

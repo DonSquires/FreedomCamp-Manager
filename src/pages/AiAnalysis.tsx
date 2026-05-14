@@ -14,7 +14,7 @@
  *   - Auto-scroll to latest message
  */
 
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AppLayout } from '@/components/features/AppLayout'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -51,6 +51,7 @@ import {
   buildHistoricalDispatchPlacementReview,
   verifyBobDispatchPlacementPlan,
 } from '@/lib/historicalDispatchIntelligence'
+import { buildHistoricalPatrolImportDraft, buildHistoricalPatrolPlacementReview } from '@/lib/historicalPatrolIntelligence'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -295,6 +296,18 @@ export default function AiAnalysis() {
   const showActionChecklist = useBobExecutionPolicyStore((state) => state.showActionChecklist)
   const setShowActionChecklist = useBobExecutionPolicyStore((state) => state.setShowActionChecklist)
   const effectivePolicy = getEffectiveBobExecutionPolicy()
+  const activeIntakeText = useMemo(() => {
+    const currentExcerpt = agreementExcerpt.trim()
+    const chunks = currentExcerpt ? [...agreementContextChunks, currentExcerpt] : agreementContextChunks
+    return chunks.join('\n\n')
+  }, [agreementContextChunks, agreementExcerpt])
+  const historicalPatrolPreview = useMemo(() => {
+    if (agreementIntakeType !== 'historical_patrol_data' || !activeIntakeText.trim()) return null
+    return {
+      review: buildHistoricalPatrolPlacementReview(activeIntakeText),
+      draft: buildHistoricalPatrolImportDraft(activeIntakeText),
+    }
+  }, [activeIntakeText, agreementIntakeType])
 
   // Auto-scroll to the latest message
   useEffect(() => {
@@ -648,10 +661,18 @@ export default function AiAnalysis() {
       compiledAgreement,
     ].join('\n')
 
+    const historicalPatrolReview = buildHistoricalPatrolPlacementReview(compiledAgreement)
+    const historicalPatrolDraft = buildHistoricalPatrolImportDraft(compiledAgreement)
+
     const historicalPatrolPrompt = [
       'You are Bob, enriching historical patrol data from a pasted spreadsheet extract.',
       ...commonInstructions,
       'The pasted data usually includes columns such as: Internal DispatchId, Client Name, On-site Date/Time, Off-site Date/Time, Patrol Complete Status, Visit Charge (ex. GST).',
+      'Use the deterministic pre-review below as ground truth hints and reconcile uncertainty explicitly.',
+      `Pre-review totals: rows=${historicalPatrolReview.totalRows}, completed=${historicalPatrolReview.completedRows}, missed=${historicalPatrolReview.missedRows}, incidents=${historicalPatrolReview.incidentReportRows}.`,
+      `Pre-review quality: rows_with_dispatch_id=${historicalPatrolReview.rowsWithInternalDespatchId}, rows_with_on_off_timestamps=${historicalPatrolReview.rowsWithTimestamps}, unique_clients=${historicalPatrolReview.uniqueClientCount}.`,
+      `Pre-review charging: total_visit_charge_ex_gst=${historicalPatrolReview.totalVisitChargeExGst}, avg_visit_charge_ex_gst=${historicalPatrolReview.averageVisitChargeExGst ?? 'null'}.`,
+      `Pre-review geofence coverage: ${historicalPatrolDraft.zoneCoverage.map((entry) => `${entry.zoneCode}:${entry.count}`).join(', ') || 'none'}.`,
       'Return in this exact structure:',
       '1) Normalized row schema and sample JSON rows: dispatch_id, client_name, site_name, po_reference, status, on_site_at_nz, off_site_at_nz, duration_minutes, visit_charge_nzd, source_quality_flags.',
       '2) Data quality report: missing timestamps, invalid timestamps, duplicates by dispatch ID, inconsistent statuses, probable OCR/spelling issues.',
@@ -659,6 +680,10 @@ export default function AiAnalysis() {
       '4) Import execution plan using existing FCM entities only: which table(s) to insert/update, idempotency key strategy, and rollback-safe staging approach.',
       '5) KPI summary from the pasted sample: completed vs missed, average duration, charge totals, site-level completion rate, and anomaly list.',
       '6) Missing fields needed from operator before final import and an explicit operator checklist.',
+      historicalPatrolReview.trainingTips.length
+        ? `Training tips: ${historicalPatrolReview.trainingTips.join(' | ')}`
+        : 'Training tips: none',
+      `Deterministic normalized rows sample: ${JSON.stringify(historicalPatrolDraft.normalizedRows.slice(0, 3))}`,
       ...executionSuffix,
       '',
       'Historical patrol excerpts:',
@@ -965,6 +990,20 @@ export default function AiAnalysis() {
                 </Button>
               )}
             </div>
+            {historicalPatrolPreview && (
+              <div className="rounded-md border border-amber-300/70 bg-amber-50/50 p-3 text-xs space-y-2 dark:border-amber-900/40 dark:bg-amber-900/10">
+                <p className="font-medium">Historical Patrol Preflight</p>
+                <p className="text-muted-foreground">
+                  Rows: {historicalPatrolPreview.review.totalRows} · Completed: {historicalPatrolPreview.review.completedRows} · Missed: {historicalPatrolPreview.review.missedRows} · Rows requiring review: {historicalPatrolPreview.draft.rowsRequiringReview}
+                </p>
+                <p className="text-muted-foreground">
+                  Geofence zone hints: {historicalPatrolPreview.draft.zoneCoverage.map((entry) => `${entry.zoneCode} (${entry.count})`).join(', ') || 'none'}
+                </p>
+                <p className="text-muted-foreground">
+                  Workflow actions: {historicalPatrolPreview.draft.normalizedRows.slice(0, 3).map((row) => `${row.dispatch_id}:${row.workflow_action}`).join(' | ') || 'none'}
+                </p>
+              </div>
+            )}
           </CardContent>
         </Card>
         )}

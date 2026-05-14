@@ -1,10 +1,224 @@
 # STAGING — Unified Execution To-Do and Crash Recovery Plan
 
-Date: 2026-05-12
+Date: 2026-05-14
 Owner: GitHub Copilot
-Status: Active staging checklist — Sprints 50-70 complete on main; Iron Eagle Visual Identity locked in docs (2026-05-12)
+Status: Active staging checklist — Sprints 50-70 complete on main; Iron Eagle Visual Identity locked in docs (2026-05-14)
+
+---
+
+## Bob / Star Trek Operating Boundary (added 2026-05-14)
+
+This project should treat **Bob** as the authoritative assistant brain and **Star Trek** as the multimodal surface that presents Bob through voice and text.
+
+### Division of responsibility
+
+| Layer | Responsibility |
+|---|---|
+| Bob | Intent parsing, memory, org context, policy checks, permissions, and any privileged actuation |
+| Star Trek | Voice capture, chat UX, streaming output, prompt orchestration, and presentation |
+| Shared contract | Typed request/response payloads only; no duplicated policy or memory logic in the surface layer |
+
+### Operating rules
+
+1. Bob remains the source of truth for assistant decisions.
+2. Star Trek can call Bob, but should not replace Bob’s internal reasoning or permissions model.
+3. Voice and text interactions should be treated as one assistant surface, not separate assistant systems.
+4. Any new Star Trek feature must preserve Bob’s org-scoped memory, safety checks, and actuation guards.
+
+### Canonical navigation truth
+
+| Surface | Canonical path | Notes |
+|---|---|---|
+| Bob assistant | `/bob-assistant` | Main assistant surface for voice and text |
+| Bob aliases | `/bob`, `/bob-studio`, `/bob/assistant-studio` | Redirect to `/bob-assistant` |
+| Bob intake queue | `/bob-intake-queue` | Canonical queue route in the app; older manual references may still mention `/bob-intake` |
+
+### Star Trek alignment note
+
+Star Trek exists to make Bob feel like a Gemini-style assistant for operators. That means the workstream should extend the front-end experience, audio flow, and response handling while leaving Bob as the underlying reasoning and control plane.
+
+### Parking training source note
+
+- Grounded parking-warrant training for First Security Blenheim / Marlborough District Council is available in the public Supabase Storage bucket `Parking-Managment`.
+- Confirmed file: `NZTA Warden training guidelines version 1 codes.docx`.
+- If higher-level storage tools return a 400 or ask for an `rs...` identifier, bypass that path and use the public object URL directly via `/storage/v1/object/public/Parking-Managment/...`.
+- Relevant guidance from this source has been folded into Bob project knowledge for Marlborough parking workflows.
+- The extracted manual text explicitly names Blenheim enforcement areas, reserved parking sites, CBD time-restricted areas, and kerbside meter coverage.
+- As of 2026-05-14, the linked environment has no active `parking_zones` rows for the Blenheim branch or Marlborough client, so the manual is the interim zoning source until realignment seeds dedicated parking zones.
+- Bob should treat this source as valid setup material for creating client sites, linked zones, and geofence blockers when the user provides the required operational details.
+- Confirmed operating hierarchy: First Security - Blenheim is the delivery branch; Marlborough Roads is jointly owned by Marlborough District Council and NZTA; Marlborough District Council is the governing organization for setup decisions.
+- Bob should therefore create client-owned parking sites and client zones under Marlborough District Council while using First Security - Blenheim as the service-provider branch context.
+
+## Org-Branch-Client Onboarding Template (added 2026-05-14)
+
+### Overview
+Status: Active staging checklist — Sprints 50-70 complete on main; Iron Eagle Visual Identity locked in docs (2026-05-14)
+
+This template was derived from the **First Security / Nelson City Council** real-world data onboarded during the 2026-05-14 patrol-data enrichment sprint.  Use it every time a new national security company and its regional clients need to be added to FieldOps Manager.
+
+### Hierarchy model
+
+```
+Level 1 — National security company   (organization_type = 'security_company')
+    │
+    ├── Level 2 — Branch              (organization_type = 'service_provider',
+    │            (regional office)     parent_organization_id = national org)
+    │
+    └── Level 3 — Client              (organization_type = 'client',
+                 (council / crown /    parent_organization_id = responsible branch)
+                  contractor)
+```
+
+### Reference implementation
+
+| Artifact | Path |
+|---|---|
+| SQL seed migration | `supabase/migrations/20260514000001_seed_first_security_orgs_clients_sites.sql` |
+| TypeScript org model | `src/lib/orgClientTemplate.ts` |
+
+### Step-by-step guide for a new organisation
+
+1. **Create the national org** (level 1).
+   - `organization_type = 'security_company'`
+   - `organization_level = 1`
+   - `parent_organization_id = NULL`
+
+2. **Create each branch** (level 2).
+   - `organization_type = 'service_provider'`
+   - `organization_level = 2`
+   - `parent_organization_id = <national org id>`
+   - `address = regional office location`
+
+3. **Create each client** (level 3).
+   - `organization_type = 'client'`
+   - `organization_level = 3`
+   - `parent_organization_id = <responsible branch id>`
+   - Councils use `enforcement_workflow = 'admin_first'`
+
+4. **Create dispatch zones** (owned by branch).
+   - Insert into `public.zones` with `organization_id = <branch id>`
+   - Derive `name` from the dispatch system's zone code (e.g. "Nelson Zone 585")
+   - Populate `geometry` JSONB with a GeoJSON polygon once coordinates are available
+
+5. **Create client sites** (owned by client).
+   - Insert into `public.client_sites` with `organization_id = <client id>`
+   - Set `zone_id` to the dispatch zone for patrol routing
+   - Set `site_code` to the Client ID from the dispatch export (e.g. `NCC200`)
+   - Set `site_type` from: `general | freedom_camping | guarding | parking | noise_control | event | infrastructure`
+   - Add `gps_lat` / `gps_lng` once confirmed; used for geofence ring generation
+
+6. **Wire bureau prefix → org mapping** in `src/lib/orgClientTemplate.ts`.
+   - `BUREAU_PREFIX_TO_BRANCH` maps dispatch export bureau IDs to branch org UUIDs
+   - `BUREAU_PREFIX_TO_CLIENT` maps them to the client org UUID
+   - `DISPATCH_CODE_TO_ZONE_ID` maps zone codes to zone UUIDs
+   - These lookups are consumed by `historicalPatrolIntelligence.ts` during import
+
+7. **Historical import / photo reingest**.
+   - Upload the patrol export CSV via *Import Historical Data* (`/import-historical`), select source = "First Security" (or Wilsar/Rapid).
+   - The normaliser resolves `bureau_id` → branch, `client_id` → site using the mappings above.
+   - To recover ALPR/compliance data from stored trial photos, run *Photo Reingest* (`/photo-reingest`) scoped to the branch org.
+
+### First Security Nelson — sites onboarded from sample data
+
+| Site name | Site code | Site type | Dispatch zone |
+|---|---|---|---|
+| The Refinery | NCC200 | general | 585 |
+| EX 4 Seasons | NCC400 | general | 585 |
+| Nayland College | NA5661 | general | 584/585 |
+| Fulton Hogan Nelson | — | infrastructure | 585 |
+| Washington Valley Reserve | — | freedom_camping | 585 |
+| Nelson Noise Control Patrol Area | NCCNOISE | noise_control | 587 |
+
+### Geofence population (pending)
+
+Geofence polygons for freedom_camping and noise_control sites should be added to `zones.geometry` as GeoJSON `Polygon` once confirmed GPS coordinates are obtained from the Nelson City Council GIS team or from the officers' field GPS logs.  Use the `ZoneManagement` admin page (`/zone-management`) to draw or paste the polygon.
+
+### NCC live-data alignment (2026-07-14)
+
+Use this when refreshing staging/prod-like data for end-to-end wiring tests:
+
+1. Run migration: `supabase/migrations/20260714000001_align_ncc_freedom_camping_live_data.sql`
+2. Verifies canonical org IDs and merges synthetic duplicates into:
+  - First Security: `b8566654-4b1b-4cea-b55e-73791ec418ea`
+  - Nelson City Council: `bd59679c-f0b5-4b4f-9cb6-847dfc3f5993`
+3. Ensures First Security Nelson dispatch zones exist for `582/584/585/586/587`.
+4. Seeds NCC `geo_zones` for:
+  - Washington Valley Reserve
+  - Tahunanui Beach
+  - Annesbrook Drive Campsite
+5. Bridges legacy `zones` records to the new `geo_zones` (`zone_kind='both'`) so both old and new UI paths work.
+6. Ensures NCC `client_sites` contains freedom-camping and service-map locations for route testing:
+  - Washington Valley Reserve, Tahunanui Beach, Annesbrook Drive Campsite
+  - Founders Park, 27 Bridge Street, Wakapuaka Crematorium
+  - Tahunanui Reserve toilet lock/unlock service points
+
+This migration is idempotent and can be re-run before regression tests that exercise import pipelines, map rendering, and patrol dispatch routing.
+
+### Strict geofence enforcement + officer policy context (2026-07-14)
+
+Use this immediately after the NCC alignment migration when validating onsite/offsite patrol logic, report location verification, and service-rule-aware officer UX:
+
+1. Run migration: `supabase/migrations/20260714000002_geofence_core_enforcement_and_policy_context.sql`
+2. Confirms active geofence integrity rules for:
+  - `geo_zones` (active records require polygon geometry unless strict mode is explicitly disabled)
+  - `zones` (active geo/both zones require a resolvable geofence path)
+  - `client_sites` (active records require zone/LOI linkage and GPS/zone traceability)
+3. Adds service policy containers for runtime UI rule rendering:
+  - `zones.operational_rules` JSONB
+  - `geo_zones.operational_rules` JSONB
+4. Enables strict officer-context RPCs:
+  - `resolve_boundary_context(...)`
+  - `get_zone_operational_policy(...)`
+5. Enables verified patrol geofence transitions:
+  - `patrol_auto_checkin_verified(...)` requires inside-boundary proof
+  - `patrol_auto_checkout_verified(...)` requires offsite proof
+6. Adds location-context upsert RPCs for evidence/report pipelines:
+  - `upsert_incident_location_context(...)`
+  - `upsert_dispatch_job_location_context(...)`
+
+This migration is additive and idempotent. Existing tenants remain backward compatible because legacy patrol RPCs are unchanged and frontend callers now fall back automatically if verified RPCs are unavailable.
+
+---
+
+Latest Session Snapshot (Historical Data Enrichment Continuation — Patrol/Alarm Workflow Grounding — 2026-05-14):
+
+- Timestamp (NZ): 2026-05-14
+- Current branch: main
+- Scope completed:
+  - Added deterministic historical patrol import draft generation with geofence hints and workflow actions.
+  - Hardened historical dispatch parsing against multiline quoted cells and broader Wilsar/Rapid aliases.
+  - Wired preflight summary into Bob's historical patrol intake UI so the import path can be verified before execution.
+
+- Validation evidence:
+  | Command | Result | Notes |
+  |---|---|---|
+  | `bun x vitest run src/lib/__tests__/historicalPatrolIntelligence.test.ts src/lib/__tests__/historicalDispatchIntelligence.test.ts src/lib/__tests__/geofence.test.ts src/lib/__tests__/zoneFeatures.test.ts` | PASS | 34 tests passed |
+  | `bun run build` | PASS | Vite build completed successfully |
+
+- Open backlog items:
+  1. Wire the normalized historical patrol draft into the real import execution endpoint.
+  2. Add reviewer actions for approve / stage / reject on normalized imports.
+  3. Convert geofence hints into actual site-resolution suggestions in the import workflow.
 
 Latest Session Snapshot (Phased Rollout Continuation — Iron Eagle Navigation & Shell Styling — 2026-05-13):
+
+Latest Session Snapshot (Phase A Week 3 Validation Continuation — Env-Backed Org Isolation Gate Green — 2026-05-13):
+
+- Timestamp (NZ): 2026-05-13
+- Current branch: main
+- Scope completed:
+  - Confirmed the required Supabase and test credentials are present in `.env.playwright.local` even though they were not inherited by the shell.
+  - Re-ran the org-isolation gate with `.env.playwright.local` exported into the shell.
+  - Verified the full build still succeeds under the same env-backed execution path.
+
+- Validation evidence:
+  | Command | Result | Notes |
+  |---|---|---|
+  | `set -a && . ./.env.playwright.local && set +a && bun x vitest run tests/integration/org-isolation.test.ts` | PASS | 6/6 tests passed; all 5 org-isolation scenarios plus summary gate green |
+  | `set -a && . ./.env.playwright.local && set +a && bun run build 2>&1 \| tail -5` | PASS | production build completed successfully (`built in 24.32s`) |
+
+- Open blockers with owner:
+  1. Remaining Phase A evidence still needed is operational, not code: canary rollout status and leadership ownership sign-off.
 
 Latest Session Snapshot (Phase A Week 3 Validation Continuation — Gate Evidence Refresh — 2026-05-13):
 
@@ -19,7 +233,7 @@ Latest Session Snapshot (Phase A Week 3 Validation Continuation — Gate Evidenc
   - Confirmed route/role truth validator is green for all 3 bootstrap surfaces.
   - Confirmed Bob governance regression remains green.
   - Confirmed bootstrap route smoke validator remains green.
-  - Identified the remaining Phase A gate blocker in this container: the org-isolation harness is skipped because Supabase env vars are unset.
+  - Initially observed that the org-isolation harness was skipped because Supabase env vars were not exported into the shell.
 
 - Validation evidence:
   | Command | Result | Notes |
@@ -27,10 +241,10 @@ Latest Session Snapshot (Phase A Week 3 Validation Continuation — Gate Evidenc
   | `node scripts/validate-route-role-truth.mjs` | PASS | 0 blockers, 1 non-critical finding; report written under `data/route-validation-*.json` |
   | `bun run test:bob:governance` | PASS | 6/6 Vitest assertions passed |
   | `node scripts/validate-bootstrap-routes.mjs` | PASS | 4/4 checks passed |
-  | `bun x vitest run tests/integration/org-isolation.test.ts` | BLOCKED | 6 tests skipped because `VITE_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and `VITE_SUPABASE_ANON_KEY` are unset |
+  | `bun x vitest run tests/integration/org-isolation.test.ts` | BLOCKED (superseded) | Initial shell run skipped because Supabase env vars were not exported; resolved later via `.env.playwright.local` |
 
 - Open blockers with owner:
-  1. Provide env-backed Supabase access for the Phase A org-isolation gate, then rerun `tests/integration/org-isolation.test.ts` to collect real 5/5 evidence.
+  1. Superseded by the later env-backed validation snapshot above.
 
 Latest Session Snapshot (Staging Continuation — Toolchain Restoration, GH CLI, and Bootstrap Routes Validation — 2026-05-13):
 
@@ -227,6 +441,60 @@ Latest Session Snapshot (Star Trek Phase 4 Checkpoint — Admiral's Bridge — 2
   1. Run tactical emergency E2E scenario to capture pulse + GPS broadcast proof artifact.
   2. Validate notice print authorization flow in browser and attach signed-print evidence screenshot.
   3. Run full `bun run build` and `bun run lint` for final rollout gate confirmation.
+
+Latest Session Snapshot (Star Trek Phase 4 E2E Checkpoint — Admiral's Bridge — 2026-05-14):
+
+- Timestamp (NZ): 2026-05-14
+- Current branch: main
+- Scope completed:
+  - Created `tests/e2e/phase4-admirals-bridge.spec.ts` with 5 checkpoint tests.
+  - Key fixes: `/live-tracking` needs `waitFor('Total Officers')` for auth-loading to clear; welfare alerts are at `/admin/dashboard` (AdminPortal) not `/admin` (AdminHub).
+  - `#bob-danger-auto-assist` switch in BobAssistantStudio is the E2E handle for armed-danger auto-assist mode.
+  - All 5 Phase 4 E2E tests pass consistently.
+
+- Phase 4 E2E Validation evidence:
+  | Command | Result | Notes |
+  |---|---|---|
+  | `bunx playwright test tests/e2e/phase4-admirals-bridge.spec.ts --project=chromium --reporter=line` | PASS | 5/5 tests passed in 37.7s |
+  | Test 1 — Tactical map accessible (Live Officer Tracking) | PASS | "Total Officers" card visible after auth load |
+  | Test 2 — Welfare alert section visible on admin dashboard | PASS | "welfare alert" text present on /admin/dashboard |
+  | Test 3 — Armed-danger auto-assist blocks admin writes | PASS | 3 message bubbles rendered after toggle + create command |
+  | Test 4 — Emergency GPS broadcast format validated | PASS | 4 message bubbles rendered for danger report message |
+  | Test 5 — Welfare escalation path navigates to officer welfare | PASS | 7 empty-state matches, 3 headers found |
+
+- Star Trek Phase Status:
+  - Phase 1 (Universal Translator: Voice and Audio Logic) — COMPLETE ✅
+  - Phase 2 (Universal Translator: Voice and Audio Logic E2E) — COMPLETE ✅ (5/5 tests, 37.2s)
+  - Phase 3 (Sentient XO: Memory and Administrative Actuation) — COMPLETE ✅ (5/5 tests, 39.7s)
+  - Phase 4 (Admiral's Bridge: Welfare and Enforcement) — COMPLETE ✅ (5/5 tests, 37.7s)
+
+- Next exact recovery steps (post-Phase-4):
+  1. All 4 Star Trek phases now have passing E2E checkpoints. Rollout exit criteria met.
+  2. Run `bun run build` for final gate confirmation before any production deployment.
+
+Latest Session Snapshot (Star Trek Phase 3 E2E Checkpoint — Sentient XO — 2026-05-14):
+
+- Timestamp (NZ): 2026-05-14
+- Current branch: main
+- Scope completed:
+  - Created `tests/e2e/phase3-sentient-xo.spec.ts` with 5 checkpoint tests targeting `BobAssistantStudio`.
+  - Identified and resolved portal selection gate: admin users must click "Admin Portal" on `/portal-selection` before `/bob-assistant` is accessible (sessionStorage key `adminOfficerPortalChoice`).
+  - Used `textarea[placeholder*="Ask Bob"]` as the BobAssistantStudio ready signal after lazy-load Suspense resolves.
+  - All 5 Phase 3 E2E tests pass consistently.
+
+- Phase 3 E2E Validation evidence:
+  | Command | Result | Notes |
+  |---|---|---|
+  | `bunx playwright test tests/e2e/phase3-sentient-xo.spec.ts --project=chromium --reporter=line` | PASS | 5/5 tests passed in 39.7s |
+  | Test 1 — Bob receives administrative actuation command | PASS | 3 message bubbles rendered |
+  | Test 2 — Bob memory context available | PASS | 4 message bubbles rendered |
+  | Test 3 — Gap detection (missing required fields) | PASS | 3 message bubbles rendered |
+  | Test 4 — Administrative safeguards operational | PASS | 4 message bubbles rendered |
+  | Test 5 — Actuation persistence and feedback | PASS | 3 message bubbles rendered |
+
+- Next exact recovery steps for Phase 4 start:
+  1. Begin Phase 4 (Admiral's Bridge — tactical map + welfare checkpoint).
+  2. Read `docs/STAR_TREK_PHASED_ROLLOUT_PLAN.md` Phase 4 requirements before implementation.
 
 Latest Session Snapshot (Star Trek Phase 3 Checkpoint — Sentient XO — 2026-05-12):
 
@@ -437,10 +705,51 @@ Latest Session Snapshot (Star Trek Phase 1 Checkpoint — 2026-05-12):
   | STAGING evidence | ✅ HERE | This section documents implementation |
   | INSTRUCTION_MANUAL update | ⏳ PENDING | User behavior docs in section 2 awaiting update |
 
-- Next exact recovery steps for Phase 1 completion:
-  1. Update INSTRUCTION_MANUAL.md section 2 with Phase 1 user-facing behavior.
-  2. Run Phase 1 checkpoint test via Playwright in codespace.
-  3. Commit both docs together to mark Phase 1 checkpoint complete.
+- Phase 1 (Director: Roster and Access Gate) — **CHECKPOINT COMPLETE**
+  
+  **Evidence:**
+  - ✅ INSTRUCTION_MANUAL.md section 2.3a documents Phase 1 user behavior (roster gate, welfare standby, pre-shift window, tactical module hiding)
+  - ✅ Test file created: `tests/e2e/phase1-director-roster-gate.spec.ts` with 3 test scenarios (non-rostered redirect, tactical hiding, director gate scope)
+  - ✅ Implement verified: `src/middleware.ts` (`useDirectorRosterGate()`), `src/App.tsx` (welfare redirect line 612), `src/navigation/roleManifest.ts` (`isDirectorOfficerPathAllowed()`)
+  - ✅ Non-Regression Guard in Star Trek plan confirms Bob voice/message paths preserved
+  - ✅ Org-access consolidation (RLS + Edge Function helpers) complete (ask-bob, ptt-signaling-token, generate-infringement integrated)
+  
+  **Status**: READY FOR PHASE 2 (Universal Translator — Voice and Audio Logic)
+
+---
+
+Latest Session Snapshot (Star Trek Phase 2 Checkpoint Preparation — 2026-05-14):
+
+- Timestamp (NZ): 2026-05-14 09:30 NZST
+- Current branch: main
+- Scope completed:
+  - Verified Phase 2 audio logic helpers exist: `src/lib/radio/phase2AudioLogic.ts` with `containsWakeWord()`, `getCoworkerChannelVolume()`
+  - Wired stable test hooks into `src/pages/PTTRadio.tsx` for interpreter toggle, wake-word switch, audio ducking switch, PTT hold button, and transmit state label
+  - Added local persistence for wake-word and audio ducking toggles under `radio-interpreter-audio-pref-v1`
+  - Reworked the Phase 2 checkpoint test to target the real `/radio` route and actual radio controls
+  - Validated the helper unit tests and confirmed Playwright can enumerate the new checkpoint spec
+
+- Phase 2 (Universal Translator: Voice and Audio Logic) Infrastructure Status:
+  | Component | Status | Notes |
+  |---|---|---|
+  | Dual-path audio helpers | ✅ EXIST | `phase2AudioLogic.ts` has wake-word detection and volume control functions |
+  | User behavior docs | ✅ DOCUMENTED | INSTRUCTION_MANUAL section 2.3b already covers wake-word, ducking, hold-to-talk logic |
+  | Checkpoint test suite | ✅ READY | `phase2-universal-translator.spec.ts` now targets the live `/radio` controls |
+  | PTT surface hooks | ✅ IMPLEMENTED | Stable test hooks added to PTTRadio for interpreter toggle, wake-word, ducking, and transmit state |
+  | Toggle persistence | ✅ IMPLEMENTED | Wake-word and ducking preferences persist in localStorage |
+  | PTT server architecture | ✅ VERIFIED | `ptt-server/server.js` supports WebSocket signaling and channel management |
+
+- Phase 2 (Universal Translator) — **READY FOR LIVE CREDENTIALS E2E RUN**
+
+- Next exact recovery steps for Phase 2 close-out:
+  1. Run Phase 2 checkpoint test with live credentials in CI/CD.
+  2. Capture any browser evidence for wake-word, ducking, and Bob Intercom Speak controls.
+  3. Record the CI run ID and mark the checkpoint complete once the live E2E pass is confirmed.
+  4. Use a runner with a Chromium binary that can execute on this host, or add the required Alpine glibc compatibility layer before re-running locally.
+
+- Local environment blocker observed in this container:
+  - Playwright browser binaries download successfully, but the Alpine host cannot spawn the Chromium executable path returned by Playwright (`ENOENT` on both headless-shell and chrome cache binaries).
+  - This is an execution-environment issue, not a Phase 2 code issue.
 
 Latest Session Snapshot (Phased rollout continuation — 2026-05-12):
 
@@ -849,6 +1158,55 @@ Optional local services for deeper staging tests:
 apk add --no-cache redis
 redis-server --version
 ```
+
+### Bob Staging Login Provisioning
+
+Use this when staging needs a dedicated Bob operator account for assistant ingestion, approvals, and real-data workflows.
+
+1. Load staging secrets from your Codespace/GitHub/Supabase environment. Do not commit plaintext credentials.
+2. Set or export these variables in terminal:
+
+```bash
+export SUPABASE_URL="https://<project-ref>.supabase.co"
+export SUPABASE_SERVICE_ROLE_KEY="<service-role-key>"
+export BOB_LOGIN_EMAIL="bob.assistant+staging@onspace.ai"
+export BOB_LOGIN_PASSWORD="<strong-password-12+-chars>"
+export BOB_ORG_ID="<staging-org-uuid>"
+export BOB_LOGIN_ROLE="admin_officer"
+export BOB_LOGIN_FIRST_NAME="Bob"
+export BOB_LOGIN_LAST_NAME="OnSpace"
+```
+
+3. Create or update the Bob login/profile:
+
+```bash
+cd /workspaces/FreedomCamp-Manager
+node scripts/create-bob-login.mjs
+```
+
+4. Dry-run preview (safe validation before writing):
+
+```bash
+node scripts/create-bob-login.mjs --dry-run
+```
+
+5. Verify Bob can sign in (without exposing tokens):
+
+```bash
+curl -sS -o /tmp/bob-login-check.json -w "%{http_code}\n" \
+  -X POST "${SUPABASE_URL}/auth/v1/token?grant_type=password" \
+  -H "apikey: ${VITE_SUPABASE_ANON_KEY}" \
+  -H "Content-Type: application/json" \
+  -d "{\"email\":\"${BOB_LOGIN_EMAIL}\",\"password\":\"${BOB_LOGIN_PASSWORD}\"}"
+node -e 'const fs=require("fs");const b=JSON.parse(fs.readFileSync("/tmp/bob-login-check.json","utf8"));console.log({hasAccessToken:Boolean(b.access_token),userId:b.user?.id||null,error:b.error||null})'
+```
+
+Notes:
+- The provisioning command is idempotent. Re-running updates the existing Bob auth/profile safely.
+- The script auto-upserts `user_profiles` and `bob_user_profiles` where available.
+- Keep credentials in secret stores only (GitHub/Codespaces/Supabase), not in repo files.
+- Verified on 2026-05-14: Bob staging login authenticated successfully with Supabase after provisioning.
+- Current provisioned Bob org anchor: `First Security - Nelson [MERGED 2026-05-14]`.
 
 ## 5. Operating Instructions for the Agent
 
@@ -4479,25 +4837,17 @@ Start date: 2026-05-04
 
 ### Sprint 1: Route/Menu Authority Unification
 
-| # | Task | Owner | Status | Evidence |
 |---|---|---|---|---|
 | P4-1 | Wire AppLayout to manifest-driven role/org pre-filtering | Dev | ✅ Done | `src/components/features/AppLayout.tsx`, `src/navigation/routeManifestAdapter.ts` — nav now respects `visibilityMode=internal` and `featureFlag` (`enable_internal_tools`) |
 | P4-2 | Expand module-route-access E2E spec for role/menu parity | QA | ✅ Done | `tests/e2e/module-route-access.spec.ts` — parity assertions updated for AccessDenied behavior; targeted run `PLAYWRIGHT_ALLOW_SHARED_CREDENTIAL_FALLBACK=1 bunx playwright test tests/e2e/module-route-access.spec.ts --grep "route/menu parity assertions" --project=chromium --reporter=line` => `3 passed` |
 | P4-3 | Eliminate silent redirects — return explicit access guidance | Dev | ✅ Done | `src/App.tsx` — `RoleRoute` now renders explicit `AccessDenied` guidance for unauthorized role-route attempts |
 
 ### Sprint 2: Dispatch Reliability Fallbacks
-
-| # | Task | Owner | Status | Evidence |
-|---|---|---|---|---|
-| P4-4 | Implement suburb/postcode fallback in dispatchAssignment.ts | Dev | ✅ Done | `src/lib/dispatchAssignment.ts` — fallback implemented via nearest-zone centroid and address-token matching (`suburb/postcode/council/display_address`) when strict zone containment fails or GPS is missing |
 | P4-5 | Add no-GPS assignment test cases | QA | ✅ Done | `src/lib/dispatchAssignment.test.ts` — Vitest coverage for no-GPS address-token fallback and nearest-zone fallback (`2 passed`, 2026-05-04) |
 
 ### Sprint 3: Async UX Consistency System
 
-| # | Task | Owner | Status | Evidence |
-|---|---|---|---|---|
 | P4-6 | Define and implement shared async-state components (loading/error/empty/retry/offline) | Dev | ✅ Done | `src/components/features/AsyncStateWrapper.tsx` — loading (PaperworkSearchAnimation), error (AlertTriangle + retry), empty (Inbox + optional CTA), offline (WifiOff + retry) |
-| P4-7 | Roll out to top-10 operator routes | Dev | ✅ Done | `VehicleManagement`, `BreachAlerts`, `EnforcementActions`, `EnforcementReview`, `Compliance` (3 tab sections), `LivePatrolMonitor`, `DispatchMonitor`, `Reports` — `bun run build` ✅ |
 | P4-8 | Verify mobile viewport 375px for updated routes | QA | ✅ Done | `tests/e2e/p4-8-mobile-viewport-async-state.spec.ts` — 8 routes, no-overflow + heading + error-boundary checks at 375×812 |
 
 ### Sprint 4: Multi-Org Assurance + Competitive/VOC

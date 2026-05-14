@@ -43,7 +43,7 @@ export interface HistoricalDispatchPlacementVerification {
 }
 
 const HEADER_ALIASES: Record<string, string[]> = {
-  despatchNo: ['despatch no.', 'despatch no', 'dispatch no', 'dispatch number'],
+  despatchNo: ['despatch no.', 'despatch no', 'dispatch no', 'dispatch number', 'alarm docket no.', 'alarm docket no'],
   bureauName: ['bureau name'],
   clientId: ['client id'],
   clientName: ['client name'],
@@ -52,15 +52,68 @@ const HEADER_ALIASES: Record<string, string[]> = {
   offSiteAt: ['off-site date/time', 'offsite date/time'],
   despatchComments: ['despatch comments', 'dispatch comments'],
   followUpInfo: ['follow-up info.', 'follow-up info', 'follow up info'],
-  zoneOrSubcontractor: ['despatch zone / subcontractor', 'dispatch zone / subcontractor', 'despatch zone'],
+  zoneOrSubcontractor: ['despatch zone / subcontractor', 'dispatch zone / subcontractor', 'despatch zone', 'dispatch zone', 'subcontractor'],
 }
 
 function normalizeHeader(value: string): string {
-  return value.trim().toLowerCase()
+  return value.trim().toLowerCase().replace(/\s+/g, ' ')
 }
 
-function parseTabularLine(line: string): string[] {
-  return line.split('\t').map((cell) => cell.trim())
+function parseDelimitedRecords(raw: string, delimiter: '\t' | ','): string[][] {
+  const records: string[][] = []
+  let row: string[] = []
+  let cell = ''
+  let inQuotes = false
+
+  for (let i = 0; i < raw.length; i += 1) {
+    const char = raw[i]
+
+    if (char === '"') {
+      if (inQuotes && raw[i + 1] === '"') {
+        cell += '"'
+        i += 1
+      } else {
+        inQuotes = !inQuotes
+      }
+      continue
+    }
+
+    if (char === delimiter && !inQuotes) {
+      row.push(cell.trim())
+      cell = ''
+      continue
+    }
+
+    if ((char === '\n' || char === '\r') && !inQuotes) {
+      if (char === '\r' && raw[i + 1] === '\n') i += 1
+      row.push(cell.trim())
+      cell = ''
+
+      if (row.some((value) => value.length > 0)) {
+        records.push(row)
+      }
+      row = []
+      continue
+    }
+
+    cell += char
+  }
+
+  if (cell.length > 0 || row.length > 0) {
+    row.push(cell.trim())
+    if (row.some((value) => value.length > 0)) {
+      records.push(row)
+    }
+  }
+
+  return records
+}
+
+function detectDelimiter(raw: string): '\t' | ',' {
+  const sample = raw.slice(0, 6000)
+  const tabCount = (sample.match(/\t/g) || []).length
+  const commaCount = (sample.match(/,/g) || []).length
+  return tabCount >= commaCount ? '\t' : ','
 }
 
 function findHeaderIndex(headers: string[], aliases: string[]): number {
@@ -127,7 +180,13 @@ export function classifyHistoricalDispatchJob(row: HistoricalDispatchRow): Histo
   let confidence = 0.6
   let rationale = 'No strong type markers found; classify as generic dispatch job.'
 
-  if (corpus.includes('nccnoise') || corpus.includes('noise control') || corpus.includes('noise complaint')) {
+  if (
+    corpus.includes('nccnoise') ||
+    corpus.includes('noise control') ||
+    corpus.includes('noise complaint') ||
+    corpus.includes('magiq sr') ||
+    corpus.includes('volume')
+  ) {
     jobType = 'noise_control'
     confidence = 0.95
     rationale = 'Matched noise-control markers (NCCNOISE / noise complaint context).'
@@ -135,7 +194,7 @@ export function classifyHistoricalDispatchJob(row: HistoricalDispatchRow): Histo
     jobType = 'atm_maintenance'
     confidence = 0.92
     rationale = 'Matched ATM maintenance markers (NCR/ATM/Fiserv/Cencon context).'
-  } else if (corpus.includes('*** fire ***') || corpus.includes('fire alarm')) {
+  } else if (corpus.includes('*** fire ***') || corpus.includes('fire alarm') || corpus.includes('smoke detector')) {
     jobType = 'fire_alarm'
     confidence = 0.9
     rationale = 'Matched fire-alarm markers in dispatch comments.'
@@ -143,7 +202,14 @@ export function classifyHistoricalDispatchJob(row: HistoricalDispatchRow): Histo
     jobType = 'late_to_close'
     confidence = 0.88
     rationale = 'Matched late-to-close markers (FTS / late close).'
-  } else if (corpus.includes('*** intruder alarm ***') || corpus.includes('alarm') || corpus.includes('activation')) {
+  } else if (
+    corpus.includes('*** intruder alarm ***') ||
+    corpus.includes(' alarm ') ||
+    corpus.includes('activation') ||
+    corpus.includes('zone ') ||
+    corpus.includes(' pir') ||
+    corpus.includes('external check')
+  ) {
     jobType = 'alarm_activation'
     confidence = 0.8
     rationale = 'Matched alarm/activation markers.'
@@ -159,9 +225,14 @@ export function classifyHistoricalDispatchJob(row: HistoricalDispatchRow): Histo
 }
 
 export function buildHistoricalDispatchPlacementReview(raw: string): HistoricalDispatchPlacementReview {
-  const lines = raw.split(/\r?\n/)
-  const headerLine = lines.find((line) => line.includes('\t') && /despatch\s+no\.?/i.test(line))
-  if (!headerLine) {
+  const delimiter = detectDelimiter(raw)
+  const records = parseDelimitedRecords(raw, delimiter)
+  const headerIndex = records.findIndex((cells) => {
+    const normalized = cells.map(normalizeHeader)
+    return normalized.some((header) => HEADER_ALIASES.despatchNo.includes(header))
+  })
+
+  if (headerIndex < 0) {
     return {
       totalRows: 0,
       classifiedRows: 0,
@@ -173,7 +244,7 @@ export function buildHistoricalDispatchPlacementReview(raw: string): HistoricalD
     }
   }
 
-  const headers = parseTabularLine(headerLine).map(normalizeHeader)
+  const headers = records[headerIndex].map(normalizeHeader)
   const indexes = {
     despatchNo: findHeaderIndex(headers, HEADER_ALIASES.despatchNo),
     bureauName: findHeaderIndex(headers, HEADER_ALIASES.bureauName),
@@ -192,11 +263,8 @@ export function buildHistoricalDispatchPlacementReview(raw: string): HistoricalD
   let rowsMissingTimestamps = 0
   const typeCounts = defaultTypeCounts()
 
-  for (const line of lines) {
-    if (!line.includes('\t')) continue
-    if (line === headerLine) continue
-
-    const cells = parseTabularLine(line)
+  for (let i = headerIndex + 1; i < records.length; i += 1) {
+    const cells = records[i]
     const row = toRow(cells, indexes)
     const hasSignal = row.despatchNo || row.clientName || row.despatchComments
     if (!hasSignal) continue

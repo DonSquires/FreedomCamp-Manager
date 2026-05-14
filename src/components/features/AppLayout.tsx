@@ -220,9 +220,6 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
     label: 'Operations',
     icon: BarChart3,
     items: [
-      { path: '/dashboard', icon: LayoutDashboard, label: 'Module Dashboard', roles: ['admin', 'admin_officer', 'master', 'officer'] },
-      { path: '/patrols', icon: Route, label: 'Patrol Operations', roles: ['admin', 'admin_officer', 'master', 'officer'] },
-      { path: '/enforcement', icon: Gavel, label: 'Enforcement Operations', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/compliance', icon: ShieldCheck, label: 'Compliance Hub', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/observation-records', icon: ImageIcon, label: 'Observations', roles: ['admin', 'admin_officer', 'master', 'officer'] },
       { path: '/observations-report', icon: FileBarChart, label: 'Observations Report', roles: ['admin', 'admin_officer', 'master'] },

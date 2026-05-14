@@ -228,6 +228,9 @@ Deno.serve(async (req) => {
       )
     }
 
+    // Build accessible org scope (includes descendants for admin roles)
+    const allowedOrganizationIds = await buildAccessibleOrgIds(supabaseAdmin, profile as any)
+
     if (!profile.warrant_number?.trim()) {
       return new Response(
         JSON.stringify({ success: false, error: 'Issuing officer must have a warrant number before an infringement notice can be issued.' }),

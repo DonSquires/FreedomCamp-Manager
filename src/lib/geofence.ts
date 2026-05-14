@@ -350,41 +350,81 @@ function findPatrolInGeofence(
 
 async function rpcPatrolAutoCheckin(patrolId: string, gpsLat: number, gpsLng: number): Promise<void> {
   try {
-    const { data, error } = await (supabase as any).rpc('patrol_auto_checkin', {
+    const { data, error } = await (supabase as any).rpc('patrol_auto_checkin_verified', {
       p_patrol_id: patrolId,
       p_gps_lat: gpsLat,
       p_gps_lng: gpsLng,
     })
 
+    const missingVerifiedRpc = error?.code === '42883'
+
+    if (missingVerifiedRpc) {
+      const legacy = await (supabase as any).rpc('patrol_auto_checkin', {
+        p_patrol_id: patrolId,
+        p_gps_lat: gpsLat,
+        p_gps_lng: gpsLng,
+      })
+
+      if (legacy.error) {
+        console.warn('patrol_auto_checkin fallback failed:', legacy.error)
+        return
+      }
+
+      if (legacy.data?.success) {
+        toast.success(legacy.data?.message || 'Patrol auto sign-on completed')
+      }
+      return
+    }
+
     if (error) {
-      console.warn('patrol_auto_checkin failed:', error)
+      console.warn('patrol_auto_checkin_verified failed:', error)
       return
     }
 
     if (data?.success) {
-      toast.success(data?.message || 'Patrol auto sign-on completed')
+      toast.success(data?.message || 'Patrol auto sign-on verified')
     }
   } catch (error) {
-    console.warn('patrol_auto_checkin exception:', error)
+    console.warn('patrol_auto_checkin_verified exception:', error)
   }
 }
 
-async function rpcPatrolAutoCheckout(patrolId: string): Promise<void> {
+async function rpcPatrolAutoCheckout(patrolId: string, gpsLat: number, gpsLng: number): Promise<void> {
   try {
-    const { data, error } = await (supabase as any).rpc('patrol_auto_checkout', {
+    const { data, error } = await (supabase as any).rpc('patrol_auto_checkout_verified', {
       p_patrol_id: patrolId,
+      p_gps_lat: gpsLat,
+      p_gps_lng: gpsLng,
     })
 
+    const missingVerifiedRpc = error?.code === '42883'
+
+    if (missingVerifiedRpc) {
+      const legacy = await (supabase as any).rpc('patrol_auto_checkout', {
+        p_patrol_id: patrolId,
+      })
+
+      if (legacy.error) {
+        console.warn('patrol_auto_checkout fallback failed:', legacy.error)
+        return
+      }
+
+      if (legacy.data?.success) {
+        toast.info(legacy.data?.message || 'Patrol auto sign-off completed')
+      }
+      return
+    }
+
     if (error) {
-      console.warn('patrol_auto_checkout failed:', error)
+      console.warn('patrol_auto_checkout_verified failed:', error)
       return
     }
 
     if (data?.success) {
-      toast.info(data?.message || 'Patrol auto sign-off completed')
+      toast.info(data?.message || 'Patrol auto sign-off verified')
     }
   } catch (error) {
-    console.warn('patrol_auto_checkout exception:', error)
+    console.warn('patrol_auto_checkout_verified exception:', error)
   }
 }
 
@@ -555,7 +595,7 @@ export async function monitorGeofenceAndPatrol(
 
     if (patrolInGeofence) {
       if (inProgressPatrol && inProgressPatrol.patrol_id !== patrolInGeofence.patrol_id) {
-        await rpcPatrolAutoCheckout(inProgressPatrol.patrol_id)
+        await rpcPatrolAutoCheckout(inProgressPatrol.patrol_id, userLat, userLng)
       }
 
       const canAutoCheckin = patrolInGeofence.auto_checkin_enabled !== false
@@ -572,7 +612,7 @@ export async function monitorGeofenceAndPatrol(
     }
 
     if (inProgressPatrol) {
-      await rpcPatrolAutoCheckout(inProgressPatrol.patrol_id)
+      await rpcPatrolAutoCheckout(inProgressPatrol.patrol_id, userLat, userLng)
     }
     
     // Detect current zones

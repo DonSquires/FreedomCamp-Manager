@@ -61,6 +61,57 @@ function toNumber(value: string | undefined): number | null {
   return Number.isFinite(parsed) ? parsed : null
 }
 
+function parseDurationToHours(value: string | undefined): number | null {
+  if (!value?.trim()) return null
+  const raw = value.trim()
+
+  const hhmm = raw.match(/^(\d{1,2}):(\d{2})$/)
+  if (hhmm) {
+    const hours = Number(hhmm[1])
+    const minutes = Number(hhmm[2])
+    if (Number.isFinite(hours) && Number.isFinite(minutes)) {
+      return Number((hours + minutes / 60).toFixed(2))
+    }
+  }
+
+  return toNumber(raw)
+}
+
+function normalizeTime(raw: string): string {
+  const trimmed = raw.trim().toLowerCase()
+  const ampm = trimmed.match(/^(\d{1,2})(?::(\d{2}))?\s*([ap]m)$/)
+  if (ampm) {
+    let hour = Number(ampm[1])
+    const minute = Number(ampm[2] ?? '0')
+    const suffix = ampm[3]
+
+    if (suffix === 'pm' && hour < 12) hour += 12
+    if (suffix === 'am' && hour === 12) hour = 0
+
+    return `${pad(String(hour))}:${pad(String(minute))}:00`
+  }
+
+  const hhmm = trimmed.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/)
+  if (hhmm) {
+    const seconds = hhmm[3] ?? '00'
+    return `${pad(hhmm[1])}:${pad(hhmm[2])}:${pad(seconds)}`
+  }
+
+  return trimmed
+}
+
+function combineDateAndTime(dateRaw: string | undefined, timeRaw: string | undefined): string | null {
+  if (!dateRaw?.trim()) return null
+  const datePart = parseDeputyDateTime(dateRaw)
+  if (!datePart) return null
+
+  if (!timeRaw?.trim()) return datePart
+  const normalizedTime = normalizeTime(timeRaw)
+
+  const onlyDate = datePart.slice(0, 10)
+  return parseDeputyDateTime(`${onlyDate} ${normalizedTime}`)
+}
+
 function pad(value: string): string {
   return value.padStart(2, '0')
 }
@@ -150,19 +201,41 @@ export function parseDeputyImportText(text: string): DeputyImportParseResult {
   })
 
   const rows = records.map<DeputyParsedRow>((row) => {
-    const employeeDisplayName = getColumn(row, 'Employee Display Name', 'Employee')?.trim() || ''
-    const employeeName = getColumn(row, 'Employee', 'Employee Name')?.trim() || employeeDisplayName
+    const employeeDisplayName = getColumn(row, 'Display Name', 'Employee Display Name', 'Employee')?.trim() || ''
+    const employeeName =
+      getColumn(row, 'Employee', 'Employee Name')?.trim() ||
+      [getColumn(row, 'First Name'), getColumn(row, 'Last Name')].filter(Boolean).join(' ').trim() ||
+      employeeDisplayName
     const employeeExportCode = getColumn(row, 'Employee Export Code', 'Employee Code')?.trim() || null
-    const scheduleStart = parseDeputyDateTime(getColumn(row, 'Schedule Start', 'ScheduleStart', 'Start'))
-    const scheduleEnd = parseDeputyDateTime(getColumn(row, 'Schedule End', 'Schedule Finish', 'ScheduleEnd', 'Finish', 'End'))
-    const timesheetStart = parseDeputyDateTime(getColumn(row, 'Timesheet Start', 'TimesheetStart'))
-    const timesheetEnd = parseDeputyDateTime(getColumn(row, 'Timesheet End', 'Timesheet Finish', 'TimesheetEnd'))
-    const areaName = getColumn(row, 'Area')?.trim() || null
-    const locationName = getColumn(row, 'Location')?.trim() || null
+    const scheduleStart =
+      combineDateAndTime(
+        getColumn(row, 'Schedule Date', 'Date Start'),
+        getColumn(row, 'Schedule Start Time', 'Time Start'),
+      ) ||
+      parseDeputyDateTime(getColumn(row, 'Schedule Start', 'ScheduleStart', 'Start'))
+    const scheduleEnd =
+      combineDateAndTime(
+        getColumn(row, 'Schedule Date', 'Date End', 'Date Start'),
+        getColumn(row, 'Schedule End Time', 'Time End'),
+      ) ||
+      parseDeputyDateTime(getColumn(row, 'Schedule End', 'Schedule Finish', 'ScheduleEnd', 'Finish', 'End'))
+    const timesheetStart =
+      combineDateAndTime(
+        getColumn(row, 'Timesheet Date'),
+        getColumn(row, 'Timesheet Start Time'),
+      ) || parseDeputyDateTime(getColumn(row, 'Timesheet Start', 'TimesheetStart'))
+    const timesheetEnd =
+      combineDateAndTime(
+        getColumn(row, 'Timesheet Date'),
+        getColumn(row, 'Timesheet End Time'),
+      ) || parseDeputyDateTime(getColumn(row, 'Timesheet End', 'Timesheet Finish', 'TimesheetEnd'))
+    const areaName = getColumn(row, 'Area Name', 'Area')?.trim() || null
+    const locationName = getColumn(row, 'Location Name', 'Location')?.trim() || null
     const locationCode = getColumn(row, 'Location Code', 'LocationCode')?.trim() || null
     const areaExportCode = getColumn(row, 'Area Export Code', 'AreaExportCode')?.trim() || null
     const isLeave = toBool(getColumn(row, 'Is Leave', 'IsLeave'))
-    const leaveTypeName = getColumn(row, 'Leave Type', 'LeaveType')?.trim() || null
+    const leaveTypeName = getColumn(row, 'Leave Type Name', 'Leave Type', 'LeaveType')?.trim() || null
+    const leaveStatus = getColumn(row, 'Leave Status')?.trim() || ''
 
     const externalId = isLeave
       ? toExternalId('leave', [employeeExportCode, leaveTypeName, scheduleStart, scheduleEnd, locationCode])
@@ -179,20 +252,22 @@ export function parseDeputyImportText(text: string): DeputyImportParseResult {
       locationName,
       locationCode,
       areaExportCode,
-      payPeriodName: getColumn(row, 'Pay Period', 'PayPeriod')?.trim() || null,
+      payPeriodName: getColumn(row, 'Pay Period Name', 'Pay Period', 'PayPeriod')?.trim() || null,
       isLeave,
       leaveTypeName,
       leaveExportCode: getColumn(row, 'Leave Export Code', 'LeaveExportCode')?.trim() || null,
-      isLeavePaid: getColumn(row, 'Is Leave Paid', 'IsLeavePaid') ? toBool(getColumn(row, 'Is Leave Paid', 'IsLeavePaid')) : true,
+      isLeavePaid: getColumn(row, 'Paid Leave', 'Is Leave Paid', 'IsLeavePaid') ? toBool(getColumn(row, 'Paid Leave', 'Is Leave Paid', 'IsLeavePaid')) : true,
       scheduleStart,
       scheduleEnd,
-      scheduleDurationHours: toNumber(getColumn(row, 'Schedule Duration (Hours)', 'Schedule Duration', 'ScheduleDuration')),
+      scheduleDurationHours: parseDurationToHours(getColumn(row, 'Schedule Total Time', 'Total Hours', 'Schedule Duration (Hours)', 'Schedule Duration', 'ScheduleDuration')),
       scheduleCost: toNumber(getColumn(row, 'Schedule Cost', 'ScheduleCost')),
       scheduleWarning: getColumn(row, 'Schedule Warning', 'ScheduleWarning', 'Stress')?.trim() || null,
-      approved: toBool(getColumn(row, 'Approved', 'Schedule Approved', 'Approved?')),
+      approved:
+        toBool(getColumn(row, 'Time Approved', 'Approved', 'Schedule Approved', 'Approved?')) ||
+        leaveStatus.toLowerCase() === 'approved',
       timesheetStart,
       timesheetEnd,
-      timesheetDurationHours: toNumber(getColumn(row, 'Timesheet Duration (Hours)', 'Timesheet Duration', 'TimesheetDuration')),
+      timesheetDurationHours: parseDurationToHours(getColumn(row, 'Timesheet Total Time', 'Timesheet Duration (Hours)', 'Timesheet Duration', 'TimesheetDuration')),
       timesheetCost: toNumber(getColumn(row, 'Timesheet Cost', 'TimesheetCost')),
       employeeComment: getColumn(row, 'Employee Comment', 'Comment')?.trim() || null,
       isInProgress: toBool(getColumn(row, 'Is In Progress', 'IsInProgress')),

@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
+import { useAuthStore } from '@/stores/authStore';
 
 type OperationalCase = {
   id: string;
@@ -324,14 +325,46 @@ export const useCreateEnforcementEvent = () => {
  * Used to conditionally enable Phase B features
  */
 export const useFeatureFlag = (flagName: string) => {
+  const user = useAuthStore((state) => state.user);
+
   return useQuery({
-    queryKey: ['featureFlag', flagName],
+    queryKey: ['featureFlag', flagName, user?.id ?? null, user?.organization_id ?? null],
     queryFn: async () => {
       const { data, error } = await sb
         .rpc('is_feature_enabled', { flag_name: flagName });
 
       if (error) throw error;
-      return (data as boolean) || false;
+
+      const enabled = (data as boolean) || false;
+
+      const { data: flagRow, error: flagLookupError } = await sb
+        .from('feature_flags')
+        .select('id')
+        .eq('name', flagName)
+        .maybeSingle();
+
+      if (flagLookupError) {
+        console.warn('[useFeatureFlag] failed to resolve flag id for evaluation logging:', flagLookupError);
+        return enabled;
+      }
+
+      if (flagRow?.id) {
+        const { error: evaluationError } = await sb
+          .from('feature_flag_evaluations')
+          .insert({
+            flag_id: flagRow.id,
+            enabled,
+            evaluated_at: new Date().toISOString(),
+            organization_id: user?.organization_id ?? null,
+            user_id: user?.id ?? null,
+          });
+
+        if (evaluationError) {
+          console.warn('[useFeatureFlag] failed to log feature flag evaluation:', evaluationError);
+        }
+      }
+
+      return enabled;
     },
   });
 };
