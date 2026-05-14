@@ -2,7 +2,7 @@
 
 Date: 2026-05-12
 Owner: Platform Architecture Lead + Bob Platform Lead
-Status: Active rollout blueprint
+Status: All four phases hardened (2026-05-14) — browser E2E validation deferred for Phase 1+2 pending Chromium-capable environment
 Linked staging control: docs/STAGING.md
 Instruction checkpoint policy: docs/INSTRUCTION_MANUAL.md (section 1b)
 

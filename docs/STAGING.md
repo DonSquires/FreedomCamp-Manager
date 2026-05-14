@@ -7,6 +7,25 @@ Status: Active staging checklist — Sprints 50-70 complete on main; Iron Eagle 
 ---
 
 ## Latest Session Snapshot (Phase 1 + Phase 2 Spec Hardening — 2026-05-14)
+## Deferred Browser Validation — Phase 1 + Phase 2 (2026-05-14)
+
+Alpine/Chromium runtime constraint prevents local browser execution. Phase 1 and Phase 2 specs are hardened and route-accurate; browser run is deferred to the next Chromium-capable environment.
+
+Deferred retest command:
+```
+bash scripts/playwright-bob-runtime.sh bunx playwright test \
+  tests/e2e/phase1-director-roster-gate.spec.ts \
+  tests/e2e/phase2-universal-translator.spec.ts \
+  --project=chromium --workers=1 --reporter=line
+```
+
+Expected outcome: 5 tests PASS per phase. Both specs tolerate rostered/non-rostered officer state and partial radio UI load state.
+
+ADR: [docs/adr/014-star-trek-phased-rollout.md](adr/014-star-trek-phased-rollout.md)
+
+---
+
+## Latest Session Snapshot (Phase 1 + Phase 2 Spec Hardening — 2026-05-14)
 
 - Timestamp (NZ): 2026-05-14
 - Current branch: main
