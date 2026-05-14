@@ -2,8 +2,23 @@
 
 **Document purpose**: Track the Phase A prerequisite gates and Phase B delivery slice status.  
 **Authoritative source**: `docs/BUILD_REALIGNMENT_PLAN_2026-05-04.md` sections 11.2, 11.2a, 12.1, and 12.1a  
-**Date**: 2026-05-13 (updated)
-**Status**: Phase A execution COMPLETE — all local gates green; Iron Eagle dark surface migration complete; build passing clean
+**Date**: 2026-05-14 (updated)
+**Status**: Phase A technical gates GREEN — external ownership/canary sign-off still pending for operational go/no-go
+
+## Current Snapshot (2026-05-14)
+
+- Final technical gate report published: `docs/PHASE_A_GATE_REPORT_2026-05-14.md`
+- Revalidated today:
+  - `node scripts/validate-route-role-truth.mjs` -> PASS
+  - `bun run test:bob:governance` -> PASS
+  - `node scripts/validate-bootstrap-routes.mjs` -> PASS
+  - `bunx vitest run tests/integration/org-isolation.test.ts` (env-backed) -> PASS (6/6; 5/5 scenarios)
+- Phase B feature flag inventory confirmed live (5 flags):
+  - `FF_PHASE_B_DISPATCH_ACK`
+  - `FF_PHASE_B_DISPATCH_EVENTS`
+  - `FF_PHASE_B_ENFORCEMENT_EVENTS`
+  - `FF_PHASE_B_ENFORCEMENT_TIMELINE`
+  - `FF_PHASE_B_PATROL_EVENTS`
 
 ## Star Trek Takeover Validation (2026-05-12)
 
