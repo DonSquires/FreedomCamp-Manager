@@ -44,7 +44,7 @@ export function buildParkingTrainingFocus(raw: string): ParkingTrainingFocus {
   const enforcementAreas = collectMatchingLines(lines, [
     /Blenheim Enforcement area/i,
     /Area Street Names and Zones within the Blenheim Enforcement Area/i,
-    /Alfred St\s*[\u2013\-]/i,
+    /Alfred St\s*[\u2013-]/i,
     /Auckland St, Blenheim/i,
     /Blenheim Central Business Area/i,
     /Time Restricted Parking in CBD/i,

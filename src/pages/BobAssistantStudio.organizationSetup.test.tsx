@@ -113,8 +113,7 @@ function createQueryBuilder(table: string, result: { data: any; error: any }) {
   const builder: any = {}
   let lastMutation: 'insert' | 'upsert' | 'update' | null = null
   const filters: Record<string, any> = {}
-  let proxy: any
-  proxy = new Proxy(builder, {
+  const proxy: any = new Proxy(builder, {
     get(_target, property) {
       if (property === 'insert' || property === 'upsert' || property === 'update') {
         return (...args: any[]) => {
