@@ -75,6 +75,30 @@ Status: Active staging checklist — Sprints 50-70 complete on main; Iron Eagle 
 
 ---
 
+## Latest Session Snapshot (RunPod/Railway Runtime Guardrails + Timeout Audit — 2026-05-14)
+
+- Timestamp (NZ): 2026-05-14
+- Current branch: main
+- Scope completed:
+  - Added runtime timeout audit tooling for Supabase functions and migrations:
+    - `scripts/audit-runtime-timeouts.mjs`
+    - npm script: `ops:audit:time-restrictions`
+  - Added capped, env-configurable timeout controls for RunPod tender generation/training path:
+    - `TENDER_INFERENCE_TIMEOUT_MS`
+    - `RUNPOD_TENDER_EXECUTION_TIMEOUT_MS`
+    - `RUNPOD_TENDER_TRAIN_TIMEOUT_MS`
+  - Hardened split build workflow with SIGTERM-aware retry behavior and degraded Vite fallback in `scripts/build-split.sh`.
+  - Expanded Playwright web-server runner detection to include workspace-level Bun path (`/workspaces/.bun/bin/bun`).
+
+- Validation evidence:
+  | Command | Result | Notes |
+  |---|---|---|
+  | `bash scripts/use-bun.sh bun scripts/audit-runtime-timeouts.mjs` | PASS | scanned 500 files; 33 files with explicit time restrictions; artifacts written under `tools/runtime-audit/` |
+  | `bash scripts/use-bun.sh bun run build:split` | PASS | split build completed in this environment with retry/fallback guardrail path available |
+  | `bash scripts/use-bun.sh bun scripts/check-staging-doc.mjs` | PASS | staging docs remain compliant |
+
+---
+
 ## Deferred Retest Window (Bob Enrichment Busy) — 2026-05-14
 
 Current working assumption: Bob enrichment and background activity can temporarily increase auth/UI timing variance in the Star Trek phase lane.

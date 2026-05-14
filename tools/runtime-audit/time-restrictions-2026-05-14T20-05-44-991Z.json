@@ -1,0 +1,518 @@
+{
+  "generatedAt": "2026-05-14T20:05:44.991Z",
+  "results": [
+    {
+      "file": "supabase/functions/generate-briefing-video/index.ts",
+      "hits": [
+        {
+          "line": 63,
+          "text": "executionTimeout: 120000,"
+        }
+      ]
+    },
+    {
+      "file": "supabase/functions/auto-analyse-report/index.ts",
+      "hits": [
+        {
+          "line": 111,
+          "text": "signal: AbortSignal.timeout(10_000),"
+        },
+        {
+          "line": 239,
+          "text": "signal: AbortSignal.timeout(45_000),"
+        },
+        {
+          "line": 401,
+          "text": "executionTimeout: 60000,"
+        },
+        {
+          "line": 407,
+          "text": "signal: AbortSignal.timeout(70_000),"
+        },
+        {
+          "line": 413,
+          "text": "signal: AbortSignal.timeout(55_000),"
+        },
+        {
+          "line": 545,
+          "text": "signal: AbortSignal.timeout(30_000),"
+        }
+      ]
+    },
+    {
+      "file": "supabase/functions/live-session-diagnostics-ingest/index.ts",
+      "hits": [
+        {
+          "line": 34,
+          "text": "return /(error|exception|failed|failure|timeout|crash|panic|unhandled|degraded)/i.test(value)"
+        }
+      ]
+    },
+    {
+      "file": "supabase/functions/import-historical-data/index.ts",
+      "hits": [
+        {
+          "line": 522,
+          "text": "signal: AbortSignal.timeout(INFERENCE_TIMEOUT_MS),"
+        }
+      ]
+    },
+    {
+      "file": "supabase/functions/send-invite-email/index.ts",
+      "hits": [
+        {
+          "line": 440,
+          "text": "const isNetwork = /(failed to fetch|network|timed out|timeout|connection refused)/i.test(rawMessage);"
+        }
+      ]
+    },
+    {
+      "file": "supabase/functions/bob-multimodal-gateway/index.ts",
+      "hits": [
+        {
+          "line": 422,
+          "text": "signal: AbortSignal.timeout(30_000),"
+        }
+      ]
+    },
+    {
+      "file": "supabase/functions/process-face-scan/index.ts",
+      "hits": [
+        {
+          "line": 226,
+          "text": "signal: AbortSignal.timeout(INFERENCE_TIMEOUT_MS),"
+        },
+        {
+          "line": 432,
+          "text": "signal: AbortSignal.timeout(5000),"
+        },
+        {
+          "line": 449,
+          "text": "signal: AbortSignal.timeout(INFERENCE_TIMEOUT_MS),"
+        }
+      ]
+    },
+    {
+      "file": "supabase/functions/bob-code-change-task/index.ts",
+      "hits": [
+        {
+          "line": 317,
+          "text": "const timeoutId = setTimeout(() => controller.abort(), BOB_REQUEST_TIMEOUT_MS)"
+        },
+        {
+          "line": 399,
+          "text": "const queueTimeoutId = setTimeout(() => queueController.abort(), BOB_REQUEST_TIMEOUT_MS)"
+        },
+        {
+          "line": 440,
+          "text": "const execTimeoutId = setTimeout(() => execController.abort(), BOB_REQUEST_TIMEOUT_MS)"
+        }
+      ]
+    },
+    {
+      "file": "supabase/functions/send-report-email/index.ts",
+      "hits": [
+        {
+          "line": 357,
+          "text": "const relayTimer = setTimeout(() => relayController.abort(), REPORT_EMAIL_RELAY_TIMEOUT_MS);"
+        }
+      ]
+    },
+    {
+      "file": "supabase/functions/process-officer-scan/index.ts",
+      "hits": [
+        {
+          "line": 258,
+          "text": "const res = await fetch(photoUrl, { signal: AbortSignal.timeout(8000) });"
+        },
+        {
+          "line": 306,
+          "text": "signal: AbortSignal.timeout(INFERENCE_TIMEOUT_MS),"
+        },
+        {
+          "line": 394,
+          "text": "signal: AbortSignal.timeout(8000),"
+        },
+        {
+          "line": 975,
+          "text": "timeout: ALPR_BACKUP_TIMEOUT_MS,"
+        },
+        {
+          "line": 981,
+          "text": "const alprStartTimer = setTimeout(() => {"
+        }
+      ]
+    },
+    {
+      "file": "supabase/functions/_shared/bobInfer.ts",
+      "hits": [
+        {
+          "line": 194,
+          "text": "executionTimeout: 120000,"
+        },
+        {
+          "line": 292,
+          "text": "executionTimeout: 120000,"
+        },
+        {
+          "line": 393,
+          "text": "executionTimeout: 120000,"
+        }
+      ]
+    },
+    {
+      "file": "supabase/functions/_shared/fetchWithRetry.ts",
+      "hits": [
+        {
+          "line": 4,
+          "text": "return new Promise((resolve) => setTimeout(resolve, ms))"
+        },
+        {
+          "line": 26,
+          "text": "const timeoutId = controller ? setTimeout(() => controller.abort(), timeoutMs) : null"
+        }
+      ]
+    },
+    {
+      "file": "supabase/functions/_shared/alpr.ts",
+      "hits": [
+        {
+          "line": 34,
+          "text": "options?: { timeout?: number }"
+        },
+        {
+          "line": 39,
+          "text": "const timeout      = options?.timeout ?? Number(Deno.env.get(\"ALPR_TIMEOUT_MS\") ?? 10000);"
+        },
+        {
+          "line": 60,
+          "text": "timeoutMs: timeout,"
+        },
+        {
+          "line": 92,
+          "text": "console.error(\"❌ Local ALPR timeout after\", timeout, \"ms\");"
+        },
+        {
+          "line": 119,
+          "text": "timeout?: number;"
+        },
+        {
+          "line": 141,
+          "text": "const timeout = options?.timeout ?? Number(Deno.env.get(\"ALPR_TIMEOUT_MS\") ?? 15000);"
+        },
+        {
+          "line": 157,
+          "text": "const timeoutId = setTimeout(() => controller.abort(), timeout);"
+        },
+        {
+          "line": 207,
+          "text": "console.error(\"❌ ALPR timeout after\", timeout, \"ms\");"
+        },
+        {
+          "line": 226,
+          "text": "timeout?: number;"
+        }
+      ]
+    },
+    {
+      "file": "supabase/functions/generate-notice-to-vacate/index.ts",
+      "hits": [
+        {
+          "line": 412,
+          "text": ", new Promise<void>((_, reject) => setTimeout(() => reject(new Error('SMTP timeout')), SMTP_TIMEOUT_MS)),"
+        }
+      ]
+    },
+    {
+      "file": "supabase/functions/alpr-process/index.ts",
+      "hits": [
+        {
+          "line": 89,
+          "text": "signal: AbortSignal.timeout(PHOTO_FETCH_TIMEOUT_MS),"
+        },
+        {
+          "line": 613,
+          "text": "signal: AbortSignal.timeout(8000), // 8-second cap — prevent edge fn timeout"
+        }
+      ]
+    },
+    {
+      "file": "supabase/functions/vehicle-ingest/index.ts",
+      "hits": [
+        {
+          "line": 227,
+          "text": "const response = await fetch(photoRef, { signal: AbortSignal.timeout(PHOTO_FETCH_TIMEOUT_MS) });"
+        },
+        {
+          "line": 355,
+          "text": "// timeout chain that caused \"Failed to send a request to the Edge Function\"."
+        },
+        {
+          "line": 574,
+          "text": "// re-hash it AND then running Railway inference (5 s timeout) + ALPR backup"
+        },
+        {
+          "line": 575,
+          "text": "// (3.5 s timeout) sequentially pushes the total edge-function wall-clock"
+        },
+        {
+          "line": 868,
+          "text": "signal: AbortSignal.timeout(inferenceTimeoutMs),"
+        },
+        {
+          "line": 914,
+          "text": "timeout: alprTimeoutMs,"
+        }
+      ]
+    },
+    {
+      "file": "supabase/functions/smoke-assess/index.ts",
+      "hits": [
+        {
+          "line": 154,
+          "text": "signal: AbortSignal.timeout(90_000),"
+        }
+      ]
+    },
+    {
+      "file": "supabase/functions/manage-user/index.ts",
+      "hits": [
+        {
+          "line": 71,
+          "text": "signal: AbortSignal.timeout(8000),"
+        }
+      ]
+    },
+    {
+      "file": "supabase/functions/speech-to-intent/index.ts",
+      "hits": [
+        {
+          "line": 135,
+          "text": "const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS)"
+        },
+        {
+          "line": 146,
+          "text": "clearTimeout(timeout)"
+        },
+        {
+          "line": 172,
+          "text": "clearTimeout(timeout)"
+        },
+        {
+          "line": 192,
+          "text": "signal: AbortSignal.timeout(TIMEOUT_MS),"
+        }
+      ]
+    },
+    {
+      "file": "supabase/functions/check-services-health/index.ts",
+      "hits": [
+        {
+          "line": 103,
+          "text": "signal: AbortSignal.timeout(HEALTH_CHECK_TIMEOUT_MS),"
+        },
+        {
+          "line": 140,
+          "text": "signal: AbortSignal.timeout(HEALTH_CHECK_TIMEOUT_MS),"
+        },
+        {
+          "line": 160,
+          "text": "signal: AbortSignal.timeout(HEALTH_CHECK_TIMEOUT_MS),"
+        },
+        {
+          "line": 185,
+          "text": "signal: AbortSignal.timeout(HEALTH_CHECK_TIMEOUT_MS),"
+        }
+      ]
+    },
+    {
+      "file": "supabase/functions/biosecurity-assess/index.ts",
+      "hits": [
+        {
+          "line": 137,
+          "text": "signal: AbortSignal.timeout(90_000),"
+        }
+      ]
+    },
+    {
+      "file": "supabase/functions/grandmaster-studio/index.ts",
+      "hits": [
+        {
+          "line": 524,
+          "text": "const timer = setTimeout(() => controller.abort(), PROBE_TIMEOUT_MS)"
+        },
+        {
+          "line": 536,
+          "text": "return { url: base, status: 'down' as const, latencyMs, httpStatus: null, detail: isTimeout ? 'timeout' : String(err), checkedAt: new Date().toISOString() }"
+        }
+      ]
+    },
+    {
+      "file": "supabase/functions/parkpow-photo-sync/index.ts",
+      "hits": [
+        {
+          "line": 183,
+          "text": "signal: AbortSignal.timeout(30000),"
+        },
+        {
+          "line": 384,
+          "text": "signal: AbortSignal.timeout(15000),"
+        }
+      ]
+    },
+    {
+      "file": "supabase/functions/process-tender-document/index.ts",
+      "hits": [
+        {
+          "line": 238,
+          "text": "if (message.includes('AbortError') || message.includes('timeout')) {"
+        },
+        {
+          "line": 239,
+          "text": "throw new Error(`Inference service timeout after ${Math.floor(BOB_CHAT_TIMEOUT_MS / 1000)}s`)"
+        }
+      ]
+    },
+    {
+      "file": "supabase/functions/cleanup-and-recalculate/index.ts",
+      "hits": [
+        {
+          "line": 214,
+          "text": "signal: AbortSignal.timeout(NZSCV_RECHECK_TIMEOUT_MS),"
+        }
+      ]
+    },
+    {
+      "file": "supabase/functions/ptt-assess/index.ts",
+      "hits": [
+        {
+          "line": 101,
+          "text": "signal: AbortSignal.timeout(90_000),"
+        },
+        {
+          "line": 116,
+          "text": "signal: AbortSignal.timeout(30_000),"
+        }
+      ]
+    },
+    {
+      "file": "supabase/functions/scrape-vehicle-photos/index.ts",
+      "hits": [
+        {
+          "line": 106,
+          "text": "signal: AbortSignal.timeout(15000),"
+        },
+        {
+          "line": 216,
+          "text": "signal: AbortSignal.timeout(12000),"
+        },
+        {
+          "line": 330,
+          "text": "signal: AbortSignal.timeout(20000),"
+        },
+        {
+          "line": 400,
+          "text": "signal: AbortSignal.timeout(30000),"
+        }
+      ]
+    },
+    {
+      "file": "supabase/functions/onspace-ai-chat/index.ts",
+      "hits": [
+        {
+          "line": 496,
+          "text": "await new Promise((resolve) => setTimeout(resolve, ms))"
+        },
+        {
+          "line": 1001,
+          "text": ".slice(-8) // keep recent turns only; helps RunPod runsync complete within timeout under load"
+        },
+        {
+          "line": 1024,
+          "text": "signal: AbortSignal.timeout(Math.min(10_000, BOB_RUNPOD_STATUS_TIMEOUT_MS)),"
+        },
+        {
+          "line": 1052,
+          "text": "const timeoutId = setTimeout(() => controller.abort(), BOB_RUNPOD_TIMEOUT_MS)"
+        },
+        {
+          "line": 1273,
+          "text": "const timeoutId = setTimeout(() => controller.abort(), BOB_INFERENCE_CHAT_TIMEOUT_MS)"
+        },
+        {
+          "line": 1363,
+          "text": "const timeoutId = setTimeout(() => controller.abort(), BOB_OLLAMA_CHAT_TIMEOUT_MS)"
+        },
+        {
+          "line": 1433,
+          "text": "const timeoutId = setTimeout(() => controller.abort(), BOB_INFERENCE_CHAT_TIMEOUT_MS)"
+        }
+      ]
+    },
+    {
+      "file": "supabase/functions/generate-infringement/index.ts",
+      "hits": [
+        {
+          "line": 640,
+          "text": ", new Promise<void>((_, reject) => setTimeout(() => reject(new Error('SMTP timeout')), SMTP_TIMEOUT_MS)),"
+        }
+      ]
+    },
+    {
+      "file": "supabase/functions/generate-tender-sections/index.ts",
+      "hits": [
+        {
+          "line": 42,
+          "text": "// Keep request timeout below platform hard limits so Edge invocations fail fast"
+        },
+        {
+          "line": 80,
+          "text": "const timeoutId = setTimeout(() => controller.abort(), INFERENCE_REQUEST_TIMEOUT_MS)"
+        },
+        {
+          "line": 91,
+          "text": "executionTimeout: RUNPOD_EXECUTION_TIMEOUT_MS,"
+        },
+        {
+          "line": 161,
+          "text": "const timeoutId = setTimeout(() => controller.abort(), INFERENCE_REQUEST_TIMEOUT_MS)"
+        },
+        {
+          "line": 169,
+          "text": "executionTimeout: RUNPOD_TRAIN_EXECUTION_TIMEOUT_MS,"
+        }
+      ]
+    },
+    {
+      "file": "supabase/functions/check-ptt-health/index.ts",
+      "hits": [
+        {
+          "line": 51,
+          "text": "signal: AbortSignal.timeout(HEALTH_CHECK_TIMEOUT_MS),"
+        }
+      ]
+    },
+    {
+      "file": "supabase/migrations/20260511000001_oncall_rostering_and_callout_shifts.sql",
+      "hits": [
+        {
+          "line": 98,
+          "text": "max_duration_hours    NUMERIC(5, 2) DEFAULT 24,"
+        }
+      ]
+    },
+    {
+      "file": "supabase/migrations/20260510000001_access_control_industry_enhancements.sql",
+      "hits": [
+        {
+          "line": 42,
+          "text": "COMMENT ON COLUMN public.zones.anti_passback_timeout_minutes IS 'Anti-passback timeout (0=strict, >0=timed reset)';"
+        },
+        {
+          "line": 725,
+          "text": "-- Check for timeout reset"
+        }
+      ]
+    }
+  ]
+}

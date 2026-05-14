@@ -32,7 +32,18 @@ const INFERENCE_API_KEY =
   Deno.env.get('RUNPOD_API_KEY') ||
   Deno.env.get('BOB_INFERENCE_API_KEY') ||
   ''
-const INFERENCE_REQUEST_TIMEOUT_MS = 90_000
+
+function envTimeoutMs(key: string, fallback: number, min: number, max: number): number {
+  const raw = Number(Deno.env.get(key) || '')
+  if (!Number.isFinite(raw) || raw <= 0) return fallback
+  return Math.max(min, Math.min(max, Math.floor(raw)))
+}
+
+// Keep request timeout below platform hard limits so Edge invocations fail fast
+// under heavy RunPod/Railway load instead of stalling until runtime eviction.
+const INFERENCE_REQUEST_TIMEOUT_MS = envTimeoutMs('TENDER_INFERENCE_TIMEOUT_MS', 90_000, 10_000, 180_000)
+const RUNPOD_EXECUTION_TIMEOUT_MS = envTimeoutMs('RUNPOD_TENDER_EXECUTION_TIMEOUT_MS', 120_000, 30_000, 300_000)
+const RUNPOD_TRAIN_EXECUTION_TIMEOUT_MS = envTimeoutMs('RUNPOD_TENDER_TRAIN_TIMEOUT_MS', 60_000, 30_000, 180_000)
 
 function isRunpodServerless(url: string): boolean {
   return url.includes('runpod.io') || url.includes('/runsync')
@@ -77,7 +88,7 @@ async function callTenderGenerate(
         method: 'POST',
         headers: inferenceHeaders(),
         body: JSON.stringify({
-          executionTimeout: 120000,
+          executionTimeout: RUNPOD_EXECUTION_TIMEOUT_MS,
           input: {
             action: 'tender_generate',
             generation_type: generationType,
@@ -155,7 +166,7 @@ async function callTenderTrain(payload: Record<string, unknown>): Promise<void> 
         method: 'POST',
         headers: inferenceHeaders(),
         body: JSON.stringify({
-          executionTimeout: 60000,
+          executionTimeout: RUNPOD_TRAIN_EXECUTION_TIMEOUT_MS,
           input: {
             action: 'tender_train',
             payload,
