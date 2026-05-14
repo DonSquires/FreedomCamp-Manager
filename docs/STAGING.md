@@ -6,6 +6,39 @@ Status: Active staging checklist — Sprints 50-70 complete on main; Iron Eagle 
 
 ---
 
+## Latest Session Snapshot (Persistent Bob Automation Memory + Adaptive Check Run — 2026-05-14)
+
+- Timestamp (NZ): 2026-05-14
+- Current branch: main
+- Purpose:
+  - Persist a canonical, reusable Star Trek + Bob automation memory so future runs do not require retraining context.
+
+- Canonical run commands (in order):
+  1. `npm run staging:star-trek:bob:check`
+  2. Browser-capable host only (optional deep check):
+     - `bash scripts/playwright-bob-runtime.sh bunx playwright test tests/e2e/phase3-sentient-xo.spec.ts tests/e2e/phase4-admirals-bridge.spec.ts --project=chromium --workers=1 --reporter=line`
+  3. Deferred post-enrichment retest:
+     - `npm run e2e:bob:retest:after-idle -- --idle-minutes=30 --max-wait-minutes=360 --poll-seconds=60`
+
+- Validation evidence (this session):
+  | Command | Result | Notes |
+  |---|---|---|
+  | `bash scripts/use-bun.sh bun run staging:star-trek:bob:check` | PASS (fallback lane) | Chromium not runnable on Alpine host; adaptive script executed fallback checks successfully |
+  | `bun run bob:doctor:any-container` | PASS | RunPod ping/chat reachable in this container |
+  | `bash scripts/playwright-codespace-credentials.sh` | PASS | Bob credentials and required Playwright vars present |
+  | `bun scripts/check-staging-doc.mjs` | PASS | staging-doc-check ok |
+  | `bun run ops:audit:time-restrictions` | PASS | audit artifacts generated under `tools/runtime-audit/` |
+  | `bun run build:split` | PASS | production build succeeded in this environment |
+
+- Persistent fix memory (carry forward):
+  1. Use resilient Bob input locator fallback chain in Star Trek phase tests to absorb placeholder/ARIA variance.
+  2. Use route re-auth retry helper for protected routes to prevent false auth bounce failures.
+  3. Prefer idle-window deferred rerun when Bob enrichment is active to avoid contention-driven noise.
+  4. Treat Alpine Playwright-browser incompatibility as an environment constraint; rely on adaptive fallback lane until native chromium is available.
+  5. Keep Bob identity as a first-class E2E actor (`loginAs(page, 'bob')`) with explicit credential preflight.
+
+---
+
 ## Latest Session Snapshot (Bob Enrichment Stabilisation + NCC Pre-Plan — 2026-05-14)
 
 - Timestamp (NZ): 2026-05-14

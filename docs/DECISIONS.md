@@ -14,6 +14,12 @@ When a pattern, platform, or architectural decision changes, append a dated note
 
 ## Current Standing Decisions
 
+- Date: 2026-05-14
+- Decision: Star Trek + Bob automation memory must be persisted as a reusable runbook with canonical command flow and known-fix patterns so Bob can continue without session retraining.
+- Scope: `scripts/staging-star-trek-bob-check.sh`, `package.json` (`staging:star-trek:bob:check`), `docs/STAGING.md`, `tests/e2e/phase3-sentient-xo.spec.ts`, `tests/e2e/phase4-admirals-bridge.spec.ts`, `tests/e2e/auth.ts`.
+- Reason: Session-by-session retelling was slowing automation and causing repeated diagnosis of the same Alpine/Chromium and auth-selector issues.
+- Consequences: Bob automation must start with `npm run staging:star-trek:bob:check` as the canonical gate. If Chromium is unavailable, the non-browser fallback path is valid and should not be treated as a failure. Every major stabilization outcome must be recorded in `docs/STAGING.md` with: command used, result, and fix pattern.
+
 - Date: 2026-05-12
 - Decision: PTT access must never be gated by geofence/zone membership — zone-bypass fallback applies to all authenticated users with an org ID, not only grand_master.
 - Scope: `src/lib/ptt.ts` (`getPlatformAdminFallbackScope`), `src/pages/PTTRadio.tsx` (auto-connect + mic permission prompt).
