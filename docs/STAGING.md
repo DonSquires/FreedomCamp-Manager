@@ -124,6 +124,26 @@ Status: Active staging checklist — Sprints 50-70 complete on main; Iron Eagle 
 
 ---
 
+## Latest Session Snapshot (Adaptive Star Trek/Bob Staging Runner — 2026-05-14)
+
+- Timestamp (NZ): 2026-05-14
+- Current branch: main
+- Scope completed:
+  - Added adaptive staging runner: `scripts/staging-star-trek-bob-check.sh`.
+  - Added package entrypoint: `npm run staging:star-trek:bob:check`.
+  - Behavior:
+    1. If runnable Chromium exists, executes the canonical combined Star Trek checkpoint suite (phase3 + phase4).
+    2. If Chromium is not runnable on host, executes Bob-centered non-browser fallback checks:
+       - `bun run bob:doctor:any-container`
+       - `bash scripts/playwright-codespace-credentials.sh`
+       - `bun scripts/check-staging-doc.mjs`
+       - `bun run ops:audit:time-restrictions`
+       - `bun run build:split`
+
+This preserves test momentum during Alpine/runtime compatibility windows where Playwright browser binaries cannot launch.
+
+---
+
 ## Deferred Retest Window (Bob Enrichment Busy) — 2026-05-14
 
 Current working assumption: Bob enrichment and background activity can temporarily increase auth/UI timing variance in the Star Trek phase lane.

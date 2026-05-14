@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "vite",
     "staging:tooling:bootstrap": "bash scripts/setup-staging-tooling.sh",
+    "staging:star-trek:bob:check": "bash scripts/staging-star-trek-bob-check.sh",
     "build": "tsc -b && vite build",
     "build:split": "bash scripts/build-split.sh",
     "ops:audit:time-restrictions": "bun scripts/audit-runtime-timeouts.mjs",
