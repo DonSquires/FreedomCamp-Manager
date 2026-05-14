@@ -4,6 +4,15 @@ import { loginAs } from './auth'
 // The Bob assistant textarea has a known placeholder we use as a ready signal.
 const BOB_INPUT_SELECTOR = 'textarea[placeholder*="Ask Bob"]'
 
+function getBobInput(page: Parameters<typeof test.beforeEach>[0]['page']) {
+  // Placeholder text can vary across tenants/builds, so keep a resilient fallback chain.
+  return page
+    .locator(BOB_INPUT_SELECTOR)
+    .or(page.locator('textarea[placeholder*="Message Bob"]'))
+    .or(page.locator('textarea[aria-label*="Bob"]'))
+    .first()
+}
+
 async function waitForBobReady(page: Parameters<typeof test.beforeEach>[0]['page']) {
   for (let attempt = 0; attempt < 2; attempt += 1) {
     await page.goto('/bob-assistant')
@@ -32,8 +41,8 @@ async function waitForBobReady(page: Parameters<typeof test.beforeEach>[0]['page
 
     await expect(page).toHaveURL(/\/bob-assistant/, { timeout: 30000 })
 
-    // Wait for the lazy-loaded BobAssistantStudio textarea to appear.
-    await expect(page.locator(BOB_INPUT_SELECTOR)).toBeVisible({ timeout: 60000 })
+    // Wait for the lazy-loaded BobAssistantStudio input to appear.
+    await expect(getBobInput(page)).toBeVisible({ timeout: 60000 })
     return
   }
 
@@ -50,7 +59,7 @@ test.describe('Phase 3: Sentient XO (Memory and Administrative Actuation)', () =
   })
 
   test('1. Bob receives administrative actuation command', async ({ page }) => {
-    const input = page.locator(BOB_INPUT_SELECTOR)
+    const input = getBobInput(page)
     const timestamp = Date.now()
 
     await input.fill(`create a new client named "Test Client ${timestamp}" at 123 Main Street`)
@@ -65,7 +74,7 @@ test.describe('Phase 3: Sentient XO (Memory and Administrative Actuation)', () =
   })
 
   test('2. Bob memory context available', async ({ page }) => {
-    const input = page.locator(BOB_INPUT_SELECTOR)
+    const input = getBobInput(page)
 
     await input.fill('summarize my recent activities and roles')
     await input.press('Enter')
@@ -77,7 +86,7 @@ test.describe('Phase 3: Sentient XO (Memory and Administrative Actuation)', () =
   })
 
   test('3. Gap detection - missing required fields', async ({ page }) => {
-    const input = page.locator(BOB_INPUT_SELECTOR)
+    const input = getBobInput(page)
 
     // Incomplete command — Bob should ask for clarification
     await input.fill('create a new client')
@@ -90,7 +99,7 @@ test.describe('Phase 3: Sentient XO (Memory and Administrative Actuation)', () =
   })
 
   test('4. Administrative safeguards operational', async ({ page }) => {
-    const input = page.locator(BOB_INPUT_SELECTOR)
+    const input = getBobInput(page)
 
     await input.fill('emergency alert active - lock all write operations')
     await input.press('Enter')
@@ -102,7 +111,7 @@ test.describe('Phase 3: Sentient XO (Memory and Administrative Actuation)', () =
   })
 
   test('5. Actuation persistence and feedback', async ({ page }) => {
-    const input = page.locator(BOB_INPUT_SELECTOR)
+    const input = getBobInput(page)
 
     await input.fill('create shift for tomorrow 9am-5pm')
     await input.press('Enter')

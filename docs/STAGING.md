@@ -35,6 +35,28 @@ Status: Active staging checklist — Sprints 50-70 complete on main; Iron Eagle 
 
 ---
 
+## Latest Session Snapshot (Star Trek Phase 3 Input Resilience Hardening — 2026-05-14)
+
+- Timestamp (NZ): 2026-05-14
+- Current branch: main
+- Scope completed:
+  - Hardened Bob assistant input detection in `tests/e2e/phase3-sentient-xo.spec.ts` to support selector variance across tenant/build states.
+  - Added fallback locator chain for Bob input readiness and command entry:
+    - `textarea[placeholder*="Ask Bob"]`
+    - `textarea[placeholder*="Message Bob"]`
+    - `textarea[aria-label*="Bob"]`
+
+- Validation evidence:
+  | Command | Result | Notes |
+  |---|---|---|
+  | `bash scripts/playwright-bob-runtime.sh bunx playwright test tests/e2e/phase3-sentient-xo.spec.ts --project=chromium --workers=1 --reporter=line` | PASS | 5/5 passed; bubble assertions stable across all five checks |
+
+- Open items:
+  1. Keep deferred retest scheduler running for post-enrichment checkpoint verification.
+  2. Re-run combined phase3+phase4 suite after Bob idle window completes.
+
+---
+
 ## Deferred Retest Window (Bob Enrichment Busy) — 2026-05-14
 
 Current working assumption: Bob enrichment and background activity can temporarily increase auth/UI timing variance in the Star Trek phase lane.
