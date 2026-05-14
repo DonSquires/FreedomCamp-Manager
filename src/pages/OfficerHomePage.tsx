@@ -11,7 +11,7 @@
  * is shown instead and they are prompted to return to their assigned location.
  */
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
@@ -63,6 +63,59 @@ import { toast } from 'sonner'
 import { format } from 'date-fns'
 import { nzNow } from '@/lib/timezone'
 import { useSiteToolPermissions } from '@/middleware'
+import { hasNotificationEnabled, sendLocalNotification } from '@/lib/pushNotifications'
+
+const SHIFT_REMINDER_MINUTES = [60, 30, 15] as const
+
+function formatCountdown(totalSeconds: number): string {
+  const safe = Math.max(0, Math.trunc(totalSeconds))
+  const hours = Math.floor(safe / 3600)
+  const minutes = Math.floor((safe % 3600) / 60)
+  const seconds = safe % 60
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+}
+
+function getReminderStorageKey(shiftId: string, minutesBefore: number): string {
+  return `shift_reminder_sent:${shiftId}:${minutesBefore}`
+}
+
+function getShiftCountdownTone(minutesUntil: number): {
+  containerClass: string
+  headingClass: string
+  bodyClass: string
+  badgeLabel: string
+} {
+  if (minutesUntil <= 15) {
+    return {
+      containerClass: 'border-red-300 bg-red-50 dark:border-red-800 dark:bg-red-950/40',
+      headingClass: 'text-red-800 dark:text-red-200',
+      bodyClass: 'text-red-700 dark:text-red-300',
+      badgeLabel: 'Critical',
+    }
+  }
+  if (minutesUntil <= 30) {
+    return {
+      containerClass: 'border-orange-300 bg-orange-50 dark:border-orange-800 dark:bg-orange-950/40',
+      headingClass: 'text-orange-800 dark:text-orange-200',
+      bodyClass: 'text-orange-700 dark:text-orange-300',
+      badgeLabel: 'Escalated',
+    }
+  }
+  if (minutesUntil <= 60) {
+    return {
+      containerClass: 'border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/40',
+      headingClass: 'text-amber-800 dark:text-amber-200',
+      bodyClass: 'text-amber-700 dark:text-amber-300',
+      badgeLabel: 'Reminder',
+    }
+  }
+  return {
+    containerClass: 'border-blue-300 bg-blue-50 dark:border-blue-800 dark:bg-blue-950/40',
+    headingClass: 'text-blue-800 dark:text-blue-200',
+    bodyClass: 'text-blue-700 dark:text-blue-300',
+    badgeLabel: 'Upcoming',
+  }
+}
 
 function speakBobShiftHandshake(message: string): void {
   if (typeof window === 'undefined' || !('speechSynthesis' in window)) return
@@ -96,8 +149,81 @@ export default function OfficerHomePage() {
   const [adhocServiceType, setAdhocServiceType] = useState('freedom_camping')
   const [isEndingShift, setIsEndingShift] = useState(false)
   const [isStartingShift, setIsStartingShift] = useState(false)
+  const [nowTick, setNowTick] = useState(() => Date.now())
 
   const rosterPortalPath = rosteredShift ? getOfficerPortalPath(rosteredShift) : null
+  const shiftStartMs = useMemo(() => {
+    if (!rosteredShift?.start_time) return null
+    const parsed = Date.parse(rosteredShift.start_time)
+    return Number.isFinite(parsed) ? parsed : null
+  }, [rosteredShift?.start_time])
+
+  const countdownSeconds = useMemo(() => {
+    if (!shiftStartMs || hasActiveShift) return null
+    const seconds = Math.floor((shiftStartMs - nowTick) / 1000)
+    return seconds >= 0 ? seconds : null
+  }, [hasActiveShift, nowTick, shiftStartMs])
+
+  const countdownMinutes = countdownSeconds !== null ? Math.floor(countdownSeconds / 60) : null
+  const countdownTone = getShiftCountdownTone(countdownMinutes ?? Number.MAX_SAFE_INTEGER)
+
+  useEffect(() => {
+    if (!rosteredShift || hasActiveShift || !shiftStartMs) return
+    const timer = window.setInterval(() => setNowTick(Date.now()), 1000)
+    return () => window.clearInterval(timer)
+  }, [hasActiveShift, rosteredShift, shiftStartMs])
+
+  useEffect(() => {
+    if (!user?.id || !rosteredShift?.id || !shiftStartMs || hasActiveShift) return
+
+    const timeoutIds: number[] = []
+    const startLabel = rosteredShift.start_time ? rosteredShift.start_time.substring(11, 16) : 'scheduled time'
+    const siteLabel = rosteredShift.client_site_name || 'your assigned site'
+
+    const triggerReminder = async (minutesBefore: number) => {
+      try {
+        const enabled = await hasNotificationEnabled(user.id, 'shift_alerts')
+        if (!enabled) return
+        await sendLocalNotification(
+          'Shift Reminder',
+          `Your shift starts in ${minutesBefore} minutes at ${startLabel} (${siteLabel}).`,
+          {
+            tag: `shift-reminder-${rosteredShift.id}-${minutesBefore}`,
+            requireInteraction: minutesBefore <= 15,
+          },
+        )
+      } catch {
+        // Non-blocking reminder path.
+      }
+    }
+
+    for (const minutesBefore of SHIFT_REMINDER_MINUTES) {
+      const storageKey = getReminderStorageKey(rosteredShift.id, minutesBefore)
+      if (window.localStorage.getItem(storageKey) === '1') continue
+
+      const reminderAtMs = shiftStartMs - minutesBefore * 60_000
+      const delayMs = reminderAtMs - Date.now()
+
+      const sendAndMark = () => {
+        void triggerReminder(minutesBefore)
+        window.localStorage.setItem(storageKey, '1')
+      }
+
+      if (delayMs <= 0 && Date.now() < shiftStartMs) {
+        sendAndMark()
+        continue
+      }
+
+      if (delayMs > 0) {
+        const timeoutId = window.setTimeout(sendAndMark, delayMs)
+        timeoutIds.push(timeoutId)
+      }
+    }
+
+    return () => {
+      for (const timeoutId of timeoutIds) window.clearTimeout(timeoutId)
+    }
+  }, [hasActiveShift, rosteredShift?.client_site_name, rosteredShift?.id, rosteredShift?.start_time, shiftStartMs, user?.id])
 
   // ── End active shift from home page (e.g. stale/geofence-locked shift) ─────
   const handleEndShift = useCallback(async () => {
@@ -338,6 +464,24 @@ export default function OfficerHomePage() {
         {rosteredShift && (
           <div className="w-full rounded-xl border bg-white shadow-sm p-4">
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Today's Shift</p>
+            {countdownSeconds !== null && (
+              <div className={`mb-3 rounded-lg border px-3 py-2 ${countdownTone.containerClass}`}>
+                <div className="flex items-center justify-between gap-2">
+                  <p className={`text-xs font-semibold uppercase tracking-wide ${countdownTone.headingClass}`}>
+                    Shift starts in
+                  </p>
+                  <Badge variant="outline" className="text-[10px] uppercase tracking-wide">
+                    {countdownTone.badgeLabel}
+                  </Badge>
+                </div>
+                <p className={`mt-1 text-xl font-bold tabular-nums ${countdownTone.headingClass}`}>
+                  {formatCountdown(countdownSeconds)}
+                </p>
+                <p className={`text-xs mt-1 ${countdownTone.bodyClass}`}>
+                  Reminder notifications are sent at 60, 30, and 15 minutes before shift start.
+                </p>
+              </div>
+            )}
             <div className="flex items-start justify-between gap-2">
               <div>
                 <p className="text-sm font-semibold text-gray-900">
