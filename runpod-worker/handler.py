@@ -1126,7 +1126,6 @@ def handler(job):
         ], inp.get("model"), 0.3)
         structured = None
         try:
-            import re
             m = re.search(r"\{[\s\S]*\}", result["content"])
             if m:
                 structured = json.loads(m.group(0))
@@ -1380,7 +1379,6 @@ def handler(job):
         ], model, 0.5)
         structured = None
         try:
-            import re
             m = re.search(r"\{[\s\S]*\}", result["content"])
             if m:
                 structured = json.loads(m.group(0))
@@ -1474,7 +1472,6 @@ def handler(job):
         ], inp.get("model"), 0.2)
         structured = None
         try:
-            import re
             m = re.search(r"\{[\s\S]*\}", result["content"])
             if m:
                 structured = json.loads(m.group(0))
@@ -1508,7 +1505,6 @@ def handler(job):
             result = ollama_vision_chat(prompt, image_b64, inp.get("vision_model"))
             structured = None
             try:
-                import re
                 m = re.search(r"\{[\s\S]*\}", result["content"])
                 if m:
                     structured = json.loads(m.group(0))
@@ -1526,9 +1522,6 @@ def handler(job):
             return {"success": False, "error": f"Vision analysis failed: {str(e)}", "provider": "ollama_vision"}
 
     if action == "run_playwright":
-        import subprocess
-        import tempfile
-
         specs = inp.get("specs") or []
         scope = inp.get("scope", "quick")
         timeout_ms = int(inp.get("timeout_ms", 120000))
