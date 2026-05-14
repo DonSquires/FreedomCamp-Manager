@@ -12,6 +12,23 @@ set -e
 FLAG_NAME=${1:-}
 ORG_ID=${2:-}
 
+print_usage() {
+    echo "Usage: bash scripts/rollback-feature-flag.sh <FLAG_NAME> [org_id]"
+    echo ""
+    echo "Examples:"
+    echo "  bash scripts/rollback-feature-flag.sh FF_PHASE_B_PATROL_EVENTS"
+    echo "  bash scripts/rollback-feature-flag.sh FF_PHASE_B_PATROL_EVENTS 11111111-0001-0001-0001-000000000002"
+    echo ""
+    echo "Environment:"
+    echo "  SUPABASE_SERVICE_ROLE_KEY (required)"
+    echo "  SUPABASE_URL or VITE_SUPABASE_URL (required)"
+}
+
+if [ "$FLAG_NAME" = "--help" ] || [ "$FLAG_NAME" = "-h" ]; then
+    print_usage
+    exit 0
+fi
+
 # Color codes for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -22,12 +39,12 @@ NC='\033[0m' # No Color
 # Validate inputs
 if [ -z "$FLAG_NAME" ]; then
     echo -e "${RED}❌ Error: Flag name required${NC}"
-    echo "Usage: bash scripts/rollback-feature-flag.sh FF_PHASE_B_PATROL_EVENTS [org_id]"
+    print_usage
     exit 1
 fi
 
 # Get Supabase credentials from environment
-SUPABASE_URL="${VITE_SUPABASE_URL:-}"
+SUPABASE_URL="${SUPABASE_URL:-${VITE_SUPABASE_URL:-}}"
 SUPABASE_SERVICE_ROLE_KEY="${SUPABASE_SERVICE_ROLE_KEY:-}"
 
 if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then

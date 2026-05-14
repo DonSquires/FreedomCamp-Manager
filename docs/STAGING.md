@@ -180,6 +180,33 @@ This migration is additive and idempotent. Existing tenants remain backward comp
 
 ---
 
+Latest Session Snapshot (Phase A Canary Readiness Refresh — Acceptance Gates Re-validated — 2026-05-14):
+
+- Timestamp (NZ): 2026-05-14
+- Current branch: main
+- Scope completed:
+  - Re-ran Phase A acceptance gates that do not require the in-progress Playwright lane:
+    - `node scripts/validate-route-role-truth.mjs`
+    - `bun run test:bob:governance`
+    - `node scripts/validate-bootstrap-routes.mjs`
+    - `set -a && . ./.env.playwright.local && set +a && bunx vitest run tests/integration/org-isolation.test.ts`
+  - Re-verified CI visibility with GitHub CLI (`gh run list --limit 10`).
+  - Hardened feature-flag rollback operations script so `--help` no longer triggers rollback logic and `SUPABASE_URL` is accepted alongside `VITE_SUPABASE_URL`.
+
+- Validation evidence:
+  | Command | Result | Notes |
+  |---|---|---|
+  | `node scripts/validate-route-role-truth.mjs` | PASS | 0 blockers; 1 non-critical finding; report written under `data/route-validation-*.json` |
+  | `bun run test:bob:governance` | PASS | 6/6 governance assertions passed |
+  | `node scripts/validate-bootstrap-routes.mjs` | PASS | 4/4 bootstrap checks passed |
+  | `set -a && . ./.env.playwright.local && set +a && bunx vitest run tests/integration/org-isolation.test.ts` | PASS | 6/6 tests passed; all 5 org-isolation scenarios verified |
+  | `gh run list --limit 10` | PASS | CI run visibility confirmed; one unrelated failing workflow (`triage-bug-reports`) observed |
+  | `bash scripts/rollback-feature-flag.sh --help` | PASS | usage/help path now exits cleanly without rollback execution |
+
+- Open blockers with owner:
+  1. Canary rollout status execution evidence (5%→25%→50%→100% with thresholds) is still operational and owner-driven, not code-blocked.
+  2. Leadership ownership/capacity sign-off remains external (GitHub team + Slack confirmation thread evidence).
+
 Latest Session Snapshot (Historical Data Enrichment Continuation — Patrol/Alarm Workflow Grounding — 2026-05-14):
 
 - Timestamp (NZ): 2026-05-14
