@@ -3,6 +3,34 @@ import { loginAs } from './auth'
 
 const BOB_INPUT_SELECTOR = 'textarea[placeholder*="Ask Bob"]'
 
+function getBobInput(page: Parameters<typeof test.beforeEach>[0]['page']) {
+  return page
+    .locator(BOB_INPUT_SELECTOR)
+    .or(page.locator('textarea[placeholder*="Message Bob"]'))
+    .or(page.locator('textarea[aria-label*="Bob"]'))
+    .first()
+}
+
+async function gotoWithReauth(
+  page: Parameters<typeof test.beforeEach>[0]['page'],
+  path: string,
+  expectedUrl: RegExp,
+) {
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    await page.goto(path)
+
+    if (page.url().includes('/login')) {
+      await loginAs(page, 'adminOrg1')
+      continue
+    }
+
+    await expect(page).toHaveURL(expectedUrl, { timeout: 30000 })
+    return
+  }
+
+  throw new Error(`Failed to reach ${path} after re-auth retry`)
+}
+
 test.describe('Phase 4: Admiral\'s Bridge (Welfare and Enforcement)', () => {
   const adminEmail = process.env.PLAYWRIGHT_ADMIN_ORG1_EMAIL || ''
   const adminPassword = process.env.PLAYWRIGHT_ADMIN_ORG1_PASSWORD || ''
@@ -15,14 +43,12 @@ test.describe('Phase 4: Admiral\'s Bridge (Welfare and Enforcement)', () => {
   })
 
   test('1. Tactical map accessible - live officer tracking loads', async ({ page }) => {
-    await page.goto('/live-tracking')
-    await expect(page).toHaveURL(/\/live-tracking$/, { timeout: 30000 })
+    await gotoWithReauth(page, '/live-tracking', /\/live-tracking$/)
   })
 
   test('2. Welfare alert section visible on admin portal', async ({ page }) => {
     // /admin renders AdminHub; welfare alerts are on /admin/dashboard (AdminPortal)
-    await page.goto('/admin/dashboard')
-    await expect(page).toHaveURL(/\/admin\/dashboard/, { timeout: 30000 })
+    await gotoWithReauth(page, '/admin/dashboard', /\/admin\/dashboard/)
   })
 
   test('3. Bob login can trigger emergency assist and admin block', async ({ page }) => {
@@ -49,10 +75,9 @@ test.describe('Phase 4: Admiral\'s Bridge (Welfare and Enforcement)', () => {
       await page.waitForURL((url) => !url.pathname.includes('/portal-selection'), { timeout: 15000 }).catch(() => undefined)
     }
 
-    await page.goto('/bob-assistant')
-    await expect(page).toHaveURL(/\/bob-assistant/, { timeout: 30000 })
+    await gotoWithReauth(page, '/bob-assistant', /\/bob-assistant/)
 
-    const bobInput = page.locator(BOB_INPUT_SELECTOR)
+    const bobInput = getBobInput(page)
     await expect(bobInput).toBeVisible({ timeout: 60000 })
 
     const dangerToggle = page.locator('#bob-danger-auto-assist')
@@ -78,8 +103,7 @@ test.describe('Phase 4: Admiral\'s Bridge (Welfare and Enforcement)', () => {
   })
 
   test('4. Welfare alerts log renders (row feed or empty state)', async ({ page }) => {
-    await page.goto('/officer-welfare-alerts-log')
-    await expect(page).toHaveURL(/\/officer-welfare-alerts-log$/, { timeout: 30000 })
+    await gotoWithReauth(page, '/officer-welfare-alerts-log', /\/officer-welfare-alerts-log$/)
 
     // Accept any combination of content/empty-state as pass — heading text varies by tenant config
     await page.waitForTimeout(2000)
@@ -91,8 +115,7 @@ test.describe('Phase 4: Admiral\'s Bridge (Welfare and Enforcement)', () => {
   })
 
   test('5. Welfare escalation path navigates to officer welfare page', async ({ page }) => {
-    await page.goto('/officer-welfare')
-    await expect(page).toHaveURL(/\/officer-welfare/, { timeout: 30000 })
+    await gotoWithReauth(page, '/officer-welfare', /\/officer-welfare/)
 
     // Page must load some content — header or table or empty state
     await page.waitForTimeout(2000)

@@ -57,6 +57,24 @@ Status: Active staging checklist — Sprints 50-70 complete on main; Iron Eagle 
 
 ---
 
+## Latest Session Snapshot (Star Trek Phase 4 Route/Auth Resilience Hardening — 2026-05-14)
+
+- Timestamp (NZ): 2026-05-14
+- Current branch: main
+- Scope completed:
+  - Hardened route access in `tests/e2e/phase4-admirals-bridge.spec.ts` with a single re-auth retry helper (`gotoWithReauth`) for protected routes.
+  - Applied resilient Bob input fallback chain in phase 4 emergency-assist test to reduce selector variance risk.
+
+- Validation evidence:
+  | Command | Result | Notes |
+  |---|---|---|
+  | `bash scripts/playwright-bob-runtime.sh bunx playwright test tests/e2e/phase4-admirals-bridge.spec.ts --project=chromium --workers=1 --reporter=line` | PASS | 5/5 passed in 42.5s |
+
+- Open items:
+  1. Await deferred post-enrichment combined retest (phase3+phase4) from idle scheduler.
+
+---
+
 ## Deferred Retest Window (Bob Enrichment Busy) — 2026-05-14
 
 Current working assumption: Bob enrichment and background activity can temporarily increase auth/UI timing variance in the Star Trek phase lane.
