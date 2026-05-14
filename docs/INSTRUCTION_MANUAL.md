@@ -572,6 +572,16 @@ During live staging operations, dashboard card copy can vary by organization dat
 
 This preserves Phase 4 intent while avoiding false negatives caused by non-critical wording variance.
 
+#### Deferred checkpoint retest window (Bob enrichment busy)
+
+When Bob is actively running enrichment/supervisor background work, Star Trek checkpoint timing can temporarily fluctuate. During these windows, operators should defer repeated immediate reruns and use the idle-aware scheduler:
+
+1. Start deferred retest: `npm run e2e:bob:retest:after-idle -- --idle-minutes=30 --max-wait-minutes=720 --poll-seconds=60 --require-activity-since-start=1`
+2. Scheduler waits for fresh Bob activity after startup, then triggers retest only after the configured idle period.
+3. Retest records are written to `tools/retest-schedules/` for staging evidence.
+
+This procedure reduces false negatives while preserving checkpoint evidence quality.
+
 ---
 
 ### 2.3 Portal Selection (Admin Officer role only)
