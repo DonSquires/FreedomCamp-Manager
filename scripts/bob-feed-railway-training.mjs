@@ -8,7 +8,7 @@
  *   BOB_SERVICE_URL=https://... BOB_INFERENCE_API_KEY=... node scripts/bob-feed-railway-training.mjs
  */
 
-import { readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { loadLocalEnv } from './load-local-env.mjs';
@@ -18,6 +18,31 @@ loadLocalEnv();
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
+
+// Parse command-line flags for chunk splitting
+function readFlagValue(flag) {
+  const direct = process.argv.find((arg) => arg.startsWith(`${flag}=`));
+  if (direct) return direct.slice(flag.length + 1);
+  const argIndex = process.argv.indexOf(flag);
+  return argIndex !== -1 ? process.argv[argIndex + 1] : null;
+}
+
+function parseInteger(value, fallback) {
+  const n = Number.parseInt(String(value ?? ''), 10);
+  return Number.isInteger(n) ? n : fallback;
+}
+
+const START_INDEX = Math.max(0, parseInteger(readFlagValue('--start-index'), 0));
+const END_INDEX = Math.max(START_INDEX, parseInteger(readFlagValue('--end-index'), Number.MAX_SAFE_INTEGER));
+const CHUNK_LABEL = readFlagValue('--chunk-label') || '';
+const RESUME_ENABLED = process.argv.includes('--resume') || String(process.env.BOB_INGEST_ENABLE_RESUME || '').trim() === '1';
+const RESET_RESUME = process.argv.includes('--reset-resume');
+const RESUME_DIR = String(process.env.BOB_INGEST_RESUME_DIR || path.join(ROOT, 'logs', 'bob-ingest-state')).trim();
+const RESUME_KEY = String(process.env.BOB_INGEST_RESUME_KEY || '').trim();
+const REQUEST_TIMEOUT_MS = Math.max(10_000, parseInteger(process.env.BOB_INGEST_REQUEST_TIMEOUT_MS, 120_000));
+const RETRY_MAX = Math.max(0, parseInteger(process.env.BOB_INGEST_RETRY_MAX, 3));
+const RETRY_BASE_MS = Math.max(250, parseInteger(process.env.BOB_INGEST_RETRY_BASE_MS, 1500));
+const PACE_MS = Math.max(0, parseInteger(process.env.BOB_INGEST_PACE_MS, 800));
 
 const BOB_URL = String(process.env.BOB_SERVICE_URL || process.env.INFERENCE_SERVICE_URL || '').trim().replace(/\/$/, '');
 const API_KEY = String(process.env.BOB_INFERENCE_API_KEY || process.env.INFERENCE_API_KEY || '').trim();
@@ -47,10 +72,13 @@ async function postBulletinViaIntel(bulletin) {
       'Authorization': `Bearer ${API_KEY}`,
     },
     body: JSON.stringify({ bulletin }),
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   });
   if (!res.ok) {
     const text = await res.text().catch(() => '');
-    throw new Error(`HTTP ${res.status}: ${text}`);
+    const err = new Error(`HTTP ${res.status}: ${text}`);
+    err.status = res.status;
+    throw err;
   }
   return res.json().catch(() => ({}));
 }
@@ -70,11 +98,14 @@ async function postBulletinViaRunpodRunsync(bulletin) {
       'Authorization': `Bearer ${API_KEY}`,
     },
     body: JSON.stringify({ input: { message: prompt } }),
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   });
 
   if (!res.ok) {
     const text = await res.text().catch(() => '');
-    throw new Error(`RunPod runsync ingest failed (${res.status}): ${text}`);
+    const err = new Error(`RunPod runsync ingest failed (${res.status}): ${text}`);
+    err.status = res.status;
+    throw err;
   }
 
   return res.json().catch(() => ({}));
@@ -86,6 +117,71 @@ async function postBulletin(bulletin) {
   }
 
   return postBulletinViaIntel(bulletin);
+}
+
+function isRetriableError(err) {
+  if (!err) return false;
+  if (err.name === 'AbortError') return true;
+  const status = Number(err.status);
+  if (!Number.isFinite(status)) return true;
+  return status === 408 || status === 409 || status === 425 || status === 429 || status >= 500;
+}
+
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function toSafeKey(input) {
+  return String(input || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 120);
+}
+
+function getResumeFilePath(totalBulletins) {
+  const scope = `${START_INDEX}-${Math.min(END_INDEX, totalBulletins)}`;
+  const baseKey = RESUME_KEY || CHUNK_LABEL || `railway-${scope}`;
+  const fileName = `${toSafeKey(baseKey) || 'railway-default'}.json`;
+  return path.join(RESUME_DIR, fileName);
+}
+
+function loadResumeState(filePath) {
+  if (!existsSync(filePath)) return null;
+  try {
+    const parsed = JSON.parse(readFileSync(filePath, 'utf8'));
+    if (!Number.isInteger(parsed.nextIndex)) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function saveResumeState(filePath, state) {
+  mkdirSync(path.dirname(filePath), { recursive: true });
+  writeFileSync(filePath, JSON.stringify(state, null, 2));
+}
+
+function backoffDelayMs(attempt) {
+  const jitter = Math.floor(Math.random() * 250);
+  return RETRY_BASE_MS * (2 ** Math.max(0, attempt - 1)) + jitter;
+}
+
+async function postBulletinWithRetry(bulletin) {
+  let lastError;
+  for (let attempt = 1; attempt <= RETRY_MAX + 1; attempt++) {
+    try {
+      return await postBulletin(bulletin);
+    } catch (err) {
+      lastError = err;
+      const canRetry = attempt <= RETRY_MAX && isRetriableError(err);
+      if (!canRetry) break;
+      const delay = backoffDelayMs(attempt);
+      process.stdout.write(`(retry ${attempt}/${RETRY_MAX} in ${delay}ms) `);
+      await wait(delay);
+    }
+  }
+  throw lastError;
 }
 
 function clip(text, max = 2000) {
@@ -425,17 +521,63 @@ for (const relPath of dynamicTrainingDocs) {
 
 console.log(`\n🚀 Bob Training Feed`);
 console.log(`Target: ${BOB_URL}`);
-console.log(`Bulletins to push: ${bulletins.length}\n`);
+console.log(`Bulletins available: ${bulletins.length}`);
+console.log(`Mode: ${FEED_MODE}`);
+console.log(`Pacing: ${PACE_MS}ms | Timeout: ${REQUEST_TIMEOUT_MS}ms | Retries: ${RETRY_MAX}`);
+if (RESUME_ENABLED) {
+  console.log(`Resume: enabled (${RESUME_DIR})`);
+}
+
+// Slice bulletins if --start-index and --end-index are provided
+const totalBulletins = bulletins.length;
+const rangeEnd = Math.min(END_INDEX, totalBulletins);
+const resumeFilePath = getResumeFilePath(totalBulletins);
+if (RESET_RESUME && existsSync(resumeFilePath)) {
+  unlinkSync(resumeFilePath);
+}
+
+let effectiveStartIndex = START_INDEX;
+if (RESUME_ENABLED) {
+  const state = loadResumeState(resumeFilePath);
+  if (state && state.nextIndex >= START_INDEX && state.nextIndex <= rangeEnd) {
+    effectiveStartIndex = state.nextIndex;
+    console.log(`Resume checkpoint found: nextIndex=${state.nextIndex} (${resumeFilePath})`);
+  }
+}
+
+let ingestBulletins = bulletins;
+if (effectiveStartIndex > 0 || END_INDEX < Number.MAX_SAFE_INTEGER) {
+  ingestBulletins = bulletins.slice(effectiveStartIndex, rangeEnd);
+  console.log(`Chunk: [${effectiveStartIndex}:${rangeEnd}] (${ingestBulletins.length} of ${totalBulletins})`);
+  if (CHUNK_LABEL) console.log(`Label: ${CHUNK_LABEL}`);
+}
+
+console.log(`\nBulletins to push: ${ingestBulletins.length}\n`);
 
 let passed = 0;
 let failed = 0;
 
-for (const bulletin of bulletins) {
+for (let idx = 0; idx < ingestBulletins.length; idx++) {
+  const bulletin = ingestBulletins[idx];
+  const absoluteIndex = effectiveStartIndex + idx;
   process.stdout.write(`  → ${bulletin.title.slice(0, 70)}… `);
   try {
-    await postBulletin(bulletin);
+    await postBulletinWithRetry(bulletin);
     console.log('✅');
     passed++;
+    if (RESUME_ENABLED) {
+      saveResumeState(resumeFilePath, {
+        feeder: 'bob-feed-railway-training.mjs',
+        chunkLabel: CHUNK_LABEL || null,
+        startIndex: START_INDEX,
+        endIndex: rangeEnd,
+        nextIndex: absoluteIndex + 1,
+        updatedAt: new Date().toISOString(),
+      });
+    }
+    if (PACE_MS > 0) {
+      await wait(PACE_MS);
+    }
   } catch (err) {
     console.log(`❌ ${err.message}`);
     failed++;
@@ -443,4 +585,11 @@ for (const bulletin of bulletins) {
 }
 
 console.log(`\n✅ Passed: ${passed}  ❌ Failed: ${failed}`);
+if (RESUME_ENABLED && failed === 0 && existsSync(resumeFilePath)) {
+  const state = loadResumeState(resumeFilePath);
+  if (state && state.nextIndex >= rangeEnd) {
+    unlinkSync(resumeFilePath);
+    console.log('🧹 Resume checkpoint cleared (chunk complete).');
+  }
+}
 if (failed > 0) process.exit(1);

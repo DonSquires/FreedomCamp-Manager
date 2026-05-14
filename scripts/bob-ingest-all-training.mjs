@@ -77,6 +77,18 @@ const allFeeders = [
 const selectedFeedersRaw = String(readFlagValue('--feeders')).trim()
 const chunkSizeRaw = String(readFlagValue('--chunk-size')).trim()
 const chunkIndexRaw = String(readFlagValue('--chunk-index')).trim()
+const NO_AUTO_SPLIT_RAILWAY = process.argv.includes('--no-auto-split-railway')
+
+function parsePositiveInt(value, fallback) {
+  const n = Number.parseInt(String(value ?? ''), 10)
+  return Number.isInteger(n) && n > 0 ? n : fallback
+}
+
+const FEEDER_COOLDOWN_MS = parsePositiveInt(
+  process.env.BOB_INGEST_FEEDER_COOLDOWN_MS,
+  /api\.runpod\.ai\/v2\//i.test(BOB_URL) ? 5000 : 1500,
+)
+const RAILWAY_SPLIT_SIZE = parsePositiveInt(process.env.BOB_RAILWAY_SPLIT_SIZE, 24)
 
 let feeders = [...allFeeders]
 
@@ -131,6 +143,8 @@ console.log('━━━━━━━━━━━━━━━━━━━━━━�
 console.log(`\n🎯 Endpoint: ${BOB_URL}`)
 console.log(`🔑 API Key: ${API_KEY.slice(0, 8)}...${API_KEY.slice(-8)}`)
 console.log(`📋 Mode: ${DRY_RUN ? 'DRY-RUN (preview only, no data sent)' : 'LIVE (data will be sent to Bob)'}`)
+console.log(`⏱️  Inter-feeder cooldown: ${FEEDER_COOLDOWN_MS}ms`)
+console.log(`🧩 Railway auto-split: ${NO_AUTO_SPLIT_RAILWAY ? 'disabled' : 'enabled'} (split size ${RAILWAY_SPLIT_SIZE})`)
 console.log(`\n📚 Training Modules to Load (${feeders.length} total):\n`)
 
 feeders.forEach((f, i) => {
@@ -139,24 +153,33 @@ feeders.forEach((f, i) => {
 
 console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n')
 
-async function runFeeder(script) {
+async function runFeeder(script, args = [], envOverrides = {}) {
   return new Promise((resolve) => {
     const env = {
       ...process.env,
       BOB_SERVICE_URL: BOB_URL,
       BOB_INFERENCE_API_KEY: API_KEY,
+      ...envOverrides,
     }
 
-    const child = spawn(JS_RUNTIME, ['scripts/' + script], { env, stdio: 'inherit' })
+    const child = spawn(JS_RUNTIME, ['scripts/' + script, ...args], { env, stdio: 'inherit' })
 
     child.on('close', (code) => {
       if (code === 0) {
-        console.log(`✅ ${script}\n`)
+        if (args.length > 0) {
+          console.log(`✅ ${script} ${args.join(' ')}\n`)
+        } else {
+          console.log(`✅ ${script}\n`)
+        }
         completed += 1
       } else {
-        console.log(`❌ ${script} (exit code: ${code})\n`)
+        if (args.length > 0) {
+          console.log(`❌ ${script} ${args.join(' ')} (exit code: ${code})\n`)
+        } else {
+          console.log(`❌ ${script} (exit code: ${code})\n`)
+        }
         failed += 1
-        errors.push(script)
+        errors.push(args.length > 0 ? `${script} ${args.join(' ')}` : script)
       }
       resolve()
     })
@@ -168,6 +191,48 @@ async function runFeeder(script) {
       resolve()
     })
   })
+}
+
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+async function runRailwayFeederSplit() {
+  const total = 47
+  const split = Math.min(Math.max(1, RAILWAY_SPLIT_SIZE), total - 1)
+  const runs = [
+    ['--start-index', '0', '--end-index', String(split), '--chunk-label', 'railway-part-1', '--resume'],
+    ['--start-index', String(split), '--end-index', String(total), '--chunk-label', 'railway-part-2', '--resume'],
+  ]
+
+  console.log(`🚦 Running bob-feed-railway-training.mjs in ${runs.length} chunks to reduce timeout risk.\n`)
+
+  for (const args of runs) {
+    const completedBefore = completed
+    const failedBefore = failed
+    await runFeeder('bob-feed-railway-training.mjs', args, {
+      BOB_INGEST_ENABLE_RESUME: '1',
+      BOB_INGEST_REQUEST_TIMEOUT_MS: String(parsePositiveInt(process.env.BOB_INGEST_REQUEST_TIMEOUT_MS, 150000)),
+      BOB_INGEST_RETRY_MAX: String(parsePositiveInt(process.env.BOB_INGEST_RETRY_MAX, 4)),
+      BOB_INGEST_RETRY_BASE_MS: String(parsePositiveInt(process.env.BOB_INGEST_RETRY_BASE_MS, 2000)),
+      BOB_INGEST_PACE_MS: String(parsePositiveInt(process.env.BOB_INGEST_PACE_MS, 1200)),
+    })
+
+    if (failed > failedBefore) {
+      return
+    }
+
+    if (completed > completedBefore) {
+      completed -= 1
+    }
+
+    if (FEEDER_COOLDOWN_MS > 0) {
+      await wait(FEEDER_COOLDOWN_MS)
+    }
+  }
+
+  completed += 1
+  console.log('✅ bob-feed-railway-training.mjs (split run complete)\n')
 }
 
 async function testBobHealth() {
@@ -210,7 +275,15 @@ async function main() {
   }
 
   for (const feeder of feeders) {
-    await runFeeder(feeder)
+    if (feeder === 'bob-feed-railway-training.mjs' && !NO_AUTO_SPLIT_RAILWAY) {
+      await runRailwayFeederSplit()
+    } else {
+      await runFeeder(feeder)
+    }
+
+    if (FEEDER_COOLDOWN_MS > 0) {
+      await wait(FEEDER_COOLDOWN_MS)
+    }
   }
 
   console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
