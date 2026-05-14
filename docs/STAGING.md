@@ -104,6 +104,12 @@ Checkpoint test payload launched by scheduler:
 
 - `bash scripts/playwright-bob-runtime.sh bunx playwright test tests/e2e/phase3-sentient-xo.spec.ts tests/e2e/phase4-admirals-bridge.spec.ts --project=chromium --workers=1 --reporter=line`
 
+Bob identity requirement for Star Trek/Bob automation:
+
+- Bob is the dedicated human testing agent identity for assistant workflow checks.
+- Use the Bob role login helper (`loginAs(page, 'bob')`) in Bob-focused E2E flows instead of manual form credential entry.
+- Treat `BOB_LOGIN_EMAIL`/`BOB_LOGIN_PASSWORD` (or mapped `PLAYWRIGHT_BOB_EMAIL`/`PLAYWRIGHT_BOB_PASSWORD`) as required preflight credentials.
+
 ---
 
 ## Bob / Star Trek Operating Boundary (added 2026-05-14)

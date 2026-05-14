@@ -54,26 +54,14 @@ test.describe('Phase 4: Admiral\'s Bridge (Welfare and Enforcement)', () => {
   test('3. Bob login can trigger emergency assist and admin block', async ({ page }) => {
     test.setTimeout(120000)
 
-    if (!process.env.BOB_LOGIN_EMAIL || !process.env.BOB_LOGIN_PASSWORD) {
-      test.skip()
-    }
-
     await page.context().clearCookies()
     await page.evaluate(() => {
       window.localStorage.clear()
       window.sessionStorage.clear()
     })
 
-    await page.goto('/login')
-    await page.fill('input[type="email"]', process.env.BOB_LOGIN_EMAIL || '')
-    await page.fill('input[type="password"]', process.env.BOB_LOGIN_PASSWORD || '')
-    await page.locator('button[type="submit"]').click()
-    await page.waitForURL((url) => !url.pathname.startsWith('/login'), { timeout: 20000 }).catch(() => undefined)
-
-    if (page.url().includes('/portal-selection')) {
-      await page.getByRole('button', { name: /open admin portal/i }).click()
-      await page.waitForURL((url) => !url.pathname.includes('/portal-selection'), { timeout: 15000 }).catch(() => undefined)
-    }
+    // Bob is the dedicated testing identity for assistant workflow checks.
+    await loginAs(page, 'bob')
 
     await gotoWithReauth(page, '/bob-assistant', /\/bob-assistant/)
 

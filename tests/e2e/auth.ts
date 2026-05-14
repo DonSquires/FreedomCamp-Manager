@@ -130,6 +130,7 @@ const defaultRequiredTestUsers: TestUserKey[] = [
   'adminOrg1',
   'adminOrg2',
   'officerOrg1',
+  'bob',
   'clientViewer',
   'clientStaff',
 ]
