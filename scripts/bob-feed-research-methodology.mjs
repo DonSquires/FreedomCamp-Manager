@@ -23,6 +23,7 @@ loadLocalEnv()
 
 const BOB_URL = String(process.env.BOB_SERVICE_URL || process.env.INFERENCE_SERVICE_URL || '').trim().replace(/\/$/, '')
 const API_KEY = String(process.env.BOB_INFERENCE_API_KEY || process.env.INFERENCE_API_KEY || '').trim()
+const INTEL_INGEST_URL = String(process.env.INTEL_INGEST_URL || process.env.BOB_INTEL_INGEST_URL || '').trim().replace(/\/$/, '')
 
 function isRunpodServerlessUrl(url) {
   return /api\.runpod\.ai\/v2\//i.test(String(url || ''))
@@ -32,7 +33,11 @@ function normalizeRunpodBaseUrl(url) {
   return String(url || '').trim().replace(/\/+$/, '').replace(/\/(?:run|run-sync|runsync)\/?$/i, '')
 }
 
-const FEED_MODE = isRunpodServerlessUrl(BOB_URL) ? 'runpod-runsync-chat-fallback' : 'intel-ingest-bulletin'
+const FEED_MODE = INTEL_INGEST_URL
+  ? 'intel-ingest-bulletin'
+  : isRunpodServerlessUrl(BOB_URL)
+    ? 'runpod-runsync-chat-fallback'
+    : 'intel-ingest-bulletin'
 
 if (!BOB_URL || !API_KEY) {
   console.error('Error: Missing BOB_SERVICE_URL and BOB_INFERENCE_API_KEY')
@@ -195,7 +200,7 @@ async function ingestBulletins() {
               },
             }),
           })
-        : await fetch(`${BOB_URL}/intel/ingest-bulletin`, {
+        : await fetch(`${INTEL_INGEST_URL || `${BOB_URL}/intel/ingest-bulletin`}`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',

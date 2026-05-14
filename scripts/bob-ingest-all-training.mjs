@@ -29,6 +29,7 @@ let API_KEY = String(process.env.BOB_INFERENCE_API_KEY || process.env.INFERENCE_
 const DRY_RUN = process.argv.includes('--dry-run')
 const SKIP_TESTS = process.argv.includes('--skip-connectivity-test')
 const SKIP_VERIFY = process.argv.includes('--skip-verify')
+const SKIP_POST_PROBE = process.argv.includes('--skip-post-probe')
 const JS_RUNTIME = process.execPath || 'bun'
 
 function readFlagValue(flag) {
@@ -89,6 +90,7 @@ const FEEDER_COOLDOWN_MS = parsePositiveInt(
   /api\.runpod\.ai\/v2\//i.test(BOB_URL) ? 5000 : 1500,
 )
 const RAILWAY_SPLIT_SIZE = parsePositiveInt(process.env.BOB_RAILWAY_SPLIT_SIZE, 24)
+const IS_RUNPOD_SERVERLESS = /api\.runpod\.ai\/v2\//i.test(BOB_URL)
 
 let feeders = [...allFeeders]
 
@@ -257,6 +259,60 @@ async function testBobHealth() {
   }
 }
 
+async function runPostIngestProbe() {
+  if (DRY_RUN || SKIP_POST_PROBE) {
+    return { skipped: true, ok: true, reason: 'post-probe skipped' }
+  }
+
+  if (!IS_RUNPOD_SERVERLESS) {
+    return { skipped: true, ok: true, reason: 'non-runpod endpoint' }
+  }
+
+  const runpodBase = String(BOB_URL).replace(/\/+$/, '').replace(/\/(?:run|run-sync|runsync)\/?$/i, '')
+  const question = 'Answer with exact path only: canonical Bob assistant route in FieldOps Manager.'
+
+  try {
+    const response = await fetch(`${runpodBase}/runsync`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${API_KEY}`,
+      },
+      body: JSON.stringify({ input: { message: question } }),
+      signal: AbortSignal.timeout(30_000),
+    })
+
+    if (!response.ok) {
+      const text = await response.text().catch(() => '')
+      return {
+        skipped: false,
+        ok: false,
+        status: response.status,
+        message: `post-probe HTTP ${response.status}: ${text.slice(0, 240)}`,
+      }
+    }
+
+    const payload = await response.json().catch(() => ({}))
+    const rawResponse = String(payload?.output?.response || payload?.output?.message || payload?.response || payload?.message || '')
+    const memoryApplied = Boolean(payload?.output?.memory_applied)
+    const routeLooksCorrect = /\/bob-assistant\b/i.test(rawResponse)
+
+    return {
+      skipped: false,
+      ok: routeLooksCorrect && memoryApplied,
+      memoryApplied,
+      routeLooksCorrect,
+      response: rawResponse.slice(0, 240),
+    }
+  } catch (err) {
+    return {
+      skipped: false,
+      ok: false,
+      message: `post-probe error: ${err.message}`,
+    }
+  }
+}
+
 async function main() {
   if (DRY_RUN) {
     console.log('⚠️  DRY-RUN MODE: Scripts will execute but without posting to Bob.\n')
@@ -298,6 +354,28 @@ async function main() {
 
   console.log('\n' + (failed === 0 ? '🎉 All training loaded successfully!' : '⚠️  Some modules failed. Review logs above.'))
   console.log('\n' + (DRY_RUN ? '💡 DRY-RUN completed. Run without --dry-run to actually send data.' : '💡 Bob has been trained. Ask Bob a question to test.'))
+
+  const probe = await runPostIngestProbe()
+  if (!probe.skipped) {
+    if (probe.ok) {
+      console.log('\n🧪 Post-ingest probe: PASS (route retrieval + memory marker).')
+    } else {
+      console.log('\n🧪 Post-ingest probe: WARN')
+      if (probe.message) console.log(`   ${probe.message}`)
+      if (typeof probe.memoryApplied === 'boolean') {
+        console.log(`   memory_applied=${probe.memoryApplied}`)
+      }
+      if (typeof probe.routeLooksCorrect === 'boolean') {
+        console.log(`   route_looks_correct=${probe.routeLooksCorrect}`)
+      }
+      if (probe.response) {
+        console.log(`   response_preview=${probe.response}`)
+      }
+      if (IS_RUNPOD_SERVERLESS) {
+        console.log('   This endpoint is runsync-only for this workflow (intel ingest unavailable), so persistence may be ephemeral.')
+      }
+    }
+  }
 
   console.log('\n' + '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
   console.log('\n💬 Quick test: Ask Bob for NZ council adoption strategy:\n')

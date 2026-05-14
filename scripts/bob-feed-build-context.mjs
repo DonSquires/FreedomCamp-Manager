@@ -38,12 +38,16 @@ function normalizeRunpodBaseUrl(url) {
   return String(url || '').trim().replace(/\/+$/, '').replace(/\/(?:run|run-sync|runsync)\/?$/i, '');
 }
 
-const FEED_MODE = isRunpodServerlessUrl(process.env.BOB_SERVICE_URL || process.env.INFERENCE_SERVICE_URL)
+const INTEL_INGEST_URL = normalizeBaseUrl(process.env.INTEL_INGEST_URL || process.env.BOB_INTEL_INGEST_URL || '').replace(/\/$/, '');
+const FEED_MODE = INTEL_INGEST_URL
+  ? 'intel-ingest-bulletin'
+  : isRunpodServerlessUrl(process.env.BOB_SERVICE_URL || process.env.INFERENCE_SERVICE_URL)
   ? 'runpod-runsync-chat-fallback'
   : 'intel-ingest-bulletin';
 
 async function postBulletinViaIntel(baseUrl, apiKey, bulletin) {
-  const response = await fetch(`${baseUrl}/intel/ingest-bulletin`, {
+  const ingestUrl = INTEL_INGEST_URL || `${baseUrl}/intel/ingest-bulletin`;
+  const response = await fetch(ingestUrl, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -167,4 +171,5 @@ for (const bulletin of bulletins) {
   console.log(`Ingested: ${bulletin.title}`);
 }
 
+console.log(`Mode: ${FEED_MODE}${INTEL_INGEST_URL ? ' (INTEL_INGEST_URL override active)' : ''}`);
 console.log(`Fed ${bulletins.length} build-context bulletins to Bob.`);
