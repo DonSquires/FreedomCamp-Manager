@@ -21,6 +21,8 @@
     "e2e:bob:human-emulator": "bash scripts/playwright-bob-runtime.sh bunx playwright test tests/e2e/bob-human-emulator.spec.ts --project=chromium-bob",
     "e2e:bob:human-emulator:dr": "bash scripts/e2e-bob-human-emulator-dr.sh tests/e2e/bob-human-emulator.spec.ts",
     "e2e:phase1:focused:codespace": "bash scripts/playwright-codespace-credentials.sh bunx playwright test tests/e2e/phase1-radio-rls.spec.ts tests/e2e/phase1-radio-floor-control.spec.ts tests/e2e/phase1-radio-reconnect.spec.ts tests/e2e/phase1-radio-sfu-media.spec.ts --project=chromium",
+    "e2e:ptt:enterprise": "bash scripts/playwright-bob-runtime.sh bunx playwright test tests/e2e/ptt-enterprise-validation.spec.ts --project=chromium --workers=2 --reporter=html",
+    "e2e:ptt:enterprise:headed": "bash scripts/playwright-bob-runtime.sh bunx playwright test tests/e2e/ptt-enterprise-validation.spec.ts --project=chromium --workers=2 --headed",
     "lint:warning-budget": "node scripts/check-eslint-warning-budget.mjs",
     "lint:doc-authority": "node scripts/doc-authority-check.mjs",
     "lint:staging-doc": "node scripts/check-staging-doc.mjs",
