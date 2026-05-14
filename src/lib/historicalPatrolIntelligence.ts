@@ -2,6 +2,10 @@ import {
   BUREAU_PREFIX_TO_BRANCH,
   DISPATCH_CODE_TO_ZONE_ID,
 } from '@/lib/orgClientTemplate'
+import {
+  buildNormalizedImportStagingContract,
+  type NormalizedImportStagingContract,
+} from '@/lib/importStagingContract'
 
 export interface HistoricalPatrolRow {
   bureauId: string
@@ -66,6 +70,7 @@ export interface HistoricalPatrolImportDraft {
   zoneCoverage: Array<{ zoneCode: string; count: number }>
   routingCoverage: HistoricalRoutingSummary[]
   siteCoverage: HistoricalSiteCoverage[]
+  stagingContract: NormalizedImportStagingContract
   sourceText: string
 }
 
@@ -457,6 +462,19 @@ export function buildHistoricalPatrolImportDraft(raw: string): HistoricalPatrolI
     zoneCoverage,
     routingCoverage,
     siteCoverage,
+    stagingContract: buildNormalizedImportStagingContract({
+      sourceKind: 'historical_patrol',
+      sourceSystem: 'historical_patrol_export',
+      actionType: 'import_historical_patrol_data',
+      rowCount: normalizedRows.length,
+      rowsRequiringReview: normalizedRows.filter((row) => row.source_quality_flags.length > 0).length,
+      summaryParts: [
+        `Historical patrol import draft with ${normalizedRows.length} normalized row(s)`,
+        `${normalizedRows.filter((row) => row.source_quality_flags.length > 0).length} row(s) require review`,
+        `Routing coverage: ${routingCoverage.map((entry) => `${entry.module}:${entry.count}`).join(', ') || 'n/a'}`,
+      ],
+      qualitySignals: Array.from(new Set(normalizedRows.flatMap((row) => row.source_quality_flags))),
+    }),
     sourceText: raw,
   }
 }

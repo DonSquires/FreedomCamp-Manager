@@ -1,3 +1,8 @@
+import {
+  buildNormalizedImportStagingContract,
+  type NormalizedImportStagingContract,
+} from '@/lib/importStagingContract'
+
 export type HistoricalDispatchJobType =
   | 'noise_control'
   | 'alarm_activation'
@@ -35,6 +40,7 @@ export interface HistoricalDispatchPlacementReview {
   typeCounts: Record<HistoricalDispatchJobType, number>
   classifications: HistoricalDispatchClassification[]
   trainingTips: string[]
+  stagingContract: NormalizedImportStagingContract
 }
 
 export interface HistoricalDispatchPlacementVerification {
@@ -241,6 +247,15 @@ export function buildHistoricalDispatchPlacementReview(raw: string): HistoricalD
       typeCounts: defaultTypeCounts(),
       classifications: [],
       trainingTips: ['No dispatch header detected. Paste tabular data including a Despatch No. column.'],
+      stagingContract: buildNormalizedImportStagingContract({
+        sourceKind: 'historical_alarm_dispatch',
+        sourceSystem: 'historical_alarm_dispatch_export',
+        actionType: 'historical_alarm_dispatch_review',
+        rowCount: 0,
+        rowsRequiringReview: 0,
+        summaryParts: ['No dispatch header detected for staging review'],
+        qualitySignals: ['missing_dispatch_header'],
+      }),
     }
   }
 
@@ -261,6 +276,7 @@ export function buildHistoricalDispatchPlacementReview(raw: string): HistoricalD
   const classifications: HistoricalDispatchClassification[] = []
   let rowsMissingDespatchNo = 0
   let rowsMissingTimestamps = 0
+  let rowsRequiringReview = 0
   const typeCounts = defaultTypeCounts()
 
   for (let i = headerIndex + 1; i < records.length; i += 1) {
@@ -269,12 +285,16 @@ export function buildHistoricalDispatchPlacementReview(raw: string): HistoricalD
     const hasSignal = row.despatchNo || row.clientName || row.despatchComments
     if (!hasSignal) continue
 
+    let requiresReview = false
     if (!row.despatchNo) rowsMissingDespatchNo += 1
     if (!row.onSiteAt || !row.offSiteAt) rowsMissingTimestamps += 1
+    if (!row.despatchNo || !row.onSiteAt || !row.offSiteAt) requiresReview = true
 
     const classified = classifyHistoricalDispatchJob(row)
     classifications.push(classified)
     typeCounts[classified.jobType] += 1
+    if (classified.jobType === 'other_dispatch') requiresReview = true
+    if (requiresReview) rowsRequiringReview += 1
   }
 
   const trainingTips: string[] = []
@@ -296,6 +316,19 @@ export function buildHistoricalDispatchPlacementReview(raw: string): HistoricalD
     typeCounts,
     classifications,
     trainingTips,
+    stagingContract: buildNormalizedImportStagingContract({
+      sourceKind: 'historical_alarm_dispatch',
+      sourceSystem: 'historical_alarm_dispatch_export',
+      actionType: 'historical_alarm_dispatch_review',
+      rowCount: classifications.length,
+      rowsRequiringReview,
+      summaryParts: [
+        `Historical alarm/dispatch review with ${classifications.length} classified row(s)`,
+        `${rowsRequiringReview} row(s) require review`,
+        `Type counts: ${Object.entries(typeCounts).map(([type, count]) => `${type}:${count}`).join(', ') || 'n/a'}`,
+      ],
+      qualitySignals: trainingTips,
+    }),
   }
 }
 

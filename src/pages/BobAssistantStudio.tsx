@@ -4491,6 +4491,7 @@ export default function BobAssistantStudio() {
       source: 'bob-assistant-studio',
       review: placementReview,
       draft: effectiveDraft,
+      staging_contract: effectiveDraft.stagingContract,
       assortment_overrides: historicalAssortmentOverrides,
       routing_policy: 'Noise-control jobs (including legacy Wilsar/Rapid sourced rows) must assort into noise_control workflows, not alarm_response workflows.',
     }
@@ -4501,6 +4502,7 @@ export default function BobAssistantStudio() {
     historicalImportRow.recommendations = {
       row_count: effectiveDraft.totalRows,
       rows_requiring_review: effectiveDraft.rowsRequiringReview,
+      staging_contract: effectiveDraft.stagingContract,
       zone_coverage: effectiveDraft.zoneCoverage,
       routing_coverage: effectiveDraft.routingCoverage,
       site_coverage: effectiveDraft.siteCoverage.slice(0, 40),
