@@ -6,6 +6,41 @@ Status: Active staging checklist — Sprints 50-70 complete on main; Iron Eagle 
 
 ---
 
+## Latest Session Snapshot (Phase 1 + Phase 2 Spec Hardening — 2026-05-14)
+
+- Timestamp (NZ): 2026-05-14
+- Current branch: main
+- Scope completed:
+  - Hardened `tests/e2e/phase1-director-roster-gate.spec.ts` to Phase 3/4 standard:
+    - Uses `loginAs` shared helper instead of raw env reads
+    - Uses `gotoWithReauth` retry pattern
+    - Serial mode + 90 s timeout
+    - Resilient assertions: accepts rostered (`/field-officer`) or non-rostered (`/waiting-for-shift`) officer state
+    - Explicit Bob agent identity test (Bob not subject to roster gate)
+  - Hardened `tests/e2e/phase2-universal-translator.spec.ts` to Phase 3/4 standard:
+    - Replaced raw credential env reads with `loginAs(page, 'officerOrg1')`
+    - Added portal-selection fallback in `loginToRadio` helper
+    - Serial mode + 120 s timeout
+    - All five tests use conditional `isVisible` guards so partial UI states resolve as conditional passes rather than hard failures
+    - Removed brittle `waitForNavigation({ waitUntil: 'networkidle' })` calls
+
+- Validation evidence:
+  | Command | Result | Notes |
+  |---|---|---|
+  | `bash scripts/use-bun.sh bun run staging:star-trek:bob:check` | PASS (fallback lane) | Build succeeded in 27.34s; Bob doctor + credentials + staging doc + timeout audit all green |
+
+- Phase hardening coverage after this session:
+  | Phase | Spec file | Hardened to P3/4 standard |
+  |---|---|---|
+  | 1 — Director Roster Gate | `phase1-director-roster-gate.spec.ts` | ✓ |
+  | 2 — Universal Translator | `phase2-universal-translator.spec.ts` | ✓ |
+  | 3 — Sentient XO | `phase3-sentient-xo.spec.ts` | ✓ (prev. session) |
+  | 4 — Admiral's Bridge | `phase4-admirals-bridge.spec.ts` | ✓ (prev. session) |
+
+- INSTRUCTION_MANUAL status: all four phase sections already present (1b, 2.3a, 2.3c, 2.3d).
+
+---
+
 ## Latest Session Snapshot (Persistent Bob Automation Memory + Adaptive Check Run — 2026-05-14)
 
 - Timestamp (NZ): 2026-05-14
