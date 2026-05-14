@@ -99,6 +99,31 @@ Status: Active staging checklist — Sprints 50-70 complete on main; Iron Eagle 
 
 ---
 
+## Latest Session Snapshot (Staging Tooling Bootstrap + Bob Agent Validation — 2026-05-14)
+
+- Timestamp (NZ): 2026-05-14
+- Current branch: main
+- Scope completed:
+  - Added one-command staging tooling bootstrap: `scripts/setup-staging-tooling.sh`.
+  - Bootstrap now ensures:
+    - Bun available (`/workspaces/.bun/bin/bun`).
+    - Node/npm available in user space (`/workspaces/.local/node`).
+    - Playwright Chromium bundle downloaded.
+    - Bob doctor executed (`bob:doctor:any-container`) with RunPod ping/chat checks.
+  - Added package entrypoint: `npm run staging:tooling:bootstrap`.
+
+- Validation evidence:
+  | Command | Result | Notes |
+  |---|---|---|
+  | `bash scripts/setup-staging-tooling.sh` | PASS (with warning) | Bun + Node/npm + Bob doctor OK; Chromium bundle installed |
+  | `bun run bob:doctor:any-container` | PASS | RunPod ping/chat reachable |
+
+- Environment constraint observed:
+  1. Playwright-downloaded Chromium binaries are present but not runnable on this Alpine host (runtime libc mismatch).
+  2. Native host Chromium is still required for local browser execution (`apk add chromium` when root access is available).
+
+---
+
 ## Deferred Retest Window (Bob Enrichment Busy) — 2026-05-14
 
 Current working assumption: Bob enrichment and background activity can temporarily increase auth/UI timing variance in the Star Trek phase lane.
