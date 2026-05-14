@@ -13,8 +13,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Grid3x3, Users, AlertCircle, TrendingUp } from 'lucide-react'
 
 export default function DashboardModule() {
-  const { role, user } = useAuthStore()
-  const { organization } = useOrganization()
+  const { user } = useAuthStore()
+  const role = user?.role
+  const { activeOrgName } = useOrganization()
 
   // Show different dashboard based on role
   const dashboardTitle = useMemo(() => {
@@ -34,7 +35,7 @@ export default function DashboardModule() {
   return (
     <ModuleLayout
       title={dashboardTitle}
-      description={`Welcome back, ${user?.user_metadata?.first_name || user?.email}. Here's your operational overview for ${organization?.name || 'your organization'}.`}
+      description={`Welcome back, ${user?.first_name || user?.email}. Here's your operational overview for ${activeOrgName || 'your organization'}.`}
     >
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {/* Quick stat cards */}

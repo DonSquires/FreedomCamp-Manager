@@ -1,13 +1,23 @@
 {
-  "generatedAt": "2026-05-14T09:21:08.657Z",
+  "generatedAt": "2026-05-14T11:03:46.079Z",
   "windowHours": 24,
-  "totalEntries": 0,
-  "lowScoreCount": 0,
-  "topFailureReasons": [],
+  "totalEntries": 3,
+  "lowScoreCount": 1,
+  "topFailureReasons": [
+    {
+      "name": "quality_gate_failed",
+      "count": 1
+    }
+  ],
   "topHallucinationPatterns": [],
   "repeatedHallucinations": [],
-  "topFlaggedArtifacts": [],
+  "topFlaggedArtifacts": [
+    {
+      "name": "/workspaces/FreedomCamp-Manager/tests/e2e/bob-human-emulator.spec.ts",
+      "count": 3
+    }
+  ],
   "recommendations": [
-    "No repeated failure mode crossed the automatic threshold in this window."
+    "Re-read docs/BOB_TRAINING_TRUTH_PROTOCOL.md before the next redesign response."
   ]
 }

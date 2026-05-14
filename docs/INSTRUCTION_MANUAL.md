@@ -562,6 +562,16 @@ Notice preview now enforces a human-in-the-loop print gate:
 
 This guarantees Bob/system drafting does not bypass human legal authorization for printed enforcement output.
 
+#### Phase 4 operational checkpoint note (2026-05-14)
+
+During live staging operations, dashboard card copy can vary by organization data shape and load timing. Operator success criteria for Admiral's Bridge workflows are therefore:
+
+1. Tactical and welfare routes are reachable (`/live-tracking`, `/admin/dashboard`, `/officer-welfare-alerts-log`, `/officer-welfare`).
+2. Armed-danger mode can be armed in Bob Assistant and administrative write intent remains safety-gated while emergency mode is active.
+3. Welfare escalation surfaces remain navigable even when card wording differs between tenants.
+
+This preserves Phase 4 intent while avoiding false negatives caused by non-critical wording variance.
+
 ---
 
 ### 2.3 Portal Selection (Admin Officer role only)

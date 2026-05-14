@@ -31,6 +31,14 @@ const SKIP_TESTS = process.argv.includes('--skip-connectivity-test')
 const SKIP_VERIFY = process.argv.includes('--skip-verify')
 const JS_RUNTIME = process.execPath || 'bun'
 
+function readFlagValue(flag) {
+  const direct = process.argv.find((arg) => arg.startsWith(`${flag}=`))
+  if (direct) return direct.slice(flag.length + 1)
+  const idx = process.argv.indexOf(flag)
+  if (idx >= 0 && idx + 1 < process.argv.length) return process.argv[idx + 1]
+  return ''
+}
+
 // Require explicit endpoint configuration to avoid stale hardcoded endpoint drift.
 
 // API key from VITE version in .env
@@ -55,7 +63,7 @@ if (!BOB_URL || !API_KEY) {
   process.exit(2)
 }
 
-const feeders = [
+const allFeeders = [
   ...(SKIP_VERIFY ? [] : ['verify-bob-training-wiring.mjs']),
   'bob-feed-build-context.mjs',
   'bob-feed-railway-training.mjs',
@@ -65,6 +73,53 @@ const feeders = [
   'bob-feed-nz-business-growth-training.mjs',
   'bob-feed-nz-councils-procurement.mjs',
 ]
+
+const selectedFeedersRaw = String(readFlagValue('--feeders')).trim()
+const chunkSizeRaw = String(readFlagValue('--chunk-size')).trim()
+const chunkIndexRaw = String(readFlagValue('--chunk-index')).trim()
+
+let feeders = [...allFeeders]
+
+if (selectedFeedersRaw) {
+  const requested = selectedFeedersRaw
+    .split(',')
+    .map((x) => x.trim())
+    .filter(Boolean)
+
+  const requestedSet = new Set(requested)
+  const unknown = requested.filter((name) => !allFeeders.includes(name))
+  if (unknown.length > 0) {
+    console.error('\n❌ ERROR: Unknown feeder(s):')
+    unknown.forEach((name) => console.error(`   - ${name}`))
+    console.error('\nKnown feeders:')
+    allFeeders.forEach((name) => console.error(`   - ${name}`))
+    process.exit(2)
+  }
+
+  feeders = allFeeders.filter((name) => requestedSet.has(name))
+}
+
+if (chunkSizeRaw || chunkIndexRaw) {
+  const chunkSize = Number.parseInt(chunkSizeRaw, 10)
+  const chunkIndex = Number.parseInt(chunkIndexRaw, 10)
+  if (!Number.isInteger(chunkSize) || chunkSize <= 0) {
+    console.error('\n❌ ERROR: --chunk-size must be a positive integer.')
+    process.exit(2)
+  }
+  if (!Number.isInteger(chunkIndex) || chunkIndex < 0) {
+    console.error('\n❌ ERROR: --chunk-index must be an integer >= 0.')
+    process.exit(2)
+  }
+
+  const start = chunkIndex * chunkSize
+  const end = start + chunkSize
+  feeders = feeders.slice(start, end)
+}
+
+if (feeders.length === 0) {
+  console.error('\n❌ ERROR: No feeders selected for this run.')
+  process.exit(2)
+}
 
 let completed = 0
 let failed = 0
@@ -120,6 +175,7 @@ async function testBobHealth() {
     const response = await fetch(`${BOB_URL}/health`, {
       method: 'GET',
       headers: {
+        Authorization: `Bearer ${API_KEY}`,
         'User-Agent': 'bob-ingest-training/1.0',
       },
       signal: AbortSignal.timeout(3000),

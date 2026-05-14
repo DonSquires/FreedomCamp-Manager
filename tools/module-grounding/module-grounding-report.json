@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-14T09:21:36.654Z",
+  "generatedAt": "2026-05-14T11:03:59.332Z",
   "source": "src/App.tsx",
   "routeCount": 317,
   "unresolvedRouteCount": 0,
@@ -81,11 +81,11 @@
     },
     {
       "path": "/waiting-for-shift",
-      "componentName": "WaitingForShiftPage",
-      "importPath": "@/pages/WaitingForShiftPage",
-      "resolvedPath": "src/pages/WaitingForShiftPage.tsx",
-      "isRedirect": false,
-      "importResolved": true,
+      "componentName": "Navigate",
+      "importPath": "",
+      "resolvedPath": "",
+      "isRedirect": true,
+      "importResolved": false,
       "fileExists": true
     },
     {

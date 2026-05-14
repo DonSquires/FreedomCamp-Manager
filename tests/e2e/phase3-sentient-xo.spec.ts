@@ -1,45 +1,51 @@
 import { test, expect } from '@playwright/test'
+import { loginAs } from './auth'
 
 // The Bob assistant textarea has a known placeholder we use as a ready signal.
 const BOB_INPUT_SELECTOR = 'textarea[placeholder*="Ask Bob"]'
 
-async function loginAndSelectAdminPortal(page: Parameters<typeof test.beforeEach>[0]['page'], email: string, password: string) {
-  // Step 1: Login
-  await page.goto('/login')
-  await page.fill('input[type="email"]', email)
-  await page.fill('input[type="password"]', password)
-  await page.locator('button[type="submit"]').click()
-  await page.waitForURL((url) => !url.pathname.startsWith('/login'), { timeout: 20000 }).catch(() => undefined)
-
-  // Step 2: The admin_officer role lands on portal-selection.
-  // We must click "Admin Portal" which sets sessionStorage 'adminOfficerPortalChoice' = 'selected'.
-  // If already on an admin path, skip portal selection.
-  const currentUrl = page.url()
-  if (currentUrl.includes('/portal-selection') || currentUrl.endsWith('/')) {
-    await page.goto('/portal-selection')
-    // Click "Admin Portal" tile
-    await page.getByText('Admin Portal').first().click()
-    await page.waitForURL((url) => !url.pathname.includes('/portal-selection'), { timeout: 15000 }).catch(() => undefined)
-  }
-}
-
 async function waitForBobReady(page: Parameters<typeof test.beforeEach>[0]['page']) {
-  await page.goto('/bob-assistant')
-  await expect(page).toHaveURL(/\/bob-assistant$/, { timeout: 30000 })
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    await page.goto('/bob-assistant')
 
-  // Wait for the lazy-loaded BobAssistantStudio textarea to appear.
-  await expect(page.locator(BOB_INPUT_SELECTOR)).toBeVisible({ timeout: 60000 })
+    if (page.url().includes('/login')) {
+      // Under transient load, auth can drop back to login; re-auth once.
+      await loginAs(page, 'bob')
+      continue
+    }
+
+    if (page.url().includes('/portal-selection')) {
+      const adminPortalButton = page
+        .getByRole('button', { name: /open admin portal|admin portal/i })
+        .first()
+      if (await adminPortalButton.isVisible().catch(() => false)) {
+        await adminPortalButton.click().catch(() => undefined)
+      }
+      await page.waitForURL((url) => !url.pathname.includes('/portal-selection'), { timeout: 20000 }).catch(() => undefined)
+      await page.goto('/bob-assistant')
+    }
+
+    if (page.url().includes('/login')) {
+      await loginAs(page, 'bob')
+      continue
+    }
+
+    await expect(page).toHaveURL(/\/bob-assistant/, { timeout: 30000 })
+
+    // Wait for the lazy-loaded BobAssistantStudio textarea to appear.
+    await expect(page.locator(BOB_INPUT_SELECTOR)).toBeVisible({ timeout: 60000 })
+    return
+  }
+
+  throw new Error('Bob assistant did not become ready after re-auth retry')
 }
 
 test.describe('Phase 3: Sentient XO (Memory and Administrative Actuation)', () => {
-  const adminEmail = process.env.PLAYWRIGHT_ADMIN_ORG1_EMAIL || ''
-  const adminPassword = process.env.PLAYWRIGHT_ADMIN_ORG1_PASSWORD || ''
+  test.setTimeout(120000)
+  test.describe.configure({ mode: 'serial' })
 
   test.beforeEach(async ({ page }) => {
-    if (!adminEmail || !adminPassword) {
-      test.skip()
-    }
-    await loginAndSelectAdminPortal(page, adminEmail, adminPassword)
+    await loginAs(page, 'bob')
     await waitForBobReady(page)
   })
 

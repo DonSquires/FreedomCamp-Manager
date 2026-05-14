@@ -6,6 +6,7 @@ export type TestUserKey =
   | 'adminOrg1'
   | 'adminOrg2'
   | 'officerOrg1'
+  | 'bob'
   | 'client'
   | 'clientViewer'
   | 'clientStaff'
@@ -158,6 +159,12 @@ const roleCredentialConfig: Record<TestUserKey, RoleCredentialConfig> = {
     passwordVars: ['PLAYWRIGHT_OFFICER_ORG1_PASSWORD', 'PLAYWRIGHT_OFFICER_PASSWORD', 'PLAYWRIGHT_OFFICER2_PASSWORD', 'E2E_OFFICER_PASSWORD'],
     fallbackEmail: 'officer@org1.com',
   },
+  bob: {
+    label: 'bob',
+    emailVars: ['BOB_LOGIN_EMAIL', 'PLAYWRIGHT_BOB_EMAIL'],
+    passwordVars: ['BOB_LOGIN_PASSWORD', 'PLAYWRIGHT_BOB_PASSWORD'],
+    fallbackEmail: 'bob.assistant+staging@onspace.ai',
+  },
   client: {
     label: 'client',
     emailVars: ['PLAYWRIGHT_CLIENT_VIEWER_EMAIL', 'PLAYWRIGHT_CLIENT_OFFICER_EMAIL', 'PLAYWRIGHT_CLIENT_STAFF_EMAIL', 'PLAYWRIGHT_CLIENT_EMAIL', 'E2E_CLIENT_VIEWER_EMAIL'],
@@ -208,6 +215,11 @@ const expectedProfileConfig: Record<TestUserKey, ExpectedProfileConfig> = {
     requiredCapability: 'field_ops',
     expectedOrgName: readEnv('PLAYWRIGHT_OFFICER_ORG1_NAME') || 'First Security - Nelson',
   },
+  bob: {
+    allowedRoles: ['admin_officer'],
+    requiredCapability: 'admin_screen',
+    expectedOrgName: readEnv('BOB_LOGIN_ORG_NAME', 'BOB_ORG_NAME') || 'First Security - Nelson [MERGED 2026-05-14]',
+  },
   client: {
     allowedRoles: ['client_viewer', 'client_officer', 'client_admin', 'admin', 'admin_officer', 'officer'],
     requiredCapability: 'client_portal_view',
@@ -240,6 +252,7 @@ const desiredRoleByTestUser: Record<TestUserKey, DesiredRole> = {
   adminOrg1: 'admin_officer',
   adminOrg2: 'admin_officer',
   officerOrg1: 'officer',
+  bob: 'admin_officer',
   client: 'client_viewer',
   clientViewer: 'client_viewer',
   // Compatibility default: many shared test DBs still enforce legacy
@@ -748,7 +761,10 @@ async function resolvePortalSelectionIfNeeded(page: Page, user: TestUserKey): Pr
 
   const canClickPortal = await targetButton.isVisible({ timeout: 2500 }).catch(() => false)
   if (canClickPortal) {
-    await targetButton.click()
+    await targetButton.click({ timeout: 10000 }).catch(async () => {
+      // DOM detached during SPA re-render — fall back to direct navigation
+      await page.goto(targetPortalPath)
+    })
   } else {
     await page.goto(targetPortalPath)
   }

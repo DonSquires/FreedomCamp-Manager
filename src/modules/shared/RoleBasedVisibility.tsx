@@ -44,8 +44,9 @@ export default function RoleBasedVisibility({
   requiredOrgs = [],
   requireAll = false,
 }: RoleBasedVisibilityProps) {
-  const { role } = useAuthStore()
-  const { organization, allowedOrganizations } = useOrganization()
+  const { user } = useAuthStore()
+  const { activeOrgId } = useOrganization()
+  const role = user?.role
 
   // Check role visibility
   const hasRoleAccess =
@@ -58,8 +59,8 @@ export default function RoleBasedVisibility({
   const hasOrgAccess =
     requiredOrgs.length === 0 ||
     (requireAll
-      ? requiredOrgs.every(orgId => allowedOrganizations?.some(o => o.id === orgId))
-      : requiredOrgs.some(orgId => allowedOrganizations?.some(o => o.id === orgId)))
+      ? requiredOrgs.every(orgId => activeOrgId === orgId)
+      : requiredOrgs.some(orgId => activeOrgId === orgId))
 
   if (!hasRoleAccess || !hasOrgAccess) {
     return fallback || <DefaultFallback />

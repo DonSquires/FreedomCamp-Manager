@@ -17,10 +17,10 @@
     "bun.lock",
     "package-lock.json"
   ],
-  "generated_at": "2026-05-14T09:21:07Z",
+  "generated_at": "2026-05-14T11:03:45Z",
   "source": "scripts/system-check.sh",
   "monitor": {
-    "checked_at": "2026-05-14T09:21:07.877Z",
+    "checked_at": "2026-05-14T11:03:45.329Z",
     "monitor_version": "2026-05-13.enterprise.v1",
     "window_minutes": 15,
     "error_threshold": 5,
@@ -29,8 +29,8 @@
     "status": "warning",
     "live_session_diagnostics": {
       "schema_version": "2026-05-13.enterprise.v1",
-      "checked_at": "2026-05-14T09:21:08.040Z",
-      "started_at": "2026-05-14T09:21:08.040Z",
+      "checked_at": "2026-05-14T11:03:45.466Z",
+      "started_at": "2026-05-14T11:03:45.465Z",
       "window_minutes": 20,
       "status": "stale",
       "source": "live-session-diagnostics-summary",
@@ -44,16 +44,16 @@
       "offline_events": 0,
       "console_error_count": 0,
       "unhandled_count": 0,
-      "latest_route": null,
+      "latest_route": "/bob-assistant",
       "top_event_types": [],
       "query": {
         "source_table": "bug_reports",
         "source_fallback": true,
         "attempts": 1,
         "status": 200,
-        "duration_ms": 46
+        "duration_ms": 43
       },
-      "execution_ms": 487
+      "execution_ms": 484
     }
   },
   "critical_warning": "Live session diagnostics stale: No live session diagnostic events detected in last 20m."

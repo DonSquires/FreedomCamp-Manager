@@ -117,6 +117,9 @@ set_if_missing PLAYWRIGHT_CLIENT_VIEWER_PASSWORD TEST_CLIENT_PASSWORD
 set_if_missing PLAYWRIGHT_CLIENT_STAFF_EMAIL TEST_CLIENT_OFFICER_EMAIL
 set_if_missing PLAYWRIGHT_CLIENT_STAFF_PASSWORD TEST_CLIENT_OFFICER_PASSWORD
 
+set_if_missing PLAYWRIGHT_BOB_EMAIL BOB_LOGIN_EMAIL
+set_if_missing PLAYWRIGHT_BOB_PASSWORD BOB_LOGIN_PASSWORD
+
 # API/live credential aliases used by auth helpers in tests/e2e/auth.ts.
 # Prefer owner credentials first because they are typically the most stable shared account.
 set_if_missing_chain API_TEST_EMAIL TEST_OWNER_EMAIL TEST_ADMIN_EMAIL PLAYWRIGHT_ADMIN_ORG1_EMAIL PLAYWRIGHT_ADMIN_EMAIL

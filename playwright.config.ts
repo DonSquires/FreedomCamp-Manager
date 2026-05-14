@@ -186,6 +186,19 @@ export default defineConfig({
       },
     },
 
+    {
+      name: 'chromium-bob',
+      use: {
+        ...devices['Desktop Chrome'],
+        launchOptions: chromiumLaunchOptions,
+      },
+      testMatch: [
+        '**/bob-human-emulator.spec.ts',
+        '**/phase3-sentient-xo.spec.ts',
+        '**/phase4-admirals-bridge.spec.ts',
+      ],
+    },
+
     // Touch-emulation project for cross-module workflow and mobile-friendly enforcement buttons.
     // trace:'on' provides a full film-strip for every run; video records on the first retry.
     {

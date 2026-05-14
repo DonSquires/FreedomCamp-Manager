@@ -29,6 +29,7 @@ const localOllamaBaseUrl = String(process.env.DR_BOB_OLLAMA_BASE_URL || process.
 const localOllamaModel = String(process.env.DR_BOB_MODEL || process.env.OLLAMA_MODEL || 'qwen2.5:7b').trim();
 const runpodPollIntervalMs = Number.parseInt(String(process.env.DR_BOB_RUNPOD_POLL_INTERVAL_MS || '2500'), 10) || 2500;
 const runpodPollTimeoutMs = Number.parseInt(String(process.env.DR_BOB_RUNPOD_POLL_TIMEOUT_MS || '120000'), 10) || 120000;
+const attemptBackoffMs = Number.parseInt(String(process.env.DR_BOB_ATTEMPT_BACKOFF_MS || '3000'), 10) || 3000;
 
 function normalizeRunpodRunsyncUrl(rawUrl) {
   const trimmed = String(rawUrl || '').trim().replace(/\/+$/, '');
@@ -309,6 +310,44 @@ function parseReviewResponse(rawText) {
   };
 }
 
+function parseRunpodTransportStatus(rawText) {
+  try {
+    const parsed = JSON.parse(String(rawText || ''));
+    const status = String(parsed?.status || '').trim().toUpperCase();
+    const hasReviewShape =
+      typeof parsed?.decision === 'string' ||
+      Array.isArray(parsed?.findings) ||
+      typeof parsed?.summary === 'string';
+    if (!status || hasReviewShape) return null;
+
+    if (
+      status === 'IN_QUEUE' ||
+      status === 'IN_PROGRESS' ||
+      status === 'QUEUED' ||
+      status === 'STARTING' ||
+      status === 'RUNNING'
+    ) {
+      return {
+        pending: true,
+        status,
+        id: String(parsed?.id || parsed?.jobId || '').trim() || null,
+      };
+    }
+
+    if (status === 'COMPLETED' || status === 'FAILED' || status === 'CANCELLED' || status === 'TIMED_OUT') {
+      return {
+        pending: false,
+        status,
+        id: String(parsed?.id || parsed?.jobId || '').trim() || null,
+      };
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}
+
 function buildRetryPrompt(basePrompt, attempt) {
   return [
     basePrompt,
@@ -318,6 +357,11 @@ function buildRetryPrompt(basePrompt, attempt) {
     'The first character of your response must be { and the last character must be }.',
     'If uncertain, still return the JSON object with empty findings and explicit verificationChecks.',
   ].join('\n');
+}
+
+async function waitForAttemptBackoff(multiplier = 1) {
+  const delayMs = Math.max(500, attemptBackoffMs * multiplier);
+  await new Promise((resolve) => setTimeout(resolve, delayMs));
 }
 
 function shouldAttemptBasicFix(review) {
@@ -614,10 +658,13 @@ async function sendViaLocalOllama(message) {
   }
 }
 
-function buildReviewPrompt({ artifactType, artifactPath, artifactText, systemState, failOnRevision }) {
+function buildReviewPrompt({ artifactType, artifactPath, artifactText, systemState, diagnosticProtocol, failOnRevision }) {
+  const normalizedProtocol = String(diagnosticProtocol || '').trim();
   return [
     'Dr Bob adversarial architecture review.',
     'You are the blocking reviewer before implementation begins.',
+    'Follow the diagnostic sequence strictly: scope -> grounding -> risk -> actionability -> decision.',
+    'Every finding must include evidence, requiredAction, and a verification check candidate.',
     'Use the repo truth protocol: do not invent modules, data models, routes, migrations, or services.',
     'If the artifact falsely claims something already exists in the repo when it does not, mark that as blocker severity.',
     'Do not treat clearly labeled target-state proposals, future modules, future services, or future data models as blockers solely because they are not yet in system_state.json.',
@@ -626,9 +673,12 @@ function buildReviewPrompt({ artifactType, artifactPath, artifactText, systemSta
     'Do not require proposed future-state modules, ADRs, or data models to already exist in system_state.json.',
     'Output contract is strict: return one JSON object only. No headings, no bullets, no markdown, no code fences.',
     'If you add any text outside the JSON object, the response is invalid.',
+    'Report-writing requirement: concise, non-duplicated findings with deterministic required actions.',
     `Artifact type: ${artifactType}`,
     `Artifact path: ${artifactPath}`,
     `Fail on revision mode: ${failOnRevision ? 'true' : 'false'}`,
+    normalizedProtocol ? 'Diagnostic protocol (authoritative):' : '',
+    normalizedProtocol ? normalizedProtocol : '',
     'Current grounded system state JSON:',
     systemState,
     '',
@@ -685,15 +735,23 @@ export async function runDrBobReview(options = {}) {
   const artifactType = inferArtifactType(artifactPath, String(options.type || '').trim());
   const failOnRevision = options.failOnRevision === true;
   const strictJson = options.strictJson !== false;
+  const failOnUnstructured = options.failOnUnstructured === true;
   const maxAttempts = Math.max(1, Number(options.maxAttempts || 3));
   const selfHealBasic = options.selfHealBasic === true;
   const escalateFile = String(options.escalateFile || '').trim();
 
   let systemState = '{}';
+  let diagnosticProtocol = '';
   try {
     systemState = await fs.readFile(path.join(workspaceRoot, 'system_state.json'), 'utf8');
   } catch {
     systemState = JSON.stringify({ warning: 'system_state.json unavailable' });
+  }
+
+  try {
+    diagnosticProtocol = await fs.readFile(path.join(workspaceRoot, 'docs', 'DR_BOB_DIAGNOSTIC_ANALYSIS_PROTOCOL.md'), 'utf8');
+  } catch {
+    diagnosticProtocol = '';
   }
 
   const basePrompt = buildReviewPrompt({
@@ -701,6 +759,7 @@ export async function runDrBobReview(options = {}) {
     artifactPath,
     artifactText,
     systemState,
+    diagnosticProtocol,
     failOnRevision,
   });
 
@@ -708,8 +767,10 @@ export async function runDrBobReview(options = {}) {
   let review = null;
   let structured = false;
   let finalPrompt = basePrompt;
+  const attemptDiagnostics = [];
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const attemptStartedAt = Date.now();
     finalPrompt = strictJson && attempt > 1 ? buildRetryPrompt(basePrompt, attempt) : basePrompt;
     delivery = await sendViaRunpod(finalPrompt);
     if (!delivery.sent) {
@@ -726,6 +787,23 @@ export async function runDrBobReview(options = {}) {
           metadata: { sourceFile: artifactPath },
         });
         throw new Error(`Dr Bob review failed (runpod=${delivery.status}, ollama=${ollamaDelivery.status}): ${delivery.text.slice(0, 200)} | ${ollamaDelivery.text.slice(0, 200)}`);
+      }
+    }
+
+    const transportStatus = delivery?.channel === 'runpod-runsync'
+      ? parseRunpodTransportStatus(delivery.text)
+      : null;
+    if (transportStatus?.pending) {
+      attemptDiagnostics.push({
+        attempt,
+        channel: delivery.channel,
+        status: transportStatus.status,
+        pending: true,
+        durationMs: Date.now() - attemptStartedAt,
+      });
+      if (attempt < maxAttempts) {
+        await waitForAttemptBackoff(attempt);
+        continue;
       }
     }
 
@@ -746,7 +824,19 @@ export async function runDrBobReview(options = {}) {
       }
     }
 
+    attemptDiagnostics.push({
+      attempt,
+      channel: delivery.channel,
+      status: delivery.status,
+      pending: false,
+      structured,
+      durationMs: Date.now() - attemptStartedAt,
+    });
+
     if (structured || !strictJson) break;
+    if (attempt < maxAttempts) {
+      await waitForAttemptBackoff(attempt);
+    }
   }
 
   if (!review) {
@@ -776,6 +866,7 @@ export async function runDrBobReview(options = {}) {
       review,
       basicFixResult,
       requiredAction: 'Escalate to Copilot for manual intervention beyond Dr Bob auto-fix scope.',
+      attemptDiagnostics,
     }, escalateFile);
 
     await recordDrBobEscalation({
@@ -799,6 +890,7 @@ export async function runDrBobReview(options = {}) {
       handoffRequired: true,
       copilotActionHint: 'Investigate escalation artifact and implement targeted fix',
       responsePreview: delivery?.text || '',
+      attemptDiagnostics,
     });
   }
 
@@ -812,8 +904,24 @@ export async function runDrBobReview(options = {}) {
       sourceFile: artifactPath,
       reviewDecision: review.decision,
       qualityGateFailed: !structured,
+      attemptDiagnostics,
     },
   });
+
+  if (attemptDiagnostics.length > 0) {
+    console.log('Attempt diagnostics:');
+    for (const item of attemptDiagnostics) {
+      const line = [
+        `attempt=${item.attempt}`,
+        `channel=${item.channel}`,
+        item.status ? `status=${item.status}` : '',
+        item.pending ? 'pending=true' : '',
+        typeof item.structured === 'boolean' ? `structured=${item.structured}` : '',
+        `durationMs=${item.durationMs}`,
+      ].filter(Boolean).join(' ');
+      console.log(`- ${line}`);
+    }
+  }
 
   console.log(`Decision: ${review.decision}`);
   console.log(`Summary: ${review.summary}`);
@@ -843,6 +951,18 @@ export async function runDrBobReview(options = {}) {
     console.log(`Escalation artifact: ${escalationPath}`);
   }
 
+  if (!structured && failOnUnstructured) {
+    return {
+      artifactPath,
+      outputPath,
+      review,
+      structured,
+      basicFixResult,
+      escalationPath,
+      shouldFail: true,
+    };
+  }
+
   const shouldFail = hasBlockingFinding(review) ||
     (failOnRevision && String(review.decision || '').toLowerCase() === 'needs-revision');
   return {
@@ -867,6 +987,7 @@ async function main() {
     file: requestedFile,
     type: getArg('type', '').trim(),
     failOnRevision: getBooleanArg('fail-on-revision', false),
+    failOnUnstructured: getBooleanArg('fail-on-unstructured', false),
     strictJson: getBooleanArg('strict-json', true),
     maxAttempts: getNumberArg('max-attempts', 3),
     selfHealBasic: getBooleanArg('self-heal-basic', false),

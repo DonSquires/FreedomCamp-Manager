@@ -1,0 +1,9 @@
+timestamp_utc=2026-05-14T11-20-40Z
+cwd=/workspaces/FreedomCamp-Manager
+node=v24.14.1
+npm=11.11.0
+bun=1.3.14
+uname=Linux codespaces-5f718b 6.8.0-1044-azure #50~22.04.1-Ubuntu SMP Wed Dec  3 15:13:22 UTC 2025 x86_64 GNU/Linux
+meminfo_total_kb=16379784
+meminfo_available_kb=3691412
+exit_code=2

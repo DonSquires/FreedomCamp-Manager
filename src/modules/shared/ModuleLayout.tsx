@@ -9,7 +9,7 @@
  */
 
 import { ReactNode } from 'react'
-import { useNavigate, useLocation } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/stores/authStore'
 import {
   Breadcrumb,
@@ -60,8 +60,8 @@ export default function ModuleLayout({
   actions,
 }: ModuleLayoutProps) {
   const navigate = useNavigate()
-  const location = useLocation()
-  const { user, role } = useAuthStore()
+  const { user } = useAuthStore()
+  const role = user?.role
 
   return (
     <div className="flex flex-col gap-4">

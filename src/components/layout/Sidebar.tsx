@@ -29,7 +29,7 @@ import { useState } from 'react'
 interface NavItem {
   id: string
   label: string
-  icon: React.ReactNode
+  icon?: React.ReactNode
   href: string
   requiredRoles?: string[]
   badge?: number
@@ -118,7 +118,8 @@ interface SidebarProps {
 export default function Sidebar({ open = true, onOpenChange }: SidebarProps) {
   const navigate = useNavigate()
   const location = useLocation()
-  const { role } = useAuthStore()
+  const { user } = useAuthStore()
+  const role = user?.role
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set(['patrol', 'enforcement']))
   const [mobileOpen, setMobileOpen] = useState(false)
 

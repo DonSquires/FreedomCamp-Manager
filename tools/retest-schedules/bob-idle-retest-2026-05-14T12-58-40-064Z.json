@@ -1,0 +1,9 @@
+{
+  "status": "completed",
+  "reason": "idle-threshold-reached",
+  "activityFile": "/workspaces/FreedomCamp-Manager/.runtime/runpod-bob-activity.touch",
+  "ageMs": 337561169,
+  "command": "bash scripts/playwright-bob-runtime.sh bunx playwright test tests/e2e/phase3-sentient-xo.spec.ts tests/e2e/phase4-admirals-bridge.spec.ts --project=chromium --workers=1 --reporter=line",
+  "exitCode": 0,
+  "writtenAt": "2026-05-14T12:58:40.064Z"
+}

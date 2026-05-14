@@ -61,7 +61,7 @@ const ACTION_TYPES = [
 
 export default function AuditLog({ entityType = '', entityId = '', defaultLimit = 50 }: AuditLogProps) {
   const { user } = useAuthStore()
-  const { organization } = useOrganization()
+  const { activeOrgId, activeOrgName } = useOrganization()
   const [page, setPage] = useState(1)
   const [selectedEntity, setSelectedEntity] = useState(entityType)
   const [selectedAction, setSelectedAction] = useState('')
@@ -72,14 +72,14 @@ export default function AuditLog({ entityType = '', entityId = '', defaultLimit 
 
   // Fetch audit log entries
   const { data: auditData, isLoading, error, refetch } = useQuery({
-    queryKey: ['auditLog', organization?.id, selectedEntity, selectedAction, dateRange, page, offset],
+    queryKey: ['auditLog', activeOrgId, selectedEntity, selectedAction, dateRange, page, offset],
     queryFn: async () => {
-      if (!organization?.id) return { entries: [], total: 0 }
+      if (!activeOrgId) return { entries: [], total: 0 }
 
       let query = supabase
         .from('audit_log')
         .select('*', { count: 'exact' })
-        .eq('organization_id', organization.id)
+        .eq('organization_id', activeOrgId)
 
       // Filter by entity type if specified
       if (selectedEntity) {
@@ -169,7 +169,7 @@ export default function AuditLog({ entityType = '', entityId = '', defaultLimit 
     <Card>
       <CardHeader>
         <CardTitle>Audit Log</CardTitle>
-        <CardDescription>System-wide activity log for {organization?.name || 'your organization'}</CardDescription>
+        <CardDescription>System-wide activity log for {activeOrgName || 'your organization'}</CardDescription>
       </CardHeader>
       <CardContent>
         {/* Filters */}

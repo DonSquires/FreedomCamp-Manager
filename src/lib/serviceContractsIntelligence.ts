@@ -215,7 +215,7 @@ function normalizeConflictLine(line: string): string {
     .trim()
 }
 
-function firstMatchingLine(content: string, patterns: RegExp[]): string {
+function firstMatchingLine(content: string, patterns: readonly RegExp[]): string {
   const lines = String(content || '')
     .replace(/\r/g, '\n')
     .split('\n')

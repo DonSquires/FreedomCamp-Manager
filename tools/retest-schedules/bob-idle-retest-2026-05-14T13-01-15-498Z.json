@@ -1,0 +1,10 @@
+{
+  "status": "timed-out",
+  "reason": "max-wait-exceeded",
+  "activityFile": "/workspaces/FreedomCamp-Manager/.runtime/runpod-bob-activity.touch",
+  "idleMinutes": 999,
+  "maxWaitMinutes": 1,
+  "requireActivitySinceStart": true,
+  "command": "bash scripts/playwright-bob-runtime.sh bunx playwright test tests/e2e/phase3-sentient-xo.spec.ts tests/e2e/phase4-admirals-bridge.spec.ts --project=chromium --workers=1 --reporter=line",
+  "writtenAt": "2026-05-14T13:01:15.499Z"
+}

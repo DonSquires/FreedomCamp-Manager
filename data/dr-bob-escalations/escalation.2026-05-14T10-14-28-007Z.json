@@ -1,0 +1,24 @@
+{
+  "createdAt": "2026-05-14T10:14:28.007Z",
+  "sourceFile": "/workspaces/FreedomCamp-Manager/tests/e2e/bob-human-emulator.spec.ts",
+  "outputPath": "/workspaces/FreedomCamp-Manager/data/dr-bob-reviews/bob-human-emulator.spec.ts.2026-05-14T10-14-27-980Z.json",
+  "decision": "needs-revision",
+  "structured": false,
+  "escalationReason": "unstructured-review",
+  "review": {
+    "decision": "needs-revision",
+    "summary": "Dr Bob returned an unstructured review. Inspect the raw response.",
+    "findings": [
+      {
+        "severity": "major",
+        "title": "Unstructured review response",
+        "evidence": "{\"id\":\"sync-147f4352-76ba-4537-87f3-3a63d6a60efe-u1\",\"status\":\"IN_QUEUE\"}",
+        "requiredAction": "Rerun the review or tighten the prompt until valid JSON is returned."
+      }
+    ],
+    "verificationChecks": [],
+    "rawResponse": "{\"id\":\"sync-147f4352-76ba-4537-87f3-3a63d6a60efe-u1\",\"status\":\"IN_QUEUE\"}"
+  },
+  "basicFixResult": null,
+  "requiredAction": "Escalate to Copilot for manual intervention beyond Dr Bob auto-fix scope."
+}
