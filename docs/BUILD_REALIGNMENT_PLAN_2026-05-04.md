@@ -8,6 +8,8 @@ Status: 🚀 PHASE A UNDER EXECUTION — Week 2 Complete (Foundations + Bootstra
 **Next Execution**: refresh the final Phase A gate summary, then move into canary status verification and Phase B backlog preparation
 ### 11.2b Phase B Execution Backlog
 
+Status: All six execution backlog items below are completed as of May 14, with live follow-through moving to canary verification and operational acceptance gates.
+
 1. Wire the normalized historical patrol draft into the actual import execution path. **Completed May 14**: Bob Assistant Studio now stages normalized historical patrol exports into `ai_import_intakes` under the approved `import_historical_patrol_data` contract.
 2. Add a backend contract for normalized patrol and alarm payload staging. **Completed May 14**: shared normalized import staging contract now lives in `src/lib/importStagingContract.ts` and is threaded through patrol/alarm review flows and Bob staging prompts.
 3. Convert geofence hints into site-resolution suggestions and zone fallback behavior. **Completed May 14**: historical patrol normalization now emits deterministic `site_resolution_suggestions` plus zone fallback metadata derived from geofence hints and template mappings.
