@@ -1,6 +1,8 @@
 import {
+  BUREAU_PREFIX_TO_CLIENT,
   BUREAU_PREFIX_TO_BRANCH,
   DISPATCH_CODE_TO_ZONE_ID,
+  FIRST_SECURITY_ORG_TEMPLATE,
 } from '@/lib/orgClientTemplate'
 import {
   buildNormalizedImportStagingContract,
@@ -54,13 +56,27 @@ export interface HistoricalPatrolNormalizedRow {
   visit_charge_nzd: number | null
   source_quality_flags: string[]
   geofence_hint: string | null
+  site_resolution_suggestions: HistoricalSiteResolutionSuggestion[]
+  zone_fallback_zone_id: string | null
+  zone_fallback_reason: string | null
   workflow_action: 'archive_completed_patrol' | 'schedule_makeup_patrol' | 'create_incident_followup'
   routing_module: HistoricalRoutingModule
   routing_reason: string
   /** Resolved branch org UUID (from BUREAU_PREFIX_TO_BRANCH) or null when unknown */
   resolved_organization_id: string | null
+  /** Resolved client org UUID (from BUREAU_PREFIX_TO_CLIENT) or null when unknown */
+  resolved_client_organization_id: string | null
   /** Resolved zone UUID (from DISPATCH_CODE_TO_ZONE_ID) or null when unknown */
   resolved_zone_id: string | null
+}
+
+export interface HistoricalSiteResolutionSuggestion {
+  source: 'template_site_code' | 'template_site_name' | 'zone_fallback'
+  suggested_site_name: string
+  suggested_site_code: string | null
+  suggested_zone_id: string | null
+  confidence: 'high' | 'medium' | 'low'
+  reason: string
 }
 
 export interface HistoricalPatrolImportDraft {
@@ -207,6 +223,77 @@ function computeDurationMinutes(startIso: string | null, endIso: string | null):
 function buildGeofenceHint(row: HistoricalPatrolRow): string | null {
   const parts = [row.despatchZone, row.clientSuburb, row.clientPostcode].map((part) => part.trim()).filter(Boolean)
   return parts.length > 0 ? parts.join('|') : null
+}
+
+function normalizeSiteToken(value: string): string {
+  return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, ' ')
+}
+
+function buildSiteResolutionSuggestions(
+  row: HistoricalPatrolRow,
+  resolvedZoneId: string | null,
+): {
+  suggestions: HistoricalSiteResolutionSuggestion[]
+  zoneFallbackZoneId: string | null
+  zoneFallbackReason: string | null
+} {
+  const suggestions: HistoricalSiteResolutionSuggestion[] = []
+  const templateSites = FIRST_SECURITY_ORG_TEMPLATE.nccSites
+
+  const siteCode = row.clientId.trim()
+  if (siteCode) {
+    const byCode = templateSites.find((site) => site.siteCode && site.siteCode.toLowerCase() === siteCode.toLowerCase())
+    if (byCode) {
+      suggestions.push({
+        source: 'template_site_code',
+        suggested_site_name: byCode.name,
+        suggested_site_code: byCode.siteCode,
+        suggested_zone_id: byCode.zoneId,
+        confidence: 'high',
+        reason: `Matched client ID ${siteCode} to template site code ${byCode.siteCode}`,
+      })
+    }
+  }
+
+  const normalizedClientName = normalizeSiteToken(row.clientName)
+  if (normalizedClientName) {
+    const byName = templateSites.find((site) => normalizeSiteToken(site.name) === normalizedClientName)
+    if (byName && !suggestions.some((entry) => entry.suggested_site_name === byName.name)) {
+      suggestions.push({
+        source: 'template_site_name',
+        suggested_site_name: byName.name,
+        suggested_site_code: byName.siteCode,
+        suggested_zone_id: byName.zoneId,
+        confidence: 'medium',
+        reason: `Matched site name ${row.clientName} to template site ${byName.name}`,
+      })
+    }
+  }
+
+  let zoneFallbackZoneId: string | null = null
+  let zoneFallbackReason: string | null = null
+  const suggestionWithZone = suggestions.find((entry) => entry.suggested_zone_id)
+  if (suggestionWithZone?.suggested_zone_id) {
+    zoneFallbackZoneId = suggestionWithZone.suggested_zone_id
+    zoneFallbackReason = `Template site suggestion provides zone fallback (${suggestionWithZone.suggested_zone_id})`
+  } else if (resolvedZoneId) {
+    zoneFallbackZoneId = resolvedZoneId
+    zoneFallbackReason = `Dispatch zone code ${row.despatchZone || 'n/a'} mapped to fallback zone ${resolvedZoneId}`
+    suggestions.push({
+      source: 'zone_fallback',
+      suggested_site_name: row.clientName || 'Unmatched site',
+      suggested_site_code: row.clientId || null,
+      suggested_zone_id: resolvedZoneId,
+      confidence: 'low',
+      reason: `No template site match found; falling back to zone mapping ${row.despatchZone || 'n/a'}`,
+    })
+  }
+
+  return {
+    suggestions,
+    zoneFallbackZoneId,
+    zoneFallbackReason,
+  }
 }
 
 function buildSourceQualityFlags(row: HistoricalPatrolRow, normalizedStatus: 'completed' | 'missed' | 'unknown'): string[] {
@@ -410,9 +497,13 @@ export function buildHistoricalPatrolImportDraft(raw: string): HistoricalPatrolI
     const resolvedOrganizationId = row.bureauId
       ? (BUREAU_PREFIX_TO_BRANCH[row.bureauId] ?? null)
       : null
+    const resolvedClientOrganizationId = row.bureauId
+      ? (BUREAU_PREFIX_TO_CLIENT[row.bureauId] ?? null)
+      : null
     const resolvedZoneId = row.despatchZone
       ? (DISPATCH_CODE_TO_ZONE_ID[row.despatchZone] ?? null)
       : null
+    const siteResolution = buildSiteResolutionSuggestions(row, resolvedZoneId)
 
     return {
       dispatch_id: row.internalDespatchId || `synthetic:${index + 1}`,
@@ -429,10 +520,14 @@ export function buildHistoricalPatrolImportDraft(raw: string): HistoricalPatrolI
       visit_charge_nzd: row.visitChargeExGst,
       source_quality_flags: sourceQualityFlags,
       geofence_hint: buildGeofenceHint(row),
+      site_resolution_suggestions: siteResolution.suggestions,
+      zone_fallback_zone_id: siteResolution.zoneFallbackZoneId,
+      zone_fallback_reason: siteResolution.zoneFallbackReason,
       workflow_action: workflowAction,
       routing_module: routing.module,
       routing_reason: routing.reason,
       resolved_organization_id: resolvedOrganizationId,
+      resolved_client_organization_id: resolvedClientOrganizationId,
       resolved_zone_id: resolvedZoneId,
     }
   })
@@ -466,6 +561,8 @@ export function buildHistoricalPatrolImportDraft(raw: string): HistoricalPatrolI
       sourceKind: 'historical_patrol',
       sourceSystem: 'historical_patrol_export',
       actionType: 'import_historical_patrol_data',
+      sourceRecordTable: 'historical_patrol_exports',
+      sourceRecordIds: normalizedRows.map((row) => row.dispatch_id),
       rowCount: normalizedRows.length,
       rowsRequiringReview: normalizedRows.filter((row) => row.source_quality_flags.length > 0).length,
       summaryParts: [

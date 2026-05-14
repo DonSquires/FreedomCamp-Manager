@@ -87,4 +87,24 @@ describe('historicalPatrolIntelligence', () => {
     expect(draft.normalizedRows.find((row) => row.dispatch_id === '700002')?.routing_module).toBe('alarm_response')
     expect(draft.siteCoverage.length).toBeGreaterThan(0)
   })
+
+  it('builds site-resolution suggestions and zone fallback behavior from geofence hints', () => {
+    const raw = [
+      'Bureau ID\tClient ID\tClient Name\tClient Suburb\tClient Postcode\tOn-site Date/Time\tOff-site Date/Time\tComments\tIs Incident Report\tPatrol Complete Status\tVisit Charge (ex. GST)\tDespatch Zone\tDespatch Date/Time\tInternal DespatchId',
+      'FSG-NCC\tNCC200\tTHE REFINERY\tNELSON\t7010\t1/04/2026 8:43\t1/04/2026 8:48\tSECURE\tFALSE\tCompleted\t6.05\t585\t1/04/2026 6:00\t900001',
+      'FSG-NCC\tUNK999\tUNMATCHED SITE\tNELSON\t7010\t1/04/2026 9:00\t1/04/2026 9:10\tCHECK\tFALSE\tCompleted\t5.00\t587\t1/04/2026 8:30\t900002',
+    ].join('\n')
+
+    const draft = buildHistoricalPatrolImportDraft(raw)
+
+    const matched = draft.normalizedRows.find((row) => row.dispatch_id === '900001')
+    expect(matched?.resolved_client_organization_id).toBeTruthy()
+    expect(matched?.site_resolution_suggestions.some((entry) => entry.source === 'template_site_code')).toBe(true)
+    expect(matched?.zone_fallback_zone_id).toBeTruthy()
+
+    const unmatched = draft.normalizedRows.find((row) => row.dispatch_id === '900002')
+    expect(unmatched?.site_resolution_suggestions.some((entry) => entry.source === 'zone_fallback')).toBe(true)
+    expect(unmatched?.zone_fallback_zone_id).toBe(unmatched?.resolved_zone_id)
+    expect(unmatched?.zone_fallback_reason).toContain('Dispatch zone code')
+  })
 })

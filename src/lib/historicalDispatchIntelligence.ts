@@ -251,6 +251,8 @@ export function buildHistoricalDispatchPlacementReview(raw: string): HistoricalD
         sourceKind: 'historical_alarm_dispatch',
         sourceSystem: 'historical_alarm_dispatch_export',
         actionType: 'historical_alarm_dispatch_review',
+        sourceRecordTable: 'historical_alarm_dispatch_exports',
+        sourceRecordIds: [],
         rowCount: 0,
         rowsRequiringReview: 0,
         summaryParts: ['No dispatch header detected for staging review'],
@@ -320,6 +322,8 @@ export function buildHistoricalDispatchPlacementReview(raw: string): HistoricalD
       sourceKind: 'historical_alarm_dispatch',
       sourceSystem: 'historical_alarm_dispatch_export',
       actionType: 'historical_alarm_dispatch_review',
+      sourceRecordTable: 'historical_alarm_dispatch_exports',
+      sourceRecordIds: classifications.map((classification) => classification.despatchNo),
       rowCount: classifications.length,
       rowsRequiringReview,
       summaryParts: [

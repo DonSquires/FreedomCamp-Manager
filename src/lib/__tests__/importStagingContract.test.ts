@@ -19,11 +19,13 @@ describe('normalizedImportStagingContract', () => {
       sourceKind: 'historical_patrol',
       sourceSystem: 'historical_patrol_export',
       actionType: 'import_historical_patrol_data',
+      sourceRecordTable: 'historical_patrol_exports',
       recommendedTable: 'ai_import_intakes',
       actionTargetTable: 'ai_import_intakes',
       rowCount: 2,
     })
     expect(draft.stagingContract.summary).toContain('Historical patrol import draft')
+    expect(draft.stagingContract.sourceRecordIds).toEqual(expect.arrayContaining(['59199452', '59233078']))
     expect(draft.stagingContract.reviewCoverage).toBeGreaterThanOrEqual(0)
   })
 
@@ -40,11 +42,13 @@ describe('normalizedImportStagingContract', () => {
       sourceKind: 'historical_alarm_dispatch',
       sourceSystem: 'historical_alarm_dispatch_export',
       actionType: 'historical_alarm_dispatch_review',
+      sourceRecordTable: 'historical_alarm_dispatch_exports',
       recommendedTable: 'ai_import_intakes',
       actionTargetTable: 'ai_import_intakes',
       rowCount: 2,
     })
     expect(review.stagingContract.summary).toContain('Historical alarm/dispatch review')
+    expect(review.stagingContract.sourceRecordIds).toEqual(expect.arrayContaining(['58184481', '58188644']))
     expect(review.stagingContract.reviewCoverage).toBe(1)
   })
 })
