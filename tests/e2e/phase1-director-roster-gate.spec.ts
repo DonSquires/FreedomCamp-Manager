@@ -52,7 +52,8 @@ test.describe('Phase 1: Director Roster Gate', () => {
     await page.waitForURL(
       (url) =>
         url.pathname.startsWith('/field-officer') ||
-        url.pathname.startsWith('/waiting-for-shift') ||
+        url.pathname.startsWith('/officer-home') ||
+        url.pathname.startsWith('/waiting-for-shift') || // legacy redirect → /officer-home
         url.pathname.startsWith('/portal-selection'),
       { timeout: 30000 },
     ).catch(() => undefined)
@@ -60,6 +61,7 @@ test.describe('Phase 1: Director Roster Gate', () => {
     const url = page.url()
     const isValidState =
       url.includes('/field-officer') ||
+      url.includes('/officer-home') ||
       url.includes('/waiting-for-shift') ||
       url.includes('/portal-selection')
 
@@ -84,11 +86,12 @@ test.describe('Phase 1: Director Roster Gate', () => {
     // If currently on waiting-for-shift, tactical routes should redirect back.
     const currentUrl = page.url()
 
-    if (currentUrl.includes('/waiting-for-shift')) {
+    if (currentUrl.includes('/officer-home') || currentUrl.includes('/waiting-for-shift')) {
       // Phase 1 guard is active — verify tactical direct-navigation is blocked
       await page.goto('/field-officer')
       await page.waitForURL(
         (url) =>
+          url.pathname.startsWith('/officer-home') ||
           url.pathname.startsWith('/waiting-for-shift') ||
           url.pathname.startsWith('/field-officer'),
         { timeout: 15000 },
@@ -97,7 +100,7 @@ test.describe('Phase 1: Director Roster Gate', () => {
       const afterNav = page.url()
       console.log(`After direct /field-officer navigate: ${afterNav}`)
       // Either back to standby (guard active) or field-officer (guard off — roster found)
-      const valid = afterNav.includes('/waiting-for-shift') || afterNav.includes('/field-officer')
+      const valid = afterNav.includes('/officer-home') || afterNav.includes('/waiting-for-shift') || afterNav.includes('/field-officer')
       expect(valid).toBe(true)
     } else {
       // Officer is rostered — verify portal is reachable

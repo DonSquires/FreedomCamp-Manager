@@ -450,7 +450,7 @@ The platform automatically locks your session after a period of inactivity. You 
 
 If you log in and **do not have an active roster shift** for today:
 
-1. You are automatically redirected to the **Welfare Standby Screen** (`/waiting-for-shift`)
+1. You are automatically redirected to the **Welfare Standby Screen** (`/officer-home` — the legacy `/waiting-for-shift` path redirects here automatically)
 2. The screen displays:
    - Your name, organisation, and photo
    - A **waiting status** message: "You are not currently assigned to a shift"
