@@ -3224,7 +3224,7 @@ export default function PTTRadio() {
                   </div>
                   <Switch
                     checked={translationRailEnabled}
-                    onCheckedChange={setTranslationRailEnabled}
+                    onCheckedChange={(checked) => setTranslationRailEnabled(checked)}
                     disabled={!providerOrgId}
                     aria-label="Universal translator toggle"
                     className="data-[state=checked]:bg-blue-600"
@@ -3396,7 +3396,7 @@ export default function PTTRadio() {
             </Badge>
             <Switch
               checked={translationRailEnabled}
-              onCheckedChange={setTranslationRailEnabled}
+              onCheckedChange={(checked) => setTranslationRailEnabled(checked)}
               disabled={!providerOrgId}
               aria-label="Universal translator toggle"
             />
@@ -3719,11 +3719,11 @@ export default function PTTRadio() {
               <div className="mt-1 space-y-2 rounded-md border border-slate-800 bg-slate-950/60 p-2">
                 <div className="flex items-center justify-between gap-3">
                   <div className="text-xs text-slate-300">Wake word ("Hey Bob")</div>
-                  <Switch data-testid="wake-word-switch" checked={wakeWordEnabled} onCheckedChange={setWakeWordEnabled} />
+                  <Switch data-testid="wake-word-switch" checked={wakeWordEnabled} onCheckedChange={(checked) => setWakeWordEnabled(checked)} />
                 </div>
                 <div className="flex items-center justify-between gap-3">
                   <div className="text-xs text-slate-300">Audio ducking (coworker stream to 20%)</div>
-                  <Switch data-testid="audio-ducking-switch" checked={duckingEnabled} onCheckedChange={setDuckingEnabled} />
+                  <Switch data-testid="audio-ducking-switch" checked={duckingEnabled} onCheckedChange={(checked) => setDuckingEnabled(checked)} />
                 </div>
                 <div className="text-[11px] text-slate-400" data-testid="audio-ducking-status">
                   {bobIntercomSpeaking && duckingEnabled ? 'Bob speaking: coworker channel ducked to 20%' : 'Coworker channel at normal volume'}

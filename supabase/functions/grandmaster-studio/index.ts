@@ -239,6 +239,34 @@ function parseFloatValue(input: string | null | undefined): number | null {
   return Number.isFinite(n) ? n : null
 }
 
+function normalizeIntelType(input: unknown): 'law' | 'security' | 'jurisdiction' | 'system' | 'other' {
+  const value = String(input ?? '').trim().toLowerCase()
+  if (value === 'law' || value === 'security' || value === 'jurisdiction' || value === 'system') return value
+  return 'other'
+}
+
+function resolveIntelOrganizationId(body: any, profile: any): string | null {
+  const fromBody = String(body?.organization_id ?? body?.org_id ?? '').trim()
+  if (fromBody) return fromBody
+  const fromProfile = String(profile?.organization_id ?? '').trim()
+  return fromProfile || null
+}
+
+function parsePublishedAt(input: unknown): string | null {
+  const value = String(input ?? '').trim()
+  if (!value) return null
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return null
+  return parsed.toISOString()
+}
+
+function sanitizeSourceUrl(input: unknown): string | null {
+  const value = String(input ?? '').trim()
+  if (!value) return null
+  if (!/^https?:\/\//i.test(value)) return null
+  return value.slice(0, 2000)
+}
+
 function getRunpodEndpointContext() {
   const endpointId = (Deno.env.get('RUNPOD_ENDPOINT_ID') || '').trim()
   const endpointLabel = (Deno.env.get('RUNPOD_ENDPOINT_LABEL') || endpointId || 'Configured endpoint').trim()
@@ -290,7 +318,7 @@ Deno.serve(async (req: Request) => {
     }
 
     const { data: profile } = await (supabaseAdmin.from('user_profiles') as any)
-      .select('role, first_name, last_name')
+      .select('role, first_name, last_name, organization_id')
       .eq('id', user.id)
       .maybeSingle()
 
@@ -572,28 +600,71 @@ Deno.serve(async (req: Request) => {
     }
 
     if (action === 'intel_bulletin_submit') {
-      if (isRunpodServerlessBaseUrl(inferenceUrl)) {
-        return new Response(
-          JSON.stringify({
-            error: 'Intel ingest route not available on runsync-only RunPod endpoint',
-            inferenceUrl,
-            requiredRoute: '/intel/ingest-bulletin',
-            guidance: 'Set INFERENCE_SERVICE_URL to a Bob host/gateway that exposes /intel/* routes, or configure INTEL_INGEST_URL in feeder workflows.',
-          }),
-          { status: 409, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } },
-        )
-      }
-
       const { title, summary, type, source, metadata } = body
       if (!title || typeof title !== 'string') return json400('title is required', req)
       if (!summary || typeof summary !== 'string') return json400('summary is required', req)
 
+      const intelType = normalizeIntelType(type)
+      const sourceName = String(source || 'grandmaster-studio-copilot').trim().slice(0, 120)
+      const metadataObject = metadata && typeof metadata === 'object' ? metadata : {}
+
+      if (isRunpodServerlessBaseUrl(inferenceUrl)) {
+        const organizationId = resolveIntelOrganizationId(body, profile)
+        if (!organizationId) {
+          return json400('organization_id is required for Supabase intel fallback', req)
+        }
+
+        const row = {
+          organization_id: organizationId,
+          type: intelType,
+          title: title.trim(),
+          summary: summary.trim(),
+          source_url: sanitizeSourceUrl(body?.source_url ?? metadataObject?.source_url ?? null),
+          published_at: parsePublishedAt(body?.published_at ?? metadataObject?.published_at ?? null),
+          metadata: {
+            ...(metadataObject as Record<string, unknown>),
+            source: sourceName,
+            ingest_mode: 'grandmaster-runsync-supabase-fallback',
+            inference_url: inferenceUrl,
+            submitted_by: String(user.id),
+            submitted_at: new Date().toISOString(),
+          },
+        }
+
+        const { data: inserted, error: insertError } = await (supabaseAdmin
+          .from('external_intel_bulletins') as any)
+          .insert(row)
+          .select('id, organization_id, type, title, created_at')
+          .single()
+
+        if (insertError) {
+          return new Response(
+            JSON.stringify({
+              error: 'Failed to persist intel bulletin to Supabase fallback store',
+              detail: insertError.message,
+            }),
+            { status: 502, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } },
+          )
+        }
+
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            mode: 'supabase-fallback',
+            persisted: true,
+            guidance: 'Runsync-only endpoint detected. Bulletin stored in external_intel_bulletins for durable memory.',
+            bulletin: inserted,
+          }),
+          { status: 201, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } },
+        )
+      }
+
       const bulletin = {
         title: title.trim(),
         summary: summary.trim(),
-        type: type || 'operational',
-        source: source || 'grandmaster-studio-copilot',
-        metadata: metadata && typeof metadata === 'object' ? metadata : {},
+        type: intelType,
+        source: sourceName,
+        metadata: metadataObject,
       }
 
       const rawBody = JSON.stringify({ bulletin })
@@ -624,14 +695,54 @@ Deno.serve(async (req: Request) => {
 
     if (action === 'intel_state') {
       if (isRunpodServerlessBaseUrl(inferenceUrl)) {
+        const organizationId = resolveIntelOrganizationId(body, profile)
+        const requestedLimit = Number(body?.limit)
+        const limit = Number.isFinite(requestedLimit)
+          ? Math.max(1, Math.min(200, Math.floor(requestedLimit)))
+          : 25
+
+        let query = (supabaseAdmin
+          .from('external_intel_bulletins') as any)
+          .select('id, organization_id, type, title, source_url, published_at, metadata, created_at')
+          .order('created_at', { ascending: false })
+          .limit(limit)
+
+        if (organizationId) {
+          query = query.eq('organization_id', organizationId)
+        }
+
+        const { data: rows, error: queryError } = await query
+        if (queryError) {
+          return new Response(
+            JSON.stringify({
+              error: 'Failed to load Supabase fallback intel state',
+              detail: queryError.message,
+            }),
+            { status: 502, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } },
+          )
+        }
+
+        const safeRows = Array.isArray(rows) ? rows : []
+        const byType = safeRows.reduce((acc: Record<string, number>, row: any) => {
+          const key = normalizeIntelType(row?.type)
+          acc[key] = (acc[key] || 0) + 1
+          return acc
+        }, {})
+
         return new Response(
           JSON.stringify({
-            error: 'Intel state route not available on runsync-only RunPod endpoint',
+            ok: true,
+            mode: 'supabase-fallback',
+            persisted: true,
             inferenceUrl,
-            requiredRoute: '/intel/state',
-            guidance: 'Set INFERENCE_SERVICE_URL to a Bob host/gateway that exposes /intel/* routes, or use runsync chat fallback for non-durable context.',
+            organization_id: organizationId,
+            recent_count: safeRows.length,
+            by_type: byType,
+            latest_created_at: safeRows[0]?.created_at ?? null,
+            records: safeRows,
+            guidance: 'Runsync-only endpoint detected. Returning durable state from external_intel_bulletins.',
           }),
-          { status: 409, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } },
+          { status: 200, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } },
         )
       }
 

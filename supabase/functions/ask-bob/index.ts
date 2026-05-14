@@ -8,6 +8,7 @@ type AskBobRequest = {
   lat?: number
   lng?: number
   organization_id?: string | null
+  conversation_id?: string | null
 }
 
 type BobVideoActionResult = {
@@ -181,6 +182,42 @@ async function findLatestPendingVideoProposalId(
   return data?.id ? String(data.id) : null
 }
 
+async function resolveConversationId(
+  supabaseAdmin: ReturnType<typeof createClient>,
+  params: {
+    userId: string
+    organizationId: string
+    requestedConversationId?: string | null
+  },
+): Promise<string | null> {
+  const requestedConversationId = String(params.requestedConversationId || '').trim()
+
+  if (requestedConversationId) {
+    const { data: requestedConversation } = await (supabaseAdmin.from('bob_conversations') as any)
+      .select('conversation_id')
+      .eq('conversation_id', requestedConversationId)
+      .eq('user_id', params.userId)
+      .eq('organization_id', params.organizationId)
+      .eq('is_archived', false)
+      .maybeSingle()
+
+    if (requestedConversation?.conversation_id) {
+      return String(requestedConversation.conversation_id)
+    }
+  }
+
+  const { data: latestConversation } = await (supabaseAdmin.from('bob_conversations') as any)
+    .select('conversation_id')
+    .eq('user_id', params.userId)
+    .eq('organization_id', params.organizationId)
+    .eq('is_archived', false)
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  return latestConversation?.conversation_id ? String(latestConversation.conversation_id) : null
+}
+
 function buildSystemPrompt(context: Record<string, unknown> | null): string {
   if (!context) {
     return [
@@ -284,6 +321,12 @@ Deno.serve(withCors(async (req: Request) => {
 
   const lat = typeof body.lat === 'number' ? body.lat : null
   const lng = typeof body.lng === 'number' ? body.lng : null
+
+  const conversationId = await resolveConversationId(supabaseAdmin, {
+    userId: authResult.user.id,
+    organizationId: resolvedOrgId,
+    requestedConversationId: body.conversation_id,
+  })
 
   let context: Record<string, unknown> | null = null
   if (resolvedOrgId && lat !== null && lng !== null) {
@@ -431,6 +474,8 @@ Deno.serve(withCors(async (req: Request) => {
       provider: 'inference',
       model: 'qwen2.5:7b',
       temperature: 0.2,
+      conversation_id: conversationId,
+      organization_id: resolvedOrgId,
       context: {
         execution_policy_contract: 'v1',
         source: 'ask-bob',
@@ -455,6 +500,7 @@ Deno.serve(withCors(async (req: Request) => {
 
   return jsonResponse({
     answer,
+    conversation_id: String(inferencePayload.conversation_id || conversationId || ''),
     jurisdiction: String(context?.workspace_name || 'General'),
     is_client_owned: Boolean(context),
     model: String(inferencePayload.model || 'qwen2.5:7b'),
