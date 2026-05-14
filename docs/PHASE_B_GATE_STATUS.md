@@ -20,6 +20,17 @@
   - `FF_PHASE_B_ENFORCEMENT_TIMELINE`
   - `FF_PHASE_B_PATROL_EVENTS`
 
+## Phase B Module Migration Execution Evidence (2026-05-14)
+
+- New validator added: `scripts/validate-phase-b-module-migration.mjs`
+- Validation command:
+  - `node scripts/validate-phase-b-module-migration.mjs`
+- Result:
+  - PASS: required B1-B4 migrations, hooks, CI workflows, E2E specs, and canary scripts are present
+  - PASS: route-level integrations confirmed for B1/B2/B4 flags and event hooks
+
+This validator is now the deterministic local check to move `Execute Phase B module migration` from planning into executed repository state.
+
 ## Star Trek Takeover Validation (2026-05-12)
 
 | Command | Result | Notes |
