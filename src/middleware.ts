@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { useRosteredShift } from '@/hooks/useRosteredShift'
 
-export const WAITING_FOR_SHIFT_PATH = '/waiting-for-shift'
+export const WAITING_FOR_SHIFT_PATH = '/officer-home'
 
 const DIRECTOR_OFFICER_ALLOWED_PATH_PREFIXES = [
   '/field-officer',

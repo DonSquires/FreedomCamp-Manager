@@ -211,7 +211,6 @@ const BobUIReview = lazy(() => import('@/pages/BobUIReview'))
 const OpsLivePlanReviewQueue = lazy(() => import('@/pages/OpsLivePlanReviewQueue'))
   const BobStudio = lazy(() => import('@/pages/BobStudio'))
 const OfficerHomePage = lazy(() => import('@/pages/OfficerHomePage'))
-const WaitingForShiftPage = lazy(() => import('@/pages/WaitingForShiftPage'))
 const TenderWorkspace = lazy(() => import('@/pages/TenderWorkspace'))
 const TenderWorkspaceDetail = lazy(() => import('@/pages/TenderWorkspaceDetail'))
 const TenderReferenceLibrary = lazy(() => import('@/pages/TenderReferenceLibrary'))
@@ -618,10 +617,6 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     return <Navigate to={WAITING_FOR_SHIFT_PATH} replace />
   }
 
-  if (directorGate.shouldReleaseFromWaiting && location.pathname === WAITING_FOR_SHIFT_PATH) {
-    return <Navigate to="/field-officer" replace />
-  }
-
   if (user.role === 'officer' && !isDirectorOfficerPathAllowed(location.pathname, {
     noiseEnabled: siteToolPermissions.noise,
     siteGuardEnabled: siteToolPermissions.siteGuard,
@@ -819,19 +814,19 @@ export default function App() {
             }
           />
 
-          {/* Waiting gate for rostered access */}
+          {/* Legacy waiting route — redirect to officer roster landing */}
           <Route
             path="/waiting-for-shift"
             element={
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['officer', 'admin_officer']}>
-                  <WaitingForShiftPage />
+                  <Navigate to="/officer-home" replace />
                 </RoleRoute>
               </ProtectedRoute>
             }
           />
 
-          {/* Legacy officer home (kept for backward compatibility) */}
+          {/* Officer roster landing */}
           <Route
             path="/officer-home"
             element={
@@ -877,7 +872,7 @@ export default function App() {
             element={
               <ProtectedRoute>
                 {user?.role === 'officer' ? (
-                  <Navigate to="/waiting-for-shift" replace />
+                  <Navigate to={WAITING_FOR_SHIFT_PATH} replace />
                 ) : user?.role === 'admin_officer' ? (
                   <Navigate to="/portal-selection" replace />
                 ) : user?.role === 'nzscv_monitor' ? (
