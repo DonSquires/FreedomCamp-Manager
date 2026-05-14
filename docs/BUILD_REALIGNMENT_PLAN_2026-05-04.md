@@ -810,7 +810,7 @@ Every realignment phase must ship behind explicit rollout controls.
 
 ## 12.1a Feature Flag Implementation
 
-**Flag Storage**: Supabase `feature_flags` table with columns: `id UUID`, `organization_id`, `flag_name VARCHAR (unique)`, `enabled BOOLEAN`, `owner_role`, `created_at`, `rollback_reason VARCHAR (nullable)`
+**Flag Storage**: Supabase `feature_flags` table with columns: `id UUID`, `name VARCHAR (unique)`, `phase`, `enabled BOOLEAN`, `rollout_percentage`, `rollout_strategy`, `allowed_org_ids`, `created_at`, `updated_at`.
 
 **Rollout Pattern** (example FF_PHASE_B_PATROL):
 - Canary (Weeks 1–2): 5% (1 test org), error rate < 1%, latency p95 < 500ms

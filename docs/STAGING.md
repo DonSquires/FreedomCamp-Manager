@@ -201,6 +201,8 @@ Latest Session Snapshot (Phase A Canary Readiness Refresh — Acceptance Gates R
   | `node scripts/validate-bootstrap-routes.mjs` | PASS | 4/4 bootstrap checks passed |
   | `set -a && . ./.env.playwright.local && set +a && bunx vitest run tests/integration/org-isolation.test.ts` | PASS | 6/6 tests passed; all 5 org-isolation scenarios verified |
   | `gh run list --limit 10` | PASS | CI run visibility confirmed; one unrelated failing workflow (`triage-bug-reports`) observed |
+  | `curl ${VITE_SUPABASE_URL}/rest/v1/feature_flags?select=*&limit=1` | PASS | Live schema confirmed (`name` column is canonical; `flag_name` is not present) |
+  | `curl ${VITE_SUPABASE_URL}/rest/v1/feature_flags?select=id,name,enabled,rollout_percentage&name=like.FF_PHASE_B_%25` | PASS | 5 Phase-B flags present (`FF_PHASE_B_*`) |
   | `bash scripts/rollback-feature-flag.sh --help` | PASS | usage/help path now exits cleanly without rollback execution |
 
 - Open blockers with owner:
