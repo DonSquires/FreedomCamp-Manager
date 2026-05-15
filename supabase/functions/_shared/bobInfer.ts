@@ -226,6 +226,7 @@ export async function bobChat(options: BobChatOptions): Promise<BobChatResult> {
             body: JSON.stringify({
               message: options.message,
               history: options.history ?? [],
+              system_prompt: options.systemPrompt,
               model: options.model,
               temperature: options.temperature ?? 0.7,
               context: options.context,

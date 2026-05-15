@@ -180,16 +180,10 @@ verify_jwt = false
 # validates caller identity internally using supabaseAdmin.auth.getUser(token)
 # or service-role auth before executing any privileged operation.
 
-[functions.admin-incident-ops]
-verify_jwt = false
-
 [functions.alpr-retry]
 verify_jwt = false
 
 [functions.analyze-vehicle-photo]
-verify_jwt = false
-
-[functions.bob-learning-feedback-sync]
 verify_jwt = false
 
 [functions.check-almost-breaches]
@@ -220,9 +214,6 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.generate-dashboard-report]
-verify_jwt = false
-
-[functions.generate-incident-pdf]
 verify_jwt = false
 
 [functions.generate-leadership-pack]

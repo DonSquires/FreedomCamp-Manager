@@ -6,6 +6,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3';
 import { withCors, getCorsHeaders } from '../_shared/withCors.ts';
 import { bobChat } from '../_shared/bobInfer.ts';
+import { buildBobContext } from '../_shared/bobContext.ts';
 
 Deno.serve(withCors(async (req) => {
   const corsHeaders = getCorsHeaders(req);
@@ -55,6 +56,14 @@ Deno.serve(withCors(async (req) => {
     // In production, you might use pdf2image converter
     
     // Step 2: Call Bob/Ollama via RunPod for document extraction
+
+    const { data: profile } = await supabase
+      .from('user_profiles')
+      .select('organization_id')
+      .eq('id', userId)
+      .maybeSingle();
+
+    const organizationId = (profile as any)?.organization_id ?? null;
 
     // Build extraction prompt based on document type
     const extractionPrompt = documentType === 'coa' 
@@ -238,7 +247,16 @@ If you cannot find a field, set it to null.`
     const bobResult = await bobChat({
       message: extractionPrompt,
       temperature: 0.1,
-      context: { image_url: imageUrl, document_type: documentType },
+      context: buildBobContext({
+        operation: 'process-credential-document',
+        source: 'credential-document-extraction',
+        userId,
+        organizationId,
+        context: {
+          image_url: imageUrl,
+          document_type: documentType,
+        },
+      }),
     });
     const extractedText = bobResult.response || '';
 

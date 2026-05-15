@@ -63,6 +63,7 @@ import { toast } from 'sonner'
 import { format } from 'date-fns'
 import { nzNow } from '@/lib/timezone'
 import { useSiteToolPermissions } from '@/middleware'
+import { useBoundaryPolicyContext } from '@/hooks/useBoundaryPolicyContext'
 import { hasNotificationEnabled, sendLocalNotification } from '@/lib/pushNotifications'
 
 const SHIFT_REMINDER_MINUTES = [60, 30, 15] as const
@@ -152,6 +153,28 @@ export default function OfficerHomePage() {
   const [nowTick, setNowTick] = useState(() => Date.now())
 
   const rosterPortalPath = rosteredShift ? getOfficerPortalPath(rosteredShift) : null
+
+  // ── Phase C: live boundary context for active shift ──────────────────────
+  const [shiftGpsCoords, setShiftGpsCoords] = useState<{ lat: number; lng: number } | null>(null)
+
+  useEffect(() => {
+    if (!hasActiveShift || !navigator.geolocation) return
+    const watchId = navigator.geolocation.watchPosition(
+      (pos) => setShiftGpsCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      () => { /* GPS unavailable — boundary context will not render */ },
+      { enableHighAccuracy: false, maximumAge: 30_000, timeout: 10_000 },
+    )
+    return () => navigator.geolocation.clearWatch(watchId)
+  }, [hasActiveShift])
+
+  const { data: boundaryContext } = useBoundaryPolicyContext({
+    organizationId: operationalOrganizationId,
+    latitude: shiftGpsCoords?.lat ?? null,
+    longitude: shiftGpsCoords?.lng ?? null,
+    serviceType: rosteredShift?.service_type ?? null,
+    zoneId: rosteredShift?.zone_id ?? null,
+    enabled: hasActiveShift && !!shiftGpsCoords,
+  })
   const shiftStartMs = useMemo(() => {
     if (!rosteredShift?.start_time) return null
     const parsed = Date.parse(rosteredShift.start_time)
@@ -428,6 +451,13 @@ export default function OfficerHomePage() {
               <p className="text-xs text-green-600 mt-0.5 dark:text-green-300">
                 Move into your assigned zone to unlock the full portal.
               </p>
+              {boundaryContext && (
+                <p className="text-xs text-green-700 mt-1 dark:text-green-400" data-testid="boundary-status">
+                  {boundaryContext.inside_boundary
+                    ? `Inside boundary${boundaryContext.zone?.name ? ` · ${boundaryContext.zone.name}` : ''}`
+                    : 'Outside boundary — move to assigned zone'}
+                </p>
+              )}
               <Button
                 size="sm"
                 variant="outline"

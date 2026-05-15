@@ -18,6 +18,7 @@
 import { bobTranslate, bobChat } from '../_shared/bobInfer.ts'
 import { withCors, jsonResponse, errorResponse } from '../_shared/withCors.ts'
 import { requireAuth } from '../_shared/requireAuth.ts'
+import { buildBobContext } from '../_shared/bobContext.ts'
 
 Deno.serve(withCors(async (req: Request) => {
   const authResult = await requireAuth(req)
@@ -86,6 +87,20 @@ Deno.serve(withCors(async (req: Request) => {
         message: prompt,
         temperature: 0,
         timeoutMs: 30_000,
+        context: buildBobContext({
+          operation: 'translate-message',
+          source: 'chat-translation-fallback',
+          userId: authResult.user.id,
+          organizationId:
+            (authResult.user as any)?.user_metadata?.organization_id ||
+            (authResult.user as any)?.app_metadata?.organization_id ||
+            null,
+          context: {
+            target_language,
+            source_language: source_language ?? null,
+            text_length: text.length,
+          },
+        }),
       })
 
       const translated = String(chat.response ?? '').trim()

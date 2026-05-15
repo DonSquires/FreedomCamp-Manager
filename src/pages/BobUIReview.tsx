@@ -129,7 +129,7 @@ export default function BobUIReview() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(INFERENCE_KEY ? { 'x-api-key': INFERENCE_KEY } : {}),
+          ...(INFERENCE_KEY ? { 'x-inference-api-key': INFERENCE_KEY } : {}),
         },
         body: JSON.stringify({ code: codeInput }),
       })

@@ -51,6 +51,20 @@ Deno.serve(async (req: Request) => {
       throw new Error('Unauthorized');
     }
 
+    let organizationId: string | null =
+      (user as any)?.user_metadata?.organization_id ||
+      (user as any)?.app_metadata?.organization_id ||
+      null;
+
+    if (!organizationId) {
+      const { data: profile } = await supabase
+        .from('user_profiles')
+        .select('organization_id')
+        .eq('id', user.id)
+        .maybeSingle();
+      organizationId = (profile as any)?.organization_id || null;
+    }
+
     const { fileUrl, fileName, fileType }: DocumentProcessRequest = await req.json();
 
     if (!fileUrl || !fileName || !fileType) {
@@ -129,6 +143,12 @@ Return ONLY a valid JSON object with these exact field names. Use null for missi
       message: aiMessageContent,
       systemPrompt,
       temperature: 0.1,
+      context: {
+        organization_id: organizationId,
+        user_id: user.id,
+        file_name: fileName,
+        file_type: fileType,
+      },
     });
 
     const extractedText = bobResult.response || '';

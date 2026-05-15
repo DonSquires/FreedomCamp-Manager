@@ -222,7 +222,11 @@ function buildHeuristicAssessment(doc: any, text: string, reason: string): Asses
 // ---------------------------------------------------------------------------
 // Call Bob inference service
 // ---------------------------------------------------------------------------
-async function callBobChat(systemPrompt: string, userMessage: string): Promise<string> {
+async function callBobChat(
+  systemPrompt: string,
+  userMessage: string,
+  context?: Record<string, unknown>,
+): Promise<string> {
   if (!INFERENCE_SERVICE_URL) throw new Error('INFERENCE_SERVICE_URL not configured')
 
   try {
@@ -230,6 +234,7 @@ async function callBobChat(systemPrompt: string, userMessage: string): Promise<s
       message: userMessage,
       systemPrompt,
       temperature: 0.2,
+      context,
       timeoutMs: BOB_CHAT_TIMEOUT_MS,
     })
     return result.response
@@ -420,7 +425,12 @@ Do not include any text outside the JSON object.`
 
     let rawResponse: string
     try {
-      rawResponse = await callBobChat(systemPrompt, userMessage)
+      rawResponse = await callBobChat(systemPrompt, userMessage, {
+        organization_id: doc.organization_id || null,
+        document_id,
+        issuing_body: doc.issuing_body || null,
+        reference_number: doc.reference_number || null,
+      })
     } catch (inferenceErr: any) {
       console.error('Inference service error during background analysis:', inferenceErr)
       await (supabase as any).from('tender_documents')

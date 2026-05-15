@@ -7,6 +7,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3';
 import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/withCors.ts';
 import { bobChat } from '../_shared/bobInfer.ts';
+import { buildBobContext } from '../_shared/bobContext.ts';
 
 const MIN_WEIGHTED_SCORE = Number(Deno.env.get('MIN_PROFILE_PHOTO_SCORE') ?? '70');
 const MIN_CLARITY_SCORE = Number(Deno.env.get('MIN_PROFILE_PHOTO_CLARITY') ?? '60');
@@ -237,7 +238,16 @@ Return strict JSON:
         const bobResult = await bobChat({
           message: analysisPrompt,
           temperature: 0.1,
-          context: { image_url: url, action: 'analyze_image' },
+          context: buildBobContext({
+            operation: 'select-best-vehicle-photo',
+            source: 'vehicle-photo-selection',
+            context: {
+              image_url: url,
+              action: 'analyze_image',
+              plate_number: plateNumber,
+              total_candidate_photos: photoUrls.length,
+            },
+          }),
         });
 
         const content = bobResult.response || '';

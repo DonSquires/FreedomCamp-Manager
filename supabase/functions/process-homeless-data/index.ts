@@ -1,6 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3';
 import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/withCors.ts';
 import { bobChat } from '../_shared/bobInfer.ts';
+import { buildBobContext } from '../_shared/bobContext.ts';
 
 interface HomelessRecord {
   last_known_site: string;
@@ -78,6 +79,14 @@ Extract and include the EXACT text describing the behavior in "safety_descriptio
       message: `Parse this table data:\n\n${JSON.stringify(tableData, null, 2)}`,
       systemPrompt: systemContent,
       temperature: 0.1,
+      context: buildBobContext({
+        operation: 'process-homeless-data',
+        source: 'homeless_status_import',
+        context: {
+          input_record_count: tableData.length,
+          safety_concern_detection: true,
+        },
+      }),
     });
 
     const aiContent = bobResult.response;

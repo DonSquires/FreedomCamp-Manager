@@ -123,12 +123,27 @@ export async function runBobAgentLoop(params: {
     throw new Error('VITE_INFERENCE_SERVICE_URL not configured')
   }
 
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  }
+
+  try {
+    const { data } = await supabase.auth.getSession()
+    const accessToken = data?.session?.access_token
+    if (accessToken) {
+      headers.Authorization = `Bearer ${accessToken}`
+    } else if (INFERENCE_API_KEY) {
+      headers['x-inference-api-key'] = INFERENCE_API_KEY
+    }
+  } catch {
+    if (INFERENCE_API_KEY) {
+      headers['x-inference-api-key'] = INFERENCE_API_KEY
+    }
+  }
+
   const response = await fetch(`${INFERENCE_SERVICE_URL}/bob/agent-loop`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(INFERENCE_API_KEY ? { 'x-api-key': INFERENCE_API_KEY } : {}),
-    },
+    headers,
     body: JSON.stringify(params),
   })
 

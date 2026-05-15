@@ -59,8 +59,8 @@ Each phase required: a checkpoint E2E spec, a STAGING evidence entry, and an INS
 
 | Phase | Spec file | Hardened standard | Deferred browser validation |
 |---|---|---|---|
-| 1 — Director | `phase1-director-roster-gate.spec.ts` | ✓ | Required (Alpine/Chromium constraint) |
-| 2 — Universal Translator | `phase2-universal-translator.spec.ts` | ✓ | Required (Alpine/Chromium constraint) |
+| 1 — Director | `phase1-director-roster-gate.spec.ts` | ✓ | PASS 5/5 confirmed — native Chromium 2026-05-15 |
+| 2 — Universal Translator | `phase2-universal-translator.spec.ts` | ✓ | PASS 5/5 confirmed — native Chromium 2026-05-15 |
 | 3 — Sentient XO | `phase3-sentient-xo.spec.ts` | ✓ | PASS 5/5 confirmed in browser environment |
 | 4 — Admiral's Bridge | `phase4-admirals-bridge.spec.ts` | ✓ | PASS 5/5 confirmed in browser environment |
 
@@ -72,4 +72,4 @@ Each phase required: a checkpoint E2E spec, a STAGING evidence entry, and an INS
 2. PTTRadio interpreter panel UI changes must preserve the five data-testids used by Phase 2 spec.
 3. BobAssistantStudio changes must preserve `/bob-assistant` route, Bob input textarea, `rounded-2xl` bubble class, and `#bob-danger-auto-assist` toggle ID.
 4. Any officer-role access or welfare-standby change must be reflected in `docs/INSTRUCTION_MANUAL.md` section 2.3a before deployment.
-5. The canonical deferred retest command for Phase 1+2 browser validation is: `bash scripts/playwright-bob-runtime.sh bunx playwright test tests/e2e/phase1-director-roster-gate.spec.ts tests/e2e/phase2-universal-translator.spec.ts --project=chromium --workers=1 --reporter=line`.
+5. All four phases confirmed passing with native Chromium on 2026-05-15. Canonical full-suite retest command: `bash scripts/playwright-bob-runtime.sh bunx playwright test tests/e2e/phase1-director-roster-gate.spec.ts tests/e2e/phase2-universal-translator.spec.ts tests/e2e/phase3-sentient-xo.spec.ts tests/e2e/phase4-admirals-bridge.spec.ts --project=chromium --workers=1 --reporter=line`.

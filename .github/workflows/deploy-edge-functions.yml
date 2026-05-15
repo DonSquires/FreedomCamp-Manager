@@ -43,14 +43,13 @@ env:
   # Space-separated list of functions that do NOT require a JWT (public-facing).
   # These are deployed with --no-verify-jwt and expected to return non-5xx without auth.
   PUBLIC_FUNCTIONS: >-
-    admin-incident-ops alpr-process analyze-vehicle-photo
+    alpr-process analyze-vehicle-photo
     auto-analyse-report
-    bob-learning-feedback-sync
     check-data-integrity check-nzscv-status
     check-services-health cleanup-and-recalculate
     create-user
     daily-photo-reconciler enrich-from-motorweb
-    generate-dashboard-report generate-incident-pdf generate-infringement
+    generate-dashboard-report generate-infringement
     generate-noise-notice generate-notice-to-vacate
     generate-seizure-receipt generate-warning-notice
     get-compliance-statistics hotspot-data import-data

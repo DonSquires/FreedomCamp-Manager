@@ -56,6 +56,70 @@ export type RunBobAgentLoopInput = {
   queryEmbedding?: number[];
 };
 
+type BobLedgerRow = {
+  session_id: string;
+  user_id: string;
+  record_type: 'short_term' | 'long_term' | 'transaction_step';
+  content: string;
+  status?: 'queued' | 'running' | 'success' | 'failed';
+  metadata?: Record<string, unknown>;
+  embedding?: number[] | null;
+  operator_id?: string;
+  organization_id?: string | null;
+};
+
+export function isMissingOrganizationIdError(error: { message?: string | null } | null | undefined) {
+  return String(error?.message || '').toLowerCase().includes('organization_id');
+}
+
+export async function fetchLedgerHistoryWithFallback(
+  supabase: { from: (table: string) => any },
+  params: { sessionId: string; userId: string; orgId?: string; limit?: number },
+) {
+  const limit = params.limit ?? 6;
+
+  const runQuery = async (includeOrganization: boolean) => {
+    let query = supabase
+      .from('bob_system_ledger')
+      .select('content')
+      .eq('session_id', params.sessionId)
+      .eq('user_id', params.userId)
+      .eq('record_type', 'short_term');
+
+    if (includeOrganization && params.orgId) {
+      query = query.eq('organization_id', params.orgId);
+    }
+
+    return query.order('created_at', { ascending: false }).limit(limit);
+  };
+
+  const primary = await runQuery(true);
+  if (!primary.error) return primary;
+  if (!params.orgId || !isMissingOrganizationIdError(primary.error)) return primary;
+  return runQuery(false);
+}
+
+export async function insertLedgerRowWithFallback(
+  supabase: { from: (table: string) => any },
+  row: BobLedgerRow,
+) {
+  const primary = await supabase.from('bob_system_ledger').insert(row);
+  if (!primary.error) return primary;
+  if (!row.organization_id || !isMissingOrganizationIdError(primary.error)) return primary;
+
+  const fallbackRow = { ...row };
+  delete fallbackRow.organization_id;
+  return supabase.from('bob_system_ledger').insert(fallbackRow);
+}
+
+export function buildShortTermHistory(rows: Array<{ content?: string | null }> | null | undefined) {
+  return (rows || [])
+    .map((row) => String(row?.content || '').trim())
+    .filter(Boolean)
+    .reverse()
+    .join('\n');
+}
+
 export function createBobEngine(envInput: Partial<BobEngineEnv> & Record<string, unknown>) {
   const env = resolveBobEngineEnv(envInput);
 
@@ -86,9 +150,10 @@ export function createBobEngine(envInput: Partial<BobEngineEnv> & Record<string,
     const row = {
       ...payload,
       operator_id: payload.operator_id || env.bobSystemUserId || payload.user_id,
+      organization_id: env.orgId || null,
     };
 
-    const { error } = await supabase.from('bob_system_ledger').insert(row);
+    const { error } = await insertLedgerRowWithFallback(supabase, row);
     if (error) throw new Error(`Failed to persist ledger event: ${error.message}`);
   };
 
@@ -98,14 +163,12 @@ export function createBobEngine(envInput: Partial<BobEngineEnv> & Record<string,
       : new Array(1536).fill(0);
 
     const [historyRes, contextRes] = await Promise.all([
-      supabase
-        .from('bob_system_ledger')
-        .select('content')
-        .eq('session_id', input.sessionId)
-        .eq('user_id', input.userId)
-        .eq('record_type', 'short_term')
-        .order('created_at', { ascending: false })
-        .limit(6),
+      fetchLedgerHistoryWithFallback(supabase, {
+        sessionId: input.sessionId,
+        userId: input.userId,
+        orgId: env.orgId,
+        limit: 6,
+      }),
       supabase.rpc('match_bob_memories', {
         query_embedding: embedding,
         match_threshold: 0.7,
@@ -117,7 +180,7 @@ export function createBobEngine(envInput: Partial<BobEngineEnv> & Record<string,
     if (historyRes.error) throw new Error(`History lookup failed: ${historyRes.error.message}`);
     if (contextRes.error) throw new Error(`Context lookup failed: ${contextRes.error.message}`);
 
-    const shortTerm = (historyRes.data || []).map((row: { content: string }) => row.content).join('\n');
+    const shortTerm = buildShortTermHistory(historyRes.data || []);
     const longTerm = (contextRes.data || []).map((row: { content: string }) => row.content).join('\n');
 
     return streamText({

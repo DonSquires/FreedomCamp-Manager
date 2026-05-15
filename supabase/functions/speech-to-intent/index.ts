@@ -22,6 +22,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3'
 import { withCors, jsonResponse, errorResponse } from '../_shared/withCors.ts'
 import { requireAuth } from '../_shared/requireAuth.ts'
 import { bobChat } from '../_shared/bobInfer.ts'
+import { buildBobContext } from '../_shared/bobContext.ts'
 
 const SPEECH_ROUTER_URL = (Deno.env.get('SPEECH_ROUTER_URL') ?? '').trim().replace(/\/+$/, '')
 const SPEECH_ROUTER_FALLBACK_URL = (Deno.env.get('SPEECH_ROUTER_FALLBACK_URL') ?? '').trim().replace(/\/+$/, '')
@@ -203,7 +204,21 @@ Deno.serve(withCors(async (req: Request) => {
               `Transcript: ${transcript}`,
             ].join('\n')
 
-            const intentReply = await bobChat({ message: intentPrompt, temperature: 0, timeoutMs: 25_000 })
+            const intentReply = await bobChat({
+              message: intentPrompt,
+              temperature: 0,
+              timeoutMs: 25_000,
+              context: buildBobContext({
+                operation: 'speech-to-intent',
+                source: 'backup-stt-intent-classification',
+                userId,
+                organizationId: orgId,
+                context: {
+                  transcript_length: transcript.length,
+                  language: typeof body.language === 'string' ? body.language : 'en',
+                },
+              }),
+            })
             const parsed = parseJsonObject(intentReply.response) ?? {}
 
             const backupResponse = {

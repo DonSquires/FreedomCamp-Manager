@@ -1,6 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3';
 import { withCors, getCorsHeaders } from '../_shared/withCors.ts';
 import { bobChat } from '../_shared/bobInfer.ts';
+import { buildBobContext } from '../_shared/bobContext.ts';
 
 interface ImportRequest {
   fileName: string;
@@ -45,6 +46,12 @@ Deno.serve(withCors(async (req) => {
     }
 
     const { fileContent, fileName, isImage, recordDate, organizationId }: ImportRequest = await req.json();
+
+    const resolvedOrgId =
+      organizationId ||
+      (user as any)?.user_metadata?.organization_id ||
+      (user as any)?.app_metadata?.organization_id ||
+      null;
 
     if (!fileContent || !fileName) {
       return new Response(JSON.stringify({ error: 'Missing required fields: fileContent, fileName' }), {
@@ -95,6 +102,17 @@ ${fileContent}`;
     const bobResult = await bobChat({
       message: aiPrompt,
       temperature: 0.1,
+      context: buildBobContext({
+        operation: 'import-data',
+        source: 'data-import-extraction',
+        userId: user.id,
+        organizationId: resolvedOrgId,
+        context: {
+          file_name: fileName,
+          is_image: Boolean(isImage),
+          record_date: recordDate || null,
+        },
+      }),
     });
 
     const extractedData = JSON.parse(

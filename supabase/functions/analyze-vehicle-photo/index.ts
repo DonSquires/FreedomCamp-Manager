@@ -20,6 +20,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3';
 import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/withCors.ts';
 import { bobChat } from '../_shared/bobInfer.ts';
+import { buildBobContext } from '../_shared/bobContext.ts';
 
 interface AIAnalysisResult {
   make: string | null;
@@ -112,7 +113,16 @@ Respond ONLY with valid JSON (no markdown, no explanations):
       const bobResult = await bobChat({
         message: analysisPrompt,
         temperature: 0.1,
-        context: { image_url: photoUrl, action: 'analyze_image' },
+        context: buildBobContext({
+          operation: 'analyze-vehicle-photo',
+          source: 'vehicle-photo-analysis',
+          context: {
+            image_url: photoUrl,
+            action: 'analyze_image',
+            plate_number: plateNumber,
+            vehicle_id: vehicleId ?? null,
+          },
+        }),
       });
 
       const content = bobResult.response || '';

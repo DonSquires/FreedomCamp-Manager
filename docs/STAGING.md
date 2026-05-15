@@ -4,6 +4,53 @@ Date: 2026-05-15
 Owner: GitHub Copilot
 Status: Active staging checklist — Sprints 50-70 complete on main; Iron Eagle Visual Identity locked in docs (2026-05-14)
 
+## Latest Session Snapshot (Phase B Bob Context Standardization Sweep — 2026-05-15)
+
+- Timestamp (NZ): 2026-05-15
+- Current branch: main
+- Scope completed:
+  - Completed a remaining edge-function sweep for Bob call-sites and identified unstandardized metadata paths.
+  - Added shared helper `supabase/functions/_shared/bobContext.ts` to enforce a consistent Bob context payload shape (`operation`, `source`, `user_id`, `organization_id` + extras).
+  - Migrated these call-sites to shared context builder usage:
+    - `translate-message` fallback chat path
+    - `speech-to-intent` backup STT intent classification path
+    - `analyze-vehicle-photo`
+    - `select-best-vehicle-photo`
+    - `import-data`
+    - `process-credential-document`
+    - `process-homeless-data`
+  - Reduced context drift risk by moving ad-hoc literal context objects to centralized helper composition.
+
+- Validation evidence:
+  | Command | Result | Notes |
+  |---|---|---|
+  | IDE diagnostics (`get_errors`) on updated files | PASS | No new errors in changed Bob context files (edge-file `Deno` ambient warning remains non-blocking in local TS tooling) |
+  | `bun run build` | PASS | TypeScript + Vite production build succeeded after helper rollout |
+
+- Realignment status impact:
+  - No regressions observed in build validation.
+  - Bob context metadata contract is now standardized across additional high-traffic Phase B edge pathways.
+
+## Latest Session Snapshot (Phase B Bob Context Threading Continuation — 2026-05-15)
+
+- Timestamp (NZ): 2026-05-15
+- Current branch: main
+- Scope completed:
+  - Validated and retained tenant metadata threading in `process-credential-document` Bob extraction calls.
+  - Added tenant/user/file operation metadata context to `import-data` Bob extraction calls.
+  - Added explicit operation metadata context to `process-homeless-data` Bob parsing calls where direct user/org identity is not consistently available.
+  - Continued Phase B drift reduction so shared Bob inference receives explicit execution context across additional edge function paths.
+
+- Validation evidence:
+  | Command | Result | Notes |
+  |---|---|---|
+  | IDE diagnostics (`get_errors`) on updated edge functions | PASS | No errors in process-credential-document/import-data/process-homeless-data |
+  | `bun run build` | PASS | TypeScript + Vite production build succeeded after context-threading updates |
+
+- Realignment status impact:
+  - No regressions observed from this hardening pass.
+  - Bob context contract consistency improved for credential import, generic data import, and homeless-data normalization workflows.
+
 ## Latest Session Snapshot (Phase B Observation Window Validation + Bootstrap Smoke Recheck — 2026-05-15)
 
 - Timestamp (NZ): 2026-05-15
@@ -15,6 +62,12 @@ Status: Active staging checklist — Sprints 50-70 complete on main; Iron Eagle 
   - Re-ran org-isolation integration suite; tests remain intentionally skip-gated in this local environment while CI remains the source of truth for pass/fail enforcement.
   - Added a focused Bob ledger fallback test covering schema drift on `organization_id` and operator attribution for Phase B agent-loop writes.
   - Extracted the Bob multi-tenant guard into a shared module, added direct guard tests, and tightened the Radio Comms event log row rendering keying for a small B3 follow-through polish pass.
+  - Added a render test for `RadioCommsEventLog` to confirm the shared timeline row and expansion flow still work after the keyed fragment fix.
+  - Fixed the frontend Bob agent-loop client to use `Authorization: Bearer <jwt>` when a Supabase session is present and `x-inference-api-key` only as fallback, matching the inference-service auth contract.
+  - Aligned `src/lib/bobEngine.ts` with the same Bob ledger org-scope fallback behavior used by the inference service so older ledger schemas continue to work during Phase B rollout drift.
+  - Fixed the Bob UI review page to use `x-inference-api-key` for direct inference-service UI analysis calls, removing another stale frontend header mismatch.
+  - Threaded tenant/document context into `process-tender-document` Bob calls so edge-side tender analysis carries organization and document identifiers into shared Bob inference.
+  - Threaded tenant/user/file context into `process-investigation-document` Bob calls so investigation document extraction runs with explicit org scope metadata.
 
 - Validation evidence:
   | Command | Result | Notes |
@@ -26,10 +79,48 @@ Status: Active staging checklist — Sprints 50-70 complete on main; Iron Eagle 
   | `bun test tests/integration/org-isolation.test.ts` | SKIP (6) | Local environment skip-gated; rely on CI gate evidence for org isolation status |
   | `node --test inference-service/test/bob-agent-ledger.test.js` | PASS | Bob ledger fallback + attribution coverage added |
   | `node --test inference-service/test/bob-tenant-guard.test.js` | PASS | Direct multi-tenant guard coverage added |
+  | `bunx vitest run src/pages/RadioCommsEventLog.test.tsx` | PASS | Radio comms log render + expansion flow verified |
+  | `bunx vitest run src/lib/inferenceService.test.ts` | PASS | Bob agent-loop client auth header contract verified |
+  | `bunx vitest run src/lib/bobEngine.test.ts` | PASS | Bob engine ledger history/insert fallback verified |
+  | `bun run build` | PASS | Re-validated after Bob UI inference header cleanup |
+  | `bun run build` | PASS | Re-validated after process-tender-document Bob context threading |
+  | `bun run build` | PASS | Re-validated after process-investigation-document Bob context threading |
 
 - Realignment status impact:
   - No regression detected in Phase A gate evidence during Phase B canary observation.
   - Remaining operational track stays unchanged: complete observation window and continue planned canary advancement decisions.
+
+---
+
+## Latest Session Snapshot (Star Trek Rollout Closure — All Phases COMPLETE — 2026-05-15)
+
+- Timestamp (NZ): 2026-05-15
+- Current branch: main
+- Scope completed:
+  - Removed stale archive function references (`admin-incident-ops`, `bob-learning-feedback-sync`, `generate-incident-pdf`) from `.github/workflows/deploy-edge-functions.yml` PUBLIC_FUNCTIONS allowlist and `supabase/config.toml`. No active callers confirmed in `src/`, `scripts/`, or CI workflows.
+  - Updated `docs/INSTRUCTION_MANUAL.md` Phase 4 checkpoint status from "VALIDATED — Unit tests passing; browser E2E deferred" to **"COMPLETE — Unit tests and browser E2E all passing (2026-05-15)"**.
+  - Updated Phase 4 evidence table in INSTRUCTION_MANUAL.md: all four rows now show ✅ Browser E2E column referencing `phase4-admirals-bridge.spec.ts`.
+  - Updated `docs/adr/014-star-trek-phased-rollout.md` E2E coverage table: Phase 1 and Phase 2 rows changed from "Required (Alpine/Chromium constraint)" to "PASS 5/5 confirmed — native Chromium 2026-05-15".
+  - Updated ADR 014 Consequence 5 from deferred retest note to confirmed full-suite command including all four phases.
+  - Updated `docs/STAR_TREK_PHASED_ROLLOUT_PLAN.md` status line from "browser E2E validation deferred for Phase 1+2" to "All four phases COMPLETE — browser E2E confirmed PASS 5/5 all phases (2026-05-15, native Chromium)".
+
+- Star Trek final phase status:
+  | Phase | Name | Code | Unit tests | Browser E2E | Status |
+  |---|---|---|---|---|---|
+  | 1 | Director (Roster Gate) | ✅ | ✅ | ✅ PASS 5/5 | **COMPLETE** |
+  | 2 | Universal Translator (Audio) | ✅ | ✅ | ✅ PASS 5/5 | **COMPLETE** |
+  | 3 | Sentient XO (Memory + Actuation) | ✅ | ✅ | ✅ PASS 5/5 | **COMPLETE** |
+  | 4 | Admiral's Bridge (Welfare + Enforcement) | ✅ | ✅ | ✅ PASS 5/5 | **COMPLETE** |
+
+- Validation evidence:
+  | Command | Result | Notes |
+  |---|---|---|
+  | `bun run build` | PASS | Production build clean after archive config cleanup |
+  | `bun run lint` | PASS | ESLint clean |
+  | `bun run lint:staging-doc` | PASS | Staging doc date current; required sections present |
+
+- Open blockers: **NONE**
+- Next steps: Star Trek rollout is closed. Continue Phase B canary observation window and planned advancement decisions.
 
 ---
 
