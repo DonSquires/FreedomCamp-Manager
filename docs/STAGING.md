@@ -4,6 +4,27 @@ Date: 2026-05-15
 Owner: GitHub Copilot
 Status: Active staging checklist — Sprints 50-70 complete on main; Iron Eagle Visual Identity locked in docs (2026-05-14)
 
+## Latest Session Snapshot (Phase B Bob Translate/Assess Context Contract Completion — 2026-05-15)
+
+- Timestamp (NZ): 2026-05-15
+- Current branch: main
+- Scope completed:
+  - Ran a supabase edge-function Bob helper audit including `bobChat`, `bobAssess`, and `bobTranslate` call-sites.
+  - Extended shared Bob translate helper contract to accept and forward `context` metadata to inference backends.
+  - Updated `translate-message` primary shared-translate path to include standardized operation/source/user/org metadata.
+  - Updated `bob-multimodal-gateway` `ai_type=translate` path to include standardized operation/source/user/org metadata.
+  - Updated `noise-audio-assess` Bob assess path to route payload metadata through shared context composition.
+
+- Validation evidence:
+  | Command | Result | Notes |
+  |---|---|---|
+  | IDE diagnostics (`get_errors`) on updated files | PASS | No new contract errors in bobInfer/bob-multimodal/noise-audio-assess (`Deno` ambient warning remains non-blocking in local TS tooling) |
+  | `bun run build` | PASS | TypeScript + Vite production build succeeded after translate/assess context completion |
+
+- Realignment status impact:
+  - Shared Bob context metadata coverage now includes translate and assess helper flows in core edge paths.
+  - Context contract drift risk reduced further for Phase B operational telemetry and tenant-aware inference calls.
+
 ## Latest Session Snapshot (Phase B Bob Entry-Point Context Unification — 2026-05-15)
 
 - Timestamp (NZ): 2026-05-15

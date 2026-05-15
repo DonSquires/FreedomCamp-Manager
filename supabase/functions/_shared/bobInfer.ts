@@ -164,6 +164,7 @@ export interface BobTranslateOptions {
   text: string
   targetLanguage: string
   sourceLanguage?: string
+  context?: Record<string, unknown>
   timeoutMs?: number
 }
 
@@ -397,6 +398,7 @@ export async function bobTranslate(options: BobTranslateOptions): Promise<{ tran
                 text: options.text,
                 target_language: options.targetLanguage,
                 source_language: options.sourceLanguage,
+                context: options.context,
               },
             }),
           },
@@ -420,7 +422,12 @@ export async function bobTranslate(options: BobTranslateOptions): Promise<{ tran
                   }
                 : {}),
             },
-            body: JSON.stringify({ text: options.text, target_language: options.targetLanguage }),
+            body: JSON.stringify({
+              text: options.text,
+              target_language: options.targetLanguage,
+              source_language: options.sourceLanguage,
+              context: options.context,
+            }),
           },
           {
             retries: BOB_INFERENCE_RETRIES,

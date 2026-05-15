@@ -8,6 +8,7 @@
 import { getCorsHeaders, withCors, jsonResponse, errorResponse } from '../_shared/withCors.ts'
 import { requireAuth } from '../_shared/requireAuth.ts'
 import { bobAssess } from '../_shared/bobInfer.ts'
+import { buildBobContext } from '../_shared/bobContext.ts'
 
 function normalizeBaseUrl(raw?: string | null): string {
   return String(raw ?? '').trim().replace(/\/+$/, '')
@@ -56,7 +57,16 @@ Deno.serve(withCors(async (req: Request) => {
     const result = await bobAssess({
       type: 'noise',
       description: payload.transcript || payload.location_context,
-      context: payload,
+      context: buildBobContext({
+        operation: 'noise-audio-assess',
+        source: 'noise-officer-matrix-prefill',
+        userId: authResult.user.id,
+        organizationId:
+          (authResult.user as any)?.user_metadata?.organization_id ||
+          (authResult.user as any)?.app_metadata?.organization_id ||
+          (typeof body?.org_id === 'string' ? body.org_id : null),
+        context: payload,
+      }),
     })
     
     // Normalize the response to ensure matrix fields are present

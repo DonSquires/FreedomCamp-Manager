@@ -199,6 +199,13 @@ async function handleRequestAi(req: Request, userId: string): Promise<Response> 
       text: redactPII ? redactText(text) : text,
       targetLanguage: target,
       sourceLanguage: asStr(payload.source_language) || undefined,
+      context: buildBobContext({
+        operation: 'bob-multimodal-gateway',
+        source: 'request-ai-translate',
+        userId,
+        organizationId,
+        context: asObj(payload.context),
+      }),
     })
     result = { translated_text: translated.translation, model: translated.model }
     status = 'completed'

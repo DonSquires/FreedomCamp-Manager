@@ -49,6 +49,20 @@ Deno.serve(withCors(async (req: Request) => {
       text,
       targetLanguage: target_language,
       sourceLanguage: source_language,
+      context: buildBobContext({
+        operation: 'translate-message',
+        source: 'shared-translate-helper',
+        userId: authResult.user.id,
+        organizationId:
+          (authResult.user as any)?.user_metadata?.organization_id ||
+          (authResult.user as any)?.app_metadata?.organization_id ||
+          null,
+        context: {
+          target_language,
+          source_language: source_language ?? null,
+          text_length: text.length,
+        },
+      }),
       timeoutMs: 30_000,
     })
 
