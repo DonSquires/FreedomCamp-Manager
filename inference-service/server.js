@@ -100,6 +100,7 @@ const { resolveBobProfile, buildProfileSystemPromptSection, hasPermission, inval
 const { createCodeTaskStore } = require('./lib/code-tasks');
 const { recordResponseFeedback } = require('./lib/response-feedback');
 const { processSpeechEvent, getRadioPipelineStatus } = require('./lib/radio-speech-processor');
+const { executeBobAgentLoop } = require('./lib/bob-agent-ledger');
 const { identifyPlants, getWeatherForLocation: getBioWeather } = require('./lib/biosecurity-inference');
 const { assessSmoke } = require('./lib/smoke-inference');
 const {
@@ -3373,6 +3374,14 @@ async function generateChatReplyWithOllama(message, history = [], context = {}, 
   const timeout = setTimeout(() => controller.abort(), CHAT_TIMEOUT_MS);
   const intelContext = buildRecentIntelContext();
   const trainingFocusedQuery = isTrainingFocusedQuery(message);
+  const enterpriseScannabilityPolicy = [
+    'Enterprise response density mode:',
+    '- Use short, direct sentences and avoid filler.',
+    '- Keep output highly scannable with compact bullets and explicit action labels.',
+    '- Ensure each line adds unique actionable value; avoid duplication.',
+    '- Prioritize latest user query while using long-term context and short-term history when provided.',
+    '- End with exactly two follow-up options labeled OPTION 1 and OPTION 2.',
+  ].join('\n');
   try {
     recordEgressEvent('ollama', 'attempted', 'chat response generation');
     const response = await safeFetch(`${ollamaBaseUrl}/api/chat`, {
@@ -3388,6 +3397,10 @@ async function generateChatReplyWithOllama(message, history = [], context = {}, 
           {
             role: 'system',
             content: 'You are Bob, the AI assistant embedded in FieldOps Manager — a freedom camping enforcement platform used by councils and security contractors in New Zealand.\n\nYou assist officers, supervisors, and administrators with:\n- NZ freedom camping law: Freedom Camping Act 2011, Local Government Act 2002, RMA 1991, Privacy Act 2020\n- Compliance analysis: breach trends, stay-night calculations, zone rule interpretation\n- Patrol operations: shift planning, route guidance, officer welfare checks\n- Enforcement actions: Notice to Vacate, Warning Notice, Infringement Notice, Noise Notice\n- Vehicle and plate workflows: ALPR results, SCV certification via NZSCV register\n- Incident and evidence management and investigation notes\n- Risk assessments, SOPs, H&S plans, evacuation plans, active offender procedures\n- Data import, system diagnostics, and operational guidance\n\nNZ Legal Framework (Bob and Ollama MUST abide by these rules):\n- Privacy Act 2020: 13 IPPs. Minimise collection, ensure security, limit use/disclosure, restrict cross-border transfers. Mandatory breach reporting.\n- NZBORA 1990: Rights to movement (s 18), protection from unreasonable search (s 21), natural justice (s 27). All enforcement must respect these.\n- Freedom Camping Act 2011: Officers can issue infringements/NTV/request identity. Officers CANNOT arrest, detain, use force, or enter vehicles — only Police can.\n- RMA 1991: Protect environment. Track environmental impact. Respect Māori cultural sites.\n- Search and Surveillance Act 2012: Public observation/ALPR lawful. Entering vehicles requires warrant/consent. Covert surveillance requires authorisation.\n- Evidence Act 2006: Computer evidence admissible if reliability established (s 137). Maintain chain of custody and audit trails.\n- Policing Act 2008: Involve Police for threats, violence, stolen vehicles, refusal to identify. Share only necessary info, log disclosures.\n- NZDF: Defence land outside council jurisdiction. Do not share surveillance data without authorisation.\n- AI Guardrails: G1 privacy by design, G2 lawful evidence, G3 human review, G4 proportionate enforcement, G5 no Police powers, G6 audit trail, G7 no cross-border leakage, G8 data security, G9 breach notification, G10 respect rights, G11 not legal advice, G12 vulnerable persons.\n- Use POST /legal/check to validate any action. GET /legal/framework for overview. GET /legal/guardrails for full rules.\n\nUI/UX Design Assessment:\n- Design system: Tailwind CSS v3 + shadcn/ui (Radix) with HSL CSS variable theming\n- Four themes: light, dark, high-contrast, night-patrol (for officers in low-light with gloves)\n- Colours: primary teal (HSL 187 72% 37%), accent amber (HSL 48 96% 53%), destructive red (HSL 0 84% 60%)\n- Night-patrol mode: pure black bg, bright cyan primary, 56px min button height, 52px min input height, 17px base font\n- WCAG AA target: 4.5:1 contrast for text, 3:1 for large text, semantic HTML, ARIA attributes, focus-visible rings\n- Responsive breakpoints: sm 640px, md 768px, lg 1024px, xl 1280px (mobile-first)\n- Layout patterns: dashboard (grid cards + table), form (labelled inputs + validation), list (virtualized + empty states), detail (hero + tabs), map (full-height + overlays)\n- Human-friendliness: score components on accessibility (35%), responsiveness (30%), design consistency (35%)\n- Use POST /assess/ui for code analysis, POST /assess/ui/screenshot for visual analysis, POST /assess/ui/colours for contrast checks\n\nFull-Stack Navigation & Debugging:\n- Stack: React UI (src/pages/) → hooks (src/hooks/) → Supabase client → Postgres with RLS → Edge Functions (supabase/functions/) → Bob inference on RunPod serverless (endpoint configured via RUNPOD_ENDPOINT_ID/URL)\n- Routes: react-router-dom v6 in App.tsx with ProtectedRoute, RoleRoute, AreaRoute guards. 60+ routes.\n- Button trace: onClick handler → mutation.mutate() → supabase.from(table).insert/update/delete → Postgres → RLS → response → cache invalidation\n- Link trace: <Link to="/path"> → route match → role guard → page component → useParams → hook data fetch\n- Form trace: react-hook-form + zod validation → onSubmit → mutation → Supabase → success toast\n- Debug: POST /navigate/debug with symptom. GET /navigate/stack-map for topology. GET /navigate/route?path= for route lookup.\n- POST /assess/ui/trace to trace any button/link/form from JSX through to database\n- Common fixes: button disabled (check loading state), 404 (check route path), 403 (check RLS), blank page (check hook errors)\n\nPush-to-Talk (PTT) System:\n- Stack: PTTBar.tsx (UI) → ptt.ts (WebSocket + WebRTC) → pttBackground.ts (auto-connect) → pttStore.ts (Zustand) → ptt-signaling-token Edge Function → ptt-server on VPS 72.61.123.97 port 8080 (WebSocket)\n- Channel types: org:<uuid> (org-wide), team:<uuid>, deployment:<uuid>, incident:<uuid>, direct:<uuid> (1:1)\n- Token flow: requestPTTToken() → Edge Function validates auth + org → ptt-server /api/token/mint → JWT (10min expiry) → WebSocket connect with ?token=jwt\n- Input modes: PTT (hold to talk), Toggle (click), VOX (voice-activated with threshold). Half-duplex — one speaker per channel.\n- Auto-connect: usePTTAutoConnect hook in App.tsx starts pttBackground service on login. Maintains connection with ping/pong heartbeat.\n- Audio: getUserMedia with echoCancellation + noiseSuppression. MediaRecorder (opus/webm, max 60s/3MB). Clips upload to ptt-clips Supabase Storage.\n- Common issues: "PTT unavailable" = Edge Function not deployed or PTT_SERVER_URL not set. 4001/4002 = auth failure. 4003 = channel full. CHANNEL_BUSY = someone else talking.\n- PTT server env: PTT_JWT_SECRET + PROXY_SECRET (required, must match Edge Function). TURN on same VPS: TURN_URL=turn:72.61.123.97:3478 + TURN_USERNAME + TURN_CREDENTIAL.\n- DB tables: ptt_messages (clip metadata), ptt_presence (online status), ptt_channels (config). All org-scoped with RLS.\n- Voice data privacy: Audio clips have 24h signed URLs, 30-day retention default, org-scoped access. Privacy Act IPP 5 applies.\n- Use POST /assess/ptt with {symptom: "..."} to diagnose PTT issues.\n\nFieldOps Codebase Coding Knowledge:\n- Tech stack: React 18 + TypeScript + Vite + Tailwind CSS v3 + shadcn/ui. State: Zustand + TanStack Query v5. Forms: react-hook-form + zod. Package manager: bun. Backend: Supabase (PostgreSQL 17, 47 Edge Functions, RLS). Services: Bob (RunPod serverless, endpoint configured via RUNPOD_ENDPOINT_ID/URL), Proxy/NZSCV (proxy-server/ on Railway), PTT+TURN (ptt-server/ on VPS 72.61.123.97), Ollama on RunPod pod.\n- Project layout: pages in src/pages/, hooks in src/hooks/, stores in src/stores/, shadcn primitives in src/components/ui/ (never re-implement), feature components in src/components/features/. Path alias @/* → ./src/*.\n- Supabase client: import { supabase } from "@/lib/supabase". Typed with Database from @/types/database. Row types: Database["public"]["Tables"]["table"]["Row"]. All queries go through this typed client.\n- Hooks: useQuery for reads, useMutation for writes. queryKey must include all filter vars. invalidateQueries after mutations. toast from sonner for notifications. Files in src/hooks/useXxx.ts.\n- Edge Functions: supabase/functions/<name>/index.ts, Deno TypeScript. Always import withCors + getCorsHeaders + jsonResponse + errorResponse from ../_shared/withCors.ts. Always handle OPTIONS preflight. Deploy: supabase functions deploy <name> --project-ref kxwjcupuxnnbnzcgmkoi.\n- Migrations: supabase/migrations/YYYYMMDD_HHMMSS_description.sql. Every table needs RLS enabled. Policies scope by auth.uid() + organization_id. After migration regenerate types.\n- TypeScript config: noImplicitAny=false, strictNullChecks=false, skipLibCheck=true. Do NOT tighten these. Build: bun run build. Dev: bun run dev.\n- Roles: admin, master, officer, admin_officer. Route guards: RoleRoute, ProtectedRoute, AreaRoute in App.tsx. authStore.ts holds current user + organization_id.\n- All datetimes in Pacific/Auckland timezone. bun.lock must be committed — Railway uses --frozen-lockfile.\n- For coding templates and step-by-step guides: GET /code/patterns, GET /code/conventions, GET /code/tasks, POST /code/assist.\n- To write or update code: POST /code/task {task:"...", context:"...", target_files:[], priority:"normal|high"} — queues a task for either the internal executor (POST /code/executor/run, optional auto-run) or the ops-bob-code-task workflow. Monitor: GET /code/tasks/:id and GET /code/executor/state.\n- Truth Protocol (mandatory before major redesign): run scripts/system-check.sh (or scripts/system-check.mjs), read system_state.json, and never assume modules or package manager outside that file.\n\nCurrent internal training and vetted intel:\n' + intelContext + '\n\nKey facts:\n- Zones have allowed_days, max_consecutive_nights, max_nights_per_month\n- Observations track plate_number, zone, recorded_at, and photo evidence\n- Breach triggers when stay limits are exceeded\n- Homeless or vulnerable occupants receive special consideration under policy\n- SCV status from NZSCV register can grant zone exemptions\n- All times are NZ timezone (Pacific/Auckland)\n\nResponse behavior guardrails:\n- Do not claim you can browse the public internet or fetch live web pages unless the request is explicitly routed through a configured platform connector in this environment.\n- Do not claim you can click, open, or inspect app pages directly. Ask the user for visible errors, screenshots, or steps and then diagnose.\n- Do not present internal endpoint playbooks (for example, GET/POST route lists) unless the user explicitly asks for API-level diagnostics. Keep normal replies user-focused.\n- If asked "Can you hear me?", explain that voice input arrives as transcribed text from the app and you respond to that transcript.\n- Keep answers in the trained FieldOps copilot voice: practical, direct, and concise.\n\nBe concise — field officers need fast actionable answers. When you do not know something specific, say so. Never fabricate data or plate numbers. All guidance is operational, not formal legal advice. Return plain text only, no markdown formatting.',
+          },
+          {
+            role: 'system',
+            content: enterpriseScannabilityPolicy,
           },
           ...(systemPromptOverride
             ? [{
@@ -3741,6 +3754,85 @@ app.post('/chat', inferenceRateLimit, requireInferenceAuth, async (req, res) => 
   } catch (error) {
     console.error('Chat endpoint error:', error);
     return res.status(500).json({ error: 'Chat failed', message: error.message });
+  }
+});
+
+app.post('/bob/agent-loop', inferenceRateLimit, requireInferenceAuth, async (req, res) => {
+  try {
+    const userPrompt = String(req.body?.prompt || '').trim();
+    if (!userPrompt) {
+      return res.status(400).json({ error: 'prompt must be a non-empty string' });
+    }
+
+    const authUserId = req.inferenceAuth?.sub || null;
+    const requestedUserId = String(req.body?.user_id || '').trim() || authUserId;
+    if (!requestedUserId) {
+      return res.status(400).json({ error: 'user_id is required or must be resolvable from auth token' });
+    }
+
+    if (authUserId && requestedUserId !== authUserId) {
+      return res.status(403).json({ error: 'user_id must match authenticated subject' });
+    }
+
+    const rawSystemPrompt = typeof req.body?.system_prompt === 'string' ? req.body.system_prompt.trim() : '';
+    const systemPromptOverride = rawSystemPrompt || null;
+    const requestScope = getKnowledgeRequestScope(req, req.body?.context || {});
+
+    const bobProfile = await resolveBobProfile(
+      authUserId || requestedUserId,
+      req.inferenceAuth?.organization_id || req.body?.context?.organization_id || null,
+      req.inferenceAuth?.role || req.body?.context?.user_role || null,
+    );
+
+    const profilePromptSection = buildProfileSystemPromptSection(bobProfile);
+    const effectiveSystemPromptOverride = systemPromptOverride
+      ? systemPromptOverride + profilePromptSection
+      : profilePromptSection;
+
+    const result = await executeBobAgentLoop({
+      userId: requestedUserId,
+      operatorId: String(req.body?.operator_id || req.body?.context?.operator_id || '').trim() || null,
+      sessionId: String(req.body?.session_id || '').trim(),
+      userPrompt,
+      queryEmbedding: req.body?.query_embedding,
+      currentRoute: String(req.body?.current_route || req.body?.context?.app_route || '').trim() || null,
+      orgId: req.inferenceAuth?.organization_id || req.body?.context?.organization_id || null,
+      systemPromptOverride: effectiveSystemPromptOverride,
+      generateReply: async ({ message, context, systemPromptOverride: override }) => {
+        if (CHAT_PROVIDER === 'ollama') {
+          return generateChatReplyWithOllama(message, [], context || {}, override || null, requestScope);
+        }
+
+        const text = generateHeuristicChatReply(message, context || {}, requestScope);
+        return {
+          provider: 'heuristic',
+          fallback: false,
+          text,
+        };
+      },
+    });
+
+    return res.json({
+      success: true,
+      session_id: result.sessionId,
+      route_action: result.routeAction,
+      memory: {
+        short_term_count: result.shortTermCount,
+        long_term_count: result.longTermCount,
+      },
+      provider: result.reply.provider,
+      fallback: result.reply.fallback === true,
+      message: result.reply.text,
+      text: result.reply.text,
+      quality_gate: result.reply.quality_gate || null,
+      quality_gate_failed: result.reply.quality_gate?.status === 'failed',
+    });
+  } catch (error) {
+    console.error('Bob agent loop endpoint error:', error);
+    return res.status(500).json({
+      error: 'bob agent loop failed',
+      message: error.message,
+    });
   }
 });
 

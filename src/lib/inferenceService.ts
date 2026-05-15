@@ -12,6 +12,7 @@ import { edgeFunctions } from './edgeFunctions'
 // Dev-only URL hints (not used in production — Edge Function secrets take priority)
 const PROXY_SERVER_URL = import.meta.env.VITE_PROXY_SERVER_URL
 const INFERENCE_SERVICE_URL = import.meta.env.VITE_INFERENCE_SERVICE_URL
+const INFERENCE_API_KEY = import.meta.env.VITE_INFERENCE_API_KEY
 
 /**
  * Check NZSCV (Self-Contained Vehicle) status via proxy server
@@ -104,4 +105,37 @@ export async function checkServicesHealth() {
     console.error('Services health check error:', error)
     return { proxy: false, inference: false }
   }
+}
+
+/**
+ * Run Bob agent loop through inference-service with ledger-backed context.
+ */
+export async function runBobAgentLoop(params: {
+  prompt: string
+  session_id?: string
+  user_id?: string
+  current_route?: string
+  query_embedding?: number[]
+  context?: Record<string, unknown>
+  system_prompt?: string
+}) {
+  if (!INFERENCE_SERVICE_URL) {
+    throw new Error('VITE_INFERENCE_SERVICE_URL not configured')
+  }
+
+  const response = await fetch(`${INFERENCE_SERVICE_URL}/bob/agent-loop`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(INFERENCE_API_KEY ? { 'x-api-key': INFERENCE_API_KEY } : {}),
+    },
+    body: JSON.stringify(params),
+  })
+
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok || data?.success === false) {
+    throw new Error(data?.error || data?.message || `Bob agent loop failed (${response.status})`)
+  }
+
+  return data
 }
