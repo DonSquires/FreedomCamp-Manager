@@ -2,6 +2,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3'
 import { withCors, jsonResponse, errorResponse } from '../_shared/withCors.ts'
 import { requireAuth } from '../_shared/requireAuth.ts'
 import { bobChat, bobTranslate, bobAssess } from '../_shared/bobInfer.ts'
+import { buildBobContext } from '../_shared/bobContext.ts'
 
 type Dict = Record<string, unknown>
 
@@ -28,6 +29,20 @@ function asStr(value: unknown, fallback = ''): string {
 
 function asObj(value: unknown): Dict {
   return value && typeof value === 'object' && !Array.isArray(value) ? value as Dict : {}
+}
+
+function resolveOrganizationId(body: Dict, payload: Dict): string | null {
+  const payloadOrg = asStr(payload.organization_id)
+  if (payloadOrg) return payloadOrg
+
+  const bodyOrg = asStr(body.organization_id)
+  if (bodyOrg) return bodyOrg
+
+  const payloadContext = asObj(payload.context)
+  const contextOrg = asStr(payloadContext.organization_id)
+  if (contextOrg) return contextOrg
+
+  return null
 }
 
 function redactText(input: string): string {
@@ -165,6 +180,7 @@ async function handleRequestAi(req: Request, userId: string): Promise<Response> 
   const body = asObj(await req.json().catch(() => ({})))
   const aiType = asStr(body.ai_type).toLowerCase()
   const payload = asObj(body.payload)
+  const organizationId = resolveOrganizationId(body, payload)
   const privacy = asObj(payload.privacy)
   const redactPII = privacy.redact_pii !== false ? DEFAULT_REDACT : false
 
@@ -192,7 +208,13 @@ async function handleRequestAi(req: Request, userId: string): Promise<Response> 
       description: redactPII ? redactText(asStr(payload.description)) : asStr(payload.description),
       symptom: redactPII ? redactText(asStr(payload.symptom)) : asStr(payload.symptom),
       imageDescription: redactPII ? redactText(asStr(payload.image_description)) : asStr(payload.image_description),
-      context: asObj(payload.context),
+      context: buildBobContext({
+        operation: 'bob-multimodal-gateway',
+        source: `request-ai-${aiType}`,
+        userId,
+        organizationId,
+        context: asObj(payload.context),
+      }),
     })
     result = { assessment: assessed.assessment, model: assessed.model, provider: assessed.provider }
     status = 'completed'
@@ -201,7 +223,13 @@ async function handleRequestAi(req: Request, userId: string): Promise<Response> 
     if (!prompt.trim()) return errorResponse('payload.prompt is required', req, 400)
     const chat = await bobChat({
       message: `Capability: ${aiType}\n\n${prompt}`,
-      context: asObj(payload.context),
+      context: buildBobContext({
+        operation: 'bob-multimodal-gateway',
+        source: `request-ai-${aiType}`,
+        userId,
+        organizationId,
+        context: asObj(payload.context),
+      }),
     })
     result = { content: chat.response, model: chat.model, provider: chat.provider }
     status = 'completed'

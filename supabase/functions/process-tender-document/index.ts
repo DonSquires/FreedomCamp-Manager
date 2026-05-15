@@ -19,6 +19,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3'
 import { withCors, getCorsHeaders } from '../_shared/withCors.ts'
 import { bobChat } from '../_shared/bobInfer.ts'
+import { buildBobContext } from '../_shared/bobContext.ts'
 
 const INFERENCE_SERVICE_URL = (Deno.env.get('INFERENCE_SERVICE_URL') || '').replace(/\/$/, '')
 const BOB_CHAT_TIMEOUT_MS = 90_000
@@ -234,7 +235,15 @@ async function callBobChat(
       message: userMessage,
       systemPrompt,
       temperature: 0.2,
-      context,
+      context: buildBobContext({
+        operation: 'process-tender-document',
+        source: 'tender-document-analysis',
+        organizationId:
+          context && typeof context.organization_id === 'string'
+            ? context.organization_id
+            : null,
+        context,
+      }),
       timeoutMs: BOB_CHAT_TIMEOUT_MS,
     })
     return result.response

@@ -24,6 +24,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3'
 import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/withCors.ts'
 import { bobChat } from '../_shared/bobInfer.ts'
+import { buildBobContext } from '../_shared/bobContext.ts'
 import { compileBobSystemInstructions } from '../_shared/bobPromptCompiler.ts'
 import { classifyIntentBucket, enforceExecutionStepLimit, validateOperationalToolCall } from '../_shared/bobToolSchemas.ts'
 
@@ -1288,10 +1289,16 @@ Deno.serve(async (req: Request) => {
         model: runpodModel,
         temperature,
         timeoutMs: BOB_RUNPOD_TIMEOUT_MS,
-        context: {
-          ...hardenedRequestContext,
-          resolved_model: runpodModel,
-        },
+        context: buildBobContext({
+          operation: 'onspace-ai-chat',
+          source: 'runpod-shared-helper-chat',
+          userId: user?.id ?? null,
+          organizationId: profile?.organization_id ? String(profile.organization_id) : null,
+          context: {
+            ...hardenedRequestContext,
+            resolved_model: runpodModel,
+          },
+        }),
       })
 
       return {

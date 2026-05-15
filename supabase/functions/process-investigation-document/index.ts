@@ -1,6 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3';
 import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/withCors.ts';
 import { bobChat } from '../_shared/bobInfer.ts';
+import { buildBobContext } from '../_shared/bobContext.ts';
 
 interface DocumentProcessRequest {
   fileUrl: string;
@@ -143,12 +144,16 @@ Return ONLY a valid JSON object with these exact field names. Use null for missi
       message: aiMessageContent,
       systemPrompt,
       temperature: 0.1,
-      context: {
-        organization_id: organizationId,
-        user_id: user.id,
-        file_name: fileName,
-        file_type: fileType,
-      },
+      context: buildBobContext({
+        operation: 'process-investigation-document',
+        source: 'investigation-document-extraction',
+        userId: user.id,
+        organizationId,
+        context: {
+          file_name: fileName,
+          file_type: fileType,
+        },
+      }),
     });
 
     const extractedText = bobResult.response || '';
