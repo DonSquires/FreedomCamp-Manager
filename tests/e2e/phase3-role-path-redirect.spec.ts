@@ -5,7 +5,7 @@ test.describe('phase3 role-path redirects', () => {
   test.describe.configure({ mode: 'serial' })
 
   test('admin_officer requires portal selection when session choice is missing', async ({ page }) => {
-    await loginAs(page, 'clientStaff')
+    await loginAs(page, 'adminOrg1')
 
     await page.evaluate(() => {
       window.sessionStorage.removeItem('adminOfficerPortalChoice')
