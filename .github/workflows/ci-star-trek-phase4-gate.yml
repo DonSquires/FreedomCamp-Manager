@@ -60,6 +60,8 @@ jobs:
       PLAYWRIGHT_BOB_EMAIL:           ${{ secrets.PLAYWRIGHT_BOB_EMAIL }}
       PLAYWRIGHT_BOB_PASSWORD:        ${{ secrets.PLAYWRIGHT_BOB_PASSWORD }}
       PLAYWRIGHT_ALLOW_SHARED_CREDENTIAL_FALLBACK: '1'
+      PLAYWRIGHT_REUSE_EXISTING_SERVER: '1'
+      PLAYWRIGHT_BASE_URL:            'http://127.0.0.1:4173'
       DEFAULT_PLAYWRIGHT_BASE_URL:    ${{ secrets.FRONTEND_URL }}
 
     steps:
@@ -89,9 +91,6 @@ jobs:
             curl -sf http://127.0.0.1:4173 > /dev/null && break
             sleep 2
           done
-
-      - name: Set base URL to local preview
-        run: echo "PLAYWRIGHT_BASE_URL=http://127.0.0.1:4173" >> $GITHUB_ENV
 
       - name: Run Phase 4 unit tests first
         run: bunx vitest run src/lib/__tests__/enforcementPhase4.test.ts src/lib/__tests__/phase4Emergency.test.ts
