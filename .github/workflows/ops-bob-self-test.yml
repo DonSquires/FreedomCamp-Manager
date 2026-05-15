@@ -64,15 +64,19 @@ jobs:
         run: bun run lint
 
       - name: Tier 1 - Bob web service tests
+        id: tier1
         run: bun run test:bob:web
 
       - name: Tier 2 - Bob mobile simulation
+        id: tier2
         run: bun run test:bob:mobile
 
       - name: Tier 2.5 - Bob voice escalation mock
+        id: tier25
         run: bun run test:bob:voice
 
       - name: Tier 3 - Bob chaos checks
+        id: tier3
         run: bun run test:bob:chaos
 
       - name: Upload Playwright report artifact
@@ -92,10 +96,10 @@ jobs:
             echo ""
             echo "| Tier | Suite | Status |"
             echo "|------|-------|--------|"
-            echo "| 1    | Bob web service (Playwright) | ${{ steps.tier1.outcome == '' && '✅ ran' || steps.tier1.outcome }} |"
-            echo "| 2    | Bob mobile simulation | ✅ ran |"
-            echo "| 2.5  | Bob voice escalation mock | ✅ ran |"
-            echo "| 3    | Bob chaos harness | ✅ ran |"
+            echo "| 1    | Bob web service (Playwright) | ${{ steps.tier1.outcome || 'skipped' }} |"
+            echo "| 2    | Bob mobile simulation | ${{ steps.tier2.outcome || 'skipped' }} |"
+            echo "| 2.5  | Bob voice escalation mock | ${{ steps.tier25.outcome || 'skipped' }} |"
+            echo "| 3    | Bob chaos harness | ${{ steps.tier3.outcome || 'skipped' }} |"
             echo ""
             echo "> Playwright HTML report uploaded as artifact \`bob-playwright-report-${{ github.run_id }}\`"
           } >> "$GITHUB_STEP_SUMMARY"
