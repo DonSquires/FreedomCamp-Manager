@@ -14,6 +14,12 @@ When a pattern, platform, or architectural decision changes, append a dated note
 
 ## Current Standing Decisions
 
+- Date: 2026-05-15
+- Decision: Bob automation must authenticate as a dedicated service account and persist dual attribution (`user_id` + `operator_id`) for every ledger write.
+- Scope: `proxy-server/lib/bobSystemAuth.js`, `proxy-server/server.js`, `proxy-server/.env.example`, `docs/ENVIRONMENT_VARIABLES.md`, `supabase/migrations/20260514233156_bob_system_ledger.sql`, `inference-service/lib/bob-agent-ledger.js`, `inference-service/server.js`, `src/lib/bobEngine.ts`.
+- Reason: Service-account auth removes ad-hoc impersonation, enables uniform JWT enforcement in gateway paths, and provides deterministic Bob-vs-human forensic visibility.
+- Consequences: Deployments must set `BOB_SYSTEM_EMAIL` and `BOB_SYSTEM_PASSWORD` in server-side environments, keep rotating Bob session tokens at runtime, and populate `operator_id` on all `bob_system_ledger` writes.
+
 - Date: 2026-05-14
 - Decision: Star Trek + Bob automation memory must be persisted as a reusable runbook with canonical command flow and known-fix patterns so Bob can continue without session retraining.
 - Scope: `scripts/staging-star-trek-bob-check.sh`, `package.json` (`staging:star-trek:bob:check`), `docs/STAGING.md`, `tests/e2e/phase3-sentient-xo.spec.ts`, `tests/e2e/phase4-admirals-bridge.spec.ts`, `tests/e2e/auth.ts`.

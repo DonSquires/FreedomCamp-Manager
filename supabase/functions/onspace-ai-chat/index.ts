@@ -24,6 +24,8 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3'
 import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/withCors.ts'
 import { bobChat } from '../_shared/bobInfer.ts'
+import { compileBobSystemInstructions } from '../_shared/bobPromptCompiler.ts'
+import { classifyIntentBucket, enforceExecutionStepLimit, validateOperationalToolCall } from '../_shared/bobToolSchemas.ts'
 
 const BOB_RUNPOD_RETRIES = Math.max(2, Number(Deno.env.get('BOB_RUNPOD_RETRIES') ?? '2'))
 const BOB_RUNPOD_BACKOFF_MS = Math.max(100, Number(Deno.env.get('BOB_RUNPOD_BACKOFF_MS') ?? '700'))
@@ -189,6 +191,15 @@ const ATTITUDE_PRESETS: Record<string, string> = {
   coach: 'Tone: instructive and developmental. Explain brief reasoning and teach the user the next best action.',
 }
 
+const ENTERPRISE_SCANNABILITY_BLOCK = [
+  'ENTERPRISE RESPONSE DENSITY MODE:',
+  '- Use short, direct sentences and remove filler/opening chatter.',
+  '- Prioritize scannable structure: concise bullets, clear dividers, and explicit action labels.',
+  '- Avoid repeating the same point. Each line must add new, actionable information.',
+  '- Prioritize latest user query while incorporating long-term memory and short-term history context when present.',
+  '- If markdown is supported, end with exactly two bolded follow-up options. Otherwise use OPTION 1 and OPTION 2 labels.',
+].join('\n')
+
 function buildSystemPromptWithAttitude(): string {
   const profile = String(Deno.env.get('BOB_ATTITUDE_PROFILE') ?? 'operational').trim().toLowerCase()
   const custom = String(Deno.env.get('BOB_ATTITUDE_INSTRUCTIONS') ?? '').trim()
@@ -199,7 +210,7 @@ function buildSystemPromptWithAttitude(): string {
     ...(custom ? [`- Custom attitude override: ${custom}`] : []),
   ].join('\n')
 
-  return `${SYSTEM_PROMPT}\n\n${attitudeSection}`
+  return `${SYSTEM_PROMPT}\n\n${ENTERPRISE_SCANNABILITY_BLOCK}\n\n${attitudeSection}`
 }
 
 function buildAuthoritativeExecutionPolicyBlock(input: { role: string; isGrandMaster: boolean }): string {
@@ -610,6 +621,24 @@ function buildLocalFailsafeResponse(userMessage: string): string {
   return 'Bob is online, but the upstream inference provider is currently unavailable. I can still help with operational triage: share the issue, target route/file, and expected behaviour, and I will provide a structured action plan while services recover.'
 }
 
+function deriveIncomingUserPayload(input: {
+  message: unknown
+  rawMessages: any[] | null
+}): string {
+  if (typeof input.message === 'string' && input.message.trim()) {
+    return input.message.trim()
+  }
+
+  if (Array.isArray(input.rawMessages)) {
+    const latestUser = [...input.rawMessages]
+      .reverse()
+      .find((entry) => entry?.role === 'user' && typeof entry?.content === 'string')
+    if (latestUser?.content) return String(latestUser.content).trim()
+  }
+
+  return ''
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: getCorsHeaders(req) })
@@ -792,8 +821,48 @@ Deno.serve(async (req: Request) => {
     }
 
     const effectiveExecutionMode = resolveExecutionMode(userRole, isGrandMaster)
-    const requestedMutationContract = typeof (context as any)?.requested_mutation_contract === 'string'
-      ? String((context as any).requested_mutation_contract).trim()
+    const runtimeContext = typeof context === 'object' && context !== null
+      ? { ...(context as Record<string, unknown>) }
+      : {}
+
+    const incomingUserPayload = deriveIncomingUserPayload({
+      message,
+      rawMessages: Array.isArray(rawMessages) ? rawMessages : null,
+    })
+
+    const intentBucket = classifyIntentBucket(incomingUserPayload)
+    runtimeContext.intent_bucket = intentBucket
+
+    const executionStepGate = enforceExecutionStepLimit(runtimeContext.tool_steps_executed, 5)
+    if (!executionStepGate.allowed) {
+      return new Response(
+        JSON.stringify({
+          error: executionStepGate.reason,
+          policy_mode: effectiveExecutionMode,
+          requires_user_confirmation: true,
+          tool_steps_executed: executionStepGate.steps,
+        }),
+        { status: 409, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } },
+      )
+    }
+
+    const requestedToolCallRaw = runtimeContext.requested_tool_call
+    if (requestedToolCallRaw !== undefined && requestedToolCallRaw !== null) {
+      const toolValidation = validateOperationalToolCall(requestedToolCallRaw)
+      if (!toolValidation.ok) {
+        return new Response(
+          JSON.stringify({
+            error: `Requested tool call failed validation: ${toolValidation.error}`,
+            policy_mode: effectiveExecutionMode,
+          }),
+          { status: 400, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } },
+        )
+      }
+      runtimeContext.requested_tool_call = toolValidation.value
+    }
+
+    const requestedMutationContract = typeof runtimeContext.requested_mutation_contract === 'string'
+      ? String(runtimeContext.requested_mutation_contract).trim()
       : null
     const requestedMutationAccess = validateRequestedMutationContract({
       requestedContract: requestedMutationContract,
@@ -812,7 +881,15 @@ Deno.serve(async (req: Request) => {
     }
 
     const authoritativePolicyBlock = buildAuthoritativeExecutionPolicyBlock({ role: userRole, isGrandMaster })
-    const immutableSystemPrompt = `${defaultSystemPrompt}\n\n${authoritativePolicyBlock}`
+    const immutableSystemPrompt = compileBobSystemInstructions({
+      basePrompt: defaultSystemPrompt,
+      authoritativePolicyBlock,
+      userPayload: incomingUserPayload,
+      sessionHistory: prependedHistory,
+      vectorMemories: Array.isArray(runtimeContext.vector_memories)
+        ? (runtimeContext.vector_memories as Array<string | { content?: string; summary?: string }>)
+        : [],
+    })
 
     if (Array.isArray(rawMessages) && rawMessages.length > 0) {
       // Format A: always enforce immutable server system prompt first.
@@ -831,7 +908,7 @@ Deno.serve(async (req: Request) => {
     } else if (message) {
       // Format B: single message + optional context object
       const userContent = context
-        ? `${message}\n\nContext:\n${typeof context === 'string' ? context : JSON.stringify(context, null, 2)}`
+        ? `${message}\n\nContext:\n${typeof context === 'string' ? context : JSON.stringify(runtimeContext, null, 2)}`
         : message
       messages = [
         { role: 'system', content: immutableSystemPrompt },
@@ -916,7 +993,23 @@ Deno.serve(async (req: Request) => {
       )
     }
 
-    const privacyContext = (context as any)?.privacy ?? {}
+    const hardenedRequestContext = {
+      user_id: user?.id ?? 'service',
+      user_email: user?.email ?? '',
+      user_role: userRole,
+      organization_id: profile?.organization_id ?? null,
+      bob_tier: bobTier ?? undefined,
+      bob_tone: bobTone ?? undefined,
+      requested_model: model,
+      resolved_model: runpodModel,
+      source: 'onspace-ai-chat',
+      intent_bucket: runtimeContext.intent_bucket,
+      requested_mutation_contract: requestedMutationContract,
+      tool_steps_executed: executionStepGate.steps,
+      requested_tool_call: runtimeContext.requested_tool_call,
+    }
+
+    const privacyContext = (runtimeContext as any)?.privacy ?? {}
     const expressPermissionFromContext = Boolean(privacyContext?.expressPermission)
     const permittedUserIdentity = privacyContext?.permittedUserIdentity
       ? String(privacyContext.permittedUserIdentity)
@@ -1083,15 +1176,8 @@ Deno.serve(async (req: Request) => {
                     model: runpodModel,
                     temperature,
                     context: {
-                      user_id: user?.id ?? 'service',
-                      user_email: user?.email ?? '',
-                      user_role: userRole,
-                      organization_id: profile?.organization_id ?? null,
-                      bob_tier: bobTier ?? undefined,
-                      bob_tone: bobTone ?? undefined,
-                      requested_model: model,
+                      ...hardenedRequestContext,
                       resolved_model: runpodModel,
-                      source: 'onspace-ai-chat',
                     },
                   },
             }),
@@ -1203,15 +1289,8 @@ Deno.serve(async (req: Request) => {
         temperature,
         timeoutMs: BOB_RUNPOD_TIMEOUT_MS,
         context: {
-          user_id: user?.id ?? 'service',
-          user_email: user?.email ?? '',
-          user_role: userRole,
-          organization_id: profile?.organization_id ?? null,
-          bob_tier: bobTier ?? undefined,
-          bob_tone: bobTone ?? undefined,
-          requested_model: model,
+          ...hardenedRequestContext,
           resolved_model: runpodModel,
-          source: 'onspace-ai-chat',
         },
       })
 
@@ -1291,15 +1370,9 @@ Deno.serve(async (req: Request) => {
                   history,
                   provider: providerPreference === 'inference' ? 'inference' : providerPreference === 'ollama' ? 'ollama' : undefined,
                   context: {
-                    user_id: user?.id ?? 'service',
-                    user_email: user?.email ?? '',
-                    user_role: userRole,
-                    organization_id: profile?.organization_id ?? null,
-                    bob_tier: bobTier ?? undefined,
-                    bob_tone: bobTone ?? undefined,
-                    requested_model: model,
+                    ...hardenedRequestContext,
+                    resolved_model: inferenceModel,
                     temperature,
-                    source: 'onspace-ai-chat',
                   },
                 }),
                 signal: controller.signal,

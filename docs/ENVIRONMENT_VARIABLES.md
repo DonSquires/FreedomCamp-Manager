@@ -190,6 +190,15 @@ VITE_TURNSTILE_SITE_KEY=0x4AAAAA...  # Cloudflare Turnstile site key
 | `NZSCV_API_KEY` | NZ SCV API key | Yes | - |
 | `SUPABASE_URL` | Supabase project URL | Yes | - |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key | Yes | - |
+| `SUPABASE_ANON_KEY` | Supabase anon/public key used by Bob system-password auth flow | Recommended | Falls back to service role key |
+| `BOB_SYSTEM_EMAIL` | Bob dedicated service-account email for gateway login | Recommended | - |
+| `BOB_SYSTEM_PASSWORD` | Bob dedicated service-account password for gateway login | Recommended | - |
+| `BOB_SYSTEM_REFRESH_BUFFER_SECONDS` | Refresh lead time before Bob JWT expiry | No | `120` |
+
+Notes:
+- The Railway proxy bootstraps Bob auth at startup using `supabase.auth.signInWithPassword()`.
+- Access + refresh tokens are cached in-memory and rotated before expiry for long-running automation tasks.
+- Use `GET /api/bob/system-auth/status` (with `x-proxy-secret`) to verify Bob system session health.
 
 ### PTT Server (`/ptt-server/`)
 

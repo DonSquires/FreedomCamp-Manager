@@ -1,0 +1,99 @@
+name: Playwright Bob Agent Conversation
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'tests/e2e/bob-agent-conversation-ui.spec.ts'
+      - 'tests/e2e/helpers/supabase-transaction-mocks.ts'
+      - 'playwright.config.ts'
+      - 'package.json'
+      - 'bun.lock'
+      - '.github/workflows/playwright-bob-agent-conversation.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'tests/e2e/bob-agent-conversation-ui.spec.ts'
+      - 'tests/e2e/helpers/supabase-transaction-mocks.ts'
+      - 'playwright.config.ts'
+      - 'package.json'
+      - 'bun.lock'
+      - '.github/workflows/playwright-bob-agent-conversation.yml'
+
+concurrency:
+  group: bob-agent-conversation-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
+jobs:
+  bob-agent-conversation:
+    name: Bob Conversation Spec (Chromium)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      CI: true
+      PLAYWRIGHT_BASE_URL: 'http://127.0.0.1:3000'
+      PLAYWRIGHT_REUSE_EXISTING_SERVER: '1'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Install Playwright browser and deps
+        run: bunx playwright install --with-deps chromium
+
+      - name: Build app
+        run: bun run build
+
+      - name: Start preview server on port 3000
+        run: |
+          bun run preview -- --host 127.0.0.1 --port 3000 > /tmp/bob-agent-preview.log 2>&1 &
+          echo $! > /tmp/bob-agent-preview.pid
+
+          for i in $(seq 1 40); do
+            if curl -fsS --max-time 5 "http://127.0.0.1:3000/dashboard" >/dev/null 2>&1; then
+              echo "Preview server ready"
+              break
+            fi
+
+            if [ "$i" -eq 40 ]; then
+              echo "::error::Preview server did not start in time"
+              tail -n 120 /tmp/bob-agent-preview.log || true
+              exit 1
+            fi
+
+            sleep 2
+          done
+
+      - name: Run Bob conversation spec
+        run: |
+          bunx playwright test tests/e2e/bob-agent-conversation-ui.spec.ts \
+            --project=chromium \
+            --reporter=list \
+            --timeout=60000
+
+      - name: Upload Playwright artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: bob-agent-conversation-${{ github.run_id }}
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore

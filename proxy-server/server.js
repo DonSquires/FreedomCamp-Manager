@@ -14,6 +14,11 @@ const helmet = require('helmet');
 const axios = require('axios');
 const nodemailer = require('nodemailer');
 const rateLimit = require('express-rate-limit');
+const {
+  initBobSystemAuth,
+  stopBobSystemAuth,
+  getBobSystemAuthStatus,
+} = require('./lib/bobSystemAuth');
 require('dotenv').config();
 
 const app = express();
@@ -207,6 +212,19 @@ app.get('/health', (req, res) => {
     status: 'ok', 
     timestamp: new Date().toISOString(),
     service: 'NZSCV Proxy Server',
+    bob_system_auth: getBobSystemAuthStatus(),
+  });
+});
+
+app.get('/api/bob/system-auth/status', rateLimitMiddleware, (req, res) => {
+  const authResult = checkProxyAuth(req);
+  if (authResult) {
+    return res.status(authResult.status).json(authResult.body);
+  }
+
+  return res.status(200).json({
+    success: true,
+    bob_system_auth: getBobSystemAuthStatus(),
   });
 });
 
@@ -1044,6 +1062,7 @@ app.get('/api/info', (req, res) => {
       motorwebOwnerCheck: 'GET /motorweb/currentOwnerCheck?plateOrVin=ABC123&specificReason=...',
       sendInviteEmail: 'POST /api/email/send-invite',
       sendReportEmail: 'POST /api/email/send-report',
+      bobSystemAuthStatus: 'GET /api/bob/system-auth/status',
       disputeLookup: 'POST /api/disputes/lookup',
       disputeSubmit: 'POST /api/disputes/submit',
     },
@@ -1069,15 +1088,29 @@ app.listen(PORT, '0.0.0.0', () => {
   ║   MotorWeb: ${(MOTORWEB_API_KEY ? '✓ Configured' : '✗ Not configured').padEnd(23)}║
   ╚═══════════════════════════════════════╝
   `);
+
+  initBobSystemAuth()
+    .then((ready) => {
+      if (ready) {
+        console.log('🔐 Bob system auth session initialized and token rotation is active.');
+      } else {
+        console.warn('⚠️  Bob system auth not configured (set BOB_SYSTEM_EMAIL and BOB_SYSTEM_PASSWORD).');
+      }
+    })
+    .catch((error) => {
+      console.error('❌ Bob system auth bootstrap failed:', error.message || error);
+    });
 });
 
 // Graceful shutdown
 process.on('SIGTERM', () => {
   console.log('👋 SIGTERM received, shutting down gracefully...');
+  stopBobSystemAuth();
   process.exit(0);
 });
 
 process.on('SIGINT', () => {
   console.log('👋 SIGINT received, shutting down gracefully...');
+  stopBobSystemAuth();
   process.exit(0);
 });

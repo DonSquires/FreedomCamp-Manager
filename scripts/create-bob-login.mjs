@@ -78,8 +78,8 @@ async function main() {
     console.log('Env fallbacks:')
     console.log('  SUPABASE_URL or VITE_SUPABASE_URL')
     console.log('  SUPABASE_SERVICE_ROLE_KEY')
-    console.log('  BOB_LOGIN_EMAIL')
-    console.log('  BOB_LOGIN_PASSWORD')
+    console.log('  BOB_LOGIN_EMAIL or BOB_SYSTEM_EMAIL')
+    console.log('  BOB_LOGIN_PASSWORD or BOB_SYSTEM_PASSWORD')
     console.log('  BOB_ORG_ID / ORG_ID / DEFAULT_ORG_ID')
     console.log('  BOB_LOGIN_ROLE')
     console.log('  BOB_LOGIN_FIRST_NAME / BOB_LOGIN_LAST_NAME')
@@ -93,8 +93,8 @@ async function main() {
     throw new Error('Missing SUPABASE_URL/VITE_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY')
   }
 
-  const email = firstNonEmpty(arg('email'), process.env.BOB_LOGIN_EMAIL).toLowerCase()
-  const password = firstNonEmpty(arg('password'), process.env.BOB_LOGIN_PASSWORD)
+  const email = firstNonEmpty(arg('email'), process.env.BOB_LOGIN_EMAIL, process.env.BOB_SYSTEM_EMAIL).toLowerCase()
+  const password = firstNonEmpty(arg('password'), process.env.BOB_LOGIN_PASSWORD, process.env.BOB_SYSTEM_PASSWORD)
   const organizationId = firstNonEmpty(arg('org-id'), process.env.BOB_ORG_ID, process.env.ORG_ID, process.env.DEFAULT_ORG_ID)
   const role = firstNonEmpty(arg('role'), process.env.BOB_LOGIN_ROLE, 'admin_officer').toLowerCase()
   const firstName = firstNonEmpty(arg('first-name'), process.env.BOB_LOGIN_FIRST_NAME, 'Bob')
