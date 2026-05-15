@@ -4,6 +4,27 @@ Date: 2026-05-15
 Owner: GitHub Copilot
 Status: Active staging checklist — Sprints 50-70 complete on main; Iron Eagle Visual Identity locked in docs (2026-05-14)
 
+## Latest Session Snapshot (Star Trek Next-Phase Resilience Suite — 2026-05-15)
+
+- Timestamp (NZ): 2026-05-15
+- Current branch: main
+- Scope completed:
+  - Moved to the next Star Trek validation phase after full-suite revalidation.
+  - Ran the extended Star Trek resilience lane covering:
+    - Phase 1 radio floor control/reconnect/RLS/SFU media,
+    - Phase 3 role-path redirect,
+    - Phase 4 signature gate and operations-map emergency banner.
+  - Confirmed the resilience lane remains healthy in Chromium runtime.
+
+- Validation evidence:
+  | Command | Result | Notes |
+  |---|---|---|
+  | `bash scripts/playwright-bob-runtime.sh bunx playwright test tests/e2e/phase1-radio-floor-control.spec.ts tests/e2e/phase1-radio-reconnect.spec.ts tests/e2e/phase1-radio-rls.spec.ts tests/e2e/phase1-radio-sfu-media.spec.ts tests/e2e/phase3-role-path-redirect.spec.ts tests/e2e/phase4-notice-print-signature-gate.spec.ts tests/e2e/phase4-operations-map-emergency-banner.spec.ts --project=chromium --workers=1 --reporter=line` | PASS | 8 passed, 2 skipped (skip-gated cases), completed in 1.1m |
+
+- Star Trek status impact:
+  - Core phase lane and extended resilience lane both remain stable.
+  - Star Trek project remains ready for continued rollout confidence checks.
+
 ## Latest Session Snapshot (Star Trek Full Suite + Canonical Gate Revalidation — 2026-05-15)
 
 - Timestamp (NZ): 2026-05-15
