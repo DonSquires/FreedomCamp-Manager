@@ -212,6 +212,29 @@ jobs:
         retention-days: 30
 ```
 
+### Monitoring Pulse Smoke Workflows
+
+The repository includes a focused smoke path for the enterprise monitoring flow:
+
+- `.github/workflows/playwright-monitoring-pulse.yml`
+  - Runs a targeted Ubuntu + Chromium smoke test for `tests/monitoring-pulse.spec.ts`.
+  - Triggers on push, pull request, and manual dispatch when monitoring-related files change.
+
+- `.github/workflows/playwright-monitoring-pulse-smoke.yml`
+  - Pull-request workflow gated by label.
+  - Runs only when the PR is not draft and includes label `smoke`.
+
+Run the monitoring pulse smoke test locally:
+
+```bash
+bunx playwright test monitoring-pulse.spec.ts --config=playwright.config.ts --project=chromium --workers=1 --reporter=line
+```
+
+Notes:
+
+- `playwright.config.ts` includes `monitoring-pulse.spec.ts` in discovery.
+- The smoke spec resolves URL from `PLAYWRIGHT_BASE_URL` first, then `VITE_STAGING_URL`.
+
 ### Privacy Regression Checklist (CI Gate)
 
 When a PR changes any of the following, run this checklist before merge:
