@@ -4,6 +4,67 @@ Date: 2026-05-15
 Owner: GitHub Copilot
 Status: Active staging checklist — Sprints 50-70 complete on main; Iron Eagle Visual Identity locked in docs (2026-05-14)
 
+## Latest Session Snapshot (Star Trek Full Suite + Canonical Gate Revalidation — 2026-05-15)
+
+- Timestamp (NZ): 2026-05-15
+- Current branch: main
+- Scope completed:
+  - Kept work strictly in the Star Trek lane and revalidated Star Trek checkpoints with fresh browser evidence.
+  - Re-ran canonical Star Trek staging gate (`staging:star-trek:bob:check`) and confirmed green status.
+  - Re-ran full 4-phase Star Trek browser suite in Chromium lane (Phase 1 through Phase 4) and confirmed full pass.
+
+- Validation evidence:
+  | Command | Result | Notes |
+  |---|---|---|
+  | `bun run staging:star-trek:bob:check` | PASS | 10/10 tests passed in canonical Star Trek gate lane |
+  | `bash scripts/playwright-bob-runtime.sh bunx playwright test tests/e2e/phase1-director-roster-gate.spec.ts tests/e2e/phase2-universal-translator.spec.ts tests/e2e/phase3-sentient-xo.spec.ts tests/e2e/phase4-admirals-bridge.spec.ts --project=chromium --workers=1 --reporter=line` | PASS | 20/20 tests passed in 3.6m |
+
+- Star Trek status impact:
+  - Phase 1, Phase 2, Phase 3, and Phase 4 remain green in this environment.
+  - Star Trek rollout remains in a validated/healthy state while non-Star-Trek realignment work proceeds in parallel by other agents.
+
+## Latest Session Snapshot (Phase B4 Enforcement Timeline Cache Alignment — 2026-05-15)
+
+- Timestamp (NZ): 2026-05-15
+- Current branch: main
+- Scope completed:
+  - Continued realignment hardening within enforcement hooks to improve timeline refresh consistency after case-link and case-create mutations.
+  - Updated `src/hooks/useEnforcementB4.ts` cache invalidation behavior to include `enforcementTimeline` query keys alongside existing `enforcementEvents` invalidations.
+  - Preserved backward-compatible invalidation of `enforcementEvents` keys used by `useOperationalCases` consumers.
+
+- Validation evidence:
+  | Command | Result | Notes |
+  |---|---|---|
+  | IDE diagnostics (`get_errors`) on updated file | PASS | No errors in useEnforcementB4.ts |
+  | `bun run build` | PASS | TypeScript + Vite production build succeeded after enforcement cache-key alignment |
+  | `bun run lint` | PASS | ESLint completed without new errors |
+
+- Realignment status impact:
+  - Reduced stale-data risk in Phase B enforcement timeline views after mutations.
+  - Improved consistency between enforcement hook query keys and mutation invalidation keys.
+
+## Latest Session Snapshot (Phase B Face Scan Transport Helper Alignment — 2026-05-15)
+
+- Timestamp (NZ): 2026-05-15
+- Current branch: main
+- Scope completed:
+  - Continued realignment by reducing inference transport drift in the face scan edge workflow.
+  - Updated `supabase/functions/process-face-scan/index.ts` to use shared helper exports from `supabase/functions/_shared/bobInfer.ts`:
+    - `getBobInferenceApiKey` for consistent API key resolution order.
+    - `isBobRunpodServerlessUrl` for consistent RunPod serverless detection.
+  - Preserved existing fallback behavior and endpoint constraints (`/infer/face` and `/infer/compare`) while normalizing configured service URL handling.
+
+- Validation evidence:
+  | Command | Result | Notes |
+  |---|---|---|
+  | IDE diagnostics (`get_errors`) on updated file | PASS | No errors in process-face-scan/index.ts |
+  | `bun run build` | PASS | TypeScript + Vite production build succeeded after helper alignment |
+  | `bun run lint` | PASS | ESLint completed without new errors |
+
+- Realignment status impact:
+  - Reduced API key and RunPod detection divergence in a remaining direct inference face-processing path.
+  - Improved consistency and maintainability for Phase B transport hardening without changing user-facing behavior.
+
 ## Latest Session Snapshot (Phase B Remaining Inference Transport Consolidation — 2026-05-15)
 
 - Timestamp (NZ): 2026-05-15
