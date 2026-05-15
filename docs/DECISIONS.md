@@ -15,6 +15,12 @@ When a pattern, platform, or architectural decision changes, append a dated note
 ## Current Standing Decisions
 
 - Date: 2026-05-15
+- Decision: Star Trek canonical validations should run in CI-mode (`CI=1`) for deterministic web-server startup; non-CI runs may reuse stale server state and produce false infrastructure failures (`ERR_CONNECTION_REFUSED`).
+- Scope: `docs/STAGING.md`, `plan.md`, Star Trek validation commands in `tests/e2e/phase1-*.spec.ts`, `tests/e2e/phase2-universal-translator.spec.ts`, `tests/e2e/phase3-*.spec.ts`, and `tests/e2e/phase4-*.spec.ts`.
+- Reason: repeated non-CI validation runs showed intermittent connection-refused failures unrelated to product behavior; CI-mode forced a fresh server and produced stable canonical evidence.
+- Consequences: (1) Authoritative Star Trek completion checks should be run with `CI=1`. (2) Non-CI failures in this lane should be treated as potential infrastructure noise until reproduced in CI-mode. (3) Staging evidence for Phase F/G should cite CI-mode canonical commands.
+
+- Date: 2026-05-15
 - Decision: Phase E (Data Access Reduction + Enterprise Hardening) is formally COMPLETE and gates are locked. Phase 0 (Radio Platform Redesign) entry gate is OPEN pending steering committee approval of three ADRs (SFU selection, event backbone, voice-twin governance).
 - Scope: `docs/STAGING.md`, `plan.md`, `tests/e2e/phase-e*.spec.ts`, `docs/adr/006-sfu-platform-selection.md`, `docs/adr/007-event-backbone-floor-control.md`, `docs/adr/008-voice-twin-governance.md`, `docs/PHASE_0_SCHEMA_DESIGN.md`.
 - Reason: Phase E completion formalizes the enterprise hardening sprint; Phase 0 architectural decisions must be explicit and approved before implementation sprints (Phases 1–5) begin. ADR-based governance replaces ad-hoc designs.
