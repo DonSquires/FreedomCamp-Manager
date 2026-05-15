@@ -101,6 +101,7 @@ const { createCodeTaskStore } = require('./lib/code-tasks');
 const { recordResponseFeedback } = require('./lib/response-feedback');
 const { processSpeechEvent, getRadioPipelineStatus } = require('./lib/radio-speech-processor');
 const { executeBobAgentLoop } = require('./lib/bob-agent-ledger');
+const { enforceMultiTenantGuard } = require('./lib/bob-tenant-guard');
 const { identifyPlants, getWeatherForLocation: getBioWeather } = require('./lib/biosecurity-inference');
 const { assessSmoke } = require('./lib/smoke-inference');
 const {
@@ -3774,13 +3775,29 @@ app.post('/bob/agent-loop', inferenceRateLimit, requireInferenceAuth, async (req
       return res.status(403).json({ error: 'user_id must match authenticated subject' });
     }
 
+    const requestedOrgId =
+      req.body?.context?.organization_id
+      || req.body?.context?.organizationId
+      || req.body?.context?.org_id
+      || req.body?.context?.orgId
+      || req.inferenceAuth?.organization_id
+      || null;
+
+    const tenantGuard = await enforceMultiTenantGuard(req, {
+      requestingUserId: requestedUserId,
+      activeOrganizationId: requestedOrgId,
+    });
+    if (!tenantGuard.ok) {
+      return res.status(tenantGuard.status || 403).json({ error: tenantGuard.message || 'Access Denied' });
+    }
+
     const rawSystemPrompt = typeof req.body?.system_prompt === 'string' ? req.body.system_prompt.trim() : '';
     const systemPromptOverride = rawSystemPrompt || null;
     const requestScope = getKnowledgeRequestScope(req, req.body?.context || {});
 
     const bobProfile = await resolveBobProfile(
       authUserId || requestedUserId,
-      req.inferenceAuth?.organization_id || req.body?.context?.organization_id || null,
+      tenantGuard.verifiedOrgId || req.inferenceAuth?.organization_id || req.body?.context?.organization_id || null,
       req.inferenceAuth?.role || req.body?.context?.user_role || null,
     );
 
@@ -3796,7 +3813,7 @@ app.post('/bob/agent-loop', inferenceRateLimit, requireInferenceAuth, async (req
       userPrompt,
       queryEmbedding: req.body?.query_embedding,
       currentRoute: String(req.body?.current_route || req.body?.context?.app_route || '').trim() || null,
-      orgId: req.inferenceAuth?.organization_id || req.body?.context?.organization_id || null,
+      orgId: tenantGuard.verifiedOrgId || req.inferenceAuth?.organization_id || req.body?.context?.organization_id || null,
       systemPromptOverride: effectiveSystemPromptOverride,
       generateReply: async ({ message, context, systemPromptOverride: override }) => {
         if (CHAT_PROVIDER === 'ollama') {

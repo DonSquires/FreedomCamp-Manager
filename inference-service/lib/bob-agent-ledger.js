@@ -23,28 +23,56 @@ function buildSupabaseHeaders(serviceRoleKey, extra = {}) {
   };
 }
 
-async function fetchShortTermHistory({ supabaseUrl, serviceRoleKey, userId, sessionId, limit = 6 }) {
-  const params = new URLSearchParams({
-    select: 'content,created_at',
-    user_id: `eq.${userId}`,
-    session_id: `eq.${sessionId}`,
-    record_type: 'eq.short_term',
-    order: 'created_at.desc',
-    limit: String(limit),
-  });
+async function fetchShortTermHistory({ supabaseUrl, serviceRoleKey, userId, sessionId, organizationId = null, limit = 6 }) {
+  const buildParams = (includeOrganization) => {
+    const params = new URLSearchParams({
+      select: 'content,created_at',
+      user_id: `eq.${userId}`,
+      session_id: `eq.${sessionId}`,
+      record_type: 'eq.short_term',
+      order: 'created_at.desc',
+      limit: String(limit),
+    });
 
-  const res = await fetch(`${supabaseUrl}/rest/v1/${LEDGER_TABLE}?${params.toString()}`, {
-    method: 'GET',
-    headers: buildSupabaseHeaders(serviceRoleKey),
-  });
+    if (includeOrganization && organizationId) {
+      params.set('organization_id', `eq.${organizationId}`);
+    }
 
-  const text = await res.text();
-  const data = text ? JSON.parse(text) : null;
-  if (!res.ok) {
-    throw new Error(`Short-term history lookup failed (${res.status}): ${text.slice(0, 200)}`);
-  }
+    return params;
+  };
 
-  return Array.isArray(data) ? data : [];
+  const queryWithFallback = async () => {
+    const primaryRes = await fetch(`${supabaseUrl}/rest/v1/${LEDGER_TABLE}?${buildParams(true).toString()}`, {
+      method: 'GET',
+      headers: buildSupabaseHeaders(serviceRoleKey),
+    });
+
+    const primaryText = await primaryRes.text();
+    const primaryData = primaryText ? JSON.parse(primaryText) : null;
+    if (primaryRes.ok) {
+      return Array.isArray(primaryData) ? primaryData : [];
+    }
+
+    const missingOrgColumn = primaryText.toLowerCase().includes('organization_id');
+    if (!organizationId || !missingOrgColumn) {
+      throw new Error(`Short-term history lookup failed (${primaryRes.status}): ${primaryText.slice(0, 200)}`);
+    }
+
+    const fallbackRes = await fetch(`${supabaseUrl}/rest/v1/${LEDGER_TABLE}?${buildParams(false).toString()}`, {
+      method: 'GET',
+      headers: buildSupabaseHeaders(serviceRoleKey),
+    });
+
+    const fallbackText = await fallbackRes.text();
+    const fallbackData = fallbackText ? JSON.parse(fallbackText) : null;
+    if (!fallbackRes.ok) {
+      throw new Error(`Short-term history lookup failed (${fallbackRes.status}): ${fallbackText.slice(0, 200)}`);
+    }
+
+    return Array.isArray(fallbackData) ? fallbackData : [];
+  };
+
+  return queryWithFallback();
 }
 
 async function matchLongTermContext({ supabaseUrl, serviceRoleKey, userId, queryEmbedding, threshold = 0.7, count = 3 }) {
@@ -69,16 +97,30 @@ async function matchLongTermContext({ supabaseUrl, serviceRoleKey, userId, query
 }
 
 async function insertLedgerRecord({ supabaseUrl, serviceRoleKey, row }) {
-  const res = await fetch(`${supabaseUrl}/rest/v1/${LEDGER_TABLE}`, {
-    method: 'POST',
-    headers: buildSupabaseHeaders(serviceRoleKey, { Prefer: 'return=representation' }),
-    body: JSON.stringify(row),
-  });
+  const tryInsert = async (payload) => {
+    const res = await fetch(`${supabaseUrl}/rest/v1/${LEDGER_TABLE}`, {
+      method: 'POST',
+      headers: buildSupabaseHeaders(serviceRoleKey, { Prefer: 'return=representation' }),
+      body: JSON.stringify(payload),
+    });
 
-  const text = await res.text();
-  if (!res.ok) {
-    throw new Error(`Ledger insert failed (${res.status}): ${text.slice(0, 200)}`);
+    const text = await res.text();
+    return { ok: res.ok, status: res.status, text };
+  };
+
+  const primary = await tryInsert(row);
+  if (primary.ok) return;
+
+  const missingOrgColumn = String(primary.text || '').toLowerCase().includes('organization_id');
+  if (row.organization_id && missingOrgColumn) {
+    const fallbackRow = { ...row };
+    delete fallbackRow.organization_id;
+    const fallback = await tryInsert(fallbackRow);
+    if (fallback.ok) return;
+    throw new Error(`Ledger insert failed (${fallback.status}): ${fallback.text.slice(0, 200)}`);
   }
+
+  throw new Error(`Ledger insert failed (${primary.status}): ${primary.text.slice(0, 200)}`);
 }
 
 function coerceEmbedding(value) {
@@ -141,6 +183,7 @@ async function executeBobAgentLoop({
       serviceRoleKey,
       userId,
       sessionId: effectiveSessionId,
+      organizationId: orgId || null,
       limit: 6,
     }),
     matchLongTermContext({
@@ -185,6 +228,7 @@ async function executeBobAgentLoop({
         session_id: effectiveSessionId,
         user_id: userId,
         operator_id: effectiveOperatorId,
+        organization_id: orgId || null,
         record_type: 'transaction_step',
         content: `Navigated to ${routeAction}`,
         status: 'success',
@@ -205,6 +249,7 @@ async function executeBobAgentLoop({
       session_id: effectiveSessionId,
       user_id: userId,
       operator_id: effectiveOperatorId,
+      organization_id: orgId || null,
       record_type: 'short_term',
       content: `User: ${userPrompt} | Bob: ${reply.text}`,
       status: 'success',

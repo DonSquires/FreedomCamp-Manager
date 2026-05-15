@@ -2,7 +2,9 @@
 
 **Status**: ✅ Blueprint Approved (May 4, 2026)  
 **Phase A Kickoff**: May 12, 2026  
-**Critical Path Dates**: May 12 → May 19 (Org Isolation Gate, Accelerated) → May 20 (Phase B Launch, Accelerated)
+**Critical Path Dates**: May 12 → June 2-9 (Phase A Gate Window) → June 10 (Phase B Launch Target)
+
+> Scheduling note: earlier accelerated May 19/20 gate references in this guide are historical planning artifacts. The authoritative execution path is the June 9 gate and June 10 Phase B launch target used in the current master status and gate report.
 
 ---
 
@@ -329,7 +331,7 @@ Bob governance note for this lane:
 
 ---
 
-### Accelerated Week 3 (May 14–May 18): Route/Role Truth & Approval Workflows
+### Week 3 (May 26–Jun 1): Route/Role Truth & Approval Workflows
 
 **Goal**: Route/role authorization truth validated, Bob approval paths defined.
 
@@ -394,7 +396,7 @@ Bob governance note for this lane:
   # Commit: git commit -m "realignment: bob audit trail schema — proposal tracking & appeal workflow"
   ```
 
-- [ ] **May 18–19**: Finalize Phase A gate & prepare Phase B kickoff (in progress)
+- [ ] **Jun 2–9**: Finalize Phase A gate & prepare Phase B kickoff
   ```bash
   # Verify all Week 3 tasks complete:
   bun run build && bun run lint
@@ -403,15 +405,15 @@ Bob governance note for this lane:
   bunx playwright test tests/e2e/bootstrap-routes.test.ts
   # Update docs/BUILD_REALIGNMENT_PLAN_2026-05-04.md:
   # - Section 12.1 Phase A Gate: Mark all criteria GREEN
-  # - Add timestamp: "**Phase A Gate Completion**: May 19, [TIME]"
+  # - Add timestamp: "**Phase A Gate Completion**: June 9, [TIME]"
   # Slack announcement:
-  # "🟢 PHASE A COMPLETE — May 19, 2026
+  # "🟢 PHASE A COMPLETE — June 9, 2026
   # ✅ Case model schema deployed
   # ✅ Org isolation tests: 5/5 passing
   # ✅ Bootstrap routes: 3/3 migrated
   # ✅ Feature flags: infrastructure live
   # ✅ Bob approval paths: documented
-  # Next: Phase B Kickoff — May 20, 2026"
+  # Next: Phase B Kickoff — June 10, 2026"
   # Final commit & push:
   git add .
   git commit -m "realignment: phase A complete — all gate criteria green ✅"
@@ -424,7 +426,7 @@ Bob governance note for this lane:
 
 | Date | Gate / Milestone | Criteria | Owner | Slack Channel |
 |------|------------------|----------|-------|---------------|
-| **May 19** | **PHASE A → B Go/No-Go (Accelerated)** | Org isolation tests: 5/5 ✅<br/>Bootstrap routes: 3/3 ✅<br/>Feature flags: live & tested ✅ | Platform Arch Lead | #realignment-kickoff |
+| **June 9** | **PHASE A → B Go/No-Go** | Org isolation tests: 5/5 ✅<br/>Bootstrap routes: 3/3 ✅<br/>Feature flags: live & tested ✅<br/>Operational sign-off evidence attached | Platform Arch Lead | #realignment-kickoff |
 | Jul 28 | Dispatch acceptance live | Callsign binding + dispatch ack flows E2E | Dispatch Lead | #phase-b-dispatch |
 | Sep 29 | Bob approval phase D ready | Bob service integrated & tested | Bob/AI Lead | #phase-d-bob |
 | Jan 31 | Phase E consolidation done | All 5 phases launched, data queries optimized | Full Team | #go-live |
@@ -532,7 +534,7 @@ Phase A is **COMPLETE** when:
 - ✅ Bob approval audit trail table created with sample records
 - ✅ Event family contract and boot sequence documentation published
 - ✅ All team roles assigned and acknowledged in GitHub team + Slack confirmation thread
-- ✅ May 19 accelerated Go/No-Go date confirmed (if all above ✅, proceed to Phase B May 20)
+- ✅ June 9 Go/No-Go date confirmed (if all above ✅, proceed to Phase B June 10)
 
 ---
 
@@ -546,10 +548,10 @@ Phase A is **COMPLETE** when:
 | `tests/integration/org-isolation.test.ts` | TypeScript | QA | May 16 |
 | `tests/e2e/bootstrap-routes.test.ts` | TypeScript | QA | May 20 |
 | `scripts/rollback-feature-flag.sh` | Bash | Platform Infra | May 23 |
-| `scripts/validate-route-role-truth.mjs` | JavaScript | Platform Arch | May 14 (accelerated) |
+| `scripts/validate-route-role-truth.mjs` | JavaScript | Platform Arch | Completed May 14 |
 | `docs/EVENT_FAMILY_CONTRACT_2026-05-04.md` | Markdown | Data Eng | May 17 |
-| `docs/BOB_APPROVAL_PATHS_PHASE_B.md` | Markdown | Bob/AI | May 15 (accelerated) |
-| `docs/EVENT_SEQUENCING_ROADMAP.md` | Markdown | Data Eng | May 16 (accelerated) |
+| `docs/BOB_APPROVAL_PATHS_PHASE_B.md` | Markdown | Bob/AI | Completed May 15 |
+| `docs/EVENT_SEQUENCING_ROADMAP.md` | Markdown | Data Eng | Completed May 16 |
 
 ---
 

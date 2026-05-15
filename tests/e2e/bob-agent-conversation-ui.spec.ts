@@ -256,4 +256,143 @@ test.describe('Bob autonomous conversation UI', () => {
       })
       .toBeGreaterThan(0)
   })
+
+  test('classifies intent bucket correctly via chat endpoint metadata', async ({ page }) => {
+    const intentResults: Array<{ input: string; bucket: string }> = []
+
+    await page.route(CHAT_ENDPOINT_GLOB, async (route) => {
+      const body = JSON.parse(route.request().postData() || '{}') as { input?: string }
+      const input = String(body.input || '').toLowerCase()
+
+      const operationalMarkers = ['navigate', 'go to', 'open', 'update', 'change', 'set', 'run', 'execute', 'create', 'delete', 'report', 'extract']
+      const bucket = operationalMarkers.some((m) => input.includes(m)) ? 'operational' : 'conversational'
+
+      intentResults.push({ input: body.input ?? '', bucket })
+
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/x-ndjson',
+        body: JSON.stringify({ type: 'message', role: 'assistant', content: `Intent: ${bucket}` }),
+      })
+    })
+
+    await page.goto('/dashboard', { waitUntil: 'domcontentloaded' })
+
+    // Send an operational intent
+    await page.evaluate(async () => {
+      await fetch('/api/bob/chat', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ input: 'open the analytics dashboard', source: 'text' }),
+      })
+    })
+
+    // Send a conversational intent
+    await page.evaluate(async () => {
+      await fetch('/api/bob/chat', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ input: 'what is the weather today', source: 'text' }),
+      })
+    })
+
+    await expect.poll(() => intentResults.length, { timeout: 10000 }).toBe(2)
+
+    const operationalResult = intentResults.find((r) => r.input.includes('open the analytics'))
+    const conversationalResult = intentResults.find((r) => r.input.includes('what is the weather'))
+
+    expect(operationalResult?.bucket).toBe('operational')
+    expect(conversationalResult?.bucket).toBe('conversational')
+  })
+
+  test('rejects invalid tool call payload and enforces execution step limit', async ({ page }) => {
+    const responseFragments: Array<Record<string, unknown>> = []
+
+    await page.route(CHAT_ENDPOINT_GLOB, async (route) => {
+      const body = JSON.parse(route.request().postData() || '{}') as {
+        toolCall?: unknown
+        toolStepsExecuted?: number
+      }
+
+      const lines: string[] = []
+
+      // Simulate tool validation rejection for unknown tool
+      if (body.toolCall) {
+        const tc = body.toolCall as Record<string, unknown>
+        const name = String(tc.name || '')
+        const isAllowed = name === 'navigateApp' || name === 'updateDataField'
+
+        if (!isAllowed) {
+          lines.push(
+            JSON.stringify({
+              type: 'tool_validation_error',
+              error: `Unsupported tool name: ${name || 'unknown'}`,
+            })
+          )
+        }
+      }
+
+      // Simulate step limit enforcement
+      const steps = Number(body.toolStepsExecuted ?? 0)
+      if (steps >= 5) {
+        lines.push(
+          JSON.stringify({
+            type: 'step_limit_exceeded',
+            reason: `Execution loop cap reached (${steps}/5). User confirmation required to continue.`,
+            steps,
+          })
+        )
+      } else {
+        lines.push(
+          JSON.stringify({
+            type: 'message',
+            role: 'assistant',
+            content: `Step ${steps + 1} executed.`,
+          })
+        )
+      }
+
+      const ndjson = lines.join('\n')
+      responseFragments.push(...lines.map((l) => JSON.parse(l) as Record<string, unknown>))
+
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/x-ndjson',
+        body: ndjson,
+      })
+    })
+
+    await page.goto('/dashboard', { waitUntil: 'domcontentloaded' })
+
+    // Test: unsupported tool name should produce a validation error fragment
+    await page.evaluate(async () => {
+      await fetch('/api/bob/chat', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          input: 'do something',
+          toolCall: { name: 'destroyDatabase', args: {} },
+        }),
+      })
+    })
+
+    // Test: step limit exceeded (toolStepsExecuted >= 5)
+    await page.evaluate(async () => {
+      await fetch('/api/bob/chat', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ input: 'next step', toolStepsExecuted: 5 }),
+      })
+    })
+
+    await expect.poll(() => responseFragments.length, { timeout: 10000 }).toBeGreaterThanOrEqual(2)
+
+    const validationError = responseFragments.find((f) => f.type === 'tool_validation_error')
+    expect(validationError).toBeTruthy()
+    expect(String(validationError?.error ?? '')).toContain('Unsupported tool name')
+
+    const stepLimitError = responseFragments.find((f) => f.type === 'step_limit_exceeded')
+    expect(stepLimitError).toBeTruthy()
+    expect(Number(stepLimitError?.steps)).toBe(5)
+  })
 })

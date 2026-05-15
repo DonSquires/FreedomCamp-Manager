@@ -4,6 +4,69 @@ Date: 2026-05-15
 Owner: GitHub Copilot
 Status: Active staging checklist — Sprints 50-70 complete on main; Iron Eagle Visual Identity locked in docs (2026-05-14)
 
+## Latest Session Snapshot (Phase B Observation Window Validation + Bootstrap Smoke Recheck — 2026-05-15)
+
+- Timestamp (NZ): 2026-05-15
+- Current branch: main
+- Scope completed:
+  - Re-ran core realignment validation gates in the active Phase B observation window.
+  - Confirmed build, lint, and Bob governance regression checks remain green.
+  - Re-ran bootstrap routes smoke suite on Chromium with full pass (3/3 route surfaces verified).
+  - Re-ran org-isolation integration suite; tests remain intentionally skip-gated in this local environment while CI remains the source of truth for pass/fail enforcement.
+  - Added a focused Bob ledger fallback test covering schema drift on `organization_id` and operator attribution for Phase B agent-loop writes.
+  - Extracted the Bob multi-tenant guard into a shared module, added direct guard tests, and tightened the Radio Comms event log row rendering keying for a small B3 follow-through polish pass.
+
+- Validation evidence:
+  | Command | Result | Notes |
+  |---|---|---|
+  | `bun run build` | PASS | TypeScript + Vite production build succeeded |
+  | `bun run lint` | PASS | ESLint clean |
+  | `bun run test:bob:governance` | PASS | 6/6 governance tests passing |
+  | `bunx playwright test tests/e2e/bootstrap-routes.test.ts --project=chromium --workers=1 --reporter=line` | PASS | 9/9 tests passing; final summary confirms 3/3 bootstrap routes |
+  | `bun test tests/integration/org-isolation.test.ts` | SKIP (6) | Local environment skip-gated; rely on CI gate evidence for org isolation status |
+  | `node --test inference-service/test/bob-agent-ledger.test.js` | PASS | Bob ledger fallback + attribution coverage added |
+  | `node --test inference-service/test/bob-tenant-guard.test.js` | PASS | Direct multi-tenant guard coverage added |
+
+- Realignment status impact:
+  - No regression detected in Phase A gate evidence during Phase B canary observation.
+  - Remaining operational track stays unchanged: complete observation window and continue planned canary advancement decisions.
+
+---
+
+## Latest Session Snapshot (Star Trek Root-Cause Validation + Full Browser Checkpoints — 2026-05-15)
+
+- Timestamp (NZ): 2026-05-15
+- Current branch: main
+- Scope completed:
+  - Installed native Chromium in Alpine container and executed Star Trek browser checkpoints locally.
+  - Confirmed Phase 3 and Phase 4 browser suites pass on this host after native Chromium install.
+  - Investigated Phase 1/2 failures before patching and confirmed root cause was policy-valid route behavior:
+    - Officer role can be redirected to `/officer-home` by Director roster gate when not rostered.
+    - Phase 2 radio tests were using officer credentials, so `/radio` could legitimately fail to stay active.
+  - Updated Phase 2 test login path to use Bob identity for radio assertions (aligned with Star Trek/Bob boundary and non-rostered officer gate behavior).
+  - Hardened selectors/waits in Phase 1/2 tests to remove transient route/render race false negatives.
+
+- Root-cause evidence:
+  | Item | Status | Notes |
+  |---|---|---|
+  | Officer roster gate redirect | CONFIRMED | `src/App.tsx` redirects to `/officer-home` when `directorGate.shouldRestrictToWaiting` is true |
+  | Officer allowed-route policy | CONFIRMED | `src/middleware.ts` allow-list excludes `/radio` for officer wait-state |
+  | Phase 2 auth identity mismatch | CONFIRMED | spec used `loginAs(page, 'officerOrg1')` for radio checks in non-rostered environment |
+
+- Validation evidence:
+  | Command | Result | Notes |
+  |---|---|---|
+  | `sudo apk add --no-cache chromium` | PASS | native Chromium installed on Alpine host |
+  | `bash scripts/playwright-bob-runtime.sh bunx playwright test tests/e2e/phase3-sentient-xo.spec.ts tests/e2e/phase4-admirals-bridge.spec.ts --project=chromium --workers=1 --reporter=line` | PASS | 10/10 tests passing |
+  | `bash scripts/playwright-bob-runtime.sh bunx playwright test tests/e2e/phase2-universal-translator.spec.ts --project=chromium --workers=1 --reporter=line` | PASS | 5/5 tests passing after root-cause fix |
+  | `bash scripts/playwright-bob-runtime.sh bunx playwright test tests/e2e/phase1-director-roster-gate.spec.ts tests/e2e/phase2-universal-translator.spec.ts --project=chromium --workers=1 --reporter=line` | PASS | 10/10 tests passing |
+
+- Files updated for this stabilization:
+  - `tests/e2e/phase1-director-roster-gate.spec.ts`
+  - `tests/e2e/phase2-universal-translator.spec.ts`
+
+---
+
 
 ## Latest Session Snapshot (Star Trek Phase 4 E2E Validation Continuation — 2026-05-15)
 

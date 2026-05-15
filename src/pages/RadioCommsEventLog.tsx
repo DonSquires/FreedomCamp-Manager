@@ -13,7 +13,7 @@
  * Route: /radio-comms-events-log — admin/admin_officer/master
  */
 
-import { useState } from 'react'
+import { Fragment, useState } from 'react'
 import { format, parseISO } from 'date-fns'
 import {
   Radio, RefreshCw, AlertCircle, Loader2,
@@ -194,9 +194,8 @@ export default function RadioCommsEventLog() {
                 {rows.map(row => {
                   const expanded = expandedId === row.id
                   return (
-                    <>
+                    <Fragment key={row.id}>
                       <TableRow
-                        key={row.id}
                         className={`cursor-pointer hover:bg-muted/50 ${row.degraded_mode ? 'bg-red-50/30 dark:bg-red-950/10' : ''}`}
                         onClick={() => setExpandedId(expanded ? null : row.id)}
                       >
@@ -239,7 +238,7 @@ export default function RadioCommsEventLog() {
                           </TableCell>
                         </TableRow>
                       )}
-                    </>
+                    </Fragment>
                   )
                 })}
               </TableBody>
