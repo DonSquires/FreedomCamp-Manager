@@ -1,17 +1,17 @@
 {
-  "timestamp": "2026-05-14T10:14:28.008Z",
-  "sourceFile": "/workspaces/FreedomCamp-Manager/tests/e2e/bob-human-emulator.spec.ts",
-  "reviewArtifact": "/workspaces/FreedomCamp-Manager/data/dr-bob-reviews/bob-human-emulator.spec.ts.2026-05-14T10-14-27-980Z.json",
-  "escalationArtifact": "/workspaces/FreedomCamp-Manager/data/dr-bob-escalations/escalation.2026-05-14T10-14-28-007Z.json",
-  "structured": false,
+  "timestamp": "2026-05-15T05:57:01.348Z",
+  "sourceFile": "/workspaces/FreedomCamp-Manager/docs/adr/007-event-backbone-floor-control.md",
+  "reviewArtifact": "/workspaces/FreedomCamp-Manager/data/dr-bob-reviews/007-event-backbone-floor-control.md.2026-05-15T05-57-01-294Z.json",
+  "escalationArtifact": "/workspaces/FreedomCamp-Manager/data/dr-bob-escalations/escalation.2026-05-15T05-57-01-346Z.json",
+  "structured": true,
   "decision": "needs-revision",
-  "reason": "unstructured-review",
-  "summary": "Dr Bob returned an unstructured review. Inspect the raw response.",
-  "findingsCount": 1,
-  "topFinding": "Unstructured review response",
+  "reason": "blocker-findings",
+  "summary": "The design-artifact contains ungrounded references to modules not present in the current system_state.json, and it falsely claims that certain services exist. These issues need to be addressed before implementation can proceed.",
+  "findingsCount": 3,
+  "topFinding": "Unimplemented Redis Service",
   "selfHealAttempted": false,
   "selfHealSuccess": false,
   "handoffRequired": true,
   "copilotActionHint": "Investigate escalation artifact and implement targeted fix",
-  "responsePreview": "{\"id\":\"sync-147f4352-76ba-4537-87f3-3a63d6a60efe-u1\",\"status\":\"IN_QUEUE\"}"
+  "responsePreview": "{\"delayTime\":21,\"executionTime\":80375,\"id\":\"sync-09d64995-b218-4f03-814f-a3e3c656b147-u1\",\"output\":{\"message\":\"{\\n  \\\"decision\\\": \\\"needs-revision\\\",\\n  \\\"summary\\\": \\\"The design-artifact contains ungrounded references to modules not present in the current system_state.json, and it falsely claims th"
 }

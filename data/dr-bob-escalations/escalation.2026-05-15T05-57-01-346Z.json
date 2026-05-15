@@ -1,0 +1,49 @@
+{
+  "createdAt": "2026-05-15T05:57:01.346Z",
+  "sourceFile": "/workspaces/FreedomCamp-Manager/docs/adr/007-event-backbone-floor-control.md",
+  "outputPath": "/workspaces/FreedomCamp-Manager/data/dr-bob-reviews/007-event-backbone-floor-control.md.2026-05-15T05-57-01-294Z.json",
+  "decision": "needs-revision",
+  "structured": true,
+  "escalationReason": "blocker-findings",
+  "review": {
+    "decision": "needs-revision",
+    "summary": "The design-artifact contains ungrounded references to modules not present in the current system_state.json, and it falsely claims that certain services exist. These issues need to be addressed before implementation can proceed.",
+    "findings": [
+      {
+        "severity": "blocker",
+        "title": "Unimplemented Redis Service",
+        "evidence": "The artifact references 'Redis Pub/Sub' without evidence of its existence in the current system_state.json or repo files.",
+        "requiredAction": "Add Redis service to system_state.json and implement necessary infrastructure."
+      },
+      {
+        "severity": "blocker",
+        "title": "Unimplemented Edge Functions",
+        "evidence": "The artifact references 'supabase/functions/radio-floor-acquire' and 'supabase/functions/radio-floor-release', which are not present in the current system_state.json or repo files.",
+        "requiredAction": "Create and implement these edge functions as per the design."
+      },
+      {
+        "severity": "blocker",
+        "title": "Unimplemented Supabase Migration",
+        "evidence": "The artifact references 'radio_floor_events' table creation without evidence of its existence in the current system_state.json or repo files.",
+        "requiredAction": "Add 'radio_floor_events' to system_state.json and implement the necessary migration."
+      }
+    ],
+    "verificationChecks": [
+      "Run `system-check.sh` to ensure all required services are present",
+      "Verify Redis instance is provisioned with expected settings using `redis-cli`",
+      "Check that edge functions exist in `supabase/functions` directory and can be executed successfully"
+    ]
+  },
+  "basicFixResult": null,
+  "requiredAction": "Escalate to Copilot for manual intervention beyond Dr Bob auto-fix scope.",
+  "attemptDiagnostics": [
+    {
+      "attempt": 1,
+      "channel": "runpod-runsync",
+      "status": 200,
+      "pending": false,
+      "structured": true,
+      "durationMs": 80862
+    }
+  ]
+}

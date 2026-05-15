@@ -1,0 +1,35 @@
+{
+  "createdAt": "2026-05-15T05:51:50.622Z",
+  "sourceFile": "/workspaces/FreedomCamp-Manager/docs/adr/008-voice-twin-governance.md",
+  "outputPath": "/workspaces/FreedomCamp-Manager/data/dr-bob-reviews/008-voice-twin-governance.md.2026-05-15T05-51-50-606Z.json",
+  "decision": "needs-revision",
+  "structured": true,
+  "escalationReason": "blocker-findings",
+  "review": {
+    "decision": "needs-revision",
+    "summary": "The artifact contains ungrounded references to modules and services that are not present in the current system_state.json, which could lead to implementation issues.",
+    "findings": [
+      {
+        "severity": "blocker",
+        "title": "Unimplemented Modules and Services",
+        "evidence": "References to `src/pages/VoiceTwinEnrollment.tsx`, `src/pages/VoiceProfileManagement.tsx`, `src/pages/VoiceTwinAuditDashboard.tsx`, and `supabase/functions/synthesize-voice-twin/` are present but not listed in the current system_state.json.",
+        "requiredAction": "Add these modules and services to system_state.json before implementation."
+      }
+    ],
+    "verificationChecks": [
+      "Run `scripts/system-check.sh` to ensure all required modules and services are added to system_state.json"
+    ]
+  },
+  "basicFixResult": null,
+  "requiredAction": "Escalate to Copilot for manual intervention beyond Dr Bob auto-fix scope.",
+  "attemptDiagnostics": [
+    {
+      "attempt": 1,
+      "channel": "runpod-runsync",
+      "status": 200,
+      "pending": false,
+      "structured": true,
+      "durationMs": 106986
+    }
+  ]
+}
