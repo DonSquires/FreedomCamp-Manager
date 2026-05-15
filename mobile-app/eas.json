@@ -1,6 +1,6 @@
 {
   "cli": {
-    "version": ">= 7.0.0",
+    "version": ">= 9.0.0",
     "appVersionSource": "local"
   },
   "build": {
@@ -8,10 +8,18 @@
       "channel": "development",
       "developmentClient": true,
       "distribution": "internal"
+      ,
+      "android": {
+        "buildType": "apk",
+        "gradleCommand": ":app:assembleDevelopmentDebug"
+      }
     },
-    "preview": {
+    "staging": {
       "channel": "preview",
       "distribution": "internal",
+      "env": {
+        "APP_VARIANT": "staging"
+      },
       "android": {
         "buildType": "apk",
         "credentialsSource": "local"
@@ -20,10 +28,13 @@
     "production": {
       "channel": "production",
       "autoIncrement": true,
+      "distribution": "store",
       "env": {
-        "CI_RELEASE_APPROVED": "true"
+        "CI_RELEASE_APPROVED": "true",
+        "APP_VARIANT": "production"
       },
       "android": {
+        "buildType": "app-bundle",
         "credentialsSource": "remote"
       }
     },

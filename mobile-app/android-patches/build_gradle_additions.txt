@@ -1,0 +1,55 @@
+# Android Auto — build.gradle Additions
+#
+# APPLY AFTER `npx expo prebuild --platform android --clean`
+# Target file: mobile-app/android/app/build.gradle
+#
+# ─── 1. Inside android { defaultConfig { ... } } ────────────────────────────
+#
+#   defaultConfig {
+#       applicationId "com.ironeagle.security.ops"
+#       minSdkVersion 23
+#       targetSdkVersion 34
+#       compileSdkVersion 34
+#       ...
+#   }
+#
+# ─── 2. Inside android { ... } — add packagingOptions ───────────────────────
+#
+#   packagingOptions {
+#       pickFirst 'lib/x86/libc++_shared.so'
+#       pickFirst 'lib/x86_64/libc++_shared.so'
+#       pickFirst 'lib/armeabi-v7a/libc++_shared.so'
+#       pickFirst 'lib/arm64-v8a/libc++_shared.so'
+#   }
+#
+# ─── 3. Inside dependencies { ... } — add Automotive libs ───────────────────
+#
+#   implementation "androidx.car.app:app:1.4.0"
+#   implementation "androidx.car.app:app-automotive:1.4.0"
+#
+# ─── Full patched section (replace the existing defaultConfig block) ─────────
+
+android {
+    compileSdkVersion 34
+
+    defaultConfig {
+        applicationId "com.ironeagle.security.ops"
+        minSdkVersion 23
+        targetSdkVersion 34
+        versionCode 1
+        versionName "1.0.0"
+    }
+
+    packagingOptions {
+        pickFirst 'lib/x86/libc++_shared.so'
+        pickFirst 'lib/x86_64/libc++_shared.so'
+        pickFirst 'lib/armeabi-v7a/libc++_shared.so'
+        pickFirst 'lib/arm64-v8a/libc++_shared.so'
+    }
+}
+
+dependencies {
+    // Android Auto / Automotive OS template API
+    implementation "androidx.car.app:app:1.4.0"
+    implementation "androidx.car.app:app-automotive:1.4.0"
+}

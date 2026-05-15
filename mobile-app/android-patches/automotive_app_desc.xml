@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  automotive_app_desc.xml
+  Declares this app as an Android Auto / Automotive OS template app.
+
+  APPLY AFTER `npx expo prebuild --platform android --clean`:
+    Destination: mobile-app/android/app/src/main/res/xml/automotive_app_desc.xml
+    (Create the res/xml/ directory if it does not exist.)
+-->
+<automotiveApp>
+    <uses name="template" />
+</automotiveApp>

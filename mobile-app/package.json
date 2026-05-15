@@ -43,7 +43,8 @@
     "react-native-url-polyfill": "^3.0.0",
     "react-native-web": "^0.19.13",
     "sonner-native": "^0.16.1",
-    "zustand": "^5.0.0"
+    "zustand": "^5.0.0",
+    "react-native-android-auto": "^1.4.1"
   },
   "overrides": {
     "sonner-native": {

@@ -231,3 +231,163 @@ Yes. The current wiring supports:
 - Role-aware policy enforcement at gateway and mutation layers.
 - Durable memory and conversation persistence across dedicated Supabase tables.
 - Storage bucket grounding feed integrated into Bob training pipelines.
+
+---
+
+## 11) Full System Map — All Bob Pipelines
+
+> Canonical as of 2026-05-15. Cross-reference with `BOB_INSTRUCTIONS.md §15` for the human/app interaction breakdown and role-access matrix.
+
+### 11.1 Inference & Chat
+
+```
+User (Web / Mobile)
+  └─> React Frontend (BobAssistantStudio.tsx / AiFeedbackChat.tsx)
+        └─> edgeFunctions.aiChat() / ask-bob
+              └─> ask-bob (edge function)
+                    ├─> bob-generate-video-action  [confirmed video intents]
+                    └─> onspace-ai-chat             [all other prompts]
+                          ├─> RunPod /runsync        [heavy GPU inference]
+                          ├─> Ollama /api/chat        [local LLM]
+                          └─> bob_conversations + bob_messages  [persistence]
+```
+
+### 11.2 Privileged Code / Ops
+
+```
+grand_master user
+  └─> GrandmasterCodingStudio.tsx
+        └─> grandmaster-studio (edge function)
+              ├─> inference-service /code/task      [code analysis]
+              ├─> inference-service /self-heal       [patch execution]
+              └─> inference-service /ask-copilot     [research queue]
+                    └─> bob-code-change-task          [policy-gated patch apply]
+```
+
+### 11.3 Field Intelligence
+
+```
+Field Officer (Mobile/Expo)
+  ├─> PTT audio tap
+  │     └─> speech-to-intent → STT (Whisper/RunPod) → incidents table
+  ├─> Wake word "Hey Bob"
+  │     └─> Picovoice → hands-free patrol update
+  ├─> Photo capture
+  │     └─> biosecurity-assess / smoke-assess / analyze-vehicle-photo
+  │           └─> bobVision() → vision model → assessment + checklist
+  └─> SOS button
+        └─> wearable-sos → push notification → all org supervisors
+```
+
+### 11.4 Radio Agent
+
+```
+Live audio feed
+  └─> radio-audit (edge function)
+        ├─> Acoustic model — danger phrase detection
+        ├─> False-positive filter (5s window — negations suppressed)
+        └─> Risk threshold decision
+              ├─> LOW      → Passive (30s window)
+              ├─> ELEVATED → Active Listen (10s window)
+              └─> CRITICAL → Monitor Ambient Risk
+                               └─> Armed Danger Auto-Assist activated
+                                     └─> suspend all pending org proposals
+```
+
+### 11.5 Approval & Governance
+
+```
+Bob generates proposal
+  └─> impact classification
+        ├─> LOW    → auto-approve → execute → bob_approval_audit
+        ├─> MEDIUM → notify admin (2h SLA)
+        │     ├─> approved → execute → bob_approval_audit
+        │     ├─> rejected → appeal path → master tier
+        │     └─> SLA breach → auto-escalate to master
+        └─> HIGH   → notify master (1h SLA)
+              ├─> approved → execute → bob_approval_audit
+              └─> SLA breach → push notification to all masters
+```
+
+### 11.6 Multimodal & Memory
+
+```
+Any Bob surface
+  └─> bob-multimodal-gateway
+        ├─> /v1/bob/interpret          [vision / audio interpretation]
+        ├─> /v1/bob/request_ai         [AI task dispatch]
+        ├─> /v1/bob/response           [feedback → bob_learning_log]
+        ├─> /v1/bob/execution          [action execution audit]
+        ├─> /v1/bob/privacy/consent    [user data permission]
+        └─> /v1/bob/privacy/delete     [right-to-erasure]
+
+Per-session memory tables:
+  bob_conversation_memory  (multi-turn context)
+  bob_user_memory          (per-user preferences, scoped NOT per-org)
+  bob_learning_memory      (adaptive context)
+  bob_learning_log         (scored responses, hallucination events)
+```
+
+### 11.7 Autonomous Learning
+
+```
+Daily schedule
+  └─> run-autonomous-learning-cycle.sh
+        ├─> summarize-failures.mjs
+        │     └─> reads bob_learning_log → failure digest → adjusts system prompt
+        ├─> human-test-engine.mjs
+        │     └─> 5 standard prompts → quality score → bob-response-scores.jsonl
+        ├─> dr-bob-review.mjs
+        │     └─> adversarial critique of pending plans → bob_learning_log
+        └─> auto-ingest.mjs
+              └─> rebuilds docs/BOB_BRAIN_DUMP.md from live source files
+```
+
+### 11.8 Notice & Document Generation
+
+```
+Officer or breach detection
+  └─> Bob evidence gate (Identity + Location + Violation required)
+        ├─> pass → generate-infringement / generate-notice-to-vacate /
+        │          generate-warning-notice / biosecurity-notice /
+        │          smoke-notice / generate-noise-notice / render-infringement-notice
+        │          → document stored + linked to incident
+        └─> fail → flag "Insufficient Evidence" → route to human review
+```
+
+### 11.9 Human Interaction Surface Map
+
+| Surface | Route | Actor | Bob Role |
+|---|---|---|---|
+| Chat Studio | `/bob-assistant` | Any role | Conversational AI, memory, feedback |
+| AI Analysis | `/ai-analysis` | Admin / officer | Document OCR, analysis, routing |
+| Bob Intake Queue | `/bob-intake-queue` | Admin | Staged import review |
+| Import Data | `/import-data` | Admin / officer | File classify + entity extraction |
+| Proposal Log | `/bob-proposals-log` | Admin / master | Approve / reject proposals |
+| Proposal Events | `/bob-proposal-events-log` | Admin / master | Audit trail |
+| Action Events | `/bob-action-proposal-events-log` | Admin / master | Executed action audit |
+| Bob UI Review | `/bob-ui-review` | Developer / master | QA interface modes |
+| Video Suite | `/admin/video-generation` | Admin / master | Briefing video confirm + quota |
+| Grandmaster Studio | `/grandmaster-coding-studio` | `grand_master` | Code tasks, patch plans |
+| System Diagnostics | `/system-diagnostics` | Admin / master | Inference health checks |
+| Live Plan Reviews | `/live-plan-reviews` | Admin / master | H&S / SOP approval |
+| Settings | `/settings` | Any role | Tone, verification, emergency config |
+| Pricing Page | `/pricing` | Admin / master | Patrol quote generation |
+| Mobile PTT | Expo app | Officer | Speech-to-intent, wake word, SOS |
+
+### 11.10 Role-Access Matrix
+
+| Capability | `officer` | `admin_officer` | `admin` | `master` | `grand_master` |
+|---|---|---|---|---|---|
+| Conversational chat | ✓ | ✓ | ✓ | ✓ | ✓ |
+| PTT speech-to-intent | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Notice / SOP generation | ✓ | ✓ | ✓ | ✓ | ✓ |
+| View proposals | — | — | ✓ | ✓ | ✓ |
+| Approve medium proposals | — | — | ✓ | ✓ | ✓ |
+| Approve high proposals | — | — | — | ✓ | ✓ |
+| Submit code tasks | — | — | — | — | ✓ |
+| Auto-patch execution | — | — | — | — | ✓ (Level 4) |
+| Grandmaster Studio | — | — | — | — | ✓ |
+| Video generation | — | — | ✓ | ✓ | ✓ |
+| System diagnostics | — | — | ✓ | ✓ | ✓ |
+| Emergency cancel (verified) | ✓ | ✓ | ✓ | ✓ | ✓ |

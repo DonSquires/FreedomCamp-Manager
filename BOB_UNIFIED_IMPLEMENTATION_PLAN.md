@@ -407,4 +407,74 @@ Bob Radio Agent is currently UI spec only. Need to confirm:
 
 ---
 
+## Service-Test And Expo Delivery Addendum
+
+This addendum captures the current Bob testing and Android delivery posture as grounded in the live repo.
+
+### A. Canonical Bob Service-Test Coverage
+
+Bob service validation is not a single database script. It spans:
+
+- Web admin portal interaction tests
+- PWA offline queue and replay tests
+- Mobile / Expo profile validation
+- Voice escalation mocks
+- Dispatch injection and realtime path checks
+- Autonomous self-test and chaos / recovery verification
+
+Current grounded files and commands:
+
+- `tests/e2e/bob-offline.spec.ts`
+- `tests/e2e/offline-queue.spec.ts`
+- `tests/e2e/bob-human-emulator.spec.ts`
+- `tests/e2e/governance-bob-regression.spec.ts`
+- `scripts/mock-elevenlabs.mjs`
+- `scripts/simulate-dispatch.mjs`
+- `scripts/trigger-bob-self-test.mjs`
+- `scripts/bob-agentic-conductor.mjs`
+
+### B. Android Auto / APK Constraint
+
+The repository currently supports Expo-managed Android builds through `mobile-app/eas.json`, but does not yet contain a committed native Android project or a verified automotive template dependency.
+
+Implication:
+
+- APK / AAB generation through EAS is grounded now
+- Native Android Auto implementation is not grounded yet
+- Any future automotive implementation must begin with `mobile-app/android/` being generated and committed or otherwise introduced as a verified native surface
+
+### C. Required Next Step For Native Automotive Work
+
+Before Bob is allowed to claim Android Auto support, the team must complete this exact prerequisite:
+
+1. Generate the native project from `mobile-app/` via Expo prebuild or add a committed native Android tree
+2. Add and verify the automotive dependency in `mobile-app/package.json`
+3. Validate the generated native files in CI before documenting the automotive surface as active
+
+Recommended command path:
+
+```bash
+cd mobile-app
+npm install
+npx expo prebuild --platform android --clean
+git status
+```
+
+Expected committed tree after prebuild:
+
+```text
+mobile-app/
+  android/
+    app/
+      build.gradle
+      src/main/AndroidManifest.xml
+    build.gradle
+    gradle.properties
+    settings.gradle
+```
+
+If the generated tree is not committed, Bob must keep Android Auto work in a blocked state and continue only with Expo-managed packaging, Bob mobile runtime code, and supporting test harnesses.
+
+---
+
 Generated: 2026-04-30 | Status: Ready | Owner: Bob Team
