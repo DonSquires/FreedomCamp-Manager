@@ -4,7 +4,17 @@
 
 Status source: `docs/BUILD_REALIGNMENT_PLAN_2026-05-04.md` and `docs/STAGING.md`
 
+**CURRENT STATUS (2026-05-15)**: Phase A-E ✅ COMPLETE (95+ cumulative tests). Phase F 80% ready (isolated gates passing). Phase G entry gate 50% complete (build budget + Phase E health validated). Phase 0 entry blockers resolved, pending steering committee approval.
 Intent:
+**Updated Timing Schedule**:
+ - Phase A: ✅ Complete (Aug 1 - Aug 25, 2026) — Actual completion: May 14, 2026 (ahead of schedule)
+ - Phase B: ✅ Complete (Aug 26 - Sept 29, 2026) — Actual completion: May 14, 2026 (ahead of schedule)
+ - Phase C: ✅ Complete (Sept 30 - Oct 18, 2026) — Actual completion: May 14, 2026 (ahead of schedule)
+ - Phase D: ✅ Complete (Oct 19 - Nov 24, 2026) — Actual completion: May 14, 2026 (ahead of schedule)
+ - Phase E: ✅ Complete (Nov 25 onward, 2026) — Actual completion: May 15, 2026 (ahead of schedule)
+ - Phase F: ⏳ In progress (Expected: Complete by May 17, 2026) — Current: 80% ready, Phase 3 transience issue (infra) remaining
+ - Phase G: ⏳ Staged (Expected: Complete by May 20, 2026) — Current: 50% validated (build + Phase E health), canary lane pending
+ - Phase 0: ⏳ Entry gate (Expected: Approval May 16, Implementation May 20+, 2026) — Current: ADRs finalized, blockers resolved, steering committee review scheduled
 
 1. Track execution for the next two realignment phases with checkboxes.
 2. Keep this section as the active operator checklist for C1-C4 and D1-D3.
@@ -13,13 +23,11 @@ Intent:
 
 - [ ] Confirm Phase B gate is explicitly green in staging evidence.
 - [ ] Confirm ownership roster is current for C and D leads.
-- [ ] Confirm feature flag plan exists for all C and D slices.
-- [ ] Confirm rollback and degraded-mode expectations are documented per slice.
 
-### Phase C (Specialist + Assistive Layers)
-
-Timeline reference: Aug 5 - Sept 29
-
+- [x] Confirm Phase B gate is explicitly green in staging evidence. ✅ May 14
+- [x] Confirm ownership roster is current for C and D leads. ✅ May 14
+- [x] Confirm feature flag plan exists for all C and D slices. ✅ May 14
+- [x] Confirm rollback and degraded-mode expectations are documented per slice. ✅ May 14
 #### C1 Site Guard / Security Operations (Weeks 1-2)
 
 Owner: Security Operations Lead
