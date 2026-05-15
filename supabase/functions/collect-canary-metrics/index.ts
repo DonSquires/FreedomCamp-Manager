@@ -10,7 +10,7 @@
  * Returns: { metrics: CanaryMetricSnapshot[], timestamp, window_seconds }
  */
 
-import { createClient } from "@supabase/supabase-js";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.3";
 import { corsHeaders } from "../_shared/cors.ts";
 
 interface CanaryMetricSnapshot {

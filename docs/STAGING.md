@@ -4,6 +4,30 @@ Date: 2026-05-15
 Owner: GitHub Copilot
 Status: Active staging checklist — Sprints 50-70 complete on main; Iron Eagle Visual Identity locked in docs (2026-05-14)
 
+## Latest Session Snapshot (Phase B Canary Metrics Pipeline Restored — 2026-05-15)
+
+- Timestamp (NZ): 2026-05-15
+- Current branch: main
+- Scope completed:
+  - Fixed deployment bundling defect in `supabase/functions/collect-canary-metrics/index.ts` by replacing bare package import with Deno-compatible `esm.sh` import.
+  - Deployed `collect-canary-metrics` to active Supabase project `kxwjcupuxnnbnzcgmkoi`.
+  - Re-ran canary monitoring pipeline end-to-end and generated a fresh report artifact.
+
+- Validation evidence:
+  | Command | Result | Notes |
+  |---|---|---|
+  | `supabase functions deploy collect-canary-metrics` | PASS | Function deployed successfully to project `kxwjcupuxnnbnzcgmkoi` |
+  | `node scripts/check-canary-thresholds.mjs --save-report` | PASS | 4/4 healthy, 0 critical, 0 warning |
+  | `data/canary-report-2026-05-15.json` | GENERATED | Report saved by checker script |
+
+- Realignment status impact:
+  - Phase B canary metrics collection is operational again.
+  - Canary monitoring scripts are unblocked for observation-window evidence collection.
+
+- Open blockers: None
+- Next:
+  - Continue scheduled observation capture and promote 50% flags only after sustained healthy telemetry.
+
 ## Latest Session Snapshot (Phase B Canary Advancement Readiness + Metrics Function Drift — 2026-05-15)
 
 - Timestamp (NZ): 2026-05-15
