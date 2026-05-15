@@ -4,6 +4,27 @@ Date: 2026-05-15
 Owner: GitHub Copilot
 Status: Active staging checklist — Sprints 50-70 complete on main; Iron Eagle Visual Identity locked in docs (2026-05-14)
 
+## Latest Session Snapshot (Phase B Bob Entry-Point Context Unification — 2026-05-15)
+
+- Timestamp (NZ): 2026-05-15
+- Current branch: main
+- Scope completed:
+  - Continued realignment hardening by standardizing remaining high-traffic Supabase Bob entry points onto shared context composition.
+  - Updated `onspace-ai-chat` shared-helper Bob chat path to emit unified operation/source/user/org metadata.
+  - Updated `process-tender-document` Bob analysis path to route call context through shared context builder.
+  - Updated `process-investigation-document` extraction path to route context through shared context builder.
+  - Updated `bob-multimodal-gateway` request-ai chat/assess paths to attach standardized operation/user/org context with resolved org fallback logic.
+
+- Validation evidence:
+  | Command | Result | Notes |
+  |---|---|---|
+  | IDE diagnostics (`get_errors`) on updated edge functions | PASS | No errors in onspace-ai-chat/process-tender-document/process-investigation-document/bob-multimodal-gateway |
+  | `bun run build` | PASS | TypeScript + Vite production build succeeded after entry-point context unification |
+
+- Realignment status impact:
+  - No regressions detected in build validation.
+  - Shared Bob context contract is now applied across additional core edge entry points, reducing request-metadata drift in Phase B operations.
+
 ## Latest Session Snapshot (Enforcement Timeline Continuation + Commit/Push Handoff — 2026-05-15)
 
 - Timestamp (NZ): 2026-05-15
