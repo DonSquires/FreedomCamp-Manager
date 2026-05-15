@@ -234,7 +234,6 @@ jobs:
 
   bob-service-gate:
     name: Bob Service Test Gate
-    needs: []
     uses: ./.github/workflows/ops-bob-self-test.yml
     secrets:
       SIM_SUPABASE_URL: ${{ secrets.SIM_SUPABASE_URL }}

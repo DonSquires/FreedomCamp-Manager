@@ -11,7 +11,7 @@ concurrency:
 
 jobs:
   monitoring-pulse-smoke:
-    name: Monitoring Pulse Smoke (PR label: smoke)
+    name: "Monitoring Pulse Smoke (PR label: smoke)"
     if: contains(github.event.pull_request.labels.*.name, 'smoke') && github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     timeout-minutes: 25
