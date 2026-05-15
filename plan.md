@@ -161,6 +161,291 @@ Owner: Communications Reliability Lead
 - [x] Build/lint/tests pass for all E slices.
 - [x] Phase E completion snapshot recorded in staging docs.
 
+---
+
+## Phase 0 (Radio Platform Redesign: PTT → Professional Radio with Live Translation)
+
+**Timeline reference**: 2026-05-15 onward (5-phase sprint)
+
+**Strategic intent**: Replace peer-to-peer PTT with professional radio platform featuring selective forwarding, streaming transcription, multi-language translation, and optional voice-matched relay — while maintaining org isolation, emergency operability, and full Bob governance integration.
+
+**Architecture foundation**: Three ADRs (SFU platform, event backbone, voice-twin governance) + schema design + 5-phase feature flag rollout.
+
+### Phase 0 Entry Gate Checklist (Go/No-Go)
+
+- [ ] ADR-006 (SFU Platform): Livekit selection approved by steering committee + ops + legal
+- [ ] ADR-007 (Event Backbone): Redis Pub/Sub topology approved by platform + ops teams
+- [ ] ADR-008 (Voice-Twin): Three-tier consent governance approved by legal/compliance + leadership
+- [ ] Phase 0 schema design reviewed and approved (6 core tables + org-level RLS enforcement)
+- [ ] Feature flag strategy validated (Phases 1–5 canary progression defined)
+- [ ] Star Trek integration documented (Bob governance for floor control + emergency override)
+- [ ] All ADRs pass Dr Bob automated review (`node scripts/dr-bob-review.mjs`)
+- [ ] DECISIONS.md updated with Phase 0 architectural decisions
+- [ ] STAGING.md updated with Phase 0 entry gate snapshot
+
+**Entry gate owner**: Platform Architecture Lead + Bob Platform Lead (co-owners)
+
+**Immediate blockers** (if any): [To be filled after Dr Bob review]
+
+### Phase 0-1: Core SFU + Floor Control (Weeks 1–3)
+
+**Owner**: Platform Engineering Lead
+
+**Objective**: Establish Livekit SFU as primary media transport and implement org-scoped floor control via Redis + Supabase audit trail.
+
+#### P0-1a SFU Integration
+- [ ] Provision Livekit Cloud account (ops team)
+- [ ] Create `supabase/functions/radio-session-grant/` endpoint for org-scoped token generation
+- [ ] Implement `src/lib/radioTransport.ts` with Livekit WebRTC client
+- [ ] Configure TURN server for restrictive networks
+- [ ] Add feature flag `FF_PHASE_0_SFU_ENABLED`
+
+#### P0-1b Floor Control
+- [ ] Create `supabase/functions/radio-floor-acquire/` and `radio-floor-release/` endpoints
+- [ ] Implement Redis Pub/Sub channels for floor state coordination
+- [ ] Add `radio_floor_events` table with RLS policies
+- [ ] Implement floor UI indicator (who's transmitting on this channel)
+- [ ] Add feature flag `FF_PHASE_0_FLOOR_CONTROL`
+
+#### P0-1c Emergency Override
+- [ ] Create supervisor override path (org-scoped)
+- [ ] Integrate Bob approval contract (Phase D D1) for escalation
+- [ ] Add `radio_floor_events.operator_id` logging for audit
+- [ ] Add feature flag `FF_PHASE_0_EMERGENCY_OVERRIDE`
+
+#### P0-1d Tests & Validation
+- [ ] Create `tests/e2e/phase0-phase1-sfu-connectivity.spec.ts` (multi-user, org isolation, reconnect)
+- [ ] Create `tests/e2e/phase0-phase1-floor-control.spec.ts` (floor contention, override, replay)
+- [ ] Validate Star Trek Phase 1 (Director) remains green
+- [ ] Canary progression gate: **5% orgs for 1 week; < 2% audio drops threshold**
+
+#### P0-1e Capture Evidence
+- [ ] Run all tests and record in `docs/STAGING.md`
+- [ ] `bun run build` PASS
+- [ ] `bun run lint` PASS
+- [ ] Update `plan.md` with Phase 0-1 completion snapshot
+
+### Phase 0-2: Streaming STT + Live Captions (Weeks 4–5)
+
+**Owner**: Speech & AI Lead
+
+**Objective**: Stream STT from Livekit egress tap; persist transcripts; render live captions in UI.
+
+#### P0-2a STT Ingestion
+- [ ] Configure Livekit egress pipeline to tap media
+- [ ] Integrate STT service (Google Cloud Speech API or Azure Speech)
+- [ ] Create `supabase/functions/ingest-transcript-segments/` endpoint
+- [ ] Create `radio_transmission` and `radio_transcript_segments` tables with RLS
+- [ ] Add feature flag `FF_PHASE_0_TRANSCRIPT_INGESTION`
+
+#### P0-2b Live Caption UI
+- [ ] Add caption lane to `src/pages/RadioUI.tsx`
+- [ ] Implement caption sync (timestamp-matched to audio playback)
+- [ ] Add latency threshold control (`FF_PHASE_0_CAPTION_LATENCY_THRESHOLD_MS`)
+- [ ] Implement "delayed captions" and "speech unavailable" states
+- [ ] Add feature flag `FF_PHASE_0_LIVE_CAPTIONS`
+
+#### P0-2c Tests & Validation
+- [ ] Create `tests/e2e/phase0-phase2-transcripts.spec.ts`
+- [ ] Validate transcript latency < 1000ms after speech ends
+- [ ] Validate org isolation on transcript reads/writes
+- [ ] Validate Star Trek Phase 2 (Universal Translator) remains green
+- [ ] Canary progression gate: **5% cohort for 5 days; caption arrival latency must stay < 1000ms**
+
+#### P0-2d Capture Evidence
+- [ ] Update `docs/STAGING.md` with Phase 0-2 snapshot
+
+### Phase 0-3: Multi-Language Translation Layer (Weeks 6–7)
+
+**Owner**: Speech & AI Lead
+
+**Objective**: Add per-user translation subscriptions; persist translated segments; render dual caption lanes.
+
+#### P0-3a Translation Pipeline
+- [ ] Integrate translation service (Google Translate, Azure Translator, DeepL)
+- [ ] Create `supabase/functions/translate-transcript-segments/` endpoint
+- [ ] Create `radio_translation_segments` table with RLS
+- [ ] Implement per-user language preference storage
+- [ ] Add feature flag `FF_PHASE_0_TRANSLATION_ENABLED`
+
+#### P0-3b Dual Caption UI
+- [ ] Add translated caption lane alongside original
+- [ ] Implement confidence threshold gating (`FF_PHASE_0_TRANSLATION_CONFIDENCE_THRESHOLD`)
+- [ ] Add low-confidence visual indicators
+- [ ] Add feature flag `FF_PHASE_0_DUAL_CAPTION_LANES`
+
+#### P0-3c Tests & Validation
+- [ ] Create `tests/e2e/phase0-phase3-translation.spec.ts`
+- [ ] Validate org isolation on translation reads/writes
+- [ ] Validate low-confidence flagging
+- [ ] Validate cross-org caption isolation
+- [ ] Validate Star Trek Phase 3 (Sentient XO) remains green
+- [ ] Canary progression gate: **25% cohort for 3 days; zero org-boundary leaks**
+
+#### P0-3d Capture Evidence
+- [ ] Update `docs/STAGING.md` with Phase 0-3 snapshot
+
+### Phase 0-4: Translated Audio Relay (Weeks 8–9)
+
+**Owner**: Speech & AI Lead
+
+**Objective**: Synthesize translated audio and relay to receiving users; maintain original audio as primary.
+
+#### P0-4a TTS Rendering
+- [ ] Integrate TTS provider (ElevenLabs, Google Cloud TTS, Azure Speech Synthesis)
+- [ ] Create `supabase/functions/synthesize-translated-audio/` endpoint
+- [ ] Create `radio_tts_renders` table with RLS and synthetic tag
+- [ ] Implement watermarking on all synthesized audio ("This is synthesized translation")
+- [ ] Add feature flag `FF_PHASE_0_TTS_RELAY_ENABLED`
+
+#### P0-4b Audio Playback Controls
+- [ ] Implement user preference for audio playback mode (original, translated, both)
+- [ ] Add fallback to original if TTS unavailable
+- [ ] Add feature flag `FF_PHASE_0_TTS_FALLBACK_TO_ORIGINAL`
+- [ ] Create `user_radio_preferences` table
+
+#### P0-4c Tests & Validation
+- [ ] Create `tests/e2e/phase0-phase4-translated-audio.spec.ts`
+- [ ] Validate TTS synthesis latency acceptable for live operations
+- [ ] Validate watermark presence on all synthetic audio
+- [ ] Validate original audio remains primary if TTS fails
+- [ ] Validate Star Trek Phase 4 (Admiral's Bridge) remains green
+- [ ] Canary progression gate: **50% cohort for 1 week; zero TTS failures blocking original audio**
+
+#### P0-4d Capture Evidence
+- [ ] Update `docs/STAGING.md` with Phase 0-4 snapshot
+
+### Phase 0-5: Voice-Twin Enrollment & Governance (Weeks 10–12)
+
+**Owner**: Voice & Governance Lead
+
+**Objective**: Enable optional voice-matched relay; three-tier consent model; full audit governance.
+
+#### P0-5a Enrollment UI
+- [ ] Create `src/pages/VoiceTwinEnrollment.tsx` with consent flow
+- [ ] Create `radio_voice_profiles` table with consent versioning
+- [ ] Implement enrollment with signature + timestamp capture
+- [ ] Add feature flag `FF_PHASE_0_VOICE_TWIN_ENROLLMENT`
+
+#### P0-5b Runtime Voice-Twin Check
+- [ ] Implement `shouldUseVoiceTwin()` logic (enrollment + preference + org setting checks)
+- [ ] Create fallback to neutral voice if any check fails
+- [ ] Add emergency disable path (user + org-level)
+- [ ] Add feature flag `FF_PHASE_0_VOICE_TWIN_SYNTHESIS`
+
+#### P0-5c Audit Governance
+- [ ] Create `radio_voice_twin_events` table with full logging
+- [ ] Create `src/pages/VoiceTwinAuditDashboard.tsx` for org admins
+- [ ] Implement voice-profile revocation (self + supervisor)
+- [ ] Add feature flag `FF_PHASE_0_VOICE_TWIN_AUDIT_DASHBOARD`
+
+#### P0-5d Legal & Compliance Gate
+- [ ] Legal team reviews consent text and governance model (ADR-008)
+- [ ] Compliance validates audit trail and data residency
+- [ ] Leadership approves voice-twin use case and risk acceptance
+- [ ] **This gate is mandatory before Phase 0-5 implementation**
+
+#### P0-5e Tests & Validation
+- [ ] Create `tests/e2e/phase0-phase5-voice-twin.spec.ts`
+- [ ] Validate consent enforcement (no synthesis without enrollment)
+- [ ] Validate revocation (immediate effect)
+- [ ] Validate audit trail completeness
+- [ ] Validate emergency disable works under all scenarios
+- [ ] Validate Star Trek governance contracts remain green
+- [ ] Canary progression gate: **Iron Eagle internal only for 2 weeks; full legal audit of 100+ voice-twin events**
+
+#### P0-5f Capture Evidence
+- [ ] Update `docs/STAGING.md` with Phase 0-5 snapshot
+- [ ] Record all audit events + legal sign-off
+
+### Phase 0 Exit Gate Checklist
+
+- [ ] Phase 0-1 gate passes: SFU + floor control stable, < 2% audio drops, org isolation verified
+- [ ] Phase 0-2 gate passes: Transcripts arriving < 1000ms, caption latency acceptable
+- [ ] Phase 0-3 gate passes: Translation working, zero org-boundary leaks, confidence thresholds working
+- [ ] Phase 0-4 gate passes: Translated audio synthesis stable, original audio never blocked, watermarking present
+- [ ] Phase 0-5 gate passes: Consent governance enforced, audit trail complete, legal approval obtained
+- [ ] All Star Trek phases (Phase 1–4) remain green
+- [ ] Build/lint/tests pass for all Phase 0 slices
+- [ ] Phase 0 completion snapshot recorded in `docs/STAGING.md`
+- [ ] PTT deprecation plan finalized (Phase 0-5 → Phase 1 PTT sunset timeline)
+
+---
+
+### Phase F Entry Check (Go/No-Go)
+
+- [x] Confirm Phase E gate is explicitly green in staging evidence.
+- [x] Confirm Star Trek Phase 3+4 spec files are present and testable.
+- [ ] Confirm Phase 0 exit gate passes before F work begins.
+
+### Phase F (Star Trek Phase 3+4 — Translation + Translated Audio Consolidation)
+
+Timeline reference: PTT clean-sheet plan Phase 3 + Phase 4
+
+#### F1 Translation Layer Gate (Star Trek Phase 3)
+
+Owner: Speech and AI Lead
+
+- [ ] Validate role-path redirect safety for translation-capable sessions.
+- [ ] Validate Sentient XO integration handoff contract.
+- [ ] Validate UX baseline capture artifacts remain present and current.
+- [ ] Run full Star Trek Phase 3 gate suite and capture evidence.
+- [ ] Capture evidence in staging snapshot with command outputs.
+
+#### F2 Translated Audio Relay Gate (Star Trek Phase 4)
+
+Owner: Speech and AI Lead
+
+- [ ] Validate Admiral's Bridge handoff and synthetic audio relay contracts.
+- [ ] Validate notice-print and signature gate coverage.
+- [ ] Validate operations map emergency banner coverage.
+- [ ] Run full Star Trek Phase 4 gate suite and capture evidence.
+- [ ] Capture evidence in staging snapshot with command outputs.
+
+### Phase F Completion Gate Checklist
+
+- [ ] Phase E gate confirmed green.
+- [ ] Star Trek Phase 3 specs pass — translation boundaries and role-path redirects verified.
+- [ ] Star Trek Phase 4 specs pass — translated audio relay and emergency surfaces verified.
+- [ ] Build/lint/tests pass for all F slices.
+- [ ] Phase F completion snapshot recorded in staging docs.
+
+### Phase G Entry Check (Go/No-Go)
+
+- [ ] Confirm Phase F gate is explicitly green in staging evidence.
+- [ ] Confirm Phase A gate is explicitly green (org isolation + bootstrap routes).
+- [ ] Confirm canary rollout progression is at confirmed safe milestone.
+
+### Phase G (Production Readiness + Canary Rollout)
+
+Timeline reference: Post-Phase-E production advancement
+
+#### G1 Canary Rollout Validation
+
+Owner: Platform Architecture Lead
+
+- [ ] Revalidate Phase A gate criteria (org isolation, bootstrap routes, route/role truth).
+- [ ] Confirm feature-flag rollout percentages for Phase B slices are at 100% or documented hold.
+- [ ] Run Star Trek full canonical gate to confirm rollout confidence.
+- [ ] Capture evidence in staging snapshot with command outputs.
+
+#### G2 Build Budget and Drift Health
+
+Owner: Data Platform Lead
+
+- [ ] Confirm total JS build budget is within ceiling (8000 kB per `scripts/check-build-budgets.mjs`).
+- [ ] Confirm no new direct-query drift has appeared in E1 target pages.
+- [ ] Run `bun run build` and budget check to confirm production build health.
+- [ ] Capture evidence in staging snapshot with command outputs.
+
+### Phase G Completion Gate Checklist
+
+- [ ] Phase F gate confirmed green.
+- [ ] Phase A org isolation gate remains green.
+- [ ] Build budget within ceiling; no new E1 drift.
+- [ ] Star Trek canonical lane passes across all phases (1-4).
+- [ ] Phase G completion snapshot recorded in staging docs.
+
 ### Required Evidence for Every Slice (C1-C4, D1-D3)
 
 - [x] `bun run build`

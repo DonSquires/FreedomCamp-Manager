@@ -15,6 +15,36 @@ When a pattern, platform, or architectural decision changes, append a dated note
 ## Current Standing Decisions
 
 - Date: 2026-05-15
+- Decision: Phase E (Data Access Reduction + Enterprise Hardening) is formally COMPLETE and gates are locked. Phase 0 (Radio Platform Redesign) entry gate is OPEN pending steering committee approval of three ADRs (SFU selection, event backbone, voice-twin governance).
+- Scope: `docs/STAGING.md`, `plan.md`, `tests/e2e/phase-e*.spec.ts`, `docs/adr/006-sfu-platform-selection.md`, `docs/adr/007-event-backbone-floor-control.md`, `docs/adr/008-voice-twin-governance.md`, `docs/PHASE_0_SCHEMA_DESIGN.md`.
+- Reason: Phase E completion formalizes the enterprise hardening sprint; Phase 0 architectural decisions must be explicit and approved before implementation sprints (Phases 1–5) begin. ADR-based governance replaces ad-hoc designs.
+- Consequences: (1) All future work assumes Phase E baseline (data access reduction, communications governance, audit dashboards active). (2) Phase 0 entry gate requires approval of SFU, event backbone, and voice-twin models from steering committee, legal/compliance, and ops. (3) Phase 1 implementation (Phases 1–5 radio rebuild) cannot start until Phase 0 entry gate passes.
+
+- Date: 2026-05-15
+- Decision: Phase 0 radio platform redesign is a 5-phase buildout (Phase 1: SFU + floor control; Phase 2: transcripts + captions; Phase 3: translation layer; Phase 4: translated audio relay; Phase 5: voice-twin enrollment + governance). Each phase has explicit exit gate; no phase gates the next until metrics pass. Feature flags govern canary progression (5% → 25% → 50% → 100%).
+- Scope: `docs/PHASE_0_SCHEMA_DESIGN.md`, `docs/adr/006-*.md`, `docs/adr/007-*.md`, `docs/adr/008-*.md`, `plan.md`, `package.json` (feature flag registry).
+- Reason: Radio platform redesign is the strategic post-Phase-E priority. Five-phase gate model reduces risk by validating each capability before expanding scope. Livekit SaaS + Redis event backbone + three-tier voice-twin consent model provide a defensible architecture that balances functionality, cost, and compliance.
+- Consequences: (1) Phase 1 requires Livekit provisioning and SFU integration; ops/infra support needed. (2) Each phase adds schema tables (radio_transmissions → radio_floor_events → radio_transcript_segments → radio_translation_segments → radio_tts_renders → radio_voice_profiles). (3) Feature flags must be maintained through all 5 phases; no flag removal until phase fully sunseted. (4) Voice-twin governance (ADR-008) requires legal review before Phase 5 implementation. (5) Post-Phase-5 backlog includes multi-channel radio banks, AI floor arbitration, external network integration.
+
+- Date: 2026-05-15
+- Decision: Phase 0 Architecture Decision Records (ADRs 006, 007, 008) are the source of truth for Livekit SFU selection, Redis event backbone topology, and voice-twin consent model. All three ADRs must pass Dr Bob review and steering committee approval before Phase 1 implementation begins.
+- Scope: `docs/adr/006-sfu-platform-selection.md`, `docs/adr/007-event-backbone-floor-control.md`, `docs/adr/008-voice-twin-governance.md`.
+- Reason: ADR-based approach makes architectural decisions auditable and referenceable; avoids design thrashing and ensures alignment with Iron Eagle leadership, legal/compliance, and ops teams before code is written.
+- Consequences: (1) Any contradiction between ADR and code must be resolved in ADR (decision) not code (implementation). (2) If a fallback path becomes necessary (e.g., cost-driven move from Livekit to Mediasoup), a new ADR must be created with rationale and approval. (3) ADRs must be reviewed at each phase gate; if new information surfaces, ADR can be updated with a dated amendment section.
+
+- Date: 2026-05-15
+- Decision: Phase 0 schema design follows org-level isolation via RLS on all new `radio_*` tables. No radio data crosses org boundaries. Multi-tenancy enforcement is mandatory, not optional.
+- Scope: `docs/PHASE_0_SCHEMA_DESIGN.md`, all new migrations in `supabase/migrations/202605*.sql`, `tests/e2e/phase1-*.spec.ts`.
+- Reason: FieldOps Manager is a multi-org SaaS; radio platform must maintain org isolation. RLS policies prevent both accidental leakage and malicious access.
+- Consequences: (1) Every radio table must define RLS policy: `WHERE org_id = current_setting('request.jwt.claims.org_id')::uuid`. (2) Test harness must validate org isolation with cross-org read/write attempts. (3) Any query-builder pattern that bypasses org check is a blocker until remediated.
+
+- Date: 2026-05-15
+- Decision: Star Trek (4-phase Bob capability rollout) is integrated into Phase 0 Phase 1 architecture as the governance framework for floor control and emergency override. Bob approval contracts (D1 from Phase D) and voice-twin consent (ADR-008) are aligned.
+- Scope: `tests/e2e/phase3-sentient-xo.spec.ts`, `tests/e2e/phase4-admirals-bridge.spec.ts`, `docs/STAR_TREK_PHASED_ROLLOUT_PLAN.md`, `docs/adr/008-voice-twin-governance.md`.
+- Reason: Bob is the governance agent for radio platform; Star Trek phase gates ensure Bob capabilities remain operational through Phase 0 development.
+- Consequences: (1) Phase 0 Phase 1 implementation must include Bob floor-acquire/release call paths. (2) Star Trek Phase 3 (Sentient XO) gates persist through Phase 0 Phase 1–5; if Bob automation breaks, Phase 0 work stops until resolved. (3) Emergency override path (Phase 0 Phase 1) routes through Bob approval contract (D1) before escalating to supervisor.
+
+- Date: 2026-05-15
 - Decision: Phase D is treated as formally closed only when D1-D3 gates plus build/lint are revalidated and recorded in staging, and Phase E work starts from an explicit Go/No-Go entry check with E1-E4 queue tracking.
 - Scope: `docs/STAGING.md`, `plan.md`, `tests/e2e/phase-d1-bob-approval-contracts.spec.ts`, `tests/e2e/phase-d2-translation-speech-boundaries.spec.ts`, `tests/e2e/phase-d3-transition-handshake-offline.spec.ts`.
 - Reason: Revalidation-before-handoff prevents stale gate assumptions and keeps phase transitions auditable under autonomous continuation.

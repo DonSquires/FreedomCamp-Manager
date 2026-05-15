@@ -2,7 +2,46 @@
 
 Date: 2026-05-15
 Owner: GitHub Copilot
-Status: Active staging checklist — Sprints 50-70 complete on main; Iron Eagle Visual Identity locked in docs (2026-05-14)
+Status: Active staging checklist — Phase E COMPLETE; Phase 0 architecture sprint in progress; Sprints 50-70 complete on main
+
+## Latest Session Snapshot (Phase 0 Architecture Sprint Launch — ADR Drafts + Entry Gate Prep — 2026-05-15)
+
+- Timestamp (NZ): 2026-05-15 17:45
+- Current branch: main
+- Scope completed:
+  - Created Phase 0 architecture sprint foundation:
+    - ADR-006: SFU Platform Selection (Livekit primary candidate)
+    - ADR-007: Event Backbone for Floor Control (Redis Pub/Sub + Supabase audit)
+    - ADR-008: Voice-Twin Governance Model (Three-tier consent framework)
+  - Created `docs/PHASE_0_SCHEMA_DESIGN.md` with 6 core radio tables + 2 supporting tables
+  - Defined feature flag rollout strategy for Phases 1–5 (Livekit SFU → STT → Translation → TTS → Voice-Twin)
+  - Prepared Phase 0 entry gate checklist with ADR approval gates
+
+- Phase 0 status:
+  | Item | Status | Evidence |
+  |---|---|---|
+  | ADR-006 (SFU Platform) | ✅ DRAFTED | `docs/adr/006-sfu-platform-selection.md` |
+  | ADR-007 (Event Backbone) | ✅ DRAFTED | `docs/adr/007-event-backbone-floor-control.md` |
+  | ADR-008 (Voice-Twin) | ✅ DRAFTED | `docs/adr/008-voice-twin-governance.md` |
+  | Schema Design | ✅ DRAFTED | `docs/PHASE_0_SCHEMA_DESIGN.md` |
+  | Feature Flags | ✅ DRAFTED | Phase 1–5 canary progression defined |
+  | Phase 0 Entry Gate | ⏳ PENDING | Awaiting Dr Bob + steering committee review |
+
+- Immediate next action:
+  - Pass Phase 0 ADRs through Dr Bob review (`node scripts/dr-bob-review.mjs`)
+  - Integrate Star Trek capabilities into Phase 0 roadmap
+  - Schedule Phase 0 entry gate approval meeting
+
+- Validation evidence:
+  | Command | Result | Notes |
+  |---|---|---|
+  | `bun run build` | ⏳ IN PROGRESS | Production build validation |
+  | `bun run lint` | ⏳ IN PROGRESS | ESLint + staging doc checks |
+
+- Open blockers:
+  - None in Phase 0 drafting; awaiting Dr Bob review cycle
+
+---
 
 ## Latest Session Snapshot (Phase E Realignment Continuation — E1 Drift Fix + E1-E4 Gate Pass — 2026-05-15)
 
