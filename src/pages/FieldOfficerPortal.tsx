@@ -69,6 +69,7 @@ import {
   useEndOfficerShift,
   useIssueEnforcementAction,
   useDeactivateWelfarePushSchedule,
+  useInsertAuditLog,
 } from '@/hooks/useFieldOfficerMutations'
 import {
   useAccessibleOrgsForShift,
@@ -344,6 +345,7 @@ export default function FieldOfficerPortal() {
   const startOfficerShift = useStartOfficerShift()
   const endOfficerShift = useEndOfficerShift()
   const deactivateWelfarePushSchedule = useDeactivateWelfarePushSchedule()
+  const insertAuditLog = useInsertAuditLog()
 
   // ── Roster context ────────────────────────────────────────────────────────
   const { rosteredShift } = useRosteredShift()
@@ -854,10 +856,10 @@ export default function FieldOfficerPortal() {
       } as Database['public']['Tables']['audit_log']['Insert']['new_values'],
     }
 
-    const { error } = await supabase.from('audit_log').insert(auditPayload)
-
-    if (error) {
-      toast.error(error.message || 'Failed to attach speech activity')
+    try {
+      await insertAuditLog.mutateAsync(auditPayload as unknown as Record<string, unknown>)
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to attach speech activity')
       return
     }
 
@@ -870,6 +872,7 @@ export default function FieldOfficerPortal() {
     activeService,
     activeShift?.id,
     effectivePatrolZone,
+    insertAuditLog,
     manualZoneId,
     primaryDispatchJob?.client_site_id,
     primaryDispatchJob?.id,

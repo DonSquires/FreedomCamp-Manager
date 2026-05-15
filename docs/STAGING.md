@@ -4,6 +4,44 @@ Date: 2026-05-15
 Owner: GitHub Copilot
 Status: Active staging checklist — Sprints 50-70 complete on main; Iron Eagle Visual Identity locked in docs (2026-05-14)
 
+## Latest Session Snapshot (Phase E Realignment Continuation — E1 Drift Fix + E1-E4 Gate Pass — 2026-05-15)
+
+- Timestamp (NZ): 2026-05-15
+- Current branch: main
+- Scope completed:
+  - Ran full Phase E1-E4 gate suite on current workspace state; discovered 2 E1 failures:
+    - `FieldOfficerPortal` had 1 rogue `supabase.from('audit_log').insert(...)` call (baseline target: 0 direct queries).
+    - This caused the aggregate direct-query count to exceed the E1 baseline ceiling (3 > 2).
+  - Fixed E1 drift by:
+    - Adding `useInsertAuditLog` mutation to `src/hooks/useFieldOfficerMutations.ts`.
+    - Replacing the direct `supabase.from('audit_log').insert(...)` call in `src/pages/FieldOfficerPortal.tsx` with `insertAuditLog.mutateAsync(...)`.
+    - Adding `insertAuditLog` to the `useCallback` dependency array.
+  - Reran full E1-E4 gate: 33/33 passed.
+
+- Phase E exit-gate consolidation:
+  | Exit criterion | Status | Evidence |
+  |---|---|---|
+  | Phase D gate remains green | PASS | Phase D exit-gate snapshot in this runbook (2026-05-15) |
+  | Target pages show downward direct-query drift | PASS | `tests/e2e/phase-e1-data-access-consolidation.spec.ts` (13 assertions), all target pages at or below baseline |
+  | Hook/service migration complete for fragmentation surfaces | PASS | `tests/e2e/phase-e2-enterprise-hardening-tenancy.spec.ts`, `src/hooks/useDataIntegrity.ts` |
+  | Audit dashboard completeness and event integrity checks active | PASS | `tests/e2e/phase-e3-communications-audit-retry.spec.ts` |
+  | Communications delivery governance visible and auditable | PASS | `tests/e2e/phase-e4-release-evidence.spec.ts` |
+  | Build/lint/tests pass for all E slices | PASS | Validation evidence table below |
+
+- Validation evidence:
+  | Command | Result | Notes |
+  |---|---|---|
+  | `bash scripts/playwright-bob-runtime.sh bunx playwright test tests/e2e/phase-e1-data-access-consolidation.spec.ts tests/e2e/phase-e2-enterprise-hardening-tenancy.spec.ts tests/e2e/phase-e3-communications-audit-retry.spec.ts tests/e2e/phase-e4-release-evidence.spec.ts --project=chromium --workers=1 --reporter=line` | PASS | 33 passed (after E1 drift fix) |
+  | `bun run build` | PASS | TypeScript + Vite production build succeeded |
+  | `bun run lint` | PASS | ESLint completed cleanly |
+
+- Files changed in this continuation:
+  - `src/hooks/useFieldOfficerMutations.ts` — added `useInsertAuditLog` mutation
+  - `src/pages/FieldOfficerPortal.tsx` — replaced direct audit_log insert with hook call
+
+- Open blockers:
+  - None in the Phase E focused Chromium gate lane.
+
 ## Latest Session Snapshot (Phase D Exit-Gate Revalidation — D1/D2/D3 + Build/Lint — 2026-05-15)
 
 - Timestamp (NZ): 2026-05-15
@@ -8946,3 +8984,54 @@ Evidence:
 Exit status:
 
 1. C1 org-safe reads/writes are validated and evidence is captured.
+
+### Realignment Phase C2 Risk Org-Safety Snapshot (2026-05-15)
+
+Scope:
+
+1. Harden Site Risk Assessment mutation paths with organization-scoped write constraints.
+2. Add focused tests to validate org-safe writes and case-link payload persistence.
+
+Files touched:
+
+1. `src/hooks/useSiteRiskAssessment.ts` (auth guards + `.eq('organization_id', orgId)` on update/submit/review writes)
+2. `src/hooks/useSiteRiskAssessment.test.tsx` (new focused C2 org-safety tests)
+
+Evidence:
+
+| Command | Result | Notes |
+|---|---|---|
+| `bunx vitest run src/hooks/useSiteRiskAssessment.test.tsx` | ✅ PASS | 2/2 tests passed (org/assessor context on create and org-scoped update/submit/review writes) |
+| `bun run build` | ✅ PASS | TypeScript + Vite build completed successfully after hook hardening |
+| `bun run lint` | ✅ PASS | ESLint completed without new errors |
+| `bun run lint:staging-doc` | ✅ PASS | `staging-doc-check: ok` |
+
+Exit status:
+
+1. C2 risk persistence org-safety hardening is validated and captured in staging evidence.
+
+### Realignment Phase C2 Degraded-Mode Snapshot (2026-05-15)
+
+Scope:
+
+1. Add degraded-mode behavior coverage for C2 access/identity/risk timeline unavailability.
+2. Ensure case timeline remains usable when one domain query fails.
+
+Files touched:
+
+1. `src/hooks/useAccessControlC2.ts` (fail-soft timeline query using Promise.allSettled and degraded source reporting)
+2. `src/hooks/useAccessControlC2.test.tsx` (new degraded-mode tests)
+3. `plan.md` (C2 degraded-mode checklist item marked complete)
+
+Evidence:
+
+| Command | Result | Notes |
+|---|---|---|
+| `bunx vitest run src/hooks/useAccessControlC2.test.tsx` | ✅ PASS | 2/2 tests passed; successful and risk-unavailable degraded paths validated |
+| `bun run build` | ✅ PASS | TypeScript + Vite build succeeded after degraded-mode hardening |
+| `bun run lint` | ✅ PASS | ESLint completed without new errors |
+| `bun run lint:staging-doc` | ✅ PASS | `staging-doc-check: ok` |
+
+Exit status:
+
+1. C2 degraded-mode behavior is validated and captured in staging evidence.

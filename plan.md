@@ -37,7 +37,7 @@ Owner: Identity and Risk Lead
 - [x] Align Access Control, Face Recognition, Identity Verification flows to case/event contracts.
 - [x] Align Site Risk Assessment persistence to the same org-scoped contracts.
 - [x] Validate org isolation for identity and risk data access paths.
-- [ ] Add degraded-mode behavior coverage for inference/risk unavailability.
+- [x] Add degraded-mode behavior coverage for inference/risk unavailability.
 - [x] Capture evidence in staging snapshot with command outputs.
 
 #### C3 Intelligence (Weeks 5-6)
@@ -125,41 +125,41 @@ Timeline reference: Nov 25 onward
 
 Owner: Data Access Lead
 
-- [ ] Publish baseline vs current direct-query drift for target pages.
-- [ ] Confirm reduction targets and acceptance thresholds are documented.
-- [ ] Capture evidence in staging snapshot with command outputs.
+- [x] Publish baseline vs current direct-query drift for target pages.
+- [x] Confirm reduction targets and acceptance thresholds are documented.
+- [x] Capture evidence in staging snapshot with command outputs.
 
 #### E2 Hook/Service Migration
 
 Owner: Platform Integration Lead
 
-- [ ] Migrate highest-fragmentation surfaces to shared hook/service contracts.
-- [ ] Validate org isolation and role-safe behavior after migration.
-- [ ] Capture evidence in staging snapshot with command outputs.
+- [x] Migrate highest-fragmentation surfaces to shared hook/service contracts.
+- [x] Validate org isolation and role-safe behavior after migration.
+- [x] Capture evidence in staging snapshot with command outputs.
 
 #### E3 Audit Dashboard Completeness
 
 Owner: Audit and Governance Lead
 
-- [ ] Validate operational and contract-event completeness dashboards.
-- [ ] Confirm integrity checks and alert thresholds are active.
-- [ ] Capture evidence in staging snapshot with command outputs.
+- [x] Validate operational and contract-event completeness dashboards.
+- [x] Confirm integrity checks and alert thresholds are active.
+- [x] Capture evidence in staging snapshot with command outputs.
 
 #### E4 Communications Delivery Governance
 
 Owner: Communications Reliability Lead
 
-- [ ] Validate retry visibility and delivery accountability metrics.
-- [ ] Confirm degraded/outage communication behavior is auditable.
-- [ ] Capture evidence in staging snapshot with command outputs.
+- [x] Validate retry visibility and delivery accountability metrics.
+- [x] Confirm degraded/outage communication behavior is auditable.
+- [x] Capture evidence in staging snapshot with command outputs.
 
 ### Phase E Completion Gate Checklist
 
-- [ ] Phase D gate confirmed green while E changes land.
-- [ ] Target fragmentation pages show downward direct-query drift.
-- [ ] Communications delivery governance is live and measurable.
-- [ ] Build/lint/tests pass for all E slices.
-- [ ] Phase E completion snapshot recorded in staging docs.
+- [x] Phase D gate confirmed green while E changes land.
+- [x] Target fragmentation pages show downward direct-query drift.
+- [x] Communications delivery governance is live and measurable.
+- [x] Build/lint/tests pass for all E slices.
+- [x] Phase E completion snapshot recorded in staging docs.
 
 ### Required Evidence for Every Slice (C1-C4, D1-D3)
 

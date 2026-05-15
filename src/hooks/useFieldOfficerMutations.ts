@@ -137,3 +137,14 @@ export function useDeactivateWelfarePushSchedule() {
     },
   })
 }
+
+// ─── useInsertAuditLog ────────────────────────────────────────────────────────
+
+export function useInsertAuditLog() {
+  return useMutation({
+    mutationFn: async (payload: Record<string, unknown>) => {
+      const { error } = await supabase.from('audit_log').insert(payload as any)
+      if (error) throw error
+    },
+  })
+}
