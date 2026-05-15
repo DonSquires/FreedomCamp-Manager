@@ -22,29 +22,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3'
 import { getCorsHeaders, withCors, jsonResponse, errorResponse } from '../_shared/withCors.ts'
 import { requireAuth } from '../_shared/requireAuth.ts'
 import { buildAccessibleOrgIds, orgAccessDenied } from '../_shared/orgAccess.ts'
-
-function isRunpodServerless(url: string): boolean {
-  return /api\.runpod\.ai\/v2\/[^/]+(?:\/(?:run|runsync))?\/?$/i.test(url)
-}
-
-function normalizeRunpodBase(url: string): string {
-  return url.replace(/\/(run|runsync)\/?$/i, '')
-}
-
-function normalizeBaseUrl(raw?: string | null): string {
-  const trimmed = String(raw ?? '').trim().replace(/\/+$/, '')
-  if (!trimmed) return ''
-  const withScheme = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`
-  return isRunpodServerless(withScheme) ? normalizeRunpodBase(withScheme) : withScheme
-}
-
-const BOB_SERVICE_URL = normalizeBaseUrl(Deno.env.get('BOB_SERVICE_URL') || Deno.env.get('INFERENCE_SERVICE_URL') || '')
-const BOB_API_KEY =
-  Deno.env.get('BOB_INFERENCE_API_KEY') ??
-  Deno.env.get('INFERENCE_API_KEY') ??
-  Deno.env.get('RUNPOD_ENDPOINT_API_KEY') ??
-  Deno.env.get('RUNPOD_API_KEY') ??
-  ''
+import { bobVision } from '../_shared/bobInfer.ts'
 const SUPABASE_URL     = Deno.env.get('SUPABASE_URL') ?? ''
 const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
 
@@ -111,67 +89,38 @@ Deno.serve(withCors(async (req: Request) => {
 
   // ── 1. Call Bob inference service ─────────────────────────────────────────
   let aiResult: any = { success: false, reason: 'inference service not configured' }
-  if (BOB_SERVICE_URL) {
-    try {
-      const metadata: Record<string, any> = { address }
-      if (complaintTime) metadata.complaint_time = complaintTime
-      if (durationReported) metadata.duration_reported_mins = durationReported
+  try {
+    const metadata: Record<string, any> = { address }
+    if (complaintTime) metadata.complaint_time = complaintTime
+    if (durationReported) metadata.duration_reported_mins = durationReported
 
-      const inferBody: Record<string, any> = {
-        image_base64:        imageBase64,
-        video_frames_base64: JSON.stringify(videoFrames),
-        metadata:            JSON.stringify(metadata),
-      }
-      if (gpsLat != null) inferBody.gps_lat = gpsLat
-      if (gpsLng != null) inferBody.gps_lng = gpsLng
-
-      const runpodServerless = isRunpodServerless(BOB_SERVICE_URL)
-      const inferResp = await fetch(
-        runpodServerless
-          ? `${BOB_SERVICE_URL}/runsync`
-          : `${BOB_SERVICE_URL}/infer/smoke`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(BOB_API_KEY
-              ? {
-                  'Authorization': `Bearer ${BOB_API_KEY}`,
-                  'x-inference-api-key': BOB_API_KEY,
-                }
-              : {}),
-          },
-          body: runpodServerless
-            ? JSON.stringify({
-                input: {
-                  action: 'ui_vision',
-                  image_b64: imageBase64,
-                  focus: 'general',
-                  context: `NZ smoke complaint assessment. Address: ${address || 'unknown'}. GPS: ${gpsLat ?? 'unknown'}, ${gpsLng ?? 'unknown'}. Complaint time: ${complaintTime || 'unknown'}. Duration minutes: ${durationReported ?? 'unknown'}. Assess smoke color/opacity/continuity, likely fire type, prohibited material suspicion, impacts to neighbors/road, and recommended action. Respond in JSON: {smoke_opacity, smoke_color, smoke_continuous, fire_type, prohibited_materials_suspected, materials_checklist, odor_category, wind_direction_visible, smoke_affecting_neighbors, smoke_affecting_road, confidence, recommended_action, checklist_prefill}`,
-                },
-              })
-            : JSON.stringify(inferBody),
-          signal: AbortSignal.timeout(90_000),
-        }
-      )
-
-      if (inferResp.ok) {
-        const raw = await inferResp.json()
-        const payload = raw?.output ?? raw
-        // ui_vision returns { analysis, ... }; normalize to assessment shape.
-        if (payload?.analysis && !payload?.assessment) {
-          aiResult = { assessment: payload.analysis, weather: payload.weather ?? null, success: payload.success }
-        } else {
-          aiResult = payload
-        }
-      } else {
-        const errText = await inferResp.text().catch(() => '')
-        console.error('smoke-assess inference error:', inferResp.status, errText.slice(0, 200))
-      }
-    } catch (err: any) {
-      console.error('smoke-assess fetch error:', err.message)
-      aiResult = { success: false, reason: err.message }
+    const inferBody: Record<string, any> = {
+      image_base64: imageBase64,
+      video_frames_base64: JSON.stringify(videoFrames),
+      metadata: JSON.stringify(metadata),
     }
+    if (gpsLat != null) inferBody.gps_lat = gpsLat
+    if (gpsLng != null) inferBody.gps_lng = gpsLng
+
+    const vision = await bobVision({
+      imageBase64,
+      focus: 'general',
+      promptContext: `NZ smoke complaint assessment. Address: ${address || 'unknown'}. GPS: ${gpsLat ?? 'unknown'}, ${gpsLng ?? 'unknown'}. Complaint time: ${complaintTime || 'unknown'}. Duration minutes: ${durationReported ?? 'unknown'}. Assess smoke color/opacity/continuity, likely fire type, prohibited material suspicion, impacts to neighbors/road, and recommended action. Respond in JSON: {smoke_opacity, smoke_color, smoke_continuous, fire_type, prohibited_materials_suspected, materials_checklist, odor_category, wind_direction_visible, smoke_affecting_neighbors, smoke_affecting_road, confidence, recommended_action, checklist_prefill}`,
+      directPath: '/infer/smoke',
+      directPayload: inferBody,
+      timeoutMs: 90_000,
+    })
+
+    const payload = vision.output as any
+    // ui_vision returns { analysis, ... }; normalize to assessment shape.
+    if (payload?.analysis && !payload?.assessment) {
+      aiResult = { assessment: payload.analysis, weather: payload.weather ?? null, success: payload.success }
+    } else {
+      aiResult = payload
+    }
+  } catch (err: any) {
+    console.error('smoke-assess inference error:', err.message)
+    aiResult = { success: false, reason: err.message }
   }
 
   const assessment = aiResult?.assessment ?? aiResult

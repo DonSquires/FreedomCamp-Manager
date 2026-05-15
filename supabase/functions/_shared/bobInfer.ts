@@ -161,6 +161,22 @@ export interface BobTranslateOptions {
   timeoutMs?: number
 }
 
+export interface BobVisionOptions {
+  imageBase64: string
+  promptContext: string
+  focus?: string
+  directPath: string
+  directPayload?: Record<string, unknown>
+  timeoutMs?: number
+}
+
+export interface BobVisionResult {
+  output: unknown
+  rawResponse: string
+  model?: string
+  provider?: string
+}
+
 /**
  * Call Bob AI (Ollama on RunPod) for chat. Automatically uses /runsync for
  * RunPod serverless endpoints, or direct /chat for HTTP inference services.
@@ -445,4 +461,101 @@ export async function bobTranslate(options: BobTranslateOptions): Promise<{ tran
   }
 
   throw lastError ?? new Error('Bob translate failed for all configured endpoints')
+}
+
+/**
+ * Vision helper for image-centric edge functions. Uses RunPod /runsync with
+ * ui_vision action when available, otherwise calls the direct inference path.
+ */
+export async function bobVision(options: BobVisionOptions): Promise<BobVisionResult> {
+  const { inferenceUrls, apiKey } = getInferenceConfig()
+  const timeoutMs = options.timeoutMs ?? 90_000
+
+  let lastError: Error | null = null
+
+  for (const inferenceUrl of inferenceUrls) {
+    try {
+      const directPath = options.directPath.startsWith('/')
+        ? options.directPath
+        : `/${options.directPath}`
+
+      let res: Response
+      if (isRunpodServerless(inferenceUrl)) {
+        res = await fetchWithRetry(
+          `${inferenceUrl}/runsync`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(apiKey ? { 'Authorization': `Bearer ${apiKey}` } : {}),
+            },
+            body: JSON.stringify({
+              input: {
+                action: 'ui_vision',
+                image_b64: options.imageBase64,
+                focus: options.focus ?? 'general',
+                context: options.promptContext,
+              },
+            }),
+          },
+          {
+            retries: BOB_INFERENCE_RETRIES,
+            timeoutMs,
+            backoffMs: BOB_INFERENCE_BACKOFF_MS,
+          },
+        )
+      } else {
+        res = await fetchWithRetry(
+          `${inferenceUrl}${directPath}`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(apiKey
+                ? {
+                    'x-inference-api-key': apiKey,
+                    'Authorization': `Bearer ${apiKey}`,
+                  }
+                : {}),
+            },
+            body: JSON.stringify(options.directPayload ?? {}),
+          },
+          {
+            retries: BOB_INFERENCE_RETRIES,
+            timeoutMs,
+            backoffMs: BOB_INFERENCE_BACKOFF_MS,
+          },
+        )
+      }
+
+      const text = await res.text()
+      if (!res.ok) {
+        throw new Error(`Bob vision HTTP ${res.status}: ${text.slice(0, 300)} (${inferenceUrl})`)
+      }
+
+      let data: any
+      try {
+        data = JSON.parse(text)
+      } catch {
+        throw new Error(`Bob vision returned non-JSON: ${text.slice(0, 200)} (${inferenceUrl})`)
+      }
+
+      const output = data?.output ?? data
+      if (output?.success === false) {
+        throw new Error(`Bob vision worker error: ${output?.error ?? 'unknown'} (${inferenceUrl})`)
+      }
+
+      return {
+        output,
+        rawResponse: text,
+        model: output?.model,
+        provider: output?.provider,
+      }
+    } catch (err: any) {
+      lastError = err instanceof Error ? err : new Error(String(err?.message ?? err))
+      continue
+    }
+  }
+
+  throw lastError ?? new Error('Bob vision failed for all configured endpoints')
 }

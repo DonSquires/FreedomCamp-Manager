@@ -4,6 +4,29 @@ Date: 2026-05-15
 Owner: GitHub Copilot
 Status: Active staging checklist — Sprints 50-70 complete on main; Iron Eagle Visual Identity locked in docs (2026-05-14)
 
+## Latest Session Snapshot (Phase B Vision Helper Consolidation — 2026-05-15)
+
+- Timestamp (NZ): 2026-05-15
+- Current branch: main
+- Scope completed:
+  - Continued realignment by eliminating remaining direct vision-inference transport drift in smoke/biosecurity edge paths.
+  - Added shared `bobVision` helper in `supabase/functions/_shared/bobInfer.ts` to centralize:
+    - RunPod serverless `runsync` (`ui_vision`) execution,
+    - direct inference endpoint fallback transport,
+    - response envelope unwrapping and provider error handling.
+  - Refactored `supabase/functions/smoke-assess/index.ts` to use `bobVision` while preserving existing assessment normalization and persistence behavior.
+  - Refactored `supabase/functions/biosecurity-assess/index.ts` to use `bobVision` while preserving cost-saver gating and identification normalization.
+
+- Validation evidence:
+  | Command | Result | Notes |
+  |---|---|---|
+  | IDE diagnostics (`get_errors`) on updated files | PASS | No errors in bobInfer/smoke-assess/biosecurity-assess |
+  | `bun run build` | PASS | TypeScript + Vite production build succeeded after shared vision migration |
+
+- Realignment status impact:
+  - Reduced duplicated inference transport/auth logic across field-vision workflows.
+  - Increased consistency of Bob vision execution behavior for Phase B operational modules.
+
 ## Latest Session Snapshot (Star Trek Phase 3/4 Resilience Recheck — 2026-05-15)
 
 - Timestamp (NZ): 2026-05-15

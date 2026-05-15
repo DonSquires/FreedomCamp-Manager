@@ -21,29 +21,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3'
 import { getCorsHeaders, withCors, jsonResponse, errorResponse } from '../_shared/withCors.ts'
 import { requireAuth } from '../_shared/requireAuth.ts'
-
-function isRunpodServerless(url: string): boolean {
-  return /api\.runpod\.ai\/v2\/[^/]+(?:\/(?:run|runsync))?\/?$/i.test(url)
-}
-
-function normalizeRunpodBase(url: string): string {
-  return url.replace(/\/(run|runsync)\/?$/i, '')
-}
-
-function normalizeBaseUrl(raw?: string | null): string {
-  const trimmed = String(raw ?? '').trim().replace(/\/+$/, '')
-  if (!trimmed) return ''
-  const withScheme = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`
-  return isRunpodServerless(withScheme) ? normalizeRunpodBase(withScheme) : withScheme
-}
-
-const BOB_SERVICE_URL = normalizeBaseUrl(Deno.env.get('BOB_SERVICE_URL') || Deno.env.get('INFERENCE_SERVICE_URL') || '')
-const BOB_API_KEY =
-  Deno.env.get('BOB_INFERENCE_API_KEY') ??
-  Deno.env.get('INFERENCE_API_KEY') ??
-  Deno.env.get('RUNPOD_ENDPOINT_API_KEY') ??
-  Deno.env.get('RUNPOD_API_KEY') ??
-  ''
+import { bobVision } from '../_shared/bobInfer.ts'
 const SUPABASE_URL      = Deno.env.get('SUPABASE_URL') ?? ''
 const SERVICE_ROLE_KEY  = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
 
@@ -98,7 +76,7 @@ Deno.serve(withCors(async (req: Request) => {
   // ── 1. Call Bob inference service ─────────────────────────────────────────
   const costSaverEnabled = ['1','true','yes','on'].includes(String(Deno.env.get('BOB_COST_SAVER') ?? '').trim().toLowerCase())
   let aiResult: any = { success: false, reason: costSaverEnabled ? 'BOB_COST_SAVER enabled — inference paused' : 'inference service not configured' }
-  if (BOB_SERVICE_URL && !costSaverEnabled) {
+  if (!costSaverEnabled) {
     try {
       const formBody: Record<string, string> = {
         image_base64:       imageBase64,
@@ -108,52 +86,25 @@ Deno.serve(withCors(async (req: Request) => {
       if (gpsLat != null) formBody.gps_lat = String(gpsLat)
       if (gpsLng != null) formBody.gps_lng = String(gpsLng)
 
-      const runpodServerless = isRunpodServerless(BOB_SERVICE_URL)
-      const inferResp = await fetch(
-        runpodServerless
-          ? `${BOB_SERVICE_URL}/runsync`
-          : `${BOB_SERVICE_URL}/infer/biosecurity`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(BOB_API_KEY
-              ? {
-                  'Authorization': `Bearer ${BOB_API_KEY}`,
-                  'x-inference-api-key': BOB_API_KEY,
-                }
-              : {}),
-          },
-          body: runpodServerless
-            ? JSON.stringify({
-                input: {
-                  action: 'ui_vision',
-                  image_b64: imageBase64,
-                  focus: 'general',
-                  context: `NZ biosecurity field assessment. Identify any invasive plant species (especially Nassella neesiana, climbing spindle berry, or other pest plants). GPS: ${gpsLat ?? 'unknown'}, ${gpsLng ?? 'unknown'}. Address: ${address || 'unknown'}. Respond in JSON: {dominant_species, species: [{name, confidence, invasive, action_required}], density_estimate, risk_level, checklist_prefill, recommended_action, compliance_notes}`,
-                },
-              })
-            : JSON.stringify(formBody),
-          signal: AbortSignal.timeout(90_000),
-        }
-      )
+      const vision = await bobVision({
+        imageBase64,
+        focus: 'general',
+        promptContext: `NZ biosecurity field assessment. Identify any invasive plant species (especially Nassella neesiana, climbing spindle berry, or other pest plants). GPS: ${gpsLat ?? 'unknown'}, ${gpsLng ?? 'unknown'}. Address: ${address || 'unknown'}. Respond in JSON: {dominant_species, species: [{name, confidence, invasive, action_required}], density_estimate, risk_level, checklist_prefill, recommended_action, compliance_notes}`,
+        directPath: '/infer/biosecurity',
+        directPayload: formBody,
+        timeoutMs: 90_000,
+      })
 
-      if (inferResp.ok) {
-        const raw = await inferResp.json()
-        const payload = raw?.output ?? raw
-        // ui_vision returns { analysis, ... }; /infer/biosecurity returns { identification, ... }
-        // normalise to the shape the rest of this function expects: { identification, weather }
-        if (payload?.analysis && !payload?.identification) {
-          aiResult = { identification: payload.analysis, weather: payload.weather ?? null, success: payload.success }
-        } else {
-          aiResult = payload
-        }
+      const payload = vision.output as any
+      // ui_vision returns { analysis, ... }; /infer/biosecurity returns { identification, ... }
+      // normalise to the shape the rest of this function expects: { identification, weather }
+      if (payload?.analysis && !payload?.identification) {
+        aiResult = { identification: payload.analysis, weather: payload.weather ?? null, success: payload.success }
       } else {
-        const errText = await inferResp.text().catch(() => '')
-        console.error('biosecurity-assess inference error:', inferResp.status, errText.slice(0, 200))
+        aiResult = payload
       }
     } catch (err: any) {
-      console.error('biosecurity-assess fetch error:', err.message)
+      console.error('biosecurity-assess inference error:', err.message)
       aiResult = { success: false, reason: err.message }
     }
   }
