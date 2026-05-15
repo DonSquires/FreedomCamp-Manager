@@ -69,6 +69,3 @@ CREATE TRIGGER on_breach_detected_generate_pdf
   AFTER INSERT ON public.incidents
   FOR EACH ROW
   EXECUTE FUNCTION public.handle_automated_breach_notice();
-
--- Grant execute to supabase_functions_admin (role used by edge function invoker)
-ALTER FUNCTION public.handle_automated_breach_notice() OWNER TO supabase_admin;

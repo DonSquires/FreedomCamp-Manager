@@ -64,7 +64,7 @@ export async function evaluateFieldImage(
     // Apply strict compliance thresholds to determine breach status
     let breachDetected = false;
     let citationRequired = 'None';
-    let densityScore = assessment.densityScore || 0;
+    const densityScore = assessment.densityScore || 0;
 
     if (classificationType === 'SMOKE') {
       // Threshold: Smoke opacity matching Ringelmann density index scales >= 40% triggers RMA s326

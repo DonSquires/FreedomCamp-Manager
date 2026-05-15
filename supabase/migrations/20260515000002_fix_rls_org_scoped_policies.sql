@@ -113,6 +113,7 @@ BEGIN
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'incidents') THEN
     EXECUTE 'DROP POLICY IF EXISTS "authenticated_view_incidents" ON incidents';
     EXECUTE 'DROP POLICY IF EXISTS "users_view_incidents" ON incidents';
+    EXECUTE 'DROP POLICY IF EXISTS "users_view_org_incidents" ON incidents';
     
     -- Users can view incidents from their organization
     EXECUTE '
@@ -139,6 +140,7 @@ BEGIN
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'patrols') THEN
     EXECUTE 'DROP POLICY IF EXISTS "authenticated_view_patrols" ON patrols';
     EXECUTE 'DROP POLICY IF EXISTS "users_view_patrols" ON patrols';
+    EXECUTE 'DROP POLICY IF EXISTS "users_view_org_patrols" ON patrols';
     
     -- Users can view patrols from their organization
     EXECUTE '

@@ -149,7 +149,7 @@ const ClientAccountPage = lazy(() => import('@/pages/ClientAccountPage'))
 const EMSPortal = lazy(() => import('@/pages/EMSPortal'))
 const SiteGuardPortal = lazy(() => import('@/pages/SiteGuardPortal'))
 const AccessControlPage = lazy(() => import('@/pages/AccessControlPage'))
-const TeamChat = lazy(() => import('@/pages/TeamChat'))
+const ChatStudio = lazy(() => import('@/pages/ChatStudio'))
 // New module imports (Phase 2)
 const ModuleDashboard = lazy(() => import('@/modules').then((m) => ({ default: m.Dashboard })))
 const PatrolModule = lazy(() => import('@/modules').then((m) => ({ default: m.PatrolModule })))
@@ -1596,7 +1596,7 @@ export default function App() {
             path="/team-chat"
             element={
               <ProtectedRoute>
-                <TeamChat />
+                <ChatStudio />
               </ProtectedRoute>
             }
           />
