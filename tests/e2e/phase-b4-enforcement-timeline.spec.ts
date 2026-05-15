@@ -61,6 +61,22 @@ async function createTestOfficer(organizationId: string, label: string) {
   return profile.id
 }
 
+async function createTestZone(organizationId: string, label: string) {
+  if (!supabaseAdmin) throw new Error('SUPABASE_SERVICE_ROLE_KEY required')
+  const { data, error } = await supabaseAdmin
+    .from('zones')
+    .insert({
+      organization_id: organizationId,
+      name: `B4 Zone ${label} ${Date.now()}-${crypto.randomUUID()}`,
+      zone_type: 'freedom_camping',
+      is_active: true,
+    })
+    .select('id')
+    .single()
+  if (error || !data) throw error || new Error('Failed to create zone')
+  return data.id
+}
+
 async function deleteTestOfficer(userId: string | undefined) {
   if (!supabaseAdmin || !userId) return
   await supabaseAdmin.auth.admin.deleteUser(userId)
@@ -71,6 +87,7 @@ test.describe('Phase B4: Freedom Camping Enforcement Timeline', () => {
 
   let orgId: string
   let officerId: string
+  let zoneId: string
   let breachAlertId: string
   let caseId: string
 
@@ -82,13 +99,17 @@ test.describe('Phase B4: Freedom Camping Enforcement Timeline', () => {
 
     orgId = await createTestOrg('EnforcementOrg')
     officerId = await createTestOfficer(orgId, 'enforcement-officer')
+    zoneId = await createTestZone(orgId, 'enforcement-zone')
 
     // Create a minimal breach alert
     const { data: breachData, error: breachError } = await supabaseAdmin
       .from('breach_alerts')
       .insert({
         organization_id: orgId,
+        zone_id: zoneId,
+        breach_type: 'freedom_camping',
         plate_number: 'B4TEST1',
+        breach_details: {},
         status: 'active',
       })
       .select('id')
@@ -266,12 +287,16 @@ test.describe('Phase B4: Freedom Camping Enforcement Timeline', () => {
     // Create a second org's enforcement event to verify org scoping
     const org2Id = await createTestOrg('EnforcementOrg2')
     const officer2Id = await createTestOfficer(org2Id, 'officer2')
+    const zone2Id = await createTestZone(org2Id, 'enforcement-zone-2')
 
     const { data: breach2 } = await supabaseAdmin
       .from('breach_alerts')
       .insert({
         organization_id: org2Id,
+        zone_id: zone2Id,
+        breach_type: 'freedom_camping',
         plate_number: 'B4TEST2',
+        breach_details: {},
         status: 'active',
       })
       .select('id')
@@ -303,6 +328,7 @@ test.describe('Phase B4: Freedom Camping Enforcement Timeline', () => {
     }
 
     await deleteTestOfficer(officer2Id)
+    await supabaseAdmin.from('zones').delete().eq('id', zone2Id)
     await supabaseAdmin.from('organizations').delete().eq('id', org2Id)
   })
 
@@ -315,6 +341,9 @@ test.describe('Phase B4: Freedom Camping Enforcement Timeline', () => {
     }
     if (breachAlertId) {
       await supabaseAdmin.from('breach_alerts').delete().eq('id', breachAlertId)
+    }
+    if (zoneId) {
+      await supabaseAdmin.from('zones').delete().eq('id', zoneId)
     }
     await deleteTestOfficer(officerId)
     if (orgId) {
