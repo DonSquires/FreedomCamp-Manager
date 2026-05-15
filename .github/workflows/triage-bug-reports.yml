@@ -60,55 +60,55 @@ jobs:
               exit 1
               ;;
           esac
-          python - << 'PY'
-import json, collections
-from pathlib import Path
-rows = json.loads(Path('/tmp/bugs.json').read_text() or '[]')
-print(f"open_reports={len(rows)}")
-if not rows:
-    raise SystemExit(0)
+            python - << 'PY'
+            import json, collections
+            from pathlib import Path
+            rows = json.loads(Path('/tmp/bugs.json').read_text() or '[]')
+            print(f"open_reports={len(rows)}")
+            if not rows:
+              raise SystemExit(0)
 
-sev = collections.Counter((r.get('severity') or 'unknown') for r in rows)
-page = collections.Counter((r.get('current_page') or 'unknown') for r in rows)
-issue = collections.Counter((r.get('issue_type') or 'unknown') for r in rows)
-print('\nTop severities:')
-for k,v in sev.most_common(8):
-    print(f"- {k}: {v}")
-print('\nTop pages:')
-for k,v in page.most_common(12):
-    print(f"- {k}: {v}")
-print('\nTop issue types:')
-for k,v in issue.most_common(12):
-    print(f"- {k}: {v}")
+            sev = collections.Counter((r.get('severity') or 'unknown') for r in rows)
+            page = collections.Counter((r.get('current_page') or 'unknown') for r in rows)
+            issue = collections.Counter((r.get('issue_type') or 'unknown') for r in rows)
+            print('\nTop severities:')
+            for k,v in sev.most_common(8):
+              print(f"- {k}: {v}")
+            print('\nTop pages:')
+            for k,v in page.most_common(12):
+              print(f"- {k}: {v}")
+            print('\nTop issue types:')
+            for k,v in issue.most_common(12):
+              print(f"- {k}: {v}")
 
-print('\nLatest 20 reports:')
-for r in rows[:20]:
-    print(f"- [{r.get('severity')}] [{r.get('status')}] {r.get('id')} page={r.get('current_page')} type={r.get('issue_type')} title={r.get('title')}")
+            print('\nLatest 20 reports:')
+            for r in rows[:20]:
+              print(f"- [{r.get('severity')}] [{r.get('status')}] {r.get('id')} page={r.get('current_page')} type={r.get('issue_type')} title={r.get('title')}")
 
-# Lightweight signature extraction from console errors / metadata
-sig = collections.Counter()
-for r in rows:
-    ce = r.get('console_errors')
-    if isinstance(ce, list):
-      for e in ce[:5]:
-        if isinstance(e, dict):
-          msg = str(e.get('message') or '')
-          if msg:
-            sig[msg[:140]] += 1
-    meta = r.get('screenshot_metadata') or {}
-    lsd = meta.get('live_session_diagnostics') if isinstance(meta, dict) else None
-    events = (lsd or {}).get('recent_events') if isinstance(lsd, dict) else None
-    if isinstance(events, list):
-      for ev in events[:8]:
-        if isinstance(ev, dict):
-          et = str(ev.get('event_type') or '').strip()
-          if et:
-            sig[f"event:{et}"] += 1
+            # Lightweight signature extraction from console errors / metadata
+            sig = collections.Counter()
+            for r in rows:
+              ce = r.get('console_errors')
+              if isinstance(ce, list):
+                for e in ce[:5]:
+                  if isinstance(e, dict):
+                    msg = str(e.get('message') or '')
+                    if msg:
+                      sig[msg[:140]] += 1
+              meta = r.get('screenshot_metadata') or {}
+              lsd = meta.get('live_session_diagnostics') if isinstance(meta, dict) else None
+              events = (lsd or {}).get('recent_events') if isinstance(lsd, dict) else None
+              if isinstance(events, list):
+                for ev in events[:8]:
+                  if isinstance(ev, dict):
+                    et = str(ev.get('event_type') or '').strip()
+                    if et:
+                      sig[f"event:{et}"] += 1
 
-print('\nTop error/event signatures:')
-for k,v in sig.most_common(15):
-    print(f"- {v}x {k}")
-PY
+            print('\nTop error/event signatures:')
+            for k,v in sig.most_common(15):
+              print(f"- {v}x {k}")
+            PY
 
       - name: Enforce bug triage (strict mode)
         if: steps.fetch_bugs.outcome == 'failure' && vars.TRIAGE_STRICT == 'true'
