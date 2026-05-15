@@ -120,7 +120,8 @@ function buildWebServerCommand(baseURL: string): string {
  * E2E Integration Testing - Phase 9
  */
 export default defineConfig({
-  testDir: './tests/e2e',
+  testDir: './tests',
+  testMatch: ['e2e/**/*.spec.ts', 'monitoring-pulse.spec.ts'],
   globalSetup: './tests/e2e/global-setup.ts',
 
   // Visual regression snapshots live alongside the spec files so they are committed to git
