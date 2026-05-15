@@ -1,0 +1,117 @@
+name: Playwright Monitoring Pulse (Smoke Label)
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, reopened, synchronize, labeled, ready_for_review]
+
+concurrency:
+  group: playwright-monitoring-pulse-smoke-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  monitoring-pulse-smoke:
+    name: "Monitoring Pulse Smoke (PR label: smoke)"
+    if: contains(github.event.pull_request.labels.*.name, 'smoke') && github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    env:
+      CI: true
+      PLAYWRIGHT_BASE_URL: http://127.0.0.1:4173
+      VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+      VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Validate runtime secrets
+        id: env-check
+        run: |
+          if [ -z "$VITE_SUPABASE_URL" ] || [ -z "$VITE_SUPABASE_ANON_KEY" ]; then
+            echo "::warning::VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY not configured; skipping smoke run."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install Playwright Chromium and OS deps
+        if: steps.env-check.outputs.ready == 'true'
+        run: bunx playwright install --with-deps chromium
+
+      - name: Build app
+        if: steps.env-check.outputs.ready == 'true'
+        run: bun run build
+
+      - name: Start preview server
+        if: steps.env-check.outputs.ready == 'true'
+        run: |
+          set -euo pipefail
+          bun run preview -- --host 127.0.0.1 --port 4173 > /tmp/monitoring-smoke-preview.log 2>&1 &
+          echo $! > /tmp/monitoring-smoke-preview.pid
+
+      - name: Wait for app
+        if: steps.env-check.outputs.ready == 'true'
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 40); do
+            if [ -f /tmp/monitoring-smoke-preview.pid ] && ! kill -0 "$(cat /tmp/monitoring-smoke-preview.pid)" 2>/dev/null; then
+              echo 'Preview process exited before becoming reachable.'
+              tail -n 200 /tmp/monitoring-smoke-preview.log || true
+              exit 1
+            fi
+
+            if curl -fsS --max-time 5 "${PLAYWRIGHT_BASE_URL}/enterprise-console" >/dev/null 2>&1; then
+              exit 0
+            fi
+            if [ "$i" -eq 40 ]; then
+              echo 'Preview did not become reachable in time.'
+              tail -n 200 /tmp/monitoring-smoke-preview.log || true
+              exit 1
+            fi
+            sleep 2
+          done
+
+      - name: Upload preview server log on failure
+        if: failure() && steps.env-check.outputs.ready == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: monitoring-pulse-smoke-preview-log-${{ github.run_id }}
+          path: /tmp/monitoring-smoke-preview.log
+          if-no-files-found: ignore
+
+      - name: Run monitoring pulse smoke test
+        if: steps.env-check.outputs.ready == 'true'
+        run: |
+          bunx playwright test monitoring-pulse.spec.ts --config=playwright.config.ts --project=chromium --workers=1 --reporter=line
+
+      - name: Upload Playwright artifacts
+        if: always() && steps.env-check.outputs.ready == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: monitoring-pulse-smoke-${{ github.run_id }}
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+
+      - name: Stop preview server
+        if: always() && steps.env-check.outputs.ready == 'true'
+        run: |
+          if [ -f /tmp/monitoring-smoke-preview.pid ]; then
+            kill "$(cat /tmp/monitoring-smoke-preview.pid)" || true
+          fi

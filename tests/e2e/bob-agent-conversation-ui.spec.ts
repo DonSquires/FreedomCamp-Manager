@@ -153,10 +153,18 @@ test.describe('Bob autonomous conversation UI', () => {
 
   test.beforeEach(async ({ page }) => {
     await page.context().clearCookies()
-    await page.goto('about:blank')
+    await page.goto('/dashboard', { waitUntil: 'domcontentloaded' })
     await page.evaluate(() => {
-      localStorage.clear()
-      sessionStorage.clear()
+      try {
+        localStorage.clear()
+      } catch {
+        // Ignore browser security restrictions in non-origin contexts.
+      }
+      try {
+        sessionStorage.clear()
+      } catch {
+        // Ignore browser security restrictions in non-origin contexts.
+      }
     })
   })
 
