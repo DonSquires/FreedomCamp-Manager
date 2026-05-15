@@ -18,29 +18,8 @@
 
 import { withCors, getCorsHeaders, jsonResponse, errorResponse } from '../_shared/withCors.ts'
 import { requireAuth } from '../_shared/requireAuth.ts'
-
-function isRunpodServerless(url: string): boolean {
-  return /api\.runpod\.ai\/v2\/[^/]+(?:\/(?:run|runsync))?\/?$/i.test(url)
-}
-
-function normalizeRunpodBase(url: string): string {
-  return url.replace(/\/(run|runsync)\/?$/i, '')
-}
-
-function normalizeBaseUrl(raw?: string | null): string {
-  const trimmed = String(raw ?? '').trim().replace(/\/+$/, '')
-  if (!trimmed) return ''
-  const withScheme = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`
-  return isRunpodServerless(withScheme) ? normalizeRunpodBase(withScheme) : withScheme
-}
-
-const BOB_SERVICE_URL = normalizeBaseUrl(Deno.env.get('BOB_SERVICE_URL') || Deno.env.get('INFERENCE_SERVICE_URL') || '')
-const BOB_API_KEY =
-  Deno.env.get('BOB_INFERENCE_API_KEY') ??
-  Deno.env.get('INFERENCE_API_KEY') ??
-  Deno.env.get('RUNPOD_ENDPOINT_API_KEY') ??
-  Deno.env.get('RUNPOD_API_KEY') ??
-  ''
+import { bobAssess } from '../_shared/bobInfer.ts'
+import { buildBobContext } from '../_shared/bobContext.ts'
 
 Deno.serve(withCors(async (req: Request) => {
   const authResult = await requireAuth(req)
@@ -68,10 +47,6 @@ Deno.serve(withCors(async (req: Request) => {
     return errorResponse('symptom is required', req, 400)
   }
 
-  if (!BOB_SERVICE_URL) {
-    return errorResponse('Bob inference service is not configured (INFERENCE_SERVICE_URL missing)', req, 503)
-  }
-
   // BOB_COST_SAVER: skip inference entirely when flag is set
   const costSaverEnabled = ['1','true','yes','on'].includes(String(Deno.env.get('BOB_COST_SAVER') ?? '').trim().toLowerCase())
   if (costSaverEnabled) {
@@ -81,71 +56,27 @@ Deno.serve(withCors(async (req: Request) => {
     )
   }
 
-  const bobUrl = BOB_SERVICE_URL
-
-  // RunPod serverless: use /runsync job API
-  const runpodServerless = isRunpodServerless(bobUrl)
-
-  let bobResp: Response
   try {
-    if (runpodServerless) {
-      bobResp = await fetch(`${bobUrl}/runsync`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(BOB_API_KEY ? { 'Authorization': `Bearer ${BOB_API_KEY}` } : {}),
-        },
-        body: JSON.stringify({
-          input: { action: 'assess', type: 'ptt', symptom: symptom.trim(), context: context ?? {} },
-        }),
-        signal: AbortSignal.timeout(90_000),
-      })
-    } else {
-      bobResp = await fetch(`${bobUrl}/assess/ptt`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(BOB_API_KEY
-            ? {
-                'x-inference-api-key': BOB_API_KEY,
-                'Authorization': `Bearer ${BOB_API_KEY}`,
-              }
-            : {}),
-        },
-        body: JSON.stringify({ symptom: symptom.trim(), context: context ?? {} }),
-        signal: AbortSignal.timeout(30_000),
-      })
-    }
+    const result = await bobAssess({
+      type: 'ptt',
+      symptom: symptom.trim(),
+      context: buildBobContext({
+        operation: 'ptt-assess',
+        source: 'ptt-diagnostic-assessment',
+        userId: authResult.user.id,
+        organizationId:
+          (authResult.user as any)?.user_metadata?.organization_id ||
+          (authResult.user as any)?.app_metadata?.organization_id ||
+          null,
+        context: context ?? {},
+      }),
+      timeoutMs: 90_000,
+    })
+
+    return jsonResponse(result.assessment ?? result, req, 200)
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err)
-    console.error('[ptt-assess] Bob fetch error:', msg)
+    console.error('[ptt-assess] Bob assess error:', msg)
     return errorResponse(`Bob inference service unreachable: ${msg}`, req, 502)
   }
-
-  if (!bobResp.ok) {
-    const errText = await bobResp.text().catch(() => '')
-    console.error(`[ptt-assess] Bob returned ${bobResp.status}:`, errText.slice(0, 300))
-    return new Response(
-      JSON.stringify({ error: 'Bob assessment failed', status: bobResp.status, detail: errText.slice(0, 300) }),
-      { status: bobResp.status, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
-    )
-  }
-
-  let result: unknown
-  try {
-    const raw = await bobResp.json()
-    // Unwrap RunPod /runsync envelope: { status: 'COMPLETED', output: {...} }
-    result = (raw as any)?.output ?? raw
-    if ((result as any)?.success === false) {
-      return errorResponse(`Bob worker error: ${(result as any).error ?? 'unknown'}`, req, 502)
-    }
-  } catch {
-    const raw = await bobResp.text().catch(() => '')
-    return new Response(
-      JSON.stringify({ error: 'Bob returned invalid JSON', raw: raw.slice(0, 300) }),
-      { status: 502, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
-    )
-  }
-
-  return jsonResponse(result, req, 200)
 }))

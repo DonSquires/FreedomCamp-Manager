@@ -4,6 +4,26 @@ Date: 2026-05-15
 Owner: GitHub Copilot
 Status: Active staging checklist — Sprints 50-70 complete on main; Iron Eagle Visual Identity locked in docs (2026-05-14)
 
+## Latest Session Snapshot (Phase B PTT Assess Shared Helper Alignment — 2026-05-15)
+
+- Timestamp (NZ): 2026-05-15
+- Current branch: main
+- Scope completed:
+  - Continued realignment contract hardening on remaining direct inference pathways.
+  - Updated `supabase/functions/_shared/bobInfer.ts` direct `/assess/*` payload to include parity fields (`imageDescription`/`image_description`, `model`) consistent with RunPod assess input.
+  - Refactored `supabase/functions/ptt-assess/index.ts` from manual fetch/auth logic to shared `bobAssess` helper usage.
+  - Added standardized Bob operation context to PTT assessments via `buildBobContext` (`operation`, `source`, `user_id`, `organization_id`).
+
+- Validation evidence:
+  | Command | Result | Notes |
+  |---|---|---|
+  | IDE diagnostics (`get_errors`) on updated files | PASS | No errors in bobInfer.ts or ptt-assess/index.ts |
+  | `bun run build` | PASS | TypeScript + Vite production build succeeded after PTT/shared-helper alignment |
+
+- Realignment status impact:
+  - Reduced direct-call drift by consolidating PTT assess execution through the shared Bob helper contract.
+  - Improved cross-provider assess payload consistency for Phase B operations.
+
 ## Latest Session Snapshot (Star Trek Full 4-Phase Recheck — 2026-05-15)
 
 - Timestamp (NZ): 2026-05-15
