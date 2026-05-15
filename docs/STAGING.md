@@ -4,6 +4,29 @@ Date: 2026-05-15
 Owner: GitHub Copilot
 Status: Active staging checklist — Sprints 50-70 complete on main; Iron Eagle Visual Identity locked in docs (2026-05-14)
 
+## Latest Session Snapshot (Phase B Remaining Inference Transport Consolidation — 2026-05-15)
+
+- Timestamp (NZ): 2026-05-15
+- Current branch: main
+- Scope completed:
+  - Continued realignment by reducing duplicated inference transport code in remaining direct-fetch edge paths.
+  - Added reusable shared helper exports in `supabase/functions/_shared/bobInfer.ts`:
+    - `getBobInferenceApiKey`
+    - `isBobRunpodServerlessUrl`
+    - `buildBobInferenceHeaders`
+  - Migrated `supabase/functions/generate-briefing-video/index.ts` to use shared RunPod detection and shared auth-header construction.
+  - Migrated `supabase/functions/generate-tender-sections/index.ts` to use shared RunPod detection and shared auth-header construction, while preserving existing tender fallback/training behavior.
+
+- Validation evidence:
+  | Command | Result | Notes |
+  |---|---|---|
+  | IDE diagnostics (`get_errors`) on updated files | PASS | No errors in bobInfer/generate-briefing-video/generate-tender-sections |
+  | `bun run build` | PASS | TypeScript + Vite production build succeeded after transport-helper consolidation |
+
+- Realignment status impact:
+  - Reduced auth/header and RunPod detection drift in two remaining direct-fetch inference workflows.
+  - Improved consistency for future Phase B hardening and maintenance.
+
 ## Latest Session Snapshot (Phase B Canary Metrics Pipeline Restored — 2026-05-15)
 
 - Timestamp (NZ): 2026-05-15

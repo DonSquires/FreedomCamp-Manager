@@ -24,14 +24,9 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3'
 import { withCors, getCorsHeaders } from '../_shared/withCors.ts'
 import { collectDirectOrgIds } from '../_shared/orgAccess.ts'
+import { buildBobInferenceHeaders, isBobRunpodServerlessUrl } from '../_shared/bobInfer.ts'
 
 const INFERENCE_SERVICE_URL = (Deno.env.get('INFERENCE_SERVICE_URL') || '').replace(/\/$/, '')
-const INFERENCE_API_KEY =
-  Deno.env.get('INFERENCE_API_KEY') ||
-  Deno.env.get('RUNPOD_ENDPOINT_API_KEY') ||
-  Deno.env.get('RUNPOD_API_KEY') ||
-  Deno.env.get('BOB_INFERENCE_API_KEY') ||
-  ''
 
 function envTimeoutMs(key: string, fallback: number, min: number, max: number): number {
   const raw = Number(Deno.env.get(key) || '')
@@ -44,21 +39,6 @@ function envTimeoutMs(key: string, fallback: number, min: number, max: number): 
 const INFERENCE_REQUEST_TIMEOUT_MS = envTimeoutMs('TENDER_INFERENCE_TIMEOUT_MS', 90_000, 10_000, 180_000)
 const RUNPOD_EXECUTION_TIMEOUT_MS = envTimeoutMs('RUNPOD_TENDER_EXECUTION_TIMEOUT_MS', 120_000, 30_000, 300_000)
 const RUNPOD_TRAIN_EXECUTION_TIMEOUT_MS = envTimeoutMs('RUNPOD_TENDER_TRAIN_TIMEOUT_MS', 60_000, 30_000, 180_000)
-
-function isRunpodServerless(url: string): boolean {
-  return url.includes('runpod.io') || url.includes('/runsync')
-}
-
-function inferenceHeaders(): Record<string, string> {
-  const h: Record<string, string> = { 'Content-Type': 'application/json' }
-  if (INFERENCE_API_KEY) {
-    // Send both for compatibility with existing Bob auth middleware and proxies
-    // that may strip Authorization in some environments.
-    h['Authorization'] = `Bearer ${INFERENCE_API_KEY}`
-    h['x-inference-api-key'] = INFERENCE_API_KEY
-  }
-  return h
-}
 
 async function callTenderGenerate(
   generationType: string,
@@ -82,11 +62,11 @@ async function callTenderGenerate(
   let resp: Response
   try {
     // Try HTTP /tender/generate endpoint (inference-service)
-    if (isRunpodServerless(INFERENCE_SERVICE_URL)) {
+    if (isBobRunpodServerlessUrl(INFERENCE_SERVICE_URL)) {
       // RunPod serverless: forward via /runsync with tender_generate action
       resp = await fetch(`${INFERENCE_SERVICE_URL}/runsync`, {
         method: 'POST',
-        headers: inferenceHeaders(),
+        headers: buildBobInferenceHeaders(),
         body: JSON.stringify({
           executionTimeout: RUNPOD_EXECUTION_TIMEOUT_MS,
           input: {
@@ -102,7 +82,7 @@ async function callTenderGenerate(
       // inference-service HTTP route
       resp = await fetch(`${INFERENCE_SERVICE_URL}/tender/generate`, {
         method: 'POST',
-        headers: inferenceHeaders(),
+        headers: buildBobInferenceHeaders(),
         body: JSON.stringify({
           generation_type: generationType,
           context,
@@ -123,7 +103,7 @@ async function callTenderGenerate(
   if (!resp.ok) {
     const errText = await resp.text()
     // If RunPod doesn't support tender_generate action, fall back to heuristic
-    if (isRunpodServerless(INFERENCE_SERVICE_URL) && resp.status >= 400) {
+    if (isBobRunpodServerlessUrl(INFERENCE_SERVICE_URL) && resp.status >= 400) {
       console.warn(`[tender] RunPod serverless does not support tender_generate action (${resp.status}), falling back to heuristic template`)
       return {
         sections: {
@@ -160,11 +140,11 @@ async function callTenderTrain(payload: Record<string, unknown>): Promise<void> 
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), INFERENCE_REQUEST_TIMEOUT_MS)
   try {
-    if (isRunpodServerless(INFERENCE_SERVICE_URL)) {
+    if (isBobRunpodServerlessUrl(INFERENCE_SERVICE_URL)) {
       // RunPod serverless: forward via /runsync with tender_train action
       await fetch(`${INFERENCE_SERVICE_URL}/runsync`, {
         method: 'POST',
-        headers: inferenceHeaders(),
+        headers: buildBobInferenceHeaders(),
         body: JSON.stringify({
           executionTimeout: RUNPOD_TRAIN_EXECUTION_TIMEOUT_MS,
           input: {
@@ -178,7 +158,7 @@ async function callTenderTrain(payload: Record<string, unknown>): Promise<void> 
       // inference-service HTTP route
       await fetch(`${INFERENCE_SERVICE_URL}/tender/train`, {
         method: 'POST',
-        headers: inferenceHeaders(),
+        headers: buildBobInferenceHeaders(),
         body: JSON.stringify(payload),
         signal: controller.signal,
       })

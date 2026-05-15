@@ -120,6 +120,37 @@ function getInferenceConfig(): { inferenceUrls: string[]; apiKey: string } {
   return { inferenceUrls, apiKey }
 }
 
+export function getBobInferenceApiKey(): string {
+  return (
+    Deno.env.get('INFERENCE_API_KEY') ||
+    Deno.env.get('RUNPOD_ENDPOINT_API_KEY') ||
+    Deno.env.get('RUNPOD_API_KEY') ||
+    Deno.env.get('BOB_INFERENCE_API_KEY') ||
+    ''
+  )
+}
+
+export function isBobRunpodServerlessUrl(rawUrl: string): boolean {
+  const normalized = normalizeBaseUrl(rawUrl)
+  return normalized ? isRunpodServerless(normalized) : false
+}
+
+export function buildBobInferenceHeaders(
+  extraHeaders: Record<string, string> = {},
+): Record<string, string> {
+  const apiKey = getBobInferenceApiKey()
+  return {
+    'Content-Type': 'application/json',
+    ...(apiKey
+      ? {
+          'Authorization': `Bearer ${apiKey}`,
+          'x-inference-api-key': apiKey,
+        }
+      : {}),
+    ...extraHeaders,
+  }
+}
+
 export interface BobChatOptions {
   message: string
   history?: Array<{ role: string; content: string }>

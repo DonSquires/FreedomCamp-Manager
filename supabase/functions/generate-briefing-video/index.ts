@@ -2,14 +2,9 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3'
 import { getCorsHeaders } from '../_shared/withCors.ts'
 import { collectDirectOrgIds } from '../_shared/orgAccess.ts'
+import { buildBobInferenceHeaders, isBobRunpodServerlessUrl } from '../_shared/bobInfer.ts'
 
 const INFERENCE_SERVICE_URL = (Deno.env.get('INFERENCE_SERVICE_URL') || '').replace(/\/$/, '')
-const INFERENCE_API_KEY =
-  Deno.env.get('INFERENCE_API_KEY') ||
-  Deno.env.get('RUNPOD_ENDPOINT_API_KEY') ||
-  Deno.env.get('RUNPOD_API_KEY') ||
-  Deno.env.get('BOB_INFERENCE_API_KEY') ||
-  ''
 
 const ALLOWED_ROLES = new Set(['admin', 'admin_officer', 'master'])
 const VIDEO_BUCKET = (Deno.env.get('VIDEO_BRIEFING_BUCKET') || 'briefing-videos').trim()
@@ -34,10 +29,6 @@ function parseUuidArray(value: unknown): string[] {
   return []
 }
 
-function isRunpodServerless(url: string): boolean {
-  return url.includes('runpod.io') || url.includes('/runsync')
-}
-
 function decodeBase64ToBytes(value: string): Uint8Array {
   const binary = atob(value)
   const bytes = new Uint8Array(binary.length)
@@ -48,14 +39,10 @@ function decodeBase64ToBytes(value: string): Uint8Array {
 async function maybeCallVideoGenerator(payload: Record<string, unknown>) {
   if (!INFERENCE_SERVICE_URL) return { provider: 'mock-video', model_used: 'placeholder' }
 
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-  if (INFERENCE_API_KEY) {
-    headers.Authorization = `Bearer ${INFERENCE_API_KEY}`
-    headers['x-inference-api-key'] = INFERENCE_API_KEY
-  }
+  const headers = buildBobInferenceHeaders()
 
   try {
-    if (isRunpodServerless(INFERENCE_SERVICE_URL)) {
+    if (isBobRunpodServerlessUrl(INFERENCE_SERVICE_URL)) {
       const resp = await fetch(`${INFERENCE_SERVICE_URL}/runsync`, {
         method: 'POST',
         headers,
