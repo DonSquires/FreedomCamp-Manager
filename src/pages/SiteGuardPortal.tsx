@@ -288,7 +288,22 @@ export default function SiteGuardPortal() {
     incidents, incidentsLoading,
     createIncident, createLoading,
     linkPoiToIncident,
+    triggerEmergencyAssist,
+    emergencyAssistLoading,
   } = useSiteGuardDashboard(clientSiteId)
+
+  async function handleEmergencyAssist() {
+    try {
+      await triggerEmergencyAssist({
+        assistType: 'emergency',
+        severity: 'critical',
+        description: `Emergency assist requested from Site Guard Portal (${site?.name ?? clientSiteId}).`,
+      })
+      toast.error('Emergency assist request sent to command console', { duration: 6000 })
+    } catch (e: any) {
+      toast.error(e?.message ?? 'Failed to trigger emergency assist')
+    }
+  }
 
   // ── Incident form state ───────────────────────────────────────────────────
 
@@ -452,6 +467,16 @@ export default function SiteGuardPortal() {
               </a>
             </Button>
           )}
+          <Button
+            size="sm"
+            variant="outline"
+            className="rounded-xl border-red-200 text-red-700 hover:bg-red-50"
+            onClick={handleEmergencyAssist}
+            disabled={emergencyAssistLoading}
+          >
+            <Siren className="h-4 w-4 mr-1" />
+            {emergencyAssistLoading ? 'Sending…' : 'Emergency Assist'}
+          </Button>
           <Button
             size="sm"
             className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl"

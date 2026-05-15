@@ -21,8 +21,10 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.3";
 import { withCors, jsonResponse, errorResponse, getCorsHeaders } from "../_shared/withCors.ts";
+import { getBobInferenceApiKey, isBobRunpodServerlessUrl } from "../_shared/bobInfer.ts";
 
-const INFERENCE_SERVICE_URL = Deno.env.get("INFERENCE_SERVICE_URL") || null;
+const INFERENCE_SERVICE_URL = (Deno.env.get("INFERENCE_SERVICE_URL") || "").replace(/\/$/, "") || null;
+const INFERENCE_API_KEY = getBobInferenceApiKey();
 
 // ---------------------------------------------------------------------------
 // HTML scraping helpers
@@ -386,7 +388,11 @@ Deno.serve(async (req: Request) => {
     // -----------------------------------------------------------------------
     let inferenceResult: any = null;
 
-    if (INFERENCE_SERVICE_URL) {
+    if (INFERENCE_SERVICE_URL && isBobRunpodServerlessUrl(INFERENCE_SERVICE_URL)) {
+      console.warn(
+        "Inference skipped: INFERENCE_SERVICE_URL points to RunPod serverless endpoint; scrape-vehicle-photos requires direct /infer support.",
+      );
+    } else if (INFERENCE_SERVICE_URL) {
       try {
         console.log(`🤖 Calling inference service: ${INFERENCE_SERVICE_URL}/infer`);
 
@@ -394,8 +400,15 @@ Deno.serve(async (req: Request) => {
         const blob = new Blob([photoBytes], { type: contentType });
         formData.append("photo", blob, `${plate}.${ext}`);
 
+        const inferenceHeaders: Record<string, string> = {};
+        if (INFERENCE_API_KEY) {
+          inferenceHeaders["Authorization"] = `Bearer ${INFERENCE_API_KEY}`;
+          inferenceHeaders["x-inference-api-key"] = INFERENCE_API_KEY;
+        }
+
         const inferResp = await fetch(`${INFERENCE_SERVICE_URL}/infer`, {
           method: "POST",
+          headers: inferenceHeaders,
           body: formData,
           signal: AbortSignal.timeout(30000),
         });

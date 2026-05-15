@@ -114,18 +114,63 @@ export function useAccessControlCaseTimeline(caseId: string | undefined) {
   return useQuery({
     queryKey: ['accessControlCaseTimeline', caseId],
     queryFn: async () => {
-      if (!caseId) return { incidents: [], entries: [], documents: [], assessments: [] }
-      const [incR, entR, docR, assR] = await Promise.all([
-        sb.from('access_control_incidents').select('id,case_id,incident_type,description,severity,status,created_at').eq('case_id', caseId).order('created_at', { ascending: true }),
-        sb.from('access_entries').select('id,case_id,person_id,access_type,granted,created_at').eq('case_id', caseId).order('created_at', { ascending: true }),
-        sb.from('person_id_documents').select('id,case_id,person_id,document_type,verified,created_at').eq('case_id', caseId).order('created_at', { ascending: true }),
-        sb.from('site_risk_assessments').select('id,case_id,overall_risk_level,status,created_at').eq('case_id', caseId).order('created_at', { ascending: true }),
+      if (!caseId) {
+        return {
+          incidents: [],
+          entries: [],
+          documents: [],
+          assessments: [],
+          degraded: false,
+          degradedSources: [] as string[],
+        }
+      }
+
+      const [incR, entR, docR, assR] = await Promise.allSettled([
+        sb
+          .from('access_control_incidents')
+          .select('id,case_id,incident_type,description,severity,status,created_at')
+          .eq('case_id', caseId)
+          .order('created_at', { ascending: true }),
+        sb
+          .from('access_entries')
+          .select('id,case_id,person_id,access_type,granted,created_at')
+          .eq('case_id', caseId)
+          .order('created_at', { ascending: true }),
+        sb
+          .from('person_id_documents')
+          .select('id,case_id,person_id,document_type,verified,created_at')
+          .eq('case_id', caseId)
+          .order('created_at', { ascending: true }),
+        sb
+          .from('site_risk_assessments')
+          .select('id,case_id,overall_risk_level,status,created_at')
+          .eq('case_id', caseId)
+          .order('created_at', { ascending: true }),
       ])
+
+      const degradedSources: string[] = []
+
+      const pick = (result: PromiseSettledResult<any>, source: string) => {
+        if (result.status === 'rejected') {
+          degradedSources.push(source)
+          return []
+        }
+
+        if (result.value?.error) {
+          degradedSources.push(source)
+          return []
+        }
+
+        return result.value?.data ?? []
+      }
+
       return {
-        incidents:   incR.data  ?? [],
-        entries:     entR.data  ?? [],
-        documents:   docR.data  ?? [],
-        assessments: assR.data  ?? [],
+        incidents: pick(incR, 'access_control_incidents'),
+        entries: pick(entR, 'access_entries'),
+        documents: pick(docR, 'person_id_documents'),
+        assessments: pick(assR, 'site_risk_assessments'),
+        degraded: degradedSources.length > 0,
+        degradedSources,
       }
     },
     enabled: !!caseId,

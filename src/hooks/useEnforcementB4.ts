@@ -56,6 +56,7 @@ export function useCreateCaseFromBreach() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['operationalCases'] })
+      queryClient.invalidateQueries({ queryKey: ['enforcementTimeline'] })
       queryClient.invalidateQueries({ queryKey: ['enforcementEvents'] })
       queryClient.invalidateQueries({ queryKey: ['breachAlertCase'] })
     },
@@ -106,6 +107,7 @@ export function useLinkBreachToCase() {
     },
     onSuccess: (_, input) => {
       queryClient.invalidateQueries({ queryKey: ['breachAlertCase', input.breachAlertId] })
+      queryClient.invalidateQueries({ queryKey: ['enforcementTimeline', input.caseId] })
       queryClient.invalidateQueries({ queryKey: ['enforcementEvents', input.caseId] })
     },
   })

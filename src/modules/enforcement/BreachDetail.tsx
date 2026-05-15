@@ -34,9 +34,13 @@ export default function BreachDetail({ breachId }: BreachDetailProps) {
   const resolveBreach = useResolveBreach()
 
   // Phase B: enforcement timeline (feature-flagged)
-  const { data: timelineEnabled } = useFeatureFlag('FF_PHASE_B_ENFORCEMENT_TIMELINE')
-  const { data: breachCase, isLoading: caseLoading } = useBreachAlertCase(breachId)
-  const { data: timeline = [], isLoading: timelineLoading } = useEnforcementTimeline(breachCase?.case_id ?? undefined)
+  const { data: timelineEnabled, isLoading: timelineFlagLoading } = useFeatureFlag('FF_PHASE_B_ENFORCEMENT_TIMELINE')
+  const timelineFlagOn = timelineEnabled === true
+  const showTimelineCard = timelineFlagOn || timelineFlagLoading
+  const { data: breachCase, isLoading: caseLoading } = useBreachAlertCase(timelineFlagOn ? breachId : undefined)
+  const { data: timeline = [], isLoading: timelineLoading } = useEnforcementTimeline(
+    timelineFlagOn ? breachCase?.case_id ?? undefined : undefined,
+  )
   const createCase = useCreateCaseFromBreach()
 
   if (isLoading) {
@@ -108,13 +112,15 @@ export default function BreachDetail({ breachId }: BreachDetailProps) {
       </Card>
 
       {/* Phase B: Enforcement Timeline (FF_PHASE_B_ENFORCEMENT_TIMELINE) */}
-      {timelineEnabled && (
+      {showTimelineCard && (
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Enforcement Timeline</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            {caseLoading ? (
+            {timelineFlagLoading ? (
+              <p className="text-sm text-muted-foreground">Checking timeline availability...</p>
+            ) : caseLoading ? (
               <p className="text-sm text-muted-foreground">Loading case...</p>
             ) : !breachCase?.case_id ? (
               <div className="space-y-2">
@@ -127,6 +133,11 @@ export default function BreachDetail({ breachId }: BreachDetailProps) {
                 >
                   {createCase.isPending ? 'Creating case...' : 'Create Enforcement Case'}
                 </Button>
+                {createCase.isError && (
+                  <p className="text-xs text-destructive">
+                    Unable to create case right now. Please retry.
+                  </p>
+                )}
               </div>
             ) : timelineLoading ? (
               <p className="text-sm text-muted-foreground">Loading timeline...</p>

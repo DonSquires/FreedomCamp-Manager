@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useDeferredValue, useEffect, useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useBreaches } from '@/hooks/useBreaches'
@@ -6,7 +6,7 @@ import type { BreachStatus } from '@/types'
 
 interface BreachListProps {
   selectedBreachId?: string | null
-  onSelectBreach: (breachId: string) => void
+  onSelectBreach: (breachId: string | null) => void
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -20,7 +20,27 @@ const STATUS_COLORS: Record<string, string> = {
 export default function BreachList({ selectedBreachId, onSelectBreach }: BreachListProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<BreachStatus | 'all'>('all')
-  const { data: breaches, isLoading } = useBreaches({ searchQuery, statusFilter })
+  const deferredSearchQuery = useDeferredValue(searchQuery)
+  const { data: breaches, isLoading } = useBreaches({ searchQuery: deferredSearchQuery, statusFilter })
+
+  useEffect(() => {
+    if (isLoading) return
+
+    if (!breaches || breaches.length === 0) {
+      if (selectedBreachId) onSelectBreach(null)
+      return
+    }
+
+    if (!selectedBreachId) {
+      onSelectBreach(breaches[0].id)
+      return
+    }
+
+    const hasSelectedBreach = breaches.some((breach) => breach.id === selectedBreachId)
+    if (!hasSelectedBreach) {
+      onSelectBreach(breaches[0].id)
+    }
+  }, [isLoading, breaches, selectedBreachId, onSelectBreach])
 
   return (
     <Card>

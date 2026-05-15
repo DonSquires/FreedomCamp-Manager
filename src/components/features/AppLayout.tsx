@@ -190,15 +190,6 @@ type NavItem = {
   scopeHint?: string
 }
 
-// eslint-disable-next-line react-refresh/only-export-components
-export function isNavItemVisibleForRole(
-  item: NavItem,
-  role: string,
-  _activeFeatureFlags: Set<string>,
-): boolean {
-  return item.roles.includes(role)
-}
-
 // Pinned items always visible at the top of the sidebar
 // eslint-disable-next-line react-refresh/only-export-components
 export const pinnedItems: NavItem[] = [
@@ -661,12 +652,12 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
   return (
     <nav className="space-y-2">
       {/* Pinned items */}
-      {visiblePinned.map((item, idx) => {
+      {visiblePinned.map((item) => {
         const Icon = item.icon
         const isActive = location.pathname === item.path
         return (
           <Link
-            key={`pinned:${item.path}:${item.label}:${idx}`}
+            key={`pinned:${item.path}`}
             to={item.path}
             onClick={onClick}
             className={cn(
@@ -727,12 +718,12 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
 
             {isOpen && (
               <div className="ml-4 mt-1 space-y-1 border-l border-gray-200 dark:border-[#9E9E9E]/20 pl-3">
-                {visibleItems.map((item, idx) => {
+                {visibleItems.map((item) => {
                   const Icon = item.icon
                   const isActive = location.pathname === item.path
                   return (
                     <Link
-                      key={`group:${group.label}:${item.path}:${item.label}:${idx}`}
+                      key={`group:${group.label}:${item.path}`}
                       to={item.path}
                       onClick={onClick}
                       className={cn(

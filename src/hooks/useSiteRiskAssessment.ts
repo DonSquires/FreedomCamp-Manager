@@ -8,6 +8,7 @@ import { toast } from 'sonner'
 export interface SiteRiskAssessment {
   id: string
   organization_id: string
+  case_id?: string | null
   zone_id: string | null
   assessed_by: string | null
   job_reference: string | null
@@ -142,12 +143,13 @@ export function useSiteRiskAssessments(options?: {
 
   const createAssessment = useMutation({
     mutationFn: async (input: Partial<SiteRiskAssessment>) => {
+      if (!orgId || !user?.id) throw new Error('Not authenticated')
       const { data, error } = await supabase
         .from('site_risk_assessments')
         .insert({
           ...input,
-          organization_id: orgId!,
-          assessed_by: user!.id,
+          organization_id: orgId,
+          assessed_by: user.id,
         } as any)
         .select()
         .single()
@@ -163,11 +165,13 @@ export function useSiteRiskAssessments(options?: {
 
   const updateAssessment = useMutation({
     mutationFn: async ({ id, ...updates }: Partial<SiteRiskAssessment> & { id: string }) => {
+      if (!orgId) throw new Error('Not authenticated')
       const { zone: _zone, assessor: _assessor, reviewer: _reviewer, ...dbUpdates } = updates
       const { data, error } = await supabase
         .from('site_risk_assessments')
         .update(dbUpdates)
         .eq('id', id)
+        .eq('organization_id', orgId)
         .select()
         .single()
       if (error) throw error
@@ -182,10 +186,12 @@ export function useSiteRiskAssessments(options?: {
 
   const submitAssessment = useMutation({
     mutationFn: async (id: string) => {
+      if (!orgId) throw new Error('Not authenticated')
       const { data, error } = await supabase
         .from('site_risk_assessments')
         .update({ status: 'submitted' })
         .eq('id', id)
+        .eq('organization_id', orgId)
         .select()
         .single()
       if (error) throw error
@@ -200,10 +206,12 @@ export function useSiteRiskAssessments(options?: {
 
   const reviewAssessment = useMutation({
     mutationFn: async (id: string) => {
+      if (!orgId || !user?.id) throw new Error('Not authenticated')
       const { data, error } = await supabase
         .from('site_risk_assessments')
-        .update({ status: 'reviewed', reviewed_by: user!.id, reviewed_at: new Date().toISOString() })
+        .update({ status: 'reviewed', reviewed_by: user.id, reviewed_at: new Date().toISOString() })
         .eq('id', id)
+        .eq('organization_id', orgId)
         .select()
         .single()
       if (error) throw error

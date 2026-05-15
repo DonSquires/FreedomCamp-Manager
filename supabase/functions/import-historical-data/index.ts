@@ -24,15 +24,10 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3';
 import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/withCors.ts';
+import { buildBobInferenceHeaders, isBobRunpodServerlessUrl } from '../_shared/bobInfer.ts';
 import * as XLSX from 'https://esm.sh/xlsx@0.18.5';
 
-const INFERENCE_SERVICE_URL = Deno.env.get('INFERENCE_SERVICE_URL') || '';
-const INFERENCE_API_KEY =
-  Deno.env.get('INFERENCE_API_KEY') ||
-  Deno.env.get('RUNPOD_ENDPOINT_API_KEY') ||
-  Deno.env.get('RUNPOD_API_KEY') ||
-  Deno.env.get('BOB_INFERENCE_API_KEY') ||
-  '';
+const INFERENCE_SERVICE_URL = String(Deno.env.get('INFERENCE_SERVICE_URL') || '').replace(/\/$/, '');
 const INFERENCE_TIMEOUT_MS = Number(Deno.env.get('INFERENCE_TIMEOUT_MS') ?? '4500');
 
 interface ImportProgress {
@@ -501,15 +496,12 @@ Deno.serve(async (req) => {
     try {
       if (!INFERENCE_SERVICE_URL) {
         console.warn('⚠️ [IMPORT] INFERENCE_SERVICE_URL not configured, using heuristic only');
+      } else if (isBobRunpodServerlessUrl(INFERENCE_SERVICE_URL)) {
+        console.warn('⚠️ [IMPORT] INFERENCE_SERVICE_URL is RunPod serverless; /nlp/tabular/analyze is not supported, using heuristic only');
       } else {
-        const headers: Record<string, string> = {
-          'Content-Type': 'application/json',
-        };
+        const headers: Record<string, string> = buildBobInferenceHeaders();
         if (token) {
           headers['Authorization'] = `Bearer ${token}`;
-        }
-        if (INFERENCE_API_KEY) {
-          headers['x-inference-api-key'] = INFERENCE_API_KEY;
         }
 
         const inferenceRes = await fetch(`${INFERENCE_SERVICE_URL}/nlp/tabular/analyze`, {

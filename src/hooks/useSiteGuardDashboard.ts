@@ -112,6 +112,14 @@ export interface UseSiteGuardDashboardResult {
   createIncident: (data: NewIncidentData) => Promise<void>
   createLoading: boolean
   linkPoiToIncident: (incidentId: string, poiId: string) => Promise<void>
+  triggerEmergencyAssist: (input?: {
+    assistType?: 'emergency' | 'medical' | 'aggressive_person' | 'supervisor_required' | 'police_required'
+    severity?: 'medium' | 'high' | 'critical'
+    description?: string
+    gpsLat?: number | null
+    gpsLng?: number | null
+  }) => Promise<void>
+  emergencyAssistLoading: boolean
 }
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
@@ -143,7 +151,7 @@ export function useSiteGuardDashboard(
   const { data: site = null, isLoading: siteLoading } = useQuery<SiteDetails | null>({
     queryKey: ['site_guard_site', clientSiteId],
     queryFn: async () => {
-      if (!clientSiteId) return null
+      if (!clientSiteId || !user?.organization_id) return null
       const { data, error } = await supabase
         .from('client_sites')
         .select(`
@@ -153,11 +161,12 @@ export function useSiteGuardDashboard(
           emergency_contact_phone
         `)
         .eq('id', clientSiteId)
+        .eq('organization_id', user.organization_id)
         .maybeSingle()
       if (error || !data) return null
       return data as SiteDetails
     },
-    enabled: !!clientSiteId,
+    enabled: !!clientSiteId && !!user?.organization_id,
   })
 
   // ── Geofence check ──────────────────────────────────────────────────────────
@@ -227,7 +236,7 @@ export function useSiteGuardDashboard(
   const { data: incidents = [], isLoading: incidentsLoading } = useQuery<SiteIncident[]>({
     queryKey: ['site_incidents', clientSiteId, today],
     queryFn: async () => {
-      if (!clientSiteId) return []
+      if (!clientSiteId || !user?.organization_id) return []
       const { data, error } = await supabase
         .from('site_incidents')
         .select(`
@@ -238,6 +247,7 @@ export function useSiteGuardDashboard(
           poi:persons_of_interest!poi_id(full_name)
         `)
         .eq('client_site_id', clientSiteId)
+        .eq('organization_id', user.organization_id)
         .gte('created_at', `${today}T00:00:00`)
         .order('created_at', { ascending: false })
       if (error) return []
@@ -246,7 +256,7 @@ export function useSiteGuardDashboard(
         poi: Array.isArray(i.poi) ? i.poi[0] ?? null : i.poi,
       })) as SiteIncident[]
     },
-    enabled: !!clientSiteId,
+    enabled: !!clientSiteId && !!user?.organization_id,
     refetchInterval: 30_000,
   })
 
@@ -256,12 +266,34 @@ export function useSiteGuardDashboard(
     queryClient.invalidateQueries({ queryKey: ['site_incidents', clientSiteId] })
   }, [queryClient, clientSiteId])
 
+  const resolveActiveSiteGuardCaseId = useCallback(async (siteId: string) => {
+    if (!user?.id || !user?.organization_id) return null
+    const { data: activeShift } = await (supabase as any)
+      .from('site_guard_shifts')
+      .select('case_id')
+      .eq('organization_id', user.organization_id)
+      .eq('officer_id', user.id)
+      .eq('client_site_id', siteId)
+      .eq('status', 'active')
+      .order('shift_start', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    return activeShift?.case_id ? String(activeShift.case_id) : null
+  }, [user?.id, user?.organization_id])
+
   const { mutateAsync: createIncident, isPending: createLoading } = useMutation({
     mutationFn: async (data: NewIncidentData) => {
       if (!user?.id || !user?.organization_id) throw new Error('Not authenticated')
+
+      // C1 case-backbone bridge: if officer has an active site-guard shift for
+      // this site, attach the incident to that shared operational case.
+      let activeCaseId: string | null = null
+      activeCaseId = await resolveActiveSiteGuardCaseId(data.client_site_id)
+
       const { error } = await supabase.from('site_incidents').insert({
         ...data,
         organization_id: user.organization_id,
+        case_id: activeCaseId,
         officer_id: user.id,
         subject_name:   data.subject_name   || null,
         police_event_number: data.police_event_number || null,
@@ -274,18 +306,63 @@ export function useSiteGuardDashboard(
       })
       if (error) throw error
     },
-    onSuccess: invalidate,
+    onSuccess: () => {
+      invalidate()
+      queryClient.invalidateQueries({ queryKey: ['siteGuardCaseTimeline'] })
+    },
   })
 
   const { mutateAsync: linkPoiToIncident } = useMutation({
     mutationFn: async ({ incidentId, poiId }: { incidentId: string; poiId: string }) => {
+      if (!user?.organization_id) throw new Error('Not authenticated')
       const { error } = await supabase
         .from('site_incidents')
         .update({ poi_id: poiId })
         .eq('id', incidentId)
+        .eq('organization_id', user.organization_id)
       if (error) throw error
     },
     onSuccess: invalidate,
+  })
+
+  const { mutateAsync: triggerEmergencyAssist, isPending: emergencyAssistLoading } = useMutation({
+    mutationFn: async (input?: {
+      assistType?: 'emergency' | 'medical' | 'aggressive_person' | 'supervisor_required' | 'police_required'
+      severity?: 'medium' | 'high' | 'critical'
+      description?: string
+      gpsLat?: number | null
+      gpsLng?: number | null
+    }) => {
+      if (!user?.id || !user?.organization_id || !clientSiteId) {
+        throw new Error('Not authenticated')
+      }
+
+      const caseId = await resolveActiveSiteGuardCaseId(clientSiteId)
+      if (!caseId) {
+        throw new Error('No active Site Guard case found for this site')
+      }
+
+      const { error } = await (supabase as any)
+        .from('emergency_assist_events')
+        .insert({
+          organization_id: user.organization_id,
+          case_id: caseId,
+          officer_id: user.id,
+          client_site_id: clientSiteId,
+          assist_type: input?.assistType ?? 'emergency',
+          severity: input?.severity ?? 'critical',
+          description: input?.description ?? null,
+          gps_lat: input?.gpsLat ?? null,
+          gps_lng: input?.gpsLng ?? null,
+          status: 'active',
+          triggered_at: new Date().toISOString(),
+        })
+
+      if (error) throw error
+
+      queryClient.invalidateQueries({ queryKey: ['siteGuardCaseTimeline', caseId] })
+      queryClient.invalidateQueries({ queryKey: ['emergencyAssists', user.organization_id] })
+    },
   })
 
   return {
@@ -302,5 +379,7 @@ export function useSiteGuardDashboard(
     createLoading,
     linkPoiToIncident: (incidentId, poiId) =>
       linkPoiToIncident({ incidentId, poiId }),
+    triggerEmergencyAssist,
+    emergencyAssistLoading,
   }
 }
