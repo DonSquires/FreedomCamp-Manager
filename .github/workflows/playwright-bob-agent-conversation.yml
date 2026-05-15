@@ -63,10 +63,17 @@ jobs:
 
       - name: Start preview server on port 3000
         run: |
+          set -euo pipefail
           bun run preview -- --host 127.0.0.1 --port 3000 > /tmp/bob-agent-preview.log 2>&1 &
           echo $! > /tmp/bob-agent-preview.pid
 
           for i in $(seq 1 40); do
+            if [ -f /tmp/bob-agent-preview.pid ] && ! kill -0 "$(cat /tmp/bob-agent-preview.pid)" 2>/dev/null; then
+              echo "::error::Preview server process exited before becoming ready"
+              tail -n 200 /tmp/bob-agent-preview.log || true
+              exit 1
+            fi
+
             if curl -fsS --max-time 5 "http://127.0.0.1:3000/dashboard" >/dev/null 2>&1; then
               echo "Preview server ready"
               break
@@ -74,12 +81,20 @@ jobs:
 
             if [ "$i" -eq 40 ]; then
               echo "::error::Preview server did not start in time"
-              tail -n 120 /tmp/bob-agent-preview.log || true
+              tail -n 200 /tmp/bob-agent-preview.log || true
               exit 1
             fi
 
             sleep 2
           done
+
+      - name: Upload preview server log on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: bob-agent-preview-log-${{ github.run_id }}
+          path: /tmp/bob-agent-preview.log
+          if-no-files-found: ignore
 
       - name: Run Bob conversation spec
         run: |
@@ -87,6 +102,13 @@ jobs:
             --project=chromium \
             --reporter=list \
             --timeout=60000
+
+      - name: Stop preview server
+        if: always()
+        run: |
+          if [ -f /tmp/bob-agent-preview.pid ]; then
+            kill "$(cat /tmp/bob-agent-preview.pid)" || true
+          fi
 
       - name: Upload Playwright artifacts
         if: always()

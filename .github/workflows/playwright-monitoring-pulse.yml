@@ -64,22 +64,38 @@ jobs:
 
       - name: Start preview server
         run: |
+          set -euo pipefail
           bun run preview -- --host 127.0.0.1 --port 4173 > /tmp/monitoring-preview.log 2>&1 &
           echo $! > /tmp/monitoring-preview.pid
 
       - name: Wait for app
         run: |
+          set -euo pipefail
           for i in $(seq 1 40); do
+            if [ -f /tmp/monitoring-preview.pid ] && ! kill -0 "$(cat /tmp/monitoring-preview.pid)" 2>/dev/null; then
+              echo 'Preview process exited before becoming reachable.'
+              tail -n 200 /tmp/monitoring-preview.log || true
+              exit 1
+            fi
+
             if curl -fsS --max-time 5 "${PLAYWRIGHT_BASE_URL}/enterprise-console" >/dev/null 2>&1; then
               exit 0
             fi
             if [ "$i" -eq 40 ]; then
               echo 'Preview did not become reachable in time.'
-              tail -n 120 /tmp/monitoring-preview.log || true
+              tail -n 200 /tmp/monitoring-preview.log || true
               exit 1
             fi
             sleep 2
           done
+
+      - name: Upload preview server log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: monitoring-pulse-preview-log-${{ github.run_id }}
+          path: /tmp/monitoring-preview.log
+          if-no-files-found: ignore
 
       - name: Run monitoring pulse smoke test
         run: |

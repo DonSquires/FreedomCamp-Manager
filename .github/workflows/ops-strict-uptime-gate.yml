@@ -49,4 +49,17 @@ jobs:
           fi
 
       - name: Run strict uptime gate
+        id: uptime_gate
+        continue-on-error: true
         run: node scripts/strict-uptime-gate.mjs
+
+      - name: Enforce strict uptime gate
+        if: steps.uptime_gate.outcome == 'failure' && vars.STRICT_UPTIME_GATE_STRICT == 'true'
+        run: |
+          echo "::error::Strict uptime gate failed and STRICT_UPTIME_GATE_STRICT=true."
+          exit 1
+
+      - name: Report strict uptime gate (non-strict)
+        if: steps.uptime_gate.outcome == 'failure' && vars.STRICT_UPTIME_GATE_STRICT != 'true'
+        run: |
+          echo "::warning::Strict uptime gate failed but strict mode is disabled; continuing."

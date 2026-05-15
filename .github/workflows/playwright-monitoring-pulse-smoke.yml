@@ -60,23 +60,39 @@ jobs:
       - name: Start preview server
         if: steps.env-check.outputs.ready == 'true'
         run: |
+          set -euo pipefail
           bun run preview -- --host 127.0.0.1 --port 4173 > /tmp/monitoring-smoke-preview.log 2>&1 &
           echo $! > /tmp/monitoring-smoke-preview.pid
 
       - name: Wait for app
         if: steps.env-check.outputs.ready == 'true'
         run: |
+          set -euo pipefail
           for i in $(seq 1 40); do
+            if [ -f /tmp/monitoring-smoke-preview.pid ] && ! kill -0 "$(cat /tmp/monitoring-smoke-preview.pid)" 2>/dev/null; then
+              echo 'Preview process exited before becoming reachable.'
+              tail -n 200 /tmp/monitoring-smoke-preview.log || true
+              exit 1
+            fi
+
             if curl -fsS --max-time 5 "${PLAYWRIGHT_BASE_URL}/enterprise-console" >/dev/null 2>&1; then
               exit 0
             fi
             if [ "$i" -eq 40 ]; then
               echo 'Preview did not become reachable in time.'
-              tail -n 120 /tmp/monitoring-smoke-preview.log || true
+              tail -n 200 /tmp/monitoring-smoke-preview.log || true
               exit 1
             fi
             sleep 2
           done
+
+      - name: Upload preview server log on failure
+        if: failure() && steps.env-check.outputs.ready == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: monitoring-pulse-smoke-preview-log-${{ github.run_id }}
+          path: /tmp/monitoring-smoke-preview.log
+          if-no-files-found: ignore
 
       - name: Run monitoring pulse smoke test
         if: steps.env-check.outputs.ready == 'true'
