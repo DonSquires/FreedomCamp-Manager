@@ -190,6 +190,23 @@ type NavItem = {
   scopeHint?: string
 }
 
+/**
+ * Check if a nav item is visible for a given role.
+ * @param item The nav item to check
+ * @param role The user's role
+ * @param activeFeatureFlags Feature flags that are currently active
+ * @returns true if the item is visible for this role
+ */
+// eslint-disable-next-line react-refresh/only-export-components
+export function isNavItemVisibleForRole(
+  item: NavItem,
+  role: AppRole,
+  activeFeatureFlags: Set<string>
+): boolean {
+  // Check if the role is in the item's allowed roles
+  return item.roles.includes(role)
+}
+
 // Pinned items always visible at the top of the sidebar
 // eslint-disable-next-line react-refresh/only-export-components
 export const pinnedItems: NavItem[] = [

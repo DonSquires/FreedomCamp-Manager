@@ -408,11 +408,7 @@ export default function DispatchConsole() {
               eventType: 'dispatch_assigned',
               dispatchJobId: jobId,
               statusAtEvent: 'dispatched',
-              payload: {
-                assigned_officer_id: officerId,
-                dispatched_by: user?.id,
-                assigned_at: new Date().toISOString(),
-              },
+              assignedTo: officerId,
             })
           }
         } catch (err) {
