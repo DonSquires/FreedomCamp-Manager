@@ -1,5 +1,124 @@
 # PTT Clean-Sheet Rollout Plan
 
+## Realignment Project: Next 2 Phases Execution Checklist
+
+Status source: `docs/BUILD_REALIGNMENT_PLAN_2026-05-04.md` and `docs/STAGING.md`
+
+Intent:
+
+1. Track execution for the next two realignment phases with checkboxes.
+2. Keep this section as the active operator checklist for C1-C4 and D1-D3.
+
+### Global Entry Gate (Before Phase C Work)
+
+- [ ] Confirm Phase B gate is explicitly green in staging evidence.
+- [ ] Confirm ownership roster is current for C and D leads.
+- [ ] Confirm feature flag plan exists for all C and D slices.
+- [ ] Confirm rollback and degraded-mode expectations are documented per slice.
+
+### Phase C (Specialist + Assistive Layers)
+
+Timeline reference: Aug 5 - Sept 29
+
+#### C1 Site Guard / Security Operations (Weeks 1-2)
+
+Owner: Security Operations Lead
+
+- [x] Map Site Guard / Static Guard workflows to shared case/timeline contracts.
+- [x] Ensure emergency assist events persist to the shared timeline.
+- [x] Validate org-safe reads/writes across Site Guard actions.
+- [x] Add/refresh E2E and integration tests for Site Guard case linkage.
+- [x] Capture evidence in staging snapshot with command outputs.
+
+#### C2 Identity and Risk (Weeks 3-4)
+
+Owner: Identity and Risk Lead
+
+- [x] Align Access Control, Face Recognition, Identity Verification flows to case/event contracts.
+- [x] Align Site Risk Assessment persistence to the same org-scoped contracts.
+- [x] Validate org isolation for identity and risk data access paths.
+- [ ] Add degraded-mode behavior coverage for inference/risk unavailability.
+- [x] Capture evidence in staging snapshot with command outputs.
+
+#### C3 Intelligence (Weeks 5-6)
+
+Owner: Intelligence Data Lead
+
+- [x] Align POI/VOI/LOI and evidence capture to shared case/timeline contracts.
+- [x] Ensure alert queues emit/consume shared event-family records.
+- [x] Validate idempotent replay behavior for intelligence/event ingestion.
+- [x] Add integration tests for evidence linkage and org-safe retrieval.
+- [x] Capture evidence in staging snapshot with command outputs.
+
+#### C4 Client Services Surfaces (Weeks 7-8)
+
+Owner: Client Services Lead
+
+- [x] Align Assets, Keys, Client, Contact, Service Agreement surfaces to shared contracts.
+- [x] Confirm reporting integration reads from case/timeline-aligned sources.
+- [x] Validate cross-surface workflow continuity under role/route constraints.
+- [x] Add smoke tests for client-service workflows on shared backbone.
+- [x] Capture evidence in staging snapshot with command outputs.
+
+### Phase C Exit Gate Checklist
+
+- [ ] Phase B gate confirmed green.
+- [ ] Security assistive surfaces resolve people/vehicle/place via shared contracts.
+- [ ] Site guard and assistive workflows attach to shared case/timeline model.
+- [ ] Build/lint/tests pass for all C slices.
+- [ ] Phase C completion snapshot recorded in staging docs.
+
+### Phase D (Bob + Translation + Transition Hardening)
+
+Timeline reference: Sept 30 - Nov 24
+
+#### D1 Bob Approval Contracts (Weeks 1-2)
+
+Owner: Bob Platform Lead
+
+- [x] Standardize Bob proposal, approval, escalation, execution, and audit contract fields.
+- [x] Ensure Bob actions carry org context and approver/execution outcomes.
+- [x] Validate audit completeness for all Bob decision pathways.
+- [x] Add contract tests for proposal -> approval -> execution lifecycle.
+- [x] Capture evidence in staging snapshot with command outputs.
+
+#### D2 Translation and Speech Runtime Boundaries (Weeks 3-4)
+
+Owner: Speech and AI Lead
+
+- [x] Enforce translation/speech runtime boundaries and fallback contracts.
+- [x] Validate degraded-mode controls for transcript, translation, and synthetic-audio flows.
+- [x] Ensure failures do not break primary operational pathways.
+- [x] Add tests for success + degraded responses with org-scoped persistence checks.
+- [x] Capture evidence in staging snapshot with command outputs.
+
+#### D3 Transition, Handshake, Offline-Reconnect (Weeks 5-8)
+
+Owner: Mobility Lead
+
+- [x] Harden active-org transition polling and handshake outcomes.
+- [x] Validate offline replay conflict handling and reconnect idempotency.
+- [x] Validate org-scope safety under reconnect and replay scenarios.
+- [x] Add integration tests for duplicate replay/stale-state conflict cases.
+- [x] Capture evidence in staging snapshot with command outputs.
+
+### Phase D Exit Gate Checklist
+
+- [ ] Phase C gate confirmed green.
+- [ ] Bob approval, translation, and transition services are auditable.
+- [ ] Degraded-mode safety verified for Bob/translation/speech paths.
+- [ ] Offline replay conflict scenarios pass defined tests.
+- [ ] Build/lint/tests pass for all D slices.
+- [ ] Phase D completion snapshot recorded in staging docs.
+
+### Required Evidence for Every Slice (C1-C4, D1-D3)
+
+- [x] `bun run build`
+- [x] `bun run lint`
+- [x] Slice-focused test command(s) recorded with result
+- [x] `docs/STAGING.md` updated with timestamp, scope, validation table, and impact
+- [ ] Decision or contract changes mirrored in `docs/DECISIONS.md` when applicable
+
 ## Objective
 
 Move FieldOps Manager from the current signaling-centric PTT baseline to a professional radio platform with live translation and optional voice-matched relay, while preserving org isolation and operational safety.

@@ -26,7 +26,8 @@ async function createZone(orgId: string) {
       name: `D3 Zone ${crypto.randomUUID()}`,
       organization_id: orgId,
       is_active: true,
-      zone_type: 'freedom_camping',
+      zone_type: null,
+      strict_boundary_enabled: false,
     })
     .select('id')
     .single()
@@ -37,12 +38,27 @@ async function createZone(orgId: string) {
 
 async function createObservationWithIdempotency(orgId: string, zoneId: string, idempotencyKey: string) {
   if (!supabaseAdmin) throw new Error('SUPABASE_SERVICE_ROLE_KEY required')
+  const plateNumber = `D3${Date.now().toString().slice(-6)}`
+
+  const { error: vehicleError } = await supabaseAdmin
+    .from('canonical_vehicles')
+    .upsert(
+      {
+        plate_number: plateNumber,
+        first_seen_at: new Date().toISOString(),
+        last_seen_at: new Date().toISOString(),
+      },
+      { onConflict: 'plate_number' },
+    )
+
+  if (vehicleError) throw vehicleError
+
   const { data, error } = await supabaseAdmin
     .from('observations')
     .insert({
       organization_id: orgId,
       zone_id: zoneId,
-      plate_number: `D3${Date.now().toString().slice(-6)}`,
+      plate_number: plateNumber,
       recorded_at: new Date().toISOString(),
       idempotency_key: idempotencyKey,
       photo_url: 'https://example.com/d3-photo.jpg',
