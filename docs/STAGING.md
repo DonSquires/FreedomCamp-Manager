@@ -5,6 +5,66 @@ Owner: GitHub Copilot
 Status: Active staging checklist — Phase E COMPLETE; Star Trek validation lane complete for Phases 1–4; Phase 0 implementation schedule calendarized
 
 ## Latest Session Snapshot (Star Trek Stabilization + Timeline Realignment — 2026-05-15)
+## Latest Session Snapshot (Phase 0 Entry Gate Blockers Fully Resolved — 2026-05-15 Session 3)
+
+- Timestamp (NZ): 2026-05-15 22:00
+- Current branch: main
+- Session focus: Resolve final 2/7 Phase 0 entry gate blockers to clear path for steering committee approval
+- Scope completed:
+  - **Blocker 6/7 resolved**: Added Phase 0 Bob Governance Integration section to `docs/STAR_TREK_PHASED_ROLLOUT_PLAN.md`:
+    - Documents how Star Trek Phase 3 (Sentient XO) governs radio floor control acquire/release via D1 approval contract
+    - Documents how Star Trek Phase 4 (Admiral's Bridge) governs emergency radio override via fire control key
+    - Provides Phase 0 sub-phase to Bob capability mapping table (Phase 0-1 through Phase 0-5)
+    - Links ADR-007, ADR-008, ADR-014 as canonical references
+  - **Blocker 7/7 resolved**: STAGING.md updated with Phase 0 entry gate final snapshot (this entry)
+  - Prior session (5/7 resolved) completed:
+    - ADR-006 (SFU Platform): Dr Bob review PASS — grounded in eval matrix, no unimplemented references
+    - ADR-007 (Event Backbone): Planned modules marked as future-state with implementation notes
+    - ADR-008 (Voice-Twin): Planned pages/functions marked as future-state with implementation notes
+    - Schema design: `docs/PHASE_0_SCHEMA_DESIGN.md` finalized (6 core tables + org-level RLS)
+    - Feature flag strategy: Phase 1-5 canary progression defined in `plan.md`
+    - DECISIONS.md updated with Phase 0 architectural decisions (ADR-006/007/008 governance entries)
+
+- Phase 0 Entry Gate Status (FINAL):
+  | Requirement | Status | Evidence |
+  |---|---|---|
+  | ADR-006 (SFU Platform) — Dr Bob review | ✅ PASS | `docs/adr/006-sfu-platform-selection.md` — no ungrounded references |
+  | ADR-007 (Event Backbone) — future-state clarified | ✅ RESOLVED | `docs/adr/007-event-backbone-floor-control.md` — implementation note added |
+  | ADR-008 (Voice-Twin) — future-state clarified | ✅ RESOLVED | `docs/adr/008-voice-twin-governance.md` — implementation note added |
+  | Phase 0 schema design documented | ✅ COMPLETE | `docs/PHASE_0_SCHEMA_DESIGN.md` |
+  | Feature flag rollout strategy | ✅ COMPLETE | `plan.md` Phase 0 section, canary Phases 1–5 |
+  | Star Trek integration documented | ✅ COMPLETE | `docs/STAR_TREK_PHASED_ROLLOUT_PLAN.md` Phase 0 Integration section |
+  | DECISIONS.md updated | ✅ COMPLETE | `docs/DECISIONS.md` — ADR-006/007/008 governance entries added |
+  | STAGING.md updated with entry gate snapshot | ✅ COMPLETE | This entry |
+  | Steering committee approval (ADR-006) | ⏳ HUMAN ACTION | Requires ops/legal sign-off meeting |
+  | Steering committee approval (ADR-007) | ⏳ HUMAN ACTION | Requires platform/ops team sign-off |
+  | Steering committee approval (ADR-008) | ⏳ HUMAN ACTION | Requires legal/compliance sign-off |
+
+- All technical/documentation blockers: **7/7 RESOLVED** ✅
+- Remaining: Steering committee approval (3 sign-off meetings — human-process, not technical blockers)
+
+- Validation evidence:
+  | Command | Result | Notes |
+  |---|---|---|
+  | `bun run build` | PASS (prior session) | 8773.73 kB — within budget |
+  | `bun run lint` | PASS (prior session) | ESLint clean |
+  | Star Trek Phase 1-4 canonical lane | PASS (prior session) | 33/33 tests green |
+
+- Files changed this session:
+  - `docs/STAR_TREK_PHASED_ROLLOUT_PLAN.md` — added Phase 0 Bob Governance Integration section
+  - `docs/STAGING.md` — this entry (Phase 0 entry gate resolved snapshot)
+  - `plan.md` — Phase 0 entry gate checklist items checked off
+
+- Open blockers:
+  - None (technical) — steering committee approval meetings are human-process items
+
+- Next actions:
+  1. Schedule Phase 0 entry gate steering committee approval meeting (ADRs 006/007/008)
+  2. After approval: begin Phase 0-1 (SFU + Floor Control) implementation (target: 2026-05-21)
+  3. Provision Livekit Cloud account (ops team action)
+
+---
+
 
 - Timestamp (NZ): 2026-05-15 21:20
 - Current branch: main

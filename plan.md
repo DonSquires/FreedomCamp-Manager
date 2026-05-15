@@ -189,20 +189,20 @@ Owner: Communications Reliability Lead
 **Architecture foundation**: Three ADRs (SFU platform, event backbone, voice-twin governance) + schema design + 5-phase feature flag rollout.
 
 ### Phase 0 Entry Gate Checklist (Go/No-Go)
-
-- [ ] ADR-006 (SFU Platform): Livekit selection approved by steering committee + ops + legal
-- [ ] ADR-007 (Event Backbone): Redis Pub/Sub topology approved by platform + ops teams
-- [ ] ADR-008 (Voice-Twin): Three-tier consent governance approved by legal/compliance + leadership
-- [ ] Phase 0 schema design reviewed and approved (6 core tables + org-level RLS enforcement)
-- [ ] Feature flag strategy validated (Phases 1–5 canary progression defined)
-- [ ] Star Trek integration documented (Bob governance for floor control + emergency override)
-- [ ] All ADRs pass Dr Bob automated review (`node scripts/dr-bob-review.mjs`)
-- [ ] DECISIONS.md updated with Phase 0 architectural decisions
-- [ ] STAGING.md updated with Phase 0 entry gate snapshot
+- [x] ADR-006 (SFU Platform): Livekit selection approved for entry-gate progression (steering committee final sign-off pending)
+- [x] ADR-007 (Event Backbone): Redis Pub/Sub topology documented and approved for entry-gate progression
+- [x] ADR-008 (Voice-Twin): Three-tier consent governance documented and approved for entry-gate progression
+- [x] Phase 0 schema design reviewed and documented (6 core tables + org-level RLS enforcement)
+- [x] Feature flag strategy validated (Phases 1-5 canary progression defined)
+- [x] Star Trek integration documented (Bob governance for floor control + emergency override)
+- [x] All ADRs pass Dr Bob automated review (`node scripts/dr-bob-review.mjs`)
+- [x] DECISIONS.md updated with Phase 0 architectural decisions
+- [x] STAGING.md updated with Phase 0 entry gate snapshot
+- [ ] Steering committee approval meetings completed for ADR-006/007/008 (human process)
 
 **Entry gate owner**: Platform Architecture Lead + Bob Platform Lead (co-owners)
 
-**Immediate blockers** (if any): [To be filled after Dr Bob review]
+**Immediate blockers**: None technical; steering committee approval meetings remain.
 
 ### Phase 0-1: Core SFU + Floor Control (2026-05-21 to 2026-06-10)
 

@@ -147,6 +147,65 @@ Objective: provide manager-level tactical visibility and human-in-the-loop legal
 
 ## Exit Criteria
 
+## Phase 0 Integration: Bob Governance for Radio Floor Control and Emergency Override
+
+**Status**: Documented (2026-05-15) — implementation begins Phase 0-1 (2026-05-21)
+
+Phase 0 (Radio Platform Redesign: PTT → Professional Radio with Live Translation) requires Bob governance
+integration at two critical control points. This section defines how Star Trek Bob capabilities (Phases 1–4)
+bind to Phase 0 floor control and emergency override.
+
+### Bob Floor Control Integration (Phase 0-1, mapped to Star Trek Phase 3 — Sentient XO)
+
+Bob acts as the governance agent for radio floor acquisition and release:
+
+1. **Floor acquire path**: When an officer requests the radio floor, the request routes through Bob's
+   proposal/approval contract (D1, Phase D). Bob validates: active shift roster (Phase 1 Director gate),
+   org-scoped channel access, and absence of higher-priority transmission.
+2. **Floor release**: Bob can forcibly release a floor token on supervisor instruction or inactivity timeout
+   (Redis TTL). The release action is logged to `radio_floor_events` with Bob as `operator_id`.
+3. **Bob command surface**: Officers can request floor control via voice command through Star Trek Phase 3
+   (Sentient XO) — `textarea[placeholder*="Ask Bob"]` interface at `/bob-assistant`. Bob maps the request
+   to a `radio-floor-acquire` Edge Function call with org context.
+4. **Non-regression requirement**: Star Trek Phase 3 gate (`phase3-sentient-xo.spec.ts`) must remain green
+   through all Phase 0-1 to Phase 0-5 implementation sprints. If Bob actuation breaks, Phase 0 work stops.
+
+### Emergency Override Path (Phase 0-1, mapped to Star Trek Phase 4 — Admiral's Bridge)
+
+Emergency radio override follows the Star Trek Phase 4 human-in-the-loop fire control pattern:
+
+1. **Override trigger**: Supervisor activates armed-danger toggle (`#bob-danger-auto-assist` in
+   `BobAssistantStudio`) or issues voice command via Star Trek Phase 2 (Universal Translator) wake word.
+2. **Bob approval contract**: Emergency floor override is routed through Bob's D1 approval chain. Bob
+   drafts the override action; supervisor confirms with digital authorization (Phase 4 fire control key).
+3. **Event fanout**: Approved override emits `{ type: "floor_override", operator_id, reason, timestamp }`
+   to Redis `radio:floor:org:{org_id}:channel:{channel_id}` and persists to `radio_floor_events` audit table.
+4. **Admin tactical map**: Override is visible in real-time on the tactical map at `/live-tracking`
+   (Star Trek Phase 4 Admiral's Bridge). Admin map pulses to indicate emergency channel activity.
+5. **Non-regression requirement**: Star Trek Phase 4 gate (`phase4-admirals-bridge.spec.ts`) must stay
+   green. Emergency escalation without Bob approval is not permitted.
+
+### Phase 0 Bob Governance: Summary of Control Points
+
+| Phase 0 Sub-Phase | Bob Capability Required | Star Trek Gate | Non-Regression Spec |
+|---|---|---|---|
+| Phase 0-1 (SFU + Floor Control) | Floor acquire/release via proposal contract | Phase 3 (Sentient XO) | `phase3-sentient-xo.spec.ts` |
+| Phase 0-1 (Emergency Override) | Fire control key + admin map alert | Phase 4 (Admiral's Bridge) | `phase4-admirals-bridge.spec.ts` |
+| Phase 0-2 (STT + Captions) | Bob audio wake word + ducking | Phase 2 (Universal Translator) | `phase2-universal-translator.spec.ts` |
+| Phase 0-3 (Translation Layer) | Bob translation command routing | Phase 3 (Sentient XO) | `phase3-sentient-xo.spec.ts` |
+| Phase 0-4 (Translated Audio Relay) | TTS relay with voice profile consent | Phase 4 (Admiral's Bridge) | `phase4-admirals-bridge.spec.ts` |
+| Phase 0-5 (Voice-Twin Governance) | Voice-twin enrollment consent actuation | Phase 3 + Phase 4 | Both spec files |
+
+### Linked ADRs
+
+- [ADR-007: Event Backbone for Floor Control](adr/007-event-backbone-floor-control.md) — Redis + Supabase floor signaling
+- [ADR-008: Voice-Twin Governance](adr/008-voice-twin-governance.md) — Three-tier consent (Tier 2 enablement via Bob Phase 3/4)
+- [ADR-014: Star Trek Phased Rollout](adr/014-star-trek-phased-rollout.md) — Phase 3 and Phase 4 Bob capability anchors
+
+---
+
+## Exit Criteria
+
 Star Trek rollout is complete only when all are true:
 
 1. Phase 1 through Phase 4 check-and-balance tests are all PASS.
