@@ -95,14 +95,16 @@ Example output:
 
 ## Implementation Plan
 
+> **Future-state proposal**: All pages, edge functions, and tables listed below are planned targets registered in `system_state.json` under `phase_0_planned_modules`. None exist in the repo yet. This section defines the target implementation scope for Phase 0-5 only.
+
 ### Phase 5 Scope
 
-1. **Enrollment UI** (`src/pages/VoiceTwinEnrollment.tsx`):
+1. **Enrollment UI** (`src/pages/VoiceTwinEnrollment.tsx`) *(planned)*:
    - Display consent text (version-controlled)
    - Capture user acceptance and timestamp
    - Record in `radio_voice_profiles` with `is_revoked = FALSE`
 
-2. **Voice Profile Manager** (`src/pages/VoiceProfileManagement.tsx`):
+2. **Voice Profile Manager** (`src/pages/VoiceProfileManagement.tsx`) *(planned)*:
    - List enrolled profiles
    - Revocation button (sets `is_revoked = TRUE`, `revoked_at = now()`)
    - Show audit trail of voice-twin uses
@@ -142,13 +144,13 @@ Example output:
    }
    ```
 
-4. **Synthesis Edge Function** (`supabase/functions/synthesize-voice-twin/`):
+4. **Synthesis Edge Function** (`supabase/functions/synthesize-voice-twin/`) *(planned)*:
    - Check `shouldUseVoiceTwin()`
    - If `true`, call provider API and tag output with watermark
    - Log event to `radio_voice_twin_events`
    - If `false`, use neutral dispatch voice (fallback)
 
-5. **Audit Dashboard** (`src/pages/VoiceTwinAuditDashboard.tsx`):
+5. **Audit Dashboard** (`src/pages/VoiceTwinAuditDashboard.tsx`) *(planned)*:
    - Org admins view all voice-twin uses by date, user, channel
    - Export audit report for compliance
 

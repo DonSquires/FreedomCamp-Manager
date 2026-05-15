@@ -6,5 +6,42 @@
   "modules": ["administration","bob","dashboard","enforcement","messaging","operations","patrol","shared"],
   "lockfiles": ["bun.lock","package-lock.json"],
   "generated_at": "2026-05-14T23:05:00Z",
-  "source": "scripts/system-check.sh"
+  "source": "scripts/system-check.sh",
+  "phase_0_planned_modules": {
+    "status": "planned — not yet implemented; pending Phase 0 entry gate approval",
+    "pages": [
+      "src/pages/VoiceTwinEnrollment.tsx",
+      "src/pages/VoiceProfileManagement.tsx",
+      "src/pages/VoiceTwinAuditDashboard.tsx",
+      "src/pages/RadioUI.tsx"
+    ],
+    "edge_functions": [
+      "supabase/functions/radio-session-grant",
+      "supabase/functions/radio-floor-acquire",
+      "supabase/functions/radio-floor-release",
+      "supabase/functions/ingest-transcript-segments",
+      "supabase/functions/translate-transcript-segments",
+      "supabase/functions/synthesize-translated-audio",
+      "supabase/functions/synthesize-voice-twin"
+    ],
+    "hooks": [
+      "src/lib/radioTransport.ts"
+    ],
+    "schema_tables": [
+      "radio_transmissions",
+      "radio_floor_events",
+      "radio_transcript_segments",
+      "radio_translation_segments",
+      "radio_tts_renders",
+      "radio_voice_profiles",
+      "radio_voice_twin_events",
+      "user_radio_preferences",
+      "organization_radio_settings"
+    ],
+    "adrs": [
+      "docs/adr/006-sfu-platform-selection.md",
+      "docs/adr/007-event-backbone-floor-control.md",
+      "docs/adr/008-voice-twin-governance.md"
+    ]
+  }
 }
