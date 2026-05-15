@@ -148,17 +148,10 @@ export interface BobAssessOptions {
 
 export interface BobAssessResult {
   assessment: unknown
+  confidence?: number
   rawResponse: string
   model: string
   provider: string
-}
-
-export interface BobAssessResult {
-  assessment: unknown
-  confidence?: number
-  rawResponse?: string
-  model?: string
-  provider?: string
 }
 export interface BobTranslateOptions {
   text: string
@@ -349,6 +342,7 @@ export async function bobAssess(options: BobAssessOptions): Promise<BobAssessRes
 
       return {
         assessment: output?.assessment ?? output,
+        confidence: typeof output?.confidence === 'number' ? output.confidence : undefined,
         rawResponse: output?.raw_response ?? text,
         model: output?.model ?? 'ollama',
         provider: output?.provider ?? 'ollama',
@@ -359,13 +353,6 @@ export async function bobAssess(options: BobAssessOptions): Promise<BobAssessRes
     }
   }
 
-      return {
-        assessment: output?.assessment ?? output,
-        confidence: typeof output?.confidence === 'number' ? output.confidence : undefined,
-        rawResponse: output?.raw_response ?? text,
-        model: output?.model ?? 'ollama',
-        provider: output?.provider ?? 'ollama',
-      }
   throw lastError ?? new Error('Bob assess failed for all configured endpoints')
 }
 

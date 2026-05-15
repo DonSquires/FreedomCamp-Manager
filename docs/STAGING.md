@@ -4,6 +4,66 @@ Date: 2026-05-15
 Owner: GitHub Copilot
 Status: Active staging checklist — Sprints 50-70 complete on main; Iron Eagle Visual Identity locked in docs (2026-05-14)
 
+## Latest Session Snapshot (Phase B Bob Helper Runtime Defect Cleanup — 2026-05-15)
+
+- Timestamp (NZ): 2026-05-15
+- Current branch: main
+- Scope completed:
+  - Continued realignment hardening with shared-helper and edge-runtime defect cleanup.
+  - Fixed `supabase/functions/_shared/bobInfer.ts` by removing duplicate `BobAssessResult` typing and unreachable `bobAssess` return logic while preserving confidence passthrough.
+  - Fixed `supabase/functions/noise-audio-assess/index.ts` by removing orphaned duplicated tail code after handler closure that could break edge runtime parsing.
+  - Kept `noise-audio-assess` response normalization behavior intact and retained confidence propagation in the active response path.
+
+- Validation evidence:
+  | Command | Result | Notes |
+  |---|---|---|
+  | IDE diagnostics (`get_errors`) on updated files | PASS | No errors in bobInfer.ts or noise-audio-assess/index.ts |
+  | `bun run build` | PASS | TypeScript + Vite production build succeeded after runtime defect cleanup |
+
+- Realignment status impact:
+  - Reduced hidden runtime failure risk in shared Bob assess and noise assessment edge paths.
+  - Improved reliability baseline for ongoing Phase B canary hardening.
+
+## Latest Session Snapshot (Phase B Shared Bob Assess Contract Repair — 2026-05-15)
+
+- Timestamp (NZ): 2026-05-15
+- Current branch: main
+- Scope completed:
+  - Continued realignment verification after endpoint/context unification by auditing shared helper internals.
+  - Resolved a shared helper defect in `supabase/functions/_shared/bobInfer.ts`:
+    - removed duplicate `BobAssessResult` interface declaration,
+    - removed stray unreachable return block in `bobAssess`,
+    - retained confidence passthrough in the valid `bobAssess` return path.
+  - Kept the helper contract backward-compatible for current edge callers while removing drift-prone dead code.
+
+- Validation evidence:
+  | Command | Result | Notes |
+  |---|---|---|
+  | IDE diagnostics (`get_errors`) on `bobInfer.ts` | PASS | No errors after interface/function cleanup |
+  | `bun run build` | PASS | TypeScript + Vite production build succeeded after shared-helper repair |
+
+- Realignment status impact:
+  - Reduced hidden runtime risk in shared Bob assess logic.
+  - Strengthened the shared inference contract quality baseline for subsequent Phase B hardening.
+
+## Latest Session Snapshot (Star Trek Runtime Recheck — Chromium Gate Green — 2026-05-15)
+
+- Timestamp (NZ): 2026-05-15
+- Current branch: main
+- Scope completed:
+  - Re-ran the canonical Star Trek/Bob staging gate in Chromium lane.
+  - Confirmed credential surface and web server boot sequence are healthy.
+  - Confirmed Phase 3 (Sentient XO) and Phase 4 (Admiral's Bridge) checkpoint suites both pass in a single run.
+
+- Validation evidence:
+  | Command | Result | Notes |
+  |---|---|---|
+  | `bun run staging:star-trek:bob:check` | PASS | Chromium detected at `/usr/bin/chromium`; credentials all set; 10/10 tests passed in 1.9m |
+
+- Open blockers: None
+- Next:
+  - Keep Star Trek rollout in closed/green state while Phase B canary observation and Bob context work continue.
+
 ## Latest Session Snapshot (Phase B Bob Translate/Assess Context Contract Completion — 2026-05-15)
 
 - Timestamp (NZ): 2026-05-15
@@ -797,7 +857,7 @@ This migration is idempotent and can be re-run before regression tests that exer
 
 Use this immediately after the NCC alignment migration when validating onsite/offsite patrol logic, report location verification, and service-rule-aware officer UX:
 
-1. Run migration: `supabase/migrations/20260714000002_geofence_core_enforcement_and_policy_context.sql`
+1. Run migration: `supabase/migrations/20260515000202_geofence_core_enforcement_and_policy_context.sql`
 2. Confirms active geofence integrity rules for:
   - `geo_zones` (active records require polygon geometry unless strict mode is explicitly disabled)
   - `zones` (active geo/both zones require a resolvable geofence path)
