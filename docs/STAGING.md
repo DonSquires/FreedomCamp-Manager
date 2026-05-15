@@ -4,6 +4,38 @@ Date: 2026-05-15
 Owner: GitHub Copilot
 Status: Active staging checklist — Phase E COMPLETE; Phase 0 architecture sprint in progress; Sprints 50-70 complete on main
 
+## Latest Session Snapshot (Phase F/G Queue Activation — Star Trek Phase 3+4 Gate + Production Readiness — 2026-05-15)
+
+- Timestamp (NZ): 2026-05-15 19:05
+- Current branch: main
+- Scope completed:
+  - Grounded the requested post-Phase-E work into the existing Star Trek lane by adding Phase F and Phase G queue entries to `plan.md`.
+  - Ran the Star Trek Phase 3 suite in isolation after a combined-suite transient failure; the isolated rerun passed 10/10.
+  - Ran the Star Trek Phase 4 suite; it passed 7/7.
+  - Ran the Phase 1+2 canonical lane; it passed 12/14 with 2 skips.
+  - Re-ran the full Star Trek canonical 1-4 gate lane and confirmed green status at 33 passed.
+  - Ran the build budget check and confirmed the production JS budget remains within ceiling.
+
+- Phase F / Phase G gate consolidation:
+  | Gate | Status | Evidence |
+  |---|---|---|
+  | F1 Translation Layer Gate (Star Trek Phase 3) | PASS | `tests/e2e/phase3-role-path-redirect.spec.ts`, `tests/e2e/phase3-sentient-xo.spec.ts`, `tests/e2e/phase3-ux-baseline-capture.spec.ts` |
+  | F2 Translated Audio Relay Gate (Star Trek Phase 4) | PASS | `tests/e2e/phase4-admirals-bridge.spec.ts`, `tests/e2e/phase4-notice-print-signature-gate.spec.ts`, `tests/e2e/phase4-operations-map-emergency-banner.spec.ts` |
+  | G1 Canary Rollout Validation | PASS | Star Trek canonical lane rerun (phases 1-4) and Phase 1+2 validation lane |
+  | G2 Build Budget and Drift Health | PASS | `node scripts/check-build-budgets.mjs` |
+
+- Validation evidence:
+  | Command | Result | Notes |
+  |---|---|---|
+  | `bash scripts/playwright-bob-runtime.sh bunx playwright test tests/e2e/phase3-role-path-redirect.spec.ts tests/e2e/phase3-sentient-xo.spec.ts tests/e2e/phase3-ux-baseline-capture.spec.ts --project=chromium --workers=1 --reporter=line` | PASS | 10 passed |
+  | `bash scripts/playwright-bob-runtime.sh bunx playwright test tests/e2e/phase4-admirals-bridge.spec.ts tests/e2e/phase4-notice-print-signature-gate.spec.ts tests/e2e/phase4-operations-map-emergency-banner.spec.ts --project=chromium --workers=1 --reporter=line` | PASS | 7 passed |
+  | `bash scripts/playwright-bob-runtime.sh bunx playwright test tests/e2e/phase1-director-roster-gate.spec.ts tests/e2e/phase1-radio-floor-control.spec.ts tests/e2e/phase1-radio-reconnect.spec.ts tests/e2e/phase1-radio-rls.spec.ts tests/e2e/phase1-radio-sfu-media.spec.ts tests/e2e/phase2-universal-translator.spec.ts --project=chromium --workers=1 --reporter=line` | PASS | 12 passed, 2 skipped |
+  | `bash scripts/playwright-bob-runtime.sh bunx playwright test tests/e2e/phase1-director-roster-gate.spec.ts tests/e2e/phase1-radio-floor-control.spec.ts tests/e2e/phase1-radio-reconnect.spec.ts tests/e2e/phase1-radio-rls.spec.ts tests/e2e/phase1-radio-sfu-media.spec.ts tests/e2e/phase2-universal-translator.spec.ts tests/e2e/phase3-role-path-redirect.spec.ts tests/e2e/phase3-sentient-xo.spec.ts tests/e2e/phase3-ux-baseline-capture.spec.ts tests/e2e/phase4-admirals-bridge.spec.ts tests/e2e/phase4-notice-print-signature-gate.spec.ts tests/e2e/phase4-operations-map-emergency-banner.spec.ts --project=chromium --workers=1 --reporter=line` | PASS | 33 passed on rerun after transient cross-suite failure |
+  | `node scripts/check-build-budgets.mjs` | PASS | Total non-exempt JS remains within ceiling |
+
+- Open blockers:
+  - None after isolated rerun; the earlier combined-suite Phase 3 failure was transient and cleared on the dedicated rerun.
+
 ## Latest Session Snapshot (Phase 0 Architecture Sprint Launch — ADR Drafts + Entry Gate Prep — 2026-05-15)
 
 - Timestamp (NZ): 2026-05-15 17:45
