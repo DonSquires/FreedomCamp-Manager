@@ -4,6 +4,44 @@ Date: 2026-05-15
 Owner: GitHub Copilot
 Status: Active staging checklist — Sprints 50-70 complete on main; Iron Eagle Visual Identity locked in docs (2026-05-14)
 
+## Latest Session Snapshot (Star Trek Next-Phase UX Baseline Capture — 2026-05-15)
+
+- Timestamp (NZ): 2026-05-15
+- Current branch: main
+- Scope completed:
+  - Continued Star Trek-only progression into the next validation phase after resilience suite pass.
+  - Executed the dedicated Phase 3 UX baseline capture lane to confirm UX baseline artifacts still generate cleanly in Chromium runtime.
+  - Preserved strict Star Trek lane isolation (no unrelated code edits).
+
+- Validation evidence:
+  | Command | Result | Notes |
+  |---|---|---|
+  | `bash scripts/playwright-bob-runtime.sh bunx playwright test tests/e2e/phase3-ux-baseline-capture.spec.ts --project=chromium --workers=1 --reporter=line` | PASS | 1/1 test passed in 2.8m |
+
+- Star Trek status impact:
+  - Phase 3 UX baseline capture checkpoint remains healthy.
+  - Star Trek rollout remains green across core, resilience, and UX baseline lanes.
+
+## Latest Session Snapshot (Phase B4 Enforcement Timeline Query Gating Alignment — 2026-05-15)
+
+- Timestamp (NZ): 2026-05-15
+- Current branch: main
+- Scope completed:
+  - Continued enforcement realignment by aligning Breach Detail data-fetch behavior with Phase B feature-flag intent.
+  - Updated `src/modules/enforcement/BreachDetail.tsx` so `useBreachAlertCase` and `useEnforcementTimeline` only execute when `FF_PHASE_B_ENFORCEMENT_TIMELINE` is enabled.
+  - Preserved existing UI behavior while preventing unnecessary case/timeline reads when the timeline feature flag is disabled.
+
+- Validation evidence:
+  | Command | Result | Notes |
+  |---|---|---|
+  | IDE diagnostics (`get_errors`) on updated file | PASS | No errors in BreachDetail.tsx |
+  | `bun run build` | PASS | TypeScript + Vite production build succeeded after query-gating alignment |
+  | `bun run lint` | PASS | ESLint completed without new errors |
+
+- Realignment status impact:
+  - Reduced unnecessary enforcement table reads when Phase B timeline is turned off.
+  - Tightened consistency between feature-flag semantics and runtime query execution in enforcement module flows.
+
 ## Latest Session Snapshot (Star Trek Next-Phase Resilience Suite — 2026-05-15)
 
 - Timestamp (NZ): 2026-05-15
