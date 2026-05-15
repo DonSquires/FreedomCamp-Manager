@@ -23,6 +23,11 @@ This ADR proposes a governance framework to retire early risks before Phase 5 im
 Implement a **Three-Tier Consent + Audit Model** for voice-twin:
 
 ### Tier 1: User Enrollment (Explicit Consent)
+> **Implementation Note**: The following pages and functions are planned for Phase 0 implementation and do not yet exist in the codebase. They are referenced here as architectural intent and will be created during Phase 0 ticket execution.
+> - **Future Pages**: `src/pages/VoiceTwinEnrollment.tsx`, `src/pages/VoiceProfileManagement.tsx`, `src/pages/VoiceTwinAuditDashboard.tsx`
+> - **Future Functions**: `supabase/functions/synthesize-voice-twin/`, `supabase/functions/synthesize-translated-audio/`
+> - **Current Status**: Planned in `system_state.json` as `phase_0_planned_modules`
+
 
 ```sql
 CREATE TABLE radio_voice_profiles (

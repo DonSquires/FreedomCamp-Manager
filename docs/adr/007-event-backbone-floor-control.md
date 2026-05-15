@@ -22,8 +22,12 @@ The event backbone must:
 ## Decision
 
 Implement a **dual-layer event architecture**:
-- **Layer 1 (Fast Signaling)**: Redis Pub/Sub for floor control and presence (< 50ms latency)
-- **Layer 2 (Audit Trail)**: Supabase `radio_floor_events` table for compliance and replay (eventual consistency)
+
+> **Implementation Note**: The following infrastructure and services are planned for Phase 0 implementation and do not yet exist in the deployed system. They are referenced here as architectural intent and will be created during Phase 0 ticket execution.
+> - **Infrastructure**: Redis Pub/Sub service (separate from existing Redis cache layer)
+> - **Edge Functions** (planned): `supabase/functions/radio-floor-acquire/`, `supabase/functions/radio-floor-release/`
+> - **Supabase Migrations** (planned): `radio_floor_events` table + org-scoped RLS policies
+> - **Current Status**: Planned in `system_state.json` as `phase_0_planned_modules`
 
 ### Architecture
 
