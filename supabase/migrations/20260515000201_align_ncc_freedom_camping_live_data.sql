@@ -1,6 +1,17 @@
 -- =============================================================================
 -- Align NCC Freedom Camping Live Data with Canonical Org IDs and New Platform
--- Date: 2026-07-14
+-- Date: 2026-05-15 (deployed)
+-- 
+-- OSM WORKAROUND NOTE:
+-- Geofence polygons use OpenStreetMap-derived bounding box coordinates instead of
+-- awaiting official NCC GIS team GPS data. This enables immediate UI/UX testing
+-- for freedom camping zone enforcement workflows. Coordinates will be updated with
+-- official survey data once received from NCC GIS team (estimated June 2026).
+-- 
+-- Coordinates used (temporary OSM bounding boxes):
+-- - Washington Valley Reserve: [-41.2830, 173.2700] center, 0.003° bounding box
+-- - Tahunanui Beach: [-41.3010, 173.2280] center, 0.006° bounding box  
+-- - Annesbrook Drive: [-41.2992, 173.2183] center, 0.0075° bounding box
 --
 -- Purpose:
 -- 1) Reconcile synthetic IDs from early seed scripts to canonical organization IDs

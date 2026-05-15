@@ -1,6 +1,6 @@
 -- =============================================================================
 -- Geofence Core Enforcement + Policy Context RPCs
--- Date: 2026-07-14
+-- Date: 2026-05-15 (deployed with NCC geofence alignment migration)
 --
 -- Purpose:
 -- 1) Enforce geofence-first discipline for active zones/sites/jurisdictions.
