@@ -25,8 +25,7 @@ serve(async (req: Request) => {
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? ''
   const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? ''
-  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-  if (!supabaseUrl || !supabaseAnonKey || !serviceRoleKey) {
+  if (!supabaseUrl || !supabaseAnonKey) {
     return json(503, { error: 'Supabase configuration missing' })
   }
 
@@ -39,17 +38,17 @@ serve(async (req: Request) => {
     return json(401, { error: 'Unauthorized' })
   }
 
-  const admin = createClient(supabaseUrl, serviceRoleKey)
-
   let body: {
     orgId?: string
     transmissionId?: string
     targetLanguage?: string
     segments?: Array<{
       transcriptSegmentId?: string
-      originalText?: string
+      sequenceNum?: number
       translatedText?: string
+      text?: string
       confidence?: number
+      provider?: string
     }>
   }
 
@@ -72,35 +71,79 @@ serve(async (req: Request) => {
     return json(400, { error: 'segments array is required' })
   }
 
-  // Phase 0-3 scaffold: persist translation output when table exists.
-  const rows = segments.map((segment) => ({
+  const { data: transcriptRows, error: transcriptLookupError } = await supabase
+    .from('radio_transcript_segments')
+    .select('id, org_id, transmission_id, sequence_num')
+    .eq('org_id', orgId)
+    .eq('transmission_id', transmissionId)
+
+  if (transcriptLookupError) {
+    return json(500, {
+      error: 'Could not load transcript segments for translation',
+      details: transcriptLookupError.message,
+    })
+  }
+
+  if (!Array.isArray(transcriptRows) || transcriptRows.length === 0) {
+    return json(404, { error: 'No transcript segments found for transmission' })
+  }
+
+  const idBySequence = new Map<number, string>()
+  for (const row of transcriptRows as Array<{ id: string; sequence_num: number }>) {
+    idBySequence.set(Number(row.sequence_num), String(row.id))
+  }
+
+  const resolved = segments.map((segment) => {
+    const explicitId = segment.transcriptSegmentId ? String(segment.transcriptSegmentId).trim() : ''
+    const bySequence = Number.isFinite(Number(segment.sequenceNum))
+      ? idBySequence.get(Number(segment.sequenceNum))
+      : undefined
+
+    return {
+      transcriptSegmentId: explicitId || bySequence || '',
+      text: String(segment.translatedText ?? segment.text ?? '').trim(),
+      confidence: segment.confidence == null ? null : Number(segment.confidence),
+      provider: segment.provider ? String(segment.provider) : null,
+    }
+  })
+
+  const invalid = resolved.find((row) => !row.transcriptSegmentId || !row.text)
+  if (invalid) {
+    return json(400, {
+      error: 'Each translation segment needs translated text and transcriptSegmentId or sequenceNum',
+    })
+  }
+
+  const rows = resolved.map((segment) => ({
     org_id: orgId,
     transmission_id: transmissionId,
-    transcript_segment_id: segment.transcriptSegmentId ? String(segment.transcriptSegmentId) : null,
+    transcript_segment_id: segment.transcriptSegmentId,
     target_language: targetLanguage,
-    source_text: String(segment.originalText ?? '').trim(),
-    translated_text: String(segment.translatedText ?? '').trim(),
-    confidence: segment.confidence == null ? null : Number(segment.confidence),
-    source: 'phase0_scaffold',
+    text: segment.text,
+    confidence: segment.confidence,
+    provider: segment.provider,
   }))
 
-  const { error: insertError } = await admin
+  // `transmission_id` is useful in API request/response but is not a column in
+  // radio_translation_segments, so remove it before write.
+  const writeRows = rows.map(({ transmission_id: _unusedTransmissionId, ...rest }) => rest)
+
+  const { error: insertError } = await supabase
     .from('radio_translation_segments')
-    .insert(rows)
+    .upsert(writeRows, { onConflict: 'transcript_segment_id,target_language' })
 
   if (insertError) {
-    return json(501, {
-      error: 'Translation segment table not ready',
+    return json(500, {
+      error: 'Translation segment write failed',
       details: insertError.message,
-      phase: 'phase-0-3-scaffold',
     })
   }
 
   return json(200, {
     ok: true,
-    inserted: rows.length,
+    upserted: writeRows.length,
     transmissionId,
     targetLanguage,
-    phase: 'phase-0-3-scaffold',
+    phase: 'phase-0-3',
   })
 })

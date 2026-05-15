@@ -25,8 +25,7 @@ serve(async (req: Request) => {
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? ''
   const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? ''
-  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-  if (!supabaseUrl || !supabaseAnonKey || !serviceRoleKey) {
+  if (!supabaseUrl || !supabaseAnonKey) {
     return json(503, { error: 'Supabase configuration missing' })
   }
 
@@ -39,18 +38,19 @@ serve(async (req: Request) => {
     return json(401, { error: 'Unauthorized' })
   }
 
-  const admin = createClient(supabaseUrl, serviceRoleKey)
-
   let body: {
     orgId?: string
     channelId?: string
     transmissionId?: string
+    language?: string
     segments?: Array<{
+      sequenceNum?: number
       startMs?: number
       endMs?: number
       text?: string
       confidence?: number
-      speakerId?: string
+      language?: string
+      isFinal?: boolean
     }>
   }
 
@@ -63,6 +63,7 @@ serve(async (req: Request) => {
   const orgId = String(body.orgId ?? '').trim()
   const channelId = String(body.channelId ?? '').trim()
   const transmissionId = String(body.transmissionId ?? '').trim()
+  const defaultLanguage = String(body.language ?? 'en').trim() || 'en'
   const segments = Array.isArray(body.segments) ? body.segments : []
 
   if (!orgId || !channelId || !transmissionId) {
@@ -73,35 +74,73 @@ serve(async (req: Request) => {
     return json(400, { error: 'segments array is required' })
   }
 
-  // Phase 0-2 scaffold: persist transcript segments directly when table exists.
-  const rows = segments.map((segment) => ({
+  const { data: transmission, error: transmissionError } = await supabase
+    .from('radio_transmissions')
+    .select('id, org_id, channel_id')
+    .eq('id', transmissionId)
+    .maybeSingle()
+
+  if (transmissionError) {
+    return json(500, {
+      error: 'Could not verify transmission',
+      details: transmissionError.message,
+    })
+  }
+
+  if (!transmission) {
+    return json(404, { error: 'Transmission not found' })
+  }
+
+  if (String((transmission as { org_id?: string }).org_id ?? '') !== orgId) {
+    return json(403, { error: 'orgId does not match transmission scope' })
+  }
+
+  if (channelId && String((transmission as { channel_id?: string }).channel_id ?? '') !== channelId) {
+    return json(400, { error: 'channelId does not match transmission' })
+  }
+
+  const rows = segments.map((segment, index) => ({
     org_id: orgId,
-    channel_id: channelId,
     transmission_id: transmissionId,
-    start_ms: Number(segment.startMs ?? 0),
-    end_ms: Number(segment.endMs ?? 0),
+    sequence_num: Number(segment.sequenceNum ?? index + 1),
+    segment_start_ms: Number(segment.startMs ?? 0),
+    segment_end_ms: Number(segment.endMs ?? 0),
     text: String(segment.text ?? '').trim(),
+    language: String(segment.language ?? defaultLanguage || 'en').trim() || 'en',
     confidence: segment.confidence == null ? null : Number(segment.confidence),
-    speaker_id: segment.speakerId ? String(segment.speakerId) : null,
-    source: 'phase0_scaffold',
+    is_final: Boolean(segment.isFinal ?? false),
   }))
 
-  const { error: insertError } = await admin
+  const invalidRow = rows.find((row) => (
+    !row.text ||
+    Number.isNaN(row.sequence_num) ||
+    Number.isNaN(row.segment_start_ms) ||
+    Number.isNaN(row.segment_end_ms) ||
+    row.segment_end_ms < row.segment_start_ms
+  ))
+
+  if (invalidRow) {
+    return json(400, {
+      error: 'Invalid segment payload; ensure text, sequenceNum, startMs, endMs are valid and endMs >= startMs',
+    })
+  }
+
+  const { error: insertError } = await supabase
     .from('radio_transcript_segments')
-    .insert(rows)
+    .upsert(rows, { onConflict: 'transmission_id,sequence_num' })
 
   if (insertError) {
-    return json(501, {
-      error: 'Transcript segment table not ready',
+    return json(500, {
+      error: 'Transcript segment write failed',
       details: insertError.message,
-      phase: 'phase-0-2-scaffold',
     })
   }
 
   return json(200, {
     ok: true,
-    inserted: rows.length,
+    upserted: rows.length,
     transmissionId,
-    phase: 'phase-0-2-scaffold',
+    channelId: String((transmission as { channel_id?: string }).channel_id ?? ''),
+    phase: 'phase-0-2',
   })
 })
