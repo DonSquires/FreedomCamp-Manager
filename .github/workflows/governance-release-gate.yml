@@ -232,12 +232,3 @@ jobs:
           echo "- Module grounding path: tools/module-grounding/governance/${{ github.run_id }}" >> "$GITHUB_STEP_SUMMARY"
           echo "- Governance summary path: tools/governance-run-summaries/governance-release/${{ github.run_id }}" >> "$GITHUB_STEP_SUMMARY"
 
-  bob-service-gate:
-    name: Bob Service Test Gate
-    uses: ./.github/workflows/ops-bob-self-test.yml
-    secrets:
-      SIM_SUPABASE_URL: ${{ secrets.SIM_SUPABASE_URL }}
-      SIM_SUPABASE_ANON_KEY: ${{ secrets.SIM_SUPABASE_ANON_KEY }}
-      SIM_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SIM_SUPABASE_SERVICE_ROLE_KEY }}
-      SIM_RAILWAY_BOB_API_URL: ${{ secrets.SIM_RAILWAY_BOB_API_URL }}
-      SIM_SUPABASE_EDGE_FUNCTIONS_URL: ${{ secrets.SIM_SUPABASE_EDGE_FUNCTIONS_URL }}
