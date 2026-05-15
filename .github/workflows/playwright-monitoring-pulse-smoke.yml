@@ -19,6 +19,7 @@ jobs:
     env:
       CI: true
       PLAYWRIGHT_BASE_URL: http://127.0.0.1:4173
+      PLAYWRIGHT_REUSE_EXISTING_SERVER: '1'
       VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
       VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
 
