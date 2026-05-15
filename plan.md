@@ -111,13 +111,63 @@ Owner: Mobility Lead
 - [x] Build/lint/tests pass for all D slices.
 - [x] Phase D completion snapshot recorded in staging docs.
 
+### Phase E Entry Check (Go/No-Go)
+
+- [x] Confirm Phase D gate is explicitly green in staging evidence.
+- [ ] Confirm ownership/support rota is active for E1-E4 slices.
+- [ ] Confirm target high-fragmentation pages and dashboard acceptance criteria are agreed.
+
+### Phase E (Data Movement Reduction + Enterprise Hardening)
+
+Timeline reference: Nov 25 onward
+
+#### E1 Direct Query Reduction Baseline
+
+Owner: Data Access Lead
+
+- [ ] Publish baseline vs current direct-query drift for target pages.
+- [ ] Confirm reduction targets and acceptance thresholds are documented.
+- [ ] Capture evidence in staging snapshot with command outputs.
+
+#### E2 Hook/Service Migration
+
+Owner: Platform Integration Lead
+
+- [ ] Migrate highest-fragmentation surfaces to shared hook/service contracts.
+- [ ] Validate org isolation and role-safe behavior after migration.
+- [ ] Capture evidence in staging snapshot with command outputs.
+
+#### E3 Audit Dashboard Completeness
+
+Owner: Audit and Governance Lead
+
+- [ ] Validate operational and contract-event completeness dashboards.
+- [ ] Confirm integrity checks and alert thresholds are active.
+- [ ] Capture evidence in staging snapshot with command outputs.
+
+#### E4 Communications Delivery Governance
+
+Owner: Communications Reliability Lead
+
+- [ ] Validate retry visibility and delivery accountability metrics.
+- [ ] Confirm degraded/outage communication behavior is auditable.
+- [ ] Capture evidence in staging snapshot with command outputs.
+
+### Phase E Completion Gate Checklist
+
+- [ ] Phase D gate confirmed green while E changes land.
+- [ ] Target fragmentation pages show downward direct-query drift.
+- [ ] Communications delivery governance is live and measurable.
+- [ ] Build/lint/tests pass for all E slices.
+- [ ] Phase E completion snapshot recorded in staging docs.
+
 ### Required Evidence for Every Slice (C1-C4, D1-D3)
 
 - [x] `bun run build`
 - [x] `bun run lint`
 - [x] Slice-focused test command(s) recorded with result
 - [x] `docs/STAGING.md` updated with timestamp, scope, validation table, and impact
-- [ ] Decision or contract changes mirrored in `docs/DECISIONS.md` when applicable
+- [x] Decision or contract changes mirrored in `docs/DECISIONS.md` when applicable
 
 ## Objective
 

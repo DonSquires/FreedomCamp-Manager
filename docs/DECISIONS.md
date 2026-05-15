@@ -15,6 +15,12 @@ When a pattern, platform, or architectural decision changes, append a dated note
 ## Current Standing Decisions
 
 - Date: 2026-05-15
+- Decision: Phase D is treated as formally closed only when D1-D3 gates plus build/lint are revalidated and recorded in staging, and Phase E work starts from an explicit Go/No-Go entry check with E1-E4 queue tracking.
+- Scope: `docs/STAGING.md`, `plan.md`, `tests/e2e/phase-d1-bob-approval-contracts.spec.ts`, `tests/e2e/phase-d2-translation-speech-boundaries.spec.ts`, `tests/e2e/phase-d3-transition-handshake-offline.spec.ts`.
+- Reason: Revalidation-before-handoff prevents stale gate assumptions and keeps phase transitions auditable under autonomous continuation.
+- Consequences: Future phase transitions must include (1) focused gate reruns, (2) staging evidence update, and (3) a checklisted entry gate for the next phase before execution expands.
+
+- Date: 2026-05-15
 - Decision: Bob automation must authenticate as a dedicated service account and persist dual attribution (`user_id` + `operator_id`) for every ledger write.
 - Scope: `proxy-server/lib/bobSystemAuth.js`, `proxy-server/server.js`, `proxy-server/.env.example`, `docs/ENVIRONMENT_VARIABLES.md`, `supabase/migrations/20260514233156_bob_system_ledger.sql`, `inference-service/lib/bob-agent-ledger.js`, `inference-service/server.js`, `src/lib/bobEngine.ts`.
 - Reason: Service-account auth removes ad-hoc impersonation, enables uniform JWT enforcement in gateway paths, and provides deterministic Bob-vs-human forensic visibility.
