@@ -330,6 +330,9 @@ async function callBobPlanner({ goal, observation, priorActions }) {
   const base = String(process.env.INFERENCE_SERVICE_URL || '').replace(/\/$/, '')
   if (!base || !config.plannerEnabled) return null
 
+  const isRunpodServerless = /api\.runpod\.ai\/v2\/[^/]+(?:\/(?:run|runsync))?\/?$/i.test(base)
+  const normalizeRunpodBase = (url) => String(url || '').replace(/\/$/, '').replace(/\/(?:run|run-sync|runsync)\/?$/i, '')
+
   const headers = { 'Content-Type': 'application/json' }
   const key = String(process.env.INFERENCE_API_KEY || process.env.BOB_INFERENCE_API_KEY || '').trim()
   if (key) {
@@ -358,20 +361,39 @@ Rules:
 
   const userMessage = JSON.stringify({ goal, observation, priorActions }, null, 2)
 
-  const resp = await fetch(`${base}/chat`, {
+  const plannerUrl = isRunpodServerless ? `${normalizeRunpodBase(base)}/runsync` : `${base}/chat`
+  const plannerBody = isRunpodServerless
+    ? {
+        input: {
+          action: 'chat',
+          message: userMessage,
+          system_prompt: systemPrompt,
+          response_format: 'json',
+          provider_preference: 'auto',
+        },
+      }
+    : {
+        message: userMessage,
+        system_prompt: systemPrompt,
+        response_format: 'json',
+        provider_preference: 'auto',
+      }
+
+  const resp = await fetch(plannerUrl, {
     method: 'POST',
     headers,
-    body: JSON.stringify({
-      message: userMessage,
-      system_prompt: systemPrompt,
-      response_format: 'json',
-      provider_preference: 'auto',
-    }),
+    body: JSON.stringify(plannerBody),
   })
 
   if (!resp.ok) return null
   const payload = await resp.json()
-  const rawText = payload?.text || payload?.message?.content || payload?.message || payload?.response
+  const rawText =
+    payload?.output?.response ||
+    payload?.output?.message ||
+    payload?.text ||
+    payload?.message?.content ||
+    payload?.message ||
+    payload?.response
   if (!rawText) return null
 
   const jsonText = String(rawText).match(/\{[\s\S]*\}/)?.[0] || String(rawText)

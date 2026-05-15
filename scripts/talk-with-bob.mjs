@@ -13,6 +13,14 @@ function resolveBaseUrl() {
   return String(raw).trim().replace(/\/+$/, '');
 }
 
+function isRunpodServerlessBaseUrl(url) {
+  return /api\.runpod\.ai\/v2\/[^/]+(?:\/(?:run|runsync))?\/?$/i.test(String(url || ''));
+}
+
+function normalizeRunpodBaseUrl(url) {
+  return String(url || '').trim().replace(/\/+$/, '').replace(/\/(?:run|runsync|run-sync)\/?$/i, '');
+}
+
 function resolveApiKey() {
   return String(
     process.env.BOB_INFERENCE_API_KEY ||
@@ -78,15 +86,37 @@ class BobConversation {
       };
       if (this.orgId) headers['x-org-id'] = this.orgId;
 
-      const response = await fetch(`${this.baseUrl}/chat`, {
-        method: 'POST',
-        headers,
-        signal: controller.signal,
-        body: JSON.stringify({
-          message,
-          context: this.context,
-        }),
-      });
+      const isServerless = isRunpodServerlessBaseUrl(this.baseUrl);
+      const channel = isServerless ? 'runpod-runsync' : 'bob-chat';
+      const response = isServerless
+        ? await fetch(`${normalizeRunpodBaseUrl(this.baseUrl)}/runsync`, {
+            method: 'POST',
+            headers,
+            signal: controller.signal,
+            body: JSON.stringify({
+              input: {
+                action: 'chat',
+                message,
+                history: this.conversation
+                  .filter((turn) => turn.role === 'agent' || turn.role === 'user' || turn.role === 'bob')
+                  .map((turn) => ({
+                    role: turn.role === 'bob' ? 'assistant' : 'user',
+                    content: String(turn.message || ''),
+                  }))
+                  .slice(-8),
+                context: this.context,
+              },
+            }),
+          })
+        : await fetch(`${this.baseUrl}/chat`, {
+            method: 'POST',
+            headers,
+            signal: controller.signal,
+            body: JSON.stringify({
+              message,
+              context: this.context,
+            }),
+          });
 
       if (!response.ok) {
         const body = await response.text().catch(() => '');
@@ -97,6 +127,8 @@ class BobConversation {
 
       const payload = await response.json().catch(() => ({}));
       const bobReply =
+        payload.output?.response ||
+        payload.output?.message ||
         payload.message ||
         payload.response ||
         JSON.stringify(payload).slice(0, 200);
@@ -112,12 +144,12 @@ class BobConversation {
 
       await recordScoredResponse({
         target: 'Bob',
-        channel: 'bob-chat',
+        channel,
         prompt: message,
         response: bobReply,
-        delivery: { sent: true, status: response.status, channel: 'bob-chat' },
+        delivery: { sent: true, status: response.status, channel },
         metadata: {
-          provider: payload.provider || 'unknown',
+          provider: payload.provider || payload.output?.provider || 'unknown',
           fallback: payload.fallback === true,
           qualityGateFailed:
             payload.quality_gate_failed === true ||

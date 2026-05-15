@@ -14,10 +14,24 @@ if (typeof fetchFn !== 'function') {
   process.exit(1);
 }
 
-const INFERENCE_SERVICE_URL = process.env.INFERENCE_SERVICE_URL || 
+const RAW_INFERENCE_URL =
+  process.env.INFERENCE_SERVICE_URL ||
+  process.env.BOB_SERVICE_URL ||
   'https://api.runpod.ai/v2/n0bp1ifmq01cx2';
 const INFERENCE_API_KEY = process.env.INFERENCE_API_KEY || '';
 const RUNPOD_TIMEOUT_MS = parseInt(process.env.BOB_RUNPOD_TIMEOUT_MS || '90000', 10);
+
+function normalizeRunpodInvokeUrl(rawUrl) {
+  const value = String(rawUrl || '').trim().replace(/\/+$/, '');
+  if (!value) return '';
+  if (/\/runsync$/i.test(value)) return value;
+  if (/\/run-sync$/i.test(value)) return value.replace(/\/run-sync$/i, '/runsync');
+  if (/\/run$/i.test(value)) return value.replace(/\/run$/i, '/runsync');
+  if (/\/v2\/[^/]+$/i.test(value)) return `${value}/runsync`;
+  return value;
+}
+
+const RUNSYNC_URL = normalizeRunpodInvokeUrl(RAW_INFERENCE_URL);
 
 const colors = {
   reset: '\x1b[0m',
@@ -46,7 +60,7 @@ async function chatWithBob(message) {
     process.exit(1);
   }
 
-  log('info', `Sending message to Bob at ${INFERENCE_SERVICE_URL}/runsync...`);
+  log('info', `Sending message to Bob at ${RUNSYNC_URL}...`);
   log('info', `Message: "${message}"`);
 
   const payload = {
@@ -61,7 +75,7 @@ async function chatWithBob(message) {
 
   try {
     const response = await fetchFn(
-      `${INFERENCE_SERVICE_URL}/runsync`,
+      RUNSYNC_URL,
       {
         method: 'POST',
         headers: {

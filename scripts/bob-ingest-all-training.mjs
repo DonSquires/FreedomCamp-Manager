@@ -67,6 +67,7 @@ if (!BOB_URL || !API_KEY) {
 const allFeeders = [
   ...(SKIP_VERIFY ? [] : ['verify-bob-training-wiring.mjs']),
   'bob-feed-build-context.mjs',
+  'bob-feed-storage-bucket-grounding.mjs',
   'bob-feed-railway-training.mjs',
   'bob-feed-specialized-training.mjs',
   'bob-feed-research-methodology.mjs',

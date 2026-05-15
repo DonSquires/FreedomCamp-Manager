@@ -17,13 +17,20 @@
  *   BOB_SERVICE_URL=https://... BOB_INFERENCE_API_KEY=... node scripts/bob-teach-research-methodology.mjs
  */
 
-import fetch from 'node-fetch'
 import { loadLocalEnv } from './load-local-env.mjs'
 
 loadLocalEnv()
 
 const BOB_URL = (process.env.BOB_SERVICE_URL || process.env.INFERENCE_SERVICE_URL || '').trim().replace(/\/$/, '')
 const API_KEY = (process.env.BOB_INFERENCE_API_KEY || process.env.INFERENCE_API_KEY || process.env.VITE_INFERENCE_API_KEY || '').trim()
+
+function isRunpodServerlessBaseUrl(url) {
+  return /api\.runpod\.ai\/v2\/[^/]+(?:\/(?:run|runsync))?\/?$/i.test(String(url || ''))
+}
+
+function normalizeRunpodBaseUrl(url) {
+  return String(url || '').trim().replace(/\/+$/, '').replace(/\/(?:run|runsync|run-sync)\/?$/i, '')
+}
 
 if (!BOB_URL) {
   console.error('❌ Missing BOB_SERVICE_URL or INFERENCE_SERVICE_URL.')
@@ -93,28 +100,58 @@ Remember: When uncertain, disclose it. When AI limitations apply, mention them.`
 
 async function chat(messages) {
   try {
-    const response = await fetch(`${BOB_URL}/chat`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${API_KEY}`,
-      },
-      body: JSON.stringify({
-        messages,
-        model: 'qwen2.5:7b',
-        stream: false,
-      }),
-    })
+    const headers = {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${API_KEY}`,
+    }
+
+    const response = isRunpodServerlessBaseUrl(BOB_URL)
+      ? await fetch(`${normalizeRunpodBaseUrl(BOB_URL)}/runsync`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            input: {
+              action: 'chat',
+              model: 'qwen2.5:7b',
+              message: String(messages[messages.length - 1]?.content || ''),
+              history: messages
+                .slice(0, -1)
+                .map((m) => ({
+                  role: m.role === 'assistant' ? 'assistant' : 'user',
+                  content: String(m.content || ''),
+                }))
+                .slice(-8),
+              system_prompt: String(messages.find((m) => m.role === 'system')?.content || ''),
+            },
+          }),
+        })
+      : await fetch(`${BOB_URL}/chat`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            messages,
+            model: 'qwen2.5:7b',
+            stream: false,
+          }),
+        })
 
     if (!response.ok) {
-      console.error(`❌ /chat failed with HTTP ${response.status}`)
+      console.error(`❌ Chat request failed with HTTP ${response.status}`)
       const text = await response.text().catch(() => '')
       if (text) console.error(`   Response: ${text.slice(0, 200)}`)
       return null
     }
 
     const data = await response.json()
-    return data.message?.content || data.content || null
+    return (
+      data.output?.response ||
+      data.output?.message ||
+      data.message?.content ||
+      data.message ||
+      data.response ||
+      data.content ||
+      null
+    )
   } catch (err) {
     console.error(`❌ Chat error: ${err.message}`)
     return null
@@ -126,7 +163,10 @@ async function main() {
   console.log('TEACHING BOB RESEARCH METHODOLOGY')
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n')
 
-  console.log(`🎯 Endpoint: ${BOB_URL}/chat`)
+  const endpointLabel = isRunpodServerlessBaseUrl(BOB_URL)
+    ? `${normalizeRunpodBaseUrl(BOB_URL)}/runsync`
+    : `${BOB_URL}/chat`
+  console.log(`🎯 Endpoint: ${endpointLabel}`)
   console.log(`🔑 Auth: Bearer ${API_KEY.slice(0, 8)}...${API_KEY.slice(-8)}\n`)
 
   console.log('📚 Teaching Bob:')

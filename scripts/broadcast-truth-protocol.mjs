@@ -43,6 +43,20 @@ const bobKey = String(
 ).trim();
 const orgId = String(process.env.BOB_ORG_ID || process.env.ORG_ID || process.env.DEFAULT_ORG_ID || '').trim();
 
+function isRunpodServerlessBaseUrl(url) {
+  return /api\.runpod\.ai\/v2\/[^/]+(?:\/(?:run|runsync))?\/?$/i.test(String(url || ''));
+}
+
+function normalizeRunpodInvokeUrl(url) {
+  const value = String(url || '').trim().replace(/\/+$/, '');
+  if (!value) return '';
+  if (/\/runsync$/i.test(value)) return value;
+  if (/\/run-sync$/i.test(value)) return value.replace(/\/run-sync$/i, '/runsync');
+  if (/\/run$/i.test(value)) return value.replace(/\/run$/i, '/runsync');
+  if (/\/v2\/[^/]+$/i.test(value)) return `${value}/runsync`;
+  return value;
+}
+
 async function postJson(url, headers, body) {
   try {
     const res = await fetch(url, {
@@ -73,15 +87,16 @@ async function sendViaRunpod(message, model = '') {
   };
   if (orgId) headers['x-org-id'] = orgId;
 
+  const runpodInvokeUrl = normalizeRunpodInvokeUrl(runpodEndpoint);
   const withModel = (input) => (model ? { ...input, model } : input);
   const attempts = [
-    { input: withModel({ message }) },
-    { input: withModel({ prompt: message }) },
+    { input: withModel({ action: 'chat', message }) },
     { input: withModel({ action: 'training_note', message }) },
+    { input: withModel({ prompt: message }) },
   ];
 
   for (const body of attempts) {
-    const r = await postJson(runpodEndpoint, headers, body);
+    const r = await postJson(runpodInvokeUrl, headers, { input: body.input });
     if (r.ok) {
       return { sent: true, channel: 'runpod-runsync', status: r.status, preview: r.text.slice(0, 220) };
     }
@@ -92,6 +107,35 @@ async function sendViaRunpod(message, model = '') {
 
 async function sendViaBobChat(message) {
   if (!bobBaseUrl || !bobKey) return { sent: false, reason: 'Bob /chat base or key missing' };
+
+  if (isRunpodServerlessBaseUrl(bobBaseUrl)) {
+    const runpodInvokeUrl = normalizeRunpodInvokeUrl(bobBaseUrl);
+    const headers = {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${bobKey}`,
+    };
+    if (orgId) headers['x-org-id'] = orgId;
+
+    const r = await postJson(runpodInvokeUrl, headers, {
+      input: {
+        action: 'chat',
+        message,
+      },
+    });
+
+    if (!r.ok) {
+      return {
+        sent: false,
+        channel: 'runpod-runsync',
+        status: r.status,
+        preview: r.text.slice(0, 220),
+        reason: r.networkError ? 'RunPod runsync network failure' : 'RunPod runsync request failed',
+      };
+    }
+
+    return { sent: true, channel: 'runpod-runsync', status: r.status, preview: r.text.slice(0, 220) };
+  }
+
   const headers = {
     'Content-Type': 'application/json',
     'x-inference-api-key': bobKey,
