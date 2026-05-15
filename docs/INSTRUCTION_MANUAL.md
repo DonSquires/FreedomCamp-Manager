@@ -421,6 +421,36 @@ Phase-to-manual update scope:
 3. Phase 3 (Sentient XO): Bob memory behavior, command gap prompts, administrative actuation rules.
 4. Phase 4 (Admiral's Bridge): tactical map alerts, pre-arrival safety dossier behavior, human signature requirement for enforcement print.
 
+### Phase 4 Checkpoint Validation (2026-05-15)
+
+**Status: VALIDATED — Unit tests passing; browser E2E deferred**
+
+Phase 4 (Admiral's Bridge: Welfare and Enforcement) introduces three critical hardening features:
+
+1. **Tactical Map Emergency Escalation**: When an `armed_danger` or `sos_alert` is active, the operations map displays a live emergency broadcast banner with officer name and GPS coordinates. The tactical map border pulses in warning red to escalate attention.
+
+2. **Pre-Arrival Safety Dossier**: Before issuing a Notice to Vacate, officers receive a 24-hour zone-level summary calculating risk from observations, incidents, welfare alerts, and aggression signals. This dossier informs enforcement judgement and provides evidence trail for legal robustness.
+
+3. **Human Signature Fire-Control Key**: The notice print button is disabled until the officer enters their name as a digital signature and explicitly clicks "Authorize Print". This gate ensures human accountability and prevents accidental mass-printing.
+
+**Validation Evidence (2026-05-15):**
+
+| Component | Unit Test | Browser E2E | Status |
+|---|---|---|---|
+| Emergency banner + GPS broadcast | ✅ `phase4Emergency.test.ts` (3 tests) | ⏸️ (Chromium unavailable) | PASS |
+| Safety dossier risk scoring | ✅ `enforcementPhase4.test.ts` (2 tests) | ⏸️ (Chromium unavailable) | PASS |
+| Signature gate validation | ✅ Unit helper logic | ⏸️ (Chromium unavailable) | PASS |
+
+**Browser E2E Deferral Reason:**  
+The Alpine Linux development environment lacks Chromium support for browser automation. This is a known environment constraint documented in ADR 014 (Star Trek Phased Rollout Architecture). Browser E2E validation for Phase 4 is deferred pending a Chromium-capable environment (e.g. GitHub Actions CI, Docker with GUI support, or browser farm service).
+
+**Test Specs Available (Ready for Chromium-capable environment):**
+- `tests/e2e/phase4-operations-map-emergency-banner.spec.ts` — validates live emergency GPS broadcast rendering
+- `tests/e2e/phase4-notice-print-signature-gate.spec.ts` — validates signature required + print disabled flow
+- `tests/e2e/phase4-admirals-bridge.spec.ts` — validates tactical map load, welfare alerts, Bob danger-mode block
+
+All test specs are integrated and awaiting environment support.
+
 ---
 
 ## 2. Getting Started — Login & Navigation
