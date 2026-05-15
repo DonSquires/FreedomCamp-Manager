@@ -4,6 +4,33 @@ Date: 2026-05-15
 Owner: GitHub Copilot
 Status: Active staging checklist — Sprints 50-70 complete on main; Iron Eagle Visual Identity locked in docs (2026-05-14)
 
+## Latest Session Snapshot (Phase B Canary Advancement Readiness + Metrics Function Drift — 2026-05-15)
+
+- Timestamp (NZ): 2026-05-15
+- Current branch: main
+- Scope completed:
+  - Continued realignment Phase B canary operations by running dry-run promotions for active rollout flags.
+  - Verified dry-run progression calculations:
+    - `FF_PHASE_B_DISPATCH_EVENTS`: 50% -> 100% (general_availability)
+    - `FF_PHASE_B_ENFORCEMENT_EVENTS`: 50% -> 100% (general_availability)
+    - `FF_PHASE_B_ENFORCEMENT_TIMELINE`: 25% -> 50% (rollout)
+  - Probed canary metrics collection endpoint used by `scripts/check-canary-thresholds.mjs` and confirmed runtime deployment drift.
+
+- Validation evidence:
+  | Command | Result | Notes |
+  |---|---|---|
+  | `bash scripts/advance-canary-stage.sh --dry-run FF_PHASE_B_DISPATCH_EVENTS` | PASS | Stage progression and thresholds rendered; no writes sent |
+  | `bash scripts/advance-canary-stage.sh --dry-run FF_PHASE_B_ENFORCEMENT_EVENTS` | PASS | Stage progression and thresholds rendered; no writes sent |
+  | `bash scripts/advance-canary-stage.sh --dry-run FF_PHASE_B_ENFORCEMENT_TIMELINE` | PASS | Stage progression and thresholds rendered; no writes sent |
+  | `node scripts/check-canary-thresholds.mjs --save-report` | FAIL | `collect-canary-metrics` edge function returned 404 |
+  | `curl -X POST $SUPABASE_URL/functions/v1/collect-canary-metrics` | FAIL | `404 {"code":"NOT_FOUND","message":"Requested function was not found"}` |
+
+- Open blockers with owner:
+  1. `collect-canary-metrics` is not available at the target Supabase project endpoint (deployment drift). Owner: platform/deployment operations.
+
+- Next:
+  - Deploy/restore `collect-canary-metrics` to the active environment, then rerun `node scripts/check-canary-thresholds.mjs --save-report` and capture reports in `data/daily-canary-checks/`.
+
 ## Latest Session Snapshot (Phase B Vision Helper Consolidation — 2026-05-15)
 
 - Timestamp (NZ): 2026-05-15
