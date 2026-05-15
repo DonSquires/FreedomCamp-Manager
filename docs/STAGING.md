@@ -4,6 +4,33 @@ Date: 2026-05-15
 Owner: GitHub Copilot
 Status: Active staging checklist — Sprints 50-70 complete on main; Iron Eagle Visual Identity locked in docs (2026-05-14)
 
+## Latest Session Snapshot (Phase D Exit-Gate Revalidation — D1/D2/D3 + Build/Lint — 2026-05-15)
+
+- Timestamp (NZ): 2026-05-15
+- Current branch: main
+- Scope completed:
+  - Continued autonomous progression through Phase D by rerunning the full D gate lane in current workspace state.
+  - Revalidated D1 (Bob approval contracts), D2 (translation/speech boundaries), and D3 (transition/handshake/offline replay) in a single focused Chromium run.
+  - Reconfirmed production gate health (`build` + `lint`) after D-lane revalidation.
+
+- Phase D exit-gate consolidation (explicit summary):
+  | Exit criterion | Status | Evidence |
+  |---|---|---|
+  | Phase C gate remains green | PASS | Phase C exit-gate consolidation snapshot in this runbook (2026-05-15) |
+  | Bob approval, translation, and transition services are auditable and degraded-mode safe | PASS | `tests/e2e/phase-d1-bob-approval-contracts.spec.ts`, `tests/e2e/phase-d2-translation-speech-boundaries.spec.ts`, `tests/e2e/phase-d3-transition-handshake-offline.spec.ts` |
+  | Offline replay conflict handling passes defined scenarios | PASS | `tests/e2e/phase-d3-transition-handshake-offline.spec.ts` |
+  | Build/lint/tests pass for D slices | PASS | Validation table below |
+
+- Validation evidence:
+  | Command | Result | Notes |
+  |---|---|---|
+  | `bash scripts/playwright-bob-runtime.sh bunx playwright test tests/e2e/phase-d1-bob-approval-contracts.spec.ts tests/e2e/phase-d2-translation-speech-boundaries.spec.ts tests/e2e/phase-d3-transition-handshake-offline.spec.ts --project=chromium --workers=1 --reporter=line` | PASS | 18 passed |
+  | `bun run build` | PASS | TypeScript + Vite production build succeeded |
+  | `bun run lint` | PASS | ESLint completed cleanly |
+
+- Open blockers:
+  - None in the focused Phase D exit-gate lane.
+
 ## Latest Session Snapshot (Phase C+D Two-Phase Queue Execution — Gate Runs + Blocker Fixes — 2026-05-15)
 
 - Timestamp (NZ): 2026-05-15

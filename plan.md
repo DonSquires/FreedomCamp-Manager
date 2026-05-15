@@ -104,12 +104,12 @@ Owner: Mobility Lead
 
 ### Phase D Exit Gate Checklist
 
-- [ ] Phase C gate confirmed green.
-- [ ] Bob approval, translation, and transition services are auditable.
-- [ ] Degraded-mode safety verified for Bob/translation/speech paths.
-- [ ] Offline replay conflict scenarios pass defined tests.
-- [ ] Build/lint/tests pass for all D slices.
-- [ ] Phase D completion snapshot recorded in staging docs.
+- [x] Phase C gate confirmed green.
+- [x] Bob approval, translation, and transition services are auditable.
+- [x] Degraded-mode safety verified for Bob/translation/speech paths.
+- [x] Offline replay conflict scenarios pass defined tests.
+- [x] Build/lint/tests pass for all D slices.
+- [x] Phase D completion snapshot recorded in staging docs.
 
 ### Required Evidence for Every Slice (C1-C4, D1-D3)
 
