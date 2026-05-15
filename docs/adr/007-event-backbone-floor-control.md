@@ -104,18 +104,24 @@ CREATE POLICY "radio_floor_events_org_isolation"
 ## Implementation (Phase 1)
 
 1. **Redis provisioning** (Iron Eagle ops or managed Redis service like AWS ElastiCache).
+   - Verification: `redis-cli PING` returns `PONG`; `redis-cli CONFIG GET maxmemory` reports expected instance size.
 2. **Edge Function** `supabase/functions/radio-floor-acquire/index.ts`:
    - Validate user has active session
    - Check org-scoped floor state via Redis
    - If channel free, grant floor and publish `floor_acquired` event
    - Insert audit row in `radio_floor_events`
+   - Verification: POST `/radio-floor-acquire` with valid session returns `200` and sets Redis key; duplicate POST returns `409 floor_already_held`.
 3. **Edge Function** `supabase/functions/radio-floor-release/index.ts`:
    - Release floor and publish `floor_released` event
-4. **Test harness** in `tests/e2e/phase1-floor-control.spec.ts`:
+   - Verification: POST `/radio-floor-release` clears Redis key; `radio_floor_events` row shows `floor_released` event with matching `user_id`.
+4. **Supabase migration** `radio_floor_events` table + RLS policy.
+   - Verification: `SELECT * FROM radio_floor_events WHERE org_id = '<other_org>'` returns 0 rows from a different org JWT.
+5. **Test harness** in `tests/e2e/phase0-phase1-floor-control.spec.ts`:
    - Multi-user floor contention (only one transmitter at a time per channel)
    - Org isolation (Org A user cannot grab floor in Org B)
    - Override path (supervisor overrides active transmitter)
    - Replay conflict (offline user reconnects while floor state stale)
+   - Verification: All 4 test scenarios pass in Chromium with `--workers=1`; zero org-boundary assertion failures.
 
 ## Fallback Decision (If Redis Unavailable)
 
