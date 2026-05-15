@@ -16,18 +16,22 @@ function flag(key: string): boolean {
   return ['1', 'true', 'yes', 'on'].includes(raw.toLowerCase())
 }
 
+function anyFlag(keys: string[]): boolean {
+  return keys.some((key) => flag(key))
+}
+
 export const radioFeatureFlags = {
   /** Use mediasoup SFU transport instead of peer-to-peer WebRTC. Phase 1. */
-  sfuEnabled: flag('VITE_RADIO_SFU_ENABLED'),
+  sfuEnabled: anyFlag(['VITE_RADIO_SFU_ENABLED', 'VITE_FF_PHASE_0_SFU_ENABLED']),
 
   /** Show live STT caption panel below the transmission log. Phase 2. */
-  captionsEnabled: flag('VITE_RADIO_CAPTIONS_ENABLED'),
+  captionsEnabled: anyFlag(['VITE_RADIO_CAPTIONS_ENABLED', 'VITE_FF_PHASE_0_LIVE_CAPTIONS']),
 
   /** Show translation controls and translated output. Phase 3. */
-  translationEnabled: flag('VITE_RADIO_TRANSLATION_ENABLED'),
+  translationEnabled: anyFlag(['VITE_RADIO_TRANSLATION_ENABLED', 'VITE_FF_PHASE_0_TRANSLATION_ENABLED']),
 
   /** Badge synthetic/TTS audio in the transmission log. Phase 4/5. */
-  syntheticAudioEnabled: flag('VITE_RADIO_SYNTHETIC_AUDIO_ENABLED'),
+  syntheticAudioEnabled: anyFlag(['VITE_RADIO_SYNTHETIC_AUDIO_ENABLED', 'VITE_FF_PHASE_0_VOICE_TWIN_GOVERNANCE']),
 } as const
 
 export type RadioFeatureFlags = typeof radioFeatureFlags
