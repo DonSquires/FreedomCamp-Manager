@@ -15,7 +15,7 @@
  */
 
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { format, parseISO, differenceInDays } from 'date-fns'
 import { toast } from 'sonner'
 import {
@@ -41,6 +41,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
 import { BrowserMultiFormatReader, type IScannerControls } from '@zxing/browser'
+import { recordChainAudit, recordFullKeyAudit, recordKeyAudit } from '@/lib/keyAudits'
 
 // ─────────────────────────────────────────────
 // Types
@@ -139,13 +140,36 @@ type KeySet = {
   id: string
   name: string
   status: string
+  is_active: boolean
+  patrol_route_id: string | null
   storage_location: string | null
   custom_data: Record<string, unknown> | null
   current_holder_id: string | null
   checked_out_at: string | null
   expected_return: string | null
   user_profiles: { full_name: string | null } | null
-  client_sites: { name: string | null } | null
+  patrol_routes: { id: string | null; route_name: string | null; route_code: string | null } | null
+}
+
+type ChainKey = {
+  id: string
+  key_set_id: string
+  key_number: string
+  name: string
+  description: string | null
+  key_type: string | null
+  manufacturer: string | null
+  key_code: string | null
+  opens_description: string | null
+  is_active: boolean
+  created_at: string
+  key_sets: { name: string | null } | null
+}
+
+type PatrolRouteOption = {
+  id: string
+  route_name: string
+  route_code: string | null
 }
 
 type KeyCustody = {
@@ -481,6 +505,7 @@ function BarcodeInputDialog({ open, title, description, onScan, onClose }: Barco
 
   useEffect(() => {
     setSettings(loadScannerSettings())
+    setShowCamera(true)
   }, [open])
 
   function updateSettings(patch: Partial<ScannerSettings>) {
@@ -1798,177 +1823,512 @@ function StocktakeTab({
 // ─────────────────────────────────────────────
 function KeyManagementTab({
   keySets,
+  keys,
   custody,
   officers,
+  patrolRoutes,
   orgId,
   onRefresh,
 }: {
   keySets: KeySet[]
+  keys: ChainKey[]
   custody: KeyCustody[]
   officers: OfficerOption[]
+  patrolRoutes: PatrolRouteOption[]
   orgId: string
   onRefresh: () => void
 }) {
+  const userId = useAuthStore((s) => s.user?.id ?? '')
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
-  const [showCheckoutDialog, setShowCheckoutDialog] = useState<KeySet | null>(null)
-  const [showReturnDialog, setShowReturnDialog] = useState<KeySet | null>(null)
+  const [selectedChainId, setSelectedChainId] = useState('')
   const [showScanDialog, setShowScanDialog] = useState(false)
-  const [checkoutForm, setCheckoutForm] = useState({ officer_id: '', expected_return: '', purpose: '' })
-  const [returnForm, setReturnForm] = useState({ return_condition: 'good', notes: '' })
+  const [showCreateChainDialog, setShowCreateChainDialog] = useState(false)
+  const [showAddKeyDialog, setShowAddKeyDialog] = useState(false)
+  const [chainAuditSaving, setChainAuditSaving] = useState(false)
+  const [fullAuditSaving, setFullAuditSaving] = useState(false)
   const [saving, setSaving] = useState(false)
 
-  const filtered = keySets.filter((k) => {
+  const [createChainForm, setCreateChainForm] = useState({
+    name: '',
+    description: '',
+    patrol_route_id: '',
+    storage_location: '',
+    cabinet_number: '',
+    hook_number: '',
+    chain_barcode: '',
+  })
+  const [addKeyForm, setAddKeyForm] = useState({
+    key_number: '',
+    name: '',
+    description: '',
+    key_type: 'standard',
+    manufacturer: '',
+    key_code: '',
+    opens_description: '',
+  })
+
+  useEffect(() => {
+    if (!selectedChainId && keySets.length > 0) {
+      setSelectedChainId(keySets.find((keySet) => keySet.is_active)?.id ?? keySets[0].id)
+    }
+  }, [keySets, selectedChainId])
+
+  const selectedChain = keySets.find((keySet) => keySet.id === selectedChainId) ?? null
+  const selectedChainKeys = keys.filter((key) => key.key_set_id === selectedChainId)
+
+  const filteredChains = keySets.filter((keySet) => {
     const matchSearch =
       !search ||
-      k.name.toLowerCase().includes(search.toLowerCase()) ||
-      (k.storage_location ?? '').toLowerCase().includes(search.toLowerCase()) ||
-      (k.user_profiles?.full_name ?? '').toLowerCase().includes(search.toLowerCase())
-    const matchStatus = statusFilter === 'all' || k.status === statusFilter
+      keySet.name.toLowerCase().includes(search.toLowerCase()) ||
+      (keySet.storage_location ?? '').toLowerCase().includes(search.toLowerCase()) ||
+      (keySet.patrol_routes?.route_name ?? '').toLowerCase().includes(search.toLowerCase()) ||
+      (keySet.patrol_routes?.route_code ?? '').toLowerCase().includes(search.toLowerCase()) ||
+      String(keySet.custom_data?.chain_barcode ?? keySet.custom_data?.barcode ?? '').toLowerCase().includes(search.toLowerCase())
+    const matchStatus = statusFilter === 'all' || keySet.status === statusFilter || (statusFilter === 'active' && keySet.is_active)
     return matchSearch && matchStatus
   })
 
-  function handleScan(code: string) {
+  async function handleScan(code: string) {
     setShowScanDialog(false)
     const normalized = String(code || '').trim()
-    const keyset = keySets.find((k) => {
-      const chainBarcode = String(
-        k.custom_data?.chain_barcode
-        || k.custom_data?.barcode
-        || ''
-      ).trim()
-      return k.id === normalized || k.name === normalized || chainBarcode === normalized
+
+    const chain = keySets.find((keySet) => {
+      const chainBarcode = String(keySet.custom_data?.chain_barcode ?? keySet.custom_data?.barcode ?? '').trim()
+      return keySet.id === normalized || keySet.name === normalized || chainBarcode === normalized
     })
-    if (!keyset) { toast.error(`No key set found for barcode: ${code}`); return }
-    if (keyset.status === 'available') {
-      setShowCheckoutDialog(keyset)
-      toast.success(`Key set found: ${keyset.name}`)
-    } else if (keyset.status === 'checked_out') {
-      setShowReturnDialog(keyset)
-      toast.success(`Key set found: ${keyset.name}`)
-    } else {
-      toast.info(`Key set "${keyset.name}" status: ${keyset.status}`)
+
+    if (chain) {
+      setSelectedChainId(chain.id)
+      toast.success(`Chain found: ${chain.name}`)
+      return
+    }
+
+    const key = keys.find((keyRow) => {
+      const keyBarcode = String(keyRow.key_code ?? '').trim()
+      return keyRow.id === normalized || keyRow.key_number === normalized || keyRow.name === normalized || keyBarcode === normalized
+    })
+
+    if (key) {
+      setSelectedChainId(key.key_set_id)
+      toast.success(`Key found: ${key.name}`)
+      return
+    }
+
+    toast.error(`No key chain or key found for barcode: ${code}`)
+  }
+
+  async function handleCreateChain() {
+    const name = createChainForm.name.trim()
+    if (!orgId) {
+      toast.error('Organization context is required')
+      return
+    }
+    if (!name) {
+      toast.error('Chain name is required')
+      return
+    }
+
+    setSaving(true)
+    const { data, error } = await (supabase as any)
+      .from('key_sets')
+      .insert({
+        organization_id: orgId,
+        patrol_route_id: createChainForm.patrol_route_id || null,
+        name,
+        description: createChainForm.description.trim() || null,
+        storage_location: createChainForm.storage_location.trim() || null,
+        cabinet_number: createChainForm.cabinet_number.trim() || null,
+        hook_number: createChainForm.hook_number.trim() || null,
+        status: 'available',
+        is_active: true,
+        custom_data: createChainForm.chain_barcode.trim() ? { chain_barcode: createChainForm.chain_barcode.trim() } : {},
+        created_by: userId || null,
+      })
+      .select('id')
+      .single()
+
+    setSaving(false)
+
+    if (error) {
+      toast.error(error.message || 'Failed to create chain')
+      return
+    }
+
+    if (data?.id) {
+      setSelectedChainId(data.id)
+    }
+    await onRefresh()
+    setShowCreateChainDialog(false)
+    setCreateChainForm({
+      name: '',
+      description: '',
+      patrol_route_id: '',
+      storage_location: '',
+      cabinet_number: '',
+      hook_number: '',
+      chain_barcode: '',
+    })
+    toast.success('Key chain created')
+  }
+
+  async function handleAddKey() {
+    if (!selectedChain) {
+      toast.error('Select a chain first')
+      return
+    }
+    const keyNumber = addKeyForm.key_number.trim()
+    const keyName = addKeyForm.name.trim()
+    if (!keyNumber || !keyName) {
+      toast.error('Key number and name are required')
+      return
+    }
+
+    setSaving(true)
+    const { error } = await (supabase as any)
+      .from('keys')
+      .insert({
+        key_set_id: selectedChain.id,
+        organization_id: orgId,
+        key_number: keyNumber,
+        name: keyName,
+        description: addKeyForm.description.trim() || null,
+        key_type: addKeyForm.key_type,
+        manufacturer: addKeyForm.manufacturer.trim() || null,
+        key_code: addKeyForm.key_code.trim() || null,
+        opens_description: addKeyForm.opens_description.trim() || null,
+        is_active: true,
+      })
+    setSaving(false)
+
+    if (error) {
+      toast.error(error.message || 'Failed to add key')
+      return
+    }
+
+    await recordKeyAudit({
+      organizationId: orgId,
+      keySetId: selectedChain.id,
+      action: 'key_added',
+      details: {
+        key_number: keyNumber,
+        key_name: keyName,
+      },
+    }).catch(() => { /* audit should not block the add */ })
+
+    await onRefresh()
+    setShowAddKeyDialog(false)
+    setAddKeyForm({
+      key_number: '',
+      name: '',
+      description: '',
+      key_type: 'standard',
+      manufacturer: '',
+      key_code: '',
+      opens_description: '',
+    })
+    toast.success('Key added to chain')
+  }
+
+  async function handleRemoveKey(keyRow: ChainKey) {
+    if (!window.confirm(`Remove key ${keyRow.key_number} from the chain?`)) return
+    setSaving(true)
+    const { error } = await (supabase as any)
+      .from('keys')
+      .update({ is_active: false })
+      .eq('id', keyRow.id)
+    setSaving(false)
+
+    if (error) {
+      toast.error(error.message || 'Failed to remove key')
+      return
+    }
+
+    await recordKeyAudit({
+      organizationId: orgId,
+      keySetId: keyRow.key_set_id,
+      action: 'key_removed',
+      details: {
+        key_id: keyRow.id,
+        key_number: keyRow.key_number,
+        key_name: keyRow.name,
+      },
+    }).catch(() => { /* audit should not block the removal */ })
+
+    await onRefresh()
+    toast.success('Key removed from active chain')
+  }
+
+  async function handleDisableChain(chain: KeySet) {
+    if (!window.confirm(`Disable key chain "${chain.name}"?`)) return
+    setSaving(true)
+    const { error } = await (supabase as any)
+      .from('key_sets')
+      .update({
+        status: 'retired',
+        is_active: false,
+        current_holder_id: null,
+        checked_out_at: null,
+        expected_return: null,
+      })
+      .eq('id', chain.id)
+
+    if (!error) {
+      await (supabase as any)
+        .from('keys')
+        .update({ is_active: false })
+        .eq('key_set_id', chain.id)
+    }
+
+    setSaving(false)
+
+    if (error) {
+      toast.error(error.message || 'Failed to disable chain')
+      return
+    }
+
+    await recordKeyAudit({
+      organizationId: orgId,
+      keySetId: chain.id,
+      action: 'updated',
+      details: {
+        chain_action: 'disabled',
+        chain_name: chain.name,
+      },
+    }).catch(() => { /* audit should not block disable */ })
+
+    await onRefresh()
+    if (selectedChainId === chain.id) setSelectedChainId('')
+    toast.success('Key chain disabled')
+  }
+
+  async function handleChainAudit(chain: KeySet) {
+    setChainAuditSaving(true)
+    try {
+      await recordChainAudit({
+        organizationId: orgId,
+        keySetId: chain.id,
+        keySetName: chain.name,
+        patrolRouteId: chain.patrol_route_id,
+        patrolRouteName: chain.patrol_routes?.route_name ?? null,
+        patrolRouteCode: chain.patrol_routes?.route_code ?? null,
+        officerId: userId || null,
+        officerName: userId ? (officers.find((officer) => officer.id === userId)?.full_name ?? null) : null,
+        kind: 'chain_audit',
+      })
+      toast.success(`Audit recorded for ${chain.name}`)
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to record chain audit')
+    } finally {
+      setChainAuditSaving(false)
     }
   }
 
-  async function handleCheckout() {
-    if (!showCheckoutDialog || !checkoutForm.officer_id) { toast.error('Officer required'); return }
-    setSaving(true)
-    const { error: custodyErr } = await (supabase as any).from('key_custody').insert({
-      organization_id: orgId,
-      key_set_id: showCheckoutDialog.id,
-      officer_id: checkoutForm.officer_id,
-      checked_out_at: new Date().toISOString(),
-      expected_return: checkoutForm.expected_return ? new Date(checkoutForm.expected_return).toISOString() : null,
-      checkout_purpose: checkoutForm.purpose || null,
-      status: 'checked_out',
-    })
-    if (custodyErr) { toast.error(custodyErr.message); setSaving(false); return }
-    await (supabase as any).from('key_sets').update({
-      status: 'checked_out',
-      current_holder_id: checkoutForm.officer_id,
-      checked_out_at: new Date().toISOString(),
-      expected_return: checkoutForm.expected_return ? new Date(checkoutForm.expected_return).toISOString() : null,
-    }).eq('id', showCheckoutDialog.id)
-    setSaving(false)
-    toast.success('Keys checked out')
-    setShowCheckoutDialog(null)
-    setCheckoutForm({ officer_id: '', expected_return: '', purpose: '' })
-    onRefresh()
+  async function handleFullAudit() {
+    setFullAuditSaving(true)
+    try {
+      const activeChainIds = keySets.filter((keySet) => keySet.is_active).map((keySet) => keySet.id)
+      const result = await recordFullKeyAudit(orgId, activeChainIds)
+      if (result.failed > 0) {
+        toast.warning(`Recorded ${result.recorded} audits, ${result.failed} failed`)
+      } else {
+        toast.success(`Recorded ${result.recorded} audits`)
+      }
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to run full audit')
+    } finally {
+      setFullAuditSaving(false)
+    }
   }
 
-  async function handleReturn() {
-    if (!showReturnDialog) return
-    setSaving(true)
-    await (supabase as any).from('key_custody').update({
-      returned_at: new Date().toISOString(),
-      return_condition: returnForm.return_condition,
-      return_notes: returnForm.notes || null,
-      status: 'returned',
-    }).eq('key_set_id', showReturnDialog.id).eq('status', 'checked_out')
-    await (supabase as any).from('key_sets').update({
-      status: 'available',
-      current_holder_id: null,
-      checked_out_at: null,
-      expected_return: null,
-    }).eq('id', showReturnDialog.id)
-    setSaving(false)
-    toast.success('Keys returned')
-    setShowReturnDialog(null)
-    setReturnForm({ return_condition: 'good', notes: '' })
-    onRefresh()
-  }
+  const activeChainsCount = keySets.filter((keySet) => keySet.is_active).length
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col sm:flex-row gap-2">
-        <div className="relative flex-1">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input className="pl-8" placeholder="Search key sets…" value={search} onChange={(e) => setSearch(e.target.value)} />
-        </div>
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All</SelectItem>
-            <SelectItem value="available">Available</SelectItem>
-            <SelectItem value="checked_out">Checked Out</SelectItem>
-          </SelectContent>
-        </Select>
-        <Button variant="outline" size="sm" className="gap-2" onClick={() => setShowScanDialog(true)}>
-          <Scan className="h-4 w-4" /> Scan Key
-        </Button>
-      </div>
-
       <Card>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Key Set</TableHead>
-                <TableHead>Chain Barcode</TableHead>
-                <TableHead>Location</TableHead>
-                <TableHead>Site</TableHead>
-                <TableHead>Current Holder</TableHead>
-                <TableHead>Due</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.length === 0 && (
-                <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-8">No key sets found</TableCell></TableRow>
-              )}
-              {filtered.map((k) => (
-                <TableRow key={k.id}>
-                  <TableCell className="text-sm font-medium">{k.name}</TableCell>
-                  <TableCell className="text-sm font-mono text-xs">
-                    {String(k.custom_data?.chain_barcode || k.custom_data?.barcode || '—')}
-                  </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">{k.storage_location ?? '—'}</TableCell>
-                  <TableCell className="text-sm text-muted-foreground">{k.client_sites?.name ?? '—'}</TableCell>
-                  <TableCell className="text-sm">{k.user_profiles?.full_name ?? '—'}</TableCell>
-                  <TableCell className={`text-sm ${k.status === 'checked_out' && isOverdue(k.expected_return) ? 'text-red-600 font-semibold' : ''}`}>
-                    {k.expected_return ? format(parseISO(k.expected_return), 'dd MMM yy HH:mm') : '—'}
-                  </TableCell>
-                  <TableCell><Badge className={`text-xs ${STATUS_COLOURS[k.status] ?? ''}`}>{statusLabel(k.status)}</Badge></TableCell>
-                  <TableCell>
-                    {k.status === 'available' && (
-                      <Button size="sm" variant="outline" onClick={() => setShowCheckoutDialog(k)}>
-                        <ArrowUp className="h-3.5 w-3.5 mr-1" /> Check Out
-                      </Button>
-                    )}
-                    {k.status === 'checked_out' && (
-                      <Button size="sm" variant="outline" onClick={() => setShowReturnDialog(k)}>
-                        <RotateCcw className="h-3.5 w-3.5 mr-1" /> Return
-                      </Button>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+        <CardHeader className="pb-3">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <CardTitle className="text-sm">Patrol Chain Admin</CardTitle>
+              <CardDescription>
+                Use camera scanning for key chains and keys, and manage patrol custody from one place.
+              </CardDescription>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" size="sm" className="gap-2" onClick={() => setShowScanDialog(true)}>
+                <Scan className="h-4 w-4" /> Scan Key / Chain
+              </Button>
+              <Button variant="outline" size="sm" className="gap-2" onClick={handleFullAudit} disabled={fullAuditSaving}>
+                {fullAuditSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <ClipboardList className="h-4 w-4" />}
+                Full Audit
+              </Button>
+              <Button size="sm" className="gap-2" onClick={() => setShowCreateChainDialog(true)}>
+                <Plus className="h-4 w-4" /> Create Chain
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="grid gap-3 lg:grid-cols-[1fr_auto_auto] lg:items-center">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input className="pl-8" placeholder="Search key chains, sites, storage locations or barcodes…" value={search} onChange={(e) => setSearch(e.target.value)} />
+          </div>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-44"><SelectValue placeholder="Filter status" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All chains</SelectItem>
+              <SelectItem value="active">Active</SelectItem>
+              <SelectItem value="available">Available</SelectItem>
+              <SelectItem value="checked_out">Checked out</SelectItem>
+              <SelectItem value="missing">Missing</SelectItem>
+              <SelectItem value="retired">Retired</SelectItem>
+            </SelectContent>
+          </Select>
+          <div className="text-sm text-muted-foreground lg:text-right">
+            {activeChainsCount} active chain{activeChainsCount === 1 ? '' : 's'} across {keySets.length} total records
+          </div>
         </CardContent>
       </Card>
+
+      <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+        <Card>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Chain</TableHead>
+                  <TableHead>Route</TableHead>
+                  <TableHead>Barcode</TableHead>
+                  <TableHead>Location</TableHead>
+                  <TableHead>Holder</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredChains.length === 0 && (
+                  <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8">No key chains found</TableCell></TableRow>
+                )}
+                {filteredChains.map((chain) => (
+                  <TableRow key={chain.id} className={selectedChainId === chain.id ? 'bg-muted/40' : ''}>
+                    <TableCell className="text-sm font-medium">{chain.name}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">{chain.patrol_routes?.route_code ? `${chain.patrol_routes.route_code} · ` : ''}{chain.patrol_routes?.route_name ?? '—'}</TableCell>
+                    <TableCell className="text-sm font-mono text-xs">{String(chain.custom_data?.chain_barcode ?? chain.custom_data?.barcode ?? '—')}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">{chain.storage_location ?? '—'}</TableCell>
+                    <TableCell className="text-sm">{chain.user_profiles?.full_name ?? '—'}</TableCell>
+                    <TableCell>
+                      <Badge className={`text-xs ${STATUS_COLOURS[chain.status] ?? ''}`}>{chain.is_active ? statusLabel(chain.status) : 'Retired'}</Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-2">
+                        <Button size="sm" variant="outline" onClick={() => setSelectedChainId(chain.id)}>
+                          Manage
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => void handleChainAudit(chain)} disabled={chainAuditSaving}>
+                          {chainAuditSaving && selectedChainId === chain.id ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <ClipboardList className="h-3.5 w-3.5 mr-1" />}
+                          Audit
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => { setSelectedChainId(chain.id); setShowAddKeyDialog(true) }}>
+                          <Tag className="h-3.5 w-3.5 mr-1" /> Add Key
+                        </Button>
+                        {chain.is_active && (
+                          <Button size="sm" variant="outline" onClick={() => void handleDisableChain(chain)} disabled={saving}>
+                            <AlertTriangle className="h-3.5 w-3.5 mr-1" /> Disable
+                          </Button>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm">Selected Chain</CardTitle>
+              <CardDescription>
+              {selectedChain ? `${selectedChain.name}${selectedChain.patrol_routes?.route_name ? ` · ${selectedChain.patrol_routes.route_code ? `${selectedChain.patrol_routes.route_code} · ` : ''}${selectedChain.patrol_routes.route_name}` : ''}` : 'Choose a chain to manage its keys'}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {selectedChain ? (
+              <>
+                <div className="grid gap-2 text-sm">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-muted-foreground">Barcode</span>
+                    <span className="font-mono text-xs">{String(selectedChain.custom_data?.chain_barcode ?? selectedChain.custom_data?.barcode ?? '—')}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-muted-foreground">Storage</span>
+                    <span>{selectedChain.storage_location ?? '—'}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-muted-foreground">Status</span>
+                    <Badge className={`text-xs ${STATUS_COLOURS[selectedChain.status] ?? ''}`}>{selectedChain.is_active ? statusLabel(selectedChain.status) : 'Retired'}</Badge>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button size="sm" variant="outline" onClick={() => void handleChainAudit(selectedChain)} disabled={chainAuditSaving}>
+                    {chainAuditSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <ClipboardList className="h-3.5 w-3.5 mr-1" />}
+                    Audit Chain
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => setShowAddKeyDialog(true)}>
+                    <Tag className="h-3.5 w-3.5 mr-1" /> Add Key
+                  </Button>
+                  {selectedChain.is_active && (
+                    <Button size="sm" variant="outline" onClick={() => void handleDisableChain(selectedChain)} disabled={saving}>
+                      <AlertTriangle className="h-3.5 w-3.5 mr-1" /> Disable Chain
+                    </Button>
+                  )}
+                </div>
+                <div className="rounded-md border">
+                  <div className="border-b px-3 py-2 text-sm font-medium">Keys in chain</div>
+                  <div className="max-h-80 overflow-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>#</TableHead>
+                          <TableHead>Name</TableHead>
+                          <TableHead>Type</TableHead>
+                          <TableHead />
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {selectedChainKeys.length === 0 && (
+                          <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground py-6">No keys in this chain yet</TableCell></TableRow>
+                        )}
+                        {selectedChainKeys.map((keyRow) => (
+                          <TableRow key={keyRow.id} className={keyRow.is_active ? '' : 'opacity-60'}>
+                            <TableCell className="text-sm font-mono">{keyRow.key_number}</TableCell>
+                            <TableCell className="text-sm">
+                              <div className="font-medium">{keyRow.name}</div>
+                              <div className="text-xs text-muted-foreground">{keyRow.opens_description ?? keyRow.description ?? '—'}</div>
+                            </TableCell>
+                            <TableCell className="text-sm text-muted-foreground">{keyRow.key_type ?? 'standard'}</TableCell>
+                            <TableCell className="text-right">
+                              {keyRow.is_active ? (
+                                <Button size="sm" variant="outline" onClick={() => void handleRemoveKey(keyRow)} disabled={saving}>
+                                  <X className="h-3.5 w-3.5 mr-1" /> Remove
+                                </Button>
+                              ) : (
+                                <Badge variant="outline">Removed</Badge>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <p className="text-sm text-muted-foreground">Pick a key chain to manage its individual keys, barcode, and patrol custody actions.</p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Recent custody history */}
       {custody.length > 0 && (
@@ -2008,85 +2368,122 @@ function KeyManagementTab({
 
       <BarcodeInputDialog
         open={showScanDialog}
-        title="Scan Key Set Barcode"
-        description="Scan a key set's barcode to check it out or return it instantly."
+        title="Scan Key Chain or Key"
+        description="Use the phone camera first, or fall back to wedge/manual input when needed."
         onScan={handleScan}
         onClose={() => setShowScanDialog(false)}
       />
 
-      {/* Checkout dialog */}
-      {showCheckoutDialog && (
-        <Dialog open onOpenChange={() => setShowCheckoutDialog(null)}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Check Out Keys</DialogTitle>
-              <DialogDescription>Issuing: <strong>{showCheckoutDialog.name}</strong></DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-3 py-2">
+      <Dialog open={showCreateChainDialog} onOpenChange={setShowCreateChainDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create New Key Chain</DialogTitle>
+            <DialogDescription>Set up a patrol chain for a site, cabinet, or vehicle and add the barcode used for scanning.</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-3 py-2">
+            <div className="space-y-1.5">
+              <Label>Name *</Label>
+              <Input value={createChainForm.name} onChange={(e) => setCreateChainForm((f) => ({ ...f, name: e.target.value }))} placeholder="e.g. Rutherford Patrol Chain" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Patrol Route</Label>
+              <Select value={createChainForm.patrol_route_id} onValueChange={(value) => setCreateChainForm((f) => ({ ...f, patrol_route_id: value }))}>
+                <SelectTrigger><SelectValue placeholder="Select route" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">No route</SelectItem>
+                  {patrolRoutes.map((route) => (
+                    <SelectItem key={route.id} value={route.id}>{route.route_code ? `${route.route_code} · ` : ''}{route.route_name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Chain Barcode</Label>
+              <Input value={createChainForm.chain_barcode} onChange={(e) => setCreateChainForm((f) => ({ ...f, chain_barcode: e.target.value }))} placeholder="Scan this on the patrol chain" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Storage Location</Label>
+              <Input value={createChainForm.storage_location} onChange={(e) => setCreateChainForm((f) => ({ ...f, storage_location: e.target.value }))} placeholder="Cabinet, wall hook, safe, etc." />
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <Label>Officer *</Label>
-                <Select value={checkoutForm.officer_id} onValueChange={(v) => setCheckoutForm((f) => ({ ...f, officer_id: v }))}>
-                  <SelectTrigger><SelectValue placeholder="Select officer" /></SelectTrigger>
-                  <SelectContent>
-                    {officers.map((o) => <SelectItem key={o.id} value={o.id}>{o.full_name ?? o.email}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+                <Label>Cabinet Number</Label>
+                <Input value={createChainForm.cabinet_number} onChange={(e) => setCreateChainForm((f) => ({ ...f, cabinet_number: e.target.value }))} />
               </div>
               <div className="space-y-1.5">
-                <Label>Purpose</Label>
-                <Input value={checkoutForm.purpose} onChange={(e) => setCheckoutForm((f) => ({ ...f, purpose: e.target.value }))} placeholder="e.g. Night patrol — Rutherford Park" />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Expected Return</Label>
-                <Input type="datetime-local" value={checkoutForm.expected_return} onChange={(e) => setCheckoutForm((f) => ({ ...f, expected_return: e.target.value }))} />
+                <Label>Hook Number</Label>
+                <Input value={createChainForm.hook_number} onChange={(e) => setCreateChainForm((f) => ({ ...f, hook_number: e.target.value }))} />
               </div>
             </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setShowCheckoutDialog(null)}>Cancel</Button>
-              <Button onClick={handleCheckout} disabled={saving}>
-                {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <ArrowUp className="h-4 w-4 mr-2" />}
-                Check Out
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
+            <div className="space-y-1.5">
+              <Label>Description</Label>
+              <Textarea value={createChainForm.description} onChange={(e) => setCreateChainForm((f) => ({ ...f, description: e.target.value }))} rows={2} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCreateChainDialog(false)}>Cancel</Button>
+            <Button onClick={handleCreateChain} disabled={saving}>{saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}Create Chain</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
-      {/* Return dialog */}
-      {showReturnDialog && (
-        <Dialog open onOpenChange={() => setShowReturnDialog(null)}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Return Keys</DialogTitle>
-              <DialogDescription>Returning: <strong>{showReturnDialog.name}</strong></DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-3 py-2">
+      <Dialog open={showAddKeyDialog} onOpenChange={setShowAddKeyDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Key to Chain</DialogTitle>
+            <DialogDescription>{selectedChain ? `Adding a key to ${selectedChain.name}` : 'Select a chain before adding keys'}</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-3 py-2">
+            <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <Label>Return Condition</Label>
-                <Select value={returnForm.return_condition} onValueChange={(v) => setReturnForm((f) => ({ ...f, return_condition: v }))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="good">Good</SelectItem>
-                    <SelectItem value="fair">Fair</SelectItem>
-                    <SelectItem value="damaged">Damaged</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Label>Key Number *</Label>
+                <Input value={addKeyForm.key_number} onChange={(e) => setAddKeyForm((f) => ({ ...f, key_number: e.target.value }))} placeholder="e.g. 1, A, M1" />
               </div>
               <div className="space-y-1.5">
-                <Label>Notes</Label>
-                <Textarea value={returnForm.notes} onChange={(e) => setReturnForm((f) => ({ ...f, notes: e.target.value }))} rows={2} />
+                <Label>Name *</Label>
+                <Input value={addKeyForm.name} onChange={(e) => setAddKeyForm((f) => ({ ...f, name: e.target.value }))} placeholder="e.g. Front Gate" />
               </div>
             </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setShowReturnDialog(null)}>Cancel</Button>
-              <Button onClick={handleReturn} disabled={saving}>
-                {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RotateCcw className="h-4 w-4 mr-2" />}
-                Confirm Return
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
+            <div className="space-y-1.5">
+              <Label>Key Type</Label>
+              <Select value={addKeyForm.key_type} onValueChange={(value) => setAddKeyForm((f) => ({ ...f, key_type: value }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="standard">Standard</SelectItem>
+                  <SelectItem value="master">Master</SelectItem>
+                  <SelectItem value="sub_master">Sub Master</SelectItem>
+                  <SelectItem value="fob">Fob</SelectItem>
+                  <SelectItem value="card">Card</SelectItem>
+                  <SelectItem value="combination">Combination</SelectItem>
+                  <SelectItem value="biometric">Biometric</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Opens / Access Notes</Label>
+              <Textarea value={addKeyForm.opens_description} onChange={(e) => setAddKeyForm((f) => ({ ...f, opens_description: e.target.value }))} rows={2} placeholder="What this key opens or accesses" />
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label>Manufacturer</Label>
+                <Input value={addKeyForm.manufacturer} onChange={(e) => setAddKeyForm((f) => ({ ...f, manufacturer: e.target.value }))} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Key Code</Label>
+                <Input value={addKeyForm.key_code} onChange={(e) => setAddKeyForm((f) => ({ ...f, key_code: e.target.value }))} placeholder="Blank/cut code or barcode" />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Description</Label>
+              <Textarea value={addKeyForm.description} onChange={(e) => setAddKeyForm((f) => ({ ...f, description: e.target.value }))} rows={2} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAddKeyDialog(false)}>Cancel</Button>
+            <Button onClick={handleAddKey} disabled={saving || !selectedChain}>{saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}Add Key</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
@@ -2095,6 +2492,7 @@ function KeyManagementTab({
 // Main Component
 // ─────────────────────────────────────────────
 export default function AssetManagement() {
+  const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const user = useAuthStore((s) => s.user)
   const orgId = user?.organization_id ?? ''
@@ -2120,6 +2518,8 @@ export default function AssetManagement() {
   const [movements, setMovements] = useState<StockMovement[]>([])
   const [stocktakes, setStocktakes] = useState<Stocktake[]>([])
   const [keySets, setKeySets] = useState<KeySet[]>([])
+  const [keys, setKeys] = useState<ChainKey[]>([])
+  const [patrolRoutes, setPatrolRoutes] = useState<PatrolRouteOption[]>([])
   const [custody, setCustody] = useState<KeyCustody[]>([])
   const [officers, setOfficers] = useState<OfficerOption[]>([])
 
@@ -2133,7 +2533,7 @@ export default function AssetManagement() {
     if (!orgId) return
     setLoading(true)
 
-    const [typesRes, assetsRes, stockRes, movRes, stocktakeRes, keySetsRes, custodyRes, officersRes] = await Promise.all([
+    const [typesRes, assetsRes, stockRes, movRes, stocktakeRes, keySetsRes, keysRes, custodyRes, officersRes, routesRes] = await Promise.all([
       (supabase as any)
         .from('asset_types')
         .select('id, code, name, category')
@@ -2164,10 +2564,14 @@ export default function AssetManagement() {
         .order('created_at', { ascending: false }),
       (supabase as any)
         .from('key_sets')
-        .select('*, user_profiles(full_name), client_sites(name)')
+        .select('*, user_profiles(full_name), patrol_routes(id,route_name,route_code)')
         .eq('organization_id', orgId)
-        .eq('is_active', true)
         .order('name'),
+      (supabase as any)
+        .from('keys')
+        .select('*, key_sets(name)')
+        .eq('organization_id', orgId)
+        .order('key_set_id').order('key_number'),
       (supabase as any)
         .from('key_custody')
         .select('*, key_sets(name), user_profiles(full_name,email)')
@@ -2180,6 +2584,13 @@ export default function AssetManagement() {
         .eq('organization_id', orgId)
         .in('role', ['officer', 'admin_officer', 'admin'])
         .order('full_name'),
+      (supabase as any)
+        .from('patrol_routes')
+        .select('id, route_name, route_code')
+        .eq('organization_id', orgId)
+        .eq('is_active', true)
+        .order('route_code')
+        .order('route_name'),
     ])
 
     setAssetTypes(((typesRes.data ?? []) as unknown) as AssetType[])
@@ -2188,6 +2599,8 @@ export default function AssetManagement() {
     setMovements(((movRes.data ?? []) as unknown) as StockMovement[])
     setStocktakes(((stocktakeRes.data ?? []) as unknown) as Stocktake[])
     setKeySets(((keySetsRes.data ?? []) as unknown) as KeySet[])
+    setKeys(((keysRes.data ?? []) as unknown) as ChainKey[])
+    setPatrolRoutes(((routesRes.data ?? []) as unknown) as PatrolRouteOption[])
     setCustody(((custodyRes.data ?? []) as unknown) as KeyCustody[])
     setOfficers(((officersRes.data ?? []) as unknown) as OfficerOption[])
 
@@ -2250,9 +2663,14 @@ export default function AssetManagement() {
           <h1 className="text-2xl font-bold">Asset Management</h1>
           <p className="text-muted-foreground text-sm">Equipment, stock inventory, stocktakes and key management</p>
         </div>
-        <Button onClick={() => setShowCreateTypeDialog(true)} className="gap-2">
-          <Plus className="h-4 w-4" /> Add Asset Type
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" onClick={() => navigate('/patrol-chain-audits')} className="gap-2">
+            <ClipboardList className="h-4 w-4" /> Patrol Chain Audits
+          </Button>
+          <Button onClick={() => setShowCreateTypeDialog(true)} className="gap-2">
+            <Plus className="h-4 w-4" /> Add Asset Type
+          </Button>
+        </div>
       </div>
 
       <Tabs value={activeTab} onValueChange={(value) => {
@@ -2311,7 +2729,7 @@ export default function AssetManagement() {
         </TabsContent>
 
         <TabsContent value="keys" className="mt-4">
-          <KeyManagementTab keySets={keySets} custody={custody} officers={officers} orgId={orgId} onRefresh={load} />
+          <KeyManagementTab keySets={keySets} keys={keys} custody={custody} officers={officers} patrolRoutes={patrolRoutes} orgId={orgId} onRefresh={load} />
         </TabsContent>
       </Tabs>
 

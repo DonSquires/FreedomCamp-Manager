@@ -20,6 +20,9 @@ import { useRosteredShift } from '@/hooks/useRosteredShift'
 import { useShiftGate } from '@/hooks/useShiftGate'
 import { useOperationalOrganization } from '@/hooks/useOperationalOrganization'
 import { useStartOfficerShift } from '@/hooks/useFieldOfficerMutations'
+import { PatrolChainAuditPrompt } from '@/components/features/PatrolChainAuditPrompt'
+import { recordChainAudit } from '@/lib/keyAudits'
+import { useKeyAuditEnabled } from '@/hooks/useKeyAuditEnabled'
 import { SERVICE_TYPE_PORTAL, getOfficerPortalPath } from '@/lib/officerPortalRouting'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -150,9 +153,11 @@ export default function OfficerHomePage() {
   const [adhocServiceType, setAdhocServiceType] = useState('freedom_camping')
   const [isEndingShift, setIsEndingShift] = useState(false)
   const [isStartingShift, setIsStartingShift] = useState(false)
+  const [shiftAuditPromptPhase, setShiftAuditPromptPhase] = useState<'start' | 'end' | null>(null)
   const [nowTick, setNowTick] = useState(() => Date.now())
 
   const rosterPortalPath = rosteredShift ? getOfficerPortalPath(rosteredShift) : null
+  const keyAuditEnabled = useKeyAuditEnabled(rosteredShift?.client_org_id ?? operationalOrganizationId ?? null).data !== false
 
   // ── Phase C: live boundary context for active shift ──────────────────────
   const [shiftGpsCoords, setShiftGpsCoords] = useState<{ lat: number; lng: number } | null>(null)
@@ -461,7 +466,13 @@ export default function OfficerHomePage() {
               <Button
                 size="sm"
                 variant="outline"
-                onClick={handleEndShift}
+                onClick={() => {
+                  if (rosteredShift?.patrol_route_id && keyAuditEnabled) {
+                    setShiftAuditPromptPhase('end')
+                    return
+                  }
+                  void handleEndShift()
+                }}
                 disabled={isEndingShift}
                 className="mt-2 min-h-11 text-xs border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400 dark:border-red-700 dark:text-red-300 dark:hover:bg-red-950/40"
               >
@@ -564,7 +575,13 @@ export default function OfficerHomePage() {
                   size="sm"
                   variant={rosteredShift.officer_response === 'accepted' ? 'default' : 'secondary'}
                   className="min-h-10"
-                  onClick={handleStartShift}
+                  onClick={() => {
+                    if (rosteredShift?.patrol_route_id && keyAuditEnabled) {
+                      setShiftAuditPromptPhase('start')
+                      return
+                    }
+                    void handleStartShift()
+                  }}
                   disabled={isStartingShift}
                 >
                   <PlayCircle className="mr-1.5 h-4 w-4" />
@@ -749,6 +766,46 @@ export default function OfficerHomePage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <PatrolChainAuditPrompt
+        open={shiftAuditPromptPhase !== null && !!rosteredShift?.patrol_route_id && keyAuditEnabled}
+        title={shiftAuditPromptPhase === 'end' ? 'Confirm End-of-Shift Chain Audit' : 'Confirm Start-of-Shift Chain Audit'}
+        organizationId={rosteredShift?.client_org_id ?? operationalOrganizationId ?? null}
+        patrolRouteId={rosteredShift?.patrol_route_id ?? null}
+        patrolRouteName={rosteredShift?.patrol_route_name ?? rosteredShift?.client_site_name ?? null}
+        patrolRouteCode={rosteredShift?.patrol_route_code ?? null}
+        shiftPhase={shiftAuditPromptPhase ?? 'start'}
+        onCancel={() => setShiftAuditPromptPhase(null)}
+        onConfirm={async (chainIds) => {
+          const phase = shiftAuditPromptPhase ?? 'start'
+          const routeId = rosteredShift?.patrol_route_id ?? null
+          const routeName = rosteredShift?.patrol_route_name ?? rosteredShift?.client_site_name ?? null
+          const routeCode = rosteredShift?.patrol_route_code ?? null
+          const orgId = rosteredShift?.client_org_id ?? operationalOrganizationId ?? null
+
+          if (orgId) {
+            await Promise.all(chainIds.map((keySetId) => recordChainAudit({
+              organizationId: orgId,
+              keySetId,
+              patrolRouteId: routeId,
+              patrolRouteName: routeName,
+              patrolRouteCode: routeCode,
+              shiftId: null,
+              shiftPhase: phase,
+              officerId: user?.id ?? null,
+              officerName: user?.full_name ?? null,
+              kind: 'chain_audit',
+            })))
+          }
+
+          setShiftAuditPromptPhase(null)
+          if (phase === 'start') {
+            await handleStartShift()
+          } else {
+            await handleEndShift()
+          }
+        }}
+      />
     </OfficerShell>
   )
 }

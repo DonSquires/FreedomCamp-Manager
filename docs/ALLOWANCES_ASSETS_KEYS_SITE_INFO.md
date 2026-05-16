@@ -348,6 +348,8 @@ A comprehensive key custody tracking system similar to Wilsar:
 - **Individual Keys** — Each key with description
 - **Custody Tracking** — Check-out/return with signatures
 - **Full Audit Trail** — Every action logged
+- **Patrol Route Ownership** — Patrol-team chains are assigned directly to patrol routes
+- **Master Audit Toggle** — Authorized managers can pause patrol chain audits per organization
 
 ### 5.2 Database Schema
 
@@ -387,7 +389,25 @@ Available → Checked Out → Returned → Available
      └────────────────────────┴→ Lost/Missing
 ```
 
-### 5.4 Helper Functions
+### 5.4 Patrol Chain Workflow
+
+Patrol chains are now route-owned rather than site-owned.
+
+Key operational rules:
+
+- `key_sets.patrol_route_id` links a patrol chain to a patrol route.
+- officers inherit the active route from `roster_shifts.patrol_route_id`.
+- the start-shift and end-shift flows prompt officers to confirm the route's chains when audits are enabled.
+- the Patrol Chain Audits screen gives operations staff a monthly view of recorded checks and the twice-monthly full-audit cadence.
+- masters, grand masters, admins, and admin officers can disable patrol chain audits for the organization without removing route assignments.
+
+When the audit toggle is off:
+
+- the shift handover prompt is skipped
+- manual audit writes no-op through the RPC gate
+- route assignment and key management remain available
+
+### 5.5 Helper Functions
 
 #### Check Out Keys
 
@@ -411,7 +431,7 @@ SELECT return_key_set(
 );
 ```
 
-### 5.5 Key Types
+### 5.6 Key Types
 
 | Type | Description |
 |------|-------------|
@@ -423,7 +443,7 @@ SELECT return_key_set(
 | `combination` | Combination lock |
 | `biometric` | Biometric access |
 
-### 5.6 Example: Setting Up Keys
+### 5.7 Example: Setting Up Keys
 
 ```sql
 -- Create key set
@@ -445,7 +465,11 @@ VALUES
   ('key-set-uuid', 'org-uuid', '3', 'Office Suite', 'All offices on Level 2');
 ```
 
-### 5.7 Audit Log Actions
+### 5.8 Audit Log Actions
+
+Additional patrol-chain audit writes now carry route-aware context in `details`, including `patrol_route_id`, `patrol_route_name`, `patrol_route_code`, `shift_id`, `shift_phase`, and `audit_kind`.
+
+The write path is governed by the `record_key_audit` RPC and the organization-level `key_audit_settings.is_enabled` toggle.
 
 | Action | Description |
 |--------|-------------|

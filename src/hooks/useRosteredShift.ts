@@ -34,6 +34,9 @@ export interface RosteredShift {
   position_title: string | null
   client_site_id: string | null
   client_site_name: string | null
+  patrol_route_id: string | null
+  patrol_route_name: string | null
+  patrol_route_code: string | null
   /** The client organisation this shift is for (may differ from the service provider) */
   client_org_id: string | null
   client_org_name: string | null
@@ -74,7 +77,7 @@ export function useRosteredShift(): UseRosteredShiftResult {
     queryFn: async () => {
       if (!user?.id) return null
 
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('roster_shifts')
         .select(`
           id, shift_date, start_time, end_time, shift_type,
@@ -84,7 +87,9 @@ export function useRosteredShift(): UseRosteredShiftResult {
           client_site:client_sites!client_site_id(
             name,
             organization:organizations!organization_id(id, name)
-          )
+          ),
+          patrol_route_id,
+          patrol_route:patrol_routes!patrol_route_id(route_name, route_code)
         `)
         .eq('officer_id', user.id)
         .eq('shift_date', today)
@@ -95,30 +100,35 @@ export function useRosteredShift(): UseRosteredShiftResult {
 
       if (error || !data) return null
 
-      const site = Array.isArray(data.client_site) ? data.client_site[0] : data.client_site
+      const shift = data as any
+
+      const site = Array.isArray(shift.client_site) ? shift.client_site[0] : shift.client_site
       const org  = site
         ? (Array.isArray(site.organization) ? site.organization[0] : site.organization)
         : null
 
       return {
-        id:               data.id,
-        shift_date:       data.shift_date,
-        start_time:       data.start_time,
-        end_time:         data.end_time,
-        shift_type:       data.shift_type,
-        service_type:     data.service_type ?? null,
-        position_title:   data.position_title ?? null,
-        client_site_id:   data.client_site_id ?? null,
+        id:               shift.id,
+        shift_date:       shift.shift_date,
+        start_time:       shift.start_time,
+        end_time:         shift.end_time,
+        shift_type:       shift.shift_type,
+        service_type:     shift.service_type ?? null,
+        position_title:   shift.position_title ?? null,
+        client_site_id:   shift.client_site_id ?? null,
         client_site_name: site?.name ?? null,
+        patrol_route_id:  shift.patrol_route_id ?? null,
+        patrol_route_name: Array.isArray(shift.patrol_route) ? shift.patrol_route[0]?.route_name ?? null : shift.patrol_route?.route_name ?? null,
+        patrol_route_code: Array.isArray(shift.patrol_route) ? shift.patrol_route[0]?.route_code ?? null : shift.patrol_route?.route_code ?? null,
         client_org_id:    org?.id ?? null,
         client_org_name:  org?.name ?? null,
-        zone_id:          data.zone_id ?? null,
-        status:           data.status,
-        officer_response: data.officer_response ?? null,
-        officer_response_at: data.officer_response_at ?? null,
-        guard_cost_rate:  data.guard_cost_rate ?? null,
-        client_charge_rate: data.client_charge_rate ?? null,
-        rate_type:        data.rate_type ?? null,
+        zone_id:          shift.zone_id ?? null,
+        status:           shift.status,
+        officer_response: shift.officer_response ?? null,
+        officer_response_at: shift.officer_response_at ?? null,
+        guard_cost_rate:  shift.guard_cost_rate ?? null,
+        client_charge_rate: shift.client_charge_rate ?? null,
+        rate_type:        shift.rate_type ?? null,
       } as RosteredShift
     },
     enabled: !!user?.id,

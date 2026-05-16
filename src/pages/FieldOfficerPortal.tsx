@@ -45,6 +45,9 @@ import { useSpeechIntent, type SpeechIntentResult } from '@/hooks/useSpeechInten
 import { GeofenceWarningBanner } from '@/components/features/GeofenceWarningBanner'
 import { reverseGeocode } from '@/lib/geocoding'
 import { subscribeBobVoiceState } from '@/lib/bob-brain'
+import { PatrolChainAuditPrompt } from '@/components/features/PatrolChainAuditPrompt'
+import { recordChainAudit } from '@/lib/keyAudits'
+import { useKeyAuditEnabled } from '@/hooks/useKeyAuditEnabled'
 import { useSiteToolPermissions } from '@/middleware'
 import { useThemePreferencesStore } from '@/stores/themePreferencesStore'
 import {
@@ -446,6 +449,7 @@ export default function FieldOfficerPortal() {
   const [currentPatrolZone, setCurrentPatrolZone] = useState<string | null>(zoneId)
   const [currentLocation, setCurrentLocation] = useState<{ latitude: number; longitude: number } | null>(null)
   const [scanTabFilter, setScanTabFilter] = useState<'all' | 'compliant' | 'breach' | 'at_risk' | 'homeless'>('all')
+  const [shiftAuditPromptPhase, setShiftAuditPromptPhase] = useState<'start' | 'end' | null>(null)
 
   // ── Quick standalone report modal ─────────────────────────────────────────
   const [showQuickReport,      setShowQuickReport]      = useState(false)
@@ -905,6 +909,8 @@ export default function FieldOfficerPortal() {
       setQuickReportStatusText(message)
     },
   })
+
+  const keyAuditEnabled = useKeyAuditEnabled(rosteredShift?.client_org_id ?? employerOrganizationId ?? null).data !== false
 
   const handleStartShift = useCallback(async () => {
     // Service-provider members can choose a client jurisdiction to work in.
@@ -1589,7 +1595,13 @@ export default function FieldOfficerPortal() {
                     <span>
                       <Button
                         size="sm"
-                        onClick={handleStartShift}
+                        onClick={() => {
+                          if (rosteredShift?.patrol_route_id && keyAuditEnabled) {
+                            setShiftAuditPromptPhase('start')
+                            return
+                          }
+                          void handleStartShift()
+                        }}
                         disabled={isStartingShift || (isServiceProviderMember && accessibleOrgs.length > 1 && !shiftOrgId)}
                         className="shrink-0 bg-green-600 hover:bg-green-700 text-white font-semibold"
                       >
@@ -1723,7 +1735,13 @@ export default function FieldOfficerPortal() {
               <Button
                 size="sm"
                 variant="outline"
-                onClick={handleEndShift}
+                onClick={() => {
+                  if (rosteredShift?.patrol_route_id && keyAuditEnabled) {
+                    setShiftAuditPromptPhase('end')
+                    return
+                  }
+                  void handleEndShift()
+                }}
                 disabled={isEndingShift}
                 className="text-xs border-gray-400 text-gray-700 dark:text-gray-300 hover:border-red-400 hover:text-red-600"
               >
@@ -3196,6 +3214,46 @@ export default function FieldOfficerPortal() {
         onActivity={() => {
           if (currentLocation?.latitude && currentLocation?.longitude) {
             recordGPSUpdate(currentLocation.latitude, currentLocation.longitude)
+          }
+        }}
+      />
+
+      <PatrolChainAuditPrompt
+        open={shiftAuditPromptPhase !== null && !!rosteredShift?.patrol_route_id && keyAuditEnabled}
+        title={shiftAuditPromptPhase === 'end' ? 'Confirm End-of-Shift Chain Audit' : 'Confirm Start-of-Shift Chain Audit'}
+        organizationId={rosteredShift?.client_org_id ?? employerOrganizationId ?? null}
+        patrolRouteId={rosteredShift?.patrol_route_id ?? null}
+        patrolRouteName={rosteredShift?.patrol_route_name ?? rosteredShift?.client_site_name ?? null}
+        patrolRouteCode={rosteredShift?.patrol_route_code ?? null}
+        shiftPhase={shiftAuditPromptPhase ?? 'start'}
+        onCancel={() => setShiftAuditPromptPhase(null)}
+        onConfirm={async (chainIds) => {
+          const phase = shiftAuditPromptPhase ?? 'start'
+          const routeId = rosteredShift?.patrol_route_id ?? null
+          const routeName = rosteredShift?.patrol_route_name ?? rosteredShift?.client_site_name ?? null
+          const routeCode = rosteredShift?.patrol_route_code ?? null
+          const orgId = rosteredShift?.client_org_id ?? employerOrganizationId ?? null
+
+          if (orgId) {
+            await Promise.all(chainIds.map((keySetId) => recordChainAudit({
+              organizationId: orgId,
+              keySetId,
+              patrolRouteId: routeId,
+              patrolRouteName: routeName,
+              patrolRouteCode: routeCode,
+              shiftId: activeShift?.id ?? null,
+              shiftPhase: phase,
+              officerId: user?.id ?? null,
+              officerName: user?.full_name ?? null,
+              kind: 'chain_audit',
+            })))
+          }
+
+          setShiftAuditPromptPhase(null)
+          if (phase === 'start') {
+            await handleStartShift()
+          } else {
+            await handleEndShift()
           }
         }}
       />

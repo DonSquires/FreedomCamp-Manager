@@ -9,6 +9,27 @@ This document outlines the comprehensive enhancement of the patrol management sy
 4. **GPS Geofence Automation** — Auto check-in/out, presence verification
 5. **Welfare Check Automation** — Movement-aware wellness monitoring
 6. **Cross-Organization PTT/Chat** — Authorization-based communication channels
+7. **Patrol Chain Ownership & Audits** — Assigning key chains to routes with handover confirmation and audit control
+
+---
+
+## Patrol Chain Ownership & Audits
+
+Patrol routes now also own patrol-team key chains.
+
+Operational behavior:
+
+- `key_sets.patrol_route_id` links a chain directly to a patrol route.
+- rostered officers inherit that route context from `roster_shifts.patrol_route_id`.
+- the shift start and shift end flows can prompt for route-chain confirmation before the shift action completes.
+- the Patrol Chain Audits screen shows route coverage, recent chain checks, and the twice-monthly full-audit cadence.
+
+Audit enablement is organization-scoped:
+
+- `key_audit_settings.is_enabled = true` keeps shift handover prompts and manual chain audits active.
+- `key_audit_settings.is_enabled = false` preserves route ownership of chains but bypasses audit prompts and audit writes.
+
+This keeps chain accountability aligned with the route model while still giving masters operational control during transitions, outages, or exceptional workflows.
 
 ---
 

@@ -139,6 +139,7 @@ const RosterPlanner = lazy(() => import('@/pages/RosterPlanner'))
 const OfficerSkills = lazy(() => import('@/pages/OfficerSkills'))
 const OfficerAvailability = lazy(() => import('@/pages/OfficerAvailability'))
 const AssetManagement = lazy(() => import('@/pages/AssetManagement'))
+const PatrolChainAudits = lazy(() => import('@/pages/PatrolChainAudits'))
 const ClientOrganisationPortal = lazy(() => import('@/pages/ClientOrganisationPortal'))
 const InvoicingPage = lazy(() => import('@/pages/InvoicingPage'))
 const PricingPage = lazy(() => import('@/pages/PricingPage'))
@@ -2326,6 +2327,17 @@ export default function App() {
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'grand_master']}>
                   <AssetManagement />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/patrol-chain-audits"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'grand_master']}>
+                  <PatrolChainAudits />
                 </RoleRoute>
               </ProtectedRoute>
             }
