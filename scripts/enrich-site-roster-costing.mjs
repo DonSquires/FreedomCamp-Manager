@@ -406,7 +406,7 @@ function buildDossierCompletionGate(dossiers) {
   }
 }
 
-function buildBriefingsArtifact(dossiers, args) {
+function buildBriefingsArtifact(dossiers, args, incidentContext) {
   const briefings = dossiers.map((dossier) => ({
     organizationId: dossier.entity.organizationId,
     organizationName: dossier.entity.organizationName,
@@ -415,9 +415,11 @@ function buildBriefingsArtifact(dossiers, args) {
     zoneId: dossier.entity.zoneId,
     zoneName: dossier.entity.zoneName,
     confidence: dossier.evidence.confidence,
+    previousIssuesSource: incidentContext.source,
     adminBriefing: {
       watchouts: dossier.appBriefings.adminWatchouts,
       previousIssuesSummary: dossier.context.previousIssues.summary,
+      previousIssuesSource: incidentContext.source,
       accessStatus: dossier.context.accessProfile.status,
       healthAndSafetyStatus: dossier.context.healthAndSafety.status,
       criticalUncertainties: dossier.evidence.criticalUncertainties,
@@ -445,6 +447,8 @@ function buildBriefingsArtifact(dossiers, args) {
       lowConfidenceBriefings: briefings.filter((entry) => entry.confidence === 'low').length,
       mediumConfidenceBriefings: briefings.filter((entry) => entry.confidence === 'medium').length,
       highConfidenceBriefings: briefings.filter((entry) => entry.confidence === 'high').length,
+      previousIssuesSource: incidentContext.source,
+      previousIssuesWarning: incidentContext.warning,
     },
     briefings,
   }
@@ -1021,7 +1025,7 @@ async function main() {
     })),
   }
 
-  const briefingsArtifact = buildBriefingsArtifact(researchDossiers, args)
+  const briefingsArtifact = buildBriefingsArtifact(researchDossiers, args, incidentContext)
 
   writeArtifact(args.artifactOut, artifact)
   writeArtifact(args.briefingsOut, briefingsArtifact)
