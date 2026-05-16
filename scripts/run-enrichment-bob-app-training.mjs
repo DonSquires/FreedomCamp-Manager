@@ -23,6 +23,7 @@ Options:
   --organization-id <id>   Optional org override for intake apply.
   --since-date <YYYY-MM-DD> Optional roster history floor for site enrichment.
   --allow-uncertain-writes Allow site enrichment writes to proceed despite dossier gate blockers.
+  --skip-app-queue         Skip app queue model generation/publish step.
   --polygon-input <file>   Optional GeoJSON input path for polygon conversion.
   --artifact-out <file>    Optional JSON artifact output path.
   --skip-intake            Skip intake phase.
@@ -42,6 +43,7 @@ function parseArgs(argv) {
     organizationId: '',
     sinceDate: '',
     allowUncertainWrites: false,
+    skipAppQueue: false,
     polygonInput: '',
     artifactOut: 'logs/enrichment-training-artifact.json',
     skipIntake: false,
@@ -75,6 +77,10 @@ function parseArgs(argv) {
     }
     if (token === '--skip-validation') {
       args.skipValidation = true
+      continue
+    }
+    if (token === '--skip-app-queue') {
+      args.skipAppQueue = true
       continue
     }
     if (token === '--help' || token === '-h') {
@@ -206,6 +212,33 @@ function plan(args) {
   steps.push({
     phase: 'Phase 4 - Site roster enrichment dossiers',
     command: `node scripts/enrich-site-roster-costing.mjs ${enrichmentFlags}`,
+  })
+
+  if (!args.skipAppQueue) {
+    const queueFlags = [
+      args.apply ? '--apply' : '',
+      '--briefings-in logs/site-roster-briefings-artifact.json',
+      '--artifact-out logs/site-roster-queue-model-artifact.json',
+      args.organizationId ? `--organization-id ${args.organizationId}` : '',
+    ].filter(Boolean).join(' ')
+
+    steps.push({
+      phase: 'Phase 4.1 - App queue model sync',
+      command: `node scripts/build-bob-enrichment-queue-model.mjs ${queueFlags}`,
+    })
+  }
+
+  const selfLearnFlags = [
+    '--enrichment logs/site-roster-enrichment-artifact.json',
+    '--briefings logs/site-roster-briefings-artifact.json',
+    '--queue logs/site-roster-queue-model-artifact.json',
+    '--artifact-out logs/bob-self-learning-artifact.json',
+    args.apply ? '--write-lessons' : '',
+  ].filter(Boolean).join(' ')
+
+  steps.push({
+    phase: 'Phase 4.2 - Bob self-learning loop',
+    command: `node scripts/bob-self-learn-from-enrichment.mjs ${selfLearnFlags}`,
   })
 
   if (args.polygonInput) {
@@ -410,6 +443,7 @@ async function main() {
       skipIntake: args.skipIntake,
       skipBootstrap: args.skipBootstrap,
       skipValidation: args.skipValidation,
+      skipAppQueue: args.skipAppQueue,
       sinceDate: args.sinceDate || null,
       allowUncertainWrites: args.allowUncertainWrites,
     },
@@ -421,6 +455,14 @@ async function main() {
     appBriefings: {
       artifactPath: 'logs/site-roster-briefings-artifact.json',
       summary: briefingArtifact?.summary || null,
+    },
+    appQueueModel: {
+      artifactPath: 'logs/site-roster-queue-model-artifact.json',
+      summary: readJsonFileIfExists('logs/site-roster-queue-model-artifact.json')?.summary || null,
+    },
+    selfLearning: {
+      artifactPath: 'logs/bob-self-learning-artifact.json',
+      summary: readJsonFileIfExists('logs/bob-self-learning-artifact.json') || null,
     },
     blockers,
     degraded: blockers.length > 0,

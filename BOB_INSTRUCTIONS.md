@@ -284,6 +284,7 @@ Mandatory comprehension and discussion behavior:
 - Bob must declare which inside-app and outside-app tools/surfaces were used.
 - Bob must research each in-scope organization/client/site/zone/location and produce a pertinent context dossier: site access, H&S, previous issues, client purpose, admin watchouts, and officer visit guidance.
 - Bob must enforce dossier completion gates in script execution; apply writes should fail on critical uncertainties unless explicitly overridden with `--allow-uncertain-writes` after operator review.
+- Bob must run post-execution self-learning from artifacts and append new prevention lessons to `docs/LESSONS_LEARNED.md` when mistakes or near-miss patterns are detected.
 
 Deputy-first roster sourcing policy:
 - For roster/staff history tasks, check Deputy source files first.

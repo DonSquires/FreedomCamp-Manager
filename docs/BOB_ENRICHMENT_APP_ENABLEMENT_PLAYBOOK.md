@@ -102,6 +102,14 @@ Briefing artifact expectation:
 - Include a compact `uiBadge` object per briefing (`confidence`, `provenance`, `hasWarning`, `label`) plus a summary-level `uiBadge` for direct card/header rendering.
 - Include per-site `dataManagementActions` to guide app behavior (`adminQueueAction`, `officerUsageMode`, `requiresHumanReview`, `staleAfterHours`) and summary counts for review/publish queues.
 
+Autonomous app queue sync expectation:
+- Build queue-model artifact from briefings (default: `logs/site-roster-queue-model-artifact.json`).
+- In apply mode, publish queue rows into `ai_import_intakes` with `source_system=bob-enrichment-queue-model` and `review_pending/staged` status by confidence policy.
+
+Self-learning expectation:
+- Run a post-enrichment self-learning pass and emit `logs/bob-self-learning-artifact.json`.
+- In apply mode, append new mistake-prevention lessons to `docs/LESSONS_LEARNED.md` when derived lessons are detected.
+
 ## 8) Completion Gate
 
 App enablement is complete only when:

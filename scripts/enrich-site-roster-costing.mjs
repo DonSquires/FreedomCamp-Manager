@@ -418,7 +418,7 @@ function buildBriefingsArtifact(dossiers, args, incidentContext) {
     const hasCritical = dossier.evidence.criticalUncertainties.length > 0
     const adminQueueAction = hasCritical
       ? 'review_required'
-      : (dossier.evidence.confidence === 'low' ? 'review_required' : 'ready_for_publish')
+      : (dossier.evidence.confidence === 'high' ? 'ready_for_publish' : 'review_required')
     const officerUsageMode = hasCritical
       ? 'hold_for_supervisor_review'
       : (dossier.evidence.confidence === 'high' ? 'operational_primary' : 'advisory_with_confirmation')
@@ -441,7 +441,7 @@ function buildBriefingsArtifact(dossiers, args, incidentContext) {
     dataManagementActions: {
       adminQueueAction,
       officerUsageMode,
-      requiresHumanReview: hasCritical || dossier.evidence.confidence === 'low',
+      requiresHumanReview: hasCritical || dossier.evidence.confidence !== 'high',
       staleAfterHours: 168,
     },
     adminBriefing: {

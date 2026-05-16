@@ -82,3 +82,4 @@ Use this file to record concrete mistakes Bob and Dr Bob found during adversaria
 - Risk: Bob can invent module structure and mislead implementation planning.
 - Fix: added blocker review flow, truth protocol checks, and failure summarization.
 - Prevention Rule: any module path not grounded in repo files or `system_state.json` must be treated as unverified and blocked.
+
