@@ -23,6 +23,7 @@ Options:
   --organization-id <id>   Optional org override for intake apply.
   --since-date <YYYY-MM-DD> Optional roster history floor for site enrichment.
   --allow-uncertain-writes Allow site enrichment writes to proceed despite dossier gate blockers.
+  --allow-critical-lessons Continue even when self-learning detects critical lessons.
   --skip-app-queue         Skip app queue model generation/publish step.
   --polygon-input <file>   Optional GeoJSON input path for polygon conversion.
   --artifact-out <file>    Optional JSON artifact output path.
@@ -43,6 +44,7 @@ function parseArgs(argv) {
     organizationId: '',
     sinceDate: '',
     allowUncertainWrites: false,
+    allowCriticalLessons: false,
     skipAppQueue: false,
     polygonInput: '',
     artifactOut: 'logs/enrichment-training-artifact.json',
@@ -115,6 +117,10 @@ function parseArgs(argv) {
     }
     if (token === '--allow-uncertain-writes') {
       args.allowUncertainWrites = true
+      continue
+    }
+    if (token === '--allow-critical-lessons') {
+      args.allowCriticalLessons = true
       continue
     }
     if (token === '--polygon-input' && argv[i + 1]) {
@@ -424,6 +430,7 @@ async function main() {
 
   const rosterArtifact = readJsonFileIfExists('logs/site-roster-enrichment-artifact.json')
   const briefingArtifact = readJsonFileIfExists('logs/site-roster-briefings-artifact.json')
+  const selfLearningArtifact = readJsonFileIfExists('logs/bob-self-learning-artifact.json')
   const rosterGate = rosterArtifact?.dossierCompletionGate || null
   if (rosterGate && rosterGate.pass === false) {
     blockers.push({
@@ -431,6 +438,16 @@ async function main() {
       command: 'node scripts/enrich-site-roster-costing.mjs ...',
       error: `Dossier gate blockers: ${rosterGate.dossiersWithCriticalUncertainty}`,
       nonBlocking: Boolean(args.allowUncertainWrites),
+    })
+  }
+
+  const criticalLessons = Number(selfLearningArtifact?.severityCounts?.critical || 0)
+  if (criticalLessons > 0 && !args.allowCriticalLessons) {
+    blockers.push({
+      phase: 'Phase 4.2 - Bob self-learning loop',
+      command: 'node scripts/bob-self-learn-from-enrichment.mjs ...',
+      error: `Critical lessons detected: ${criticalLessons}`,
+      nonBlocking: false,
     })
   }
 
@@ -446,6 +463,7 @@ async function main() {
       skipAppQueue: args.skipAppQueue,
       sinceDate: args.sinceDate || null,
       allowUncertainWrites: args.allowUncertainWrites,
+      allowCriticalLessons: args.allowCriticalLessons,
     },
     stepReports,
     rosterEnrichment: {
@@ -462,7 +480,7 @@ async function main() {
     },
     selfLearning: {
       artifactPath: 'logs/bob-self-learning-artifact.json',
-      summary: readJsonFileIfExists('logs/bob-self-learning-artifact.json') || null,
+      summary: selfLearningArtifact || null,
     },
     blockers,
     degraded: blockers.length > 0,

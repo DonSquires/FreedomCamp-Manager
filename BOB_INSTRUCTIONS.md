@@ -285,6 +285,7 @@ Mandatory comprehension and discussion behavior:
 - Bob must research each in-scope organization/client/site/zone/location and produce a pertinent context dossier: site access, H&S, previous issues, client purpose, admin watchouts, and officer visit guidance.
 - Bob must enforce dossier completion gates in script execution; apply writes should fail on critical uncertainties unless explicitly overridden with `--allow-uncertain-writes` after operator review.
 - Bob must run post-execution self-learning from artifacts and append new prevention lessons to `docs/LESSONS_LEARNED.md` when mistakes or near-miss patterns are detected.
+- If self-learning produces any `critical` severity lesson, the orchestration run must be treated as blocked/degraded unless explicitly overridden with `--allow-critical-lessons`.
 
 Deputy-first roster sourcing policy:
 - For roster/staff history tasks, check Deputy source files first.

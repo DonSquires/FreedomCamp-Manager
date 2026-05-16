@@ -95,6 +95,7 @@ function buildDerivedLessons(enrichment, briefings, queue) {
   const ready = Number(briefings?.summary?.managementActions?.readyForPublishCount || 0)
   if (medium > 0 && ready > 0) {
     lessons.push({
+      severity: 'high',
       trigger: 'site-roster-briefings-artifact management summary',
       mistake: 'Medium-confidence briefings were routed to ready_for_publish instead of review_required.',
       risk: 'Admins can treat advisory confidence as approved truth, causing weak-confidence operational decisions.',
@@ -106,6 +107,7 @@ function buildDerivedLessons(enrichment, briefings, queue) {
   const dossierFailures = Number(enrichment?.dossierCompletionGate?.dossiersWithCriticalUncertainty || 0)
   if (dossierFailures > 0) {
     lessons.push({
+      severity: 'critical',
       trigger: 'site-roster-enrichment dossier completion gate',
       mistake: `Critical uncertainties were present for ${dossierFailures} site dossier(s).`,
       risk: 'Applying uncertain ownership/boundary/safety context can misdirect enforcement and officer decisions.',
@@ -116,6 +118,7 @@ function buildDerivedLessons(enrichment, briefings, queue) {
 
   if (enrichment?.incidentContext?.warning) {
     lessons.push({
+      severity: 'medium',
       trigger: 'incident context fetch warning',
       mistake: `Incident linkage source failed: ${enrichment.incidentContext.warning}`,
       risk: 'Previous-issues briefing can become incomplete or misleading.',
@@ -129,6 +132,7 @@ function buildDerivedLessons(enrichment, briefings, queue) {
   const skippedExisting = Number(queue?.summary?.published?.skippedExisting || 0)
   if (queue?.mode === 'apply' && queueRows > 0 && inserted === 0 && skippedExisting === 0) {
     lessons.push({
+      severity: 'high',
       trigger: 'queue model apply publish result',
       mistake: 'No new queue rows were published during apply despite available queue rows.',
       risk: 'App review queue may silently stall and stop reflecting new enrichment context.',
@@ -161,6 +165,7 @@ function appendLessonsIfNeeded(lessonsFilePath, lessons) {
     const block = [
       '',
       `- Date: ${today}`,
+      `- Severity: ${lesson.severity || 'medium'}`,
       `- Trigger: ${lesson.trigger}`,
       `- Mistake: ${lesson.mistake}`,
       `- Risk: ${lesson.risk}`,
@@ -194,6 +199,12 @@ async function main() {
   const queue = readJsonIfExists(args.queue)
 
   const derivedLessons = buildDerivedLessons(enrichment, briefings, queue)
+  const severityCounts = {
+    critical: derivedLessons.filter((lesson) => lesson.severity === 'critical').length,
+    high: derivedLessons.filter((lesson) => lesson.severity === 'high').length,
+    medium: derivedLessons.filter((lesson) => lesson.severity === 'medium').length,
+    low: derivedLessons.filter((lesson) => lesson.severity === 'low').length,
+  }
   const lessonWrite = args.writeLessons
     ? appendLessonsIfNeeded(args.lessonsFile, derivedLessons)
     : { appended: 0, skippedExisting: 0 }
@@ -208,6 +219,7 @@ async function main() {
       lessonsFile: args.lessonsFile,
     },
     derivedLessons,
+    severityCounts,
     lessonWrite,
   }
 
@@ -215,6 +227,7 @@ async function main() {
 
   console.log('[Summary]')
   console.log(`  derived_lessons: ${derivedLessons.length}`)
+  console.log(`  critical_lessons: ${severityCounts.critical}`)
   console.log(`  lessons_appended: ${lessonWrite.appended}`)
   console.log(`  lessons_skipped_existing: ${lessonWrite.skippedExisting}`)
 }
