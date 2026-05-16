@@ -29,6 +29,30 @@ Options:
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
+const TRAINING_PACKS = [
+  'docs/BOB_ENRICHMENT_DOCUMENT_ASSIGNMENT_PLAYBOOK.md',
+  'docs/BOB_DOCUMENT_TYPE_INTELLIGENCE_PLAYBOOK.md',
+  'docs/BOB_DOCUMENT_COMPREHENSION_AND_DISCUSSION_PROTOCOL.md',
+  'docs/BOB_CLIENT_SITE_ZONE_RESEARCH_PLAYBOOK.md',
+  'docs/BOB_APP_DATA_ENRICHMENT_CONSUMPTION_PLAYBOOK.md',
+  'docs/BOB_ENRICHMENT_APP_ENABLEMENT_PLAYBOOK.md',
+]
+
+const DOCUMENT_ASSIGNMENTS = [
+  { label: 'AUTHORITATIVE', path: 'system_state.json' },
+  { label: 'AUTHORITATIVE', path: 'docs/DECISIONS.md' },
+  { label: 'AUTHORITATIVE', path: 'docs/STAGING.md' },
+  { label: 'OPERATIONAL', path: 'docs/BIB_STORAGE_DATA_ENTRY_PLAYBOOK.md' },
+  { label: 'OPERATIONAL', path: 'docs/BOB_ENRICHMENT_DOCUMENT_ASSIGNMENT_PLAYBOOK.md' },
+  { label: 'OPERATIONAL', path: 'docs/BOB_ENRICHMENT_APP_ENABLEMENT_PLAYBOOK.md' },
+  { label: 'IMPLEMENTATION', path: 'scripts/enrich-site-roster-costing.mjs' },
+  { label: 'IMPLEMENTATION', path: 'scripts/run-enrichment-bob-app-training.mjs' },
+  { label: 'IMPLEMENTATION', path: 'scripts/build-bob-enrichment-queue-model.mjs' },
+  { label: 'IMPLEMENTATION', path: 'scripts/bob-self-learn-from-enrichment.mjs' },
+  { label: 'EVIDENCE', path: 'logs/site-roster-enrichment-artifact.json' },
+  { label: 'EVIDENCE', path: 'logs/site-roster-briefings-artifact.json' },
+]
+
 function parseArgs(argv) {
   const args = {
     apply: false,
@@ -147,6 +171,117 @@ function writeArtifact(filePath, payload) {
   fs.mkdirSync(path.dirname(resolved), { recursive: true })
   fs.writeFileSync(resolved, `${JSON.stringify(payload, null, 2)}\n`, 'utf8')
   console.log(`Artifact written: ${resolved}`)
+}
+
+function buildPreflightPacket(args) {
+  return {
+    trainingPacksApplied: TRAINING_PACKS,
+    documentAssignments: DOCUMENT_ASSIGNMENTS,
+    candidateDocuments: [
+      'Any new roster/reference documents not yet grounded in STAGING, DECISIONS, or live script behavior.',
+    ],
+    planningLanes: [
+      {
+        lane: 'B',
+        name: 'Data and ownership modeling',
+        sources: [
+          'docs/STAGING.md',
+          'docs/DECISIONS.md',
+          'scripts/enrich-site-roster-costing.mjs',
+        ],
+        output: 'Org/client/site ownership model and roster-derived enrichment targets.',
+      },
+      {
+        lane: 'C',
+        name: 'Geospatial enforcement constraints',
+        sources: [
+          'docs/STAGING.md',
+          'docs/BOB_CLIENT_SITE_ZONE_RESEARCH_PLAYBOOK.md',
+          'scripts/enrich-site-roster-costing.mjs',
+        ],
+        output: 'Polygon-first jurisdiction and site-boundary confidence gating.',
+      },
+      {
+        lane: 'D',
+        name: 'App consumption readiness',
+        sources: [
+          'docs/BOB_APP_DATA_ENRICHMENT_CONSUMPTION_PLAYBOOK.md',
+          'docs/BOB_ENRICHMENT_APP_ENABLEMENT_PLAYBOOK.md',
+          'logs/site-roster-briefings-artifact.json',
+        ],
+        output: 'Admin/officer briefing outputs with confidence-aware usage modes.',
+      },
+    ],
+    selectedScope: {
+      trainingScope: args.globalTraining ? 'global' : 'organization_or_all',
+      organizationId: args.organizationId || null,
+      sinceDate: args.sinceDate || null,
+      createMissingEntities: args.createMissingEntities,
+      seedUserClientsSites: args.seedUserClientsSites,
+      allowUncertainWrites: args.allowUncertainWrites,
+      targetUserIds: args.userIds,
+    },
+    executionPlan: [
+      {
+        order: 1,
+        phase: 'Load roster and site context',
+        command: 'fetch client_sites + roster_shifts + org/zone context',
+      },
+      {
+        order: 2,
+        phase: 'Build research dossiers',
+        command: 'summarize sites + derive research dossiers + dossier completion gate',
+      },
+      {
+        order: 3,
+        phase: 'Emit app briefings',
+        command: 'build admin/officer briefing artifact with confidence-aware actions',
+      },
+      {
+        order: 4,
+        phase: 'Optionally apply writes',
+        command: 'apply site defaults and roster rate backfill only when policy gates allow',
+      },
+    ],
+    preExecutionBlockers: [],
+    goNoGo: 'go',
+  }
+}
+
+function buildArtifactBlockers(dossierCompletionGate, incidentContext) {
+  const blockers = dossierCompletionGate.blockers.map((blocker) => ({
+    phase: 'Build research dossiers',
+    siteId: blocker.siteId,
+    siteName: blocker.siteName,
+    error: `Critical uncertainties: ${blocker.issues.join(', ')}`,
+    issues: blocker.issues,
+    nonBlocking: false,
+  }))
+
+  if (incidentContext.warning) {
+    blockers.push({
+      phase: 'Incident context sourcing',
+      siteId: null,
+      siteName: null,
+      error: incidentContext.warning,
+      issues: ['incident_context_warning'],
+      nonBlocking: true,
+    })
+  }
+
+  return blockers
+}
+
+function buildStrictSignOff(blockers, dossierCompletionGate) {
+  const unresolvedBlockers = blockers.filter((blocker) => !blocker.nonBlocking)
+  const degraded = blockers.length > 0
+
+  return {
+    dossierCompletionPassed: Boolean(dossierCompletionGate?.pass),
+    unresolvedBlockerCount: unresolvedBlockers.length,
+    degraded,
+    ready: Boolean(dossierCompletionGate?.pass) && unresolvedBlockers.length === 0 && degraded === false,
+  }
 }
 
 async function fetchClientSites(supabase, organizationId) {
@@ -1253,6 +1388,9 @@ async function main() {
   }
   const researchDossiers = buildSiteResearchDossiers(siteSummaries, orgMap, zoneMap, incidentContext)
   const dossierCompletionGate = buildDossierCompletionGate(researchDossiers)
+  const preflight = buildPreflightPacket(args)
+  const blockers = buildArtifactBlockers(dossierCompletionGate, incidentContext)
+  const strictSignOff = buildStrictSignOff(blockers, dossierCompletionGate)
 
   if (args.apply && !args.allowUncertainWrites && !dossierCompletionGate.pass) {
     throw new Error(`Dossier completion gate failed: ${dossierCompletionGate.dossiersWithCriticalUncertainty} site(s) have critical uncertainties. Re-run with --allow-uncertain-writes only after review.`)
@@ -1283,6 +1421,7 @@ async function main() {
   const artifact = {
     runAt: new Date().toISOString(),
     mode: args.apply ? 'apply' : 'dry-run',
+    preflight,
     scope: {
       trainingScope: args.globalTraining ? 'global' : 'organization_or_all',
       organizationId: args.organizationId || null,
@@ -1297,6 +1436,9 @@ async function main() {
       warning: incidentContext.warning,
     },
     dossierCompletionGate,
+    blockers,
+    degraded: blockers.length > 0,
+    strictSignOff,
     writes: writeSummary,
     researchDossiers,
     sites: siteSummaries.map((site) => ({

@@ -189,6 +189,120 @@ function requireEnvForApply(args) {
   }
 }
 
+const TRAINING_PACKS = [
+  'docs/BOB_ENRICHMENT_DOCUMENT_ASSIGNMENT_PLAYBOOK.md',
+  'docs/BOB_DOCUMENT_TYPE_INTELLIGENCE_PLAYBOOK.md',
+  'docs/BOB_DOCUMENT_COMPREHENSION_AND_DISCUSSION_PROTOCOL.md',
+  'docs/BOB_CLIENT_SITE_ZONE_RESEARCH_PLAYBOOK.md',
+  'docs/BOB_APP_DATA_ENRICHMENT_CONSUMPTION_PLAYBOOK.md',
+  'docs/BOB_ENRICHMENT_APP_ENABLEMENT_PLAYBOOK.md',
+]
+
+const DOCUMENT_ASSIGNMENTS = [
+  { label: 'AUTHORITATIVE', path: 'system_state.json' },
+  { label: 'AUTHORITATIVE', path: 'docs/DECISIONS.md' },
+  { label: 'AUTHORITATIVE', path: 'docs/STAGING.md' },
+  { label: 'OPERATIONAL', path: 'docs/BIB_STORAGE_DATA_ENTRY_PLAYBOOK.md' },
+  { label: 'OPERATIONAL', path: 'docs/BOB_ENRICHMENT_DOCUMENT_ASSIGNMENT_PLAYBOOK.md' },
+  { label: 'OPERATIONAL', path: 'docs/BOB_ENRICHMENT_APP_ENABLEMENT_PLAYBOOK.md' },
+  { label: 'IMPLEMENTATION', path: 'scripts/run-enrichment-bob-app-training.mjs' },
+  { label: 'IMPLEMENTATION', path: 'scripts/backfill-bob-intakes-from-storage.mjs' },
+  { label: 'IMPLEMENTATION', path: 'scripts/bootstrap-marlborough-parking.mjs' },
+  { label: 'IMPLEMENTATION', path: 'scripts/enrich-site-roster-costing.mjs' },
+  { label: 'IMPLEMENTATION', path: 'scripts/build-bob-enrichment-queue-model.mjs' },
+  { label: 'IMPLEMENTATION', path: 'scripts/bob-self-learn-from-enrichment.mjs' },
+  { label: 'IMPLEMENTATION', path: 'scripts/geo-boundary-transition-test.mjs' },
+  { label: 'IMPLEMENTATION', path: 'scripts/bob-capability-gate.mjs' },
+  { label: 'EVIDENCE', path: 'logs/enrichment-training-artifact.json' },
+]
+
+const PLANNING_LANES = [
+  {
+    lane: 'A',
+    name: 'Intake and discovery',
+    sources: [
+      'docs/BIB_STORAGE_DATA_ENTRY_PLAYBOOK.md',
+      'scripts/backfill-bob-intakes-from-storage.mjs',
+    ],
+    output: 'Bucket/prefix batching strategy and org resolution approach.',
+  },
+  {
+    lane: 'B',
+    name: 'Data and ownership modeling',
+    sources: [
+      'docs/STAGING.md',
+      'scripts/bootstrap-marlborough-parking.mjs',
+      'docs/DECISIONS.md',
+    ],
+    output: 'Org/client/site ownership model and bootstrap prerequisites.',
+  },
+  {
+    lane: 'C',
+    name: 'Geospatial enforcement constraints',
+    sources: [
+      'docs/STAGING.md',
+      'scripts/geo-boundary-transition-test.mjs',
+    ],
+    output: 'Polygon-first boundary validation gates and transition checkpoints.',
+  },
+  {
+    lane: 'D',
+    name: 'Runtime validation and readiness',
+    sources: [
+      'scripts/run-enrichment-bob-app-training.mjs',
+      'scripts/bob-capability-gate.mjs',
+      'logs/enrichment-training-artifact.json',
+    ],
+    output: 'Strict sign-off decision with blocker handling and degraded-state awareness.',
+  },
+]
+
+function buildPreflightPacket(args, steps) {
+  return {
+    trainingPacksApplied: TRAINING_PACKS,
+    documentAssignments: DOCUMENT_ASSIGNMENTS,
+    candidateDocuments: [
+      'Any new manual/uploaded documents not yet grounded in STAGING, DECISIONS, or script truth.',
+    ],
+    planningLanes: PLANNING_LANES,
+    selectedScope: {
+      bucket: args.bucket,
+      prefix: args.prefix,
+      limit: Number(args.limit),
+      organizationId: args.organizationId || null,
+      sinceDate: args.sinceDate || null,
+      withFeeds: args.withFeeds,
+      withAppChecks: args.withAppChecks,
+      skipIntake: args.skipIntake,
+      skipBootstrap: args.skipBootstrap,
+      skipValidation: args.skipValidation,
+      skipAppQueue: args.skipAppQueue,
+    },
+    executionPlan: steps.map((step, index) => ({
+      order: index + 1,
+      phase: step.phase,
+      command: step.command,
+      allowFailure: Boolean(step.allowFailure),
+    })),
+    preExecutionBlockers: [],
+    goNoGo: 'go',
+  }
+}
+
+function buildStrictSignOff(stepReports, blockers) {
+  const boundaryStep = stepReports.find((step) => step.phase === 'Phase 6 - Spatial boundary test')
+  const boundaryPassed = boundaryStep ? boundaryStep.success === true : false
+  const unresolvedBlockers = blockers.filter((blocker) => !blocker.nonBlocking)
+  const degraded = blockers.length > 0
+
+  return {
+    boundaryTransitionPassed: boundaryPassed,
+    unresolvedBlockerCount: unresolvedBlockers.length,
+    degraded,
+    ready: boundaryPassed && unresolvedBlockers.length === 0 && degraded === false,
+  }
+}
+
 function buildIntakeCommand(args, apply) {
   const base = apply
     ? 'node scripts/backfill-bob-intakes-from-storage.mjs --apply'
@@ -433,9 +547,22 @@ async function main() {
   requireEnvForApply(args)
 
   const steps = plan(args)
+  const preflight = buildPreflightPacket(args, steps)
   printPlan(steps, args)
 
   if (!args.apply) {
+    writeArtifact(args.artifactOut, {
+      runAt: new Date().toISOString(),
+      mode: 'dry-run',
+      preflight,
+      blockers: [],
+      strictSignOff: {
+        boundaryTransitionPassed: false,
+        unresolvedBlockerCount: 0,
+        degraded: false,
+        ready: false,
+      },
+    })
     console.log('\nDry-run only. Re-run with --apply to execute.')
     return
   }
@@ -480,9 +607,12 @@ async function main() {
     })
   }
 
+  const strictSignOff = buildStrictSignOff(stepReports, blockers)
+
   writeArtifact(args.artifactOut, {
     runAt: new Date().toISOString(),
     mode: args.apply ? 'apply' : 'dry-run',
+    preflight,
     settings: {
       withFeeds: args.withFeeds,
       withAppChecks: args.withAppChecks,
@@ -514,6 +644,7 @@ async function main() {
     },
     blockers,
     degraded: blockers.length > 0,
+    strictSignOff,
   })
 
   console.log('\nCompleted enrichment + Bob training + app training workflow.')
