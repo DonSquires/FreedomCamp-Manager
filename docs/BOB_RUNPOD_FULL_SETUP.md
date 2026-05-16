@@ -73,7 +73,8 @@ ollama list
 
 ### Step 2: Load Training Configuration
 ```bash
-node scripts/bob-load-training.mjs
+bun run bob:feed-all
+bun run bob:auto-ingest
 ```
 
 This loads:
@@ -108,7 +109,9 @@ This loads:
 #    - Deep-functional tests
 
 # Verify tool availability:
-node scripts/validate-bob-tools.mjs
+bun run bob:doctor:any-container
+bun run bob:capabilities
+bun run test:bob:governance
 ```
 
 ---
@@ -133,7 +136,8 @@ ls docs/adr/
 ### Step 3: Activate Self-Healing System
 ```bash
 # Bob's self-correction loop keeps her aligned with repo state
-bash scripts/bob-health-monitor.sh --enable-auto-heal
+bun run bob:self-heal-bridge
+bun run bob:autonomous-cycle
 ```
 
 ---
@@ -158,17 +162,23 @@ node scripts/bob-direct-chat.mjs "What are the key Routes in this app?"
 ### Run Bob-Assisted Tests
 ```bash
 # Bob evaluates test failures and suggests fixes
-npm run test
+bun run test
 
 # Or run specific test suite:
-PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium-browser \
-node node_modules/playwright/cli.js test tests/e2e/visual-regression.spec.ts
+bash scripts/playwright-bob-runtime.sh bunx playwright test tests/e2e/visual-regression.spec.ts --project=chromium --workers=1
+```
+
+### Translation Validation (D2)
+```bash
+# Validate translation/speech boundaries when translation quality degrades
+bash scripts/playwright-bob-runtime.sh bunx playwright test tests/e2e/phase-d2-translation-speech-boundaries.spec.ts --project=chromium --workers=1 --reporter=line
 ```
 
 ### Knowledge Base Updates
 ```bash
 # When schema changes, push knowledge to Bob
-node scripts/push-schema-knowledge.mjs <table-name>
+bun run bob:feed-context
+bun run bob:auto-ingest
 ```
 
 ---
@@ -256,7 +266,7 @@ curl -i "${INFERENCE_SERVICE_URL}/runsync" \
 ```bash
 # For high-volume workloads, deploy multiple RunPod endpoints
 # and load-balance across them via:
-INFERENCE_ENDPOINTS="https://api.runpod.io/v2/endpoint1|https://api.runpod.io/v2/endpoint2"
+INFERENCE_ENDPOINTS="https://api.runpod.ai/v2/endpoint1|https://api.runpod.ai/v2/endpoint2"
 BOB_LOAD_BALANCER_MODE="round-robin"
 ```
 
@@ -266,7 +276,8 @@ BOB_LOAD_BALANCER_MODE="round-robin"
 export BOB_SUPERVISOR_STATE_FILE=.runtime/bob-supervisor.json
 export BOB_SUPERVISOR_ACTIVITY_FILE=.runtime/bob-activity.touch
 
-bash scripts/bob-health-monitor.sh --enable-monitoring
+bun run runpod:bob:supervisor:once
+bun run bob:monitor
 ```
 
 ### Persisting State
@@ -291,7 +302,7 @@ After setup, verify:
 3. ✅ Chat works: `{"input":{"action":"chat","message":"hello"}}`
 4. ✅ Training data visible: `docs/BOB_BRAIN_DUMP.md` > 50KB
 5. ✅ ADRs indexed: `find docs/adr -type f | wc -l` > 3
-6. ✅ Tests pass: `npm run test` exits 0
+6. ✅ Tests pass: `bun run test` exits 0
 7. ✅ Bob assists on failures: response_scores logged
 
 **Bob is ready for production.** 🚀

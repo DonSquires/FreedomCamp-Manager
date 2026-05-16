@@ -78,7 +78,7 @@ Material changes since the prior mainline CI remediation cycle:
 
 1. `enterprise-console` is not a canonical live route in the current router topology and must not be used as an operational validation anchor.
 2. Monitoring operations are represented by Dispatch Monitor for live queue oversight and Alarm Events for inbound alarm triage.
-3. Bob operational UI validation remains split across `/bob-assistant` and `/grandmaster-coding-studio` depending on role.
+3. Bob operational UI validation remains split across `/bob-assistant` and `/grandmaster-code-studio` depending on role.
 
 ### Validation Notes
 

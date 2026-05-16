@@ -1151,7 +1151,7 @@ New manifest entries added in Sprint 64 (B-210 through B-222):
 
 2. Bob web validation route surfaces
    - Bob operator validation remains anchored on `/bob-assistant` for admin workflows.
-   - Grand master automation validation remains anchored on `/grandmaster-coding-studio`.
+   - Grand master automation validation remains anchored on `/grandmaster-code-studio`.
 
 3. CI implication
    - Monitoring smoke and Bob self-test coverage must target live routed surfaces from `src/App.tsx`, not retired or inferred aliases.
