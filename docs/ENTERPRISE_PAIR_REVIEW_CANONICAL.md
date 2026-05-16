@@ -85,6 +85,27 @@ Material changes since the prior mainline CI remediation cycle:
 1. Repository-side test discovery succeeded for Bob web service coverage after the setup hardening change.
 2. Local Chromium execution in this Alpine container remains blocked by a Playwright browser launch path issue after download; this is an environment-specific validation blocker, not a route or test-selector regression.
 
+## Current Cycle Snapshot (2026-05-16)
+
+Material changes in the Bob runtime contract cycle:
+
+### Bob Runtime and Tool Schema Alignment
+
+1. Runtime orchestration in `src/lib/bobEngine.ts` was updated to align with the canonical tool invocation contract.
+2. Shared schema definitions in `supabase/functions/_shared/bobToolSchemas.ts` were updated to keep edge validation and runtime payload expectations in sync.
+3. RunPod worker handling in `runpod-worker/handler.js` was updated so serverless execution behavior remains aligned with Bob tool schema validation.
+
+### Governance and Risk Impact
+
+1. This cycle is architecture-impacting for Bob tool-call execution semantics and validation boundaries.
+2. Tenant isolation expectations remain unchanged: organisation context is still mandatory for scoped operations.
+3. No route topology changes were introduced in this cycle.
+
+### Validation Notes
+
+1. Doc-authority governance is satisfied by updating both the instruction manual and this canonical record in the same change set.
+2. The Bob runtime contract remains server-side authoritative for privileged operations.
+
 ## Current Cycle Snapshot (2026-05-06)
 
 Material changes since commit `04b65a3d` (Sprint 14 — OnCallPeriods, CalloutShifts, OfficerAllowances, TravelAllowances):

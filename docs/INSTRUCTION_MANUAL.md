@@ -7,7 +7,7 @@
 > **Canonical product authority** — this manual defines what the application is intended to do and how users are meant to use it. It is not a passive dump of current implementation details.  
 > If code, routes, role behavior, workflows, edge functions, schema-backed user flows, or operational UX change, the corresponding sections in this manual must be updated in the same change set.  
 > If the app currently behaves differently from this manual, that drift is a defect to resolve or an explicit product decision to document here first.  
-> Last reviewed: 2026-05-13
+> Last reviewed: 2026-05-16
 
 ---
 
@@ -2725,6 +2725,23 @@ Environment variable: `OLLAMA_BASE_URL=http://ollama:11434` (use service name in
 | `triage` | Operational triage — priority ranking of open work |
 
 > **Note**: Bob operates in **serverless mode** via `/runsync` actions. The `health` endpoint (`GET /health`) is pod-only and is not available in serverless mode.
+
+#### Bob Safe Runtime and Tool Invocation Contract
+
+The Bob runtime must execute tools through a strict, schema-validated contract shared across:
+
+- Browser/runtime orchestration (`src/lib/bobEngine.ts`)
+- Edge function shared schemas (`supabase/functions/_shared/bobToolSchemas.ts`)
+- RunPod worker handler (`runpod-worker/handler.js`)
+
+Operational requirements:
+
+1. Tool calls are validated against canonical JSON schema before execution.
+2. Unknown tool names or invalid payloads must return structured errors, not silent fall-through.
+3. Tenant-scoped operations must preserve organisation context and never execute cross-org by default.
+4. Background or privileged Bob operations must remain server-side with service-role authorization only.
+
+When any of the above runtime surfaces change, this section and the canonical architecture references must be updated in the same change set.
 
 ---
 
