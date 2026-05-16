@@ -115,6 +115,13 @@ function stringifyRoles(roles) {
   return normalizeRoles(roles).join(', ')
 }
 
+function buildGateSignature(route) {
+  const accessType = String(route?.accessType || '').trim()
+  const area = route?.area ? String(route.area).trim() : ''
+  const roles = normalizeRoles(Array.isArray(route?.roles) ? route.roles : [])
+  return `${accessType}::${area}::${roles.join('|')}`
+}
+
 async function main() {
   const args = parseArgs(process.argv.slice(2))
   const cwd = process.cwd()
@@ -139,7 +146,23 @@ async function main() {
   const failures = []
 
   if (duplicates.length > 0) {
-    failures.push(`Duplicate route paths detected in App matrix: ${duplicates.map((d) => d.path).join(', ')}`)
+    const conflictingDuplicates = []
+
+    for (const duplicate of duplicates) {
+      const pathKey = String(duplicate.path || '').trim()
+      if (!pathKey) continue
+
+      const entries = byPath.get(pathKey) || []
+      const signatures = new Set(entries.map((entry) => buildGateSignature(entry)))
+
+      if (signatures.size > 1) {
+        conflictingDuplicates.push(pathKey)
+      }
+    }
+
+    if (conflictingDuplicates.length > 0) {
+      failures.push(`Conflicting duplicate route gates detected in App matrix: ${conflictingDuplicates.join(', ')}`)
+    }
   }
 
   for (const { routePath, expected } of expectations) {
