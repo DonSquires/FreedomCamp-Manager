@@ -238,41 +238,83 @@ async function fetchZonesMap(supabase, zoneIds) {
   return map
 }
 
-async function fetchIncidentCountsBySite(supabase, siteIds) {
-  const ids = Array.from(new Set(siteIds.filter(Boolean)))
+async function fetchIncidentContextBySite(supabase, siteSummaries) {
+  const siteIds = Array.from(new Set(siteSummaries.map((site) => site.siteId).filter(Boolean)))
+  const siteZonePairs = siteSummaries
+    .filter((site) => site.siteId && site.zoneId)
+    .map((site) => ({ siteId: site.siteId, zoneId: site.zoneId }))
   const counts = new Map()
-  if (!ids.length) return counts
 
-  for (const idsChunk of chunk(ids, 100)) {
+  if (!siteIds.length) {
+    return { counts, source: 'none', warning: null }
+  }
+
+  // Preferred source: direct site linkage table.
+  for (const idsChunk of chunk(siteIds, 100)) {
     const { data, error } = await supabase
-      .from('incidents')
+      .from('site_incidents')
       .select('id, client_site_id')
       .in('client_site_id', idsChunk)
 
     if (error) {
-      // Incidents table may differ in some deployments; keep enrichment flow running.
-      console.warn(`Warning: unable to load incidents for dossier context: ${error.message}`)
-      return counts
+      break
     }
 
     for (const row of data || []) {
       const key = row.client_site_id
+      if (!key) continue
       counts.set(key, (counts.get(key) || 0) + 1)
     }
   }
 
-  return counts
+  if (counts.size > 0) {
+    return { counts, source: 'site_incidents', warning: null }
+  }
+
+  // Fallback source: incidents linked to zones, then mapped back to sites by zone.
+  const zoneIds = Array.from(new Set(siteZonePairs.map((entry) => entry.zoneId).filter(Boolean)))
+  const zoneCounts = new Map()
+
+  if (zoneIds.length > 0) {
+    for (const idsChunk of chunk(zoneIds, 100)) {
+      const { data, error } = await supabase
+        .from('incidents')
+        .select('id, zone_id')
+        .in('zone_id', idsChunk)
+
+      if (error) {
+        return {
+          counts,
+          source: 'unavailable',
+          warning: `unable to load incident context from site_incidents or incidents fallback: ${error.message}`,
+        }
+      }
+
+      for (const row of data || []) {
+        const key = row.zone_id
+        if (!key) continue
+        zoneCounts.set(key, (zoneCounts.get(key) || 0) + 1)
+      }
+    }
+  }
+
+  for (const pair of siteZonePairs) {
+    const count = zoneCounts.get(pair.zoneId) || 0
+    counts.set(pair.siteId, count)
+  }
+
+  return { counts, source: 'incidents_by_zone', warning: null }
 }
 
 function hasCoordinates(site) {
   return Number.isFinite(Number(site.gpsLat)) && Number.isFinite(Number(site.gpsLng))
 }
 
-function buildSiteResearchDossiers(siteSummaries, organizationMap, zonesMap, incidentCounts) {
+function buildSiteResearchDossiers(siteSummaries, organizationMap, zonesMap, incidentContext) {
   return siteSummaries.map((site) => {
     const organizationName = organizationMap.get(site.organizationId) || site.organizationId
     const zone = site.zoneId ? zonesMap.get(site.zoneId) : null
-    const issueCount = incidentCounts.get(site.siteId) || 0
+    const issueCount = incidentContext.counts.get(site.siteId) || 0
     const coordsPresent = hasCoordinates(site)
 
     const criticalUncertainties = []
@@ -333,7 +375,7 @@ function buildSiteResearchDossiers(siteSummaries, organizationMap, zonesMap, inc
           'client_sites',
           'roster_shifts',
           zone ? 'zones' : null,
-          issueCount > 0 ? 'incidents' : null,
+          issueCount > 0 ? incidentContext.source : null,
         ].filter(Boolean),
         confidence,
         criticalUncertainties,
@@ -898,8 +940,11 @@ async function main() {
 
   const zoneMap = await fetchZonesMap(supabase, siteSummaries.map((site) => site.zoneId))
   const orgMap = await fetchOrganizationsMap(supabase, siteSummaries.map((site) => site.organizationId))
-  const incidentCounts = await fetchIncidentCountsBySite(supabase, siteSummaries.map((site) => site.siteId))
-  const researchDossiers = buildSiteResearchDossiers(siteSummaries, orgMap, zoneMap, incidentCounts)
+  const incidentContext = await fetchIncidentContextBySite(supabase, siteSummaries)
+  if (incidentContext.warning) {
+    console.warn(`Warning: ${incidentContext.warning}`)
+  }
+  const researchDossiers = buildSiteResearchDossiers(siteSummaries, orgMap, zoneMap, incidentContext)
   const dossierCompletionGate = buildDossierCompletionGate(researchDossiers)
 
   if (args.apply && !args.allowUncertainWrites && !dossierCompletionGate.pass) {
@@ -937,6 +982,10 @@ async function main() {
     },
     entityProvisioning,
     topline,
+    incidentContext: {
+      source: incidentContext.source,
+      warning: incidentContext.warning,
+    },
     dossierCompletionGate,
     writes: writeSummary,
     researchDossiers,

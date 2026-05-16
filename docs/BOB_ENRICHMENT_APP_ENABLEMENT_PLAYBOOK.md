@@ -98,6 +98,7 @@ For each enrichment application event, track:
 Briefing artifact expectation:
 - Generate a dedicated admin/officer briefing JSON artifact per enrichment run (default: `logs/site-roster-briefings-artifact.json`).
 - Include confidence tier, admin watchouts, officer visit notes, and boundary guidance for each site.
+- Previous-issues context should use schema-adaptive sourcing (`site_incidents` preferred, `incidents` by `zone_id` fallback) to stay portable across deployments.
 
 ## 8) Completion Gate
 
