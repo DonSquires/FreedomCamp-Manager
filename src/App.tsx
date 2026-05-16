@@ -2543,8 +2543,8 @@ export default function App() {
 
           {/* Sprint 22–26: B-76–B-90 */}
           <Route path="/drift-events" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><DriftEventLog /></RoleRoute></ProtectedRoute>} />
-          <Route path="/investigation-job-config" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><InvestigationJobConfig /></RoleRoute></ProtectedRoute>} />
-          <Route path="/zone-legal-config" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><ZoneLegalConfigViewer /></RoleRoute></ProtectedRoute>} />
+          <Route path="/investigation-job-config" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'master']}><InvestigationJobConfig /></RoleRoute></ProtectedRoute>} />
+          <Route path="/zone-legal-config" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'master']}><ZoneLegalConfigViewer /></RoleRoute></ProtectedRoute>} />
           <Route path="/investigation-jobs-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><InvestigationJobLog /></RoleRoute></ProtectedRoute>} />
           <Route path="/operational-cases-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><OperationalCaseLog /></RoleRoute></ProtectedRoute>} />
           <Route path="/patrol-events-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><PatrolEventLog /></RoleRoute></ProtectedRoute>} />
