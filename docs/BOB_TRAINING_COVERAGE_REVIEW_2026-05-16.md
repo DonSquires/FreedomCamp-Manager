@@ -17,6 +17,7 @@ Objective: verify what Bob is already trained in, and enforce that all applicabl
 - docs/BOB_DOCUMENT_COMPREHENSION_AND_DISCUSSION_PROTOCOL.md
 - docs/BOB_CLIENT_SITE_ZONE_RESEARCH_PLAYBOOK.md
 - docs/BOB_APP_DATA_ENRICHMENT_CONSUMPTION_PLAYBOOK.md
+- docs/BOB_ENRICHMENT_APP_ENABLEMENT_PLAYBOOK.md
 - BOB_INSTRUCTIONS.md
 
 ## Required Bob Behavior (Now Enforced)
@@ -30,6 +31,7 @@ Objective: verify what Bob is already trained in, and enforce that all applicabl
 7. Declare tool and access surfaces used (inside app and outside app).
 8. Produce entity research dossiers for org/client/site/zone/location with access, H&S, previous issues, admin watchouts, and officer visit guidance.
 9. Map enriched facts to app consumption paths (admin and officer) before marking tasks complete.
+10. Enforce confidence-aware app behavior and review routing for low-confidence or stale data.
 
 ## Tool and Access Familiarity Scope
 

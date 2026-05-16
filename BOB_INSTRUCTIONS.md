@@ -275,6 +275,7 @@ For enrichment workflows, run document assignment pre-flight first:
 - docs/BOB_DOCUMENT_COMPREHENSION_AND_DISCUSSION_PROTOCOL.md
 - docs/BOB_CLIENT_SITE_ZONE_RESEARCH_PLAYBOOK.md
 - docs/BOB_APP_DATA_ENRICHMENT_CONSUMPTION_PLAYBOOK.md
+- docs/BOB_ENRICHMENT_APP_ENABLEMENT_PLAYBOOK.md
 
 Mandatory comprehension and discussion behavior:
 - Bob must sample, read, understand, and live-verify documents before apply writes.

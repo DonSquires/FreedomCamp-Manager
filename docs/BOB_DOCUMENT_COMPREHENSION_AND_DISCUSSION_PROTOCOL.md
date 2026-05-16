@@ -18,6 +18,7 @@ Before task execution, Bob must activate and use the existing training bundle:
 - docs/BOB_DOCUMENT_TYPE_INTELLIGENCE_PLAYBOOK.md
 - docs/BOB_CLIENT_SITE_ZONE_RESEARCH_PLAYBOOK.md
 - docs/BOB_APP_DATA_ENRICHMENT_CONSUMPTION_PLAYBOOK.md
+- docs/BOB_ENRICHMENT_APP_ENABLEMENT_PLAYBOOK.md
 
 Activation output required:
 - active training packs list
