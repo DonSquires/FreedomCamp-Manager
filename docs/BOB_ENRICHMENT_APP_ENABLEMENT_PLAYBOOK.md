@@ -100,6 +100,7 @@ Briefing artifact expectation:
 - Include confidence tier, admin watchouts, officer visit notes, and boundary guidance for each site.
 - Previous-issues context should use schema-adaptive sourcing (`site_incidents` preferred, `incidents` by `zone_id` fallback) to stay portable across deployments.
 - Include a compact `uiBadge` object per briefing (`confidence`, `provenance`, `hasWarning`, `label`) plus a summary-level `uiBadge` for direct card/header rendering.
+- Include per-site `dataManagementActions` to guide app behavior (`adminQueueAction`, `officerUsageMode`, `requiresHumanReview`, `staleAfterHours`) and summary counts for review/publish queues.
 
 ## 8) Completion Gate
 

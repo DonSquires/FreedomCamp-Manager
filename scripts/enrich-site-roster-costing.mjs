@@ -414,7 +414,16 @@ function buildBriefingsArtifact(dossiers, args, incidentContext) {
     label: `mixed:${incidentContext.source}`,
   }
 
-  const briefings = dossiers.map((dossier) => ({
+  const briefings = dossiers.map((dossier) => {
+    const hasCritical = dossier.evidence.criticalUncertainties.length > 0
+    const adminQueueAction = hasCritical
+      ? 'review_required'
+      : (dossier.evidence.confidence === 'low' ? 'review_required' : 'ready_for_publish')
+    const officerUsageMode = hasCritical
+      ? 'hold_for_supervisor_review'
+      : (dossier.evidence.confidence === 'high' ? 'operational_primary' : 'advisory_with_confirmation')
+
+    return {
     organizationId: dossier.entity.organizationId,
     organizationName: dossier.entity.organizationName,
     siteId: dossier.entity.siteId,
@@ -428,6 +437,12 @@ function buildBriefingsArtifact(dossiers, args, incidentContext) {
       provenance: incidentContext.source,
       hasWarning: Boolean(incidentContext.warning),
       label: `${dossier.evidence.confidence}:${incidentContext.source}`,
+    },
+    dataManagementActions: {
+      adminQueueAction,
+      officerUsageMode,
+      requiresHumanReview: hasCritical || dossier.evidence.confidence === 'low',
+      staleAfterHours: 168,
     },
     adminBriefing: {
       watchouts: dossier.appBriefings.adminWatchouts,
@@ -445,7 +460,11 @@ function buildBriefingsArtifact(dossiers, args, incidentContext) {
         ? [`Operate within ${dossier.entity.zoneName} and verify boundary handover points.`]
         : ['No zone mapping present. Confirm jurisdiction before enforcement action.'],
     },
-  }))
+  }
+  })
+
+  const reviewRequiredCount = briefings.filter((entry) => entry.dataManagementActions.requiresHumanReview).length
+  const readyForPublishCount = briefings.filter((entry) => entry.dataManagementActions.adminQueueAction === 'ready_for_publish').length
 
   return {
     runAt: new Date().toISOString(),
@@ -463,6 +482,10 @@ function buildBriefingsArtifact(dossiers, args, incidentContext) {
       previousIssuesSource: incidentContext.source,
       previousIssuesWarning: incidentContext.warning,
       uiBadge: summaryBadge,
+      managementActions: {
+        reviewRequiredCount,
+        readyForPublishCount,
+      },
     },
     briefings,
   }
