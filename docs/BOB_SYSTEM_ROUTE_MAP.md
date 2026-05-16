@@ -368,7 +368,7 @@ Officer or breach detection
 | Action Events | `/bob-action-proposal-events-log` | Admin / master | Executed action audit |
 | Bob UI Review | `/bob-ui-review` | Developer / master | QA interface modes |
 | Video Suite | `/admin/video-generation` | Admin / master | Briefing video confirm + quota |
-| Grandmaster Studio | `/grandmaster-coding-studio` | `grand_master` | Code tasks, patch plans |
+| Grandmaster Studio | `/grandmaster-code-studio` | `grand_master` | Code tasks, patch plans |
 | System Diagnostics | `/system-diagnostics` | Admin / master | Inference health checks |
 | Live Plan Reviews | `/live-plan-reviews` | Admin / master | H&S / SOP approval |
 | Settings | `/settings` | Any role | Tone, verification, emergency config |
