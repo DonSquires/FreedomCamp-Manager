@@ -45,3 +45,18 @@ node scripts/bob-operational-testing-gate.mjs \
 ## CI
 
 Workflow [ops-bob-operational-testing-gate.yml](.github/workflows/ops-bob-operational-testing-gate.yml) runs setup before the gate and uploads scorecards as artifacts.
+
+## Tree Review Notes
+
+Current repository state can include unrelated in-progress edits from other workstreams.
+
+- Commit only evaluator-gate files for this feature set.
+- Do not bulk-stage all modified files from a dirty tree.
+- Keep this scope limited to:
+  - `scripts/bob-operational-testing-gate.mjs`
+  - `scripts/setup-rag-evals.sh`
+  - `scripts/run_ragas_eval.py`
+  - `scripts/run_trulens_eval.py`
+  - `.github/workflows/ops-bob-operational-testing-gate.yml`
+  - `package.json`
+  - `docs/BOB_RAG_TRULENS_SETUP.md`
