@@ -1,0 +1,89 @@
+name: Ops Bob Operational Testing Gate
+
+on:
+  workflow_dispatch:
+    inputs:
+      hours:
+        description: 'Log window hours for RAG and bias checks'
+        required: false
+        default: '24'
+      artifacts:
+        description: 'Comma-separated artifact files for Dr Bob review'
+        required: false
+        default: 'spec.md,plan.md'
+      functional_cmd:
+        description: 'Functional command to execute'
+        required: false
+        default: 'bun run -s test:bob:governance'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'scripts/bob-operational-testing-gate.mjs'
+      - 'scripts/dr-bob-review.mjs'
+      - 'scripts/summarize-failures.mjs'
+      - 'data/bob-response-scores.jsonl'
+      - 'spec.md'
+      - 'plan.md'
+      - '.github/workflows/ops-bob-operational-testing-gate.yml'
+      - 'package.json'
+      - 'bun.lock'
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/bob-operational-testing-gate.mjs'
+      - 'scripts/dr-bob-review.mjs'
+      - 'scripts/summarize-failures.mjs'
+      - 'data/bob-response-scores.jsonl'
+      - 'spec.md'
+      - 'plan.md'
+      - '.github/workflows/ops-bob-operational-testing-gate.yml'
+      - 'package.json'
+      - 'bun.lock'
+
+jobs:
+  bob-operational-testing-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Setup RAG evaluators (Ragas + TruLens)
+        run: bash scripts/setup-rag-evals.sh
+
+      - name: Run Bob operational testing gate
+        env:
+          HOURS: ${{ inputs.hours || '24' }}
+          ARTIFACTS: ${{ inputs.artifacts || 'spec.md,plan.md' }}
+          FUNCTIONAL_CMD: ${{ inputs.functional_cmd || 'bun run -s test:bob:governance' }}
+          RAGAS_CMD: . .venv-ragas/bin/activate && python scripts/run_ragas_eval.py
+          TRULENS_CMD: . .venv-trulens/bin/activate && python scripts/run_trulens_eval.py
+          RUNPOD_API_KEY: ${{ secrets.RUNPOD_API_KEY }}
+          RUNPOD_ENDPOINT_ID: ${{ secrets.RUNPOD_ENDPOINT_ID }}
+          RUNPOD_RUNSYNC_URL: ${{ secrets.RUNPOD_RUNSYNC_URL }}
+          OLLAMA_BASE_URL: ${{ vars.OLLAMA_BASE_URL }}
+          OLLAMA_MODEL: ${{ vars.OLLAMA_MODEL }}
+        run: |
+          node scripts/bob-operational-testing-gate.mjs \
+            --hours "$HOURS" \
+            --artifacts "$ARTIFACTS" \
+            --functional-cmd "$FUNCTIONAL_CMD" \
+            --ragas-cmd "$RAGAS_CMD" \
+            --trulens-cmd "$TRULENS_CMD"
+
+      - name: Upload operational testing artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: bob-operational-testing-${{ github.run_id }}
+          path: tools/bob-operational-testing
+          if-no-files-found: warn
