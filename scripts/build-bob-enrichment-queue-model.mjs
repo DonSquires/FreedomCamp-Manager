@@ -24,6 +24,22 @@ Options:
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
+const TRAINING_PACKS = [
+  'docs/BOB_APP_DATA_ENRICHMENT_CONSUMPTION_PLAYBOOK.md',
+  'docs/BOB_ENRICHMENT_APP_ENABLEMENT_PLAYBOOK.md',
+  'docs/BOB_ENRICHMENT_DOCUMENT_ASSIGNMENT_PLAYBOOK.md',
+]
+
+const DOCUMENT_ASSIGNMENTS = [
+  { label: 'AUTHORITATIVE', path: 'docs/STAGING.md' },
+  { label: 'AUTHORITATIVE', path: 'docs/DECISIONS.md' },
+  { label: 'OPERATIONAL', path: 'docs/BOB_ENRICHMENT_APP_ENABLEMENT_PLAYBOOK.md' },
+  { label: 'IMPLEMENTATION', path: 'scripts/build-bob-enrichment-queue-model.mjs' },
+  { label: 'IMPLEMENTATION', path: 'scripts/enrich-site-roster-costing.mjs' },
+  { label: 'EVIDENCE', path: 'logs/site-roster-briefings-artifact.json' },
+  { label: 'EVIDENCE', path: 'logs/site-roster-queue-model-artifact.json' },
+]
+
 function parseArgs(argv) {
   const args = {
     apply: false,
@@ -91,6 +107,97 @@ function writeJson(filePath, payload) {
   fs.mkdirSync(path.dirname(resolved), { recursive: true })
   fs.writeFileSync(resolved, `${JSON.stringify(payload, null, 2)}\n`, 'utf8')
   console.log(`Artifact written: ${resolved}`)
+}
+
+function buildPreflightPacket(args) {
+  return {
+    trainingPacksApplied: TRAINING_PACKS,
+    documentAssignments: DOCUMENT_ASSIGNMENTS,
+    candidateDocuments: [
+      'Any briefing inputs not yet grounded in the enrichment briefing contract.',
+    ],
+    planningLanes: [
+      {
+        lane: 'D',
+        name: 'App queue readiness',
+        sources: [
+          'docs/BOB_APP_DATA_ENRICHMENT_CONSUMPTION_PLAYBOOK.md',
+          'docs/BOB_ENRICHMENT_APP_ENABLEMENT_PLAYBOOK.md',
+          'scripts/build-bob-enrichment-queue-model.mjs',
+        ],
+        output: 'Queue rows with review-routing and publish status suitable for app intake.',
+      },
+    ],
+    selectedScope: {
+      organizationId: args.organizationId || null,
+      maxItems: args.maxItems || null,
+      briefingsIn: args.briefingsIn,
+      apply: args.apply,
+    },
+    executionPlan: [
+      {
+        order: 1,
+        phase: 'Load briefing artifact',
+        command: 'read briefing artifact and optionally filter by organization/max-items',
+      },
+      {
+        order: 2,
+        phase: 'Build queue rows',
+        command: 'map briefings to queue rows with queueStatus and priority',
+      },
+      {
+        order: 3,
+        phase: 'Optionally publish queue rows',
+        command: 'insert non-duplicate queue items into ai_import_intakes when apply mode is enabled',
+      },
+    ],
+    preExecutionBlockers: [],
+    goNoGo: 'go',
+  }
+}
+
+function buildArtifactBlockers(input, queueRows, summary) {
+  const blockers = []
+
+  if (input?.summary?.previousIssuesWarning) {
+    blockers.push({
+      phase: 'Load briefing artifact',
+      error: input.summary.previousIssuesWarning,
+      issues: ['previous_issues_warning'],
+      nonBlocking: true,
+    })
+  }
+
+  if (queueRows.length === 0) {
+    blockers.push({
+      phase: 'Build queue rows',
+      error: 'No queue rows were produced from the briefing artifact.',
+      issues: ['empty_queue_model'],
+      nonBlocking: false,
+    })
+  }
+
+  if (summary.published.attempted && summary.published.inserted === 0 && summary.published.skippedExisting === 0 && queueRows.length > 0) {
+    blockers.push({
+      phase: 'Optionally publish queue rows',
+      error: 'Apply mode produced queue rows but inserted none and skipped none.',
+      issues: ['queue_publish_no_effect'],
+      nonBlocking: false,
+    })
+  }
+
+  return blockers
+}
+
+function buildStrictSignOff(blockers) {
+  const unresolvedBlockers = blockers.filter((blocker) => !blocker.nonBlocking)
+  const degraded = blockers.length > 0
+
+  return {
+    unresolvedBlockerCount: unresolvedBlockers.length,
+    degraded,
+    ready: unresolvedBlockers.length === 0 && degraded === false,
+  }
 }
 
 function mapConfidenceToScore(confidence) {
@@ -230,6 +337,7 @@ async function main() {
   }
 
   const queueRows = briefings.map((entry) => makeQueueRow(entry, runAt))
+  const preflight = buildPreflightPacket(args)
 
   const summary = {
     totalQueueRows: queueRows.length,
@@ -265,10 +373,14 @@ async function main() {
     summary.published.skippedExisting = publishResult.skippedExisting
   }
 
+  const blockers = buildArtifactBlockers(input, queueRows, summary)
+  const strictSignOff = buildStrictSignOff(blockers)
+
   const artifact = {
     runAt: new Date().toISOString(),
     sourceBriefingsArtifact: args.briefingsIn,
     mode: args.apply ? 'apply' : 'dry-run',
+    preflight,
     scope: {
       organizationId: args.organizationId || null,
       maxItems: args.maxItems || null,
@@ -279,6 +391,9 @@ async function main() {
       previousIssuesWarning: input?.summary?.previousIssuesWarning || null,
     },
     summary,
+    blockers,
+    degraded: blockers.length > 0,
+    strictSignOff,
     queueRows,
   }
 

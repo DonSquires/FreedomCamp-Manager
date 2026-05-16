@@ -22,6 +22,24 @@ Options:
   --help, -h               Show help.
 `
 
+const TRAINING_PACKS = [
+  'docs/BOB_ENRICHMENT_DOCUMENT_ASSIGNMENT_PLAYBOOK.md',
+  'docs/BOB_ENRICHMENT_APP_ENABLEMENT_PLAYBOOK.md',
+  'docs/BOB_TRAINING_SELF_EVAL_LOOP.md',
+]
+
+const DOCUMENT_ASSIGNMENTS = [
+  { label: 'AUTHORITATIVE', path: 'docs/DECISIONS.md' },
+  { label: 'AUTHORITATIVE', path: 'docs/STAGING.md' },
+  { label: 'OPERATIONAL', path: 'docs/BOB_ENRICHMENT_APP_ENABLEMENT_PLAYBOOK.md' },
+  { label: 'IMPLEMENTATION', path: 'scripts/bob-self-learn-from-enrichment.mjs' },
+  { label: 'IMPLEMENTATION', path: 'scripts/enrich-site-roster-costing.mjs' },
+  { label: 'IMPLEMENTATION', path: 'scripts/build-bob-enrichment-queue-model.mjs' },
+  { label: 'EVIDENCE', path: 'logs/site-roster-enrichment-artifact.json' },
+  { label: 'EVIDENCE', path: 'logs/site-roster-queue-model-artifact.json' },
+  { label: 'EVIDENCE', path: 'logs/bob-self-learning-artifact.json' },
+]
+
 function parseArgs(argv) {
   const args = {
     enrichment: 'logs/site-roster-enrichment-artifact.json',
@@ -116,6 +134,92 @@ function appendJsonLines(filePath, rows) {
   const payload = rows.map((row) => JSON.stringify(row)).join('\n') + '\n'
   fs.appendFileSync(resolved, payload, 'utf8')
   return { appended: rows.length }
+}
+
+function buildPreflightPacket(args) {
+  return {
+    trainingPacksApplied: TRAINING_PACKS,
+    documentAssignments: DOCUMENT_ASSIGNMENTS,
+    candidateDocuments: [
+      'Any operator direction that conflicts with safety, tenant, or confidence guardrails.',
+    ],
+    planningLanes: [
+      {
+        lane: 'D',
+        name: 'Self-learning and memory safety',
+        sources: [
+          'docs/BOB_ENRICHMENT_APP_ENABLEMENT_PLAYBOOK.md',
+          'docs/BOB_TRAINING_SELF_EVAL_LOOP.md',
+          'scripts/bob-self-learn-from-enrichment.mjs',
+        ],
+        output: 'Derived lessons, success patterns, and policy-checked reusable learning entries.',
+      },
+    ],
+    selectedScope: {
+      enrichment: args.enrichment,
+      briefings: args.briefings,
+      queue: args.queue,
+      lessonsFile: args.lessonsFile,
+      globalLearningOut: args.globalLearningOut,
+      writeLessons: args.writeLessons,
+      writeGlobalLearning: args.writeGlobalLearning,
+      userDirections: args.userDirections,
+    },
+    executionPlan: [
+      {
+        order: 1,
+        phase: 'Load enrichment artifacts',
+        command: 'read enrichment, briefing, and queue artifacts if present',
+      },
+      {
+        order: 2,
+        phase: 'Build lessons and success patterns',
+        command: 'derive lessons, success patterns, and direction evaluation from artifact state',
+      },
+      {
+        order: 3,
+        phase: 'Optionally write learning outputs',
+        command: 'append lessons/global learning only when write flags are enabled',
+      },
+    ],
+    preExecutionBlockers: [],
+    goNoGo: 'go',
+  }
+}
+
+function buildArtifactBlockers(enrichment, derivedLessons) {
+  const blockers = []
+
+  if (!enrichment) {
+    blockers.push({
+      phase: 'Load enrichment artifacts',
+      error: 'Missing enrichment artifact input.',
+      issues: ['missing_enrichment_artifact'],
+      nonBlocking: false,
+    })
+  }
+
+  for (const lesson of derivedLessons.filter((item) => item.severity === 'critical')) {
+    blockers.push({
+      phase: 'Build lessons and success patterns',
+      error: lesson.mistake,
+      issues: ['critical_lesson_detected'],
+      nonBlocking: false,
+    })
+  }
+
+  return blockers
+}
+
+function buildStrictSignOff(blockers) {
+  const unresolvedBlockers = blockers.filter((blocker) => !blocker.nonBlocking)
+  const degraded = blockers.length > 0
+
+  return {
+    unresolvedBlockerCount: unresolvedBlockers.length,
+    degraded,
+    ready: unresolvedBlockers.length === 0 && degraded === false,
+  }
 }
 
 function buildDerivedLessons(enrichment, briefings, queue) {
@@ -377,6 +481,7 @@ async function main() {
   const derivedLessons = buildDerivedLessons(enrichment, briefings, queue)
   const successPatterns = buildSuccessPatterns(enrichment, briefings, queue)
   const directionEval = evaluateUserDirections(args.userDirections)
+  const preflight = buildPreflightPacket(args)
   const globalLearningEntries = buildGlobalLearningEntries({
     runAt: new Date().toISOString(),
     derivedLessons,
@@ -395,10 +500,13 @@ async function main() {
   const globalLearningWrite = args.writeGlobalLearning
     ? appendJsonLines(args.globalLearningOut, globalLearningEntries)
     : { appended: 0 }
+  const blockers = buildArtifactBlockers(enrichment, derivedLessons)
+  const strictSignOff = buildStrictSignOff(blockers)
 
   const artifact = {
     runAt: new Date().toISOString(),
     mode: args.writeLessons ? 'write-lessons' : 'report-only',
+    preflight,
     inputs: {
       enrichment: args.enrichment,
       briefings: args.briefings,
@@ -414,6 +522,9 @@ async function main() {
     severityCounts,
     lessonWrite,
     globalLearningWrite,
+    blockers,
+    degraded: blockers.length > 0,
+    strictSignOff,
   }
 
   writeJson(args.artifactOut, artifact)
