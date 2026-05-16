@@ -140,6 +140,7 @@ type KeySet = {
   name: string
   status: string
   storage_location: string | null
+  custom_data: Record<string, unknown> | null
   current_holder_id: string | null
   checked_out_at: string | null
   expected_return: string | null
@@ -1829,7 +1830,15 @@ function KeyManagementTab({
 
   function handleScan(code: string) {
     setShowScanDialog(false)
-    const keyset = keySets.find((k) => k.id === code || k.name === code)
+    const normalized = String(code || '').trim()
+    const keyset = keySets.find((k) => {
+      const chainBarcode = String(
+        k.custom_data?.chain_barcode
+        || k.custom_data?.barcode
+        || ''
+      ).trim()
+      return k.id === normalized || k.name === normalized || chainBarcode === normalized
+    })
     if (!keyset) { toast.error(`No key set found for barcode: ${code}`); return }
     if (keyset.status === 'available') {
       setShowCheckoutDialog(keyset)
@@ -1916,6 +1925,7 @@ function KeyManagementTab({
             <TableHeader>
               <TableRow>
                 <TableHead>Key Set</TableHead>
+                <TableHead>Chain Barcode</TableHead>
                 <TableHead>Location</TableHead>
                 <TableHead>Site</TableHead>
                 <TableHead>Current Holder</TableHead>
@@ -1926,11 +1936,14 @@ function KeyManagementTab({
             </TableHeader>
             <TableBody>
               {filtered.length === 0 && (
-                <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8">No key sets found</TableCell></TableRow>
+                <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-8">No key sets found</TableCell></TableRow>
               )}
               {filtered.map((k) => (
                 <TableRow key={k.id}>
                   <TableCell className="text-sm font-medium">{k.name}</TableCell>
+                  <TableCell className="text-sm font-mono text-xs">
+                    {String(k.custom_data?.chain_barcode || k.custom_data?.barcode || '—')}
+                  </TableCell>
                   <TableCell className="text-sm text-muted-foreground">{k.storage_location ?? '—'}</TableCell>
                   <TableCell className="text-sm text-muted-foreground">{k.client_sites?.name ?? '—'}</TableCell>
                   <TableCell className="text-sm">{k.user_profiles?.full_name ?? '—'}</TableCell>

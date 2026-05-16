@@ -7,7 +7,7 @@
  * Step 4 — Confirm + dispatch
  */
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
@@ -95,6 +95,21 @@ interface WizardState {
   assigned_to: string
   officer_name: string
   call_sign: string
+}
+
+interface SiteKeySet {
+  id: string
+  name: string
+  status: string
+  storage_location: string | null
+  custom_data: Record<string, unknown> | null
+  keys: Array<{
+    id: string
+    key_number: string
+    name: string
+    key_code: string | null
+    is_active: boolean
+  }> | null
 }
 
 function emptyState(): WizardState {
@@ -192,10 +207,73 @@ export default function DispatchWizard() {
     enabled: !!orgId,
   })
 
+  const { data: siteKeySets = [] } = useQuery({
+    queryKey: ['wizard-site-keysets', orgId, state.client_site_id],
+    queryFn: async () => {
+      if (!state.client_site_id) return []
+      const { data, error } = await (supabase as any)
+        .from('key_sets')
+        .select('id, name, status, storage_location, custom_data, keys(id, key_number, name, key_code, is_active)')
+        .eq('organization_id', orgId ?? '')
+        .eq('client_site_id', state.client_site_id)
+        .eq('is_active', true)
+
+      if (error) throw error
+      return (data ?? []) as SiteKeySet[]
+    },
+    enabled: !!orgId && !!state.client_site_id,
+  })
+
+  const keyRecommendation = useMemo(() => {
+    if (!siteKeySets.length) return null
+
+    const preferredSet = siteKeySets.find((set) => set.status === 'available') || siteKeySets[0]
+    if (!preferredSet) return null
+
+    const chainBarcode = String(
+      preferredSet.custom_data?.chain_barcode
+      || preferredSet.custom_data?.barcode
+      || ''
+    ).trim() || null
+
+    const candidateKeys = (preferredSet.keys || []).filter((key) => key.is_active)
+    const preferredKey = candidateKeys.find((key) => key.key_code) || candidateKeys[0] || null
+    const keyBarcode = String(
+      preferredKey?.key_code
+      || preferredSet.custom_data?.key_barcode
+      || ''
+    ).trim() || null
+
+    return {
+      keySetId: preferredSet.id,
+      keySetName: preferredSet.name,
+      keySetStatus: preferredSet.status,
+      storageLocation: preferredSet.storage_location || null,
+      chainBarcode,
+      keyBarcode,
+      keyLabel: preferredKey ? `${preferredKey.key_number} ${preferredKey.name}`.trim() : null,
+    }
+  }, [siteKeySets])
+
   // ── Dispatch mutation ──────────────────────────────────────────────────────
 
   const dispatchMutation = useMutation({
     mutationFn: async () => {
+      const keyDetailLines = keyRecommendation
+        ? [
+            `Key chain: ${keyRecommendation.keySetName}`,
+            keyRecommendation.chainBarcode ? `Chain barcode: ${keyRecommendation.chainBarcode}` : null,
+            keyRecommendation.keyBarcode ? `Key barcode: ${keyRecommendation.keyBarcode}` : null,
+            keyRecommendation.keyLabel ? `Key label: ${keyRecommendation.keyLabel}` : null,
+            keyRecommendation.storageLocation ? `Storage location: ${keyRecommendation.storageLocation}` : null,
+          ].filter(Boolean)
+        : []
+
+      const mergedDescription = [
+        state.description || null,
+        keyDetailLines.length > 0 ? `Auto key details:\n${keyDetailLines.join('\n')}` : null,
+      ].filter(Boolean).join('\n\n')
+
       const { data: job, error } = await insertDispatchJobWithAlarmTypeFallback<{ id: string; job_number: string }>({
           organization_id:  orgId,
           created_by:       user?.id,
@@ -203,7 +281,7 @@ export default function DispatchWizard() {
           alarm_type:       state.alarm_type || null,
           priority:         state.priority,
           title:            state.title || `${JOB_TYPE_OPTIONS.find(t => t.value === state.job_type)?.label ?? state.job_type} - ${state.client_site_name}`,
-          description:      state.description || null,
+          description:      mergedDescription || null,
           address:          state.client_site_address || null,
           caller_name:      state.caller_name || null,
           caller_phone:     state.caller_phone || null,
@@ -367,6 +445,22 @@ export default function DispatchWizard() {
                   <Label>Additional Details</Label>
                   <Textarea rows={2} value={state.description} onChange={e => setState(s => ({ ...s, description: e.target.value }))} />
                 </div>
+
+                {keyRecommendation && (
+                  <div className="rounded-md border bg-blue-50/60 dark:bg-blue-950/30 p-3 space-y-1">
+                    <div className="text-xs font-semibold text-blue-700 uppercase tracking-wide">Auto Key Details</div>
+                    <p className="text-sm"><strong>{keyRecommendation.keySetName}</strong></p>
+                    {keyRecommendation.chainBarcode && (
+                      <p className="text-xs text-muted-foreground">Chain barcode: <span className="font-mono">{keyRecommendation.chainBarcode}</span></p>
+                    )}
+                    {keyRecommendation.keyBarcode && (
+                      <p className="text-xs text-muted-foreground">Key barcode: <span className="font-mono">{keyRecommendation.keyBarcode}</span></p>
+                    )}
+                    {keyRecommendation.storageLocation && (
+                      <p className="text-xs text-muted-foreground">Storage: {keyRecommendation.storageLocation}</p>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 
@@ -469,6 +563,26 @@ export default function DispatchWizard() {
                         : <span className="text-muted-foreground italic">Unassigned (Pending)</span>}
                     </span>
                   </div>
+                  {keyRecommendation && (
+                    <>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Key Chain</span>
+                        <span className="font-medium">{keyRecommendation.keySetName}</span>
+                      </div>
+                      {keyRecommendation.chainBarcode && (
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Chain Barcode</span>
+                          <span className="font-medium font-mono">{keyRecommendation.chainBarcode}</span>
+                        </div>
+                      )}
+                      {keyRecommendation.keyBarcode && (
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Key Barcode</span>
+                          <span className="font-medium font-mono">{keyRecommendation.keyBarcode}</span>
+                        </div>
+                      )}
+                    </>
+                  )}
                   {state.caller_name && (
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Caller</span>
