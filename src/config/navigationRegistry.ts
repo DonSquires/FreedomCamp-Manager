@@ -50,7 +50,7 @@ export const NAVIGATION_REGISTRY_V1: NavigationRegistryEntry[] = [
     path: '/dashboard',
     label: 'Module Dashboard',
     section: 'Mission Control',
-    navSurface: 'sidebar',
+    navSurface: 'hidden',
     allowedRoles: ['admin', 'admin_officer', 'master', 'officer'],
   },
   {
@@ -64,7 +64,7 @@ export const NAVIGATION_REGISTRY_V1: NavigationRegistryEntry[] = [
     path: '/patrols',
     label: 'Patrol Operations',
     section: 'Field Operations',
-    navSurface: 'sidebar',
+    navSurface: 'hidden',
     allowedRoles: ['admin', 'admin_officer', 'master', 'officer'],
   },
   {
@@ -85,7 +85,7 @@ export const NAVIGATION_REGISTRY_V1: NavigationRegistryEntry[] = [
     path: '/enforcement',
     label: 'Enforcement Operations',
     section: 'Compliance and Enforcement',
-    navSurface: 'sidebar',
+    navSurface: 'hidden',
     allowedRoles: ['admin', 'admin_officer', 'master'],
   },
   {
