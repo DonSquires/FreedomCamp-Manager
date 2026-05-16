@@ -61,6 +61,8 @@ grep_requested_output.txt
 .venv-migrate/
 .venv-translator/
 .venv-tools/
+.venv-*/
+.tmp/
 
 # E2E test artifacts
 playwright-report/
