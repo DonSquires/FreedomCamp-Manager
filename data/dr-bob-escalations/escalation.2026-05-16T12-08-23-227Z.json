@@ -1,0 +1,55 @@
+{
+  "createdAt": "2026-05-16T12:08:23.227Z",
+  "sourceFile": "/workspaces/FreedomCamp-Manager/spec.md",
+  "outputPath": "/workspaces/FreedomCamp-Manager/data/dr-bob-reviews/spec.md.2026-05-16T12-08-23-215Z.json",
+  "decision": "needs-revision",
+  "structured": false,
+  "escalationReason": "unstructured-review",
+  "review": {
+    "decision": "needs-revision",
+    "summary": "Dr Bob returned an unstructured review. Inspect the raw response.",
+    "findings": [
+      {
+        "severity": "major",
+        "title": "Unstructured review response",
+        "evidence": "{\"delayTime\":21102,\"id\":\"sync-ed33f265-4f6d-4df3-a5c8-40a1e93e8ead-u2\",\"status\":\"IN_PROGRESS\",\"workerId\":\"pcphpozeaakwq6\"}",
+        "requiredAction": "Rerun the review or tighten the prompt until valid JSON is returned."
+      }
+    ],
+    "verificationChecks": [],
+    "rawResponse": "{\"delayTime\":21102,\"id\":\"sync-ed33f265-4f6d-4df3-a5c8-40a1e93e8ead-u2\",\"status\":\"IN_PROGRESS\",\"workerId\":\"pcphpozeaakwq6\"}"
+  },
+  "basicFixResult": null,
+  "requiredAction": "Escalate to Copilot for manual intervention beyond Dr Bob auto-fix scope.",
+  "attemptDiagnostics": [
+    {
+      "attempt": 1,
+      "channel": "runpod-runsync",
+      "status": "IN_PROGRESS",
+      "pending": true,
+      "durationMs": 210550
+    },
+    {
+      "attempt": 2,
+      "channel": "runpod-runsync",
+      "status": "IN_PROGRESS",
+      "pending": true,
+      "durationMs": 213010
+    },
+    {
+      "attempt": 3,
+      "channel": "runpod-runsync",
+      "status": "IN_PROGRESS",
+      "pending": true,
+      "durationMs": 210507
+    },
+    {
+      "attempt": 3,
+      "channel": "runpod-runsync",
+      "status": 200,
+      "pending": false,
+      "structured": false,
+      "durationMs": 210512
+    }
+  ]
+}

@@ -1,0 +1,110 @@
+{
+  "runId": "2026-05-16T11-46-04-598Z",
+  "startedAt": "2026-05-16T11:46:04.686Z",
+  "endedAt": "2026-05-16T11:57:00.858Z",
+  "config": {
+    "hours": 24,
+    "artifacts": [
+      "spec.md"
+    ],
+    "functionalCmd": "npm run -s test:bob:governance",
+    "ragasCmd": ". .venv-ragas/bin/activate && python scripts/run_ragas_eval.py",
+    "trulensCmd": ". .venv-trulens/bin/activate && python scripts/run_trulens_eval.py",
+    "maxLowScoreCount": 0,
+    "maxRepeatedHallucinations": 0,
+    "maxChannelBiasGap": 4,
+    "minChannelSamples": 2,
+    "maxFallbackRate": 0.5,
+    "failOnRedTeamRevision": true
+  },
+  "stages": {
+    "rag": {
+      "status": "pass",
+      "detail": "lowScoreCount=0, repeatedHallucinations=0",
+      "summarizeFailures": {
+        "exitCode": 0,
+        "lowScoreCount": 0,
+        "repeatedHallucinations": 0,
+        "rawSummary": {
+          "generatedAt": "2026-05-16T11:46:04.900Z",
+          "windowHours": 24,
+          "totalEntries": 5,
+          "lowScoreCount": 0,
+          "topFailureReasons": [],
+          "topHallucinationPatterns": [],
+          "repeatedHallucinations": [],
+          "topFlaggedArtifacts": [
+            {
+              "name": "/workspaces/FreedomCamp-Manager/spec.md",
+              "count": 3
+            }
+          ],
+          "recommendations": [
+            "No repeated failure mode crossed the automatic threshold in this window."
+          ]
+        }
+      },
+      "external": [
+        {
+          "tool": "ragas",
+          "command": ". .venv-ragas/bin/activate && python scripts/run_ragas_eval.py",
+          "exitCode": 0,
+          "status": "pass"
+        },
+        {
+          "tool": "trulens",
+          "command": ". .venv-trulens/bin/activate && python scripts/run_trulens_eval.py",
+          "exitCode": 0,
+          "status": "pass"
+        }
+      ]
+    },
+    "redTeam": {
+      "status": "fail",
+      "detail": "at least one artifact failed red-team review",
+      "artifacts": [
+        {
+          "artifact": "spec.md",
+          "status": "fail",
+          "exitCode": 0,
+          "decision": "needs-revision",
+          "reviewArtifact": "/workspaces/FreedomCamp-Manager/data/dr-bob-reviews/spec.md.2026-05-16T11-56-58-508Z.json"
+        }
+      ]
+    },
+    "functionalBias": {
+      "status": "pass",
+      "detail": "functional command and bias checks passed",
+      "functional": {
+        "command": "npm run -s test:bob:governance",
+        "exitCode": 0,
+        "status": "pass"
+      },
+      "bias": {
+        "status": "pass",
+        "entriesCount": 6,
+        "comparableChannels": [
+          "runpod-runsync"
+        ],
+        "channelBiasGap": 0,
+        "fallbackRate": 0,
+        "channelStats": [
+          {
+            "channel": "runpod-runsync",
+            "count": 6,
+            "totalScore": 50,
+            "avgScore": 8.33,
+            "lowScoreCount": 1,
+            "lowScoreRate": 0.167
+          }
+        ]
+      }
+    }
+  },
+  "finalDecision": "fail",
+  "notes": [],
+  "artifacts": {
+    "scorecardPath": "/workspaces/FreedomCamp-Manager/tools/bob-operational-testing/2026-05-16T11-46-04-598Z/scorecard.json",
+    "reportPath": "/workspaces/FreedomCamp-Manager/tools/bob-operational-testing/2026-05-16T11-46-04-598Z/scorecard.md"
+  }
+}

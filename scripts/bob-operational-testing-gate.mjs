@@ -27,6 +27,7 @@ function parseArgs(argv) {
     minChannelSamples: 2,
     maxFallbackRate: 0.5,
     failOnRedTeamRevision: true,
+    redTeamRetries: 2,
     ragasCmd: '. .venv-ragas/bin/activate && python scripts/run_ragas_eval.py',
     trulensCmd: '. .venv-trulens/bin/activate && python scripts/run_trulens_eval.py',
     skipRag: false,
@@ -61,6 +62,8 @@ function parseArgs(argv) {
     else if (token.startsWith('--max-fallback-rate=')) args.maxFallbackRate = Number.parseFloat(token.slice('--max-fallback-rate='.length)) || args.maxFallbackRate;
     else if (token === '--fail-on-red-team-revision' && next) args.failOnRedTeamRevision = !['0', 'false', 'no'].includes(next.toLowerCase());
     else if (token.startsWith('--fail-on-red-team-revision=')) args.failOnRedTeamRevision = !['0', 'false', 'no'].includes(token.slice('--fail-on-red-team-revision='.length).toLowerCase());
+    else if (token === '--red-team-retries' && next) args.redTeamRetries = Number.parseInt(next, 10) || args.redTeamRetries;
+    else if (token.startsWith('--red-team-retries=')) args.redTeamRetries = Number.parseInt(token.slice('--red-team-retries='.length), 10) || args.redTeamRetries;
     else if (token === '--ragas-cmd' && next) args.ragasCmd = next;
     else if (token.startsWith('--ragas-cmd=')) args.ragasCmd = token.slice('--ragas-cmd='.length);
     else if (token === '--trulens-cmd' && next) args.trulensCmd = next;
@@ -298,6 +301,7 @@ async function main() {
       minChannelSamples: args.minChannelSamples,
       maxFallbackRate: args.maxFallbackRate,
       failOnRedTeamRevision: args.failOnRedTeamRevision,
+      redTeamRetries: args.redTeamRetries,
     },
     stages: {
       rag: {
@@ -393,11 +397,33 @@ async function main() {
         continue;
       }
 
-      const review = await runCommand(`node scripts/dr-bob-review.mjs --file ${artifact}`);
-      const decisionMatch = review.stdout.match(/Decision:\s*([^\n\r]+)/i);
-      const reviewArtifactMatch = review.stdout.match(/Review artifact:\s*([^\n\r]+)/i);
-      const decision = String(decisionMatch?.[1] || '').trim().toLowerCase();
-      const reviewArtifact = String(reviewArtifactMatch?.[1] || '').trim();
+      let review = null;
+      let decision = '';
+      let summary = '';
+      let reviewArtifact = '';
+
+      for (let attempt = 0; attempt <= args.redTeamRetries; attempt += 1) {
+        const current = await runCommand(`node scripts/dr-bob-review.mjs --file ${artifact}`);
+        const decisionMatch = current.stdout.match(/Decision:\s*([^\n\r]+)/i);
+        const summaryMatch = current.stdout.match(/Summary:\s*([^\n\r]+)/i);
+        const reviewArtifactMatch = current.stdout.match(/Review artifact:\s*([^\n\r]+)/i);
+        const currentDecision = String(decisionMatch?.[1] || '').trim().toLowerCase();
+        const currentSummary = String(summaryMatch?.[1] || '').trim().toLowerCase();
+
+        review = current;
+        decision = currentDecision;
+        summary = currentSummary;
+        reviewArtifact = String(reviewArtifactMatch?.[1] || '').trim();
+
+        const transientUnstructured = currentDecision === 'needs-revision' && currentSummary.includes('unstructured review response');
+        if (!transientUnstructured) break;
+      }
+
+      if (!review) {
+        redTeamPass = false;
+        results.push({ artifact, status: 'fail', reason: 'review command did not execute', decision: 'error' });
+        continue;
+      }
 
       let passed = review.exitCode === 0;
       if (args.failOnRedTeamRevision) {

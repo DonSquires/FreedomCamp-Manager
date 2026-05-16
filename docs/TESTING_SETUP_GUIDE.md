@@ -218,6 +218,22 @@ The repository includes a focused smoke path for the enterprise monitoring flow:
 
 - `.github/workflows/playwright-monitoring-pulse.yml`
   - Runs a targeted Ubuntu + Chromium smoke test for `tests/monitoring-pulse.spec.ts`.
+
+### Bob Operational Testing Gate
+
+Use the operational gate when validating Bob scoring, red-team review, and functional governance checks together:
+
+```bash
+node scripts/bob-operational-testing-gate.mjs
+```
+
+Useful options:
+
+- `--artifacts spec.md,plan.md` to review multiple artifacts
+- `--functional-cmd "<command>"` to override the functional test command
+- `--red-team-retries 2` to retry transient unstructured Dr Bob review responses before failing the gate
+
+Operational outputs are written under `tools/bob-operational-testing/<timestamp>/` and the latest summarized failure counts are refreshed in `docs/BOB_FAILURE_SUMMARY.md`.
   - Triggers on push, pull request, and manual dispatch when monitoring-related files change.
 
 - `.github/workflows/playwright-monitoring-pulse-smoke.yml`

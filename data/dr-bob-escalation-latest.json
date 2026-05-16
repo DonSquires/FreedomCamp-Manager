@@ -1,17 +1,17 @@
 {
-  "timestamp": "2026-05-15T05:57:01.348Z",
-  "sourceFile": "/workspaces/FreedomCamp-Manager/docs/adr/007-event-backbone-floor-control.md",
-  "reviewArtifact": "/workspaces/FreedomCamp-Manager/data/dr-bob-reviews/007-event-backbone-floor-control.md.2026-05-15T05-57-01-294Z.json",
-  "escalationArtifact": "/workspaces/FreedomCamp-Manager/data/dr-bob-escalations/escalation.2026-05-15T05-57-01-346Z.json",
-  "structured": true,
+  "timestamp": "2026-05-16T12:08:23.227Z",
+  "sourceFile": "/workspaces/FreedomCamp-Manager/spec.md",
+  "reviewArtifact": "/workspaces/FreedomCamp-Manager/data/dr-bob-reviews/spec.md.2026-05-16T12-08-23-215Z.json",
+  "escalationArtifact": "/workspaces/FreedomCamp-Manager/data/dr-bob-escalations/escalation.2026-05-16T12-08-23-227Z.json",
+  "structured": false,
   "decision": "needs-revision",
-  "reason": "blocker-findings",
-  "summary": "The design-artifact contains ungrounded references to modules not present in the current system_state.json, and it falsely claims that certain services exist. These issues need to be addressed before implementation can proceed.",
-  "findingsCount": 3,
-  "topFinding": "Unimplemented Redis Service",
+  "reason": "unstructured-review",
+  "summary": "Dr Bob returned an unstructured review. Inspect the raw response.",
+  "findingsCount": 1,
+  "topFinding": "Unstructured review response",
   "selfHealAttempted": false,
   "selfHealSuccess": false,
   "handoffRequired": true,
   "copilotActionHint": "Investigate escalation artifact and implement targeted fix",
-  "responsePreview": "{\"delayTime\":21,\"executionTime\":80375,\"id\":\"sync-09d64995-b218-4f03-814f-a3e3c656b147-u1\",\"output\":{\"message\":\"{\\n  \\\"decision\\\": \\\"needs-revision\\\",\\n  \\\"summary\\\": \\\"The design-artifact contains ungrounded references to modules not present in the current system_state.json, and it falsely claims th"
+  "responsePreview": "{\"delayTime\":21102,\"id\":\"sync-ed33f265-4f6d-4df3-a5c8-40a1e93e8ead-u2\",\"status\":\"IN_PROGRESS\",\"workerId\":\"pcphpozeaakwq6\"}"
 }
