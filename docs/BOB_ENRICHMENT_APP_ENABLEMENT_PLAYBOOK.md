@@ -95,6 +95,10 @@ For each enrichment application event, track:
 - operator or automation actor
 - downstream workflow impact
 
+Briefing artifact expectation:
+- Generate a dedicated admin/officer briefing JSON artifact per enrichment run (default: `logs/site-roster-briefings-artifact.json`).
+- Include confidence tier, admin watchouts, officer visit notes, and boundary guidance for each site.
+
 ## 8) Completion Gate
 
 App enablement is complete only when:

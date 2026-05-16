@@ -21,6 +21,7 @@ Options:
   --since-date <YYYY-MM-DD>Limit roster history to this shift_date or later.
   --allow-uncertain-writes Allow apply writes even when dossier completion gate reports critical uncertainties.
   --artifact-out <file>    Output artifact JSON (default: logs/site-roster-enrichment-artifact.json).
+  --briefings-out <file>   Output admin/officer briefings JSON (default: logs/site-roster-briefings-artifact.json).
   --help, -h               Show help.
 `
 
@@ -35,6 +36,7 @@ function parseArgs(argv) {
     sinceDate: '',
     allowUncertainWrites: false,
     artifactOut: 'logs/site-roster-enrichment-artifact.json',
+    briefingsOut: 'logs/site-roster-briefings-artifact.json',
     help: false,
   }
 
@@ -68,6 +70,11 @@ function parseArgs(argv) {
     }
     if (token === '--artifact-out' && argv[i + 1]) {
       args.artifactOut = String(argv[i + 1]).trim()
+      i += 1
+      continue
+    }
+    if (token === '--briefings-out' && argv[i + 1]) {
+      args.briefingsOut = String(argv[i + 1]).trim()
       i += 1
       continue
     }
@@ -354,6 +361,50 @@ function buildDossierCompletionGate(dossiers) {
     dossiersWithCriticalUncertainty: blockers.length,
     blockers,
     pass: blockers.length === 0,
+  }
+}
+
+function buildBriefingsArtifact(dossiers, args) {
+  const briefings = dossiers.map((dossier) => ({
+    organizationId: dossier.entity.organizationId,
+    organizationName: dossier.entity.organizationName,
+    siteId: dossier.entity.siteId,
+    siteName: dossier.entity.siteName,
+    zoneId: dossier.entity.zoneId,
+    zoneName: dossier.entity.zoneName,
+    confidence: dossier.evidence.confidence,
+    adminBriefing: {
+      watchouts: dossier.appBriefings.adminWatchouts,
+      previousIssuesSummary: dossier.context.previousIssues.summary,
+      accessStatus: dossier.context.accessProfile.status,
+      healthAndSafetyStatus: dossier.context.healthAndSafety.status,
+      criticalUncertainties: dossier.evidence.criticalUncertainties,
+    },
+    officerBriefing: {
+      visitNotes: dossier.appBriefings.officerVisitNotes,
+      accessNotes: dossier.context.accessProfile.notes,
+      healthAndSafetyNotes: dossier.context.healthAndSafety.notes,
+      boundaryNotes: dossier.entity.zoneName
+        ? [`Operate within ${dossier.entity.zoneName} and verify boundary handover points.`]
+        : ['No zone mapping present. Confirm jurisdiction before enforcement action.'],
+    },
+  }))
+
+  return {
+    runAt: new Date().toISOString(),
+    mode: args.apply ? 'apply' : 'dry-run',
+    scope: {
+      trainingScope: args.globalTraining ? 'global' : 'organization_or_all',
+      organizationId: args.organizationId || null,
+      sinceDate: args.sinceDate || null,
+    },
+    summary: {
+      totalBriefings: briefings.length,
+      lowConfidenceBriefings: briefings.filter((entry) => entry.confidence === 'low').length,
+      mediumConfidenceBriefings: briefings.filter((entry) => entry.confidence === 'medium').length,
+      highConfidenceBriefings: briefings.filter((entry) => entry.confidence === 'high').length,
+    },
+    briefings,
   }
 }
 
@@ -921,7 +972,10 @@ async function main() {
     })),
   }
 
+  const briefingsArtifact = buildBriefingsArtifact(researchDossiers, args)
+
   writeArtifact(args.artifactOut, artifact)
+  writeArtifact(args.briefingsOut, briefingsArtifact)
 
   console.log('[Summary]')
   console.log(`  sites_reviewed: ${artifact.topline.sitesReviewed}`)
@@ -938,6 +992,7 @@ async function main() {
   console.log(`  updated_roster_shift_charge_rates: ${artifact.writes.updatedRosterShiftChargeRates}`)
   console.log(`  dossiers_total: ${artifact.dossierCompletionGate.totalDossiers}`)
   console.log(`  dossiers_with_critical_uncertainty: ${artifact.dossierCompletionGate.dossiersWithCriticalUncertainty}`)
+  console.log(`  briefings_total: ${briefingsArtifact.summary.totalBriefings}`)
 }
 
 main().catch((error) => {

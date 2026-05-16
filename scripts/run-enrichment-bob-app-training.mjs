@@ -200,6 +200,7 @@ function plan(args) {
     args.sinceDate ? `--since-date ${args.sinceDate}` : '',
     args.allowUncertainWrites ? '--allow-uncertain-writes' : '',
     '--artifact-out logs/site-roster-enrichment-artifact.json',
+    '--briefings-out logs/site-roster-briefings-artifact.json',
   ].filter(Boolean).join(' ')
 
   steps.push({
@@ -389,6 +390,7 @@ async function main() {
     }))
 
   const rosterArtifact = readJsonFileIfExists('logs/site-roster-enrichment-artifact.json')
+  const briefingArtifact = readJsonFileIfExists('logs/site-roster-briefings-artifact.json')
   const rosterGate = rosterArtifact?.dossierCompletionGate || null
   if (rosterGate && rosterGate.pass === false) {
     blockers.push({
@@ -415,6 +417,10 @@ async function main() {
     rosterEnrichment: {
       artifactPath: 'logs/site-roster-enrichment-artifact.json',
       dossierCompletionGate: rosterGate,
+    },
+    appBriefings: {
+      artifactPath: 'logs/site-roster-briefings-artifact.json',
+      summary: briefingArtifact?.summary || null,
     },
     blockers,
     degraded: blockers.length > 0,

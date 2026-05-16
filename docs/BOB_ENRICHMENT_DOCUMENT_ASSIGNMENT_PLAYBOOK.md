@@ -178,6 +178,9 @@ node scripts/enrich-site-roster-costing.mjs --global-training --since-date 2026-
 
 # Override only after operator review of blockers
 node scripts/enrich-site-roster-costing.mjs --global-training --since-date 2026-01-01 --apply --allow-uncertain-writes
+
+# Emit dedicated admin/officer briefing artifact for app consumption
+node scripts/enrich-site-roster-costing.mjs --global-training --since-date 2026-01-01 --briefings-out logs/site-roster-briefings-artifact.json
 ```
 
 ## 6) Review Output Bob Must Produce
