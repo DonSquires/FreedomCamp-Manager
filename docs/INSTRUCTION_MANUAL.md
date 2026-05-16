@@ -2891,6 +2891,12 @@ If a tenant purchases the app and uses a dedicated provider model, you may model
 
 Restrict which admin modules a user can access by setting **portal area codes** in their profile. If `portal_access` is empty, the user has access to all areas their role permits. Codes are defined in `src/hooks/usePermissions.ts` and include: `field_officer`, `users`, `reports`, `invoicing`, `crm`, and others.
 
+Operational role-gate contract (governance critical):
+
+1. `/investigation-job-config` is restricted to `admin` and `master`.
+2. `/zone-legal-config` is restricted to `admin` and `master`.
+3. Duplicate route declarations (if present for layout/area composition) must keep equivalent role gates.
+
 ---
 
 ### 8.9 Data Integrity & Cleanup

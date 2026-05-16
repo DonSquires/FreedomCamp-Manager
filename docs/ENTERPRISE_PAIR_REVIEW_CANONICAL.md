@@ -106,6 +106,12 @@ Material changes in the Bob runtime contract cycle:
 1. Doc-authority governance is satisfied by updating both the instruction manual and this canonical record in the same change set.
 2. The Bob runtime contract remains server-side authoritative for privileged operations.
 
+### Governance Gate Remediation (same cycle)
+
+1. Governance strict validation surfaced conflicting duplicate route gates for `/investigation-job-config` and `/zone-legal-config`.
+2. Canonical access for both routes is now aligned to `admin, master` across duplicate route declarations.
+3. Strict roadmap role-gate validation now tolerates duplicate paths only when gate signatures are equivalent and fails on conflicts.
+
 ## Current Cycle Snapshot (2026-05-06)
 
 Material changes since commit `04b65a3d` (Sprint 14 — OnCallPeriods, CalloutShifts, OfficerAllowances, TravelAllowances):

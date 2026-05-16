@@ -1,9 +1,9 @@
 # Module Roadmap (Operator Navigation Map)
 
-Date: 2026-05-09 (verified against src/navigation/routeManifest.ts)
+Date: 2026-05-16 (verified against src/navigation/routeManifest.ts)
 Source of truth for routes: route manifest file src/navigation/routeManifest.ts (350 manifest rows / 286 unique paths as of Sprint 70 hardening audit)
 
- > **Last Verification**: 2026-05-09 — Role-gating and route docs reviewed through Sprint 70. Production main (`0fb259c7`) includes Sprints 31-70. All copilot/* realignment branches merged.
+ > **Last Verification**: 2026-05-16 — Role-gating and route docs reviewed through governance strict-gate remediation. Production main includes canonical dedupe alignment for `/investigation-job-config` and `/zone-legal-config`.
 
 ## How To Use
 
@@ -292,7 +292,7 @@ New admin routes added in Sprint 22 (B-76, B-77, B-78):
 
 2. Investigation Job Config (B-77)
    - Route: /investigation-job-config
-   - Role gate: admin, admin_officer, master
+   - Role gate: admin, master
    - Tabbed admin configuration for investigation_job_templates (activate/deactivate) and investigation_job_types (create type dialog); reads investigation_job_templates + investigation_job_types (fully typed)
 
 3. Zone Legal Config Viewer (B-78)
