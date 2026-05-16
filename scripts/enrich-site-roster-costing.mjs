@@ -407,6 +407,13 @@ function buildDossierCompletionGate(dossiers) {
 }
 
 function buildBriefingsArtifact(dossiers, args, incidentContext) {
+  const summaryBadge = {
+    confidence: 'mixed',
+    provenance: incidentContext.source,
+    warning: incidentContext.warning || null,
+    label: `mixed:${incidentContext.source}`,
+  }
+
   const briefings = dossiers.map((dossier) => ({
     organizationId: dossier.entity.organizationId,
     organizationName: dossier.entity.organizationName,
@@ -416,6 +423,12 @@ function buildBriefingsArtifact(dossiers, args, incidentContext) {
     zoneName: dossier.entity.zoneName,
     confidence: dossier.evidence.confidence,
     previousIssuesSource: incidentContext.source,
+    uiBadge: {
+      confidence: dossier.evidence.confidence,
+      provenance: incidentContext.source,
+      hasWarning: Boolean(incidentContext.warning),
+      label: `${dossier.evidence.confidence}:${incidentContext.source}`,
+    },
     adminBriefing: {
       watchouts: dossier.appBriefings.adminWatchouts,
       previousIssuesSummary: dossier.context.previousIssues.summary,
@@ -449,6 +462,7 @@ function buildBriefingsArtifact(dossiers, args, incidentContext) {
       highConfidenceBriefings: briefings.filter((entry) => entry.confidence === 'high').length,
       previousIssuesSource: incidentContext.source,
       previousIssuesWarning: incidentContext.warning,
+      uiBadge: summaryBadge,
     },
     briefings,
   }
