@@ -21,7 +21,6 @@
 
 import { useEffect, useRef } from 'react'
 import { toast } from 'sonner'
-import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { getFeedbackSnapshot } from '@/hooks/useFeedbackCapture'
 import { edgeFunctions } from '@/lib/edgeFunctions'
@@ -130,12 +129,8 @@ export function useAutoErrorReporter() {
       _lastAutoReportMs = now
 
       try {
-        const { data: inserted } = await supabase
-          .from('bug_reports')
-          .insert({
-            user_id: user.id,
-            organization_id: user.organization_id ?? null,
-            user_role: user.role,
+        const createResult = await edgeFunctions.createBugReport({
+          payload: {
             title: `Auto-detected: ${recent[0].message.slice(0, 100)}`,
             description:
               `${recent.length} error${recent.length !== 1 ? 's' : ''} detected automatically ` +
@@ -153,11 +148,10 @@ export function useAutoErrorReporter() {
             console_errors: snapshot.consoleErrors as any,
             app_version: snapshot.appVersion,
             status: 'submitted',
-            admin_notified: false,
             auto_reported: true,
-          })
-          .select('id')
-          .single()
+          },
+        })
+        const inserted = (createResult.data as any)?.data
 
         if (inserted?.id) {
           // Fire-and-forget AI analysis (with CI health check)

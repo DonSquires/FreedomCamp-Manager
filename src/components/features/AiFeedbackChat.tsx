@@ -24,7 +24,6 @@ import { Textarea } from '@/components/ui/textarea'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Bot, Send, Loader2, CheckCircle2, Mic2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { useBobAssistantStore } from '@/stores/bobAssistantStore'
 import { getFeedbackSnapshot } from '@/hooks/useFeedbackCapture'
@@ -243,13 +242,9 @@ export function AiFeedbackChat({ onSubmitted, onCancel }: AiFeedbackChatProps) {
     const snapshot = getFeedbackSnapshot()
 
     try {
-      const { data: inserted } = await withTimeout(
-        supabase
-          .from('bug_reports')
-          .insert({
-            user_id: user.id,
-            organization_id: user.organization_id ?? null,
-            user_role: user.role,
+      const createResult = await withTimeout(
+        edgeFunctions.createBugReport({
+          payload: {
             title: reportData.title,
             description: reportData.description,
             severity: reportData.severity,
@@ -272,13 +267,15 @@ export function AiFeedbackChat({ onSubmitted, onCancel }: AiFeedbackChatProps) {
             console_errors: snapshot.consoleErrors as any,
             app_version: snapshot.appVersion,
             status: 'submitted',
-            admin_notified: false,
-          })
-          .select('id')
-          .single(),
+          },
+        }),
         15000,
         'Bug report submission'
       )
+      if (createResult.error) {
+        throw new Error(createResult.error)
+      }
+      const inserted = (createResult.data as any)?.data
 
       if (inserted?.id) {
         // Fire-and-forget Bob analysis with CI health check

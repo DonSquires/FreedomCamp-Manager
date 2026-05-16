@@ -1,7 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3'
 import { getCorsHeaders } from '../_shared/withCors.ts'
 
-type FeedbackAction = 'update_bug_report' | 'cleanup_old_closed_reports'
+type FeedbackAction = 'create_bug_report' | 'update_bug_report' | 'cleanup_old_closed_reports'
 
 interface FeedbackRequest {
   action: FeedbackAction
@@ -57,7 +57,7 @@ Deno.serve(async (req) => {
       .eq('id', user.id)
       .single()
 
-    if (!caller || !ADMIN_ROLES.has(caller.role)) {
+    if (!caller) {
       return new Response(JSON.stringify({ error: 'Forbidden' }), {
         status: 403,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -72,7 +72,84 @@ Deno.serve(async (req) => {
       })
     }
 
+    if (body.action === 'create_bug_report') {
+      const payload = body.payload ?? {}
+      const allowed = [
+        'issue_type',
+        'severity',
+        'priority',
+        'title',
+        'description',
+        'steps_to_reproduce',
+        'expected_behavior',
+        'actual_behavior',
+        'app_version',
+        'current_page',
+        'browser_info',
+        'device_info',
+        'console_errors',
+        'network_status',
+        'screenshots',
+        'screenshot_metadata',
+        'status',
+        'auto_reported',
+      ]
+      const insertPayload: Record<string, unknown> = {}
+      for (const key of allowed) {
+        if (payload[key] !== undefined) insertPayload[key] = payload[key]
+      }
+
+      const title = toText(insertPayload.title)
+      const description = toText(insertPayload.description)
+      const issueType = toText(insertPayload.issue_type)
+      const severity = toText(insertPayload.severity)
+      const appVersion = toText(insertPayload.app_version)
+
+      if (!title || !description || !issueType || !severity || !appVersion) {
+        return new Response(JSON.stringify({ error: 'title, description, issue_type, severity, and app_version are required' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+
+      const { data: created, error: createError } = await adminClient
+        .from('bug_reports')
+        .insert({
+          ...insertPayload,
+          user_id: user.id,
+          organization_id: caller.organization_id ?? null,
+          user_role: caller.role,
+          status: toText(insertPayload.status) || 'submitted',
+          admin_notified: false,
+        })
+        .select('*')
+        .single()
+
+      if (createError || !created) throw new Error(createError?.message ?? 'Failed to create bug report')
+
+      const { error: auditError } = await adminClient.from('audit_log').insert({
+        organization_id: created.organization_id ?? caller.organization_id,
+        action: 'bug_report_created',
+        entity_type: 'bug_report',
+        entity_id: created.id,
+        performed_by: user.id,
+        new_values: created,
+      })
+      if (auditError) throw new Error(`Bug report created but audit artifact failed: ${auditError.message}`)
+
+      return new Response(JSON.stringify({ ok: true, data: created }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
     if (body.action === 'update_bug_report') {
+      if (!ADMIN_ROLES.has(caller.role)) {
+        return new Response(JSON.stringify({ error: 'Forbidden' }), {
+          status: 403,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+
       const reportId = toText(body.reportId)
       if (!reportId) {
         return new Response(JSON.stringify({ error: 'reportId is required' }), {
@@ -134,6 +211,13 @@ Deno.serve(async (req) => {
     }
 
     if (body.action === 'cleanup_old_closed_reports') {
+      if (!ADMIN_ROLES.has(caller.role)) {
+        return new Response(JSON.stringify({ error: 'Forbidden' }), {
+          status: 403,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+
       const statusesRaw = Array.isArray(body.payload?.statuses) ? body.payload?.statuses : []
       const statuses = statusesRaw
         .map((value) => toText(value))

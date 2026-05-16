@@ -8,6 +8,7 @@
 import { supabase } from './supabase'
 import { toast } from 'sonner'
 import { FunctionsHttpError, FunctionsRelayError, FunctionsFetchError } from '@supabase/supabase-js'
+import { useAuthStore } from '@/stores/authStore'
 import { useSessionLockStore } from '@/stores/sessionLockStore'
 import { getEffectiveBobExecutionPolicy } from '@/stores/bobExecutionPolicyStore'
 import { assertBobMutationAccess, findBobMutationContractsForText, getBobMutationCatalogSummary } from './bobMutationCatalog'
@@ -148,6 +149,19 @@ function buildBobExecutionReview(params: Record<string, any>, policy: ReturnType
     requestedMutationContract,
     mutationAccess,
     policyMode: policy.mode,
+  }
+}
+
+function resolveBobActorContext(params: Record<string, any>) {
+  const authUser = useAuthStore.getState().user
+  const incomingContext = params.context ?? {}
+  const contextOrgId = typeof incomingContext.organization_id === 'string' ? incomingContext.organization_id : null
+  const authOrgId = authUser?.organization_id ?? null
+
+  return {
+    resolvedOrgId: contextOrgId ?? authOrgId,
+    actorId: typeof incomingContext.actor_id === 'string' ? incomingContext.actor_id : authUser?.id ?? null,
+    actorRole: typeof incomingContext.actor_role === 'string' ? incomingContext.actor_role : authUser?.role ?? null,
   }
 }
 
@@ -305,7 +319,7 @@ async function getErrorMessage(error: any): Promise<string> {
 async function callEdgeFunction<T = any>(
   functionName: string,
   body?: any,
-  options: { showToast?: boolean; useDirectFetch?: boolean } = { showToast: true }
+  options: { showToast?: boolean; useDirectFetch?: boolean; extraHeaders?: Record<string, string> } = { showToast: true }
 ): Promise<{ data: T | null; error: string | null }> {
   const { lock, unlock } = useSessionLockStore.getState()
   const invokeTimeoutMs = EDGE_FUNCTION_TIMEOUT_MS
@@ -315,7 +329,10 @@ async function callEdgeFunction<T = any>(
     payload: any
   ): Promise<{ data: any; error: any }> => {
     return await Promise.race([
-      supabase.functions.invoke(fn, { body: payload || {} }),
+      supabase.functions.invoke(fn, {
+        body: payload || {},
+        headers: options.extraHeaders,
+      }),
       new Promise<{ data: null; error: Error }>((resolve) => {
         setTimeout(() => {
           resolve({
@@ -356,6 +373,7 @@ async function callEdgeFunction<T = any>(
             Authorization: `Bearer ${jwt}`,
             apikey: anonKey,
             'Content-Type': 'application/json',
+            ...(options.extraHeaders ?? {}),
           },
           body: JSON.stringify(body || {}),
           signal: controller.signal,
@@ -1659,6 +1677,18 @@ export const edgeFunctions = {
   },
 
   /**
+   * Create a feedback/bug report through backend validation and audit logging.
+   */
+  createBugReport: async (params: {
+    payload: Record<string, unknown>
+  }) => {
+    return callEdgeFunction('manage-platform-feedback', {
+      action: 'create_bug_report',
+      payload: params.payload,
+    })
+  },
+
+  /**
    * Update a feedback/bug report through backend validation and audit logging.
    */
   updateBugReport: async (params: {
@@ -1703,6 +1733,7 @@ export const edgeFunctions = {
     const executionPrompt = buildBobExecutionSystemPrompt()
     const operationalContextNote = buildBobOperationalContextNote()
     const executionReview = buildBobExecutionReview(params, policy)
+    const actorContext = resolveBobActorContext(params)
     const hasOperationalContextNote = Array.isArray(params.messages)
       ? params.messages.some((message: { content?: string }) => String(message?.content || '').includes('Bob operational map (grounded):'))
       : false
@@ -1716,6 +1747,9 @@ export const edgeFunctions = {
 
     const mergedContext = {
       ...(params.context ?? {}),
+      organization_id: actorContext.resolvedOrgId,
+      actor_id: actorContext.actorId,
+      actor_role: actorContext.actorRole,
       execution_policy_contract: 'v1',
       schema_registry_summary: getBobSchemaRegistrySummary(),
       route_entity_map_summary: getBobRouteEntityMapSummary(),
@@ -1727,6 +1761,13 @@ export const edgeFunctions = {
         requires_guardrails: policy.requiresGuardrails,
         schema_check_enforced: policy.enforceSchemaCheck,
         hard_sections_enforced: policy.enforceHardSections,
+      },
+      organization_context: {
+        organization_id: actorContext.resolvedOrgId,
+      },
+      actor_context: {
+        actor_id: actorContext.actorId,
+        actor_role: actorContext.actorRole,
       },
       execution_review: executionReview,
       execution_prompt_hint: executionPrompt,
@@ -1746,6 +1787,11 @@ export const edgeFunctions = {
     return callEdgeFunction<any>('onspace-ai-chat', requestParams, {
       showToast: false,
       useDirectFetch: true,
+      extraHeaders: {
+        ...(actorContext.resolvedOrgId ? { 'x-org-id': actorContext.resolvedOrgId } : {}),
+        ...(actorContext.actorRole ? { 'x-actor-role': actorContext.actorRole } : {}),
+        'x-bob-policy-mode': policy.mode,
+      },
     })
   },
 
@@ -1761,6 +1807,9 @@ export const edgeFunctions = {
     model?: string
     temperature?: number
     provider?: 'auto' | 'ollama' | 'inference'
+    conversation_id?: string
+    organization_id?: string
+    persist_conversation?: boolean
     skipExecutionPolicy?: boolean
     skipPolicySectionEnforcement?: boolean
   }) => {

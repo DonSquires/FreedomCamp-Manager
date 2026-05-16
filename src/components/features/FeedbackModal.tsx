@@ -23,7 +23,6 @@ import {
   Bug, Lightbulb, Zap, ChevronDown, ChevronUp,
   Navigation, AlertTriangle, Monitor, CheckCircle2, Bot, FileText,
 } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { getFeedbackSnapshot, clearCapturedErrors, type FeedbackSnapshot } from '@/hooks/useFeedbackCapture'
 import { edgeFunctions } from '@/lib/edgeFunctions'
@@ -108,29 +107,28 @@ export function FeedbackModal({ open, onClose }: FeedbackModalProps) {
     const finalSnapshot = getFeedbackSnapshot()
 
     try {
-      const { data: inserted, error } = await supabase.from('bug_reports').insert({
-        user_id: user.id,
-        organization_id: user.organization_id ?? null,
-        user_role: user.role,
-        title: title.trim(),
-        description: description.trim(),
-        severity,
-        issue_type: TYPE_CONFIG[type].issueType,
-        steps_to_reproduce: stepsToReproduce.trim() || null,
-        expected_behavior: expectedBehaviour.trim() || null,
-        actual_behavior: actualBehaviour.trim() || null,
-        current_page: finalSnapshot.currentPage,
-        browser_info: {
-          ...finalSnapshot.browserInfo,
-          navigationHistory: finalSnapshot.navigationHistory,
-        } as any,
-        console_errors: finalSnapshot.consoleErrors as any,
-        app_version: finalSnapshot.appVersion,
-        status: 'submitted',
-        admin_notified: false,
-      }).select('id').single()
+      const result = await edgeFunctions.createBugReport({
+        payload: {
+          title: title.trim(),
+          description: description.trim(),
+          severity,
+          issue_type: TYPE_CONFIG[type].issueType,
+          steps_to_reproduce: stepsToReproduce.trim() || null,
+          expected_behavior: expectedBehaviour.trim() || null,
+          actual_behavior: actualBehaviour.trim() || null,
+          current_page: finalSnapshot.currentPage,
+          browser_info: {
+            ...finalSnapshot.browserInfo,
+            navigationHistory: finalSnapshot.navigationHistory,
+          } as any,
+          console_errors: finalSnapshot.consoleErrors as any,
+          app_version: finalSnapshot.appVersion,
+          status: 'submitted',
+        },
+      })
 
-      if (error) throw error
+      if (result.error) throw new Error(result.error)
+      const inserted = (result.data as any)?.data
 
       clearCapturedErrors()
       setSubmitted(true)

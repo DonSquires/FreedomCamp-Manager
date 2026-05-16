@@ -103,3 +103,36 @@ Recent `audit_log` rows confirmed for `entity_type = lmr_bridge_config`:
 - `lmr_bridge_config_created`
 - `lmr_bridge_config_status_updated`
 - `lmr_bridge_config_deleted`
+
+## Platform Feedback Create-Path Backendization Addendum
+
+Extended platform governance so `bug_reports` creation is now API-mediated and validated server-side, removing direct client writes from key submission flows.
+
+### Backend changes
+
+- Updated `supabase/functions/manage-platform-feedback/index.ts`:
+	- added `create_bug_report` action
+	- caller identity is derived from authenticated user/session (`user_profiles`) and enforced server-side
+	- client-supplied `user_id`, `organization_id`, and `user_role` are ignored
+	- writes `bug_report_created` audit artifact
+	- retained admin-only controls for `update_bug_report` and `cleanup_old_closed_reports`
+
+### Frontend/API wiring changes
+
+- Added `createBugReport` wrapper in `src/lib/edgeFunctions.ts`
+- Rewired direct bug report inserts to the wrapper in:
+	- `src/components/features/FeedbackModal.tsx`
+	- `src/components/features/AiFeedbackChat.tsx`
+	- `src/hooks/useAutoErrorReporter.ts`
+
+### Validation
+
+- Live smoke (`manage-platform-feedback`):
+	- `create_bug_report` -> HTTP 200
+	- server persisted caller-owned values (`user_id`, `organization_id`, `user_role`) from auth context, not payload spoof values
+	- `update_bug_report` -> HTTP 200
+	- `audit_log` confirmed actions: `bug_report_created`, `bug_report_updated`
+	- result markers: `OWNERSHIP_GUARD=PASS`, `PLATFORM_CREATE_FLOW=PASS`
+
+- Regression check:
+	- `bun run test:bob:governance` -> PASS (6/6)
