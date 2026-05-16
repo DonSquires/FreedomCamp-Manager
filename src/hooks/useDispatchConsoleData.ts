@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
+import { edgeFunctions } from '@/lib/edgeFunctions'
 
 interface UseDispatchClientSitesLookupOptions {
   orgId?: string | null
@@ -98,22 +99,28 @@ export async function insertDispatchOfficerNotification({
 export async function assignAndDispatchJob({
   jobId,
   officerId,
-  dispatchedBy,
   dispatchedAt,
 }: AssignAndDispatchJobInput) {
-  const { error } = await (supabase as any)
-    .from('dispatch_jobs')
-    .update({
-      assigned_to: officerId,
-      dispatched_by: dispatchedBy,
-      status: 'dispatched',
+  try {
+    const result = await edgeFunctions.assignDispatchJob({
+      job_id: jobId,
+      officer_id: officerId,
       dispatched_at: dispatchedAt ?? new Date().toISOString(),
     })
-    .eq('id', jobId)
-
-  return {
-    ok: !error,
-    error,
+    return {
+      ok: true,
+      data: result,
+      notificationSent: result?.data?.notification?.sent !== false,
+      notificationError: result?.data?.notification?.error ?? null,
+      error: null,
+    }
+  } catch (error) {
+    return {
+      ok: false,
+      error,
+      notificationSent: false,
+      notificationError: null,
+    }
   }
 }
 
@@ -121,16 +128,19 @@ export async function cancelDispatchJob({
   jobId,
   cancelledAt,
 }: CancelDispatchJobInput) {
-  const { error } = await (supabase as any)
-    .from('dispatch_jobs')
-    .update({
-      status: 'cancelled',
+  try {
+    await edgeFunctions.cancelDispatchJob({
+      job_id: jobId,
       cancelled_at: cancelledAt ?? new Date().toISOString(),
     })
-    .eq('id', jobId)
-
-  return {
-    ok: !error,
-    error,
+    return {
+      ok: true,
+      error: null,
+    }
+  } catch (error) {
+    return {
+      ok: false,
+      error,
+    }
   }
 }

@@ -328,11 +328,12 @@ export default function ParkingEnforcementPortal() {
 
   // ── Update infringement status ────────────────────────────────
   const handleStatusChange = async (id: string, status: string) => {
-    const update: any = { status }
-    if (status === 'paid') update.payment_received_at = new Date().toISOString()
-    const { error } = await supabase.from('parking_infringements').update(update).eq('id', id)
-    if (error) {
-      toast.error(error.message)
+    const result = await edgeFunctions.updateParkingInfringementStatus({
+      infringement_id: id,
+      status,
+    })
+    if (result.error) {
+      toast.error(result.error)
     } else {
       toast.success(`Status updated to ${INF_STATUS[status]?.label ?? status}`)
       qc.invalidateQueries({ queryKey: ['parking-infringements'] })
@@ -605,7 +606,11 @@ export default function ParkingEnforcementPortal() {
                           size="sm"
                           className="h-6 text-xs text-red-600 hover:text-red-700"
                           onClick={async () => {
-                            await supabase.from('parking_permits').update({ is_active: false }).eq('id', p.id)
+                            const result = await edgeFunctions.revokeParkingPermit({ permit_id: p.id })
+                            if (result.error) {
+                              toast.error(result.error)
+                              return
+                            }
                             toast.success('Permit revoked')
                             refetchPermits()
                           }}
@@ -1017,18 +1022,20 @@ function NewZoneDialog({ open, organizationId, onClose, onSaved }: {
   const handleSave = async () => {
     if (!form.name.trim()) { toast.error('Zone name required'); return }
     setSaving(true)
-    const { error } = await supabase.from('parking_zones').insert({
-      organization_id:     organizationId,
-      name:                form.name.trim(),
-      address:             form.address || null,
-      zone_type:           form.zone_type,
-      max_stay_minutes:    form.max_stay_minutes ? parseInt(form.max_stay_minutes) : null,
-      fine_amount_nzd:     form.fine_amount_nzd  ? parseFloat(form.fine_amount_nzd) : null,
-      grace_period_minutes: parseInt(form.grace_period_minutes) || 5,
-      notes:               form.notes || null,
+    const result = await edgeFunctions.createParkingZone({
+      payload: {
+        organization_id: organizationId,
+        name: form.name.trim(),
+        address: form.address || null,
+        zone_type: form.zone_type,
+        max_stay_minutes: form.max_stay_minutes ? parseInt(form.max_stay_minutes) : null,
+        fine_amount_nzd: form.fine_amount_nzd ? parseFloat(form.fine_amount_nzd) : null,
+        grace_period_minutes: parseInt(form.grace_period_minutes) || 5,
+        notes: form.notes || null,
+      },
     })
     setSaving(false)
-    if (error) { toast.error(error.message); return }
+    if (result.error) { toast.error(result.error); return }
     toast.success(`Zone "${form.name}" created`)
     setForm({ name: '', address: '', zone_type: 'time_limited', max_stay_minutes: '',
               fine_amount_nzd: '', grace_period_minutes: '5', notes: '' })
@@ -1092,19 +1099,21 @@ function NewPermitDialog({ open, organizationId, zones, onClose, onSaved }: {
   const handleSave = async () => {
     if (!form.plate_number.trim()) { toast.error('Plate number required'); return }
     setSaving(true)
-    const { error } = await supabase.from('parking_permits').insert({
-      organization_id:  organizationId,
-      plate_number:     form.plate_number.toUpperCase().trim(),
-      permit_type:      form.permit_type,
-      parking_zone_id:  form.parking_zone_id || null,
-      holder_name:      form.holder_name || null,
-      holder_address:   form.holder_address || null,
-      valid_from:       form.valid_from,
-      valid_to:         form.valid_to || null,
-      is_active:        true,
+    const result = await edgeFunctions.createParkingPermit({
+      payload: {
+        organization_id: organizationId,
+        plate_number: form.plate_number.toUpperCase().trim(),
+        permit_type: form.permit_type,
+        parking_zone_id: form.parking_zone_id || null,
+        holder_name: form.holder_name || null,
+        holder_address: form.holder_address || null,
+        valid_from: form.valid_from,
+        valid_to: form.valid_to || null,
+        is_active: true,
+      },
     })
     setSaving(false)
-    if (error) { toast.error(error.message); return }
+    if (result.error) { toast.error(result.error); return }
     toast.success(`Permit issued for ${form.plate_number.toUpperCase()}`)
     setForm({ plate_number: '', permit_type: 'resident', parking_zone_id: '',
               holder_name: '', holder_address: '', valid_from: new Date().toISOString().slice(0, 10),

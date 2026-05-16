@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
+import { edgeFunctions } from '@/lib/edgeFunctions'
 import { useAuthStore } from '@/stores/authStore'
 import { useZones } from '@/hooks/useZones'
 import { useClientOrgIds } from '@/hooks/useClientOrgIds'
@@ -341,14 +342,17 @@ export default function ClientSites() {
       }
 
       if (id) {
-        const { error } = await (supabase as any).from('client_sites').update(payload).eq('id', id)
-        if (error) throw error
+        await edgeFunctions.upsertClientSite({
+          site_id: id,
+          payload,
+        })
       } else {
         if (!payload.organization_id) {
           throw new Error('Please select an organisation before creating a site')
         }
-        const { error } = await (supabase as any).from('client_sites').insert(payload)
-        if (error) throw error
+        await edgeFunctions.upsertClientSite({
+          payload,
+        })
       }
 
       return { geocodeSource, resolvedZoneId }
@@ -371,8 +375,10 @@ export default function ClientSites() {
 
   const toggleActive = useMutation({
     mutationFn: async ({ id, active }: { id: string; active: boolean }) => {
-      const { error } = await (supabase as any).from('client_sites').update({ is_active: active }).eq('id', id)
-      if (error) throw error
+      await edgeFunctions.setClientSiteActive({
+        site_id: id,
+        is_active: active,
+      })
     },
     onSuccess: () => { toast.success('Site updated'); qc.invalidateQueries({ queryKey: ['client-sites'] }) },
   })

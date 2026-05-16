@@ -14,7 +14,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
-import { insertDispatchJobWithAlarmTypeFallback } from '@/lib/dispatchJobs'
+import { edgeFunctions } from '@/lib/edgeFunctions'
 import { formatDistance, estimateEtaMinutes, formatEta, haversineKm } from '@/lib/geo'
 import { useAuthStore } from '@/stores/authStore'
 import { useClientOrgIds } from '@/hooks/useClientOrgIds'
@@ -22,7 +22,6 @@ import { useDispatchReplan } from '@/hooks/useDispatchReplan'
 import {
   assignAndDispatchJob,
   cancelDispatchJob,
-  insertDispatchOfficerNotification,
   useDispatchClientSitesLookup,
   useDispatchZonesLookup,
 } from '@/hooks/useDispatchConsoleData'
@@ -394,7 +393,6 @@ export default function DispatchConsole() {
       const dispatchResult = await assignAndDispatchJob({
         jobId,
         officerId,
-        dispatchedBy: user?.id,
       })
       if (!dispatchResult.ok) throw dispatchResult.error
 
@@ -417,18 +415,7 @@ export default function DispatchConsole() {
         }
       }
 
-      // Notify the officer
-      const job = jobs.find(j => j.id === jobId)
-      const notificationResult = await insertDispatchOfficerNotification({
-        officerId,
-        organizationId: orgId,
-        jobId,
-        jobNumber: job?.job_number,
-        jobTitle: job?.title,
-        jobAddress: job?.address,
-        priority: job?.priority,
-      })
-      if (!notificationResult.ok) {
+      if (dispatchResult.notificationSent === false) {
         toast.error('Job dispatched, but officer notification failed.')
       }
     },
@@ -459,22 +446,22 @@ export default function DispatchConsole() {
   // ── Create job mutation ─────────────────────────────────────────────────────
   const createMutation = useMutation({
     mutationFn: async (f: JobForm) => {
-      const { error } = await insertDispatchJobWithAlarmTypeFallback({
-        organization_id:      orgId,
-        created_by:           user?.id,
-        job_type:             f.job_type,
-        alarm_type:           f.alarm_type || null,
-        priority:             f.priority,
-        title:                f.title,
-        description:          f.description || null,
-        address:              f.address || null,
-        caller_name:          f.caller_name || null,
-        caller_phone:         f.caller_phone || null,
-        client_site_id:       f.client_site_id || null,
-        zone_id:              f.zone_id || null,
-        response_sla_minutes: f.response_sla_minutes,
-      }, 'id')
-      if (error) throw error
+      await edgeFunctions.createDispatchJob({
+        payload: {
+          organization_id:      orgId,
+          job_type:             f.job_type,
+          alarm_type:           f.alarm_type || null,
+          priority:             f.priority,
+          title:                f.title,
+          description:          f.description || null,
+          address:              f.address || null,
+          caller_name:          f.caller_name || null,
+          caller_phone:         f.caller_phone || null,
+          client_site_id:       f.client_site_id || null,
+          zone_id:              f.zone_id || null,
+          response_sla_minutes: f.response_sla_minutes,
+        },
+      })
     },
     onSuccess: () => {
       toast.success('Job created')

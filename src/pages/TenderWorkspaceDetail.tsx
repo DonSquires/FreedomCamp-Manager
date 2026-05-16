@@ -520,16 +520,18 @@ export default function TenderWorkspaceDetail() {
         // Non-fatal
       }
 
-      await ((supabase as any).from('tender_documents') as any)
-        .update({
+      const intakeResult = await edgeFunctions.updateTenderDocument({
+        document_id: doc.id,
+        payload: {
           file_name: file.name,
           file_kind: kind,
           file_path: storagePath,
           file_public_url: urlData?.publicUrl ?? null,
           extracted_text: extractedText || null,
           status: extractedText ? 'staged' : 'draft',
-        })
-        .eq('id', doc.id)
+        },
+      })
+      if (intakeResult.error) throw new Error(intakeResult.error)
 
       queryClient.invalidateQueries({ queryKey: ['tender-document', id] })
       toast.success('File uploaded and text extracted')
@@ -680,10 +682,11 @@ export default function TenderWorkspaceDetail() {
   // ── Update status ───────────────────────────────────────────────────────────
   const updateStatus = useMutation({
     mutationFn: async (status: TenderStatus) => {
-      const { error } = await ((supabase as any).from('tender_documents') as any)
-        .update({ status })
-        .eq('id', id!)
-      if (error) throw error
+      const result = await edgeFunctions.updateTenderDocument({
+        document_id: id!,
+        payload: { status },
+      })
+      if (result.error) throw new Error(result.error)
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tender-document', id] }),
     onError: (e: any) => toast.error(e?.message || 'Status update failed'),
@@ -694,10 +697,11 @@ export default function TenderWorkspaceDetail() {
     if (!doc || !canEdit) return
     setSavingSections(true)
     try {
-      const { error } = await ((supabase as any).from('tender_documents') as any)
-        .update({ response_sections: sections, status: 'drafting' })
-        .eq('id', doc.id)
-      if (error) throw error
+      const result = await edgeFunctions.updateTenderDocument({
+        document_id: doc.id,
+        payload: { response_sections: sections, status: 'drafting' },
+      })
+      if (result.error) throw new Error(result.error)
       queryClient.invalidateQueries({ queryKey: ['tender-document', id] })
       toast.success('Draft saved')
     } catch (err: any) {
@@ -773,23 +777,24 @@ export default function TenderWorkspaceDetail() {
     if (!doc || !canApprove) return
     setApprovingDoc(true)
     try {
-      const { error } = await ((supabase as any).from('tender_documents') as any)
-        .update({
+      const approveResult = await edgeFunctions.updateTenderDocument({
+        document_id: doc.id,
+        payload: {
           status: 'approved',
           approved_by: user!.id,
           approved_at: new Date().toISOString(),
           approval_notes: approvalNote.trim() || null,
-        })
-        .eq('id', doc.id)
-      if (error) throw error
+        },
+      })
+      if (approveResult.error) throw new Error(approveResult.error)
 
       if (approvalNote.trim()) {
-        await ((supabase as any).from('tender_comments') as any).insert({
+        const commentResult = await edgeFunctions.addTenderComment({
           document_id: doc.id,
-          user_id: user!.id,
           content: approvalNote.trim(),
           is_approval_note: true,
         })
+        if (commentResult.error) throw new Error(commentResult.error)
       }
 
       // Trigger Bob self-learning — silently, don't block approval on failure
@@ -819,23 +824,23 @@ export default function TenderWorkspaceDetail() {
     if (!rejectReason.trim()) { toast.error('Please enter a rejection reason'); return }
     setRejecting(true)
     try {
-      const { error } = await (supabase as any)
-        .from('tender_documents')
-        .update({
+      const rejectResult = await edgeFunctions.updateTenderDocument({
+        document_id: doc.id,
+        payload: {
           status: 'drafting',
           training_outcome_reason: rejectReason.trim(),
           rejection_category: rejectCategory,
-        })
-        .eq('id', doc.id)
-      if (error) throw error
+        },
+      })
+      if (rejectResult.error) throw new Error(rejectResult.error)
 
       // Add approval comment (rejection note)
-      await (supabase as any).from('tender_comments').insert({
+      const rejectComment = await edgeFunctions.addTenderComment({
         document_id: doc.id,
-        user_id: user!.id,
         content: `[REJECTED — ${rejectCategory}] ${rejectReason.trim()}`,
         is_approval_note: true,
       })
+      if (rejectComment.error) throw new Error(rejectComment.error)
 
       // Trigger Bob self-learning with rejection signal
       edgeFunctions.generateTenderSections({
@@ -860,26 +865,26 @@ export default function TenderWorkspaceDetail() {
     } finally {
       setRejecting(false)
     }
-  }, [doc, canApprove, rejectReason, rejectCategory, user, generationType, id, queryClient, includedRefIds])
+  }, [doc, canApprove, rejectReason, rejectCategory, generationType, id, queryClient, includedRefIds])
 
   // ── Mark as shortlisted ─────────────────────────────────────────────────────
   const markShortlisted = useCallback(async () => {
     if (!doc || !canApprove) return
     setShortlisting(true)
     try {
-      const { error } = await (supabase as any)
-        .from('tender_documents')
-        .update({ status: 'shortlisted' })
-        .eq('id', doc.id)
-      if (error) throw error
+      const shortlistResult = await edgeFunctions.updateTenderDocument({
+        document_id: doc.id,
+        payload: { status: 'shortlisted' },
+      })
+      if (shortlistResult.error) throw new Error(shortlistResult.error)
 
       if (shortlistFeedback.trim()) {
-        await (supabase as any).from('tender_comments').insert({
+        const shortlistComment = await edgeFunctions.addTenderComment({
           document_id: doc.id,
-          user_id: user!.id,
           content: `[SHORTLISTED] ${shortlistFeedback.trim()}`,
           is_approval_note: true,
         })
+        if (shortlistComment.error) throw new Error(shortlistComment.error)
         // Train Bob on shortlist
         edgeFunctions.generateTenderSections({
           document_id: doc.id,
@@ -901,7 +906,7 @@ export default function TenderWorkspaceDetail() {
     } finally {
       setShortlisting(false)
     }
-  }, [doc, canApprove, shortlistFeedback, user, generationType, id, queryClient, includedRefIds])
+  }, [doc, canApprove, shortlistFeedback, generationType, id, queryClient, includedRefIds])
 
   // ── Invite collaborator ─────────────────────────────────────────────────────
   const inviteCollaborator = useCallback(async () => {
@@ -917,14 +922,12 @@ export default function TenderWorkspaceDetail() {
       if (profileErr) throw profileErr
       if (!profile) throw new Error(`No user found with email: ${inviteEmail}`)
 
-      const { error } = await ((supabase as any).from('tender_collaborators') as any)
-        .insert({
-          document_id: doc.id,
-          user_id: profile.id,
-          role: inviteRole,
-          invited_by: user!.id,
-        })
-      if (error) throw error
+      const inviteResult = await edgeFunctions.addTenderCollaborator({
+        document_id: doc.id,
+        user_id: profile.id,
+        role: inviteRole,
+      })
+      if (inviteResult.error) throw new Error(inviteResult.error)
 
       queryClient.invalidateQueries({ queryKey: ['tender-collaborators', id] })
       setInviteEmail('')
@@ -934,24 +937,28 @@ export default function TenderWorkspaceDetail() {
     } finally {
       setInviting(false)
     }
-  }, [doc, isOwner, inviteEmail, inviteRole, user, id, queryClient])
+  }, [doc, isOwner, inviteEmail, inviteRole, id, queryClient])
 
   // ── Remove collaborator ─────────────────────────────────────────────────────
   const removeCollaborator = useCallback(async (collabId: string) => {
-    await ((supabase as any).from('tender_collaborators') as any)
-      .delete()
-      .eq('id', collabId)
-    queryClient.invalidateQueries({ queryKey: ['tender-collaborators', id] })
-    toast.success('Collaborator removed')
+    try {
+      const result = await edgeFunctions.removeTenderCollaborator({ collaborator_id: collabId })
+      if (result.error) throw new Error(result.error)
+      queryClient.invalidateQueries({ queryKey: ['tender-collaborators', id] })
+      toast.success('Collaborator removed')
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to remove collaborator')
+    }
   }, [id, queryClient])
 
   // ── Transfer ownership ──────────────────────────────────────────────────────
   const transferOwnership = useCallback(async (newOwnerId: string) => {
     if (!doc || !isOwner) return
-    const { error } = await ((supabase as any).from('tender_documents') as any)
-      .update({ owner_id: newOwnerId })
-      .eq('id', doc.id)
-    if (error) { toast.error(error.message); return }
+    const result = await edgeFunctions.updateTenderDocument({
+      document_id: doc.id,
+      payload: { owner_id: newOwnerId },
+    })
+    if (result.error) { toast.error(result.error); return }
     queryClient.invalidateQueries({ queryKey: ['tender-document', id] })
     toast.success('Ownership transferred')
   }, [doc, isOwner, id, queryClient])
@@ -961,13 +968,12 @@ export default function TenderWorkspaceDetail() {
     if (!commentText.trim() || !user || !doc) return
     setSubmittingComment(true)
     try {
-      const { error } = await ((supabase as any).from('tender_comments') as any).insert({
+      const result = await edgeFunctions.addTenderComment({
         document_id: doc.id,
-        user_id: user.id,
         content: commentText.trim(),
         is_approval_note: false,
       })
-      if (error) throw error
+      if (result.error) throw new Error(result.error)
       queryClient.invalidateQueries({ queryKey: ['tender-comments', id] })
       setCommentText('')
     } catch (err: any) {
@@ -994,11 +1000,13 @@ export default function TenderWorkspaceDetail() {
     )
 
     // Save generated HTML (best-effort; non-blocking)
-    ;((supabase as any).from('tender_documents') as any)
-      .update({ generated_html: html })
-      .eq('id', doc.id)
-      .then(({ error }: { error: any }) => {
-        if (error) console.error('Failed to save tender HTML:', error.message)
+    edgeFunctions
+      .updateTenderDocument({
+        document_id: doc.id,
+        payload: { generated_html: html },
+      })
+      .then(({ error }: { error: string | null }) => {
+        if (error) console.error('Failed to save tender HTML:', error)
         else queryClient.invalidateQueries({ queryKey: ['tender-document', id] })
       })
 
@@ -1206,9 +1214,10 @@ export default function TenderWorkspaceDetail() {
                     className="min-h-[180px] font-mono text-xs"
                     value={doc.extracted_text ?? ''}
                     onChange={async (e) => {
-                      await ((supabase as any).from('tender_documents') as any)
-                        .update({ extracted_text: e.target.value, status: e.target.value.trim() ? 'staged' : doc.status })
-                        .eq('id', doc.id)
+                      await edgeFunctions.updateTenderDocument({
+                        document_id: doc.id,
+                        payload: { extracted_text: e.target.value, status: e.target.value.trim() ? 'staged' : doc.status },
+                      })
                       queryClient.invalidateQueries({ queryKey: ['tender-document', id] })
                     }}
                   />

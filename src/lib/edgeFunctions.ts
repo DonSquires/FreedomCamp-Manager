@@ -1062,7 +1062,7 @@ export const edgeFunctions = {
   // ============================================================================
 
   /**
-   * Create user with profile & role (admin/master only — sets password directly)
+    * Create user with profile & role (consolidated under manage-user/create).
    */
   createUser: async (params: {
     email: string
@@ -1081,7 +1081,11 @@ export const edgeFunctions = {
     ptt_channel_access?: string[]
     permissions?: Record<string, unknown>
   }) => {
-    return callEdgeFunction('create-user', params)
+    return callEdgeFunction('manage-user', {
+      action: 'create',
+      organizationId: params.organization_id,
+      payload: params,
+    })
   },
 
   /**
@@ -1154,6 +1158,219 @@ export const edgeFunctions = {
       userId: params.user_id,
       payload: {
         is_active: params.is_active,
+      },
+    })
+  },
+
+  /**
+   * Update user portal and branch/org access assignments via backend validation.
+   */
+  updateUserAccess: async (params: {
+    user_id: string
+    portal_access: string[]
+    authorized_work_locations: string[]
+    extra_organization_ids: string[]
+    source_module?: string
+  }) => {
+    return callEdgeFunction('manage-user', {
+      action: 'update_access',
+      userId: params.user_id,
+      payload: {
+        portal_access: params.portal_access,
+        authorized_work_locations: params.authorized_work_locations,
+        extra_organization_ids: params.extra_organization_ids,
+        source_module: params.source_module ?? 'access_control',
+      },
+    })
+  },
+
+  /**
+   * Create or update a client site through backend validation and auditing.
+   */
+  upsertClientSite: async (params: {
+    site_id?: string
+    payload: Record<string, unknown>
+  }) => {
+    return callEdgeFunction('manage-site-governance', {
+      action: 'upsert_client_site',
+      siteId: params.site_id,
+      payload: params.payload,
+    })
+  },
+
+  /**
+   * Toggle active status for a client site through backend validation and auditing.
+   */
+  setClientSiteActive: async (params: {
+    site_id: string
+    is_active: boolean
+  }) => {
+    return callEdgeFunction('manage-site-governance', {
+      action: 'set_client_site_active',
+      siteId: params.site_id,
+      payload: { is_active: params.is_active },
+    })
+  },
+
+  /**
+   * Delete a client site through backend validation and auditing.
+   */
+  deleteClientSite: async (params: {
+    site_id: string
+  }) => {
+    return callEdgeFunction('manage-site-governance', {
+      action: 'delete_client_site',
+      siteId: params.site_id,
+      payload: {},
+    })
+  },
+
+  /**
+   * Upsert default role permissions for site field groups.
+   */
+  upsertSiteRolePermission: async (params: {
+    role: string
+    field_group: string
+    can_view: boolean
+    can_edit: boolean
+  }) => {
+    return callEdgeFunction('manage-site-governance', {
+      action: 'upsert_site_role_permission',
+      role: params.role,
+      fieldGroup: params.field_group,
+      payload: {
+        role: params.role,
+        field_group: params.field_group,
+        can_view: params.can_view,
+        can_edit: params.can_edit,
+      },
+    })
+  },
+
+  /**
+   * Delete an entire custom role from site permissions matrix.
+   */
+  deleteSiteRolePermission: async (params: {
+    role: string
+  }) => {
+    return callEdgeFunction('manage-site-governance', {
+      action: 'delete_site_role',
+      role: params.role,
+      payload: { role: params.role },
+    })
+  },
+
+  /**
+   * Upsert a user-specific site permission override.
+   */
+  upsertSiteUserPermission: async (params: {
+    user_id: string
+    field_group: string
+    can_view: boolean | null
+    can_edit: boolean | null
+  }) => {
+    return callEdgeFunction('manage-site-governance', {
+      action: 'upsert_site_user_permission',
+      userId: params.user_id,
+      fieldGroup: params.field_group,
+      payload: {
+        user_id: params.user_id,
+        field_group: params.field_group,
+        can_view: params.can_view,
+        can_edit: params.can_edit,
+      },
+    })
+  },
+
+  /**
+   * Remove a user-specific site permission override for one field group.
+   */
+  deleteSiteUserPermission: async (params: {
+    user_id: string
+    field_group: string
+  }) => {
+    return callEdgeFunction('manage-site-governance', {
+      action: 'delete_site_user_permission',
+      userId: params.user_id,
+      fieldGroup: params.field_group,
+      payload: {
+        user_id: params.user_id,
+        field_group: params.field_group,
+      },
+    })
+  },
+
+  /**
+   * Clear all user-specific site permission overrides.
+   */
+  clearAllSiteUserPermissions: async (params: {
+    user_id: string
+  }) => {
+    return callEdgeFunction('manage-site-governance', {
+      action: 'clear_site_user_permissions',
+      userId: params.user_id,
+      payload: { user_id: params.user_id },
+    })
+  },
+
+  /**
+   * Create a dispatch job via backend validation and audit logging.
+   */
+  createDispatchJob: async (params: {
+    payload: Record<string, unknown>
+  }) => {
+    return callEdgeFunction('manage-dispatch-operations', {
+      action: 'create_dispatch_job',
+      payload: params.payload,
+    })
+  },
+
+  /**
+   * Assign and dispatch a job to an officer through backend flow.
+   */
+  assignDispatchJob: async (params: {
+    job_id: string
+    officer_id: string
+    dispatched_at?: string
+  }) => {
+    return callEdgeFunction('manage-dispatch-operations', {
+      action: 'assign_dispatch_job',
+      jobId: params.job_id,
+      payload: {
+        officer_id: params.officer_id,
+        dispatched_at: params.dispatched_at,
+      },
+    })
+  },
+
+  /**
+   * Cancel a dispatch job through backend flow.
+   */
+  cancelDispatchJob: async (params: {
+    job_id: string
+    cancelled_at?: string
+  }) => {
+    return callEdgeFunction('manage-dispatch-operations', {
+      action: 'cancel_dispatch_job',
+      jobId: params.job_id,
+      payload: {
+        cancelled_at: params.cancelled_at,
+      },
+    })
+  },
+
+  /**
+   * Progress an assigned dispatch job through officer status transitions.
+   */
+  updateDispatchJobStatus: async (params: {
+    job_id: string
+    status: 'acknowledged' | 'en_route' | 'on_scene'
+  }) => {
+    return callEdgeFunction('manage-dispatch-operations', {
+      action: 'update_dispatch_job_status',
+      jobId: params.job_id,
+      payload: {
+        status: params.status,
       },
     })
   },
@@ -1246,6 +1463,158 @@ export const edgeFunctions = {
     reference_material_id: string
   }) => {
     return callEdgeFunction('process-reference-material', params, { showToast: false })
+  },
+
+  /**
+   * Create a tender reference material row through backend validation/audit.
+   */
+  createTenderReferenceMaterial: async (params: {
+    payload: Record<string, unknown>
+  }) => {
+    return callEdgeFunction('manage-tender-artifacts', {
+      action: 'create_reference_material',
+      payload: params.payload,
+    })
+  },
+
+  /**
+   * Update a tender reference material through backend validation/audit.
+   */
+  updateTenderReferenceMaterial: async (params: {
+    reference_material_id: string
+    payload: Record<string, unknown>
+  }) => {
+    return callEdgeFunction('manage-tender-artifacts', {
+      action: 'update_reference_material',
+      referenceMaterialId: params.reference_material_id,
+      payload: params.payload,
+    })
+  },
+
+  /**
+   * Archive a tender reference file version through backend validation/audit.
+   */
+  createTenderReferenceVersion: async (params: {
+    payload: Record<string, unknown>
+  }) => {
+    return callEdgeFunction('manage-tender-artifacts', {
+      action: 'create_reference_version',
+      payload: params.payload,
+    })
+  },
+
+  /**
+   * Update a tender document through backend validation/audit.
+   */
+  updateTenderDocument: async (params: {
+    document_id: string
+    payload: Record<string, unknown>
+  }) => {
+    return callEdgeFunction('manage-tender-artifacts', {
+      action: 'update_tender_document',
+      documentId: params.document_id,
+      payload: params.payload,
+    })
+  },
+
+  /**
+   * Add a tender workspace comment through backend validation/audit.
+   */
+  addTenderComment: async (params: {
+    document_id: string
+    content: string
+    is_approval_note?: boolean
+  }) => {
+    return callEdgeFunction('manage-tender-artifacts', {
+      action: 'add_tender_comment',
+      documentId: params.document_id,
+      payload: {
+        content: params.content,
+        is_approval_note: params.is_approval_note ?? false,
+      },
+    })
+  },
+
+  /**
+   * Add a tender collaborator through backend validation/audit.
+   */
+  addTenderCollaborator: async (params: {
+    document_id: string
+    user_id: string
+    role: string
+  }) => {
+    return callEdgeFunction('manage-tender-artifacts', {
+      action: 'add_tender_collaborator',
+      documentId: params.document_id,
+      payload: {
+        user_id: params.user_id,
+        role: params.role,
+      },
+    })
+  },
+
+  /**
+   * Remove a tender collaborator through backend validation/audit.
+   */
+  removeTenderCollaborator: async (params: {
+    collaborator_id: string
+  }) => {
+    return callEdgeFunction('manage-tender-artifacts', {
+      action: 'remove_tender_collaborator',
+      collaboratorId: params.collaborator_id,
+      payload: {},
+    })
+  },
+
+  /**
+   * Update parking infringement status through backend validation/audit.
+   */
+  updateParkingInfringementStatus: async (params: {
+    infringement_id: string
+    status: string
+  }) => {
+    return callEdgeFunction('manage-parking-governance', {
+      action: 'update_infringement_status',
+      infringementId: params.infringement_id,
+      payload: { status: params.status },
+    })
+  },
+
+  /**
+   * Revoke a parking permit through backend validation/audit.
+   */
+  revokeParkingPermit: async (params: {
+    permit_id: string
+  }) => {
+    return callEdgeFunction('manage-parking-governance', {
+      action: 'revoke_permit',
+      permitId: params.permit_id,
+      payload: {},
+    })
+  },
+
+  /**
+   * Create a parking zone through backend validation/audit.
+   */
+  createParkingZone: async (params: {
+    payload: Record<string, unknown>
+  }) => {
+    return callEdgeFunction('manage-parking-governance', {
+      action: 'create_parking_zone',
+      payload: params.payload,
+    })
+  },
+
+  /**
+   * Create a parking permit through backend validation/audit.
+   */
+  createParkingPermit: async (params: {
+    payload: Record<string, unknown>
+  }) => {
+    return callEdgeFunction('manage-parking-governance', {
+      action: 'create_parking_permit',
+      payload: params.payload,
+    })
   },
 
   // ============================================================================

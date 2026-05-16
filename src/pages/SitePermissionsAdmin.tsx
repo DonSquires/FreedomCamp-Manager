@@ -14,6 +14,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
+import { edgeFunctions } from '@/lib/edgeFunctions'
 import { useAuthStore } from '@/stores/authStore'
 import { useNavigate } from 'react-router-dom'
 import { AppLayout } from '@/components/features/AppLayout'
@@ -121,19 +122,12 @@ export default function SitePermissionsAdmin() {
     mutationFn: async ({ role, group, canView, canEdit }: {
       role: string; group: SiteFieldGroup; canView: boolean; canEdit: boolean
     }) => {
-      const existing = getCell(role, group)
-      if (existing) {
-        const { error } = await (supabase as any)
-          .from('site_role_permissions')
-          .update({ can_view: canView, can_edit: canEdit, updated_by: user?.id })
-          .eq('id', existing.id)
-        if (error) throw error
-      } else {
-        const { error } = await (supabase as any)
-          .from('site_role_permissions')
-          .insert({ role, field_group: group, can_view: canView, can_edit: canEdit, updated_by: user?.id })
-        if (error) throw error
-      }
+      await edgeFunctions.upsertSiteRolePermission({
+        role,
+        field_group: group,
+        can_view: canView,
+        can_edit: canEdit,
+      })
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-site-role-permissions'] }),
     onError: (err: any) => toast.error(err.message ?? 'Update failed'),
@@ -141,14 +135,16 @@ export default function SitePermissionsAdmin() {
 
   const addNewRole = useMutation({
     mutationFn: async (roleName: string) => {
-      const rows = SITE_FIELD_GROUPS.map(g => ({
-        role: roleName, field_group: g,
-        can_view: false, can_edit: false, updated_by: user?.id,
-      }))
-      const { error } = await (supabase as any)
-        .from('site_role_permissions')
-        .insert(rows)
-      if (error) throw error
+      await Promise.all(
+        SITE_FIELD_GROUPS.map((group) =>
+          edgeFunctions.upsertSiteRolePermission({
+            role: roleName,
+            field_group: group,
+            can_view: false,
+            can_edit: false,
+          })
+        )
+      )
     },
     onSuccess: () => {
       toast.success(`Role "${newRoleName}" added`)
@@ -160,11 +156,7 @@ export default function SitePermissionsAdmin() {
 
   const deleteRole = useMutation({
     mutationFn: async (role: string) => {
-      const { error } = await (supabase as any)
-        .from('site_role_permissions')
-        .delete()
-        .eq('role', role)
-      if (error) throw error
+      await edgeFunctions.deleteSiteRolePermission({ role })
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-site-role-permissions'] }),
     onError: (err: any) => toast.error(err.message ?? 'Delete failed'),
@@ -211,19 +203,12 @@ export default function SitePermissionsAdmin() {
     mutationFn: async ({ group, canView, canEdit }: {
       group: SiteFieldGroup; canView: boolean | null; canEdit: boolean | null
     }) => {
-      const existing = getUserOverride(group)
-      if (existing) {
-        const { error } = await (supabase as any)
-          .from('site_user_permissions')
-          .update({ can_view: canView, can_edit: canEdit, updated_by: user?.id })
-          .eq('id', existing.id)
-        if (error) throw error
-      } else {
-        const { error } = await (supabase as any)
-          .from('site_user_permissions')
-          .insert({ user_id: selectedUser!.id, field_group: group, can_view: canView, can_edit: canEdit, updated_by: user?.id })
-        if (error) throw error
-      }
+      await edgeFunctions.upsertSiteUserPermission({
+        user_id: selectedUser!.id,
+        field_group: group,
+        can_view: canView,
+        can_edit: canEdit,
+      })
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-site-user-permissions', selectedUser?.id] }),
     onError: (err: any) => toast.error(err.message ?? 'Update failed'),
@@ -231,13 +216,10 @@ export default function SitePermissionsAdmin() {
 
   const clearUserPerm = useMutation({
     mutationFn: async (group: SiteFieldGroup) => {
-      const existing = getUserOverride(group)
-      if (!existing) return
-      const { error } = await (supabase as any)
-        .from('site_user_permissions')
-        .delete()
-        .eq('id', existing.id)
-      if (error) throw error
+      await edgeFunctions.deleteSiteUserPermission({
+        user_id: selectedUser!.id,
+        field_group: group,
+      })
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-site-user-permissions', selectedUser?.id] }),
     onError: (err: any) => toast.error(err.message ?? 'Clear failed'),
@@ -245,11 +227,9 @@ export default function SitePermissionsAdmin() {
 
   const clearAllUserPerms = useMutation({
     mutationFn: async () => {
-      const { error } = await (supabase as any)
-        .from('site_user_permissions')
-        .delete()
-        .eq('user_id', selectedUser!.id)
-      if (error) throw error
+      await edgeFunctions.clearAllSiteUserPermissions({
+        user_id: selectedUser!.id,
+      })
     },
     onSuccess: () => {
       toast.success('All overrides cleared — user reverts to role defaults')

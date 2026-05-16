@@ -13,6 +13,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
+import { edgeFunctions } from '@/lib/edgeFunctions'
 import { useAuthStore } from '@/stores/authStore'
 import { useClientOrgIds } from '@/hooks/useClientOrgIds'
 import { AppLayout } from '@/components/features/AppLayout'
@@ -107,8 +108,7 @@ export default function ClientMasterList() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await (supabase as any).from('client_sites').delete().eq('id', id)
-      if (error) throw error
+      await edgeFunctions.deleteClientSite({ site_id: id })
     },
     onSuccess: () => {
       toast.success('Client site deleted')

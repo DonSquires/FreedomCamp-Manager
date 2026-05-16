@@ -334,11 +334,10 @@ export default function TenderReferenceLibrary() {
         filePublicUrl = urlData?.publicUrl || null
       }
 
-      // Insert DB row
-      const { data: inserted, error: insertError } = await withTimeout<{ data: any; error: any }>(
-        (supabase as any)
-          .from('tender_reference_materials')
-          .insert({
+      // Insert DB row through backend governance
+      const insertResult = await withTimeout(
+        edgeFunctions.createTenderReferenceMaterial({
+          payload: {
             organization_id: user.organization_id,
             title: newTitle.trim(),
             description: newDescription.trim() || null,
@@ -353,18 +352,18 @@ export default function TenderReferenceLibrary() {
             is_active: true,
             version: 1,
             uploaded_by: user.id,
-          })
-          .select('id')
-          .single(),
+          },
+        }),
         20000,
         'Saving reference record',
       )
 
-      if (insertError) throw new Error(insertError.message)
+      if (insertResult.error) throw new Error(insertResult.error)
+      const insertedId = (insertResult.data as any)?.data?.id ?? (insertResult.data as any)?.id
 
       // Trigger async extraction if file was uploaded to storage
-      if (newFile && inserted?.id && !backgroundLearnOnly) {
-        edgeFunctions.processReferenceMaterial({ reference_material_id: inserted.id })
+      if (newFile && insertedId && !backgroundLearnOnly) {
+        edgeFunctions.processReferenceMaterial({ reference_material_id: insertedId })
           .catch(() => { /* non-fatal — user can re-trigger */ })
       }
 
@@ -392,11 +391,11 @@ export default function TenderReferenceLibrary() {
   // ── Toggle active ─────────────────────────────────────────────────────────
   const toggleActive = useMutation({
     mutationFn: async ({ id, is_active }: { id: string; is_active: boolean }) => {
-      const { error } = await (supabase as any)
-        .from('tender_reference_materials')
-        .update({ is_active })
-        .eq('id', id)
-      if (error) throw error
+      const result = await edgeFunctions.updateTenderReferenceMaterial({
+        reference_material_id: id,
+        payload: { is_active },
+      })
+      if (result.error) throw new Error(result.error)
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tender-reference-library'] }),
     onError: (e: any) => toast.error(e?.message || 'Update failed'),
@@ -407,15 +406,15 @@ export default function TenderReferenceLibrary() {
     if (!activeSelectedRef) return
     setSavingText(true)
     try {
-      const { error } = await (supabase as any)
-        .from('tender_reference_materials')
-        .update({
+      const result = await edgeFunctions.updateTenderReferenceMaterial({
+        reference_material_id: activeSelectedRef.id,
+        payload: {
           extracted_text: editedText,
           extraction_status: editedText.trim() ? 'extracted' : 'needs_review',
           extraction_notes: null,
-        })
-        .eq('id', activeSelectedRef.id)
-      if (error) throw error
+        },
+      })
+      if (result.error) throw new Error(result.error)
       queryClient.invalidateQueries({ queryKey: ['tender-reference-library'] })
       setSelectedRef({ ...activeSelectedRef, extracted_text: editedText, extraction_status: editedText.trim() ? 'extracted' : 'needs_review', extraction_notes: null })
       setEditingText(false)
@@ -432,7 +431,11 @@ export default function TenderReferenceLibrary() {
     if (!ref.file_path) { toast.error('No file to re-extract'); return }
     setReExtractingId(ref.id)
     try {
-      await (supabase as any).from('tender_reference_materials').update({ extraction_status: 'pending' }).eq('id', ref.id)
+      const updateResult = await edgeFunctions.updateTenderReferenceMaterial({
+        reference_material_id: ref.id,
+        payload: { extraction_status: 'pending' },
+      })
+      if (updateResult.error) throw new Error(updateResult.error)
       const result = await edgeFunctions.processReferenceMaterial({ reference_material_id: ref.id })
       if (result?.error) throw new Error(result.error)
       queryClient.invalidateQueries({ queryKey: ['tender-reference-library'] })
@@ -450,15 +453,18 @@ export default function TenderReferenceLibrary() {
     setReplacingFile(true)
     try {
       // Archive current version to tender_reference_versions
-      await (supabase as any).from('tender_reference_versions').insert({
-        reference_material_id: selectedRef.id,
-        version: selectedRef.version,
-        file_name: selectedRef.file_name,
-        file_path: selectedRef.file_path,
-        file_kind: selectedRef.file_kind,
-        extracted_text: selectedRef.extracted_text,
-        replaced_by: user.id,
+      const versionResult = await edgeFunctions.createTenderReferenceVersion({
+        payload: {
+          reference_material_id: selectedRef.id,
+          version: selectedRef.version,
+          file_name: selectedRef.file_name,
+          file_path: selectedRef.file_path,
+          file_kind: selectedRef.file_kind,
+          extracted_text: selectedRef.extracted_text,
+          replaced_by: user.id,
+        },
       })
+      if (versionResult.error) throw new Error(versionResult.error)
 
       // Upload new file
       const fileKind = classifyFile(file)
@@ -473,17 +479,21 @@ export default function TenderReferenceLibrary() {
       const { data: urlData } = supabase.storage.from('evidence').getPublicUrl(storagePath)
 
       // Update reference record
-      await (supabase as any).from('tender_reference_materials').update({
-        file_name: file.name,
-        file_path: storagePath,
-        file_public_url: urlData?.publicUrl || null,
-        file_kind: fileKind,
-        extracted_text: null,
-        extraction_status: 'pending',
-        extraction_notes: null,
-        version: selectedRef.version + 1,
-        uploaded_by: user.id,
-      }).eq('id', selectedRef.id)
+      const updateResult = await edgeFunctions.updateTenderReferenceMaterial({
+        reference_material_id: selectedRef.id,
+        payload: {
+          file_name: file.name,
+          file_path: storagePath,
+          file_public_url: urlData?.publicUrl || null,
+          file_kind: fileKind,
+          extracted_text: null,
+          extraction_status: 'pending',
+          extraction_notes: null,
+          version: selectedRef.version + 1,
+          uploaded_by: user.id,
+        },
+      })
+      if (updateResult.error) throw new Error(updateResult.error)
 
       // Trigger extraction
       edgeFunctions.processReferenceMaterial({ reference_material_id: selectedRef.id })

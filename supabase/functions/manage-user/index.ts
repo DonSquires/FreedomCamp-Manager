@@ -2,7 +2,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3'
 import { getCorsHeaders } from '../_shared/withCors.ts'
 
 interface ManageUserRequest {
-  action: 'create' | 'update' | 'set_password' | 'deactivate' | 'disconnect_ptt' | 'set_ptt_channel_access'
+  action: 'create' | 'update' | 'update_access' | 'set_password' | 'deactivate' | 'disconnect_ptt' | 'set_ptt_channel_access'
   userId?: string
   organizationId?: string
   payload?: Record<string, unknown>
@@ -11,6 +11,8 @@ interface ManageUserRequest {
 type PttScopeMode = 'replace' | 'grant' | 'revoke'
 
 const PTT_SCOPE_PATTERN = /^(org|incident|direct|team|deployment):[a-f0-9-]+$/
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+const PORTAL_ACCESS_PATTERN = /^[a-z0-9_:-]{2,64}$/
 
 function normalizeScopeList(raw: unknown): string[] {
   if (!Array.isArray(raw)) return []
@@ -19,6 +21,28 @@ function normalizeScopeList(raw: unknown): string[] {
       raw
         .map((entry) => (typeof entry === 'string' ? entry.trim() : ''))
         .filter((scope) => scope.length > 0 && PTT_SCOPE_PATTERN.test(scope)),
+    ),
+  )
+}
+
+function normalizeUuidList(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return []
+  return Array.from(
+    new Set(
+      raw
+        .map((entry) => (typeof entry === 'string' ? entry.trim() : ''))
+        .filter((id) => UUID_PATTERN.test(id)),
+    ),
+  )
+}
+
+function normalizePortalAccess(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return []
+  return Array.from(
+    new Set(
+      raw
+        .map((entry) => (typeof entry === 'string' ? entry.trim().toLowerCase() : ''))
+        .filter((code) => PORTAL_ACCESS_PATTERN.test(code)),
     ),
   )
 }
@@ -234,6 +258,75 @@ Deno.serve(async (req) => {
       if (error) throw new Error(error.message)
 
       return new Response(JSON.stringify({ ok: true, message: 'Password updated' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    if (body.action === 'update_access') {
+      const portalAccess = normalizePortalAccess(body.payload?.portal_access)
+      const authorizedWorkLocations = normalizeUuidList(body.payload?.authorized_work_locations)
+      const extraOrganizationIds = normalizeUuidList(body.payload?.extra_organization_ids)
+      const sourceModule = typeof body.payload?.source_module === 'string' ? body.payload.source_module : 'access_control'
+
+      const { data: existingProfile, error: existingProfileError } = await adminClient
+        .from('user_profiles')
+        .select('id, organization_id, portal_access, authorized_work_locations, extra_organization_ids')
+        .eq('id', body.userId)
+        .single()
+
+      if (existingProfileError || !existingProfile) {
+        return new Response(JSON.stringify({ error: 'Target user profile not found for access update' }), {
+          status: 404,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+
+      const { data: updatedAccess, error: updateAccessError } = await adminClient
+        .from('user_profiles')
+        .update({
+          portal_access: portalAccess,
+          authorized_work_locations: authorizedWorkLocations,
+          extra_organization_ids: extraOrganizationIds,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', body.userId)
+        .select('id, portal_access, authorized_work_locations, extra_organization_ids, updated_at')
+        .single()
+
+      if (updateAccessError || !updatedAccess) {
+        throw new Error(updateAccessError?.message ?? 'Failed to update user access settings')
+      }
+
+      const { error: auditError } = await adminClient
+        .from('audit_log')
+        .insert({
+          organization_id: targetProfile.organization_id,
+          action: 'user_access_updated',
+          entity_type: 'user_profile',
+          entity_id: body.userId,
+          performed_by: user.id,
+          old_values: {
+            portal_access: existingProfile.portal_access ?? [],
+            authorized_work_locations: existingProfile.authorized_work_locations ?? [],
+            extra_organization_ids: existingProfile.extra_organization_ids ?? [],
+          },
+          new_values: {
+            portal_access: portalAccess,
+            authorized_work_locations: authorizedWorkLocations,
+            extra_organization_ids: extraOrganizationIds,
+            source_module: sourceModule,
+          },
+        })
+
+      if (auditError) {
+        throw new Error(`Access updated but audit artifact failed: ${auditError.message}`)
+      }
+
+      return new Response(JSON.stringify({
+        ok: true,
+        data: updatedAccess,
+        audit: { action: 'user_access_updated', source_module: sourceModule },
+      }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }

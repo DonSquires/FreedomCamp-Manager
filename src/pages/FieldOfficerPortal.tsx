@@ -593,12 +593,13 @@ export default function FieldOfficerPortal() {
 
   const advanceJobStatus = useMutation({
     mutationFn: async ({ jobId, newStatus }: { jobId: string; newStatus: string }) => {
-      const update: any = { status: newStatus }
-      if (newStatus === 'acknowledged') update.acknowledged_at = new Date().toISOString()
-      if (newStatus === 'en_route')     update.en_route_at     = new Date().toISOString()
-      if (newStatus === 'on_scene')     update.on_scene_at     = new Date().toISOString()
-      const { error } = await (supabase as any).from('dispatch_jobs').update(update).eq('id', jobId)
-      if (error) throw error
+      if (newStatus !== 'acknowledged' && newStatus !== 'en_route' && newStatus !== 'on_scene') {
+        throw new Error(`Unsupported status transition target: ${newStatus}`)
+      }
+      await edgeFunctions.updateDispatchJobStatus({
+        job_id: jobId,
+        status: newStatus,
+      })
     },
     onSuccess: () => { qcHook.invalidateQueries({ queryKey: ['my-dispatch-jobs'] }) },
     onError: (err: any) => toast.error(err?.message ?? 'Update failed'),

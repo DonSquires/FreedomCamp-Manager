@@ -15,6 +15,7 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
+import { edgeFunctions } from '@/lib/edgeFunctions'
 import { useAuthStore } from '@/stores/authStore'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { AppLayout } from '@/components/features/AppLayout'
@@ -224,14 +225,13 @@ export default function AccessControlPage() {
       authorizedWorkLocations: string[]
       extraOrgIds: string[]
     }) => {
-      const { error } = await ((supabase as any).from('user_profiles') as any)
-        .update({
-          portal_access:             payload.portalAccess,
-          authorized_work_locations: payload.authorizedWorkLocations,
-          extra_organization_ids:    payload.extraOrgIds,
-        })
-        .eq('id', payload.userId)
-      if (error) throw error
+      await edgeFunctions.updateUserAccess({
+        user_id: payload.userId,
+        portal_access: payload.portalAccess,
+        authorized_work_locations: payload.authorizedWorkLocations,
+        extra_organization_ids: payload.extraOrgIds,
+        source_module: queryOrgId ? 'crm_access_control_flow' : 'access_control',
+      })
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['access-control-users'] })
