@@ -1,13 +1,13 @@
 # Bob Failure Summary
 
-Generated: 2026-05-14T23:05:00.422Z
+Generated: 2026-05-16T11:46:04.900Z
 Window: last 24 hours
-Entries analyzed: 3
-Low-score entries: 1
+Entries analyzed: 5
+Low-score entries: 0
 
 ## Top Failure Reasons
 
-- quality_gate_failed (1)
+- none
 
 ## Top Hallucination Patterns
 
@@ -19,8 +19,8 @@ Low-score entries: 1
 
 ## Most-Flagged Artifacts
 
-- /workspaces/FreedomCamp-Manager/tests/e2e/bob-human-emulator.spec.ts (3)
+- /workspaces/FreedomCamp-Manager/spec.md (3)
 
 ## Recommendations
 
-- Re-read docs/BOB_TRAINING_TRUTH_PROTOCOL.md before the next redesign response.
+- No repeated failure mode crossed the automatic threshold in this window.

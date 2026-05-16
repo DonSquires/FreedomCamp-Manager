@@ -2,6 +2,8 @@
 
 Purpose: stage raw files from Supabase Storage into the app so Bob/Bib can review and action them in the intake queue.
 
+For Deputy-specific roster evidence handling, follow `docs/DEPUTY_ROSTER_DATA_PLAYBOOK.md`.
+
 ## What this does
 
 - Scans a storage bucket/prefix.
@@ -54,53 +56,19 @@ Purpose: stage raw files from Supabase Storage into the app so Bob/Bib can revie
 ## Commands quick reference
 
 - Dry-run all root files in evidence:
-  - `node scripts/backfill-bob-intakes-from-storage.mjs --bucket evidence --limit 200`
+  - `bun run bob:intake:backfill-storage -- --bucket evidence --limit 200`
 - Dry-run specific prefix:
-  - `node scripts/backfill-bob-intakes-from-storage.mjs --bucket evidence --prefix bob-intake --limit 200 --verbose`
+  - `bun run bob:intake:backfill-storage -- --bucket evidence --prefix bob-intake --limit 200 --verbose`
 - Apply specific prefix:
-  - `node scripts/backfill-bob-intakes-from-storage.mjs --apply --bucket evidence --prefix bob-intake --limit 200`
+  - `bun run bob:intake:backfill-storage:apply -- --bucket evidence --prefix bob-intake --limit 200`
 - Apply with offset cursor:
-   - `node scripts/backfill-bob-intakes-from-storage.mjs --apply --bucket evidence --organization-id <org-uuid> --offset 200 --limit 100`
+   - `bun run bob:intake:backfill-storage:apply -- --bucket evidence --organization-id <org-uuid> --offset 200 --limit 100`
 
-## Full Enrichment + Bob/App Training Execution
+## Auto-stop batch runner (repeatable scheduling)
 
-Use this sequence to continue live enrichment and training in one run.
-
-1. Dry-run orchestration:
-   - `npm run bob:enrichment:training`
-2. Apply orchestration:
-   - `npm run bob:enrichment:training:apply`
-
-What the apply workflow executes:
-
-- Intake dry-run + apply
-- First Security org bootstrap
-- Marlborough parking bootstrap (zones/sites/grants + workspace/contractor access)
-- Bob context feeds
-- Validation gates (doc lint, typecheck, build, spatial tests)
-- App training checks (runtime status + capability gate)
-
-### Resilience behavior (current default)
-
-- Spatial boundary step uses AI retry and timeout fallback (`--aiRetries 3 --allowAiTimeout`).
-- Spatial boundary test runs with strict transition coordinates between Marlborough District Council and Port Marlborough workspaces; no-transition is treated as a blocker.
-- Capability gate uses explicit diagnostics and retries (`--retries 3 --timeoutMs 90000`); persistent serverless aborts are treated as external blockers.
-- Any active blocker state means the run is not ready for strict sign-off.
-
-### Run artifact (required)
-
-- Each apply run writes:
-   - `logs/enrichment-training-artifact.json`
-- Artifact records:
-   - per-step success/failure
-   - retry attempts
-   - blocker list
-   - degraded state (expected `false` for strict sign-off)
-
-### Mandatory follow-up after blocked completion
-
-1. Re-run boundary test with validated coordinates once context resolver coverage is confirmed:
-   - `node scripts/geo-boundary-transition-test.mjs --providerOrgId b3dcef79-9cc1-4f3b-bae0-a190297c52b7`
-2. Re-run capability gate when inference/serverless health is stable:
-   - `npm run bob:capabilities`
-3. Record blocker status and timestamps in staging notes.
+- Dry-run drain (stops when staged=0):
+   - `bun run bob:intake:backfill-storage:drain -- --bucket evidence --organization-id <org-uuid> --limit 100 --start-offset 0 --max-batches 100`
+- Apply drain (safe per-batch dry-run + apply):
+   - `bun run bob:intake:backfill-storage:drain:apply -- --bucket evidence --organization-id <org-uuid> --limit 100 --start-offset 0 --max-batches 100`
+- Apply a scoped prefix drain:
+   - `bun run bob:intake:backfill-storage:drain:apply -- --bucket evidence --prefix bob-intake --organization-id <org-uuid> --limit 100 --max-batches 50`

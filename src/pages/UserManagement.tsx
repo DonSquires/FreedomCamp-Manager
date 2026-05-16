@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
@@ -198,6 +198,13 @@ export default function UserManagement({ embedded = false }: UserManagementProps
     ? (organizations || [])
     : (organizations || []).filter((o) => accessibleOrgIds?.includes(o.id))
 
+  const preferredCreateOrgId = useMemo(() => {
+    const ironEagleOrg = availableOrgs.find((org) => /iron\s*eagle/i.test(org.name || ''))
+    if (ironEagleOrg?.id) return ironEagleOrg.id
+    if (user?.organization_id && availableOrgs.some((org) => org.id === user.organization_id)) return user.organization_id
+    return ''
+  }, [availableOrgs, user?.organization_id])
+
   const derivedAuthorizedWorkLocations = Array.from(
     new Set([organizationId, ...extraOrganizationIds].filter((id): id is string => Boolean(id)))
   )
@@ -306,7 +313,7 @@ export default function UserManagement({ embedded = false }: UserManagementProps
         phone,
         job_title: jobTitle || null,
         requires_driver_license: requiresDriverLicense,
-        organization_id: organizationId || null,
+        organization_id: organizationId || user?.organization_id || null,
         extra_organization_ids: extraOrganizationIds,
         employer_organization_id: employerOrgId || null,
         portal_access: portalAccess,
@@ -489,9 +496,9 @@ export default function UserManagement({ embedded = false }: UserManagementProps
     setCoaExpiry('')
     setWarrantNumber('')
     setWarrantExpiry('')
-    setOrganizationId('')
+    setOrganizationId(preferredCreateOrgId)
     setExtraOrganizationIds([])
-    setEmployerOrgId('')
+    setEmployerOrgId(preferredCreateOrgId)
     setPortalAccess([])
     setCreatePttScopes([])
     setCreatePttScopeInput('')
@@ -900,7 +907,10 @@ export default function UserManagement({ embedded = false }: UserManagementProps
           <Radio className="h-4 w-4 mr-2" />
           Bulk Assign Callsigns
         </Button>
-        <Button onClick={() => setShowCreateDialog(true)}>
+        <Button onClick={() => {
+          resetForm()
+          setShowCreateDialog(true)
+        }}>
           <UserPlus className="h-4 w-4 mr-2" />
           Create User
         </Button>

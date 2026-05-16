@@ -3,45 +3,58 @@
   "node_version": "v24.14.1",
   "bun_version": "not installed",
   "toolchain_ready": false,
-  "modules": ["administration","bob","dashboard","enforcement","messaging","operations","patrol","shared"],
-  "lockfiles": ["bun.lock","package-lock.json"],
-  "generated_at": "2026-05-14T23:05:00Z",
+  "modules": [
+    "administration",
+    "bob",
+    "dashboard",
+    "enforcement",
+    "messaging",
+    "operations",
+    "patrol",
+    "shared"
+  ],
+  "lockfiles": [
+    "bun.lock",
+    "package-lock.json"
+  ],
+  "generated_at": "2026-05-16T07:03:10Z",
   "source": "scripts/system-check.sh",
-  "phase_0_planned_modules": {
-    "status": "planned — not yet implemented; pending Phase 0 entry gate approval",
-    "pages": [
-      "src/pages/VoiceTwinEnrollment.tsx",
-      "src/pages/VoiceProfileManagement.tsx",
-      "src/pages/VoiceTwinAuditDashboard.tsx",
-      "src/pages/RadioUI.tsx"
-    ],
-    "edge_functions": [
-      "supabase/functions/radio-session-grant",
-      "supabase/functions/radio-floor-acquire",
-      "supabase/functions/radio-floor-release",
-      "supabase/functions/ingest-transcript-segments",
-      "supabase/functions/translate-transcript-segments",
-      "supabase/functions/synthesize-translated-audio",
-      "supabase/functions/synthesize-voice-twin"
-    ],
-    "hooks": [
-      "src/lib/radioTransport.ts"
-    ],
-    "schema_tables": [
-      "radio_transmissions",
-      "radio_floor_events",
-      "radio_transcript_segments",
-      "radio_translation_segments",
-      "radio_tts_renders",
-      "radio_voice_profiles",
-      "radio_voice_twin_events",
-      "user_radio_preferences",
-      "organization_radio_settings"
-    ],
-    "adrs": [
-      "docs/adr/006-sfu-platform-selection.md",
-      "docs/adr/007-event-backbone-floor-control.md",
-      "docs/adr/008-voice-twin-governance.md"
-    ]
-  }
+  "monitor": {
+    "checked_at": "2026-05-16T07:03:10.977Z",
+    "monitor_version": "2026-05-13.enterprise.v1",
+    "window_minutes": 15,
+    "error_threshold": 5,
+    "recent_500_errors": 0,
+    "unique_500_error_signatures": 0,
+    "status": "warning",
+    "live_session_diagnostics": {
+      "schema_version": "2026-05-13.enterprise.v1",
+      "checked_at": "2026-05-16T07:03:11.243Z",
+      "started_at": "2026-05-16T07:03:11.242Z",
+      "window_minutes": 20,
+      "status": "stale",
+      "source": "live-session-diagnostics-summary",
+      "reason": "No live session diagnostic events detected in last 20m.",
+      "strict_mode": false,
+      "retries": 2,
+      "timeout_ms": 12000,
+      "lock_file": "/workspaces/FreedomCamp-Manager/tmp/locks/live-session-self-heal.lock",
+      "recent_events": 0,
+      "route_changes": 0,
+      "offline_events": 0,
+      "console_error_count": 0,
+      "unhandled_count": 0,
+      "latest_route": null,
+      "top_event_types": [],
+      "query": {
+        "source_table": "bug_reports",
+        "source_fallback": true,
+        "attempts": 1,
+        "status": 200,
+        "duration_ms": 52
+      },
+      "execution_ms": 623
+    }
+  },
+  "critical_warning": "Live session diagnostics stale: No live session diagnostic events detected in last 20m."
 }

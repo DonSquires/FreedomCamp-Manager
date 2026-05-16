@@ -1,0 +1,99 @@
+{
+  "runId": "2026-05-16T11-15-06-557Z",
+  "startedAt": "2026-05-16T11:15:06.571Z",
+  "endedAt": "2026-05-16T11:17:35.132Z",
+  "config": {
+    "hours": 24,
+    "artifacts": [
+      "spec.md"
+    ],
+    "functionalCmd": "bun run -s test:bob:governance",
+    "ragasCmd": "",
+    "trulensCmd": "",
+    "maxLowScoreCount": 0,
+    "maxRepeatedHallucinations": 0,
+    "maxChannelBiasGap": 4,
+    "minChannelSamples": 2,
+    "maxFallbackRate": 0.5,
+    "failOnRedTeamRevision": true
+  },
+  "stages": {
+    "rag": {
+      "status": "pass",
+      "detail": "lowScoreCount=0, repeatedHallucinations=0",
+      "summarizeFailures": {
+        "exitCode": 0,
+        "lowScoreCount": 0,
+        "repeatedHallucinations": 0,
+        "rawSummary": {
+          "generatedAt": "2026-05-16T11:15:06.634Z",
+          "windowHours": 24,
+          "totalEntries": 4,
+          "lowScoreCount": 0,
+          "topFailureReasons": [],
+          "topHallucinationPatterns": [],
+          "repeatedHallucinations": [],
+          "topFlaggedArtifacts": [
+            {
+              "name": "/workspaces/FreedomCamp-Manager/spec.md",
+              "count": 2
+            }
+          ],
+          "recommendations": [
+            "No repeated failure mode crossed the automatic threshold in this window."
+          ]
+        }
+      },
+      "external": []
+    },
+    "redTeam": {
+      "status": "pass",
+      "detail": "all artifact reviews passed",
+      "artifacts": [
+        {
+          "artifact": "spec.md",
+          "status": "pass",
+          "exitCode": 0,
+          "decision": "approve",
+          "reviewArtifact": "/workspaces/FreedomCamp-Manager/data/dr-bob-reviews/spec.md.2026-05-16T11-17-30-778Z.json"
+        }
+      ]
+    },
+    "functionalBias": {
+      "status": "pass",
+      "detail": "functional command and bias checks passed",
+      "functional": {
+        "command": "npm run -s test:bob:governance",
+        "exitCode": 0,
+        "status": "pass"
+      },
+      "bias": {
+        "status": "pass",
+        "entriesCount": 5,
+        "comparableChannels": [
+          "runpod-runsync"
+        ],
+        "channelBiasGap": 0,
+        "fallbackRate": 0,
+        "channelStats": [
+          {
+            "channel": "runpod-runsync",
+            "count": 5,
+            "totalScore": 50,
+            "avgScore": 10,
+            "lowScoreCount": 0,
+            "lowScoreRate": 0
+          }
+        ]
+      }
+    }
+  },
+  "finalDecision": "pass",
+  "notes": [
+    "No external RAG evaluator command configured; using internal hallucination and low-score metrics."
+  ],
+  "artifacts": {
+    "scorecardPath": "/workspaces/FreedomCamp-Manager/tools/bob-operational-testing/2026-05-16T11-15-06-557Z/scorecard.json",
+    "reportPath": "/workspaces/FreedomCamp-Manager/tools/bob-operational-testing/2026-05-16T11-15-06-557Z/scorecard.md"
+  }
+}

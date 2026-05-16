@@ -7,6 +7,7 @@ import { routeManifest, type AppRole } from '@/navigation/routeManifest'
 import { useSessionLockStore } from '@/stores/sessionLockStore'
 import { useAutoErrorReporter } from '@/hooks/useAutoErrorReporter'
 import { FeedbackModal } from '@/components/features/FeedbackModal'
+import { BobQuickChatWidget } from '@/components/features/BobQuickChatWidget'
 import { BreadcrumbNav } from '@/components/features/BreadcrumbNav'
 import { PTTBar } from '@/components/features/PTTBar'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -775,6 +776,7 @@ export function AppLayout({ children, title, description, showBackButton, immers
   const brandLogoUrl = '/iron-eagle-security-logo.jpg'
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [feedbackOpen, setFeedbackOpen] = useState(false)
+  const [bobQuickChatOpen, setBobQuickChatOpen] = useState(false)
   const [pttFabOpen, setPttFabOpen] = useState(false)
   const [desktopNavOpen, setDesktopNavOpen] = useState(() => {
     // Default to open (true). Only closes if the user has explicitly set it to 'false'.
@@ -1545,11 +1547,11 @@ export function AppLayout({ children, title, description, showBackButton, immers
                 )}
 
                 <button
-                  onClick={() => navigate('/bob-assistant')}
+                  onClick={() => setBobQuickChatOpen((open) => !open)}
                   title="Ask Bob — operational assistant"
                   className={cn(
                     'flex items-center gap-2 rounded-full shadow-lg px-3 py-2 text-xs font-medium transition-all hover:shadow-xl',
-                    location.pathname === '/bob-assistant'
+                    bobQuickChatOpen || location.pathname === '/bob-assistant'
                       ? 'bg-violet-600 text-white opacity-60 cursor-default'
                       : 'bg-violet-600 hover:bg-violet-700 text-white',
                   )}
@@ -1582,6 +1584,15 @@ export function AppLayout({ children, title, description, showBackButton, immers
                   <span className="hidden sm:inline">Feedback</span>
                 </button>
               </div>
+              <BobQuickChatWidget
+                open={bobQuickChatOpen}
+                onOpenChange={setBobQuickChatOpen}
+                onOpenStudio={() => {
+                  setBobQuickChatOpen(false)
+                  navigate('/bob-assistant')
+                }}
+                currentRoute={location.pathname}
+              />
               <FeedbackModal open={feedbackOpen} onClose={() => setFeedbackOpen(false)} />
             </>
           )}

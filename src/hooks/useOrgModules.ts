@@ -39,7 +39,8 @@ export const MODULE_AREA_MAP: Record<ModuleKey, string[]> = {
   noise_control:         ['noise', 'noise-control', 'noise-officer'],
   parking:               ['parking', 'parking-officer'],
   dispatch:              ['dispatch', 'dispatch-monitor', 'dispatch-wizard', 'dispatched-jobs'],
-  roster:                ['roster', 'open-shifts', 'officer-availability', 'timesheet'],
+  // Workforce/user-management surfaces are hosted under roster workflows.
+  roster:                ['roster', 'users', 'open-shifts', 'officer-availability', 'timesheet'],
   patrol:                ['field-officer', 'patrol', 'live-patrol-monitor', 'patrol-checkpoint'],
   compliance:            ['compliance', 'compliance-dashboard', 'compliance-analytics', 'compliance-escalations'],
   crm:                   ['crm', 'client-account', 'client-sites', 'client-portal'],

@@ -143,6 +143,7 @@ Roster source rule (Deputy-first):
 1. Check for Deputy exports/files first when building roster history and staffing evidence.
 2. If Deputy files are found, treat them as primary roster evidence input.
 3. If Deputy files are missing or ambiguous, Bob must ask the operator for source confirmation before inferring roster facts from secondary sources.
+4. Follow `docs/DEPUTY_ROSTER_DATA_PLAYBOOK.md` for staged intake and review workflow before enrichment writes.
 
 ### 4.3 Strict sign-off rule
 

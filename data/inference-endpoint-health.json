@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-10T15:10:08.192Z",
+  "generatedAt": "2026-05-16T06:42:05.950Z",
   "totalEndpoints": 1,
   "healthyCount": 1,
   "degradedCount": 0,
@@ -12,10 +12,10 @@
       "url": "https://api.runpod.ai/v2/n0bp1ifmq01cx2",
       "probeUrl": "https://api.runpod.ai/v2/n0bp1ifmq01cx2/runsync",
       "status": "healthy",
-      "latencyMs": 441,
+      "latencyMs": 416,
       "httpStatus": 200,
       "detail": "ok",
-      "checkedAt": "2026-05-10T15:10:08.181Z"
+      "checkedAt": "2026-05-16T06:42:05.925Z"
     }
   ]
 }

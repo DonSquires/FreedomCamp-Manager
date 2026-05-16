@@ -303,9 +303,12 @@ export default function Platform() {
       // owners can see it's being worked on before the Bob response returns.
       let statusForTransition = report.status
       if (shouldAutoAcknowledge(report.status)) {
-        const { error: ackError } = await supabase.from('bug_reports').update({ status: 'acknowledged' }).eq('id', report.id)
-        if (ackError) {
-          console.error('Failed to auto-acknowledge report before Bob analysis', ackError)
+        const ackResult = await edgeFunctions.updateBugReport({
+          report_id: report.id,
+          payload: { status: 'acknowledged' },
+        })
+        if (ackResult.error) {
+          console.error('Failed to auto-acknowledge report before Bob analysis', ackResult.error)
         } else {
           statusForTransition = 'acknowledged'
         }
@@ -359,16 +362,17 @@ Be specific. Name exact files and line-level changes where possible.`
       // Persist analysis back to bug_reports
       const nextStatus = nextStatusAfterAnalysis(statusForTransition)
 
-      await supabase
-        .from('bug_reports')
-        .update({
+      const persistResult = await edgeFunctions.updateBugReport({
+        report_id: report.id,
+        payload: {
           ai_analyzed: true,
           ai_suggested_fix: aiText,
           ai_analysis: { analyzed_at: new Date().toISOString(), model: result.data?.model ?? 'unknown', provider: result.data?.provider ?? 'unknown' } as any,
           status: nextStatus,
           requires_human_review: true,
-        })
-        .eq('id', report.id)
+        },
+      })
+      if (persistResult.error) throw new Error(persistResult.error)
 
       queryClient.invalidateQueries({ queryKey: ['platform-feedback'] })
       if (!silent) toast.success('Bob analysis complete')
@@ -384,23 +388,25 @@ Be specific. Name exact files and line-level changes where possible.`
   }, [queryClient])
 
   const updateStatus = useCallback(async (id: string, status: string) => {
-    const { error } = await supabase.from('bug_reports').update({ status }).eq('id', id)
-    if (error) { toast.error('Failed to update status'); return }
+    const result = await edgeFunctions.updateBugReport({
+      report_id: id,
+      payload: { status },
+    })
+    if (result.error) { toast.error('Failed to update status'); return }
     queryClient.invalidateQueries({ queryKey: ['platform-feedback'] })
   }, [queryClient])
 
   const [deletingOld, setDeletingOld] = useState(false)
   const deleteOldClosedReports = useCallback(async () => {
     const TERMINAL_STATUSES = ['closed', 'resolved', 'wont_fix', 'duplicate']
-    const cutoff = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString()
     setDeletingOld(true)
     try {
-      const { error, count } = await supabase
-        .from('bug_reports')
-        .delete({ count: 'exact' })
-        .in('status', TERMINAL_STATUSES)
-        .lt('created_at', cutoff)
-      if (error) { toast.error('Cleanup failed', { description: error.message }); return }
+      const result = await edgeFunctions.cleanupOldClosedBugReports({
+        statuses: TERMINAL_STATUSES,
+        older_than_hours: 6,
+      })
+      if (result.error) { toast.error('Cleanup failed', { description: result.error }); return }
+      const count = (result.data as any)?.removed ?? 0
       queryClient.invalidateQueries({ queryKey: ['platform-feedback'] })
       toast.success(`Cleaned up ${count ?? 0} closed report${count === 1 ? '' : 's'} older than 6 hours`)
     } finally {

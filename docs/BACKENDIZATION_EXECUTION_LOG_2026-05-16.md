@@ -77,3 +77,29 @@ Note: Parking infringement status smoke is conditional on existing infringement 
 ## Final Outcome
 
 Primary backendization flow from CRM through branching and artifacts, plus parking enforcement governance, is now API-mediated, audited, and live-deployed.
+
+## LMR Remediation Addendum
+
+Follow-up remediation completed for LMR bridge governance to move smoke status from failed to green.
+
+- Root cause: remote project schema was missing `public.lmr_bridge_config` while `manage-lmr-governance` was already deployed.
+- Applied migration history repair per CLI guidance for remote-only entries:
+	- `supabase migration repair --status reverted 20260516000004 20260516000005 --linked`
+- Applied schema repair migration:
+	- `supabase/migrations/20260713000004_repair_lmr_bridge_schema.sql`
+	- `supabase db push --linked` succeeded.
+
+### LMR Smoke Re-Run (Post-Repair)
+
+- `upsert_config(create)`: HTTP 200
+- `set_config_active(false)`: HTTP 200
+- `delete_config`: HTTP 200
+- Result: `LMR_SMOKE=PASS`
+
+### LMR Audit Verification
+
+Recent `audit_log` rows confirmed for `entity_type = lmr_bridge_config`:
+
+- `lmr_bridge_config_created`
+- `lmr_bridge_config_status_updated`
+- `lmr_bridge_config_deleted`

@@ -1617,6 +1617,77 @@ export const edgeFunctions = {
     })
   },
 
+  /**
+   * Create or update an LMR bridge configuration through backend validation/audit.
+   */
+  upsertLmrBridgeConfig: async (params: {
+    config_id?: string
+    payload: Record<string, unknown>
+  }) => {
+    return callEdgeFunction('manage-lmr-governance', {
+      action: 'upsert_config',
+      configId: params.config_id,
+      payload: params.payload,
+    })
+  },
+
+  /**
+   * Delete an LMR bridge configuration through backend validation/audit.
+   */
+  deleteLmrBridgeConfig: async (params: {
+    config_id: string
+  }) => {
+    return callEdgeFunction('manage-lmr-governance', {
+      action: 'delete_config',
+      configId: params.config_id,
+      payload: {},
+    })
+  },
+
+  /**
+   * Toggle LMR bridge configuration active state via backend validation/audit.
+   */
+  setLmrBridgeConfigActive: async (params: {
+    config_id: string
+    is_active: boolean
+  }) => {
+    return callEdgeFunction('manage-lmr-governance', {
+      action: 'set_config_active',
+      configId: params.config_id,
+      payload: { is_active: params.is_active },
+    })
+  },
+
+  /**
+   * Update a feedback/bug report through backend validation and audit logging.
+   */
+  updateBugReport: async (params: {
+    report_id: string
+    payload: Record<string, unknown>
+  }) => {
+    return callEdgeFunction('manage-platform-feedback', {
+      action: 'update_bug_report',
+      reportId: params.report_id,
+      payload: params.payload,
+    })
+  },
+
+  /**
+   * Delete old closed bug reports via backend governance and auditing.
+   */
+  cleanupOldClosedBugReports: async (params: {
+    statuses: string[]
+    older_than_hours?: number
+  }) => {
+    return callEdgeFunction('manage-platform-feedback', {
+      action: 'cleanup_old_closed_reports',
+      payload: {
+        statuses: params.statuses,
+        older_than_hours: params.older_than_hours ?? 6,
+      },
+    })
+  },
+
   // ============================================================================
   // UTILITIES (2 functions)
   // ============================================================================

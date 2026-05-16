@@ -12,7 +12,7 @@ Requires Ollama >= 0.3.x for /api/chat support (pinned in Dockerfile via OLLAMA_
 
 import os
 import json
-import re
+import re as regex
 import shutil
 import base64
 import hashlib
@@ -997,7 +997,7 @@ def handler(job):
 
             site_match = str(message).strip()
             site_capture = None
-            site_pattern = re.search(r"\b(?:at|site|address)\b\s+(.+)$", site_match, re.IGNORECASE)
+            site_pattern = regex.search(r"\b(?:at|site|address)\b\s+(.+)$", site_match, regex.IGNORECASE)
             if site_pattern and site_pattern.group(1).strip():
                 site_capture = site_pattern.group(1).strip()[:180]
             if site_capture:
@@ -1029,7 +1029,7 @@ def handler(job):
 
         structured = None
         try:
-            m = re.search(r"\{[\s\S]*\}", result["content"])
+            m = regex.search(r"\{[\s\S]*\}", result["content"])
             if m:
                 structured = json.loads(m.group(0))
         except Exception:
@@ -1126,7 +1126,7 @@ def handler(job):
         ], inp.get("model"), 0.3)
         structured = None
         try:
-            m = re.search(r"\{[\s\S]*\}", result["content"])
+            m = regex.search(r"\{[\s\S]*\}", result["content"])
             if m:
                 structured = json.loads(m.group(0))
         except Exception:
@@ -1269,7 +1269,7 @@ def handler(job):
 
         media_plan = None
         try:
-            m = re.search(r"\{[\s\S]*\}", plan_result["content"])
+            m = regex.search(r"\{[\s\S]*\}", plan_result["content"])
             if m:
                 media_plan = json.loads(m.group(0))
         except Exception:
@@ -1379,7 +1379,7 @@ def handler(job):
         ], model, 0.5)
         structured = None
         try:
-            m = re.search(r"\{[\s\S]*\}", result["content"])
+            m = regex.search(r"\{[\s\S]*\}", result["content"])
             if m:
                 structured = json.loads(m.group(0))
         except Exception:
@@ -1472,7 +1472,7 @@ def handler(job):
         ], inp.get("model"), 0.2)
         structured = None
         try:
-            m = re.search(r"\{[\s\S]*\}", result["content"])
+            m = regex.search(r"\{[\s\S]*\}", result["content"])
             if m:
                 structured = json.loads(m.group(0))
         except Exception:
@@ -1505,7 +1505,7 @@ def handler(job):
             result = ollama_vision_chat(prompt, image_b64, inp.get("vision_model"))
             structured = None
             try:
-                m = re.search(r"\{[\s\S]*\}", result["content"])
+                m = regex.search(r"\{[\s\S]*\}", result["content"])
                 if m:
                     structured = json.loads(m.group(0))
             except Exception:

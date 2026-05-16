@@ -18,6 +18,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
+import { edgeFunctions } from '@/lib/edgeFunctions'
 import { useAuthStore } from '@/stores/authStore'
 import { AppLayout } from '@/components/features/AppLayout'
 import { Button } from '@/components/ui/button'
@@ -153,11 +154,16 @@ export default function LMRBridge() {
   const upsert = useMutation({
     mutationFn: async (payload: Database['public']['Tables']['lmr_bridge_config']['Insert']) => {
       if (editing) {
-        const { error } = await supabase.from('lmr_bridge_config').update(payload).eq('id', editing.id)
-        if (error) throw error
+        const result = await edgeFunctions.upsertLmrBridgeConfig({
+          config_id: editing.id,
+          payload: payload as unknown as Record<string, unknown>,
+        })
+        if (result.error) throw new Error(result.error)
       } else {
-        const { error } = await supabase.from('lmr_bridge_config').insert(payload)
-        if (error) throw error
+        const result = await edgeFunctions.upsertLmrBridgeConfig({
+          payload: payload as unknown as Record<string, unknown>,
+        })
+        if (result.error) throw new Error(result.error)
       }
     },
     onSuccess: () => {
@@ -170,8 +176,8 @@ export default function LMRBridge() {
 
   const remove = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from('lmr_bridge_config').delete().eq('id', id)
-      if (error) throw error
+      const result = await edgeFunctions.deleteLmrBridgeConfig({ config_id: id })
+      if (result.error) throw new Error(result.error)
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['lmr-configs', orgId] })
@@ -183,8 +189,11 @@ export default function LMRBridge() {
 
   const toggleActive = useMutation({
     mutationFn: async ({ id, is_active }: { id: string; is_active: boolean }) => {
-      const { error } = await supabase.from('lmr_bridge_config').update({ is_active }).eq('id', id)
-      if (error) throw error
+      const result = await edgeFunctions.setLmrBridgeConfigActive({
+        config_id: id,
+        is_active,
+      })
+      if (result.error) throw new Error(result.error)
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['lmr-configs', orgId] }),
   })

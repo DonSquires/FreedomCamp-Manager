@@ -20,7 +20,7 @@ import { useBobActionApproval } from '@/hooks/useBobActionApproval'
 import { listPendingBobActionProposals, type BobActionProposalRow } from '@/hooks/useBobApprovalD1'
 import { usePTTStore } from '@/stores/pttStore'
 import { supabase } from '@/lib/supabase'
-import { BrainCircuit, CheckCircle2, ChevronDown, ClipboardList, Copy, FlaskConical, Loader2, MapPinned, Mic, MicOff, Paintbrush2, Play, Plus, Radio, Route, Send, Volume2, VolumeX, Wrench, Github, ShieldAlert, PhoneOff, SignalHigh, Stethoscope, XCircle } from 'lucide-react'
+import { BrainCircuit, Camera, CheckCircle2, ChevronDown, ClipboardList, Copy, FlaskConical, Loader2, MapPinned, Mic, MicOff, Paintbrush2, Play, Plus, Radio, Route, Send, Volume2, VolumeX, Wrench, Github, ShieldAlert, PhoneOff, SignalHigh, Stethoscope, XCircle } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import { toast } from 'sonner'
 import { edgeFunctions } from '@/lib/edgeFunctions'
@@ -1016,7 +1016,9 @@ export default function BobAssistantStudio() {
   const chatEndRef = useRef<HTMLDivElement | null>(null)
   const chatScrollContainerRef = useRef<HTMLDivElement | null>(null)
   const docFileInputRef = useRef<HTMLInputElement | null>(null)
+  const cameraFileInputRef = useRef<HTMLInputElement | null>(null)
   const [userScrolledUp, setUserScrolledUp] = useState(false)
+  const [isDragActive, setIsDragActive] = useState(false)
   const [attachedDocument, setAttachedDocument] = useState<{
     name: string
     type: string
@@ -1908,7 +1910,7 @@ export default function BobAssistantStudio() {
   }
   restartVoiceConversationRef.current = startVoiceConversation
 
-  const handleDocumentAttach = async (file: File) => {
+  const handleDocumentAttach = useCallback(async (file: File) => {
     let extractedText = ''
     const name = file.name
     const type = file.type
@@ -1939,7 +1941,15 @@ export default function BobAssistantStudio() {
     } else {
       toast.success(`Attached: ${name}`)
     }
-  }
+  }, [])
+
+  const attachFromFiles = useCallback((files: FileList | null) => {
+    if (!files || files.length === 0) return
+    if (files.length > 1) {
+      toast.message('Multiple files selected. Bob attached the first file in this message.')
+    }
+    void handleDocumentAttach(files[0])
+  }, [handleDocumentAttach])
 
   const sendMessage = async (override?: string) => {
     const message = (override ?? chatInput).trim()
@@ -6221,11 +6231,24 @@ export default function BobAssistantStudio() {
               <input
                 ref={docFileInputRef}
                 type="file"
-                accept=".pdf,.csv,.xlsx,.txt,.json,image/*"
+                accept=".pdf,.csv,.tsv,.xlsx,.xls,.txt,.json,.doc,.docx,image/*"
                 className="sr-only"
                 onChange={(e) => {
-                  const file = e.target.files?.[0]
-                  if (file) void handleDocumentAttach(file)
+                  attachFromFiles(e.target.files)
+                  // Reset so same file can be re-selected
+                  e.target.value = ''
+                }}
+              />
+
+              {/* Hidden camera input for photo capture on supported devices */}
+              <input
+                ref={cameraFileInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="sr-only"
+                onChange={(e) => {
+                  attachFromFiles(e.target.files)
                   // Reset so same file can be re-selected
                   e.target.value = ''
                 }}
@@ -6260,15 +6283,47 @@ export default function BobAssistantStudio() {
                 </div>
               )}
 
-              <div className={`rounded-2xl border border-[#E5E7EB] dark:border-[#4B5563] bg-white dark:bg-[#374151] shadow-sm px-3 py-2 flex items-end gap-2 transition-all ${isBobSpeaking ? 'bob-speaking' : thinking ? 'bob-thinking' : ''}`}>
+              <div
+                className={`rounded-2xl border bg-white dark:bg-[#374151] shadow-sm px-3 py-2 flex items-end gap-2 transition-all ${isBobSpeaking ? 'bob-speaking' : thinking ? 'bob-thinking' : ''} ${isDragActive ? 'border-[#2563EB] ring-2 ring-[#2563EB]/25' : 'border-[#E5E7EB] dark:border-[#4B5563]'}`}
+                onDragEnter={(event) => {
+                  event.preventDefault()
+                  event.stopPropagation()
+                  setIsDragActive(true)
+                }}
+                onDragOver={(event) => {
+                  event.preventDefault()
+                  event.stopPropagation()
+                }}
+                onDragLeave={(event) => {
+                  event.preventDefault()
+                  event.stopPropagation()
+                  setIsDragActive(false)
+                }}
+                onDrop={(event) => {
+                  event.preventDefault()
+                  event.stopPropagation()
+                  setIsDragActive(false)
+                  attachFromFiles(event.dataTransfer.files)
+                }}
+              >
                 {/* + icon: attach PDF, CSV, image, or text documents */}
                 <button
                   type="button"
-                  title="Attach document (PDF, CSV, image, text)"
+                  title="Attach document (PDF, spreadsheet, image, text)"
                   onClick={() => docFileInputRef.current?.click()}
                   className="shrink-0 flex items-center justify-center w-8 h-8 rounded-full text-muted-foreground hover:bg-muted/60 transition-colors"
                 >
                   <Plus className="h-4 w-4" />
+                </button>
+
+                {/* Camera button: capture photo evidence directly from device camera */}
+                <button
+                  type="button"
+                  title="Take photo"
+                  onClick={() => cameraFileInputRef.current?.click()}
+                  className="shrink-0 flex items-center justify-center w-8 h-8 rounded-full text-muted-foreground hover:bg-muted/60 transition-colors"
+                >
+                  <Camera className="h-4 w-4" />
                 </button>
 
                 <Textarea
@@ -6323,6 +6378,10 @@ export default function BobAssistantStudio() {
                   <Send className="h-4 w-4" />
                 </button>
               </div>
+
+              <p className="text-[11px] text-muted-foreground">
+                Drag and drop files here, or use + for documents and camera for live photos.
+              </p>
             </CardContent>
           </Card>
 

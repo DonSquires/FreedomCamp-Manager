@@ -101,8 +101,6 @@ function toFileKind(name, mimeType) {
 
 function inferPurpose(storagePath, fileKind) {
   const lower = String(storagePath || '').toLowerCase()
-  if (lower.includes('deputy')) return 'roster_deputy_export'
-  if (lower.includes('roster') || lower.includes('timesheet') || lower.includes('shift')) return 'roster_source'
   if (lower.includes('historical-imports')) return 'historical_records'
   if (lower.includes('vehicle') && lower.includes('interest')) return 'vehicle_of_interest_photo'
   if (lower.includes('person') && lower.includes('interest')) return 'person_of_interest_photo'

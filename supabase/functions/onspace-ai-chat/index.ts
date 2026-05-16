@@ -23,10 +23,9 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3'
 import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/withCors.ts'
-import { bobChat } from '../_shared/bobInfer.ts'
-import { buildBobContext } from '../_shared/bobContext.ts'
 import { compileBobSystemInstructions } from '../_shared/bobPromptCompiler.ts'
 import { classifyIntentBucket, enforceExecutionStepLimit, validateOperationalToolCall } from '../_shared/bobToolSchemas.ts'
+import { buildAccessibleOrgIds, orgAccessDenied } from '../_shared/orgAccess.ts'
 
 const BOB_RUNPOD_RETRIES = Math.max(2, Number(Deno.env.get('BOB_RUNPOD_RETRIES') ?? '2'))
 const BOB_RUNPOD_BACKOFF_MS = Math.max(100, Number(Deno.env.get('BOB_RUNPOD_BACKOFF_MS') ?? '700'))
@@ -34,6 +33,25 @@ const BOB_RUNPOD_MAX_BACKOFF_MS = Math.max(BOB_RUNPOD_BACKOFF_MS, Number(Deno.en
 const BOB_RUNPOD_TIMEOUT_MS = Math.max(5000, Number(Deno.env.get('BOB_RUNPOD_TIMEOUT_MS') ?? '180000'))
 const BOB_RUNPOD_STATUS_TIMEOUT_MS = Math.max(5000, Number(Deno.env.get('BOB_RUNPOD_STATUS_TIMEOUT_MS') ?? '90000'))
 const BOB_RUNPOD_STATUS_POLL_MS = Math.max(500, Number(Deno.env.get('BOB_RUNPOD_STATUS_POLL_MS') ?? '1500'))
+const BOB_RUNPOD_SYSTEM_PROMPT_MAX_CHARS = Math.max(2000, Number(Deno.env.get('BOB_RUNPOD_SYSTEM_PROMPT_MAX_CHARS') ?? '12000'))
+const BOB_INFERENCE_MESSAGE_MAX_CHARS = Math.max(600, Number(Deno.env.get('BOB_INFERENCE_MESSAGE_MAX_CHARS') ?? '1800'))
+const BOB_INFERENCE_HISTORY_MAX_TURNS = Math.max(2, Number(Deno.env.get('BOB_INFERENCE_HISTORY_MAX_TURNS') ?? '6'))
+const BOB_INFERENCE_HISTORY_MAX_CHARS = Math.max(1000, Number(Deno.env.get('BOB_INFERENCE_HISTORY_MAX_CHARS') ?? '3200'))
+const BOB_INFERENCE_HISTORY_ENTRY_MAX_CHARS = Math.max(250, Number(Deno.env.get('BOB_INFERENCE_HISTORY_ENTRY_MAX_CHARS') ?? '800'))
+const BOB_RUNPOD_NO_HISTORY_COMPAT_ENABLED = String(
+  Deno.env.get('BOB_RUNPOD_NO_HISTORY_COMPAT_ENABLED') ?? 'true',
+).trim().toLowerCase() === 'true'
+const BOB_RUNPOD_NO_HISTORY_COMPAT_PAYLOAD_CHARS = Math.max(
+  1200,
+  Number(Deno.env.get('BOB_RUNPOD_NO_HISTORY_COMPAT_PAYLOAD_CHARS') ?? '5200'),
+)
+const BOB_RUNPOD_NO_HISTORY_COMPAT_HISTORY_TURNS = Math.max(
+  2,
+  Number(Deno.env.get('BOB_RUNPOD_NO_HISTORY_COMPAT_HISTORY_TURNS') ?? '5'),
+)
+const BOB_INCLUDE_ROUTING_DIAGNOSTICS = String(
+  Deno.env.get('BOB_INCLUDE_ROUTING_DIAGNOSTICS') ?? 'false',
+).trim().toLowerCase() === 'true'
 const BOB_INFERENCE_CHAT_RETRIES = Math.max(0, Number(Deno.env.get('BOB_INFERENCE_CHAT_RETRIES') ?? '2'))
 const BOB_INFERENCE_CHAT_BACKOFF_MS = Math.max(100, Number(Deno.env.get('BOB_INFERENCE_CHAT_BACKOFF_MS') ?? '500'))
 const BOB_INFERENCE_CHAT_MAX_BACKOFF_MS = Math.max(
@@ -640,12 +658,71 @@ function deriveIncomingUserPayload(input: {
   return ''
 }
 
+function trimPromptForRunpod(raw: unknown): string | undefined {
+  const text = typeof raw === 'string' ? raw.trim() : ''
+  if (!text) return undefined
+  if (text.length <= BOB_RUNPOD_SYSTEM_PROMPT_MAX_CHARS) return text
+  return `${text.slice(0, BOB_RUNPOD_SYSTEM_PROMPT_MAX_CHARS)}\n\n[System prompt truncated for RunPod latency guardrail]`
+}
+
+function trimInferenceMessage(raw: string, maxChars: number): string {
+  const text = String(raw || '').trim()
+  if (!text) return ''
+  if (text.length <= maxChars) return text
+  return `${text.slice(0, maxChars)}\n\n[User message truncated for latency guardrail]`
+}
+
+function compactHistoryForInference(
+  rawHistory: Array<{ role: string; content: string }>,
+  maxTurns: number,
+  maxChars: number,
+  maxEntryChars: number,
+): Array<{ role: string; content: string }> {
+  const normalized = rawHistory
+    .map((entry) => ({
+      role: entry.role,
+      content: String(entry.content || '').slice(0, maxEntryChars),
+    }))
+    .filter((entry) => entry.content.trim().length > 0)
+
+  const tail = normalized.slice(-maxTurns)
+  const kept: Array<{ role: string; content: string }> = []
+  let consumed = 0
+
+  for (let i = tail.length - 1; i >= 0; i -= 1) {
+    const entry = tail[i]
+    if (consumed + entry.content.length > maxChars && kept.length > 0) continue
+    consumed += entry.content.length
+    kept.unshift(entry)
+  }
+
+  return kept
+}
+
+function shouldStartRunpodNoHistoryCompat(args: {
+  message: string
+  history: Array<{ role: string; content: string }>
+}): boolean {
+  if (!BOB_RUNPOD_NO_HISTORY_COMPAT_ENABLED) return false
+
+  const historyTurns = Array.isArray(args.history) ? args.history.length : 0
+  const historyChars = (Array.isArray(args.history) ? args.history : [])
+    .reduce((sum, entry) => sum + String(entry?.content ?? '').length, 0)
+  const messageChars = String(args.message || '').length
+  const payloadChars = historyChars + messageChars
+
+  return historyTurns >= BOB_RUNPOD_NO_HISTORY_COMPAT_HISTORY_TURNS
+    || payloadChars >= BOB_RUNPOD_NO_HISTORY_COMPAT_PAYLOAD_CHARS
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: getCorsHeaders(req) })
   }
 
   try {
+    const requestStartedAt = Date.now()
+
     // ── Auth ─────────────────────────────────────────────────────────────────
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
@@ -655,7 +732,16 @@ Deno.serve(async (req: Request) => {
     let user: { id: string } | null = null
     let userRole = 'service'
     let isGrandMaster = false
-    let profile: { role: string; first_name?: string; last_name?: string; organization_id?: string | null } | null = null
+    let profile: {
+      role: string
+      first_name?: string
+      last_name?: string
+      organization_id?: string | null
+      employer_organization_id?: string | null
+      extra_organization_ids?: string[] | null
+      authorized_work_locations?: string[] | null
+    } | null = null
+    let accessibleOrgIds = new Set<string>()
 
     const token = extractBearerToken(req)
     const bobApiKey = Deno.env.get('BOB_API_KEY') ?? ''
@@ -704,13 +790,24 @@ Deno.serve(async (req: Request) => {
       user = authUser
 
       const { data: userProfile } = await (supabaseAdmin.from('user_profiles') as any)
-        .select('role, first_name, last_name, organization_id')
+        .select('role, first_name, last_name, organization_id, employer_organization_id, extra_organization_ids, authorized_work_locations')
         .eq('id', user?.id ?? '')
         .maybeSingle()
 
       profile = userProfile
       userRole = (profile?.role ?? 'officer') as string
       isGrandMaster = userRole === 'grand_master'
+      accessibleOrgIds = await buildAccessibleOrgIds(supabaseAdmin as any, {
+        role: String(profile?.role ?? '').trim(),
+        organization_id: String(profile?.organization_id ?? '').trim() || null,
+        employer_organization_id: String(profile?.employer_organization_id ?? '').trim() || null,
+        extra_organization_ids: Array.isArray(profile?.extra_organization_ids)
+          ? profile.extra_organization_ids
+          : null,
+        authorized_work_locations: Array.isArray(profile?.authorized_work_locations)
+          ? profile.authorized_work_locations
+          : null,
+      })
     } // end if (!isServiceRole)
 
     // Fetch Bob user profile for tier/tone metadata (non-blocking; fail gracefully)
@@ -743,6 +840,24 @@ Deno.serve(async (req: Request) => {
     // Use auth context if conversation IDs not explicit in request
     let conversationId = requestConversationId
     let organizationId = requestOrgId ?? profile?.organization_id
+
+    if (!isServiceRole && user?.id && requestOrgId && orgAccessDenied(accessibleOrgIds, requestOrgId)) {
+      return new Response(
+        JSON.stringify({ error: 'Organization access denied for this request.' }),
+        { status: 403, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } },
+      )
+    }
+
+    if (!isServiceRole && user?.id && !organizationId && accessibleOrgIds.size > 0) {
+      organizationId = Array.from(accessibleOrgIds)[0]
+    }
+
+    if (!isServiceRole && user?.id && !organizationId) {
+      return new Response(
+        JSON.stringify({ error: 'Organization context is required for Bob chat.' }),
+        { status: 403, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } },
+      )
+    }
 
     const defaultModel = Deno.env.get('AI_DEFAULT_MODEL') ?? Deno.env.get('OLLAMA_MODEL') ?? 'qwen2.5:7b'
     const model = requestedModel ?? defaultModel
@@ -1088,11 +1203,16 @@ Deno.serve(async (req: Request) => {
     // Strategy: only include messages from the first user turn onward.
     const firstUserIdx = messages.findIndex((m) => m.role === 'user')
     const conversationMessages = firstUserIdx >= 0 ? messages.slice(firstUserIdx) : messages
-    const history = conversationMessages
-      .filter((m) => m.role === 'user' || m.role === 'assistant')
-      .map((m) => ({ role: m.role, content: m.content }))
-      .slice(0, -1) // exclude the current user message (sent separately as `message`)
-      .slice(-8) // keep recent turns only; helps RunPod runsync complete within timeout under load
+    const history = compactHistoryForInference(
+      conversationMessages
+        .filter((m) => m.role === 'user' || m.role === 'assistant')
+        .map((m) => ({ role: m.role, content: m.content }))
+        .slice(0, -1), // exclude the current user message (sent separately as `message`)
+      BOB_INFERENCE_HISTORY_MAX_TURNS,
+      BOB_INFERENCE_HISTORY_MAX_CHARS,
+      BOB_INFERENCE_HISTORY_ENTRY_MAX_CHARS,
+    )
+    const latestUserMessageForInference = trimInferenceMessage(latestUserMessage, BOB_INFERENCE_MESSAGE_MAX_CHARS)
 
     // Detect RunPod serverless endpoint (api.runpod.ai/v2/<id>)
     function isRunpodServerless(url: string): boolean {
@@ -1106,6 +1226,7 @@ Deno.serve(async (req: Request) => {
 
       const runSyncUrl = `${baseUrl.replace(/\/(?:run|runsync)\/?$/i, '')}/runsync`
       const runpodBaseUrl = baseUrl.replace(/\/(?:run|runsync|health)\/?$/i, '')
+      const runpodSystemPrompt = trimPromptForRunpod(messages.find((m) => m.role === 'system')?.content)
 
       async function pollRunpodStatus(jobId: string): Promise<any> {
         const statusUrl = `${runpodBaseUrl}/status/${jobId}`
@@ -1138,7 +1259,10 @@ Deno.serve(async (req: Request) => {
       }
 
       let lastError: Error | null = null
-      let runpodCompatMode = false
+      let runpodCompatMode = shouldStartRunpodNoHistoryCompat({
+        message: latestUserMessageForInference,
+        history,
+      })
 
       for (let attempt = 0; attempt <= BOB_RUNPOD_RETRIES; attempt += 1) {
         const isLastAttempt = attempt === BOB_RUNPOD_RETRIES
@@ -1153,7 +1277,7 @@ Deno.serve(async (req: Request) => {
               'Authorization': `Bearer ${apiKey}`,
               'x-inference-api-key': apiKey,
               'x-user-id': user?.id ?? 'service',
-              'x-org-id': profile?.organization_id ? String(profile?.organization_id) : '',
+                'x-org-id': organizationId ? String(organizationId) : '',
               'x-user-role': userRole,
               'x-user-email': (user?.email ?? ''),
               ...(bobTier ? { 'x-bob-tier': bobTier } : {}),
@@ -1163,17 +1287,18 @@ Deno.serve(async (req: Request) => {
               input: runpodCompatMode
                 ? {
                     action: 'chat',
-                    message: latestUserMessage,
+                    message: latestUserMessageForInference,
                     model: runpodModel,
                     temperature,
+                    system_prompt: runpodSystemPrompt,
                     // Minimal payload fallback for worker compatibility incidents.
                     history: [],
                   }
                 : {
                     action: 'chat',
-                    message: latestUserMessage,
+                    message: latestUserMessageForInference,
                     history,
-                    system_prompt: messages.find((m) => m.role === 'system')?.content,
+                    system_prompt: runpodSystemPrompt,
                     model: runpodModel,
                     temperature,
                     context: {
@@ -1280,62 +1405,41 @@ Deno.serve(async (req: Request) => {
       throw lastError ?? new Error(`RunPod runsync failed after ${BOB_RUNPOD_RETRIES + 1} attempts`)
     }
 
-    // Shared helper path keeps RunPod handling consistent across edge functions.
-    async function callRunpodViaSharedHelper(): Promise<{ responseText: string; provider: string; model: string }> {
-      const result = await bobChat({
-        message: latestUserMessage,
-        history,
-        systemPrompt: messages.find((m) => m.role === 'system')?.content,
-        model: runpodModel,
-        temperature,
-        timeoutMs: BOB_RUNPOD_TIMEOUT_MS,
-        context: buildBobContext({
-          operation: 'onspace-ai-chat',
-          source: 'runpod-shared-helper-chat',
-          userId: user?.id ?? null,
-          organizationId: profile?.organization_id ? String(profile.organization_id) : null,
-          context: {
-            ...hardenedRequestContext,
-            resolved_model: runpodModel,
-          },
-        }),
-      })
-
-      return {
-        responseText: result.response,
-        provider: `runpod-serverless-${result.provider}`,
-        model: result.model,
-      }
-    }
-
     async function callInferenceProvider() {
+      const runpodDirectCandidate = normalizeBaseUrl(
+        Deno.env.get('RUNPOD_ENDPOINT_URL') ??
+        Deno.env.get('INFERENCE_SERVICE_URL_RUNPOD') ??
+        (runpodEndpointId ? `https://api.runpod.ai/v2/${runpodEndpointId}` : ''),
+      )
       const configuredFallbackUrl = normalizeBaseUrl(Deno.env.get('INFERENCE_SERVICE_FALLBACK_URL'))
       const candidates = Array.from(new Set([
+        runpodDirectCandidate,
         inferenceUrl,
         configuredFallbackUrl,
       ].filter(Boolean)))
+      const orderedCandidates = candidates.sort((a, b) => {
+        const aRunpod = isRunpodServerless(a) ? 1 : 0
+        const bRunpod = isRunpodServerless(b) ? 1 : 0
+        return bRunpod - aRunpod
+      })
+      routingDiagnostics.inference_candidates = [...orderedCandidates]
 
-      if (!candidates.length) {
+      if (!orderedCandidates.length) {
         throw new Error('INFERENCE_SERVICE_URL is not configured')
       }
 
       let lastError: Error | null = null
 
-      for (const candidateUrl of candidates) {
+      for (const candidateUrl of orderedCandidates) {
         // ── RunPod serverless: use /runsync job API ──────────────────────────
         if (isRunpodServerless(candidateUrl)) {
           try {
-            return await callRunpodViaSharedHelper()
-          } catch (err: any) {
-            const sharedErr = err instanceof Error ? err : new Error(String(err?.message ?? err))
-            try {
-              return await callRunpodServerless(candidateUrl)
-            } catch (legacyErr: any) {
-              lastError = legacyErr instanceof Error
-                ? new Error(`${sharedErr.message}; legacy fallback failed: ${legacyErr.message}`)
-                : sharedErr
-              continue
-            }
+            routingDiagnostics.selected_candidate = candidateUrl
+            routingDiagnostics.selected_transport = 'runpod-runsync'
+            return await callRunpodServerless(candidateUrl)
+          } catch (runpodErr: any) {
+            lastError = runpodErr instanceof Error ? runpodErr : new Error(String(runpodErr?.message ?? runpodErr))
+            continue
           }
         }
 
@@ -1358,10 +1462,12 @@ Deno.serve(async (req: Request) => {
             const controller = new AbortController()
             const timeoutId = setTimeout(() => controller.abort(), BOB_INFERENCE_CHAT_TIMEOUT_MS)
             try {
+              routingDiagnostics.selected_candidate = candidateUrl
+              routingDiagnostics.selected_transport = 'inference-chat'
               const headers: Record<string, string> = {
                 'Content-Type': 'application/json',
                 'x-user-id': user?.id ?? 'service',
-                'x-org-id': profile?.organization_id ? String(profile?.organization_id) : '',
+                'x-org-id': organizationId ? String(organizationId) : '',
                 'x-user-role': userRole,
                 'x-user-email': (user?.email ?? ''),
                 ...(bobTier ? { 'x-bob-tier': bobTier } : {}),
@@ -1373,7 +1479,7 @@ Deno.serve(async (req: Request) => {
                 method: 'POST',
                 headers,
                 body: JSON.stringify({
-                  message: latestUserMessage,
+                  message: latestUserMessageForInference,
                   history,
                   provider: providerPreference === 'inference' ? 'inference' : providerPreference === 'ollama' ? 'ollama' : undefined,
                   context: {
@@ -1585,17 +1691,55 @@ Deno.serve(async (req: Request) => {
       }
       return canUseOllamaProvider ? ['inference', 'ollama'] : ['inference']
     })()
+    const routingDiagnostics: {
+      requested_provider: string
+      resolved_provider_preference: string
+      provider_order: string[]
+      inference_candidates?: string[]
+      selected_candidate?: string
+      selected_transport?: string
+      provider_errors?: string[]
+      provider_latency_ms?: number
+      total_latency_ms?: number
+      latency_guardrails?: {
+        message_max_chars: number
+        history_max_turns: number
+        history_max_chars: number
+        history_entry_max_chars: number
+        runpod_system_prompt_max_chars: number
+        runpod_no_history_compat_enabled: boolean
+        runpod_no_history_payload_chars: number
+        runpod_no_history_history_turns: number
+      }
+    } = {
+      requested_provider: String(requestedProvider ?? 'auto'),
+      resolved_provider_preference: providerPreference,
+      provider_order: [...providerOrder],
+      latency_guardrails: {
+        message_max_chars: BOB_INFERENCE_MESSAGE_MAX_CHARS,
+        history_max_turns: BOB_INFERENCE_HISTORY_MAX_TURNS,
+        history_max_chars: BOB_INFERENCE_HISTORY_MAX_CHARS,
+        history_entry_max_chars: BOB_INFERENCE_HISTORY_ENTRY_MAX_CHARS,
+        runpod_system_prompt_max_chars: BOB_RUNPOD_SYSTEM_PROMPT_MAX_CHARS,
+        runpod_no_history_compat_enabled: BOB_RUNPOD_NO_HISTORY_COMPAT_ENABLED,
+        runpod_no_history_payload_chars: BOB_RUNPOD_NO_HISTORY_COMPAT_PAYLOAD_CHARS,
+        runpod_no_history_history_turns: BOB_RUNPOD_NO_HISTORY_COMPAT_HISTORY_TURNS,
+      },
+    }
 
     let providerResult: { responseText: string; provider: string; model: string; degraded?: boolean } | null = null
+    let providerLatencyMs: number | null = null
     const providerErrors: string[] = []
 
     for (const providerName of providerOrder) {
+      const providerStartedAt = Date.now()
       try {
         providerResult = providerName === 'openai'
           ? await callOpenAIProvider()
           : providerName === 'inference'
             ? await callInferenceProvider()
             : await callOllamaProvider()
+        providerLatencyMs = Date.now() - providerStartedAt
         break
       } catch (providerErr: any) {
         providerErrors.push(`${providerName}: ${providerErr?.message ?? 'unknown error'}`)
@@ -1604,6 +1748,9 @@ Deno.serve(async (req: Request) => {
 
     if (!providerResult) {
       const fallbackText = buildLocalFailsafeResponse(latestUserMessage)
+      routingDiagnostics.provider_errors = [...providerErrors]
+      routingDiagnostics.provider_latency_ms = providerLatencyMs ?? undefined
+      routingDiagnostics.total_latency_ms = Date.now() - requestStartedAt
 
       return new Response(
         JSON.stringify({
@@ -1614,6 +1761,7 @@ Deno.serve(async (req: Request) => {
           warning: 'Bob provider fallback engaged: returning local failsafe response.',
           usage: null,
           diagnostics: providerErrors.join(' | ').slice(0, 1200),
+          ...(BOB_INCLUDE_ROUTING_DIAGNOSTICS ? { routing_diagnostics: routingDiagnostics } : {}),
         }),
         { status: 200, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       )
@@ -1640,6 +1788,10 @@ Deno.serve(async (req: Request) => {
     const finalResponse = shouldEscalate
       ? `Compliance Notice: This request may indicate a potential policy or legal breach. Grand Master has been advised.\n\n${baseResponse}`
       : baseResponse
+
+    const totalLatencyMs = Date.now() - requestStartedAt
+    routingDiagnostics.provider_latency_ms = providerLatencyMs ?? undefined
+    routingDiagnostics.total_latency_ms = totalLatencyMs
 
     // ── Store conversation messages (if conversation context available) ──────
     let storedConversationId = conversationId
@@ -1704,7 +1856,8 @@ Deno.serve(async (req: Request) => {
                 model: providerResult.model,
                 provider: providerResult.provider,
                 confidence: 0.85,
-                latency_ms: Math.round(Math.random() * 5000), // Placeholder
+                latency_ms: totalLatencyMs,
+                provider_latency_ms: providerLatencyMs,
                 temperature,
               },
             }))
@@ -1728,6 +1881,7 @@ Deno.serve(async (req: Request) => {
         warning: fallbackWarning,
         usage: null,
         conversation_id: storedConversationId,
+        ...(BOB_INCLUDE_ROUTING_DIAGNOSTICS ? { routing_diagnostics: routingDiagnostics } : {}),
       }),
       { status: 200, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
     )

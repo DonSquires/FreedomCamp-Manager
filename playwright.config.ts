@@ -170,13 +170,13 @@ export default defineConfig({
     
     // Maximum time each action can take
     actionTimeout: 10000,
+  },
 
-    expect: {
-      // Tight threshold — 1% of pixels may differ (anti-aliasing tolerance only)
-      toHaveScreenshot: {
-        maxDiffPixelRatio: 0.01,
-        animations: 'disabled',
-      },
+  expect: {
+    // Tight threshold — 1% of pixels may differ (anti-aliasing tolerance only)
+    toHaveScreenshot: {
+      maxDiffPixelRatio: 0.01,
+      animations: 'disabled',
     },
   },
 
