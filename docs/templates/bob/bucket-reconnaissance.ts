@@ -21,7 +21,7 @@ export interface BucketFileMetadata {
   size: number
   contentType: string | null
   createdAt: string | null
-  largFileFlag: boolean
+  largeFileFlag: boolean
 }
 
 export interface ReconPage {
@@ -66,14 +66,14 @@ export async function reconPage(
     size: f.metadata?.size ?? 0,
     contentType: f.metadata?.mimetype ?? null,
     createdAt: f.created_at ?? null,
-    largFileFlag: (f.metadata?.size ?? 0) > LARGE_FILE_THRESHOLD_BYTES,
+    largeFileFlag: (f.metadata?.size ?? 0) > LARGE_FILE_THRESHOLD_BYTES,
   }))
 
   return {
     page,
     offset,
     files,
-    largeFiles: files.filter((f) => f.largFileFlag),
+    largeFiles: files.filter((f) => f.largeFileFlag),
   }
 }
 

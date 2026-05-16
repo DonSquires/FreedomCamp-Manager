@@ -57,9 +57,15 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
 /**
  * Returns a query builder pre-filtered by the active organization.
  * All table reads in multi-org contexts should go through this helper.
+ * The caller must chain additional methods (e.g. `.eq()`, `.order()`) and
+ * then `await` the result to execute the query.
+ *
+ * Note: the `as never` cast is a pragmatic workaround for dynamic table names
+ * in the generated Supabase types. Replace with a proper generic constraint
+ * once the generated types stabilise.
  *
  * @example
- * const { data } = await orgScoped('incidents', orgId).select('*')
+ * const { data } = await orgScoped('incidents', orgId).order('created_at', { ascending: false })
  */
 export function orgScoped(table: string, organizationId: string) {
   return supabase.from(table as never).select().eq('organization_id', organizationId)
