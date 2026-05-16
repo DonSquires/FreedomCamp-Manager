@@ -109,6 +109,20 @@ Autonomous app queue sync expectation:
 Self-learning expectation:
 - Run a post-enrichment self-learning pass and emit `logs/bob-self-learning-artifact.json`.
 - In apply mode, append new mistake-prevention lessons to `docs/LESSONS_LEARNED.md` when derived lessons are detected.
+- In apply mode, append policy-checked global cross-training records to `data/bob-global-learning-catalog.jsonl`.
+
+Global learning catalog contract (`data/bob-global-learning-catalog.jsonl`):
+- Format: newline-delimited JSON (one object per line).
+- Required fields: `runAt`, `kind`, `scope`, `severity`, `summary`, `rule`, `tags`, `reusableWhen`, `source`.
+- Optional fields: `trigger`, `value`.
+- Allowed `kind` values: `failure_lesson`, `success_pattern`, `user_direction_accepted`, `user_direction_rejected`.
+- `scope` for cross-user memory must be `global_cross_training`.
+- `reusableWhen` must state guardrails explicitly (policy/tenant/role constrained reuse).
+
+Policy and safety rules:
+- Accept user direction into global memory only when direction is safety-compliant and tenant/role constraints remain intact.
+- Record rejected directions with clear non-reuse rationale; do not promote to reusable memory without policy change.
+- Treat idempotent publish replays (`inserted=0` and `skippedExisting>0`) as healthy outcomes, not failure lessons.
 
 ## 8) Completion Gate
 
