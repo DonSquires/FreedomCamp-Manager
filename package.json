@@ -84,6 +84,8 @@
     "bob:enrichment:queue-model:apply": "node scripts/build-bob-enrichment-queue-model.mjs --apply",
     "bob:self-learn:enrichment": "node scripts/bob-self-learn-from-enrichment.mjs",
     "bob:self-learn:enrichment:apply": "node scripts/bob-self-learn-from-enrichment.mjs --write-lessons",
+    "bob:self-learn:enrichment:global": "node scripts/bob-self-learn-from-enrichment.mjs --write-global-learning",
+    "bob:self-learn:enrichment:full": "node scripts/bob-self-learn-from-enrichment.mjs --write-lessons --write-global-learning",
     "bob:bootstrap:nelson-tasman": "node scripts/bootstrap-nelson-tasman-provider.mjs",
     "bob:bootstrap:nelson-tasman:apply": "node scripts/bootstrap-nelson-tasman-provider.mjs --apply",
     "bob:intake:backfill-storage": "node scripts/backfill-bob-intakes-from-storage.mjs",

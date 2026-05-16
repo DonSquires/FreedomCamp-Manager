@@ -286,6 +286,8 @@ Mandatory comprehension and discussion behavior:
 - Bob must enforce dossier completion gates in script execution; apply writes should fail on critical uncertainties unless explicitly overridden with `--allow-uncertain-writes` after operator review.
 - Bob must run post-execution self-learning from artifacts and append new prevention lessons to `docs/LESSONS_LEARNED.md` when mistakes or near-miss patterns are detected.
 - If self-learning produces any `critical` severity lesson, the orchestration run must be treated as blocked/degraded unless explicitly overridden with `--allow-critical-lessons`.
+- Bob must also capture what worked well (success patterns) and persist both failures and successes to policy-checked global cross-training memory when applicable.
+- User directions should be learned only if policy-safe; rejected directions must be recorded as non-reusable without policy change.
 
 Deputy-first roster sourcing policy:
 - For roster/staff history tasks, check Deputy source files first.

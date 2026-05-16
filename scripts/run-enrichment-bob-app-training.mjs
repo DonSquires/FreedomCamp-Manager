@@ -24,6 +24,7 @@ Options:
   --since-date <YYYY-MM-DD> Optional roster history floor for site enrichment.
   --allow-uncertain-writes Allow site enrichment writes to proceed despite dossier gate blockers.
   --allow-critical-lessons Continue even when self-learning detects critical lessons.
+  --user-direction <text>  Optional user/operator direction to fold into policy-checked learning (repeatable).
   --skip-app-queue         Skip app queue model generation/publish step.
   --polygon-input <file>   Optional GeoJSON input path for polygon conversion.
   --artifact-out <file>    Optional JSON artifact output path.
@@ -45,6 +46,7 @@ function parseArgs(argv) {
     sinceDate: '',
     allowUncertainWrites: false,
     allowCriticalLessons: false,
+    userDirections: [],
     skipAppQueue: false,
     polygonInput: '',
     artifactOut: 'logs/enrichment-training-artifact.json',
@@ -123,6 +125,12 @@ function parseArgs(argv) {
       args.allowCriticalLessons = true
       continue
     }
+    if (token === '--user-direction' && argv[i + 1]) {
+      const direction = String(argv[i + 1]).trim()
+      if (direction) args.userDirections.push(direction)
+      i += 1
+      continue
+    }
     if (token === '--polygon-input' && argv[i + 1]) {
       args.polygonInput = String(argv[i + 1]).trim()
       i += 1
@@ -188,6 +196,8 @@ function buildIntakeCommand(args, apply) {
 function plan(args) {
   const steps = []
 
+  const quote = (value) => `'${String(value).replace(/'/g, `'"'"'`)}'`
+
   if (!args.skipIntake) {
     steps.push({ phase: 'Phase 1 - Intake dry-run', command: buildIntakeCommand(args, false) })
     if (args.apply) {
@@ -240,6 +250,9 @@ function plan(args) {
     '--queue logs/site-roster-queue-model-artifact.json',
     '--artifact-out logs/bob-self-learning-artifact.json',
     args.apply ? '--write-lessons' : '',
+    args.apply ? '--write-global-learning' : '',
+    '--global-learning-out data/bob-global-learning-catalog.jsonl',
+    ...args.userDirections.map((direction) => `--user-direction ${quote(direction)}`),
   ].filter(Boolean).join(' ')
 
   steps.push({
@@ -464,6 +477,7 @@ async function main() {
       sinceDate: args.sinceDate || null,
       allowUncertainWrites: args.allowUncertainWrites,
       allowCriticalLessons: args.allowCriticalLessons,
+      userDirections: args.userDirections,
     },
     stepReports,
     rosterEnrichment: {

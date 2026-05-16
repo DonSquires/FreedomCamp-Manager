@@ -15,7 +15,10 @@ Options:
   --queue <file>           Queue model artifact path (default: logs/site-roster-queue-model-artifact.json).
   --lessons-file <file>    Lessons file path (default: docs/LESSONS_LEARNED.md).
   --artifact-out <file>    Output self-learning artifact (default: logs/bob-self-learning-artifact.json).
+  --global-learning-out <file> Output global learning JSONL (default: data/bob-global-learning-catalog.jsonl).
+  --user-direction <text>  Optional operator/user direction to evaluate and learn from (repeatable).
   --write-lessons          Append derived lessons to lessons file.
+  --write-global-learning  Append normalized success/failure/direction learnings to global catalog.
   --help, -h               Show help.
 `
 
@@ -26,7 +29,10 @@ function parseArgs(argv) {
     queue: 'logs/site-roster-queue-model-artifact.json',
     lessonsFile: 'docs/LESSONS_LEARNED.md',
     artifactOut: 'logs/bob-self-learning-artifact.json',
+    globalLearningOut: 'data/bob-global-learning-catalog.jsonl',
+    userDirections: [],
     writeLessons: false,
+    writeGlobalLearning: false,
     help: false,
   }
 
@@ -57,8 +63,23 @@ function parseArgs(argv) {
       i += 1
       continue
     }
+    if (token === '--global-learning-out' && argv[i + 1]) {
+      args.globalLearningOut = String(argv[i + 1]).trim()
+      i += 1
+      continue
+    }
+    if (token === '--user-direction' && argv[i + 1]) {
+      const direction = String(argv[i + 1]).trim()
+      if (direction) args.userDirections.push(direction)
+      i += 1
+      continue
+    }
     if (token === '--write-lessons') {
       args.writeLessons = true
+      continue
+    }
+    if (token === '--write-global-learning') {
+      args.writeGlobalLearning = true
       continue
     }
     if (token === '--help' || token === '-h') {
@@ -86,6 +107,15 @@ function writeJson(filePath, payload) {
   fs.mkdirSync(path.dirname(resolved), { recursive: true })
   fs.writeFileSync(resolved, `${JSON.stringify(payload, null, 2)}\n`, 'utf8')
   console.log(`Artifact written: ${resolved}`)
+}
+
+function appendJsonLines(filePath, rows) {
+  if (!rows.length) return { appended: 0 }
+  const resolved = path.resolve(process.cwd(), filePath)
+  fs.mkdirSync(path.dirname(resolved), { recursive: true })
+  const payload = rows.map((row) => JSON.stringify(row)).join('\n') + '\n'
+  fs.appendFileSync(resolved, payload, 'utf8')
+  return { appended: rows.length }
 }
 
 function buildDerivedLessons(enrichment, briefings, queue) {
@@ -144,6 +174,152 @@ function buildDerivedLessons(enrichment, briefings, queue) {
   return lessons
 }
 
+function buildSuccessPatterns(enrichment, briefings, queue) {
+  const patterns = []
+
+  const dossierPass = Boolean(enrichment?.dossierCompletionGate?.pass)
+  if (dossierPass) {
+    patterns.push({
+      severity: 'low',
+      trigger: 'dossier completion gate',
+      pattern: 'Dossier gate passed with zero critical uncertainties.',
+      value: 'Safe to continue enrichment apply under normal policy gates.',
+      reuseRule: 'Preserve strict write blocking unless explicit override flags are used.',
+      tags: ['enrichment', 'safety', 'dossier-gate'],
+    })
+  }
+
+  const reviewRequired = Number(briefings?.summary?.managementActions?.reviewRequiredCount || 0)
+  const readyPublish = Number(briefings?.summary?.managementActions?.readyForPublishCount || 0)
+  const mediumConfidence = Number(briefings?.summary?.mediumConfidenceBriefings || 0)
+  if (mediumConfidence > 0 && reviewRequired >= mediumConfidence && readyPublish === 0) {
+    patterns.push({
+      severity: 'low',
+      trigger: 'confidence routing policy',
+      pattern: 'Medium-confidence briefings routed to review_required queue.',
+      value: 'Policy-aligned confirmation-first behavior is active.',
+      reuseRule: 'Only high confidence can be ready_for_publish unless policy explicitly changes.',
+      tags: ['enrichment', 'app-queue', 'confidence-policy'],
+    })
+  }
+
+  const queueRows = Number(queue?.summary?.totalQueueRows || 0)
+  const inserted = Number(queue?.summary?.published?.inserted || 0)
+  const skippedExisting = Number(queue?.summary?.published?.skippedExisting || 0)
+  if (queueRows > 0 && (inserted > 0 || skippedExisting > 0)) {
+    patterns.push({
+      severity: 'low',
+      trigger: 'queue model publish',
+      pattern: inserted > 0 ? 'Queue rows published to intake queue.' : 'Queue model idempotent sync detected.',
+      value: inserted > 0 ? 'App queue received new enrichment management items.' : 'No duplicate queue writes; existing items preserved.',
+      reuseRule: 'Treat inserted=0 with skippedExisting>0 as healthy idempotent replay, not failure.',
+      tags: ['app-queue', 'idempotency', 'autonomy'],
+    })
+  }
+
+  return patterns
+}
+
+function evaluateUserDirections(directions) {
+  const denied = [
+    /allow-uncertain-writes/i,
+    /allow-critical-lessons/i,
+    /skip[-_ ]?rls/i,
+    /bypass/i,
+    /disable.*(safety|guard|gate)/i,
+    /ignore.*(tenant|organization|org[-_ ]scope)/i,
+  ]
+
+  const accepted = []
+  const rejected = []
+
+  for (const raw of directions) {
+    const text = String(raw || '').trim()
+    if (!text) continue
+    const blockedBy = denied.find((rule) => rule.test(text))
+    if (blockedBy) {
+      rejected.push({
+        direction: text,
+        reason: `blocked_by_policy:${blockedBy}`,
+        severity: 'high',
+      })
+      continue
+    }
+
+    accepted.push({
+      direction: text,
+      reason: 'allowed_within_guardrails',
+      severity: 'low',
+      tags: ['user-direction', 'policy-checked'],
+    })
+  }
+
+  return { accepted, rejected }
+}
+
+function buildGlobalLearningEntries({ runAt, derivedLessons, successPatterns, directionEval }) {
+  const entries = []
+
+  for (const lesson of derivedLessons) {
+    entries.push({
+      runAt,
+      kind: 'failure_lesson',
+      scope: 'global_cross_training',
+      severity: lesson.severity || 'medium',
+      trigger: lesson.trigger,
+      summary: lesson.mistake,
+      rule: lesson.preventionRule,
+      reusableWhen: 'matches_task_context_and_policy_guardrails',
+      source: 'enrichment-self-learning',
+    })
+  }
+
+  for (const pattern of successPatterns) {
+    entries.push({
+      runAt,
+      kind: 'success_pattern',
+      scope: 'global_cross_training',
+      severity: pattern.severity || 'low',
+      trigger: pattern.trigger,
+      summary: pattern.pattern,
+      value: pattern.value,
+      rule: pattern.reuseRule,
+      tags: pattern.tags || [],
+      reusableWhen: 'fits_role_scope_and_policy_constraints',
+      source: 'enrichment-self-learning',
+    })
+  }
+
+  for (const item of directionEval.accepted) {
+    entries.push({
+      runAt,
+      kind: 'user_direction_accepted',
+      scope: 'global_cross_training',
+      severity: item.severity,
+      summary: item.direction,
+      rule: 'Apply only when direction remains within safety, tenant, and confidence guardrails.',
+      tags: item.tags || [],
+      reusableWhen: 'direction_is_still_policy_compliant',
+      source: 'user-provided-direction',
+    })
+  }
+
+  for (const item of directionEval.rejected) {
+    entries.push({
+      runAt,
+      kind: 'user_direction_rejected',
+      scope: 'global_cross_training',
+      severity: item.severity,
+      summary: item.direction,
+      rule: item.reason,
+      reusableWhen: 'never_without_policy_change',
+      source: 'user-provided-direction',
+    })
+  }
+
+  return entries
+}
+
 function appendLessonsIfNeeded(lessonsFilePath, lessons) {
   if (!lessons.length) return { appended: 0, skippedExisting: 0 }
 
@@ -199,6 +375,14 @@ async function main() {
   const queue = readJsonIfExists(args.queue)
 
   const derivedLessons = buildDerivedLessons(enrichment, briefings, queue)
+  const successPatterns = buildSuccessPatterns(enrichment, briefings, queue)
+  const directionEval = evaluateUserDirections(args.userDirections)
+  const globalLearningEntries = buildGlobalLearningEntries({
+    runAt: new Date().toISOString(),
+    derivedLessons,
+    successPatterns,
+    directionEval,
+  })
   const severityCounts = {
     critical: derivedLessons.filter((lesson) => lesson.severity === 'critical').length,
     high: derivedLessons.filter((lesson) => lesson.severity === 'high').length,
@@ -208,6 +392,9 @@ async function main() {
   const lessonWrite = args.writeLessons
     ? appendLessonsIfNeeded(args.lessonsFile, derivedLessons)
     : { appended: 0, skippedExisting: 0 }
+  const globalLearningWrite = args.writeGlobalLearning
+    ? appendJsonLines(args.globalLearningOut, globalLearningEntries)
+    : { appended: 0 }
 
   const artifact = {
     runAt: new Date().toISOString(),
@@ -217,18 +404,28 @@ async function main() {
       briefings: args.briefings,
       queue: args.queue,
       lessonsFile: args.lessonsFile,
+      globalLearningOut: args.globalLearningOut,
+      userDirections: args.userDirections,
     },
     derivedLessons,
+    successPatterns,
+    directionEvaluation: directionEval,
+    globalLearningEntries,
     severityCounts,
     lessonWrite,
+    globalLearningWrite,
   }
 
   writeJson(args.artifactOut, artifact)
 
   console.log('[Summary]')
   console.log(`  derived_lessons: ${derivedLessons.length}`)
+  console.log(`  success_patterns: ${successPatterns.length}`)
+  console.log(`  accepted_directions: ${directionEval.accepted.length}`)
+  console.log(`  rejected_directions: ${directionEval.rejected.length}`)
   console.log(`  critical_lessons: ${severityCounts.critical}`)
   console.log(`  lessons_appended: ${lessonWrite.appended}`)
+  console.log(`  global_learning_appended: ${globalLearningWrite.appended}`)
   console.log(`  lessons_skipped_existing: ${lessonWrite.skippedExisting}`)
 }
 
