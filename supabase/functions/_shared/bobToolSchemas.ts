@@ -1,4 +1,30 @@
-export const BOB_ALLOWED_ROUTES = ['/dashboard', '/billing', '/analytics', '/settings'] as const
+export const BOB_ALLOWED_ROUTES = [
+  '/dashboard',
+  '/admin/dashboard',
+  '/patrols',
+  '/enforcement',
+  '/vehicles',
+  '/zones',
+  '/compliance',
+  '/breaches',
+  '/users',
+  '/organizations',
+  '/incidents',
+  '/evidence-packages',
+  '/compliance-escalations',
+  '/alarm-events',
+  '/occupancy-analytics',
+  '/patrol-route-optimiser',
+  '/fixed-cameras',
+  '/patrol-navigation',
+  '/data',
+  '/access-control',
+  '/platform',
+  '/client-portal',
+  '/billing',
+  '/analytics',
+  '/settings',
+] as const
 
 export type NavigateAppToolCall = {
   name: 'navigateApp'

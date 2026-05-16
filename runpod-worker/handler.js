@@ -1,7 +1,12 @@
 'use strict';
 
 /**
- * RunPod Serverless Worker — FieldOps AI Engine (Bob)
+ * DEPRECATED — Legacy Node.js RunPod Worker (NOT USED IN PRODUCTION).
+ *
+ * The active handler is handler.py (Python, official RunPod SDK).
+ * The Dockerfile CMD is: python3 -u handler.py
+ * This file is retained for historical reference only and is NOT copied
+ * into the Docker image. Do not make changes here for production deployments.
  *
  * Protocol from runpod-python source:
  *   GET  RUNPOD_WEBHOOK_GET_JOB       ($ID=RUNPOD_POD_ID, append &job_in_progress=0|1)
