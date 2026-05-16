@@ -1143,6 +1143,19 @@ New manifest entries added in Sprint 64 (B-210 through B-222):
    - Role gate: admin, admin_officer, master, officer
    - navGroup: Management
 
+## Operational Validation Addendum (2026-05-15)
+
+1. Monitoring route topology
+   - Canonical monitoring QA surfaces are `/dispatch-monitor` and `/alarm-events`.
+   - Both routes are admin-shell monitoring views and replace older test references to a non-canonical `enterprise-console` path.
+
+2. Bob web validation route surfaces
+   - Bob operator validation remains anchored on `/bob-assistant` for admin workflows.
+   - Grand master automation validation remains anchored on `/grandmaster-coding-studio`.
+
+3. CI implication
+   - Monitoring smoke and Bob self-test coverage must target live routed surfaces from `src/App.tsx`, not retired or inferred aliases.
+
 6. Evidence Packages (B-215)
    - Route: /evidence-packages
    - Role gate: admin, admin_officer, master, officer

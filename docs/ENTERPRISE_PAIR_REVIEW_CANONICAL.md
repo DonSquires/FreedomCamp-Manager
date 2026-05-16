@@ -63,6 +63,28 @@ Primary manuals and standards reviewed:
 3. CRM + Bob-assisted routing baseline: previously validated in mainline suite
 4. Current architecture baseline: as documented in docs/SYSTEM_GUIDE.md and enforced by current repository topology
 
+## Current Cycle Snapshot (2026-05-15)
+
+Material changes since the prior mainline CI remediation cycle:
+
+### Operational Validation Surface Corrections
+
+1. Bob web-service Playwright setup is now tolerant of missing optional Supabase browser secrets at import time.
+2. `ops-bob-self-test.yml` now resolves Tier 1 readiness explicitly and skips that tier when `VITE_SUPABASE_URL` or `VITE_SUPABASE_ANON_KEY` is absent.
+3. Monitoring smoke coverage has been realigned to live routed monitoring surfaces: `/dispatch-monitor` and `/alarm-events`.
+4. Bob conversation coverage now persists its voice-input mock across navigation and targets `/api/bob/chat*` deterministically.
+
+### Architecture / Route Implications
+
+1. `enterprise-console` is not a canonical live route in the current router topology and must not be used as an operational validation anchor.
+2. Monitoring operations are represented by Dispatch Monitor for live queue oversight and Alarm Events for inbound alarm triage.
+3. Bob operational UI validation remains split across `/bob-assistant` and `/grandmaster-coding-studio` depending on role.
+
+### Validation Notes
+
+1. Repository-side test discovery succeeded for Bob web service coverage after the setup hardening change.
+2. Local Chromium execution in this Alpine container remains blocked by a Playwright browser launch path issue after download; this is an environment-specific validation blocker, not a route or test-selector regression.
+
 ## Current Cycle Snapshot (2026-05-06)
 
 Material changes since commit `04b65a3d` (Sprint 14 — OnCallPeriods, CalloutShifts, OfficerAllowances, TravelAllowances):

@@ -1496,6 +1496,283 @@ Star Trek exists to make Bob feel like a Gemini-style assistant for operators. T
 - Confirmed operating hierarchy: First Security - Blenheim is the delivery branch; Marlborough Roads is jointly owned by Marlborough District Council and NZTA; Marlborough District Council is the governing organization for setup decisions.
 - Bob should therefore create client-owned parking sites and client zones under Marlborough District Council while using First Security - Blenheim as the service-provider branch context.
 
+### Bob Polygon-First Geofence Instructions (Staging)
+
+Use this runbook whenever Bob is asked to create or refresh Marlborough parking geofences.
+
+#### Non-negotiable rule
+
+- Zones, site boundaries, locations of interest, and jurisdiction areas must be stored as polygon geometry.
+- Centroids are allowed only for travel distance and routing calculations.
+
+#### Required keys and sources
+
+- LINZ key: `LINZ_API_KEY` (used for authoritative boundary downloads where available).
+- Google key: `VITE_GOOGLE_MAPS_API_KEY` (used for geocoding and address/place confirmation, not as sole boundary authority).
+- Official source priority:
+  1. Marlborough District Council records/GIS exports (when available)
+  2. LINZ Data Service layers (WFS/GeoJSON)
+  3. NZTA/Waka Kotahi public spatial data for transport/jurisdiction overlays
+  4. OSM/Google-derived fallback only when official polygon is unavailable
+
+#### Bob execution sequence
+
+1. Confirm hierarchy and ownership context before geometry work.
+  - Governing org for this setup is Marlborough District Council.
+  - Delivery branch is First Security - Blenheim.
+
+2. Acquire source polygons.
+  - Preferred: council or LINZ GeoJSON export.
+  - If council portal is blocked by bot/WAF checks in automation, record the blocker and switch to LINZ/NZTA feeds or manually exported council shapefiles.
+
+3. Normalize polygons to GeoJSON Polygon/MultiPolygon.
+  - Ensure `[lng, lat]` coordinate order.
+  - Ensure first and last vertex are identical for closed rings.
+  - Reject point-only payloads for geofence creation.
+
+4. Persist polygons to platform tables.
+  - Write zone polygons to `zones.geometry` (GeoJSON Polygon/MultiPolygon).
+  - Keep `location_lat`/`location_lng` for distance/routing only.
+  - For site-level polygons (where `client_sites` has no geometry column), create/maintain a linked zone polygon and set `client_sites.zone_id` to that zone.
+  - For jurisdiction-level areas, prefer `geo_zones` and linked bridge fields where the module supports it.
+
+5. Validate polygon integrity after insert/update.
+  - Every active zone for the staging scope must have `geometry.type IN ('Polygon','MultiPolygon')`.
+  - No point-only geofence should be used as the primary boundary.
+  - Run at least one point-in-polygon sanity test against known in-zone and out-of-zone coordinates.
+
+6. Document provenance in notes.
+  - Each seeded/updated zone must include source provenance (Council/LINZ/NZTA/fallback) and timestamp in migration/script comments or run logs.
+
+#### Acceptance checklist (Bob must pass all)
+
+- `zones.geometry` present for all staging parking zones.
+- Geometry type is Polygon or MultiPolygon (not Point).
+- `client_sites.zone_id` links each site to a polygon-backed zone.
+- Routing still works from centroid fields (`location_lat`/`location_lng`).
+- Source provenance is logged.
+
+#### Fast fail conditions
+
+- If only centroid data is available and no polygon source can be obtained, Bob must stop and mark the task as blocked for official boundary input rather than silently seeding circle-only geofences.
+- If council/NZTA/LINZ data conflicts, Bob must keep the highest-authority source and record the conflict in staging notes.
+
+### Full Enrichment Process + Requirements (Staging Canonical)
+
+This is the mandatory end-to-end process Bob must follow for parking/geofence enrichment in staging.
+
+#### Scope covered
+
+- Raw evidence intake from Supabase Storage buckets.
+- Training/manual extraction and normalization.
+- Org/branch/client bootstrap.
+- Site and zone creation.
+- Polygon geofence enrichment from council/LINZ/NZTA sources.
+- App wiring validation (Bob + admin/field flows).
+
+#### Hard requirements (must pass)
+
+- Polygon-first geospatial model is enforced:
+  - `zones.geometry` must be Polygon or MultiPolygon for active enforcement zones.
+  - Site boundaries must be represented via linked polygon-backed zones when `client_sites` lacks a geometry column.
+  - Jurisdiction boundaries must use authoritative polygon datasets (Council/LINZ/NZTA), not ad-hoc circles.
+- Centroids (`location_lat`/`location_lng`, `gps_lat`/`gps_lng`) are for routing/travel distance and anchor/reference only.
+- Every created/updated geofence asset must include source provenance and update timestamp in logs or migration comments.
+- No silent downgrade: if official polygon data is unavailable, mark as blocked and stop.
+
+#### Prerequisites
+
+1. Runtime/tooling
+  - `node`, `npm`, `bun` available in shell.
+  - If missing in Alpine:
+    - `sudo apk add --no-cache nodejs npm`
+    - `curl -fsSL https://bun.sh/install | bash`
+    - `export BUN_INSTALL="$HOME/.bun" && export PATH="$BUN_INSTALL/bin:$PATH"`
+
+2. Environment
+  - Supabase: `SUPABASE_URL` (or `VITE_SUPABASE_URL`) and `SUPABASE_SERVICE_ROLE_KEY`.
+  - Geocoding: `VITE_GOOGLE_MAPS_API_KEY`.
+  - Boundary source: `LINZ_API_KEY` for LINZ WFS/GeoJSON pulls where required.
+
+3. Canonical source files
+  - Intake runbook: `docs/BIB_STORAGE_DATA_ENTRY_PLAYBOOK.md`
+  - Staging protocol: this file (`docs/STAGING.md`)
+  - Hierarchy/source truth: `src/lib/orgClientTemplate.ts`, `src/lib/parkingTrainingIntelligence.ts`
+
+#### Phase 0 — Intent/Role Gate (required before edits)
+
+Bob must explicitly confirm:
+
+1. Should this data exist in this module and org scope?
+2. Which org owns governance vs service delivery?
+3. What exact records should be visible after success?
+4. What route/page should consume the records next?
+5. What is the rollback or hold condition on failure?
+
+If any answer is unknown or conflicting, stop and resolve before writes.
+
+#### Phase 1 — Raw Intake from Storage Buckets
+
+Goal: stage raw files into `ai_import_intakes` before interpretation.
+
+1. Dry run per target bucket/prefix.
+2. Apply run after dry run summary is valid.
+3. Repeat for all required buckets/prefixes relevant to contract history/training.
+
+Reference script:
+- `scripts/backfill-bob-intakes-from-storage.mjs`
+
+Expected outcome:
+- Intake rows keyed by `storage_bucket + storage_path`, deduplicated.
+- Unknown org mappings are flagged, not silently inserted with wrong org.
+
+#### Phase 2 — Document/Training Extraction
+
+Goal: extract enforceable operational facts from raw manuals/contracts.
+
+Required extraction outputs:
+- Named enforcement areas.
+- Named site/location list.
+- Legal references and signage constraints.
+- Map cues and zoning language.
+
+For Marlborough parking setup:
+- Use `Parking-Managment/NZTA Warden training guidelines version 1 codes.docx` as accepted interim source when live `parking_zones` rows are absent.
+
+#### Phase 3 — Org/Branch/Client Bootstrapping
+
+Goal: enforce canonical ownership hierarchy before creating zones/sites.
+
+Required behavior:
+- National/branch/client hierarchy aligned with `src/lib/orgClientTemplate.ts`.
+- Existing orgs are reused idempotently (no destructive re-parenting).
+- Provider-client grants must match live schema (do not write generated columns).
+
+Reference scripts:
+- `scripts/bootstrap-first-security-orgs.mjs`
+- `scripts/bootstrap-marlborough-parking.mjs`
+
+#### Phase 4 — Geospatial Enrichment (Polygon Mandatory)
+
+Goal: replace centroid-only setups with authoritative polygon boundaries.
+
+Source priority (strict order):
+1. Marlborough District Council records/GIS exports.
+2. LINZ boundaries (API key-backed where needed).
+3. NZTA/Waka Kotahi spatial overlays for transport/jurisdiction context.
+4. OSM/Google fallback only when official polygons cannot be obtained.
+
+Transformation requirements:
+- Normalize to GeoJSON Polygon/MultiPolygon.
+- Validate ring closure and `[lng, lat]` coordinate order.
+- Reject malformed or self-intersecting polygons.
+- Preserve centroid fields only for route-distance functions.
+
+Persistence requirements:
+- Write zone polygons to `zones.geometry`.
+- Keep `zones.location_lat`/`location_lng` for travel calculations.
+- Link each `client_sites` row to polygon-backed `zone_id`.
+- Where the feature is jurisdiction-scale, mirror into `geo_zones`/bridges where supported.
+
+#### Phase 5 — Validation Gates (No Skip)
+
+Bob must validate all of the following after apply:
+
+1. Data integrity
+  - All active target zones have `geometry.type IN ('Polygon','MultiPolygon')`.
+  - No active target zone is point-only for primary enforcement.
+  - All target client sites have non-null `zone_id` pointing to polygon-backed zones.
+
+2. Functional integrity
+  - Point-in-polygon logic returns expected in-zone/out-zone results for at least one known coordinate pair per zone.
+  - Route/travel tools still resolve using centroid fields.
+
+3. Contractual integrity
+  - Governing org ownership remains Marlborough District Council.
+  - Service-provider branch remains First Security - Blenheim.
+  - Provider grants exist and are active for required service types.
+
+#### Phase 6 — App Wiring Verification
+
+Minimum app checks before completion claim:
+
+- Zone-aware pages can load polygon-backed zones without errors.
+- Site pages show records linked to the expected zone.
+- Bob operational context reflects the created org/site/zone stack.
+- No regression in intake queue or import flows.
+
+#### Required completion artifacts
+
+Every enrichment run must leave:
+
+1. Applied command log (dry-run + apply).
+2. Verification output summary (counts + key IDs).
+3. Source provenance list (Council/LINZ/NZTA/fallback and timestamp).
+4. Explicit note of unresolved blockers (if any).
+
+#### Blocker policy
+
+If any of the following occurs, stop and report blocker:
+
+- Council/LINZ/NZTA source unavailable and no authoritative polygon alternative.
+- Conflicting boundary definitions with no governance decision recorded.
+- Schema mismatch that prevents polygon persistence.
+- Required env keys unavailable for declared source path.
+
+#### Bob + App training execution track
+
+Use this when continuing active enrichment work and you need repeatable Bob/app training checks in the same run.
+
+1. Generate a full dry-run plan first:
+
+```bash
+npm run bob:enrichment:training
+```
+
+2. Execute apply mode once the dry-run and env checks are clear:
+
+```bash
+npm run bob:enrichment:training:apply
+```
+
+3. Narrow scope for targeted runs when needed:
+
+```bash
+node scripts/run-enrichment-bob-app-training.mjs --with-feeds --with-app-checks --bucket evidence --prefix historical-imports --limit 100 --organization-id <org-uuid>
+```
+
+3.1 Boundary validation mode (default in the orchestration script):
+
+- Boundary step now uses:
+  - `--aiRetries 3`
+  - `--allowAiTimeout`
+  - strict coordinates that must produce a workspace transition between:
+    - Marlborough District Council workspace
+    - Port Marlborough workspace
+- `--allowNoTransition` is no longer part of the default command path.
+- Any no-transition outcome is now treated as a real blocker.
+
+4. Skip controls for partial reruns:
+
+- `--skip-intake` for no new storage staging
+- `--skip-bootstrap` when org/site setup is already current
+- `--skip-validation` only during diagnostic command isolation
+
+5. Capability outage handling:
+
+- Capability gate (`node scripts/bob-capability-gate.mjs --required chat --retries 3 --timeoutMs 90000`) retries with transient-failure diagnostics.
+- If serverless aborts persist (`This operation was aborted`), record this as an external runtime blocker and rerun capability gate when service health is restored.
+- Treat any unresolved capability blocker as not-ready-for-sign-off.
+
+6. Run artifact output (required):
+
+- Each apply run writes `logs/enrichment-training-artifact.json`.
+- Artifact includes:
+  - per-step status
+  - attempt counts
+  - blockers list
+  - degraded flag (must be `false` for strict completion sign-off)
+
 ## Org-Branch-Client Onboarding Template (added 2026-05-14)
 
 ### Overview

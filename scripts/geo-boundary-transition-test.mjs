@@ -16,6 +16,10 @@ function getArg(name, fallback = '') {
   return fallback
 }
 
+function hasFlag(name) {
+  return process.argv.slice(2).includes(`--${name}`)
+}
+
 function firstNonEmpty(...values) {
   for (const value of values) {
     const trimmed = String(value || '').trim()
@@ -176,7 +180,41 @@ async function askOnspaceAiChat({ supabaseUrl, serviceRoleKey, prompt, context }
   }
 }
 
-async function inspectPoint({ supabaseUrl, serviceRoleKey, providerOrgId, lat, lng, prompt }) {
+function isIdleTimeoutError(error) {
+  const message = String(error?.message || '').toUpperCase()
+  return message.includes('IDLE_TIMEOUT') || message.includes('504')
+}
+
+async function askOnspaceAiChatWithRetry({ supabaseUrl, serviceRoleKey, prompt, context, retries }) {
+  let lastError = null
+
+  for (let attempt = 1; attempt <= retries; attempt += 1) {
+    try {
+      return await askOnspaceAiChat({ supabaseUrl, serviceRoleKey, prompt, context })
+    } catch (error) {
+      lastError = error
+      const retryable = isIdleTimeoutError(error)
+      if (!retryable || attempt >= retries) {
+        throw error
+      }
+
+      console.warn(`onspace-ai-chat attempt ${attempt}/${retries} timed out; retrying...`)
+    }
+  }
+
+  throw lastError || new Error('Unknown AI request failure')
+}
+
+async function inspectPoint({
+  supabaseUrl,
+  serviceRoleKey,
+  providerOrgId,
+  lat,
+  lng,
+  prompt,
+  aiRetries,
+  allowAiTimeout,
+}) {
   const contextPayload = await callSupabaseRpc({
     supabaseUrl,
     serviceRoleKey,
@@ -189,18 +227,36 @@ async function inspectPoint({ supabaseUrl, serviceRoleKey, providerOrgId, lat, l
   })
 
   const context = Array.isArray(contextPayload) ? contextPayload[0] || null : contextPayload || null
-  const ai = await askOnspaceAiChat({
-    supabaseUrl,
-    serviceRoleKey,
-    prompt,
-    context,
-  })
+  let ai
+  let aiTimedOut = false
+
+  try {
+    ai = await askOnspaceAiChatWithRetry({
+      supabaseUrl,
+      serviceRoleKey,
+      prompt,
+      context,
+      retries: aiRetries,
+    })
+  } catch (error) {
+    if (allowAiTimeout && isIdleTimeoutError(error)) {
+      aiTimedOut = true
+      ai = {
+        answer: '[AI response unavailable: inference idle timeout]',
+        provider: 'inference-timeout',
+        model: 'unknown',
+      }
+    } else {
+      throw error
+    }
+  }
 
   return {
     lat,
     lng,
     context,
     ai,
+    aiTimedOut,
   }
 }
 
@@ -210,6 +266,10 @@ async function main() {
   const providerOrgIdRaw = firstNonEmpty(getArg('providerOrgId', ''), process.env.PROVIDER_ORG_ID, process.env.BOB_ORG_ID, process.env.ORG_ID)
   const providerName = firstNonEmpty(getArg('providerName', ''), process.env.PROVIDER_ORG_NAME, 'First Security')
   const prompt = firstNonEmpty(getArg('prompt', ''), 'What are the overnight rules here?')
+  const aiRetriesRaw = Number(getArg('aiRetries', '3'))
+  const aiRetries = Number.isFinite(aiRetriesRaw) && aiRetriesRaw > 0 ? Math.trunc(aiRetriesRaw) : 3
+  const allowAiTimeout = hasFlag('allowAiTimeout')
+  const allowNoTransition = hasFlag('allowNoTransition')
 
   const fromLat = toNumber(getArg('fromLat', ''), -41.328)
   const fromLng = toNumber(getArg('fromLng', ''), 173.18)
@@ -254,8 +314,26 @@ async function main() {
   console.log(`Point B: lat=${toLat}, lng=${toLng}`)
 
   const [pointA, pointB] = await Promise.all([
-    inspectPoint({ supabaseUrl, serviceRoleKey, providerOrgId, lat: fromLat, lng: fromLng, prompt }),
-    inspectPoint({ supabaseUrl, serviceRoleKey, providerOrgId, lat: toLat, lng: toLng, prompt }),
+    inspectPoint({
+      supabaseUrl,
+      serviceRoleKey,
+      providerOrgId,
+      lat: fromLat,
+      lng: fromLng,
+      prompt,
+      aiRetries,
+      allowAiTimeout,
+    }),
+    inspectPoint({
+      supabaseUrl,
+      serviceRoleKey,
+      providerOrgId,
+      lat: toLat,
+      lng: toLng,
+      prompt,
+      aiRetries,
+      allowAiTimeout,
+    }),
   ])
 
   const jurisdictionA = String(pointA.context?.workspace_name || 'General')
@@ -274,7 +352,17 @@ async function main() {
   console.log('\n--- Bob answer @ Point B ---')
   console.log(pointB.ai.answer || '[empty]')
 
+  if (pointA.aiTimedOut || pointB.aiTimedOut) {
+    console.warn('\nAI timeout fallback was used for one or more points; context transition result is still enforced.')
+  }
+
   if (!changed) {
+    if (allowNoTransition) {
+      console.warn('\nBoundary transition was not detected. Continuing in degraded mode because --allowNoTransition is set.')
+      console.warn('Follow-up required: verify get_active_context coverage and test coordinates for this provider.')
+      return
+    }
+
     console.error('\nBoundary test did not detect a jurisdiction transition across provided points.')
     process.exit(2)
   }

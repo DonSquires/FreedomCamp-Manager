@@ -63,8 +63,19 @@ jobs:
       - name: Lint app
         run: bun run lint
 
+      - name: Resolve Tier 1 web test readiness
+        id: web_env
+        run: |
+          if [[ -n "${VITE_SUPABASE_URL}" && -n "${VITE_SUPABASE_ANON_KEY}" ]]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "[bob-self-test] Tier 1 skipped: missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY"
+          fi
+
       - name: Tier 1 - Bob web service tests
         id: tier1
+        if: steps.web_env.outputs.enabled == 'true'
         run: bun run test:bob:web
 
       - name: Tier 2 - Bob mobile simulation

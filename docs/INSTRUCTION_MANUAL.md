@@ -1504,6 +1504,24 @@ No assignment or editing controls — use the Dispatch Console for those actions
 
 ---
 
+###### Alarm Events (`/alarm-events`)
+
+Supervisor and admin monitoring queue for inbound alarm traffic from connected security systems.
+
+**UI Layout:**
+
+- Header: alarm event count, severity context, and manual refresh control
+- Summary strip: active critical/high/medium/low alarm counts
+- Main table: inbound alarm rows with source system, site reference, severity, status, and trigger time
+- Action lane: acknowledge, resolve, mark false alarm, or create a linked incident
+
+Operational note:
+
+- The monitoring smoke path is anchored on `/dispatch-monitor` and `/alarm-events`.
+- Legacy references to an `enterprise-console` route are not canonical product surfaces and should not be used for current QA or operator runbooks.
+
+---
+
 ###### Dispatch Wizard (`/dispatch-wizard`)
 
 Guided step-by-step job creation for complex or multi-resource situations (e.g. large events, multi-zone incidents requiring backup).

@@ -1,10 +1,10 @@
 import { expect, test, type Page } from '@playwright/test'
 import { installSupabaseTransactionMocks } from './helpers/supabase-transaction-mocks'
 
-const CHAT_ENDPOINT_GLOB = '**/api/bob/chat'
+const CHAT_ENDPOINT_GLOB = '**/api/bob/chat*'
 
 async function installVoiceInputMock(page: Page): Promise<void> {
-  await page.evaluate(() => {
+  await page.addInitScript(() => {
     const globalWindow = window as typeof window & {
       __mockMediaRecorderInstalled?: boolean
     }
@@ -133,6 +133,18 @@ async function installVoiceInputMock(page: Page): Promise<void> {
   })
 }
 
+async function dispatchChatRequest(page: Page, payload: Record<string, unknown>): Promise<void> {
+  await page.evaluate(async (requestPayload) => {
+    const endpoint = new URL('/api/bob/chat', window.location.origin).toString()
+
+    await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(requestPayload),
+    })
+  }, payload)
+}
+
 function parseJsonFragments(payload: string): Array<Record<string, unknown>> {
   return payload
     .split('\n')
@@ -217,15 +229,9 @@ test.describe('Bob autonomous conversation UI', () => {
     })
 
     // Ensure the outbound POST to /api/bob/chat happens in a deterministic way.
-    await page.evaluate(async () => {
-      await fetch('/api/bob/chat', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          input: 'open analytics dashboard',
-          source: 'voice',
-        }),
-      })
+    await dispatchChatRequest(page, {
+      input: 'open analytics dashboard',
+      source: 'voice',
     })
 
     await expect.poll(() => interceptedRequestBody.length, { timeout: 10000 }).toBeGreaterThan(0)
@@ -287,22 +293,10 @@ test.describe('Bob autonomous conversation UI', () => {
     await page.goto('/dashboard', { waitUntil: 'domcontentloaded' })
 
     // Send an operational intent
-    await page.evaluate(async () => {
-      await fetch('/api/bob/chat', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ input: 'open the analytics dashboard', source: 'text' }),
-      })
-    })
+    await dispatchChatRequest(page, { input: 'open the analytics dashboard', source: 'text' })
 
     // Send a conversational intent
-    await page.evaluate(async () => {
-      await fetch('/api/bob/chat', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ input: 'what is the weather today', source: 'text' }),
-      })
-    })
+    await dispatchChatRequest(page, { input: 'what is the weather today', source: 'text' })
 
     await expect.poll(() => intentResults.length, { timeout: 10000 }).toBe(2)
 
@@ -373,25 +367,13 @@ test.describe('Bob autonomous conversation UI', () => {
     await page.goto('/dashboard', { waitUntil: 'domcontentloaded' })
 
     // Test: unsupported tool name should produce a validation error fragment
-    await page.evaluate(async () => {
-      await fetch('/api/bob/chat', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          input: 'do something',
-          toolCall: { name: 'destroyDatabase', args: {} },
-        }),
-      })
+    await dispatchChatRequest(page, {
+      input: 'do something',
+      toolCall: { name: 'destroyDatabase', args: {} },
     })
 
     // Test: step limit exceeded (toolStepsExecuted >= 5)
-    await page.evaluate(async () => {
-      await fetch('/api/bob/chat', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ input: 'next step', toolStepsExecuted: 5 }),
-      })
-    })
+    await dispatchChatRequest(page, { input: 'next step', toolStepsExecuted: 5 })
 
     await expect.poll(() => responseFragments.length, { timeout: 10000 }).toBeGreaterThanOrEqual(2)
 

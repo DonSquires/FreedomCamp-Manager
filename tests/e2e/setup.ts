@@ -5,8 +5,11 @@ import { loginAs } from './auth'
 const supabaseUrl = process.env.VITE_SUPABASE_URL || ''
 const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY || ''
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+const hasSupabaseBrowserEnv = Boolean(supabaseUrl && supabaseAnonKey)
+const safeSupabaseUrl = supabaseUrl || 'https://placeholder.supabase.co'
+const safeSupabaseAnonKey = supabaseAnonKey || 'placeholder-anon-key'
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+export const supabase = createClient(safeSupabaseUrl, safeSupabaseAnonKey)
 export const supabaseAdmin = supabaseServiceRoleKey
   ? createClient(supabaseUrl, supabaseServiceRoleKey)
   : null
@@ -120,6 +123,10 @@ export const helpers = {
    * Clear test data from database
    */
   async clearTestData() {
+    if (!hasSupabaseBrowserEnv) {
+      throw new Error('VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are required for database cleanup helpers')
+    }
+
     // Delete test observations
     await supabase.from('observations').delete().like('id', 'o%')
     
@@ -140,6 +147,10 @@ export const helpers = {
     recorded_by: string
     is_compliant?: boolean
   }) {
+    if (!hasSupabaseBrowserEnv) {
+      throw new Error('VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are required for observation fixtures')
+    }
+
     const { data: observation, error } = await supabase
       .from('observations')
       .insert({

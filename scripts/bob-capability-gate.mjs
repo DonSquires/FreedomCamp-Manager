@@ -97,6 +97,25 @@ async function fetchJson(url, options = {}, timeoutMs = 30000) {
   }
 }
 
+function isTransientCapabilityFailure(detail = '') {
+  const text = String(detail || '').toLowerCase();
+  return (
+    text.includes('aborted') ||
+    text.includes('timeout') ||
+    text.includes('timed out') ||
+    text.includes('network') ||
+    text.includes('fetch failed') ||
+    text.includes('econnreset') ||
+    text.includes('socket hang up')
+  );
+}
+
+function parseRetries(value, fallback = 3) {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n <= 0) return fallback;
+  return Math.trunc(n);
+}
+
 function parseRequiredCapabilities(input) {
   const raw = String(input || process.env.BOB_REQUIRED_CAPABILITIES || 'chat').trim();
   return raw
@@ -181,7 +200,7 @@ function collectForwardedTestEnv() {
   return forwarded;
 }
 
-async function checkServerlessCapability(capability, targets, timeoutMs) {
+async function checkServerlessCapability(capability, targets, timeoutMs, retries = 1) {
   const endpoint = `${targets.runpodBaseUrl.replace(/\/+$/, '')}/runsync`;
   const headers = {
     Authorization: `Bearer ${targets.apiKey}`,
@@ -247,34 +266,56 @@ async function checkServerlessCapability(capability, targets, timeoutMs) {
     return { capability, ok: false, reason: 'unsupported-capability' };
   }
 
-  const result = await fetchJson(
-    endpoint,
-    {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ input }),
-    },
-    timeoutMs
-  );
+  const maxAttempts = parseRetries(retries, 1);
+  let last = null;
 
-  const status = String(result.data?.status || '').toUpperCase();
-  const output = result.data?.output;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const result = await fetchJson(
+      endpoint,
+      {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ input }),
+      },
+      timeoutMs
+    );
 
-  const ok = result.ok &&
-    status !== 'FAILED' &&
-    output?.success !== false &&
-    (capability !== 'transcribe' || typeof output?.transcript !== 'undefined' || output?.client_action === 'web_speech_recognition') &&
-    (capability !== 'speak' || Boolean(output?.audio_base64 || output?.spoken_text || output?.client_action)) &&
-    (capability !== 'ui_vision' || !/image_b64 required/i.test(String(output?.error || result.data?.error || ''))) &&
-    (capability !== 'render_media_pack' || Boolean(output?.picture?.image_base64 && output?.video?.video_base64 && output?.audio));
+    const status = String(result.data?.status || '').toUpperCase();
+    const output = result.data?.output;
+    const detail = String(result.data?.error || output?.error || 'failed');
 
-  return {
-    capability,
-    ok,
-    httpStatus: result.status,
-    status,
-    detail: ok ? 'ok' : String(result.data?.error || output?.error || 'failed'),
-  };
+    const ok = result.ok &&
+      status !== 'FAILED' &&
+      output?.success !== false &&
+      (capability !== 'transcribe' || typeof output?.transcript !== 'undefined' || output?.client_action === 'web_speech_recognition') &&
+      (capability !== 'speak' || Boolean(output?.audio_base64 || output?.spoken_text || output?.client_action)) &&
+      (capability !== 'ui_vision' || !/image_b64 required/i.test(String(output?.error || result.data?.error || ''))) &&
+      (capability !== 'render_media_pack' || Boolean(output?.picture?.image_base64 && output?.video?.video_base64 && output?.audio));
+
+    const attemptResult = {
+      capability,
+      ok,
+      httpStatus: result.status,
+      status,
+      attempt,
+      attempts: maxAttempts,
+      detail: ok ? 'ok' : detail,
+      transient: !ok && isTransientCapabilityFailure(detail),
+    };
+
+    if (ok) {
+      return attemptResult;
+    }
+
+    last = attemptResult;
+    if (!attemptResult.transient || attempt >= maxAttempts) {
+      return attemptResult;
+    }
+
+    console.warn(`Capability ${capability} transient failure on attempt ${attempt}/${maxAttempts}; retrying...`);
+  }
+
+  return last || { capability, ok: false, httpStatus: 0, status: '', detail: 'unknown failure', attempt: maxAttempts, attempts: maxAttempts, transient: false };
 }
 
 async function checkPodCapability(capability, targets, timeoutMs) {
@@ -508,6 +549,7 @@ export async function checkBobCapabilities(options = {}) {
   const mode = options.mode || resolveBobMode(targets);
   const required = options.required || parseRequiredCapabilities(options.requiredRaw);
   const timeoutMs = Number(options.timeoutMs || process.env.BOB_CAPABILITY_TIMEOUT_MS || 30000);
+  const retries = parseRetries(options.retries || process.env.BOB_CAPABILITY_RETRIES || 3, 3);
 
   if (!required.length) {
     return { ok: true, mode, required: [], checks: [] };
@@ -543,7 +585,7 @@ export async function checkBobCapabilities(options = {}) {
   const checks = [];
   for (const capability of required) {
     if (mode === 'serverless') {
-      checks.push(await checkServerlessCapability(capability, targets, timeoutMs));
+      checks.push(await checkServerlessCapability(capability, targets, timeoutMs, retries));
     } else {
       checks.push(await checkPodCapability(capability, targets, timeoutMs));
     }
@@ -553,6 +595,7 @@ export async function checkBobCapabilities(options = {}) {
     ok: checks.every((entry) => entry.ok),
     mode,
     required,
+    retries,
     checks,
     checkedAt: new Date().toISOString(),
   };
@@ -577,11 +620,13 @@ async function main() {
   const mode = getArg('mode', process.env.BOB_EXECUTION_MODE || 'auto');
   const strict = getBoolArg('strict', String(process.env.BOB_CAPABILITY_STRICT || 'true').toLowerCase() !== 'false');
   const timeoutMs = Number(getArg('timeoutMs', process.env.BOB_CAPABILITY_TIMEOUT_MS || '30000'));
+  const retries = parseRetries(getArg('retries', process.env.BOB_CAPABILITY_RETRIES || '3'), 3);
 
   const report = await checkBobCapabilities({
     requiredRaw,
     mode: mode === 'auto' ? undefined : mode,
     timeoutMs,
+    retries,
   });
 
   console.log(JSON.stringify(report, null, 2));

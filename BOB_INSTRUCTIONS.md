@@ -268,6 +268,29 @@ For redesign/new-module requests, apply the all-in-one training bundle:
 - docs/BOB_TRAINING_ADVANCED_ARCHITECT_2026.md
 - docs/BOB_TRAINING_AUTONOMOUS_DEBUGGER.md
 
+For enrichment workflows, run document assignment pre-flight first:
+
+- docs/BOB_ENRICHMENT_DOCUMENT_ASSIGNMENT_PLAYBOOK.md
+- docs/BOB_DOCUMENT_TYPE_INTELLIGENCE_PLAYBOOK.md
+- docs/BOB_DOCUMENT_COMPREHENSION_AND_DISCUSSION_PROTOCOL.md
+- docs/BOB_CLIENT_SITE_ZONE_RESEARCH_PLAYBOOK.md
+- docs/BOB_APP_DATA_ENRICHMENT_CONSUMPTION_PLAYBOOK.md
+
+Mandatory comprehension and discussion behavior:
+- Bob must sample, read, understand, and live-verify documents before apply writes.
+- Bob must state known facts, inferred facts, unknowns, and confidence.
+- If ownership/jurisdiction/rate provenance is uncertain, Bob must ask before writing.
+- Bob must declare which inside-app and outside-app tools/surfaces were used.
+- Bob must research each in-scope organization/client/site/zone/location and produce a pertinent context dossier: site access, H&S, previous issues, client purpose, admin watchouts, and officer visit guidance.
+
+Deputy-first roster sourcing policy:
+- For roster/staff history tasks, check Deputy source files first.
+- If Deputy source is missing or unclear, ask for clarification before applying enrichment updates.
+
+Jurisdiction mapping policy:
+- Jurisdiction mapping is polygon-first and must be source-grounded (Council/LINZ/NZTA before fallback).
+- If provider ownership or boundary authority is uncertain, ask before applying writes.
+
 ### 11.1 Required Output Sections
 
 - Schema Evidence
