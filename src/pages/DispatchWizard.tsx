@@ -259,21 +259,6 @@ export default function DispatchWizard() {
 
   const dispatchMutation = useMutation({
     mutationFn: async () => {
-      const keyDetailLines = keyRecommendation
-        ? [
-            `Key chain: ${keyRecommendation.keySetName}`,
-            keyRecommendation.chainBarcode ? `Chain barcode: ${keyRecommendation.chainBarcode}` : null,
-            keyRecommendation.keyBarcode ? `Key barcode: ${keyRecommendation.keyBarcode}` : null,
-            keyRecommendation.keyLabel ? `Key label: ${keyRecommendation.keyLabel}` : null,
-            keyRecommendation.storageLocation ? `Storage location: ${keyRecommendation.storageLocation}` : null,
-          ].filter(Boolean)
-        : []
-
-      const mergedDescription = [
-        state.description || null,
-        keyDetailLines.length > 0 ? `Auto key details:\n${keyDetailLines.join('\n')}` : null,
-      ].filter(Boolean).join('\n\n')
-
       const { data: job, error } = await insertDispatchJobWithAlarmTypeFallback<{ id: string; job_number: string }>({
           organization_id:  orgId,
           created_by:       user?.id,
@@ -281,7 +266,7 @@ export default function DispatchWizard() {
           alarm_type:       state.alarm_type || null,
           priority:         state.priority,
           title:            state.title || `${JOB_TYPE_OPTIONS.find(t => t.value === state.job_type)?.label ?? state.job_type} - ${state.client_site_name}`,
-          description:      mergedDescription || null,
+          description:      state.description || null,
           address:          state.client_site_address || null,
           caller_name:      state.caller_name || null,
           caller_phone:     state.caller_phone || null,
