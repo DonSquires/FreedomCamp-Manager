@@ -1009,7 +1009,7 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <AreaRoute allowedRoles={['admin', 'admin_officer', 'master']} area="users">
-                  <UserManagement />
+                  <Navigate to="/roster?tab=users" replace />
                 </AreaRoute>
               </ProtectedRoute>
             }

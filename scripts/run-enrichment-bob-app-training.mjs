@@ -23,6 +23,8 @@ Options:
   --organization-id <id>   Optional org override for intake apply.
   --since-date <YYYY-MM-DD> Optional roster history floor for site enrichment.
   --allow-uncertain-writes Allow site enrichment writes to proceed despite dossier gate blockers.
+  --seed-user-clients-sites Seed missing user-scoped clients/sites before enrichment.
+  --user-id <id>           Target user id for seeding (repeatable).
   --allow-critical-lessons Continue even when self-learning detects critical lessons.
   --user-direction <text>  Optional user/operator direction to fold into policy-checked learning (repeatable).
   --skip-app-queue         Skip app queue model generation/publish step.
@@ -45,6 +47,8 @@ function parseArgs(argv) {
     organizationId: '',
     sinceDate: '',
     allowUncertainWrites: false,
+    seedUserClientsSites: false,
+    userIds: [],
     allowCriticalLessons: false,
     userDirections: [],
     skipAppQueue: false,
@@ -119,6 +123,16 @@ function parseArgs(argv) {
     }
     if (token === '--allow-uncertain-writes') {
       args.allowUncertainWrites = true
+      continue
+    }
+    if (token === '--seed-user-clients-sites') {
+      args.seedUserClientsSites = true
+      continue
+    }
+    if (token === '--user-id' && argv[i + 1]) {
+      const userId = String(argv[i + 1]).trim()
+      if (userId) args.userIds.push(userId)
+      i += 1
       continue
     }
     if (token === '--allow-critical-lessons') {
@@ -221,6 +235,8 @@ function plan(args) {
     args.organizationId ? `--organization-id ${args.organizationId}` : '--global-training',
     args.sinceDate ? `--since-date ${args.sinceDate}` : '',
     args.allowUncertainWrites ? '--allow-uncertain-writes' : '',
+    args.seedUserClientsSites ? '--seed-user-clients-sites' : '',
+    ...args.userIds.map((userId) => `--user-id ${userId}`),
     '--artifact-out logs/site-roster-enrichment-artifact.json',
     '--briefings-out logs/site-roster-briefings-artifact.json',
   ].filter(Boolean).join(' ')

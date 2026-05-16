@@ -16,6 +16,8 @@ Usage:
 Options:
   --apply                  Perform writes. Default is dry-run.
   --create-missing-entities Create missing geofence zones and client sites when possible.
+  --seed-user-clients-sites Seed missing user-scoped clients/sites before enrichment.
+  --user-id <id>           Target user id for user-scoped seeding (repeatable).
   --global-training        Force global scope (all organizations, all sites).
   --organization-id <id>   Limit to one organization_id.
   --since-date <YYYY-MM-DD>Limit roster history to this shift_date or later.
@@ -31,6 +33,8 @@ function parseArgs(argv) {
   const args = {
     apply: false,
     createMissingEntities: false,
+    seedUserClientsSites: false,
+    userIds: [],
     globalTraining: false,
     organizationId: '',
     sinceDate: '',
@@ -48,6 +52,16 @@ function parseArgs(argv) {
     }
     if (token === '--create-missing-entities') {
       args.createMissingEntities = true
+      continue
+    }
+    if (token === '--seed-user-clients-sites') {
+      args.seedUserClientsSites = true
+      continue
+    }
+    if (token === '--user-id' && argv[i + 1]) {
+      const userId = String(argv[i + 1]).trim()
+      if (userId) args.userIds.push(userId)
+      i += 1
       continue
     }
     if (token === '--global-training') {
@@ -143,7 +157,7 @@ async function fetchClientSites(supabase, organizationId) {
   while (true) {
     let query = supabase
       .from('client_sites')
-      .select('id, organization_id, name, site_type, zone_id, gps_lat, gps_lng, default_pay_rate, default_charge_rate, is_active')
+      .select('id, organization_id, name, site_type, zone_id, gps_lat, gps_lng, default_pay_rate, default_charge_rate, is_active, notes')
       .order('id', { ascending: true })
       .range(from, from + pageSize - 1)
 
@@ -213,6 +227,198 @@ async function fetchOrganizationsMap(supabase, organizationIds) {
   }
 
   return map
+}
+
+function parseUuidArray(value) {
+  if (Array.isArray(value)) {
+    return value
+      .map((entry) => String(entry || '').trim())
+      .filter((entry) => UUID_RE.test(entry))
+  }
+
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value)
+      if (Array.isArray(parsed)) {
+        return parsed
+          .map((entry) => String(entry || '').trim())
+          .filter((entry) => UUID_RE.test(entry))
+      }
+    } catch (_) {
+      // Ignore parse errors and fall through to empty list.
+    }
+  }
+
+  return []
+}
+
+async function fetchUserProfilesForSeed(supabase, userIds) {
+  const ids = Array.from(new Set(userIds.filter((id) => UUID_RE.test(id))))
+  if (!ids.length) return []
+
+  const rows = []
+  for (const idsChunk of chunk(ids, 100)) {
+    const { data, error } = await supabase
+      .from('user_profiles')
+      .select('id, email, first_name, last_name, organization_id, employer_organization_id, extra_organization_ids')
+      .in('id', idsChunk)
+
+    if (error) {
+      throw new Error(`Failed loading user profiles for seeding: ${error.message}`)
+    }
+
+    rows.push(...(data || []))
+  }
+
+  return rows
+}
+
+async function findOrCreateClient(supabase, organizationId, name, payload, dryRun) {
+  const { data: existing, error: lookupError } = await supabase
+    .from('clients')
+    .select('id')
+    .eq('organization_id', organizationId)
+    .eq('name', name)
+    .maybeSingle()
+
+  if (lookupError) throw new Error(`Failed looking up client ${name}: ${lookupError.message}`)
+  if (existing?.id) return existing.id
+  if (dryRun) return ''
+
+  const { data: created, error: insertError } = await supabase
+    .from('clients')
+    .insert({ organization_id: organizationId, name, ...payload })
+    .select('id')
+    .single()
+
+  if (insertError || !created?.id) {
+    throw new Error(`Failed creating client ${name}: ${insertError?.message || 'Unknown error'}`)
+  }
+
+  return created.id
+}
+
+async function seedUserClientsAndSites(supabase, args, clientSites) {
+  const summary = {
+    enabled: args.seedUserClientsSites,
+    targetUsers: Array.from(new Set(args.userIds.filter((id) => UUID_RE.test(id)))),
+    usersFound: 0,
+    orgsResolvedFromUsers: 0,
+    clientsCreated: 0,
+    userSitesCreated: 0,
+    userZonesCreated: 0,
+    skippedUsers: 0,
+  }
+
+  if (!args.seedUserClientsSites || !summary.targetUsers.length) {
+    return summary
+  }
+
+  const orgCentroids = buildOrgCentroids(clientSites)
+  const userProfiles = await fetchUserProfilesForSeed(supabase, summary.targetUsers)
+  summary.usersFound = userProfiles.length
+  summary.skippedUsers = summary.targetUsers.length - userProfiles.length
+
+  const userOrgPairs = []
+  for (const profile of userProfiles) {
+    const orgIds = new Set()
+    if (UUID_RE.test(profile.organization_id || '')) orgIds.add(profile.organization_id)
+    if (UUID_RE.test(profile.employer_organization_id || '')) orgIds.add(profile.employer_organization_id)
+    for (const orgId of parseUuidArray(profile.extra_organization_ids)) orgIds.add(orgId)
+
+    for (const orgId of orgIds) {
+      userOrgPairs.push({ userId: profile.id, orgId, email: profile.email || '' })
+    }
+  }
+
+  const uniqueOrgIds = Array.from(new Set(userOrgPairs.map((entry) => entry.orgId)))
+  summary.orgsResolvedFromUsers = uniqueOrgIds.length
+  const orgNameMap = await fetchOrganizationsMap(supabase, uniqueOrgIds)
+
+  const seenSeedSiteNames = new Set()
+  for (const pair of userOrgPairs) {
+    const orgName = orgNameMap.get(pair.orgId) || pair.orgId
+    const coords = resolveCoordinates(orgCentroids, pair.orgId, null, null)
+    const zoneName = `User Seed Zone - ${orgName}`
+    const clientName = `User Seed Client - ${orgName}`
+    const siteName = `User Seed Site - ${orgName}`
+    const siteKey = `${pair.orgId}::${siteName}`
+
+    const zoneId = await findOrCreateZone(
+      supabase,
+      pair.orgId,
+      zoneName,
+      {
+        description: `Auto-generated user-scoped geofence for ${orgName}.`,
+        is_active: true,
+        location_lat: coords.lat,
+        location_lng: coords.lng,
+        zone_type: 'service',
+        geometry: buildPolygonGeometry(coords.lat, coords.lng),
+      },
+      !args.apply,
+    )
+
+    if (args.apply && zoneId) summary.userZonesCreated += 1
+
+    const clientId = await findOrCreateClient(
+      supabase,
+      pair.orgId,
+      clientName,
+      {
+        address: null,
+        created_by: pair.userId,
+      },
+      !args.apply,
+    )
+
+    if (args.apply && clientId) summary.clientsCreated += 1
+
+    if (seenSeedSiteNames.has(siteKey)) {
+      continue
+    }
+
+    const siteId = await findOrCreateClientSite(
+      supabase,
+      pair.orgId,
+      siteName,
+      {
+        site_type: 'other',
+        zone_id: zoneId || null,
+        gps_lat: coords.lat,
+        gps_lng: coords.lng,
+        geofence_radius_metres: 150,
+        notes: `Auto-created for user-scoped client/site seeding (${pair.email || pair.userId}).`,
+        is_active: true,
+      },
+      !args.apply,
+    )
+
+    if (args.apply && siteId) {
+      seenSeedSiteNames.add(siteKey)
+      summary.userSitesCreated += 1
+    }
+  }
+
+  return summary
+}
+
+function inferSiteTypeFromRoster(site) {
+  const samples = [
+    ...Object.keys(site.serviceTypeCounts || {}),
+    ...Object.keys(site.positionTitleCounts || {}),
+  ]
+    .map((entry) => String(entry || '').toLowerCase())
+    .filter(Boolean)
+
+  if (!samples.length) return null
+  if (samples.some((entry) => entry.includes('park'))) return 'bus_hub'
+  if (samples.some((entry) => entry.includes('camp') || entry.includes('freedom'))) return 'government'
+  if (samples.some((entry) => entry.includes('research'))) return 'research'
+  if (samples.some((entry) => entry.includes('retail') || entry.includes('mall') || entry.includes('shop'))) return 'commercial'
+  if (samples.some((entry) => entry.includes('industrial') || entry.includes('warehouse'))) return 'industrial'
+
+  return null
 }
 
 async function fetchZonesMap(supabase, zoneIds) {
@@ -732,6 +938,7 @@ function summarizeSites(clientSites, rosterShifts) {
       gpsLat: site.gps_lat,
       gpsLng: site.gps_lng,
       isActive: Boolean(site.is_active),
+      notes: site.notes || null,
       defaultPayRate: toPositiveNumber(site.default_pay_rate),
       defaultChargeRate: toPositiveNumber(site.default_charge_rate),
       totalRosterShifts: 0,
@@ -741,6 +948,8 @@ function summarizeSites(clientSites, rosterShifts) {
       officerShiftCounts: new Map(),
       historicalPayRates: [],
       historicalChargeRates: [],
+      serviceTypeCounts: new Map(),
+      positionTitleCounts: new Map(),
       missingPayRateShiftIds: [],
       missingChargeRateShiftIds: [],
     })
@@ -780,6 +989,18 @@ function summarizeSites(clientSites, rosterShifts) {
     } else {
       bucket.missingChargeRateShiftIds.push(shift.id)
     }
+
+    const serviceType = String(shift.service_type || '').trim()
+    if (serviceType) {
+      const current = bucket.serviceTypeCounts.get(serviceType) || 0
+      bucket.serviceTypeCounts.set(serviceType, current + 1)
+    }
+
+    const positionTitle = String(shift.position_title || '').trim()
+    if (positionTitle) {
+      const current = bucket.positionTitleCounts.get(positionTitle) || 0
+      bucket.positionTitleCounts.set(positionTitle, current + 1)
+    }
   }
 
   const summaries = []
@@ -799,6 +1020,8 @@ function summarizeSites(clientSites, rosterShifts) {
       effectiveChargeRate,
       officerIds: Array.from(summary.officerIds),
       officerShiftCounts: Object.fromEntries(summary.officerShiftCounts),
+      serviceTypeCounts: Object.fromEntries(summary.serviceTypeCounts),
+      positionTitleCounts: Object.fromEntries(summary.positionTitleCounts),
     })
   }
 
@@ -807,6 +1030,7 @@ function summarizeSites(clientSites, rosterShifts) {
 
 async function applySiteDefaultUpdates(supabase, siteSummaries) {
   let updatedSites = 0
+  let updatedSiteDetails = 0
 
   for (const site of siteSummaries) {
     const payload = {}
@@ -816,6 +1040,22 @@ async function applySiteDefaultUpdates(supabase, siteSummaries) {
     }
     if (!site.defaultChargeRate && site.inferredChargeRate) {
       payload.default_charge_rate = site.inferredChargeRate
+    }
+
+    const dominantServiceType = topCountLabel(site.serviceTypeCounts)
+    const dominantPositionTitle = topCountLabel(site.positionTitleCounts)
+    const inferredSiteType = inferSiteTypeFromRoster(site)
+
+    if ((!site.siteType || site.siteType === 'other') && inferredSiteType) {
+      payload.site_type = inferredSiteType
+    }
+
+    if (!site.notes && (dominantServiceType || dominantPositionTitle)) {
+      const fragments = [
+        dominantServiceType ? `service_type=${dominantServiceType}` : null,
+        dominantPositionTitle ? `position_title=${dominantPositionTitle}` : null,
+      ].filter(Boolean)
+      payload.notes = `Roster enrichment context: ${fragments.join(', ')}`
     }
 
     if (Object.keys(payload).length === 0) continue
@@ -829,9 +1069,12 @@ async function applySiteDefaultUpdates(supabase, siteSummaries) {
       throw new Error(`Failed updating client_sites ${site.siteId}: ${error.message}`)
     }
     updatedSites += 1
+    if (payload.site_type || payload.notes) {
+      updatedSiteDetails += 1
+    }
   }
 
-  return updatedSites
+  return { updatedSites, updatedSiteDetails }
 }
 
 async function applyRosterShiftRateBackfill(supabase, siteSummaries) {
@@ -898,6 +1141,18 @@ function buildTopline(siteSummaries) {
   }
 }
 
+function topCountLabel(counts) {
+  const rawEntries = counts instanceof Map
+    ? Array.from(counts.entries())
+    : Object.entries(counts || {})
+
+  const entries = rawEntries
+    .filter((entry) => Number(entry[1]) > 0)
+    .sort((a, b) => b[1] - a[1])
+
+  return entries.length > 0 ? entries[0][0] : null
+}
+
 async function fetchOfficerProfiles(supabase, officerIds) {
   const ids = Array.from(new Set(officerIds.filter(Boolean)))
   const map = new Map()
@@ -938,6 +1193,10 @@ async function main() {
   if (args.organizationId && !UUID_RE.test(args.organizationId)) {
     throw new Error('--organization-id must be a valid UUID.')
   }
+  const invalidUserIds = args.userIds.filter((id) => !UUID_RE.test(id))
+  if (invalidUserIds.length > 0) {
+    throw new Error('--user-id must be a valid UUID (repeatable).')
+  }
   if (args.globalTraining && args.organizationId) {
     throw new Error('Use either --global-training or --organization-id, not both.')
   }
@@ -953,10 +1212,17 @@ async function main() {
     auth: { autoRefreshToken: false, persistSession: false },
   })
 
-  console.log(`[Start] mode=${args.apply ? 'apply' : 'dry-run'} scope=${args.globalTraining ? 'global' : (args.organizationId || 'all')} since=${args.sinceDate || 'none'} create_missing_entities=${args.createMissingEntities} allow_uncertain_writes=${args.allowUncertainWrites}`)
+  console.log(`[Start] mode=${args.apply ? 'apply' : 'dry-run'} scope=${args.globalTraining ? 'global' : (args.organizationId || 'all')} since=${args.sinceDate || 'none'} create_missing_entities=${args.createMissingEntities} seed_user_clients_sites=${args.seedUserClientsSites} allow_uncertain_writes=${args.allowUncertainWrites}`)
 
   let clientSites = await fetchClientSites(supabase, args.organizationId)
   let rosterShifts = await fetchRosterShifts(supabase, args.organizationId, args.sinceDate)
+
+  const userEntityProvisioning = await seedUserClientsAndSites(supabase, args, clientSites)
+
+  if (args.apply && args.seedUserClientsSites && userEntityProvisioning.usersFound > 0) {
+    clientSites = await fetchClientSites(supabase, args.organizationId)
+    rosterShifts = await fetchRosterShifts(supabase, args.organizationId, args.sinceDate)
+  }
 
   const entityProvisioning = args.createMissingEntities
     ? await ensureMissingEntities(supabase, args, clientSites, rosterShifts)
@@ -997,16 +1263,18 @@ async function main() {
 
   let writeSummary = {
     updatedClientSites: 0,
+    updatedClientSiteDetails: 0,
     updatedRosterShiftPayRates: 0,
     updatedRosterShiftChargeRates: 0,
   }
 
   if (args.apply) {
-    const updatedClientSites = await applySiteDefaultUpdates(supabase, siteSummaries)
+    const clientSiteUpdates = await applySiteDefaultUpdates(supabase, siteSummaries)
     const shiftBackfill = await applyRosterShiftRateBackfill(supabase, siteSummaries)
 
     writeSummary = {
-      updatedClientSites,
+      updatedClientSites: clientSiteUpdates.updatedSites,
+      updatedClientSiteDetails: clientSiteUpdates.updatedSiteDetails,
       updatedRosterShiftPayRates: shiftBackfill.payUpdated,
       updatedRosterShiftChargeRates: shiftBackfill.chargeUpdated,
     }
@@ -1022,6 +1290,7 @@ async function main() {
       allowUncertainWrites: args.allowUncertainWrites,
     },
     entityProvisioning,
+    userEntityProvisioning,
     topline,
     incidentContext: {
       source: incidentContext.source,
@@ -1051,6 +1320,10 @@ async function main() {
         }))
         .sort((a, b) => b.shiftCount - a.shiftCount),
       officerShiftCounts: site.officerShiftCounts,
+      dominantServiceType: topCountLabel(site.serviceTypeCounts),
+      dominantPositionTitle: topCountLabel(site.positionTitleCounts),
+      serviceTypeCounts: site.serviceTypeCounts,
+      positionTitleCounts: site.positionTitleCounts,
       defaultPayRate: site.defaultPayRate,
       defaultChargeRate: site.defaultChargeRate,
       inferredPayRate: site.inferredPayRate,
@@ -1077,7 +1350,11 @@ async function main() {
   console.log(`  orphan_roster_shifts: ${artifact.entityProvisioning.orphanRosterShifts}`)
   console.log(`  orphan_shifts_linked_to_sites: ${artifact.entityProvisioning.orphanShiftsLinkedToSites}`)
   console.log(`  sites_updated_with_zone: ${artifact.entityProvisioning.sitesUpdatedWithZone}`)
+  console.log(`  user_seed_clients_created: ${artifact.userEntityProvisioning.clientsCreated}`)
+  console.log(`  user_seed_sites_created: ${artifact.userEntityProvisioning.userSitesCreated}`)
+  console.log(`  user_seed_zones_created: ${artifact.userEntityProvisioning.userZonesCreated}`)
   console.log(`  updated_client_sites: ${artifact.writes.updatedClientSites}`)
+  console.log(`  updated_client_site_details: ${artifact.writes.updatedClientSiteDetails}`)
   console.log(`  updated_roster_shift_pay_rates: ${artifact.writes.updatedRosterShiftPayRates}`)
   console.log(`  updated_roster_shift_charge_rates: ${artifact.writes.updatedRosterShiftChargeRates}`)
   console.log(`  dossiers_total: ${artifact.dossierCompletionGate.totalDossiers}`)

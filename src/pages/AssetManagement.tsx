@@ -15,6 +15,7 @@
  */
 
 import { useEffect, useRef, useState, useCallback } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { format, parseISO, differenceInDays } from 'date-fns'
 import { toast } from 'sonner'
 import {
@@ -828,12 +829,18 @@ function EquipmentTab({
   officers,
   orgId,
   onRefresh,
+  initialOfficerId,
+  autoOpenIssue,
+  onConsumedDeepLink,
 }: {
   assets: OfficerAsset[]
   assetTypes: AssetType[]
   officers: OfficerOption[]
   orgId: string
   onRefresh: () => void
+  initialOfficerId?: string
+  autoOpenIssue?: boolean
+  onConsumedDeepLink?: () => void
 }) {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
@@ -846,6 +853,16 @@ function EquipmentTab({
     make: '', model: '', condition: 'good', expected_return: '', notes: '', variant: '',
   })
   const [returnForm, setReturnForm] = useState({ return_condition: 'good', return_notes: '' })
+
+  useEffect(() => {
+    if (!autoOpenIssue || !initialOfficerId) return
+    const exists = officers.some((o) => o.id === initialOfficerId)
+    if (!exists) return
+
+    setIssueForm((f) => ({ ...f, officer_id: initialOfficerId }))
+    setShowIssueDialog(true)
+    onConsumedDeepLink?.()
+  }, [autoOpenIssue, initialOfficerId, officers, onConsumedDeepLink])
 
   const filtered = assets.filter((a) => {
     const matchSearch =
@@ -2065,9 +2082,23 @@ function KeyManagementTab({
 // Main Component
 // ─────────────────────────────────────────────
 export default function AssetManagement() {
+  const [searchParams, setSearchParams] = useSearchParams()
   const user = useAuthStore((s) => s.user)
   const orgId = user?.organization_id ?? ''
   const userId = user?.id ?? ''
+
+  const requestedTab = searchParams.get('tab')
+  const validTabs = new Set(['overview', 'equipment', 'stock', 'stocktake', 'keys'])
+  const [activeTab, setActiveTab] = useState(validTabs.has(requestedTab || '') ? String(requestedTab) : 'overview')
+  const deepLinkOfficerId = searchParams.get('officer_id') || ''
+  const deepLinkIssue = searchParams.get('issue') === '1'
+
+  useEffect(() => {
+    const nextTab = searchParams.get('tab')
+    if (nextTab && validTabs.has(nextTab) && nextTab !== activeTab) {
+      setActiveTab(nextTab)
+    }
+  }, [searchParams, activeTab])
 
   const [loading, setLoading] = useState(true)
   const [assetTypes, setAssetTypes] = useState<AssetType[]>([])
@@ -2211,7 +2242,12 @@ export default function AssetManagement() {
         </Button>
       </div>
 
-      <Tabs defaultValue="overview">
+      <Tabs value={activeTab} onValueChange={(value) => {
+        setActiveTab(value)
+        const next = new URLSearchParams(searchParams)
+        next.set('tab', value)
+        setSearchParams(next)
+      }}>
         <TabsList className="flex-wrap h-auto gap-1">
           <TabsTrigger value="overview" className="gap-2">
             <Package className="h-4 w-4" /> Overview
@@ -2235,7 +2271,22 @@ export default function AssetManagement() {
         </TabsContent>
 
         <TabsContent value="equipment" className="mt-4">
-          <EquipmentTab assets={assets} assetTypes={assetTypes} officers={officers} orgId={orgId} onRefresh={load} />
+          <EquipmentTab
+            assets={assets}
+            assetTypes={assetTypes}
+            officers={officers}
+            orgId={orgId}
+            onRefresh={load}
+            initialOfficerId={deepLinkOfficerId}
+            autoOpenIssue={deepLinkIssue}
+            onConsumedDeepLink={() => {
+              if (!deepLinkIssue && !deepLinkOfficerId) return
+              const next = new URLSearchParams(searchParams)
+              next.delete('issue')
+              next.delete('officer_id')
+              setSearchParams(next)
+            }}
+          />
         </TabsContent>
 
         <TabsContent value="stock" className="mt-4">

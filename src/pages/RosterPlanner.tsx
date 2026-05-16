@@ -5,11 +5,13 @@
 
 import { useState, useMemo, useCallback, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useSearchParams } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { useClientOrgIds } from '@/hooks/useClientOrgIds'
 import { parseDeputyImportText, type DeputyImportParseResult, type DeputyParsedRow } from '@/lib/deputyImport'
 import { AppLayout } from '@/components/features/AppLayout'
+import UserManagement from '@/pages/UserManagement'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
 import { ListCardRow } from '@/components/features/ListCardRow'
 import { Button } from '@/components/ui/button'
@@ -1111,8 +1113,10 @@ function ShiftDialog({
 
 export default function RosterPlanner() {
   const { user } = useAuthStore()
+  const [searchParams, setSearchParams] = useSearchParams()
   const queryClient = useQueryClient()
   const isAdmin = user?.role === 'admin' || user?.role === 'master' || user?.role === 'admin_officer'
+  const activeTab = searchParams.get('tab') === 'users' ? 'users' : 'planner'
   const { orgIds: clientOrgIds, isLoading: clientOrgIdsLoading } = useClientOrgIds()
 
   // ─── Week navigation ───────────────────────────────────────────────────────
@@ -1690,6 +1694,42 @@ export default function RosterPlanner() {
   const saving = createMutation.isPending || updateMutation.isPending
   const deleting = deleteMutation.isPending
 
+  if (activeTab === 'users') {
+    return (
+      <AppLayout>
+        <div className="flex flex-col h-full min-h-0">
+          <GlobalFilterRibbon showDateFilter={false} showOrgFilter={false} showZoneFilter={false} />
+          <div className="flex flex-col gap-3 px-4 pt-4 pb-2 border-b bg-white">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Users className="w-5 h-5 text-blue-600" />
+                <h1 className="text-xl font-semibold">Roster Workforce</h1>
+              </div>
+              <div className="inline-flex rounded-md border overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setSearchParams({ tab: 'planner' })}
+                  className="px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-50"
+                >
+                  Planner
+                </button>
+                <button
+                  type="button"
+                  className="px-3 py-1.5 text-xs bg-blue-600 text-white"
+                >
+                  Workforce
+                </button>
+              </div>
+            </div>
+          </div>
+          <div className="p-4 overflow-y-auto">
+            <UserManagement embedded />
+          </div>
+        </div>
+      </AppLayout>
+    )
+  }
+
   // ─── Render ────────────────────────────────────────────────────────────────
 
   return (
@@ -1705,6 +1745,23 @@ export default function RosterPlanner() {
               <h1 className="text-xl font-semibold">Roster Planner</h1>
             </div>
             <div className="flex flex-wrap items-center gap-2">
+              {isAdmin && (
+                <div className="inline-flex rounded-md border overflow-hidden mr-1">
+                  <button
+                    type="button"
+                    className="px-3 py-1.5 text-xs bg-blue-600 text-white"
+                  >
+                    Planner
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSearchParams({ tab: 'users' })}
+                    className="px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-50"
+                  >
+                    Workforce
+                  </button>
+                </div>
+              )}
               <Button
                 variant="outline"
                 size="sm"

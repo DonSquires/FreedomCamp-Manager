@@ -98,7 +98,11 @@ interface DirectUserPreview {
   email: string | null
 }
 
-export default function UserManagement() {
+interface UserManagementProps {
+  embedded?: boolean
+}
+
+export default function UserManagement({ embedded = false }: UserManagementProps) {
   const { user } = useAuthStore()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -770,23 +774,24 @@ export default function UserManagement() {
     ).length,
   } : null
 
+  const deniedContent = (
+    <Card>
+      <CardHeader>
+        <CardTitle>Access Denied</CardTitle>
+        <CardDescription>
+          You don't have permission to access this page. Admin access required.
+        </CardDescription>
+      </CardHeader>
+    </Card>
+  )
+
   if (!isAdmin) {
-    return (
-      <AppLayout title="User Management" description="Manage user accounts and permissions" showBackButton>
-        <Card>
-          <CardHeader>
-            <CardTitle>Access Denied</CardTitle>
-            <CardDescription>
-              You don't have permission to access this page. Admin access required.
-            </CardDescription>
-          </CardHeader>
-        </Card>
-      </AppLayout>
-    )
+    if (embedded) return deniedContent
+    return <AppLayout title="User Management" description="Manage user accounts and permissions" showBackButton>{deniedContent}</AppLayout>
   }
 
-  return (
-    <AppLayout title="User Management" description="Manage user accounts and permissions" showBackButton>
+  const content = (
+    <>
       <GlobalFilterRibbon showDateFilter={false} />
 
       <Card className="mb-6 border-blue-200 bg-blue-50/60 dark:bg-blue-950/20 dark:border-blue-900">
@@ -1105,6 +1110,13 @@ export default function UserManagement() {
 
                   <div className="flex flex-col gap-2">
                     <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => navigate(`/assets?tab=equipment&officer_id=${userProfile.id}&issue=1`)}
+                      >
+                        Assign Assets
+                      </Button>
                       <Button
                         variant="outline"
                         size="sm"
@@ -1445,7 +1457,7 @@ export default function UserManagement() {
                     <Button type="button" variant="outline" onClick={() => navigate('/assets')}>
                       Open Asset Management
                     </Button>
-                    <Button type="button" variant="outline" onClick={() => navigate('/users')}>
+                    <Button type="button" variant="outline" onClick={() => navigate(embedded ? '/roster?tab=users' : '/users')}>
                       Manage Credentials and Files
                     </Button>
                   </CardContent>
@@ -2185,6 +2197,14 @@ export default function UserManagement() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </>
+  )
+
+  if (embedded) return content
+
+  return (
+    <AppLayout title="User Management" description="Manage user accounts and permissions" showBackButton>
+      {content}
     </AppLayout>
   )
 }
