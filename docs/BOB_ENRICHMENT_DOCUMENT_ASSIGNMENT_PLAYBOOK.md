@@ -172,6 +172,12 @@ Boundary/capability spot checks:
 ```bash
 node scripts/geo-boundary-transition-test.mjs --providerOrgId b3dcef79-9cc1-4f3b-bae0-a190297c52b7
 node scripts/bob-capability-gate.mjs --required chat --retries 3 --timeoutMs 90000
+
+# Site enrichment with mandatory research dossier gate
+node scripts/enrich-site-roster-costing.mjs --global-training --since-date 2026-01-01
+
+# Override only after operator review of blockers
+node scripts/enrich-site-roster-costing.mjs --global-training --since-date 2026-01-01 --apply --allow-uncertain-writes
 ```
 
 ## 6) Review Output Bob Must Produce

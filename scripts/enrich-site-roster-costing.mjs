@@ -19,6 +19,7 @@ Options:
   --global-training        Force global scope (all organizations, all sites).
   --organization-id <id>   Limit to one organization_id.
   --since-date <YYYY-MM-DD>Limit roster history to this shift_date or later.
+  --allow-uncertain-writes Allow apply writes even when dossier completion gate reports critical uncertainties.
   --artifact-out <file>    Output artifact JSON (default: logs/site-roster-enrichment-artifact.json).
   --help, -h               Show help.
 `
@@ -32,6 +33,7 @@ function parseArgs(argv) {
     globalTraining: false,
     organizationId: '',
     sinceDate: '',
+    allowUncertainWrites: false,
     artifactOut: 'logs/site-roster-enrichment-artifact.json',
     help: false,
   }
@@ -58,6 +60,10 @@ function parseArgs(argv) {
     if (token === '--since-date' && argv[i + 1]) {
       args.sinceDate = String(argv[i + 1]).trim()
       i += 1
+      continue
+    }
+    if (token === '--allow-uncertain-writes') {
+      args.allowUncertainWrites = true
       continue
     }
     if (token === '--artifact-out' && argv[i + 1]) {
@@ -200,6 +206,155 @@ async function fetchOrganizationsMap(supabase, organizationIds) {
   }
 
   return map
+}
+
+async function fetchZonesMap(supabase, zoneIds) {
+  const ids = Array.from(new Set(zoneIds.filter(Boolean)))
+  const map = new Map()
+  if (!ids.length) return map
+
+  for (const idsChunk of chunk(ids, 100)) {
+    const { data, error } = await supabase
+      .from('zones')
+      .select('id, organization_id, name, is_active, location_lat, location_lng')
+      .in('id', idsChunk)
+
+    if (error) {
+      throw new Error(`Failed loading zones: ${error.message}`)
+    }
+
+    for (const row of data || []) {
+      map.set(row.id, row)
+    }
+  }
+
+  return map
+}
+
+async function fetchIncidentCountsBySite(supabase, siteIds) {
+  const ids = Array.from(new Set(siteIds.filter(Boolean)))
+  const counts = new Map()
+  if (!ids.length) return counts
+
+  for (const idsChunk of chunk(ids, 100)) {
+    const { data, error } = await supabase
+      .from('incidents')
+      .select('id, client_site_id')
+      .in('client_site_id', idsChunk)
+
+    if (error) {
+      // Incidents table may differ in some deployments; keep enrichment flow running.
+      console.warn(`Warning: unable to load incidents for dossier context: ${error.message}`)
+      return counts
+    }
+
+    for (const row of data || []) {
+      const key = row.client_site_id
+      counts.set(key, (counts.get(key) || 0) + 1)
+    }
+  }
+
+  return counts
+}
+
+function hasCoordinates(site) {
+  return Number.isFinite(Number(site.gpsLat)) && Number.isFinite(Number(site.gpsLng))
+}
+
+function buildSiteResearchDossiers(siteSummaries, organizationMap, zonesMap, incidentCounts) {
+  return siteSummaries.map((site) => {
+    const organizationName = organizationMap.get(site.organizationId) || site.organizationId
+    const zone = site.zoneId ? zonesMap.get(site.zoneId) : null
+    const issueCount = incidentCounts.get(site.siteId) || 0
+    const coordsPresent = hasCoordinates(site)
+
+    const criticalUncertainties = []
+    if (!site.zoneId) criticalUncertainties.push('missing_zone_mapping')
+    if (!coordsPresent) criticalUncertainties.push('missing_site_coordinates')
+
+    const nonCriticalUncertainties = []
+    if (!site.totalRosterShifts) nonCriticalUncertainties.push('no_roster_history_for_staffing_context')
+    if (!site.defaultPayRate && !site.inferredPayRate) nonCriticalUncertainties.push('missing_pay_rate_context')
+    if (!site.defaultChargeRate && !site.inferredChargeRate) nonCriticalUncertainties.push('missing_charge_rate_context')
+
+    const confidence = criticalUncertainties.length > 0 ? 'low' : (nonCriticalUncertainties.length > 0 ? 'medium' : 'high')
+
+    const adminWatchouts = [
+      !site.zoneId ? 'Zone ownership/boundary mapping is missing for this site.' : null,
+      !coordsPresent ? 'Site coordinates are missing; patrol geofence confidence is reduced.' : null,
+      issueCount > 0 ? `Site has ${issueCount} prior incident record(s); monitor repeat patterns.` : null,
+    ].filter(Boolean)
+
+    const officerVisitNotes = [
+      zone?.name ? `Operate within ${zone.name}; verify handover at boundary edges.` : 'Zone not mapped; confirm jurisdiction before enforcement action.',
+      coordsPresent ? 'Use site coordinates as arrival reference and verify exact boundary on approach.' : 'No reliable site coordinates; confirm location with supervisor before attendance.',
+      issueCount > 0 ? 'Check recent incident pattern before patrol and collect evidence for repeat issue classes.' : 'No prior incident history available from this enrichment pass.',
+    ]
+
+    return {
+      entity: {
+        organizationId: site.organizationId,
+        organizationName,
+        siteId: site.siteId,
+        siteName: site.siteName,
+        zoneId: site.zoneId || null,
+        zoneName: zone?.name || null,
+      },
+      context: {
+        clientPurpose: `Operational service location for ${organizationName}.`,
+        accessProfile: {
+          status: 'needs_verification',
+          notes: 'Explicit access instructions were not found in roster-rate enrichment inputs.',
+        },
+        healthAndSafety: {
+          status: 'needs_verification',
+          notes: 'No dedicated H&S controls were detected in this data slice; require operator confirmation.',
+        },
+        previousIssues: {
+          incidentCount: issueCount,
+          summary: issueCount > 0
+            ? `Prior incidents found (${issueCount}). Review recent incident detail in app before actioning.`
+            : 'No prior incidents found in reachable dataset for this run.',
+        },
+      },
+      appBriefings: {
+        adminWatchouts,
+        officerVisitNotes,
+      },
+      evidence: {
+        sources: [
+          'client_sites',
+          'roster_shifts',
+          zone ? 'zones' : null,
+          issueCount > 0 ? 'incidents' : null,
+        ].filter(Boolean),
+        confidence,
+        criticalUncertainties,
+        nonCriticalUncertainties,
+      },
+    }
+  })
+}
+
+function buildDossierCompletionGate(dossiers) {
+  const blockers = []
+
+  for (const dossier of dossiers) {
+    if (dossier.evidence.criticalUncertainties.length > 0) {
+      blockers.push({
+        siteId: dossier.entity.siteId,
+        siteName: dossier.entity.siteName,
+        issues: dossier.evidence.criticalUncertainties,
+      })
+    }
+  }
+
+  return {
+    totalDossiers: dossiers.length,
+    dossiersWithCriticalUncertainty: blockers.length,
+    blockers,
+    pass: blockers.length === 0,
+  }
 }
 
 function buildOrgCentroids(clientSites) {
@@ -664,7 +819,7 @@ async function main() {
     auth: { autoRefreshToken: false, persistSession: false },
   })
 
-  console.log(`[Start] mode=${args.apply ? 'apply' : 'dry-run'} scope=${args.globalTraining ? 'global' : (args.organizationId || 'all')} since=${args.sinceDate || 'none'} create_missing_entities=${args.createMissingEntities}`)
+  console.log(`[Start] mode=${args.apply ? 'apply' : 'dry-run'} scope=${args.globalTraining ? 'global' : (args.organizationId || 'all')} since=${args.sinceDate || 'none'} create_missing_entities=${args.createMissingEntities} allow_uncertain_writes=${args.allowUncertainWrites}`)
 
   let clientSites = await fetchClientSites(supabase, args.organizationId)
   let rosterShifts = await fetchRosterShifts(supabase, args.organizationId, args.sinceDate)
@@ -689,6 +844,16 @@ async function main() {
 
   const siteSummaries = summarizeSites(clientSites, rosterShifts)
   const topline = buildTopline(siteSummaries)
+
+  const zoneMap = await fetchZonesMap(supabase, siteSummaries.map((site) => site.zoneId))
+  const orgMap = await fetchOrganizationsMap(supabase, siteSummaries.map((site) => site.organizationId))
+  const incidentCounts = await fetchIncidentCountsBySite(supabase, siteSummaries.map((site) => site.siteId))
+  const researchDossiers = buildSiteResearchDossiers(siteSummaries, orgMap, zoneMap, incidentCounts)
+  const dossierCompletionGate = buildDossierCompletionGate(researchDossiers)
+
+  if (args.apply && !args.allowUncertainWrites && !dossierCompletionGate.pass) {
+    throw new Error(`Dossier completion gate failed: ${dossierCompletionGate.dossiersWithCriticalUncertainty} site(s) have critical uncertainties. Re-run with --allow-uncertain-writes only after review.`)
+  }
 
   const allOfficerIds = siteSummaries.flatMap((site) => site.officerIds)
   const officerProfiles = await fetchOfficerProfiles(supabase, allOfficerIds)
@@ -717,10 +882,13 @@ async function main() {
       trainingScope: args.globalTraining ? 'global' : 'organization_or_all',
       organizationId: args.organizationId || null,
       sinceDate: args.sinceDate || null,
+      allowUncertainWrites: args.allowUncertainWrites,
     },
     entityProvisioning,
     topline,
+    dossierCompletionGate,
     writes: writeSummary,
+    researchDossiers,
     sites: siteSummaries.map((site) => ({
       siteId: site.siteId,
       organizationId: site.organizationId,
@@ -768,6 +936,8 @@ async function main() {
   console.log(`  updated_client_sites: ${artifact.writes.updatedClientSites}`)
   console.log(`  updated_roster_shift_pay_rates: ${artifact.writes.updatedRosterShiftPayRates}`)
   console.log(`  updated_roster_shift_charge_rates: ${artifact.writes.updatedRosterShiftChargeRates}`)
+  console.log(`  dossiers_total: ${artifact.dossierCompletionGate.totalDossiers}`)
+  console.log(`  dossiers_with_critical_uncertainty: ${artifact.dossierCompletionGate.dossiersWithCriticalUncertainty}`)
 }
 
 main().catch((error) => {

@@ -21,6 +21,8 @@ Options:
   --prefix <path>          Intake prefix (default: historical-imports).
   --limit <n>              Intake batch limit (default: 100).
   --organization-id <id>   Optional org override for intake apply.
+  --since-date <YYYY-MM-DD> Optional roster history floor for site enrichment.
+  --allow-uncertain-writes Allow site enrichment writes to proceed despite dossier gate blockers.
   --polygon-input <file>   Optional GeoJSON input path for polygon conversion.
   --artifact-out <file>    Optional JSON artifact output path.
   --skip-intake            Skip intake phase.
@@ -38,6 +40,8 @@ function parseArgs(argv) {
     prefix: 'historical-imports',
     limit: '100',
     organizationId: '',
+    sinceDate: '',
+    allowUncertainWrites: false,
     polygonInput: '',
     artifactOut: 'logs/enrichment-training-artifact.json',
     skipIntake: false,
@@ -96,6 +100,15 @@ function parseArgs(argv) {
     if (token === '--organization-id' && argv[i + 1]) {
       args.organizationId = String(argv[i + 1]).trim()
       i += 1
+      continue
+    }
+    if (token === '--since-date' && argv[i + 1]) {
+      args.sinceDate = String(argv[i + 1]).trim()
+      i += 1
+      continue
+    }
+    if (token === '--allow-uncertain-writes') {
+      args.allowUncertainWrites = true
       continue
     }
     if (token === '--polygon-input' && argv[i + 1]) {
@@ -181,14 +194,27 @@ function plan(args) {
     })
   }
 
+  const enrichmentFlags = [
+    args.apply ? '--apply' : '',
+    args.organizationId ? `--organization-id ${args.organizationId}` : '--global-training',
+    args.sinceDate ? `--since-date ${args.sinceDate}` : '',
+    args.allowUncertainWrites ? '--allow-uncertain-writes' : '',
+    '--artifact-out logs/site-roster-enrichment-artifact.json',
+  ].filter(Boolean).join(' ')
+
+  steps.push({
+    phase: 'Phase 4 - Site roster enrichment dossiers',
+    command: `node scripts/enrich-site-roster-costing.mjs ${enrichmentFlags}`,
+  })
+
   if (args.polygonInput) {
     steps.push({
-      phase: 'Phase 4 - Polygon normalization helper',
+      phase: 'Phase 5 - Polygon normalization helper',
       command: `node scripts/geojson-to-polygon-converter.mjs ${args.polygonInput} --output=data/geofences-from-geojson.json`,
     })
   } else {
     steps.push({
-      phase: 'Phase 4 - Polygon normalization helper',
+      phase: 'Phase 5 - Polygon normalization helper',
       command: 'echo "Polygon converter ready. Provide --polygon-input <file> to execute conversion."',
     })
   }
@@ -205,20 +231,20 @@ function plan(args) {
   }
 
   if (!args.skipValidation) {
-    steps.push({ phase: 'Phase 5 - Staging doc lint', command: 'npm run lint:staging-doc' })
-    steps.push({ phase: 'Phase 5 - Type check', command: 'npm run typecheck' })
-    steps.push({ phase: 'Phase 5 - Build', command: 'npm run build' })
+    steps.push({ phase: 'Phase 6 - Staging doc lint', command: 'npm run lint:staging-doc' })
+    steps.push({ phase: 'Phase 6 - Type check', command: 'npm run typecheck' })
+    steps.push({ phase: 'Phase 6 - Build', command: 'npm run build' })
     steps.push({
-      phase: 'Phase 5 - Spatial boundary test',
+      phase: 'Phase 6 - Spatial boundary test',
       command: 'node scripts/geo-boundary-transition-test.mjs --providerOrgId b3dcef79-9cc1-4f3b-bae0-a190297c52b7 --fromLat -41.290916 --fromLng 174.006908 --toLat -41.2849278 --toLng 174.0033421 --aiRetries 3 --allowAiTimeout',
     })
-    steps.push({ phase: 'Phase 5 - Spatial intelligence test', command: 'npm run bob:test:spatial' })
+    steps.push({ phase: 'Phase 6 - Spatial intelligence test', command: 'npm run bob:test:spatial' })
   }
 
   if (args.withAppChecks) {
-    steps.push({ phase: 'Phase 6 - Bob runtime status', command: 'npm run e2e:bob:chromium:status' })
+    steps.push({ phase: 'Phase 7 - Bob runtime status', command: 'npm run e2e:bob:chromium:status' })
     steps.push({
-      phase: 'Phase 6 - Capability gate',
+      phase: 'Phase 7 - Capability gate',
       command: 'node scripts/bob-capability-gate.mjs --required chat --retries 3 --timeoutMs 90000',
       retries: 3,
       allowFailure: true,
@@ -317,6 +343,16 @@ function writeArtifact(artifactOut, payload) {
   console.log(`Artifact written: ${resolved}`)
 }
 
+function readJsonFileIfExists(filePath) {
+  const resolved = path.resolve(process.cwd(), filePath)
+  if (!fs.existsSync(resolved)) return null
+  try {
+    return JSON.parse(fs.readFileSync(resolved, 'utf8'))
+  } catch {
+    return null
+  }
+}
+
 async function main() {
   const args = parseArgs(process.argv.slice(2))
 
@@ -352,6 +388,17 @@ async function main() {
       nonBlocking: Boolean(entry.nonBlocking),
     }))
 
+  const rosterArtifact = readJsonFileIfExists('logs/site-roster-enrichment-artifact.json')
+  const rosterGate = rosterArtifact?.dossierCompletionGate || null
+  if (rosterGate && rosterGate.pass === false) {
+    blockers.push({
+      phase: 'Phase 4 - Site roster enrichment dossiers',
+      command: 'node scripts/enrich-site-roster-costing.mjs ...',
+      error: `Dossier gate blockers: ${rosterGate.dossiersWithCriticalUncertainty}`,
+      nonBlocking: Boolean(args.allowUncertainWrites),
+    })
+  }
+
   writeArtifact(args.artifactOut, {
     runAt: new Date().toISOString(),
     mode: args.apply ? 'apply' : 'dry-run',
@@ -361,8 +408,14 @@ async function main() {
       skipIntake: args.skipIntake,
       skipBootstrap: args.skipBootstrap,
       skipValidation: args.skipValidation,
+      sinceDate: args.sinceDate || null,
+      allowUncertainWrites: args.allowUncertainWrites,
     },
     stepReports,
+    rosterEnrichment: {
+      artifactPath: 'logs/site-roster-enrichment-artifact.json',
+      dossierCompletionGate: rosterGate,
+    },
     blockers,
     degraded: blockers.length > 0,
   })

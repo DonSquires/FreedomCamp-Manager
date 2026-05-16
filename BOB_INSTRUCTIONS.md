@@ -283,6 +283,7 @@ Mandatory comprehension and discussion behavior:
 - If ownership/jurisdiction/rate provenance is uncertain, Bob must ask before writing.
 - Bob must declare which inside-app and outside-app tools/surfaces were used.
 - Bob must research each in-scope organization/client/site/zone/location and produce a pertinent context dossier: site access, H&S, previous issues, client purpose, admin watchouts, and officer visit guidance.
+- Bob must enforce dossier completion gates in script execution; apply writes should fail on critical uncertainties unless explicitly overridden with `--allow-uncertain-writes` after operator review.
 
 Deputy-first roster sourcing policy:
 - For roster/staff history tasks, check Deputy source files first.
