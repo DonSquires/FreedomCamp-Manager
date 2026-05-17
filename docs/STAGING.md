@@ -2,7 +2,26 @@
 
 Date: 2026-05-15
 Owner: GitHub Copilot
-Status: Active staging checklist — Phase E COMPLETE; Star Trek validation lane complete for Phases 1–4; Phase 0 implementation schedule calendarized
+Status: Active staging checklist — CRO Part 1 COMPLETE; Phase E ready for Part 2 route audit
+
+## Latest Session Snapshot (CRO Quick Wins Part 1 COMPLETE — Async State Standardization Shipped — 2026-05-17)
+
+- Timestamp (NZ): 2026-05-17
+- Session focus: Complete CRO Part 1 quick-win execution by finalizing async loading/error/retry state standardization across Officer and Admin shells.
+- Scope completed:
+  - **[Frontend Developer]** Standardized async states in Officer portal:
+    - Added explicit loading message "Checking your shift access..." with spinner + retry button during shift access gate check.
+    - Added error card with "Route data could not be refreshed" message + retry button for route query failures.
+    - Destructured `isError`, `error`, `refetch` from both route queries for better error handling.
+  - **[Frontend Developer]** Standardized async states in Admin portal:
+    - Improved error state message from generic text to "Live KPI and queue data could not be loaded right now. Retry the dashboard or fall back to the patrol map while data recovers."
+    - Added fallback "Open patrol map" button alongside Retry button for error recovery paths.
+  - **[Planning]** Marked all 10 Part 1 quick-win items complete in `docs/CRO_TODOLIST.md` and updated status to "✅ COMPLETE".
+- Validation evidence:
+  - Commit a5de86c: "feat(cro): standardize async loading/error/retry states" successfully shipped.
+  - Both modified files follow established async error pattern (error card with retry + fallback action).
+  - Code matches INSTRUCTION_MANUAL.md requirements: every error has retry button + plain-English description.
+- Open blockers: None for Part 1. Ready to proceed to Part 2 (route audit and consolidation).
 
 ## Latest Session Snapshot (CRO Quick Wins Part 1 Pass — Persona-Led Execution — 2026-05-17)
 

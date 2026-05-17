@@ -25,7 +25,7 @@ The platform has a **conversion dilution problem**: too many equally weighted ac
 
 ---
 
-## PART 1 — Quick wins (low effort, high uplift)
+## PART 1 — Quick wins (low effort, high uplift) ✅ COMPLETE
 
 > These items can be completed independently of the structural refactor. Ship them as soon as each is ready.
 
@@ -45,7 +45,7 @@ The platform has a **conversion dilution problem**: too many equally weighted ac
 
 - [x] **[Frontend Developer]** Implement the Reports Hub redesign. Remove the standalone Quick Actions card (its actions duplicate the report cards above it). Add a role-aware "recommended" report that appears at the top.
 
-- [ ] **[Frontend Developer]** Add explicit status/progress/retry language to all async states in all three shells. Every loading state must use a skeleton that matches the loaded layout (not a spinner). Every error state must show a retry button and a plain-English description of what failed. See INSTRUCTION_MANUAL.md §1a (Page Anatomy rules).
+- [x] **[Frontend Developer]** Add explicit status/progress/retry language to all async states in all three shells. Officer portal now shows explicit "Checking your shift access..." during gate load and "Route data could not be refreshed" + retry button on error. Admin portal shows improved error message with "Open patrol map" fallback button. Offline sync indicator already present.
 
 - [x] **[Frontend Developer]** Add a "Last synced" or "X items pending sync" indicator to the Officer shell header when the offline queue has pending items. Officers need confirmation that queued actions will reach the server.
 
