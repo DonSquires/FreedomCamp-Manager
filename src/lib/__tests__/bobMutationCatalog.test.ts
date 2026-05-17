@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  BOB_MUTATION_CATALOG,
   assertBobMutationAccess,
   getBobGatekeeperPolicyMatrix,
 } from '@/lib/bobMutationCatalog'
@@ -36,6 +37,23 @@ describe('bobMutationCatalog getBobGatekeeperPolicyMatrix', () => {
 })
 
 describe('bobMutationCatalog assertBobMutationAccess', () => {
+  it('limits emergency allowlist to non-administrative contracts', () => {
+    const emergencyAllowedIds = BOB_MUTATION_CATALOG
+      .filter((entry) => entry.emergencyPriorityBehavior === 'allow')
+      .map((entry) => entry.id)
+      .sort()
+
+    expect(emergencyAllowedIds).toEqual([
+      'email_dashboard_report',
+      'generate_briefing_video',
+      'generate_dashboard_report',
+      'generate_tender_sections',
+      'queue_bob_code_change_task',
+      'queue_owner_research_task',
+      'run_grandmaster_diagnostics',
+    ])
+  })
+
   it('returns deterministic unknown contract reason code', () => {
     const access = assertBobMutationAccess('not_a_real_contract', 'master_balanced')
 
