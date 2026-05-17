@@ -171,7 +171,7 @@ Bob governance note for this lane:
   # Commit: git commit -m "realignment: team alignment — kickoff complete"
   ```
 
-- [ ] **May 13–14**: Unified case model schema design (Platform Arch Lead + Data Platform Lead)
+- [x] **May 13–14**: Unified case model schema design (Platform Arch Lead + Data Platform Lead) — Completed (migration present: `20260504000002_case_model.sql`)
   ```bash
   # Location: supabase/migrations/202605_case_model.sql
   # Requirements (from 11.2a):
@@ -186,7 +186,7 @@ Bob governance note for this lane:
   # Commit: git commit -m "realignment: case model schema — operational_cases + event tables"
   ```
 
-- [ ] **May 15–16**: Org isolation test harness creation (Data Platform Lead + QA)
+- [x] **May 15–16**: Org isolation test harness creation (Data Platform Lead + QA) — Completed (`tests/integration/org-isolation.test.ts` with 5 gate scenarios)
   ```bash
   # Location: tests/integration/org-isolation.test.ts
   # Framework: Vitest (configured in vitest.config.ts)
