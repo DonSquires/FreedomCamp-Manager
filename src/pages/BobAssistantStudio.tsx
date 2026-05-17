@@ -141,7 +141,10 @@ type ChatMessage = {
     matchedEntities?: string[]
     candidateMutationContracts?: string[]
     requestedMutationContract?: string | null
-    mutationAccess?: { allowed: boolean; reason: string } | null
+    mutationAccess?: { allowed: boolean; reason: string; reasonCode?: string } | null
+    emergencyGate?: { active: boolean; blocked: boolean; reasonCode: string | null; reason: string | null } | null
+    decisionReasonCodes?: string[]
+    confidence?: { commandBus: number; gateDecision: number; composite: number } | null
     policyMode?: string
   }
 }
@@ -2076,6 +2079,7 @@ export default function BobAssistantStudio() {
       organizationId: effectiveOrgId,
       actorUserId: user?.id ?? null,
       emergencyPriorityActive,
+      executionMode: effectivePolicy.mode,
     })
 
     if (actuationResult?.status === 'needs_clarification') {
@@ -2891,6 +2895,10 @@ export default function BobAssistantStudio() {
             args: command.args,
             matched_pattern: command.matchedPattern,
           },
+          emergencyPriorityActive: dangerAutoAssistArmed && (
+            emergencyCountdownSeconds !== null || Date.now() < dangerCooldownUntil
+          ),
+          danger_auto_assist_active: dangerAutoAssistArmed,
         },
       }
     }
@@ -6165,6 +6173,23 @@ export default function BobAssistantStudio() {
                                   {!!message.executionReview.matchedRoutes?.length && <div>Matched: {message.executionReview.matchedRoutes.join(', ')}</div>}
                                   {!!message.executionReview.requestedMutationContract && (
                                     <div>Contract: {message.executionReview.requestedMutationContract} {message.executionReview.mutationAccess ? `(${message.executionReview.mutationAccess.allowed ? '✓ allowed' : '✗ blocked'})` : ''}</div>
+                                  )}
+                                  {!!message.executionReview.mutationAccess?.reasonCode && (
+                                    <div>Gate reason: {message.executionReview.mutationAccess.reasonCode}</div>
+                                  )}
+                                  {!!message.executionReview.emergencyGate?.active && (
+                                    <div>
+                                      Emergency gate: {message.executionReview.emergencyGate.blocked ? '✗ blocked' : 'safety-only mode'}
+                                      {message.executionReview.emergencyGate.reasonCode ? ` (${message.executionReview.emergencyGate.reasonCode})` : ''}
+                                    </div>
+                                  )}
+                                  {!!message.executionReview.decisionReasonCodes?.length && (
+                                    <div>Decision codes: {message.executionReview.decisionReasonCodes.join(', ')}</div>
+                                  )}
+                                  {!!message.executionReview.confidence && (
+                                    <div>
+                                      Confidence: composite {(message.executionReview.confidence.composite * 100).toFixed(0)}% · gate {(message.executionReview.confidence.gateDecision * 100).toFixed(0)}% · command {(message.executionReview.confidence.commandBus * 100).toFixed(0)}%
+                                    </div>
                                   )}
                                 </div>
                               )}

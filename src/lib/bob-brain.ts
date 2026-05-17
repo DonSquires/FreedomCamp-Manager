@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase'
+import { assertBobMutationAccess, type BobExecutionMode } from '@/lib/bobMutationCatalog'
 
 const sb = supabase as any
 
@@ -280,6 +281,7 @@ export async function executeAdministrativeActuation(params: {
   organizationId: string | null
   actorUserId: string | null
   emergencyPriorityActive: boolean
+  executionMode: BobExecutionMode
 }): Promise<BobActuationResult | null> {
   const text = String(params.text || '').trim()
   if (!shouldActuate(text)) return null
@@ -288,6 +290,14 @@ export async function executeAdministrativeActuation(params: {
     return {
       status: 'blocked',
       reason: 'Missing organization or user context for secure actuation.',
+    }
+  }
+
+  const mutationAccess = assertBobMutationAccess('create_client_site_shift_bundle', params.executionMode)
+  if (!mutationAccess.allowed) {
+    return {
+      status: 'blocked',
+      reason: `Administrative provisioning blocked by governance contract: ${mutationAccess.reason}`,
     }
   }
 

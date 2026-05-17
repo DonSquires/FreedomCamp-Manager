@@ -21,6 +21,16 @@ export const BOB_MUTATION_CATALOG: BobMutationCatalogEntry[] = [
     notes: 'Creates draft setup records only. Geofence coordinates and patrol schedules still require verified site location data.',
   },
   {
+    id: 'create_client_site_shift_bundle',
+    contract: 'supabase.clientSiteShiftProvisioning',
+    writesTo: ['clients', 'client_sites', 'patrol_shifts'],
+    purpose: 'Create a client, site, and patrol shift bundle through the guarded Bob administrative actuation path.',
+    allowedExecutionModes: ['owner_full', 'master_balanced'],
+    approvalLevel: 'review',
+    dryRunSupported: true,
+    notes: 'Used by Bob administrative provisioning when required fields are complete and policy checks pass.',
+  },
+  {
     id: 'import_data_file',
     contract: 'edgeFunctions.importData',
     writesTo: ['zones', 'observations'],
@@ -160,14 +170,35 @@ export function getBobMutationCatalogSummary(limit = 9): string {
 
 export type BobExecutionMode = 'owner_full' | 'master_balanced' | 'officer_assist'
 
+export type BobGovernanceClass = 'assistive_only' | 'approval_gated' | 'owner_gated'
+
+export type BobMutationReasonCode =
+  | 'unknown_contract'
+  | 'mode_not_allowed'
+  | 'allowed_assistive'
+  | 'allowed_review_required'
+  | 'allowed_owner_required'
+
 export interface BobMutationAccessResult {
   allowed: boolean
   reason: string
+  reasonCode: BobMutationReasonCode
+  governanceClass: BobGovernanceClass | null
   entry: BobMutationCatalogEntry | null
+}
+
+export interface BobGatekeeperPolicyMatrixEntry {
+  id: string
+  contract: string
+  governanceClass: BobGovernanceClass
+  approvalLevel: BobMutationCatalogEntry['approvalLevel']
+  allowedExecutionModes: BobMutationCatalogEntry['allowedExecutionModes']
+  dryRunSupported: boolean
 }
 
 const MUTATION_KEYWORDS: Record<string, string[]> = {
   create_patrol_setup_draft: ['patrol setup', 'create sites', 'setup sites', 'security brief'],
+  create_client_site_shift_bundle: ['create client', 'new client', 'create site', 'new site', 'create shift', 'new shift', 'start shift'],
   import_data_file: ['import data', 'bulk import', 'upload data'],
   import_historical_patrol_data: ['historical patrol', 'patrol import', 'visit import'],
   stage_parking_training_manual: ['parking manual', 'parking training', 'warden training', 'parking zones', 'geofence parking'],
@@ -188,6 +219,30 @@ export function getBobMutationCatalogEntry(contractId: string): BobMutationCatal
   return BOB_MUTATION_CATALOG.find((entry) => entry.id === contractId) ?? null
 }
 
+function resolveGovernanceClass(entry: BobMutationCatalogEntry): BobGovernanceClass {
+  if (entry.approvalLevel === 'owner_only') return 'owner_gated'
+  if (entry.approvalLevel === 'review') return 'approval_gated'
+  return 'assistive_only'
+}
+
+export function getBobGatekeeperPolicyMatrix(): BobGatekeeperPolicyMatrixEntry[] {
+  return BOB_MUTATION_CATALOG.map((entry) => ({
+    id: entry.id,
+    contract: entry.contract,
+    governanceClass: resolveGovernanceClass(entry),
+    approvalLevel: entry.approvalLevel,
+    allowedExecutionModes: entry.allowedExecutionModes,
+    dryRunSupported: entry.dryRunSupported,
+  }))
+}
+
+export function getBobGatekeeperPolicySummary(limit = 12): string {
+  return getBobGatekeeperPolicyMatrix()
+    .slice(0, limit)
+    .map((entry) => `${entry.id} | class=${entry.governanceClass} | approval=${entry.approvalLevel} | modes=${entry.allowedExecutionModes.join('/')}`)
+    .join('\n')
+}
+
 export function assertBobMutationAccess(contractId: string, mode: BobExecutionMode): BobMutationAccessResult {
   const entry = getBobMutationCatalogEntry(contractId)
 
@@ -195,21 +250,36 @@ export function assertBobMutationAccess(contractId: string, mode: BobExecutionMo
     return {
       allowed: false,
       reason: `Unknown Bob mutation contract: ${contractId}`,
+      reasonCode: 'unknown_contract',
+      governanceClass: null,
       entry: null,
     }
   }
+
+  const governanceClass = resolveGovernanceClass(entry)
 
   if (!entry.allowedExecutionModes.includes(mode)) {
     return {
       allowed: false,
       reason: `Contract ${contractId} is not allowed for execution mode ${mode}.`,
+      reasonCode: 'mode_not_allowed',
+      governanceClass,
       entry,
     }
   }
 
+  const reasonCode: BobMutationReasonCode =
+    entry.approvalLevel === 'owner_only'
+      ? 'allowed_owner_required'
+      : entry.approvalLevel === 'review'
+        ? 'allowed_review_required'
+        : 'allowed_assistive'
+
   return {
     allowed: true,
     reason: `Contract ${contractId} is allowed for execution mode ${mode}.`,
+    reasonCode,
+    governanceClass,
     entry,
   }
 }
