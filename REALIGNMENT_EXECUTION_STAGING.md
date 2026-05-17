@@ -212,7 +212,7 @@ Bob governance note for this lane:
   # Commit: git commit -m "realignment: org isolation test harness — 5 scenarios (Phase A gate)"
   ```
 
-- [ ] **May 17**: Event family contract documentation
+- [x] **May 17**: Event family contract documentation (Data Eng) — Completed (`docs/EVENT_FAMILY_CONTRACT_2026-05-04.md`)
   ```bash
   # Location: docs/EVENT_FAMILY_CONTRACT_2026-05-04.md (new file)
   # Content:
