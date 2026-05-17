@@ -14,6 +14,12 @@ When a pattern, platform, or architectural decision changes, append a dated note
 
 ## Current Standing Decisions
 - Date: 2026-05-17
+- Decision: CRO Part 4 workflow consolidation is closed for the current cycle; no additional role-specific guided workflows are required beyond the shipped admin-report, admin-breach, and officer-shift guided flows.
+- Scope: `docs/CRO_TODOLIST.md`, `docs/STAGING.md`, `docs/INSTRUCTION_MANUAL.md`, `src/pages/ReportsHub.tsx`, `src/pages/BreachAlerts.tsx`, `src/pages/FieldOfficerPortal.tsx`.
+- Reason: The Part 4 checklist is fully implemented and validated in staging snapshots, and the top fragmented workflows identified by PM are now covered by guided in-page flows without introducing additional route complexity.
+- Consequences: (1) Part 4 status is now `✅ Complete`. (2) Additional guided workflow work is deferred to future CRO cycles unless new fragmentation evidence is recorded. (3) Any future Part 4 expansion must start with a new PM fragmentation inventory and a new decision entry.
+
+- Date: 2026-05-17
 - Decision: Trust-and-consistency async state contract is now canonical across primary operational shells: loading must use structure-matched skeleton/async states; errors must include plain-English explanation + retry + fallback; empty states must include explanatory CTA.
 - Scope: `src/pages/AdminPortal.tsx`, `src/pages/BreachAlerts.tsx`, `src/pages/ComplianceDashboard.tsx`, `src/pages/FieldOfficerPortal.tsx`, `src/pages/ObservationRecords.tsx`, `src/pages/PatrolKPIDashboard.tsx`, `src/pages/PublicParkingAppealPortal.tsx`, `src/components/features/AsyncStateWrapper.tsx`, `docs/CRO_TODOLIST.md`, `docs/STAGING.md`, `docs/INSTRUCTION_MANUAL.md`.
 - Reason: Part 5 CRO work identified state inconsistency as a direct source of operator hesitation and task drop-off. Standardising async-state behavior across high-traffic shells reduces ambiguity during degraded network/data conditions and improves recoverability.

@@ -156,10 +156,8 @@ The platform has a **conversion dilution problem**: too many equally weighted ac
 
 - [x] **[QA Engineer]** Create staging specs for offline queue: officer submits scan while offline → reconnects → confirms sync. Verify no data loss and user sees sync confirmation. *(Shipped: `tests/e2e/cro-part6-offline-queue-measurement.spec.ts` — 10-step workflow with queue persistence, auto-sync, sync confirmation, and DB data integrity verification; zero-data-loss assertion.)*
 
-- [ ] **[Analytics Engineer]** Instrument task completion events for the three role conversion targets (officer patrol complete, admin breach resolved, master approval completed). Route events to the existing audit log so completion trends are visible in the audit dashboard.
 - [x] **[Analytics Engineer]** Instrument task completion events for the three role conversion targets (officer patrol complete, admin breach resolved, master approval completed). Route events to the existing audit log so completion trends are visible in the audit dashboard. *(Shipped: `src/lib/croMetrics.ts` — `writeCroEvent` writes to `audit_log` with `cro_` prefix; `trackPatrolComplete` wired in `useCompletePatrol` mutation; `trackBreachResolved` wired in `resolveMutation` in `BreachAlerts.tsx`; `trackApprovalComplete` wired in `applyGovernanceAction` in `AdminPortal.tsx`.)*
 
-- [ ] **[Analytics Engineer]** Add time-to-first-action metrics for each role landing page. Baseline current values before shipping Part 1–3 changes, then compare after. A successful CRO change should reduce time-to-first-action by at least 20%.
 - [x] **[Analytics Engineer]** Add time-to-first-action metrics for each role landing page. Baseline current values before shipping Part 1–3 changes, then compare after. A successful CRO change should reduce time-to-first-action by at least 20%. *(Shipped: `trackTimeToFirstAction` in `croMetrics.ts`; wired to first-click guard (`hasTrackedFirstActionRef` + `pageLoadTimeRef`) in `FieldOfficerPortal.tsx` (`handlePrimaryPatrolAction`) and `AdminPortal.tsx` (queue-first primary CTA). Events recorded as `cro_time_to_first_action` in `audit_log` with `surface`, `first_action`, and `duration_ms` fields.)*
 
 ---
@@ -171,9 +169,8 @@ The platform has a **conversion dilution problem**: too many equally weighted ac
 | Part 1 — Quick wins | Single CTA, action reduction, async states | ✅ Complete |
 | Part 2 — Route reduction | Route manifest, navigation consolidation | ✅ Complete |
 | Part 3 — Landing redesigns | Patrol-first, queue-first, governance-first | ✅ Complete |
-| Part 4 — Workflow consolidation | Guided flows, report + breach workflows | 🟨 In progress |
+| Part 4 — Workflow consolidation | Guided flows, report + breach + officer workflows | ✅ Complete |
 | Part 5 — Trust and consistency | Loading, error, offline, empty states | ✅ Complete |
-| Part 6 — Measurement | Staging specs ✅ (QA), analytics instrumentation pending | 🟨 In progress |
 | Part 6 — Measurement | Staging specs, analytics instrumentation | ✅ Complete |
 
 ---
