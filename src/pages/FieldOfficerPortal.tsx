@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { AppLayout } from '@/components/features/AppLayout'
+import { Skeleton } from '@/components/ui/skeleton'
 import { OfficerLanguageSelector } from '@/components/features/OfficerLanguageSelector'
 import { useOfficerLocale } from '@/hooks/useOfficerLocale'
 import { SplitScanCamera } from '@/components/features/SplitScanCamera'
@@ -42,6 +43,7 @@ import {
   useUpdatePatrolRouteStopStatus,
 } from '@/hooks/usePatrolRouteInstances'
 import { useDispatchCompletion } from '@/hooks/useDispatchCompletion'
+import { trackTimeToFirstAction } from '@/lib/croMetrics'
 import { useSpeechIntent, type SpeechIntentResult } from '@/hooks/useSpeechIntent'
 import { useBobBrain } from '@/hooks/useBobBrain'
 import { GeofenceWarningBanner } from '@/components/features/GeofenceWarningBanner'
@@ -67,7 +69,7 @@ import { supabase } from '@/lib/supabase'
 import { edgeFunctions } from '@/lib/edgeFunctions'
 import { formatDateTime } from '@/lib/utils'
 import { publishEmergencyAssistRequest } from '@/lib/emergencyAssistBridge'
-import { useOfflineQueue, useOfflineQueueStats } from '@/hooks/useOfflineQueue'
+import { useOfflineQueue, useOfflineQueueStats, useOnlineStatus } from '@/hooks/useOfflineQueue'
 import {
   useInsertWelfareAlert,
   useMarkNotificationRead,
@@ -561,9 +563,42 @@ export default function FieldOfficerPortal() {
   const [followUpCount,     setFollowUpCount]      = useState(0)
 
   // ── Offline queue — for saving observations when network is unavailable ──
-  const { addToQueue } = useOfflineQueue()
+  const { addToQueue, syncAll } = useOfflineQueue()
   const { data: offlineStats } = useOfflineQueueStats()
+  const { data: isOnline = true } = useOnlineStatus()
   const pendingSyncCount = offlineStats?.pending ?? 0
+  const failedSyncCount = offlineStats?.failed ?? 0
+  const syncingCount = offlineStats?.syncing ?? 0
+  const queuedCount = pendingSyncCount + failedSyncCount
+  const wasOfflineRef = useRef(false)
+  const reconnectSyncTriggeredRef = useRef(false)
+  const previousQueuedCountRef = useRef(queuedCount)
+
+  useEffect(() => {
+    if (!isOnline) {
+      wasOfflineRef.current = true
+      reconnectSyncTriggeredRef.current = false
+      return
+    }
+
+    if (wasOfflineRef.current && queuedCount > 0 && !reconnectSyncTriggeredRef.current && !syncAll.isPending) {
+      reconnectSyncTriggeredRef.current = true
+      toast.info(`Back online. Syncing ${queuedCount} queued action${queuedCount === 1 ? '' : 's'}...`)
+      syncAll.mutate()
+    }
+  }, [isOnline, queuedCount, syncAll])
+
+  useEffect(() => {
+    const previousQueued = previousQueuedCountRef.current
+
+    if (isOnline && reconnectSyncTriggeredRef.current && previousQueued > 0 && queuedCount === 0 && syncingCount === 0) {
+      toast.success('All queued actions synced successfully')
+      reconnectSyncTriggeredRef.current = false
+      wasOfflineRef.current = false
+    }
+
+    previousQueuedCountRef.current = queuedCount
+  }, [isOnline, queuedCount, syncingCount])
 
   const [currentPatrolZone, setCurrentPatrolZone] = useState<string | null>(zoneId)
   const [currentLocation, setCurrentLocation] = useState<{ latitude: number; longitude: number } | null>(null)
@@ -582,6 +617,8 @@ export default function FieldOfficerPortal() {
   const [isSubmittingReport,   setIsSubmittingReport]   = useState(false)
   const [quickReportStatusText, setQuickReportStatusText] = useState<string | null>(null)
   const [quickReportStatusKind, setQuickReportStatusKind] = useState<'success' | 'error'>('success')
+  const [showOfficerWorkflow, setShowOfficerWorkflow] = useState(false)
+  const [officerWorkflowStep, setOfficerWorkflowStep] = useState<1 | 2 | 3 | 4 | 5>(1)
   const [pendingSpeechAction, setPendingSpeechAction] = useState<SpeechActionSuggestion | null>(null)
   const [copilotPrompt, setCopilotPrompt] = useState('')
 
@@ -1339,6 +1376,115 @@ export default function FieldOfficerPortal() {
     }
   }, [activeShift, user, refetchShift, queryClient, endOfficerShift, deactivateWelfarePushSchedule])
 
+  const requiresShiftOrgSelection = isServiceProviderMember && accessibleOrgs.length > 1 && !shiftOrgId
+  const shiftStatusLabel = activeShift ? 'Active' : rosteredShift ? 'Rostered' : 'Unrostered'
+  const shiftStatusTone = activeShift
+    ? 'border-emerald-300 bg-emerald-50 dark:border-emerald-700 dark:bg-emerald-950/30'
+    : rosteredShift
+      ? 'border-blue-300 bg-blue-50 dark:border-blue-700 dark:bg-blue-950/30'
+      : 'border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/30'
+  const actionHierarchyLabel = user?.role === 'admin_officer'
+    ? 'Patrol or Admin chooser -> Start Patrol -> Scan -> Breach -> Welfare SOS'
+    : 'Start Patrol -> Scan -> Breach -> Welfare SOS'
+
+  const pageLoadTimeRef = useRef<number>(Date.now())
+  const hasTrackedFirstActionRef = useRef<boolean>(false)
+
+  const handlePrimaryPatrolAction = useCallback(() => {
+    if (!hasTrackedFirstActionRef.current) {
+      hasTrackedFirstActionRef.current = true
+      trackTimeToFirstAction({
+        pageLoadTime: pageLoadTimeRef.current,
+        surface: 'officer',
+        action: activeShift ? 'resume_patrol' : 'start_patrol',
+        organizationId: user?.organization_id,
+        performedBy: user?.id,
+      })
+    }
+    if (activeShift) {
+      navigate('/live-patrol')
+      return
+    }
+
+    if (rosteredShift?.patrol_route_id && keyAuditEnabled) {
+      setShiftAuditPromptPhase('start')
+      return
+    }
+
+    void handleStartShift()
+  }, [activeShift, navigate, rosteredShift?.patrol_route_id, keyAuditEnabled, handleStartShift, user?.id, user?.organization_id])
+
+  const openOfficerWorkflow = useCallback(() => {
+    setOfficerWorkflowStep(1)
+    setShowOfficerWorkflow(true)
+  }, [])
+
+  const closeOfficerWorkflow = useCallback(() => {
+    setShowOfficerWorkflow(false)
+    setOfficerWorkflowStep(1)
+  }, [])
+
+  const hasSelectedWorkflowZone = Boolean(shiftZoneId || zoneId || currentPatrolZone)
+  const selectedWorkflowZoneName = useMemo(() => {
+    if (zoneName) return zoneName
+    if (shiftZoneId) {
+      const matched = shiftZones.find((zone) => zone.id === shiftZoneId)
+      if (matched?.name) return matched.name
+    }
+    if (currentPatrolZone) {
+      const matched = shiftZones.find((zone) => zone.id === currentPatrolZone)
+      if (matched?.name) return matched.name
+    }
+    return null
+  }, [zoneName, shiftZoneId, shiftZones, currentPatrolZone])
+
+  const nextOfficerWorkflowStep = useCallback(() => {
+    if (officerWorkflowStep === 2 && !hasSelectedWorkflowZone) {
+      toast.warning('Select a patrol zone before moving to scanning')
+      return
+    }
+    setOfficerWorkflowStep((current) => (current < 5 ? ((current + 1) as 1 | 2 | 3 | 4 | 5) : current))
+  }, [hasSelectedWorkflowZone, officerWorkflowStep])
+
+  const previousOfficerWorkflowStep = useCallback(() => {
+    setOfficerWorkflowStep((current) => (current > 1 ? ((current - 1) as 1 | 2 | 3 | 4 | 5) : current))
+  }, [])
+
+  const runOfficerWorkflowStepAction = useCallback(() => {
+    if (officerWorkflowStep === 1) {
+      handlePrimaryPatrolAction()
+      return
+    }
+
+    if (officerWorkflowStep === 2) {
+      if (!hasSelectedWorkflowZone) {
+        toast.warning('Choose a zone in the shift panel before continuing')
+        return
+      }
+      toast.success(`Zone confirmed${selectedWorkflowZoneName ? `: ${selectedWorkflowZoneName}` : ''}`)
+      return
+    }
+
+    if (officerWorkflowStep === 3 || officerWorkflowStep === 4) {
+      setActiveService('freedom_camping')
+      setScanMode('detail')
+      setDetailCameraOpen(true)
+      setShowManualEntry(false)
+      setManualPlate('')
+      setManualZoneId('')
+      setShowDetailPanel(false)
+      setDetailScanData(null)
+      closeOfficerWorkflow()
+      return
+    }
+
+    if (officerWorkflowStep === 5) {
+      setShowQuickReport(true)
+      closeOfficerWorkflow()
+      return
+    }
+  }, [closeOfficerWorkflow, handlePrimaryPatrolAction, hasSelectedWorkflowZone, officerWorkflowStep, selectedWorkflowZoneName])
+
   // Shift duration ticker — re-render every 30s to update displayed duration
   const [, setShiftTick] = useState(0)
   useEffect(() => {
@@ -1700,20 +1846,95 @@ export default function FieldOfficerPortal() {
     }
   }, [user, qrReportType, qrIncidentType, qrSeverity, qrDescription, qrActionTaken, qrVehiclePlate, qrLocationAddress, zoneId, currentLocation])
 
+
   return (
     <AppLayout
       title="Field Officer Portal"
       description={`Welcome, ${user?.full_name || 'Officer'}${followUpCount > 0 ? ` · ${followUpCount} follow-up${followUpCount > 1 ? 's' : ''} assigned` : ''}`}
       immersive
     >
+        {/* Geofence violation warning — shown when officer drifts out of assigned zone */}
+        {geofenceViolation && <GeofenceWarningBanner zoneName={zoneName} />}
 
-      {/* Geofence violation warning — shown when officer drifts out of assigned zone */}
-      {geofenceViolation && <GeofenceWarningBanner zoneName={zoneName} />}
+        {/* ── Patrol-first command banner (dominant top action) ─────────────── */}
+        {!scanMode && !showCheckpoint && !detailCameraOpen && (
+          <div className={`mb-4 rounded-2xl border-2 px-4 py-4 ${shiftStatusTone}`}>
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div className="min-w-0">
+                <div className="mb-1.5 flex items-center gap-2">
+                  <Badge
+                    variant="outline"
+                    className={`text-xs font-semibold ${
+                      activeShift
+                        ? 'border-emerald-500 text-emerald-700 dark:text-emerald-300'
+                        : rosteredShift
+                          ? 'border-blue-500 text-blue-700 dark:text-blue-300'
+                          : 'border-amber-500 text-amber-700 dark:text-amber-300'
+                    }`}
+                  >
+                    Shift {shiftStatusLabel}
+                  </Badge>
+                  {activeShift && (
+                    <Badge variant="outline" className="text-xs border-emerald-500 text-emerald-700 dark:text-emerald-300">
+                      <Clock className="mr-1 h-3 w-3" />
+                      {formatShiftDuration(activeShift.started_at)}
+                    </Badge>
+                  )}
+                </div>
+                <h2 className="text-base font-semibold text-foreground">
+                  {activeShift ? 'Resume your patrol now' : 'Start patrol to begin enforcement operations'}
+                </h2>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {actionHierarchyLabel}
+                </p>
+              </div>
 
-      {/* Language selector — top-right of portal content area */}
-      <div className="flex justify-end mb-2">
-        <OfficerLanguageSelector />
-      </div>
+              <div className="flex w-full flex-col gap-2 md:w-auto md:items-end">
+                <Button
+                  size="lg"
+                  onClick={handlePrimaryPatrolAction}
+                  disabled={!activeShift && (isStartingShift || requiresShiftOrgSelection)}
+                  className="h-12 w-full bg-green-600 text-base font-bold text-white hover:bg-green-700 md:min-w-[220px]"
+                >
+                  {activeShift
+                    ? <><Map className="mr-2 h-5 w-5" />Resume Patrol</>
+                    : isStartingShift
+                      ? <span className="flex items-center gap-2"><span className="h-3.5 w-3.5 rounded-full border-2 border-white border-t-transparent animate-spin" />Starting patrol...</span>
+                      : <><Clock className="mr-2 h-5 w-5" />Start Patrol</>}
+                </Button>
+
+                {user?.role === 'admin_officer' && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => navigate('/portal-selection')}
+                    className="w-full md:w-auto"
+                  >
+                    Open admin/officer chooser
+                  </Button>
+                )}
+
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={openOfficerWorkflow}
+                  className="w-full md:w-auto"
+                >
+                  <FileText className="mr-2 h-4 w-4" />
+                  Guided shift flow
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Language selector — top-right of portal content area */}
+
+        <div className="flex justify-end mb-2">
+          <OfficerLanguageSelector />
+        </div>
+
+        {/* ...existing portal content... */}
 
       {gateLoading && (
         <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800 dark:border-blue-800 dark:bg-blue-950/30 dark:text-blue-200">
@@ -2054,6 +2275,31 @@ export default function FieldOfficerPortal() {
         </div>
       )}
 
+      {/* ── SOS / Panic Button (always prominent in home mode) ───────────────── */}
+      {!scanMode && !showCheckpoint && !detailCameraOpen && (
+        <div className="mb-4">
+          <button
+            type="button"
+            onPointerDown={startSosHold}
+            onPointerUp={cancelSosHold}
+            onPointerLeave={cancelSosHold}
+            className="relative flex h-16 w-full select-none items-center justify-center gap-3 overflow-hidden rounded-2xl border-2 border-red-400 bg-gradient-to-r from-red-600 to-red-500 text-white shadow-lg shadow-red-500/30 transition-transform active:scale-[0.98]"
+            aria-label="SOS – Hold 3 seconds to send emergency alert"
+          >
+            {sosHoldProgress > 0 && (
+              <div
+                className="absolute inset-y-0 left-0 bg-white/20 transition-all"
+                style={{ width: `${sosHoldProgress}%` }}
+              />
+            )}
+            <Siren className="relative z-10 h-6 w-6 shrink-0" />
+            <span className="relative z-10 text-base font-extrabold tracking-wide">
+              {sosHoldProgress > 0 ? `HOLD TO CONFIRM ${Math.round(sosHoldProgress)}%` : 'SOS - HOLD 3s TO SEND EMERGENCY ALERT'}
+            </span>
+          </button>
+        </div>
+      )}
+
       {/* ── Unread high-priority notifications ───────────────────────── */}
       {unreadNotifications.length > 0 && (
         <div className="space-y-2 mb-4">
@@ -2084,38 +2330,12 @@ export default function FieldOfficerPortal() {
         </div>
       )}
 
-      {/* ── SOS / Panic Button ────────────────────────────────────────── */}
-      {!scanMode && !showCheckpoint && !detailCameraOpen && (
-        <div className="mb-4">
-          <button
-            type="button"
-            onPointerDown={startSosHold}
-            onPointerUp={cancelSosHold}
-            onPointerLeave={cancelSosHold}
-            className="w-full relative overflow-hidden rounded-xl border-2 border-red-300 bg-red-50 dark:bg-red-950/20 dark:border-red-800 h-14 flex items-center justify-center gap-3 select-none active:scale-[0.98] transition-transform"
-            aria-label="SOS – Hold 3 seconds to send emergency alert"
-          >
-            {/* hold-progress fill */}
-            {sosHoldProgress > 0 && (
-              <div
-                className="absolute inset-0 bg-red-500/20 transition-all"
-                style={{ width: `${sosHoldProgress}%` }}
-              />
-            )}
-            <Siren className="h-5 w-5 text-red-600 dark:text-red-400 shrink-0" />
-            <span className="text-sm font-bold text-red-700 dark:text-red-300 relative z-10">
-              {sosHoldProgress > 0 ? `Hold… ${Math.round(sosHoldProgress)}%` : 'SOS – Hold 3s to send emergency alert'}
-            </span>
-          </button>
-        </div>
-      )}
-
       {/* ── Service Type Selector / Director Tool Injection ─────────────────── */}
       {!scanMode && !showCheckpoint && !detailCameraOpen && (
         <div className="mb-6">
           <h2 className={`text-sm font-semibold mb-3 flex items-center gap-2 ${isNightPatrol ? 'text-cyan-300' : 'text-gray-700 dark:text-gray-300'}`}>
             <Eye className="h-4 w-4" />
-            Active Service
+            Service Type (Secondary)
             {rosteredShift?.service_type && (
               <Badge variant="outline" className="ml-auto text-xs border-green-400 text-green-700 dark:text-green-300">
                 Rostered: {rosteredShift.service_type.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())}
@@ -2378,10 +2598,34 @@ export default function FieldOfficerPortal() {
         /* ── PORTAL HOME ────────────────────────────────────────────── */
         <>
           {/* ── Offline sync status badge ────────────────────────── */}
-          {pendingSyncCount > 0 ? (
-            <div className="flex items-center gap-2 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 px-3 py-2 mb-3 text-sm text-amber-800 dark:text-amber-200">
-              <Clock className="h-4 w-4 shrink-0" />
-              <span>{pendingSyncCount} pending sync</span>
+          {!isOnline ? (
+            <div className="flex items-center justify-between gap-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 px-3 py-2 mb-3 text-sm text-amber-800 dark:text-amber-200">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 shrink-0" />
+                <span>Offline mode. {queuedCount} action{queuedCount === 1 ? '' : 's'} queued locally.</span>
+              </div>
+            </div>
+          ) : queuedCount > 0 || syncingCount > 0 ? (
+            <div className="flex items-center justify-between gap-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 px-3 py-2 mb-3 text-sm text-amber-800 dark:text-amber-200">
+              <div className="flex items-center gap-2">
+                <Clock className="h-4 w-4 shrink-0" />
+                <span>
+                  {syncingCount > 0
+                    ? `Syncing ${syncingCount} action${syncingCount === 1 ? '' : 's'}...`
+                    : `${queuedCount} action${queuedCount === 1 ? '' : 's'} pending sync`}
+                </span>
+              </div>
+              {syncingCount === 0 && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={syncAll.isPending}
+                  onClick={() => syncAll.mutate()}
+                  className="h-7"
+                >
+                  Sync now
+                </Button>
+              )}
             </div>
           ) : (
             <div className="flex items-center gap-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 px-3 py-2 mb-3 text-sm text-emerald-800 dark:text-emerald-200">
@@ -2903,7 +3147,7 @@ export default function FieldOfficerPortal() {
           )}
 
             {/* ── Active Route Execution (officer-side) ─────────────── */}
-            {(activeRouteLoading || activeRouteInstance || activeRouteIsError || activeRouteStopsIsError) && (
+            {(activeRouteLoading || activeRouteInstance || activeRouteIsError || activeRouteStopsIsError || (!activeRouteLoading && !activeRouteInstance)) && (
               <div className="mb-6 space-y-3">
                 <h2 className="text-sm font-semibold flex items-center gap-2 text-foreground">
                   <Map className="h-4 w-4 text-green-600" />
@@ -2946,6 +3190,22 @@ export default function FieldOfficerPortal() {
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
                         <Loader2 className="h-4 w-4 animate-spin" />
                         Loading your active route and next stop details...
+                      </div>
+                    )}
+
+                    {!activeRouteLoading && !activeRouteInstance && !(activeRouteIsError || activeRouteStopsIsError) && (
+                      <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-3 text-sm text-blue-800 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-200">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                          <div>
+                            <p className="font-semibold">No active patrol route yet</p>
+                            <p className="text-xs text-blue-700 dark:text-blue-300">
+                              Start or resume your patrol to load route stops and checkpoint guidance.
+                            </p>
+                          </div>
+                          <Button size="sm" onClick={handlePrimaryPatrolAction}>
+                            Start patrol
+                          </Button>
+                        </div>
                       </div>
                     )}
 
@@ -3772,6 +4032,68 @@ export default function FieldOfficerPortal() {
           }
         }}
       />
+
+      <Dialog open={showOfficerWorkflow} onOpenChange={(open) => { if (!open) closeOfficerWorkflow() }}>
+        <DialogContent className="max-w-xl" aria-describedby={undefined}>
+          <DialogHeader>
+            <DialogTitle>Guided Officer Workflow</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="grid grid-cols-5 gap-2">
+              {['Start shift', 'Select zone', 'Open scan', 'Record result', 'Submit report'].map((label, index) => {
+                const step = (index + 1) as 1 | 2 | 3 | 4 | 5
+                return (
+                  <div
+                    key={label}
+                    className={`rounded-md border px-2 py-1.5 text-center text-[11px] ${officerWorkflowStep === step ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300' : 'border-gray-200 text-gray-500 dark:border-[#9E9E9E]/20 dark:text-gray-400'}`}
+                  >
+                    <p className="font-semibold">{step}</p>
+                    <p>{label}</p>
+                  </div>
+                )
+              })}
+            </div>
+
+            <div className="rounded-lg border bg-gray-50 dark:bg-[#2A2A2A]/50 p-3 text-sm">
+              {officerWorkflowStep === 1 && (
+                <p>Start or resume patrol to activate welfare monitoring and officer tools.</p>
+              )}
+              {officerWorkflowStep === 2 && (
+                <p>
+                  Confirm your patrol zone before scanning.
+                  {selectedWorkflowZoneName ? ` Current zone: ${selectedWorkflowZoneName}.` : ' No zone selected yet.'}
+                </p>
+              )}
+              {officerWorkflowStep === 3 && (
+                <p>Open the vehicle scanner to capture plate evidence and compliance state.</p>
+              )}
+              {officerWorkflowStep === 4 && (
+                <p>Record the scan result in the detail scan panel, then continue to submit any required report.</p>
+              )}
+              {officerWorkflowStep === 5 && (
+                <p>Submit an incident, H&S, or maintenance report so supervisors receive the outcome.</p>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between gap-2">
+              <Button variant="ghost" onClick={officerWorkflowStep === 1 ? closeOfficerWorkflow : previousOfficerWorkflowStep}>
+                {officerWorkflowStep === 1 ? 'Cancel' : 'Back'}
+              </Button>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" onClick={runOfficerWorkflowStepAction}>
+                  Run this step
+                </Button>
+                {officerWorkflowStep < 5 ? (
+                  <Button onClick={nextOfficerWorkflowStep}>Next</Button>
+                ) : (
+                  <Button onClick={closeOfficerWorkflow}>Finish</Button>
+                )}
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* ── Quick Standalone Report Modal ─────────────────────────────── */}
       <Dialog open={showQuickReport} onOpenChange={setShowQuickReport}>

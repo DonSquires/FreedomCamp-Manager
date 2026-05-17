@@ -142,6 +142,5 @@ export function emitPTTAiTelemetry(event: PTTAiTelemetryEvent): void {
   }
 
   // Lightweight hook for log collectors until a backend sink is wired.
-  // eslint-disable-next-line no-console
   console.info('[ptt-ai-metric]', payload)
 }

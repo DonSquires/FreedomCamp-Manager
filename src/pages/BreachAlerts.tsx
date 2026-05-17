@@ -1,8 +1,9 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
+import { trackBreachResolved } from '@/lib/croMetrics'
 import { AsyncStateWrapper } from '@/components/features/AsyncStateWrapper'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -13,6 +14,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { 
   AlertTriangle, 
   CheckCircle, 
@@ -38,6 +40,7 @@ import {
   Info,
   ExternalLink,
   FileWarning,
+  ClipboardCheck,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDateTime } from '@/lib/utils'
@@ -158,6 +161,9 @@ export default function BreachAlerts() {
   const [showFollowUpDrawer, setShowFollowUpDrawer] = useState(false)
   const [manualPlateInput, setManualPlateInput] = useState('')
   const [isSavingManualPlate, setIsSavingManualPlate] = useState(false)
+  const [workflowOpen, setWorkflowOpen] = useState(false)
+  const [workflowStep, setWorkflowStep] = useState<1 | 2 | 3>(1)
+  const [workflowAction, setWorkflowAction] = useState<string>('')
 
   // 3-Zone state
   const [activeBreachId, setActiveBreachId] = useState<string | null>(null)
@@ -266,15 +272,23 @@ export default function BreachAlerts() {
   })
 
   // Resolve breach – schema has no resolved_by column
+  const breachOpenTimeRef = useRef<number>(Date.now())
   const resolveMutation = useMutation({
     mutationFn: async ({ breachId, notes }: { breachId: string; notes: string }) => {
       await resolveBreachAlert({ breachId, notes })
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['breach-alerts'] })
       queryClient.invalidateQueries({ queryKey: ['intelligence-alerts'] })
       setResolveNotes('')
       toast.success('Breach marked as resolved')
+      trackBreachResolved({
+        breachId: variables.breachId,
+        organizationId: user?.organization_id,
+        performedBy: user?.id,
+        triageDurationMs: Date.now() - breachOpenTimeRef.current,
+        notes: variables.notes,
+      })
     },
     onError: () => toast.error('Failed to resolve breach'),
   })
@@ -364,14 +378,14 @@ export default function BreachAlerts() {
     setRejectionReason('')
   }, [activeBreach, dismissMutation, rejectionReason])
 
-  const handleResolve = () => {
+  const handleResolve = useCallback(() => {
     if (!activeBreach) return
     if (!resolveNotes.trim()) {
       toast.warning('Add resolution notes before marking this breach as resolved')
       return
     }
     resolveMutation.mutate({ breachId: activeBreach.id, notes: resolveNotes })
-  }
+  }, [activeBreach, resolveMutation, resolveNotes])
 
   // Update plate for MANUAL_REQUIRED observations
   const handleSaveManualPlate = useCallback(async () => {
@@ -518,6 +532,87 @@ export default function BreachAlerts() {
     navigate(`/notice-to-vacate?${query.toString()}`)
   }, [activeBreach, navigate, user?.role])
 
+  const openGuidedWorkflow = useCallback(() => {
+    if (!activeBreach) {
+      toast.warning('Select a breach before starting the guided workflow')
+      return
+    }
+    setWorkflowAction('')
+    setWorkflowStep(1)
+    setWorkflowOpen(true)
+  }, [activeBreach])
+
+  const closeGuidedWorkflow = useCallback(() => {
+    setWorkflowOpen(false)
+    setWorkflowStep(1)
+    setWorkflowAction('')
+  }, [])
+
+  const goToWorkflowNextStep = useCallback(() => {
+    if (workflowStep === 1 && !workflowAction) {
+      toast.warning('Choose the next breach action to continue')
+      return
+    }
+
+    if (workflowStep === 2) {
+      if (workflowAction === 'reject' && !rejectionReason.trim()) {
+        toast.warning('Select a rejection reason before continuing')
+        return
+      }
+      if (workflowAction === 'resolve' && !resolveNotes.trim()) {
+        toast.warning('Add resolution notes before continuing')
+        return
+      }
+    }
+
+    setWorkflowStep((current) => (current < 3 ? ((current + 1) as 1 | 2 | 3) : current))
+  }, [rejectionReason, resolveNotes, workflowAction, workflowStep])
+
+  const goToWorkflowPreviousStep = useCallback(() => {
+    setWorkflowStep((current) => (current > 1 ? ((current - 1) as 1 | 2 | 3) : current))
+  }, [])
+
+  const executeGuidedWorkflow = useCallback(() => {
+    if (!activeBreach) return
+
+    switch (workflowAction) {
+      case 'assign_officer':
+        setShowFollowUpDrawer(true)
+        closeGuidedWorkflow()
+        return
+      case 'issue_warning':
+        handleIssueWarning()
+        closeGuidedWorkflow()
+        return
+      case 'start_enforcement':
+        handleIssueEnforcement()
+        closeGuidedWorkflow()
+        return
+      case 'issue_notice_email':
+        handleIssueNoticeDirect('email')
+        closeGuidedWorkflow()
+        return
+      case 'issue_notice_post':
+        handleIssueNoticeDirect('post')
+        closeGuidedWorkflow()
+        return
+      case 'issue_ntv':
+        handleIssueNTV()
+        closeGuidedWorkflow()
+        return
+      case 'reject':
+        handleReject()
+        closeGuidedWorkflow()
+        return
+      case 'resolve':
+        handleResolve()
+        closeGuidedWorkflow()
+        return
+      default:
+        toast.warning('Choose an action before executing the workflow')
+    }
+  }, [activeBreach, closeGuidedWorkflow, handleIssueEnforcement, handleIssueNTV, handleIssueNoticeDirect, handleIssueWarning, handleReject, handleResolve, workflowAction])
+
   // ── Multi-select helpers ──────────────────────────────────────────────────
 
   const toggleSelect = (id: string, e: React.MouseEvent) => {
@@ -613,6 +708,59 @@ export default function BreachAlerts() {
     }
     return labels[type] || type.replace(/_/g, ' ')
   }
+
+  const workflowOptions = activeBreach ? [
+    {
+      id: 'assign_officer',
+      label: 'Assign officer follow-up',
+      description: 'Hand this breach to an officer with due dates and review notes.',
+      disabled: ['resolved', 'dismissed'].includes(activeBreach.status),
+    },
+    {
+      id: 'start_enforcement',
+      label: 'Start enforcement',
+      description: 'Move the breach into enforcement and mark supervisor action started.',
+      disabled: !['pending', 'acknowledged'].includes(activeBreach.status),
+    },
+    {
+      id: 'issue_notice_email',
+      label: 'Issue notice by email',
+      description: 'Open the infringement flow with email delivery prefilled.',
+      disabled: !['admin', 'master'].includes(user?.role ?? '') || ['resolved', 'dismissed'].includes(activeBreach.status),
+    },
+    {
+      id: 'issue_notice_post',
+      label: 'Issue notice by post',
+      description: 'Open the infringement flow with postal delivery prefilled.',
+      disabled: !['admin', 'master'].includes(user?.role ?? '') || ['resolved', 'dismissed'].includes(activeBreach.status),
+    },
+    {
+      id: 'issue_ntv',
+      label: 'Issue notice to vacate',
+      description: 'Start the Notice to Vacate flow with this breach attached.',
+      disabled: !['admin', 'master'].includes(user?.role ?? '') || ['resolved', 'dismissed'].includes(activeBreach.status),
+    },
+    {
+      id: 'issue_warning',
+      label: 'Issue warning',
+      description: 'Acknowledge the breach and record a formal warning only.',
+      disabled: activeBreach.status !== 'pending',
+    },
+    {
+      id: 'resolve',
+      label: 'Record outcome and resolve',
+      description: 'Close the breach after recording the outcome notes.',
+      disabled: !['pending', 'acknowledged', 'enforcement_started'].includes(activeBreach.status),
+    },
+    {
+      id: 'reject',
+      label: 'Reject breach',
+      description: 'Dismiss the breach with a documented rejection reason.',
+      disabled: ['resolved', 'dismissed'].includes(activeBreach.status),
+    },
+  ] : []
+
+  const selectedWorkflowOption = workflowOptions.find((option) => option.id === workflowAction)
 
   const allSelected = breaches && breaches.length > 0 && selectedIds.size === breaches.length
 
@@ -1342,6 +1490,20 @@ export default function BreachAlerts() {
               <div className="p-4 border-b dark:border-[#9E9E9E]/20 flex-shrink-0">
                 <h3 className="font-semibold">Decision Dock</h3>
                 <p className="text-xs text-gray-500">What is the verdict?</p>
+                {isAdmin && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-3 w-full justify-between"
+                    onClick={openGuidedWorkflow}
+                  >
+                    <span className="flex items-center gap-2">
+                      <ClipboardCheck className="h-4 w-4" />
+                      Guided triage flow
+                    </span>
+                    <span className="text-xs text-gray-500">Review, assign, issue, resolve</span>
+                  </Button>
+                )}
               </div>
 
               <div className="flex-1 overflow-y-auto p-4 space-y-3">
@@ -1609,6 +1771,18 @@ export default function BreachAlerts() {
             {/* Mobile Decision Buttons — admin only */}
             {isAdmin && (
             <div className="space-y-2">
+              <Button
+                variant="outline"
+                className="w-full justify-between"
+                onClick={openGuidedWorkflow}
+              >
+                <span className="flex items-center gap-2">
+                  <ClipboardCheck className="h-4 w-4" />
+                  Guided triage flow
+                </span>
+                <span className="text-xs text-gray-500">Recommended</span>
+              </Button>
+
               <Label className="text-xs text-gray-500">Rejection Reason</Label>
               <Select value={rejectionReason} onValueChange={setRejectionReason}>
                 <SelectTrigger className="h-9 text-sm">
@@ -1730,6 +1904,165 @@ export default function BreachAlerts() {
             }
           : null}
       />
+
+      <Dialog open={workflowOpen} onOpenChange={(open) => { if (!open) closeGuidedWorkflow() }}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Guided breach triage</DialogTitle>
+            <DialogDescription>
+              {activeBreach
+                ? `Work through review, assignment, notice issue, and outcome recording for ${activeBreach.plate_number || 'this breach'}.`
+                : 'Select a breach to start triage.'}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { step: 1, label: 'Choose action' },
+                { step: 2, label: 'Add details' },
+                { step: 3, label: 'Confirm' },
+              ].map(({ step, label }) => (
+                <div
+                  key={step}
+                  className={`rounded-lg border px-3 py-2 text-xs ${workflowStep === step ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300' : 'border-gray-200 text-gray-500 dark:border-[#9E9E9E]/20 dark:text-gray-400'}`}
+                >
+                  <div className="font-semibold">Step {step}</div>
+                  <div>{label}</div>
+                </div>
+              ))}
+            </div>
+
+            {activeBreach && (
+              <div className="rounded-lg border bg-gray-50 dark:bg-[#2A2A2A]/50 p-3 text-sm">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-mono font-bold">{activeBreach.plate_number || 'Unknown'}</span>
+                  <Badge className={getStatusColor(activeBreach.status)}>
+                    {activeBreach.status?.replace(/_/g, ' ')}
+                  </Badge>
+                  <span className="text-gray-500">{(activeBreach.zones as any)?.name || 'Unknown Zone'}</span>
+                </div>
+                <p className="mt-1 text-xs text-gray-500">{getBreachTypeLabel(activeBreach.breach_type)}</p>
+              </div>
+            )}
+
+            {workflowStep === 1 && (
+              <div className="space-y-2">
+                {workflowOptions.map((option) => (
+                  <button
+                    key={option.id}
+                    type="button"
+                    disabled={option.disabled}
+                    onClick={() => setWorkflowAction(option.id)}
+                    className={`w-full rounded-lg border px-4 py-3 text-left transition-colors ${workflowAction === option.id ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/30' : 'border-gray-200 hover:border-gray-300 dark:border-[#9E9E9E]/20 dark:hover:border-[#9E9E9E]/40'} ${option.disabled ? 'cursor-not-allowed opacity-50' : ''}`}
+                  >
+                    <div className="font-medium text-sm">{option.label}</div>
+                    <div className="text-xs text-gray-500 mt-1">{option.description}</div>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {workflowStep === 2 && (
+              <div className="space-y-4">
+                {selectedWorkflowOption && (
+                  <div className="rounded-lg border border-blue-200 bg-blue-50 dark:bg-blue-950/30 p-3 text-sm">
+                    <p className="font-medium text-blue-700 dark:text-blue-300">{selectedWorkflowOption.label}</p>
+                    <p className="text-xs text-blue-700/80 dark:text-blue-300/80 mt-1">{selectedWorkflowOption.description}</p>
+                  </div>
+                )}
+
+                {workflowAction === 'assign_officer' && (
+                  <div className="rounded-lg border p-3 text-sm space-y-2">
+                    <p className="font-medium">Officer handoff</p>
+                    <p className="text-xs text-gray-500">The next step opens the follow-up drawer so you can assign an officer, due date, and supervisor notes without leaving the selected breach.</p>
+                  </div>
+                )}
+
+                {workflowAction === 'reject' && (
+                  <div>
+                    <Label className="text-xs text-gray-500">Rejection Reason</Label>
+                    <Select value={rejectionReason} onValueChange={setRejectionReason}>
+                      <SelectTrigger className="h-9 mt-1 text-sm">
+                        <SelectValue placeholder="Select canned reason..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {CANNED_REJECTION_REASONS.map((r) => (
+                          <SelectItem key={r} value={r}>{r}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {workflowAction === 'resolve' && (
+                  <div>
+                    <Label className="text-xs text-gray-500">Outcome Notes</Label>
+                    <Textarea
+                      value={resolveNotes}
+                      onChange={(e) => setResolveNotes(e.target.value)}
+                      placeholder="Record the enforcement outcome before resolving..."
+                      rows={4}
+                      className="mt-1 text-sm resize-none"
+                    />
+                  </div>
+                )}
+
+                {['start_enforcement', 'issue_warning', 'issue_notice_email', 'issue_notice_post', 'issue_ntv'].includes(workflowAction) && (
+                  <div className="rounded-lg border p-3 text-sm space-y-2">
+                    <p className="font-medium">Prepared handoff</p>
+                    <p className="text-xs text-gray-500">
+                      This flow will run the existing breach action for the selected vehicle and keep the current adjudication rules intact.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {workflowStep === 3 && (
+              <div className="space-y-3 text-sm">
+                <div className="rounded-lg border p-3">
+                  <p className="text-xs text-gray-500 uppercase">Next action</p>
+                  <p className="font-medium mt-1">{selectedWorkflowOption?.label || 'No action selected'}</p>
+                </div>
+
+                {workflowAction === 'reject' && rejectionReason && (
+                  <div className="rounded-lg border p-3">
+                    <p className="text-xs text-gray-500 uppercase">Rejection reason</p>
+                    <p className="mt-1">{rejectionReason}</p>
+                  </div>
+                )}
+
+                {workflowAction === 'resolve' && resolveNotes.trim() && (
+                  <div className="rounded-lg border p-3">
+                    <p className="text-xs text-gray-500 uppercase">Outcome notes</p>
+                    <p className="mt-1 whitespace-pre-wrap">{resolveNotes}</p>
+                  </div>
+                )}
+
+                {workflowAction === 'assign_officer' && (
+                  <div className="rounded-lg border p-3 text-xs text-gray-500">
+                    Confirm to open the officer follow-up drawer for final assignment details.
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="flex-row justify-between gap-2 sm:justify-between">
+            <Button variant="ghost" onClick={workflowStep === 1 ? closeGuidedWorkflow : goToWorkflowPreviousStep}>
+              {workflowStep === 1 ? 'Cancel' : 'Back'}
+            </Button>
+            {workflowStep < 3 ? (
+              <Button onClick={goToWorkflowNextStep}>Continue</Button>
+            ) : (
+              <Button onClick={executeGuidedWorkflow} disabled={!selectedWorkflowOption}>
+                Confirm and continue
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   )
 }

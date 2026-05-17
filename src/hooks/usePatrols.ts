@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { toast } from 'sonner'
 import { useOperationalOrganization } from '@/hooks/useOperationalOrganization'
+import { trackPatrolComplete } from '@/lib/croMetrics'
 
 interface Patrol {
   id: string
@@ -182,9 +183,16 @@ export function useCompletePatrol() {
 
       if (error) throw error
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['patrols'] })
       toast.success('Patrol completed')
+      trackPatrolComplete({
+        patrolId: variables.patrolId,
+        organizationId: user?.organization_id,
+        performedBy: user?.id,
+        vehiclesChecked: variables.vehiclesChecked,
+        breachesFound: variables.breachesFound,
+      })
     },
     onError: (error: any) => {
       toast.error(error.message || 'Failed to complete patrol')

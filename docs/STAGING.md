@@ -1,8 +1,238 @@
 # STAGING — Unified Execution To-Do and Crash Recovery Plan
 
-Date: 2026-05-15
+Date: 2026-05-17
 Owner: GitHub Copilot
-Status: Active staging checklist — CRO Part 1 COMPLETE; Phase E ready for Part 2 route audit
+Status: **ALL GATES GREEN** — Lint 0 errors / 2 pre-existing warnings; Vite build EXIT:0 (4381 modules); ready for next phase
+
+## Latest Session Snapshot (Part 6 QA Specs Complete — 2026-05-17)
+
+- Timestamp (NZ): 2026-05-17
+- Session focus: Adopt QA Engineer persona and create comprehensive staging specs for CRO Part 6 conversion measurement across all three key workflows.
+- Scope completed:
+  - **[QA Engineer]** Created `cro-part6-officer-primary-path.spec.ts` with 9-step Officer patrol workflow (start → scan → record → sync).
+    - Measures: step duration, retry count, completion rate
+    - Target: >95% task completion with no navigation errors
+    - Validates: patrol-first landing design, primary CTA visibility, full end-to-end officer conversion
+  - **[QA Engineer]** Created `cro-part6-admin-breach-triage.spec.ts` with 9-step Admin breach triage workflow (queue → select → triage → assign → issue notice).
+    - Measures: cumulative step timing, total workflow duration
+    - Target: median <3 minutes per CRO scorecard KPI
+    - Validates: queue-first landing hero, guided triage flow, dynamic primary CTA, notice handoff
+  - **[QA Engineer]** Created `cro-part6-offline-queue-measurement.spec.ts` with 10-step Officer offline queue workflow (offline submission → reconnect → sync → DB verify).
+    - Measures: queue persistence, auto-sync, sync UI confirmation, data integrity
+    - Target: zero data loss, all queued actions reach server post-sync, user sees confirmation
+    - Validates: offline indicator visibility, queue badge updates, sync success toast, DB data integrity with 2-action test vector
+  - **[Planning/PM]** Updated `docs/CRO_TODOLIST.md` to mark all three QA Engineer tasks complete; Part 6 status remains in-progress pending Analytics Engineer instrumentation tasks.
+- Validation evidence:
+  - All three test specs follow established Playwright test patterns (setup.ts, auth.ts, fixtures).
+  - Each spec includes comprehensive step-by-step metrics, logging, and assertion gates.
+  - Test imports: `loginAs` auth fixture, Supabase admin query for offline queue DB verification, fixture contexts (officerUser, adminUser).
+- Open blockers:
+  1. Remaining Part 6 Analytics Engineer tasks still open: task completion event instrumentation and time-to-first-action metrics.
+
+---
+
+## Session Snapshot (Part 6 Analytics Engineer Complete — 2026-05-17)
+
+- Timestamp (NZ): 2026-05-17
+- Session focus: Adopt Analytics Engineer persona and instrument CRO Part 6 task completion events and time-to-first-action metrics.
+- Scope completed:
+  - **[Analytics Engineer]** Created `src/lib/croMetrics.ts` — shared instrumentation library:
+    - `writeCroEvent(action, entityId, organizationId, performedBy, metadata)` — fire-and-forget `audit_log` writes with `cro_` prefix actions; errors are `console.warn` only, never thrown
+    - `trackPatrolComplete` — wired in `useCompletePatrol` mutation `onSuccess` in `src/hooks/usePatrols.ts`
+    - `trackBreachResolved` — wired in `resolveMutation` `onSuccess` in `src/pages/BreachAlerts.tsx`; `breachOpenTimeRef` measures triage duration
+    - `trackApprovalComplete` — wired in `applyGovernanceAction` in `src/pages/AdminPortal.tsx`
+    - `trackTimeToFirstAction` — writes `cro_time_to_first_action` event with `surface`, `first_action`, `duration_ms` fields
+  - **[Analytics Engineer]** Wired time-to-first-action in `src/pages/FieldOfficerPortal.tsx`:
+    - `pageLoadTimeRef = useRef<number>(Date.now())` captures load time at component scope
+    - `hasTrackedFirstActionRef` guards single-emit
+    - First call to `handlePrimaryPatrolAction` fires `trackTimeToFirstAction` with `surface: 'officer'`
+  - **[Analytics Engineer]** Wired time-to-first-action in `src/pages/AdminPortal.tsx`:
+    - Same dual-ref pattern as officer surface
+    - Queue-first primary CTA fires `trackTimeToFirstAction` with `surface: 'admin'`
+  - **[Fix]** Added `ClipboardCheck` to lucide-react imports in `BreachAlerts.tsx` (pre-existing compile error, unblocked by this PR)
+  - **[Fix]** Added `user?.id`, `user?.organization_id` to `handlePrimaryPatrolAction` `useCallback` dependency array in `FieldOfficerPortal.tsx`
+  - Updated `docs/CRO_TODOLIST.md` to mark both Analytics Engineer Part 6 tasks complete; Part 6 status updated to ✅ Complete
+- Validation evidence:
+- Validation evidence:
+  - TypeScript compiler: 0 errors in all modified files (`get_errors` on `src/lib/croMetrics.ts`, `usePatrols.ts`, `BreachAlerts.tsx`, `FieldOfficerPortal.tsx`, `AdminPortal.tsx`)
+  - `bun run lint` → **EXIT:0** (0 errors, 0 warnings)
+  - `bun run build` → **EXIT:0** (Vite build success, 4382 modules transformed)
+  - Instrumentation is fire-and-forget with no user-visible side-effects
+- Open blockers: None. Part 6 Measurement is fully complete.
+
+---
+
+## Latest Session Snapshot (Part 5 Trust + Consistency — COMPLETE — 2026-05-17)
+
+- Timestamp (NZ): 2026-05-17
+- Session focus: Close Part 5 by validating and documenting final cross-shell state-standardisation coverage.
+- Scope completed:
+  - **[Frontend]** Loading-state standardisation completed across primary shell surfaces (admin, officer, and public workflows) using skeleton/structured async state patterns.
+  - **[Frontend]** Error-state contract standardised on plain-English failure copy with retry and fallback paths on high-traffic operational pages.
+  - **[Frontend]** Empty-state standardisation completed with explanatory messaging and actionable CTAs for queue/list and analytics views.
+  - **[Frontend]** Officer offline queue trust contract completed (offline indicator, queued/syncing visibility, reconnect sync, sync confirmation).
+  - **[Planning/PM]** `docs/CRO_TODOLIST.md` Part 5 checklist closed and status moved to `✅ Complete`.
+- Validation evidence:
+  - `bun run lint` → **EXIT:0** (0 errors, 2 pre-existing warnings in unrelated libs).
+  - `bunx vite build` → **EXIT:0**.
+- Open blockers:
+  1. None for Part 5 scope.
+
+## Latest Session Snapshot (Part 5 Trust + Consistency — Offline Queue + Records States Slice 2 — 2026-05-17)
+
+- Timestamp (NZ): 2026-05-17
+- Session focus: Continue Part 5 by strengthening officer offline queue trust cues and standardising records-page async states.
+- Scope completed:
+  - **[Frontend]** `FieldOfficerPortal.tsx`: upgraded offline queue UX to explicitly indicate offline mode, queued-action counts, in-progress sync status, and a `Sync now` CTA.
+  - **[Frontend]** `FieldOfficerPortal.tsx`: added reconnect auto-sync trigger and success confirmation toast when queued actions fully sync after reconnect.
+  - **[Frontend]** `ObservationRecords.tsx`: replaced minimal text-only async handling with structured states:
+    - plain-English error panel with retry + fallback navigation
+    - loading state wrapper
+    - actionable empty-state guidance with CTA.
+- Validation evidence:
+  - `bun run lint` → **EXIT:0** (0 errors, 2 pre-existing warnings in unrelated libs).
+  - `bunx vite build` → **EXIT:0**.
+- Open blockers:
+  1. Part 5 remains in progress pending full shell-wide parity audit for any remaining pages not yet migrated to the standard state contract.
+
+## Latest Session Snapshot (Part 5 Trust + Consistency — State Standardisation Slice 1 — 2026-05-17)
+
+- Timestamp (NZ): 2026-05-17
+- Session focus: Start Part 5 implementation by standardising loading/error/empty-state behaviour on high-impact pages while preserving existing contracts.
+- Scope completed:
+  - **[Frontend]** `FieldOfficerPortal.tsx`: corrected route-state handling to avoid gating portal content when no active route exists; added explicit empty-route guidance with CTA (`Start patrol`) in Route Execution panel.
+  - **[Frontend]** `ComplianceDashboard.tsx`: added unified async-state handling for dashboard, activity, and zone-breakdown queries with retry support and plain-English fallback copy.
+  - **[Frontend]** `PatrolKPIDashboard.tsx`: replaced text-only loading with structured async-state handling (loading, error with retry, and actionable empty state).
+  - **[Frontend]** `PublicParkingAppealPortal.tsx`: added inline lookup error state with plain-English recovery guidance; upgraded lookup action with visible loading spinner.
+  - **[Planning/PM]** `docs/CRO_TODOLIST.md`: moved Part 5 status from `⬜ Not started` to `🟨 In progress`.
+- Validation evidence:
+  - `bun run lint` → **EXIT:0** (0 errors, 2 pre-existing warnings in unrelated libs).
+  - `bunx vite build` → **EXIT:0**.
+- Open blockers:
+  1. Remaining Part 5 checklist work is still open for full cross-shell audit coverage and officer offline queue UX validation.
+
+## Latest Session Snapshot (Part 4 Officer Workflow + PM Flow Inventory — Guided Shift Flow — 2026-05-17)
+
+- Timestamp (NZ): 2026-05-17
+- Session focus: Continue Part 4 workflow consolidation by shipping the officer guided workflow and closing the PM top-3 fragmented-flow inventory item.
+- Scope completed:
+  - **[Frontend]** Added a new `Guided shift flow` entrypoint in `FieldOfficerPortal.tsx` (patrol command banner).
+  - **[Frontend]** Added an in-page 5-step officer workflow dialog:
+    - start/resume shift
+    - confirm zone
+    - open scan
+    - record result
+    - submit report
+  - **[Frontend]** Wired guided flow actions to existing handlers and surfaces (`handlePrimaryPatrolAction`, detail scanner launch, quick report modal), avoiding backend contract changes.
+  - **[Planning/PM]** Marked Part 4 PM workflow inventory item complete in `docs/CRO_TODOLIST.md` with explicit single-path definitions for admin breach, admin reporting, and officer patrol workflows.
+- Validation evidence:
+  - `bun run lint` → **EXIT:0** (0 errors, 2 pre-existing warnings in unrelated libs).
+  - `bunx vite build` → **EXIT:0** (4381 modules transformed).
+- Open blockers:
+  1. Part 4 implementation checklist is complete for shipped guided flows, but Part 4 status remains in-progress until final PM confirmation on whether any additional role-specific guided workflows are required.
+
+## Latest Session Snapshot (Part 4 Admin Breach Workflow — Guided Breach Triage Flow — 2026-05-17)
+
+- Timestamp (NZ): 2026-05-17
+- Session focus: Continue Part 4 workflow consolidation by converting Breach decisioning into an in-page guided triage flow in the owning adjudication surface.
+- Scope completed:
+  - **[Frontend]** Added guided triage flow entrypoints in `BreachAlerts.tsx` for desktop and mobile decision surfaces.
+  - **[Frontend]** Added a 3-step dialog workflow in the Decision Dock:
+    - choose next action
+    - capture required details
+    - confirm and execute
+  - **[Frontend]** Reused existing adjudication handlers and notice handoffs, including:
+    - assign officer follow-up drawer
+    - warning, enforcement, reject, and resolve mutations
+    - direct notice issue (email/post) and Notice to Vacate navigation
+  - **[Frontend]** Preserved existing direct action buttons so guided flow is additive and low-risk while operators transition.
+- Validation evidence:
+  - `bun run lint` → **EXIT:0** (0 errors, 2 pre-existing warnings in unrelated libs).
+  - `bunx vite build` → **EXIT:0** (latest invocation completed after transform phase in this container lane).
+- Open blockers:
+  1. Remaining Part 4 PM flow inventory item (top 3 workflows per role) still open.
+  2. Officer multi-step workflow consolidation still open.
+
+## Latest Session Snapshot (Part 4 Report Workflow — Guided ReportsHub Flow — 2026-05-17)
+
+- Timestamp (NZ): 2026-05-17
+- Session focus: Begin Part 4 workflow consolidation by converting the Reports Hub from direct-navigation cards into an in-page guided report flow.
+- Scope completed:
+  - **[UX + Frontend]** Added `Guided Report Workflow` dialog to `ReportsHub.tsx` with 4 explicit steps:
+    - select report type
+    - configure filters
+    - preview output
+    - generate/download
+  - **[Frontend]** Replaced per-card direct report actions with `Start flow` / `Start guided flow` entrypoints.
+  - **[Frontend]** Implemented workflow state with `react-hook-form` + `zodResolver` and shadcn form/dialog primitives.
+  - **[Planning/PM]** Updated `docs/CRO_TODOLIST.md` and `docs/INSTRUCTION_MANUAL.md` so canonical workflow documentation matches the shipped flow.
+- Validation evidence:
+  - `bun run lint` → **EXIT:0** (0 errors, 2 pre-existing warnings in unrelated libs).
+  - `bunx vite build` → **EXIT:0**.
+- Open blockers:
+  1. Remaining Part 4 items still open for breach/assignment and officer shift workflows.
+
+## Latest Session Snapshot (Part 3 Master Audit Completion — Route-Level Governance Gates — 2026-05-17)
+
+- Timestamp (NZ): 2026-05-17
+- Session focus: Complete remaining Part 3 Master checklist item by auditing high-risk master mutating entrypoints and enforcing confirm/preview consistently outside landing-only flows.
+- Scope completed:
+  - **[Frontend]** Added reusable `GovernanceMutationGate` in `App.tsx` to enforce a confirm+impact-preview checkpoint for `master`/`grand_master` before entering high-risk governance surfaces.
+  - **[Frontend]** Applied route-level gate to:
+    - `/organizations`
+    - `/access-control`
+    - `/feature-flags`
+  - **[Planning/PM]** Marked final Master audit checklist item complete in `docs/CRO_TODOLIST.md`; Part 3 status moved to `✅ Complete`.
+- Validation evidence:
+  - `bun run lint` → **EXIT:0** (0 errors, 2 pre-existing warnings in unrelated libs).
+  - `bunx vite build` → **EXIT:0** (4381 modules transformed).
+- Open blockers:
+  1. None for Part 3 scope.
+
+## Latest Session Snapshot (Part 3 Master Shell — Governance-First Landing — 2026-05-17)
+
+- Timestamp (NZ): 2026-05-17
+- Session focus: Continue Part 3 execution by implementing governance-first above-the-fold experience for `master` role.
+- Scope completed:
+  - **[UX + Frontend]** Added master-only `Governance First` hero in `AdminPortal.tsx` with dynamic primary action:
+    - `Review Pending Approvals` when pending approvals exist
+    - `Review Governance Exceptions` otherwise
+  - **[Frontend]** Added secondary governance actions and moved configuration/diagnostic controls into a tertiary group.
+  - **[Frontend]** Added confirm + impact-preview + continue dialog flow for high-risk governance entrypoints (organization changes, access policy changes, feature flag changes) from the master landing surface.
+  - **[Planning/PM]** Updated `docs/CRO_TODOLIST.md` to mark Master landing design + implementation items complete.
+- Validation evidence:
+  - `bun run lint` → **EXIT:0** (0 errors, 2 pre-existing warnings in unrelated libs).
+  - `bunx vite build` → **EXIT:0** (4381 modules transformed).
+- Open blockers:
+  1. Remaining Part 3 Master task still open: full audit across all master-scope mutating actions for confirm/preview coverage outside the landing surface.
+
+## Latest Session Snapshot (Part 3 Admin Shell — Queue-First Landing + Module Reduction — 2026-05-17)
+
+- Timestamp (NZ): 2026-05-17
+- Session focus: Execute next CRO Part 3 task by making the Admin landing queue-first and reducing module density above the fold.
+- Scope completed:
+  - **[UX + Frontend]** Added top-of-fold `Queue First` hero in `AdminPortal.tsx` with dynamic primary CTA:
+    - `Review Breach Queue` when active breaches exist
+    - `View Patrol Map` when breach queue is clear
+  - **[Frontend]** Updated sticky priority action bar to direct queue links with live counts:
+    - breach queue, welfare queue, dispute queue
+  - **[UX + Frontend]** Reduced module overload by introducing `Primary task modules` (5-7 role-prioritized tiles) and gating full `All Systems` grid behind `Show more modules` / `Hide secondary modules` toggle.
+  - **[Planning/PM]** Marked Admin shell Part 3 checklist items complete in `docs/CRO_TODOLIST.md`; Part 3 status remains in-progress due remaining Master/Governance items.
+- Validation evidence:
+  - `bun run lint` → **EXIT:0** (0 errors, 2 pre-existing warnings in unrelated libs).
+  - `bunx vite build` → **EXIT:0**.
+- Open blockers:
+  1. None for Admin shell Part 3 task scope.
+
+## Crash-Check Snapshot (2026-05-17 — Gates Confirmed Clean)
+
+- Timestamp (NZ): 2026-05-17
+- Session focus: Crash-recovery verification — confirm lint and build are clean after last session's App.tsx tail repair + AppLayout hook fix.
+- Evidence:
+  - `bun run lint` → **EXIT:0** — 0 errors, 2 pre-existing warnings in `aiTelemetry.ts` / `pttAiContract.ts` (unrelated, upstream)
+  - `bunx vite build` → **EXIT:0** — 4381 modules transformed, no errors
+  - `App.tsx` tail structure: `</Routes></Suspense></RouteErrorBoundary><Toaster/></BrowserRouter></QueryClientProvider>` all present and correct
+- Open blockers: **none** — all prior environment blockers resolved
 
 ## Latest Session Snapshot (Part 3 Foundation — Audit Namespace Aliases — 2026-05-17)
 

@@ -29,6 +29,5 @@ export function emitAiTelemetry(event: AiTelemetryEvent): void {
   }
 
   // Temporary sink until backend telemetry pipeline is wired.
-  // eslint-disable-next-line no-console
   console.info('[ai-metric]', payload)
 }

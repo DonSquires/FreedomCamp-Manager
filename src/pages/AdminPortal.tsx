@@ -1,16 +1,18 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
 import { useBobBrain } from '@/hooks/useBobBrain'
 import { emitAiTelemetry } from '@/lib/aiTelemetry'
+import { trackApprovalComplete, trackTimeToFirstAction } from '@/lib/croMetrics'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Textarea } from '@/components/ui/textarea'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { AppLayout } from '@/components/features/AppLayout'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
 import { ListCardRow } from '@/components/features/ListCardRow'
@@ -126,6 +128,12 @@ type AdminTriageSuggestion = {
   risk: AdminTriageRisk
 }
 
+type GovernanceAction = {
+  label: string
+  route: string
+  impactPreview: string
+}
+
 // SCV enforcement date: NZ midnight 1 June 2026 (NZST, UTC+12).
 // parseNZDate anchors the date to NZ timezone so the countdown is accurate
 // for NZ operators regardless of the server/browser UTC offset.
@@ -197,6 +205,10 @@ export default function AdminPortal() {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const [lastZeroToastKey, setLastZeroToastKey] = useState<string | null>(null)
+  const [showAllSystems, setShowAllSystems] = useState(false)
+  const [pendingGovernanceAction, setPendingGovernanceAction] = useState<GovernanceAction | null>(null)
+  const pageLoadTimeRef = useRef<number>(Date.now())
+  const hasTrackedFirstActionRef = useRef<boolean>(false)
   const [adminTriagePrompt, setAdminTriagePrompt] = useState('')
   const [pendingTriageSuggestion, setPendingTriageSuggestion] = useState<AdminTriageSuggestion | null>(null)
   const {
@@ -707,6 +719,86 @@ export default function AdminPortal() {
     'flex items-center justify-between gap-3 rounded-lg border border-white/60 dark:border-white/10 bg-white/70 dark:bg-slate-800/50 px-3 py-2.5'
 
   const openDisputesCount = Number(data?.openDisputeIntake ?? 0)
+  const pendingApprovalsCount = Number((data as any)?.pendingIntelApprovals ?? 0)
+  const governanceExceptionCount = metrics.activeBreaches + welfareAlertCount + openDisputesCount
+  const governancePrimaryAction = pendingApprovalsCount > 0
+    ? {
+        label: `Review Pending Approvals (${pendingApprovalsCount})`,
+        route: '/intel-approvals',
+      }
+    : governanceExceptionCount > 0
+      ? {
+          label: `Review Governance Exceptions (${governanceExceptionCount})`,
+          route: '/breaches',
+        }
+      : {
+          label: 'Review Governance Exceptions',
+          route: '/breaches',
+        }
+  const queuePrimaryAction = metrics.activeBreaches > 0 ? 'breaches' : 'patrol'
+
+  const primaryModuleTiles = useMemo(() => {
+    const baseTiles = [
+      {
+        path: '/breaches',
+        label: 'Breach Queue',
+        Icon: AlertTriangle,
+        color: 'text-red-600',
+        bg: 'bg-red-50 dark:bg-red-900/20',
+        badge: metrics.activeBreaches > 0 ? metrics.activeBreaches : undefined,
+      },
+      {
+        path: '/officer-welfare',
+        label: 'Welfare Queue',
+        Icon: Heart,
+        color: 'text-pink-600',
+        bg: 'bg-pink-50 dark:bg-pink-900/20',
+        badge: welfareAlertCount > 0 ? welfareAlertCount : undefined,
+      },
+      {
+        path: '/live-patrol',
+        label: 'Patrol Map',
+        Icon: Navigation,
+        color: 'text-green-600',
+        bg: 'bg-green-50 dark:bg-green-900/20',
+        badge: activePatrolCount > 0 ? activePatrolCount : undefined,
+      },
+      {
+        path: '/disputes',
+        label: 'Dispute Queue',
+        Icon: FileWarning,
+        color: 'text-amber-600',
+        bg: 'bg-amber-50 dark:bg-amber-900/20',
+        badge: openDisputesCount > 0 ? openDisputesCount : undefined,
+      },
+      {
+        path: '/enforcement-command-center',
+        label: 'Enforcement',
+        Icon: Gavel,
+        color: 'text-indigo-600',
+        bg: 'bg-indigo-50 dark:bg-indigo-900/20',
+      },
+      {
+        path: '/reports-hub',
+        label: 'Reports',
+        Icon: FileBarChart,
+        color: 'text-slate-600',
+        bg: 'bg-slate-50 dark:bg-slate-900/30',
+      },
+    ]
+
+    if (user?.role === 'master') {
+      baseTiles.push({
+        path: '/organizations',
+        label: 'Organizations',
+        Icon: Building2,
+        color: 'text-violet-600',
+        bg: 'bg-violet-50 dark:bg-violet-900/20',
+      })
+    }
+
+    return baseTiles
+  }, [activePatrolCount, metrics.activeBreaches, openDisputesCount, user?.role, welfareAlertCount])
 
   const triageQuickPrompts = useMemo(() => {
     if (welfareAlertCount > 0) {
@@ -853,6 +945,54 @@ export default function AdminPortal() {
     setPendingTriageSuggestion(null)
   }, [navigate, pendingTriageSuggestion])
 
+  const applyGovernanceAction = useCallback(() => {
+    if (!pendingGovernanceAction) return
+    navigate(pendingGovernanceAction.route)
+    toast.success(`Opened ${pendingGovernanceAction.label}`)
+    trackApprovalComplete({
+      organizationId: user?.organization_id,
+      performedBy: user?.id,
+      approvalType: pendingGovernanceAction.label,
+    })
+    setPendingGovernanceAction(null)
+  }, [navigate, pendingGovernanceAction, user])
+
+  const openGovernanceRoute = useCallback((route: string, label: string) => {
+    if (user?.role !== 'master') {
+      navigate(route)
+      return
+    }
+
+    if (route === '/organizations') {
+      setPendingGovernanceAction({
+        label,
+        route,
+        impactPreview: 'May create, modify, or archive tenant-level organization records and inheritance links.',
+      })
+      return
+    }
+
+    if (route === '/access-control') {
+      setPendingGovernanceAction({
+        label,
+        route,
+        impactPreview: 'May alter role permissions and user access boundaries across multiple modules.',
+      })
+      return
+    }
+
+    if (route === '/feature-flags') {
+      setPendingGovernanceAction({
+        label,
+        route,
+        impactPreview: 'May enable or disable runtime behavior for all organizations and officer workflows.',
+      })
+      return
+    }
+
+    navigate(route)
+  }, [navigate, user?.role])
+
   if (isError) {
     return (
       <AppLayout
@@ -931,7 +1071,7 @@ export default function AdminPortal() {
           </span>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {/** One primary CTA only: Welfare takes precedence when alerts exist, otherwise Breaches. */}
+          {/** Queue-first sticky actions with direct queue links and visible counts. */}
           {(() => {
             const primaryAction = welfareAlertCount > 0 ? 'welfare' : 'breaches'
             return (
@@ -943,7 +1083,7 @@ export default function AdminPortal() {
             onClick={() => navigate('/breaches')}
           >
             <AlertTriangle className="h-3.5 w-3.5" />
-            Breaches
+            Breach queue ({metrics.activeBreaches})
           </Button>
           <Button
             size="sm"
@@ -952,7 +1092,16 @@ export default function AdminPortal() {
             onClick={() => navigate('/officer-welfare')}
           >
             <Heart className="h-3.5 w-3.5" />
-            Welfare
+            Welfare queue ({welfareAlertCount})
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-1.5"
+            onClick={() => navigate('/disputes')}
+          >
+            <FileWarning className="h-3.5 w-3.5" />
+            Disputes ({openDisputesCount})
           </Button>
                 <Popover>
                   <PopoverTrigger asChild>
@@ -981,6 +1130,128 @@ export default function AdminPortal() {
       </div>
 
       <div className="space-y-4">
+
+        {/* ── Governance-first hero for master role ─────────────────────────────── */}
+        {user?.role === 'master' && (
+          <Card className="border-violet-200 dark:border-violet-900/40 bg-violet-50/60 dark:bg-violet-950/20">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-sm">
+                <ShieldCheck className="h-4 w-4 text-violet-600" />
+                Governance First
+              </CardTitle>
+              <CardDescription>
+                Prioritize approvals and exception queues before configuration changes.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex flex-wrap gap-2">
+                <Button onClick={() => navigate(governancePrimaryAction.route)} className="gap-1.5">
+                  <ShieldCheck className="h-4 w-4" />
+                  {governancePrimaryAction.label}
+                </Button>
+                <Button variant="outline" onClick={() => openGovernanceRoute('/access-control', 'Access Governance')} className="gap-1.5">
+                  <KeyRound className="h-4 w-4" />
+                  Access Governance
+                </Button>
+              </div>
+
+              <div className="rounded-lg border border-violet-200 dark:border-violet-800 bg-white/70 dark:bg-slate-900/40 p-3">
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Configuration and diagnostics (tertiary)</p>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setPendingGovernanceAction({
+                      label: 'Organization Management',
+                      route: '/organizations',
+                      impactPreview: 'May create, modify, or archive tenant-level organization records and inheritance links.',
+                    })}
+                  >
+                    <Building2 className="mr-1.5 h-3.5 w-3.5" />
+                    Organization changes
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setPendingGovernanceAction({
+                      label: 'Access Control',
+                      route: '/access-control',
+                      impactPreview: 'May alter role permissions and user access boundaries across multiple modules.',
+                    })}
+                  >
+                    <KeyRound className="mr-1.5 h-3.5 w-3.5" />
+                    Access policy changes
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setPendingGovernanceAction({
+                      label: 'Feature Flags',
+                      route: '/feature-flags',
+                      impactPreview: 'May enable or disable runtime behavior for all organizations and officer workflows.',
+                    })}
+                  >
+                    <Bug className="mr-1.5 h-3.5 w-3.5" />
+                    Feature flag changes
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* ── Queue-first hero: highest-priority operational queue ───────────────── */}
+        <Card className="border-red-200 dark:border-red-900/40 bg-red-50/50 dark:bg-red-950/20">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-sm">
+              <AlertCircle className="h-4 w-4 text-red-600" />
+              Queue First
+            </CardTitle>
+            <CardDescription>
+              {metrics.activeBreaches > 0
+                ? `You have ${metrics.activeBreaches} active breach${metrics.activeBreaches === 1 ? '' : 'es'} requiring triage.`
+                : 'No active breach queue right now. Keep patrol posture active and monitor live map.'}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-wrap gap-2">
+            <Button
+              onClick={() => {
+                if (!hasTrackedFirstActionRef.current) {
+                  hasTrackedFirstActionRef.current = true
+                  trackTimeToFirstAction({
+                    pageLoadTime: pageLoadTimeRef.current,
+                    surface: user?.role === 'master' ? 'master' : 'admin',
+                    action: queuePrimaryAction === 'breaches' ? 'review_breach_queue' : 'view_patrol_map',
+                    organizationId: user?.organization_id,
+                    performedBy: user?.id,
+                  })
+                }
+                navigate(queuePrimaryAction === 'breaches' ? '/breaches' : '/live-patrol')
+              }}
+              className="gap-1.5"
+            >
+              {queuePrimaryAction === 'breaches' ? (
+                <>
+                  <AlertTriangle className="h-4 w-4" />
+                  Review Breach Queue
+                </>
+              ) : (
+                <>
+                  <Navigation className="h-4 w-4" />
+                  View Patrol Map
+                </>
+              )}
+            </Button>
+            <Button variant="outline" onClick={() => navigate('/officer-welfare')} className="gap-1.5">
+              <Heart className="h-4 w-4" />
+              Welfare Queue
+            </Button>
+            <Button variant="outline" onClick={() => navigate('/disputes')} className="gap-1.5">
+              <FileWarning className="h-4 w-4" />
+              Dispute Queue
+            </Button>
+          </CardContent>
+        </Card>
 
         {/* ── Scope model strip ───────────────────────────────────────────── */}
         <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white/80 dark:bg-slate-900/60 px-4 py-3">
@@ -1256,6 +1527,41 @@ export default function AdminPortal() {
           <SystemHealthIndicator />
         </details>
 
+        {/* ── Primary task modules (5-7 visible) ─────────────────────────────────── */}
+        <section>
+          <Card className="bg-white dark:bg-[#1A1A1A] shadow-sm overflow-hidden">
+            <div className="h-1 w-full bg-gradient-to-r from-slate-500 to-indigo-600" />
+            <CardHeader className="pb-3 pt-4">
+              <CardTitle className="flex items-center gap-2 text-sm font-semibold">
+                <Briefcase className="h-4 w-4 text-slate-600" />
+                Primary task modules
+              </CardTitle>
+              <CardDescription className="text-xs">
+                Role-prioritized daily actions. Expand to access all secondary modules.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pt-0 space-y-3">
+              <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-7 gap-2">
+                {primaryModuleTiles.map(({ path, label, Icon, color, bg, badge }) => (
+                  <button key={path} onClick={() => openGovernanceRoute(path, label)} aria-label={`Open ${label}`} className={`${moduleTileClass} ${bg}`}>
+                    {badge !== undefined && (
+                      <span className="absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-bold text-white">{badge > 99 ? '99+' : badge}</span>
+                    )}
+                    <Icon className={`h-5 w-5 ${color}`} />
+                    <span className={moduleTileLabelClass}>{label}</span>
+                  </button>
+                ))}
+              </div>
+
+              <div className="flex justify-end">
+                <Button size="sm" variant="outline" onClick={() => setShowAllSystems((prev) => !prev)}>
+                  {showAllSystems ? 'Hide secondary modules' : 'Show more modules'}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </section>
+
         {/* ── PRIMARY KPIs — Big Three ──────────────────────────────────────────────── */}
         <section aria-label="Primary operational KPIs" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {primaryKPIs.map((kpi) => {
@@ -1383,7 +1689,8 @@ export default function AdminPortal() {
           </section>
         )}
 
-        {/* ── ALL SYSTEMS HUB — integrated navigation grid ─────────────────────────── */}
+        {/* ── ALL SYSTEMS HUB — secondary overflow modules ─────────────────────────── */}
+        {showAllSystems && (
         <section>
           <Card className="bg-white dark:bg-[#1A1A1A] shadow-sm overflow-hidden">
             <div className="h-1 w-full bg-gradient-to-r from-slate-400 to-slate-600" />
@@ -1720,6 +2027,28 @@ export default function AdminPortal() {
             </CardContent>
           </Card>
         </section>
+        )}
+
+        <Dialog open={!!pendingGovernanceAction} onOpenChange={(open) => !open && setPendingGovernanceAction(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Confirm Governance Action</DialogTitle>
+              <DialogDescription>
+                Preview impact before continuing. This is a high-risk admin action.
+              </DialogDescription>
+            </DialogHeader>
+            {pendingGovernanceAction && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300">
+                <p className="font-medium">{pendingGovernanceAction.label}</p>
+                <p className="mt-1 text-xs">{pendingGovernanceAction.impactPreview}</p>
+              </div>
+            )}
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setPendingGovernanceAction(null)}>Cancel</Button>
+              <Button onClick={applyGovernanceAction}>Preview and Continue</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* ── Diagnostics ───────────────────────────────────────────────────────────── */}
         {Array.isArray((data as any)?.diagnostics) && (data as any).diagnostics.length > 0 && (
