@@ -1,0 +1,97 @@
+name: Ops - MLOps Domain Promotion Gate
+
+on:
+  schedule:
+    - cron: '45 6 * * *'
+  workflow_dispatch:
+    inputs:
+      required_consecutive_green:
+        description: 'Required consecutive green canary runs before promotion'
+        required: false
+        default: '3'
+        type: string
+      strict_mode:
+        description: 'Fail when gate cannot be verified or is below threshold'
+        required: false
+        default: 'true'
+        type: string
+  workflow_call:
+    inputs:
+      required_consecutive_green:
+        required: false
+        type: number
+        default: 3
+      strict_mode:
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  promotion-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      MLOPS_REQUIRED_CONSECUTIVE_GREEN: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.required_consecutive_green || inputs.required_consecutive_green || '3' }}
+      MLOPS_PROMOTION_GATE_STRICT: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.strict_mode || inputs.strict_mode || 'true' }}
+      MLOPS_CANARY_WORKFLOW_FILE: ops-mlops-domain-canary.yml
+      MLOPS_CANARY_BRANCH: main
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Evaluate promotion gate
+        id: promotion_gate
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          node scripts/mlops-canary-promotion-gate.mjs --required "$MLOPS_REQUIRED_CONSECUTIVE_GREEN" --out tools/mlops/domain-canary/promotion-gate/${{ github.run_id }}/promotion-gate.json
+
+      - name: Enforce strict mode
+        if: steps.promotion_gate.outcome == 'failure' && env.MLOPS_PROMOTION_GATE_STRICT == 'true'
+        run: |
+          echo "::error::MLOps domain promotion gate failed in strict mode. Require consecutive successful biosecurity/noise/parking canary runs before promotion."
+          exit 1
+
+      - name: Upload promotion gate artifact
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: mlops-domain-promotion-gate-${{ github.run_id }}
+          path: tools/mlops/domain-canary/promotion-gate/${{ github.run_id }}/promotion-gate.json
+          if-no-files-found: warn
+
+      - name: Publish promotion gate summary
+        if: always()
+        run: |
+          echo "## MLOps Domain Promotion Gate" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Strict mode: $MLOPS_PROMOTION_GATE_STRICT" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Required consecutive green canary runs: $MLOPS_REQUIRED_CONSECUTIVE_GREEN" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Step outcome: ${{ steps.promotion_gate.outcome }}" >> "$GITHUB_STEP_SUMMARY"
+          if [ -f tools/mlops/domain-canary/promotion-gate/${{ github.run_id }}/promotion-gate.json ]; then
+            node -e '
+              const fs = require("fs");
+              const p = "tools/mlops/domain-canary/promotion-gate/${{ github.run_id }}/promotion-gate.json";
+              const d = JSON.parse(fs.readFileSync(p, "utf8"));
+              const lines = [];
+              lines.push(`- Achieved consecutive green runs: ${d.achievedConsecutiveGreen ?? 0}`);
+              lines.push(`- Status: ${d.status || "unknown"}`);
+              const top = (d.inspectedRuns || []).slice(0, 5);
+              for (const run of top) {
+                lines.push(`- Run ${run.id}: ${run.conclusion || "unknown"} (${run.created_at || "n/a"})`);
+              }
+              fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, lines.join("\n") + "\n");
+            '
+          else
+            echo "- No promotion gate artifact produced" >> "$GITHUB_STEP_SUMMARY"
+          fi

@@ -12,6 +12,7 @@ const ROOT = resolve(__dirname, '..');
 
 const DEFAULT_OUTPUT = resolve(ROOT, 'tools', 'mlops', 'domain-canary', 'latest.json');
 const DEFAULT_TIMEOUT_MS = 25_000;
+const DEFAULT_RETRIES = 2;
 const STRICT = String(process.env.MLOPS_CANARY_STRICT || 'false').trim().toLowerCase() === 'true';
 
 const DOMAINS = [
@@ -211,6 +212,43 @@ async function callInference(endpoint, baseUrl, apiKey, timeoutMs, domainId, dom
   }
 }
 
+function shouldRetry(result) {
+  if (!result || result.ok) return false;
+  if (result.reason === 'timeout') return true;
+  if (String(result.reason || '').startsWith('network_error:')) return true;
+  return String(result.reason || '').startsWith('http_5');
+}
+
+async function callInferenceWithRetry(endpoint, baseUrl, apiKey, timeoutMs, retries, domainId, domainPrompt) {
+  const attempts = [];
+
+  for (let attempt = 1; attempt <= retries; attempt += 1) {
+    const result = await callInference(endpoint, baseUrl, apiKey, timeoutMs, domainId, domainPrompt);
+    attempts.push({
+      attempt,
+      ok: result.ok,
+      reason: result.reason,
+      latencyMs: result.latencyMs,
+      httpStatus: result.httpStatus,
+    });
+
+    if (result.ok || !shouldRetry(result) || attempt === retries) {
+      return { result, attempts };
+    }
+  }
+
+  return {
+    result: {
+      ok: false,
+      latencyMs: 0,
+      httpStatus: null,
+      rawResponse: '',
+      reason: 'unknown_retry_failure',
+    },
+    attempts,
+  };
+}
+
 function writeReport(outputPath, report) {
   mkdirSync(dirname(outputPath), { recursive: true });
   writeFileSync(outputPath, JSON.stringify(report, null, 2));
@@ -219,10 +257,14 @@ function writeReport(outputPath, report) {
 async function main() {
   const outputArg = argValue('--out');
   const timeoutArg = Number.parseInt(argValue('--timeoutMs') || '', 10);
+  const retryArg = Number.parseInt(argValue('--retries') || '', 10);
   const outputPath = outputArg ? resolve(ROOT, outputArg) : DEFAULT_OUTPUT;
   const timeoutMs = Number.isFinite(timeoutArg) && timeoutArg > 0
     ? timeoutArg
     : Number.parseInt(String(process.env.MLOPS_CANARY_TIMEOUT_MS || DEFAULT_TIMEOUT_MS), 10) || DEFAULT_TIMEOUT_MS;
+  const retries = Number.isFinite(retryArg) && retryArg > 0
+    ? retryArg
+    : Number.parseInt(String(process.env.MLOPS_CANARY_RETRIES || DEFAULT_RETRIES), 10) || DEFAULT_RETRIES;
 
   const baseUrl = normalizeBaseUrl(firstNonEmpty([
     process.env.BOB_SERVICE_URL,
@@ -270,7 +312,15 @@ async function main() {
   const domainResults = [];
 
   for (const domain of DOMAINS) {
-    const call = await callInference(endpoint, baseUrl, apiKey, timeoutMs, domain.id, domain.prompt);
+    const { result: call, attempts } = await callInferenceWithRetry(
+      endpoint,
+      baseUrl,
+      apiKey,
+      timeoutMs,
+      retries,
+      domain.id,
+      domain.prompt,
+    );
     let validation = { ok: false, reason: call.reason };
     let parsed = null;
 
@@ -285,6 +335,7 @@ async function main() {
       reason: validation.reason,
       latencyMs: call.latencyMs,
       httpStatus: call.httpStatus,
+      attempts,
       responsePreview: call.rawResponse.slice(0, 300),
       parsed,
     });
@@ -301,6 +352,7 @@ async function main() {
     reason: failedCount === 0 ? 'ok' : 'domain_canary_failures',
     endpoint,
     timeoutMs,
+    retries,
     passedCount,
     failedCount,
     domains: domainResults,

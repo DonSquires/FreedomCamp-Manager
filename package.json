@@ -145,6 +145,7 @@
     "runpod:endpoint:smoke": "node scripts/invoke-runpod-endpoint.mjs --prompt \"Smoke test from local\" --poll true --timeoutMs 180000 --intervalMs 3000",
     "bob:inference:endpoints": "node scripts/check-inference-endpoints.mjs",
     "mlops:canary:domains": "node scripts/mlops-domain-inference-canary.mjs",
+    "mlops:gate:promotion": "node scripts/mlops-canary-promotion-gate.mjs",
     "runpod:endpoint:refresh": "node scripts/force-runpod-endpoint-redeploy.mjs",
     "runpod:endpoint:promote": "node scripts/promote-runpod-worker.mjs",
     "runpod:translator:deploy": "bash scripts/deploy-translator-runpod.sh",

@@ -30,6 +30,7 @@ jobs:
       INFERENCE_SERVICE_URL: ${{ secrets.INFERENCE_SERVICE_URL || secrets.BOB_SERVICE_URL }}
       BOB_INFERENCE_API_KEY: ${{ secrets.BOB_INFERENCE_API_KEY || secrets.INFERENCE_API_KEY }}
       INFERENCE_API_KEY: ${{ secrets.INFERENCE_API_KEY || secrets.BOB_INFERENCE_API_KEY }}
+      MLOPS_SLACK_WEBHOOK_URL: ${{ secrets.MLOPS_SLACK_WEBHOOK_URL }}
 
     steps:
       - name: Checkout
@@ -67,6 +68,37 @@ jobs:
           name: mlops-domain-canary-${{ github.run_id }}
           path: tools/mlops/domain-canary/${{ github.run_id }}/domain-canary.json
           if-no-files-found: warn
+
+      - name: Notify canary failure
+        if: steps.canary.outcome == 'failure' && env.MLOPS_SLACK_WEBHOOK_URL != ''
+        run: |
+          node -e '
+            const fs = require("fs");
+            const path = "tools/mlops/domain-canary/${{ github.run_id }}/domain-canary.json";
+            let details = "(artifact unavailable)";
+            if (fs.existsSync(path)) {
+              const d = JSON.parse(fs.readFileSync(path, "utf8"));
+              const failing = (d.domains || []).filter((item) => !item.ok).map((item) => `${item.domain}:${item.reason}`).join(", ");
+              details = failing || "unknown_domain_failure";
+            }
+            const runUrl = `https://github.com/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`;
+            const payload = {
+              text: `[MLOps Domain Canary] FAILED on ${process.env.GITHUB_REPOSITORY}. Failing domains: ${details}. Run: ${runUrl}`,
+            };
+            fs.writeFileSync("/tmp/mlops-canary-alert.json", JSON.stringify(payload));
+          '
+          curl -fsSL -X POST "$MLOPS_SLACK_WEBHOOK_URL" \
+            -H "Content-Type: application/json" \
+            --data @/tmp/mlops-canary-alert.json
+
+      - name: Record alert status in summary
+        if: always()
+        run: |
+          if [[ "${{ steps.canary.outcome }}" == "failure" && -n "$MLOPS_SLACK_WEBHOOK_URL" ]]; then
+            echo "- Alerting: sent via MLOPS_SLACK_WEBHOOK_URL" >> "$GITHUB_STEP_SUMMARY"
+          elif [[ "${{ steps.canary.outcome }}" == "failure" ]]; then
+            echo "- Alerting: webhook not configured (set MLOPS_SLACK_WEBHOOK_URL)" >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Publish canary summary
         if: always()
