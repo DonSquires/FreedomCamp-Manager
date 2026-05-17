@@ -37,8 +37,28 @@ export const radioFeatureFlags = {
   /** Show translation controls and translated output. Phase 3. */
   translationEnabled: anyFlag(['VITE_RADIO_TRANSLATION_ENABLED', 'VITE_FF_PHASE_0_TRANSLATION_ENABLED']),
 
+  /** Show both original + translated caption lanes simultaneously. Phase 3. */
+  dualCaptionLanesEnabled: anyFlag(['VITE_RADIO_DUAL_CAPTION_LANES_ENABLED', 'VITE_FF_PHASE_0_DUAL_CAPTION_LANES']),
+
+  /** Confidence threshold (0–1) below which a caption is flagged low-confidence.
+   *  Reads VITE_FF_PHASE_0_TRANSLATION_CONFIDENCE_THRESHOLD; defaults to 0.65. */
+  translationConfidenceThreshold: (() => {
+    const raw =
+      (import.meta.env as Record<string, string>)['VITE_FF_PHASE_0_TRANSLATION_CONFIDENCE_THRESHOLD'] ??
+      (import.meta.env as Record<string, string>)['VITE_RADIO_TRANSLATION_CONFIDENCE_THRESHOLD'] ??
+      ''
+    const parsed = parseFloat(raw)
+    return Number.isFinite(parsed) && parsed >= 0 && parsed <= 1 ? parsed : 0.65
+  })(),
+
   /** Badge synthetic/TTS audio in the transmission log. Phase 4/5. */
   syntheticAudioEnabled: anyFlag(['VITE_RADIO_SYNTHETIC_AUDIO_ENABLED', 'VITE_FF_PHASE_0_VOICE_TWIN_GOVERNANCE']),
+
+  /** Enable translated audio relay (TTS synthesis of translated captions). Phase 4. */
+  ttsRelayEnabled: anyFlag(['VITE_RADIO_TTS_RELAY_ENABLED', 'VITE_FF_PHASE_0_TTS_RELAY_ENABLED']),
+
+  /** Fall back to original audio when TTS relay fails. Phase 4. */
+  ttsFallbackToOriginal: anyFlag(['VITE_RADIO_TTS_FALLBACK_TO_ORIGINAL', 'VITE_FF_PHASE_0_TTS_FALLBACK_TO_ORIGINAL']),
 } as const
 
 export type RadioFeatureFlags = typeof radioFeatureFlags
