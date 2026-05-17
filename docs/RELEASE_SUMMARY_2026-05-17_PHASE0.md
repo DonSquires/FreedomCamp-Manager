@@ -18,8 +18,9 @@
   - `radio-floor-override`
   - `ingest-transcript-segments`
 - Secret audit:
-  - `supabase secrets list` count: `100`
+  - `supabase secrets list` count: `98`
   - Added: `SYNTHESIZE_TTS_PROVIDER`, `TTS_PROVIDER_URL`
+  - Removed: `RUNPOD_TRANSLATOR_POD_ID`, `BOB_TRANSLATOR_REST_URL`
 
 ## Code and Docs Updated
 
@@ -33,6 +34,6 @@
 
 ## Operational Notes
 
-- Supabase secrets are now at maximum capacity (`100/100`).
-- Any additional secret required for Phase 0+ should be preceded by an explicit prune/rotation decision.
+- Supabase secrets now have modest headroom (`98/100`).
+- Use existing keys first; avoid adding duplicate-name secrets for the same provider/value.
 - Livekit Cloud provisioning remains an external ops dependency.

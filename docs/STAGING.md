@@ -17,10 +17,10 @@ Status: Active staging checklist — Phase E COMPLETE; Star Trek validation lane
   - `npx playwright test tests/e2e/phase0-phase1-floor-control.spec.ts tests/e2e/phase0-phase2-transcripts.spec.ts tests/e2e/phase0-phase3-translation.spec.ts tests/e2e/phase0-phase4-translated-audio.spec.ts --project=chromium --workers=1 --reporter=line` → **PASS** (`10 passed`).
   - `npx supabase functions deploy radio-floor-override --project-ref kxwjcupuxnnbnzcgmkoi` → **PASS**.
   - `npx supabase functions deploy ingest-transcript-segments --project-ref kxwjcupuxnnbnzcgmkoi` → **PASS**.
-  - `npx supabase secrets list --project-ref kxwjcupuxnnbnzcgmkoi --output json` → count `100` (capacity reached).
+  - `npx supabase secrets list --project-ref kxwjcupuxnnbnzcgmkoi --output json` → count `98` after cleanup (`RUNPOD_TRANSLATOR_POD_ID`, `BOB_TRANSLATOR_REST_URL` removed).
 - Open blockers:
   1. Livekit Cloud provisioning remains pending (ops).
-  2. Secret budget is now at maximum (100/100); any new key requires intentional prune/rotation.
+  2. Secret budget has headroom again (98/100); default policy is to reuse existing keys and avoid duplicate-secret sprawl.
 
 ## Latest Session Snapshot (Star Trek Full Gate Green After Node20 E2E Auth Guard — 2026-05-17)
 
