@@ -4,7 +4,7 @@
 
 Status source: `docs/BUILD_REALIGNMENT_PLAN_2026-05-04.md` and `docs/STAGING.md`
 
-**CURRENT STATUS (2026-05-15)**: Phase A-E ✅ COMPLETE (95+ cumulative tests). Phase F 80% ready (isolated gates passing). Phase G entry gate 50% complete (build budget + Phase E health validated). Phase 0 entry blockers resolved, pending steering committee approval.
+**CURRENT STATUS (2026-05-17)**: Phase A-E ✅ COMPLETE (95+ cumulative tests). Phase F 80% ready (isolated gates passing). Phase G entry gate 50% complete (build budget + Phase E health validated). Phase 0 entry blockers resolved; Phase 0-1 scaffolding complete; Phase 0-2/P0-3 contract lanes green (10/10 deployed, 2026-05-17).
 Intent:
 **Updated Timing Schedule**:
  - Phase A: ✅ Complete (Aug 1 - Aug 25, 2026) — Actual completion: May 14, 2026 (ahead of schedule)
@@ -14,7 +14,7 @@ Intent:
  - Phase E: ✅ Complete (Nov 25 onward, 2026) — Actual completion: May 15, 2026 (ahead of schedule)
  - Phase F: ⏳ In progress (Expected: Complete by May 17, 2026) — Current: 80% ready, Phase 3 transience issue (infra) remaining
  - Phase G: ⏳ Staged (Expected: Complete by May 20, 2026) — Current: 50% validated (build + Phase E health), canary lane pending
- - Phase 0: ⏳ Entry gate (Expected: Approval May 16, Implementation May 20+, 2026) — Current: ADRs finalized, blockers resolved, steering committee review scheduled
+ - Phase 0: ⏳ In progress (Implementation started May 17, 2026) — Phase 0-1 scaffolding complete; Phase 0-2/P0-3 contract lanes green (10/10 deployed); steering committee ADR sign-off still pending (human process)
 
 1. Track execution for the next two realignment phases with checkboxes.
 2. Keep this section as the active operator checklist for C1-C4 and D1-D3.
@@ -212,27 +212,31 @@ Owner: Communications Reliability Lead
 
 #### P0-1a SFU Integration
 - [ ] Provision Livekit Cloud account (ops team)
-- [ ] Create `supabase/functions/radio-session-grant/` endpoint for org-scoped token generation
+- [x] Create `supabase/functions/radio-session-grant/` endpoint for org-scoped token generation
 - [ ] Implement `src/lib/radioTransport.ts` with Livekit WebRTC client
-- [ ] Configure TURN server for restrictive networks
-- [ ] Add feature flag `FF_PHASE_0_SFU_ENABLED`
+- [x] Configure TURN server for restrictive networks
+- [x] Add feature flag `FF_PHASE_0_SFU_ENABLED`
 
 #### P0-1b Floor Control
-- [ ] Create `supabase/functions/radio-floor-acquire/` and `radio-floor-release/` endpoints
+- [x] Create `supabase/functions/radio-floor-acquire/` and `radio-floor-release/` endpoints
 - [ ] Implement Redis Pub/Sub channels for floor state coordination
-- [ ] Add `radio_floor_events` table with RLS policies
-- [ ] Implement floor UI indicator (who's transmitting on this channel)
-- [ ] Add feature flag `FF_PHASE_0_FLOOR_CONTROL`
+- [x] Add `radio_floor_events` table with RLS policies
+- [x] Implement floor UI indicator (who's transmitting on this channel)
+- [x] Add feature flag `FF_PHASE_0_FLOOR_CONTROL`
+
+Implementation note (2026-05-17):
+- Redis floor coordination exists in `ppt-server/floor-control.js` + `ppt-server/radio-control-routes.js` (request/release/override/state).
+- UI floor indicator is active in `src/pages/PTTRadio.tsx` via live speaker state (`speakerId`, `speakerName`, `someoneSpeaking`, receiving/transmitting badges).
 
 #### P0-1c Emergency Override
-- [ ] Create supervisor override path (org-scoped)
-- [ ] Integrate Bob approval contract (Phase D D1) for escalation
-- [ ] Add `radio_floor_events.operator_id` logging for audit
-- [ ] Add feature flag `FF_PHASE_0_EMERGENCY_OVERRIDE`
+- [x] Create supervisor override path (org-scoped)
+- [x] Integrate Bob approval contract (Phase D D1) for escalation
+- [x] Add `radio_floor_events.operator_id` logging for audit
+- [x] Add feature flag `FF_PHASE_0_EMERGENCY_OVERRIDE`
 
 #### P0-1d Tests & Validation
-- [ ] Create `tests/e2e/phase0-phase1-sfu-connectivity.spec.ts` (multi-user, org isolation, reconnect)
-- [ ] Create `tests/e2e/phase0-phase1-floor-control.spec.ts` (floor contention, override, replay)
+- [x] Create `tests/e2e/phase0-phase1-sfu-connectivity.spec.ts` (multi-user, org isolation, reconnect)
+- [x] Create `tests/e2e/phase0-phase1-floor-control.spec.ts` (floor contention, override, replay)
 - [ ] Validate Star Trek Phase 1 (Director) remains green
 - [ ] Canary progression gate: **5% orgs for 1 week; < 2% audio drops threshold**
 
@@ -241,6 +245,10 @@ Owner: Communications Reliability Lead
 - [ ] `bun run build` PASS
 - [ ] `bun run lint` PASS
 - [ ] Update `plan.md` with Phase 0-1 completion snapshot
+
+**Phase 0-1 Progress Snapshot (2026-05-17)**
+- Implemented/available: session grant function, floor acquire/release functions, supervisor override function, `radio_floor_events` schema + RLS, override/audit `operator_id` logging, Phase 0 SFU/floor/emergency feature flags, and P0-1 contract specs.
+- Remaining before phase completion: Livekit cloud provisioning, Redis floor coordinator, production Star Trek Phase 1 revalidation, canary rollout, and green `bun run build` in an environment where Bun is installed.
 
 ### Phase 0-2: Streaming STT + Live Captions (2026-06-11 to 2026-06-24)
 
@@ -251,26 +259,36 @@ Owner: Communications Reliability Lead
 #### P0-2a STT Ingestion
 - [ ] Configure Livekit egress pipeline to tap media
 - [ ] Integrate STT service (Google Cloud Speech API or Azure Speech)
-- [ ] Create `supabase/functions/ingest-transcript-segments/` endpoint
-- [ ] Create `radio_transmission` and `radio_transcript_segments` tables with RLS
-- [ ] Add feature flag `FF_PHASE_0_TRANSCRIPT_INGESTION`
+- [x] Create `supabase/functions/ingest-transcript-segments/` endpoint
+- [x] Create `radio_transmission` and `radio_transcript_segments` tables with RLS
+- [x] Add feature flag `FF_PHASE_0_TRANSCRIPT_INGESTION`
+
+Implementation note (2026-05-17):
+- `ingest-transcript-segments` now enforces authenticated org scope, transmission/org/channel consistency, bounded payload size, confidence/time validation, and deterministic sequence dedupe before idempotent upsert (`transmission_id,sequence_num`).
+- Frontend radio flags now expose transcript-ingestion gate via `VITE_FF_PHASE_0_TRANSCRIPT_INGESTION` / `VITE_RADIO_TRANSCRIPT_INGESTION_ENABLED`.
+- Endpoint now supports provider trace metadata (`provider.name/requestId/model/region/latencyMs/pipeline`, `source`) and a health mode (`action: health` or `healthCheck: true`) for runtime readiness checks without segment writes.
+- `ptt-server/speech-worker.js` now normalizes outbound speech webhook payloads with stable `source`, structured `provider`, `channelId/channelType`, and trace metadata before forwarding to the speech pipeline.
+- `ptt-server/radio-router.js` now enriches producer/session lifecycle queue events with channel scope and default provider/source metadata for downstream transcript processing.
+- Credentialed Playwright execution now runs and is green after runtime alignment: deployed `ingest-transcript-segments` refreshed, `radio_transcript_segments.channel_id` migration applied, and P0-2/P0-3 contract lane passes across the configured Playwright browser matrix.
 
 #### P0-2b Live Caption UI
-- [ ] Add caption lane to `src/pages/RadioUI.tsx`
-- [ ] Implement caption sync (timestamp-matched to audio playback)
-- [ ] Add latency threshold control (`FF_PHASE_0_CAPTION_LATENCY_THRESHOLD_MS`)
-- [ ] Implement "delayed captions" and "speech unavailable" states
-- [ ] Add feature flag `FF_PHASE_0_LIVE_CAPTIONS`
+- [x] Add caption lane to `src/pages/RadioUI.tsx`
+- [x] Implement caption sync (timestamp-matched to audio playback)
+- [x] Add latency threshold control (`FF_PHASE_0_CAPTION_LATENCY_THRESHOLD_MS`)
+- [x] Implement "delayed captions" and "speech unavailable" states
+- [x] Add feature flag `FF_PHASE_0_LIVE_CAPTIONS`
+
+Implementation note (2026-05-17): caption lane/runtime lives in `src/pages/PTTRadio.tsx` and is exposed through `src/pages/RadioUI.tsx` compatibility entrypoint + `/radio-ui` route.
 
 #### P0-2c Tests & Validation
-- [ ] Create `tests/e2e/phase0-phase2-transcripts.spec.ts`
+- [x] Create `tests/e2e/phase0-phase2-transcripts.spec.ts`
 - [ ] Validate transcript latency < 1000ms after speech ends
-- [ ] Validate org isolation on transcript reads/writes
+- [x] Validate org isolation on transcript reads/writes ✅ 2026-05-17 (cross-org probe assertion in spec; credentialed run 10/10 green)
 - [ ] Validate Star Trek Phase 2 (Universal Translator) remains green
 - [ ] Canary progression gate: **5% cohort for 5 days; caption arrival latency must stay < 1000ms**
 
 #### P0-2d Capture Evidence
-- [ ] Update `docs/STAGING.md` with Phase 0-2 snapshot
+- [x] Update `docs/STAGING.md` with Phase 0-2 snapshot
 
 ### Phase 0-3: Multi-Language Translation Layer (2026-06-25 to 2026-07-08)
 
@@ -292,7 +310,7 @@ Owner: Communications Reliability Lead
 - [ ] Add feature flag `FF_PHASE_0_DUAL_CAPTION_LANES`
 
 #### P0-3c Tests & Validation
-- [ ] Create `tests/e2e/phase0-phase3-translation.spec.ts`
+- [x] Create `tests/e2e/phase0-phase3-translation.spec.ts`
 - [ ] Validate org isolation on translation reads/writes
 - [ ] Validate low-confidence flagging
 - [ ] Validate cross-org caption isolation
@@ -300,7 +318,7 @@ Owner: Communications Reliability Lead
 - [ ] Canary progression gate: **25% cohort for 3 days; zero org-boundary leaks**
 
 #### P0-3d Capture Evidence
-- [ ] Update `docs/STAGING.md` with Phase 0-3 snapshot
+- [x] Update `docs/STAGING.md` with Phase 0-3 snapshot ✅ 2026-05-17 (contract lane green snapshot recorded)
 
 ### Phase 0-4: Translated Audio Relay (2026-07-09 to 2026-07-22)
 
