@@ -867,12 +867,15 @@ export default function AdminPortal() {
                 Dashboard failed to load
               </CardTitle>
               <CardDescription className="text-red-700 dark:text-red-300">
-                {(error as any)?.message ?? 'KPI query returned an unexpected error. Try refreshing.'}
+                {(error as any)?.message ?? 'Live KPI and queue data could not be loaded right now. Retry the dashboard or fall back to the patrol map while data recovers.'}
               </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="flex flex-wrap gap-2">
               <Button variant="outline" onClick={() => queryClient.invalidateQueries({ queryKey: ['admin-primary-dashboard'] })}>
-                Retry
+                Retry dashboard
+              </Button>
+              <Button variant="ghost" onClick={() => navigate('/live-patrol')}>
+                Open patrol map
               </Button>
             </CardContent>
           </Card>

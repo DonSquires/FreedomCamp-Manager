@@ -727,8 +727,20 @@ export default function FieldOfficerPortal() {
   })
   const completeDispatchJob = useDispatchCompletion()
 
-  const { data: activeRouteInstance, isLoading: activeRouteLoading } = useOfficerActiveRouteInstance()
-  const { data: activeRouteStops = [], isLoading: activeRouteStopsLoading } = usePatrolRouteInstanceStops(activeRouteInstance?.id)
+  const {
+    data: activeRouteInstance,
+    isLoading: activeRouteLoading,
+    isError: activeRouteIsError,
+    error: activeRouteError,
+    refetch: refetchActiveRoute,
+  } = useOfficerActiveRouteInstance()
+  const {
+    data: activeRouteStops = [],
+    isLoading: activeRouteStopsLoading,
+    isError: activeRouteStopsIsError,
+    error: activeRouteStopsError,
+    refetch: refetchActiveRouteStops,
+  } = usePatrolRouteInstanceStops(activeRouteInstance?.id)
   const updateRouteStopStatus = useUpdatePatrolRouteStopStatus()
   const lastAutoArrivedStopIdRef = useRef<string | null>(null)
   const lastAutoCompletedStopIdRef = useRef<string | null>(null)
@@ -1702,6 +1714,23 @@ export default function FieldOfficerPortal() {
       <div className="flex justify-end mb-2">
         <OfficerLanguageSelector />
       </div>
+
+      {gateLoading && (
+        <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800 dark:border-blue-800 dark:bg-blue-950/30 dark:text-blue-200">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-2">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              <div>
+                <p className="font-semibold">Checking your shift access...</p>
+                <p className="text-xs text-blue-700 dark:text-blue-300">We are verifying roster, active shift, and zone permissions before enabling officer tools.</p>
+              </div>
+            </div>
+            <Button size="sm" variant="outline" onClick={() => window.location.reload()}>
+              Retry check
+            </Button>
+          </div>
+        </div>
+      )}
 
       {quickReportStatusText && (
         <div
@@ -2874,7 +2903,7 @@ export default function FieldOfficerPortal() {
           )}
 
             {/* ── Active Route Execution (officer-side) ─────────────── */}
-            {(activeRouteLoading || activeRouteInstance) && (
+            {(activeRouteLoading || activeRouteInstance || activeRouteIsError || activeRouteStopsIsError) && (
               <div className="mb-6 space-y-3">
                 <h2 className="text-sm font-semibold flex items-center gap-2 text-foreground">
                   <Map className="h-4 w-4 text-green-600" />
@@ -2888,10 +2917,35 @@ export default function FieldOfficerPortal() {
 
                 <Card className="border-green-200 dark:border-green-900/60">
                   <CardContent className="p-4 space-y-3">
+                    {(activeRouteIsError || activeRouteStopsIsError) && (
+                      <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-3 text-sm text-rose-800 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-200">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                          <div>
+                            <p className="font-semibold">Route data could not be refreshed</p>
+                            <p className="text-xs text-rose-700 dark:text-rose-300">
+                              {String((activeRouteError as any)?.message || (activeRouteStopsError as any)?.message || 'Route query failed.')} You can retry without leaving the portal.
+                            </p>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                void refetchActiveRoute()
+                                void refetchActiveRouteStops()
+                              }}
+                            >
+                              Retry route
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
                     {activeRouteLoading && (
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
                         <Loader2 className="h-4 w-4 animate-spin" />
-                        Loading your active route...
+                        Loading your active route and next stop details...
                       </div>
                     )}
 
