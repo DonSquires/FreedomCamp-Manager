@@ -12,11 +12,11 @@ Owner: Product Oversight / UX Governance
 
 ## 1) Product Manager / Product Owner
 
-- P0: Confirm canonical route contract for compliance and enforcement paths (`/compliance` vs `/admin/compliance`, `/enforcement-command-center` vs `/enforcement-command-centre`).
-- P0: Publish one canonical naming policy for US/UK path spelling and enforce it across docs/tests.
-- P0: Approve Bob operating model as dual-mode: assistive + governance gatekeeper.
-- P1: Define acceptance criteria for Bob gatekeeper outcomes (proposal, approval, rejection, emergency override).
-- P1: Lock release checklist: no route or role changes without manual update in same PR.
+- [x] P0: Confirm canonical route contract for compliance and enforcement paths (`/compliance` vs `/admin/compliance`, `/enforcement-command-center` vs `/enforcement-command-centre`). *(Completed 2026-05-17: canonical routes confirmed; legacy aliases retained as redirects.)*
+- [x] P0: Publish one canonical naming policy for US/UK path spelling and enforce it across docs/tests. *(Completed 2026-05-17: canonical US `center`; UK `centre` retained as compatibility alias only.)*
+- [x] P0: Approve Bob operating model as dual-mode: assistive + governance gatekeeper. *(Completed 2026-05-17: manual governance model is canonical.)*
+- [x] P1: Define acceptance criteria for Bob gatekeeper outcomes (proposal, approval, rejection, emergency override). *(Completed 2026-05-17: acceptance criteria added to instruction manual.)*
+- [x] P1: Lock release checklist: no route or role changes without manual update in same PR. *(Completed 2026-05-17: release checklist gate added to instruction manual.)*
 
 ## 2) UX Designer / Product Designer
 
@@ -28,8 +28,8 @@ Owner: Product Oversight / UX Governance
 
 ## 3) Frontend Engineer (React)
 
-- P0: Normalize route aliases and redirects according to product decision (manual and app must match).
-- P0: Keep Bob route surfaces role-gated and reflect gatekeeper copy/labels in-page.
+- [x] P0: Normalize route aliases and redirects according to product decision (manual and app must match). *(Completed 2026-05-17: legacy compliance/enforcement aliases now redirect to canonical routes.)*
+- [x] P0: Keep Bob route surfaces role-gated and reflect gatekeeper copy/labels in-page. *(Completed 2026-05-17: canonical Bob assistant route remains role-gated and governance language is documented.)*
 - P1: Implement/confirm dense-mode toggle in page header for dispatch and command-center workflows.
 - P1: Ensure all admin compliance/reporting surfaces consistently use global filter ribbon behavior.
 - P1: Add explicit UI indicators for gate status (proposal submitted, awaiting approver, approved, blocked).

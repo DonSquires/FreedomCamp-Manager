@@ -427,6 +427,31 @@ Required governance at every Star Trek phase checkpoint:
 2. Update [docs/STAGING.md](docs/STAGING.md) in the same change set with execution evidence and PASS/FAIL outcome.
 3. Do not declare phase completion unless both manual and staging updates are present.
 
+### Route Naming and Alias Policy (Canonical)
+
+1. Canonical route naming uses **US spelling** for `center` in all primary paths.
+2. Legacy UK `centre` spellings may remain as compatibility aliases, but must redirect to the canonical US path.
+3. Canonical compliance paths are:
+   - `/compliance`
+   - `/compliance-analytics`
+4. Canonical enforcement command path is:
+   - `/enforcement-command-center`
+5. Legacy compatibility aliases are supported for safe migration:
+   - `/admin/compliance` -> `/compliance`
+   - `/admin/compliance-analytics` -> `/compliance-analytics`
+   - `/enforcement-command-centre` -> `/enforcement-command-center`
+6. Tests and docs should assert canonical paths; aliases exist for backward compatibility only.
+
+### Release Checklist Gate (Routes and Roles)
+
+For any PR that changes routes, role access, or workflow entry paths, all of the following are mandatory:
+
+1. Router change (`src/App.tsx` and related adapters/manifests) is implemented.
+2. This manual is updated in the same PR with canonical route/role behavior.
+3. `docs/STAGING.md` includes validation evidence for the change.
+4. If the change is structural (canonical path decision, role-entry contract, or alias policy), append a dated decision in `docs/DECISIONS.md`.
+5. PR is not release-ready unless all four checks above are satisfied.
+
 Phase-to-manual update scope:
 
 1. Phase 1 (Director): roster gate, welfare-only standby path, pre-shift tool restrictions.
@@ -884,14 +909,14 @@ The full operational dashboard. Contains:
 
 | Page | Path | How to navigate |
 |---|---|---|
-| Compliance Dashboard | `/admin/compliance` | Sidebar → Compliance → Dashboard |
-| Compliance Analytics | `/admin/compliance-analytics` | Sidebar → Compliance → Analytics |
+| Compliance Dashboard | `/compliance` | Sidebar → Compliance → Dashboard |
+| Compliance Analytics | `/compliance-analytics` | Sidebar → Compliance → Analytics |
 | Breach Alerts | `/breaches` | Sidebar → Compliance → Breach Alerts |
 | Breach Notices | `/breach-notices` | Sidebar → Compliance → Breach Notices |
 | Infringement Notices | `/infringement-notices` | Sidebar → Compliance → Infringements |
 | Notice to Vacate | `/notice-to-vacate` | Sidebar → Compliance → Notice to Vacate |
 | Enforcement Actions | `/enforcement-actions` | Sidebar → Compliance → Enforcement Actions |
-| Enforcement Command Centre | `/enforcement-command-centre` | Sidebar → Compliance → Command Centre |
+| Enforcement Command Center | `/enforcement-command-center` | Sidebar → Compliance → Command Centre |
 | Enforcement Review | `/enforcement-review` | Sidebar → Compliance → Review |
 | Disputes | `/disputes` | Sidebar → Compliance → Disputes |
 | Compliance Recalculation | `/compliance-recalculation` | Sidebar → Data → Recalculate |
@@ -899,7 +924,7 @@ The full operational dashboard. Contains:
 
 ---
 
-**Compliance Dashboard (`/admin/compliance`)**
+**Compliance Dashboard (`/compliance`)**
 
 The Compliance Dashboard shows real-time compliance rates by zone.
 
@@ -984,7 +1009,7 @@ Vehicle Scan → Compliant?
 
 ---
 
-**Enforcement Command Centre (`/enforcement-command-centre`)**
+**Enforcement Command Center (`/enforcement-command-center`)**
 
 A supervisor overview of all open enforcement actions across the organisation.
 
@@ -1459,7 +1484,7 @@ Text-based messaging for team coordination. Available to all authenticated users
 | Incident Reports | `/incident-reports` | Structured incident report library |
 | Incident Management | `/incidents` | Manage open incidents |
 | AI Analysis | `/ai-analysis` | AI-generated compliance insights |
-| Compliance Analytics | `/admin/compliance-analytics` | Trend and comparison analytics |
+| Compliance Analytics | `/compliance-analytics` | Trend and comparison analytics |
 | Audit Log | `/audit-log` | Full audit trail of all system actions |
 | PTT Transmission Log | `/ptt-log` | Push-to-Talk communication archive |
 
@@ -1788,7 +1813,7 @@ Sidebar → **Reports** group.
 | Incident Reports | `/incident-reports` | Sidebar → Reports → Incidents |
 | Incident Management | `/incidents` | Sidebar → Records → Incidents |
 | AI Analysis | `/ai-analysis` | Sidebar → AI & Intelligence → Analysis |
-| Compliance Analytics | `/admin/compliance-analytics` | Sidebar → Compliance → Analytics |
+| Compliance Analytics | `/compliance-analytics` | Sidebar → Compliance → Analytics |
 | Audit Log | `/audit-log` | Sidebar → Platform → Audit Log |
 
 ---
@@ -2826,6 +2851,21 @@ Gatekeeper rules:
 2. Human authorization remains mandatory for legal and fire-control boundaries.
 3. Emergency posture can preempt non-safety writes.
 4. Org isolation and audit attribution are mandatory on all governed operations.
+
+Acceptance criteria for governed outcomes:
+
+1. **Proposal submitted**
+   - User sees a persisted proposal identifier and `pending_approval` status.
+   - No privileged mutation executes before approval.
+2. **Approved**
+   - Approval actor and timestamp are recorded.
+   - Exactly the approved mutation contract executes, with org-scoped attribution.
+3. **Rejected / blocked**
+   - User sees explicit reason code and human-readable explanation.
+   - No side-effecting mutation executes.
+4. **Emergency override**
+   - Safety-critical action can preempt non-safety writes.
+   - Override actor, reason, and timeline are audit-logged for post-incident review.
 
 #### Bob Capability Modules
 

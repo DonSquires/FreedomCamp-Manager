@@ -1090,6 +1090,15 @@ export default function App() {
               </ProtectedRoute>
             }
           />
+          {/* Legacy alias: /admin/compliance -> /compliance */}
+          <Route
+            path="/admin/compliance"
+            element={
+              <ProtectedRoute>
+                <Navigate to="/compliance" replace />
+              </ProtectedRoute>
+            }
+          />
           <Route
             path="/breaches"
             element={
@@ -1488,6 +1497,15 @@ export default function App() {
               </ProtectedRoute>
             }
           />
+          {/* Legacy alias: UK spelling -> canonical US spelling */}
+          <Route
+            path="/enforcement-command-centre"
+            element={
+              <ProtectedRoute>
+                <Navigate to="/enforcement-command-center" replace />
+              </ProtectedRoute>
+            }
+          />
 
           <Route
             path="/infringements"
@@ -1663,6 +1681,15 @@ export default function App() {
                 <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
                   <ComplianceAnalytics />
                 </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+          {/* Legacy alias: /admin/compliance-analytics -> /compliance-analytics */}
+          <Route
+            path="/admin/compliance-analytics"
+            element={
+              <ProtectedRoute>
+                <Navigate to="/compliance-analytics" replace />
               </ProtectedRoute>
             }
           />

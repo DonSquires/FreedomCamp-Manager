@@ -14,6 +14,12 @@ When a pattern, platform, or architectural decision changes, append a dated note
 
 ## Current Standing Decisions
 - Date: 2026-05-17
+- Decision: PM route contract and governance release gate are canonical for compliance/enforcement routes and Bob dual-mode governance outcomes.
+- Scope: `src/App.tsx`, `docs/INSTRUCTION_MANUAL.md`, `docs/SPECIALIST_TODO_LIST_2026-05-16.md`.
+- Reason: PM priority list required resolving route contract ambiguity (`/compliance` vs `/admin/compliance`, `center` vs `centre`) and formalizing Bob gatekeeper acceptance outcomes plus release checklist governance.
+- Consequences: (1) Canonical paths are `/compliance`, `/compliance-analytics`, `/enforcement-command-center`. (2) Legacy aliases are compatibility redirects only (`/admin/compliance`, `/admin/compliance-analytics`, `/enforcement-command-centre`). (3) Route/role changes are not release-ready without manual and staging updates in the same PR. (4) Bob governed outcomes must satisfy explicit proposal/approval/rejection/emergency acceptance criteria.
+
+- Date: 2026-05-17
 - Decision: CRO Part 4 workflow consolidation is closed for the current cycle; no additional role-specific guided workflows are required beyond the shipped admin-report, admin-breach, and officer-shift guided flows.
 - Scope: `docs/CRO_TODOLIST.md`, `docs/STAGING.md`, `docs/INSTRUCTION_MANUAL.md`, `src/pages/ReportsHub.tsx`, `src/pages/BreachAlerts.tsx`, `src/pages/FieldOfficerPortal.tsx`.
 - Reason: The Part 4 checklist is fully implemented and validated in staging snapshots, and the top fragmented workflows identified by PM are now covered by guided in-page flows without introducing additional route complexity.
