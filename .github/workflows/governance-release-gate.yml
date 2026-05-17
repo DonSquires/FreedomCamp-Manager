@@ -122,22 +122,33 @@ jobs:
           echo "::warning::Lint warning budget gate failed but strict mode is disabled; continuing."
 
       - name: Doc authority strict gate
+        id: doc_authority
         env:
           DOC_AUTHORITY_STRICT: 'true'
           DOC_AUTHORITY_DIFF_RANGE: ${{ github.event_name == 'pull_request' && format('origin/{0}...{1}', github.base_ref, github.sha) || format('{0}..{1}', github.event.before, github.sha) }}
         run: bun run lint:doc-authority
 
       - name: Bob governance drift strict gate
+        id: bob_governance_drift
+        continue-on-error: true
         env:
           BOB_GOVERNANCE_DRIFT_STRICT: 'true'
         run: bun run lint:bob-governance-drift
 
+      - name: Enforce Bob governance drift gate
+        if: steps.bob_governance_drift.outcome == 'failure'
+        run: |
+          echo "::error::Bob governance drift gate failed. Align docs/INSTRUCTION_MANUAL.md with Bob runtime policy surfaces in src/lib/edgeFunctions.ts, src/lib/bobMutationCatalog.ts, src/lib/bob-brain.ts, and src/pages/BobAssistantStudio.tsx."
+          exit 1
+
       - name: Staging doc presence and freshness gate
+        id: staging_doc
         env:
           STAGING_MAX_AGE_DAYS: '14'
         run: bun run lint:staging-doc
 
       - name: Route roadmap strict gate
+        id: route_roadmap
         env:
           ROUTE_ROADMAP_STRICT: 'true'
           ROUTE_ROADMAP_DIFF_RANGE: ${{ github.event_name == 'pull_request' && format('origin/{0}...{1}', github.base_ref, github.sha) || format('{0}..{1}', github.event.before, github.sha) }}
@@ -236,11 +247,11 @@ jobs:
         if: always()
         run: |
           echo "## Governance Release Gate" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Doc authority strict gate: completed" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Bob governance drift strict gate: completed" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Staging doc presence/freshness gate: completed" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Doc authority strict gate: ${{ steps.doc_authority.outcome }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Bob governance drift strict gate: ${{ steps.bob_governance_drift.outcome }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Staging doc presence/freshness gate: ${{ steps.staging_doc.outcome }}" >> "$GITHUB_STEP_SUMMARY"
           echo "- Lint warning budget gate: completed" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Route roadmap strict gate: completed" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Route roadmap strict gate: ${{ steps.route_roadmap.outcome }}" >> "$GITHUB_STEP_SUMMARY"
           echo "- Roadmap grounding strict gate: completed" >> "$GITHUB_STEP_SUMMARY"
           echo "- Roadmap role-gate strict validation: completed" >> "$GITHUB_STEP_SUMMARY"
           echo "- Module grounding strict validation: completed" >> "$GITHUB_STEP_SUMMARY"
@@ -249,4 +260,7 @@ jobs:
           echo "- Route-role matrix path: tools/route-role-matrix/governance/${{ github.run_id }}" >> "$GITHUB_STEP_SUMMARY"
           echo "- Module grounding path: tools/module-grounding/governance/${{ github.run_id }}" >> "$GITHUB_STEP_SUMMARY"
           echo "- Governance summary path: tools/governance-run-summaries/governance-release/${{ github.run_id }}" >> "$GITHUB_STEP_SUMMARY"
+          if [[ "${{ steps.bob_governance_drift.outcome }}" == "failure" ]]; then
+            echo "- Bob governance drift failure focus: reconcile manual policy language with Bob runtime policy surfaces and rerun lint:bob-governance-drift." >> "$GITHUB_STEP_SUMMARY"
+          fi
 

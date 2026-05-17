@@ -96,20 +96,31 @@ jobs:
           echo "::warning::Lint warning budget gate failed but strict mode is disabled; continuing."
 
       - name: Doc authority lint (mandatory)
+        id: doc_authority
         env:
           DOC_AUTHORITY_STRICT: 'true'
           DOC_AUTHORITY_DIFF_RANGE: ${{ github.event_name == 'pull_request' && format('origin/{0}...{1}', github.base_ref, github.sha) || format('{0}..{1}', github.event.before, github.sha) }}
         run: bun run lint:doc-authority
 
       - name: Bob governance drift lint (mandatory)
+        id: bob_governance_drift
+        continue-on-error: true
         env:
           BOB_GOVERNANCE_DRIFT_STRICT: 'true'
         run: bun run lint:bob-governance-drift
 
+      - name: Enforce Bob governance drift lint
+        if: steps.bob_governance_drift.outcome == 'failure'
+        run: |
+          echo "::error::Bob governance drift lint failed. Check docs/INSTRUCTION_MANUAL.md and the Bob governance runtime surfaces before retrying this build."
+          exit 1
+
       - name: Navigation parity tests
+        id: nav_parity
         run: bun run test:nav-parity
 
       - name: Build
+        id: build
         run: bun run build
 
       - name: Build budget gate
@@ -138,3 +149,15 @@ jobs:
           name: build-diagnostics
           path: tools/build-diagnostics
           if-no-files-found: ignore
+
+      - name: Publish CI summary
+        if: always()
+        run: |
+          echo "## CI Build High Memory" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Doc authority gate: ${{ steps.doc_authority.outcome }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Bob governance drift gate: ${{ steps.bob_governance_drift.outcome }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Navigation parity tests: ${{ steps.nav_parity.outcome }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Build: ${{ steps.build.outcome }}" >> "$GITHUB_STEP_SUMMARY"
+          if [[ "${{ steps.bob_governance_drift.outcome }}" == "failure" ]]; then
+            echo "- Bob governance drift failure focus: align docs/INSTRUCTION_MANUAL.md with edgeFunctions, bobMutationCatalog, bob-brain, and BobAssistantStudio." >> "$GITHUB_STEP_SUMMARY"
+          fi
