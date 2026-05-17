@@ -75,7 +75,7 @@ async function createTransmission(
     data: {
       org_id: context.orgId,
       channel_id: channelId,
-      channel_type: 'dispatch',
+      channel_type: 'org',
       speaker_id: context.userId,
       speaker_name: context.speakerName,
       metadata: { source: 'phase0_phase3_contract_test' },

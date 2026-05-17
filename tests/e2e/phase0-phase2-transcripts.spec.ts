@@ -75,7 +75,7 @@ async function createTransmission(
     data: {
       org_id: context.orgId,
       channel_id: channelId,
-      channel_type: 'dispatch',
+      channel_type: 'org',
       speaker_id: context.userId,
       speaker_name: context.speakerName,
       metadata: { source: 'phase0_phase2_contract_test' },
@@ -101,6 +101,25 @@ test.describe('Phase 0-2 Streaming STT + Live Captions', () => {
     const context = await getUserContext(request, token)
     const transmission = await createTransmission(request, token, context)
 
+    const healthResponse = await request.post(`${SUPABASE_URL}/functions/v1/ingest-transcript-segments`, {
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      data: {
+        action: 'health',
+        orgId: context.orgId,
+        channelId: transmission.channelId,
+        transmissionId: transmission.id,
+        provider: { name: 'google' },
+        source: 'phase0_contract_test',
+      },
+    })
+    const healthBody = await healthResponse.json().catch(() => ({})) as Record<string, unknown>
+    expect(healthResponse.status(), JSON.stringify(healthBody)).toBe(200)
+    expect(String((healthBody.health as Record<string, unknown> | undefined)?.provider || '')).toBe('google')
+
     const ingestResponse = await request.post(`${SUPABASE_URL}/functions/v1/ingest-transcript-segments`, {
       headers: {
         apikey: SUPABASE_ANON_KEY,
@@ -112,6 +131,15 @@ test.describe('Phase 0-2 Streaming STT + Live Captions', () => {
         channelId: transmission.channelId,
         transmissionId: transmission.id,
         language: 'en',
+        source: 'phase0_contract_test',
+        provider: {
+          name: 'google',
+          requestId: `phase0-${Date.now()}`,
+          model: 'chirp-2',
+          region: 'australia-southeast1',
+          latencyMs: 420,
+          pipeline: 'livekit-egress-stt',
+        },
         segments: [
           { sequenceNum: 1, startMs: 0, endMs: 1200, text: 'Unit responding to dispatch', confidence: 0.94, isFinal: true },
           { sequenceNum: 2, startMs: 1200, endMs: 2400, text: 'ETA five minutes', confidence: 0.91, isFinal: true },
@@ -121,15 +149,30 @@ test.describe('Phase 0-2 Streaming STT + Live Captions', () => {
     const ingestBody = await ingestResponse.json().catch(() => ({})) as Record<string, unknown>
     expect(ingestResponse.status(), JSON.stringify(ingestBody)).toBe(200)
     expect(Number(ingestBody.upserted || 0)).toBe(2)
+    expect(String((ingestBody.trace as Record<string, unknown> | undefined)?.provider || '')).toBe('google')
+    expect(String((ingestBody.trace as Record<string, unknown> | undefined)?.source || '')).toBe('phase0_contract_test')
 
     const verifyResponse = await request.get(
-      `${SUPABASE_URL}/rest/v1/radio_transcript_segments?select=id,sequence_num,text&transmission_id=eq.${encodeURIComponent(transmission.id)}&order=sequence_num.asc`,
+      `${SUPABASE_URL}/rest/v1/radio_transcript_segments?select=id,org_id,sequence_num,text&transmission_id=eq.${encodeURIComponent(transmission.id)}&order=sequence_num.asc`,
       { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${token}` } },
     )
-    const verifyRows = await verifyResponse.json().catch(() => []) as Array<{ sequence_num?: number; text?: string }>
+    const verifyRows = await verifyResponse.json().catch(() => []) as Array<{
+      org_id?: string
+      sequence_num?: number
+      text?: string
+    }>
     expect(verifyResponse.ok(), JSON.stringify(verifyRows)).toBeTruthy()
     expect(verifyRows.length).toBeGreaterThanOrEqual(2)
     expect(verifyRows[0]?.sequence_num).toBe(1)
     expect(String(verifyRows[0]?.text || '').length).toBeGreaterThan(0)
+    expect(verifyRows.every((row) => String(row.org_id || '') === context.orgId)).toBeTruthy()
+
+    const crossOrgProbeResponse = await request.get(
+      `${SUPABASE_URL}/rest/v1/radio_transcript_segments?select=id&org_id=neq.${encodeURIComponent(context.orgId)}&limit=1`,
+      { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${token}` } },
+    )
+    const crossOrgRows = await crossOrgProbeResponse.json().catch(() => []) as Array<Record<string, unknown>>
+    expect(crossOrgProbeResponse.ok(), JSON.stringify(crossOrgRows)).toBeTruthy()
+    expect(crossOrgRows.length).toBe(0)
   })
 })

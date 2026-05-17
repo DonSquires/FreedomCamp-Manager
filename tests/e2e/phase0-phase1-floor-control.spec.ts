@@ -34,7 +34,7 @@ test.describe('Phase 0-1 Floor Control', () => {
     'Requires VITE_SUPABASE_URL/SUPABASE_URL, VITE_SUPABASE_ANON_KEY/SUPABASE_ANON_KEY, and test credentials.',
   )
 
-  test('floor acquire/release endpoint contracts are reachable with auth', async ({ request }) => {
+  test('floor acquire/release/override endpoint contracts are reachable with auth', async ({ request }) => {
     const token = await getAccessToken(request)
     test.skip(!token, 'Auth preflight failed for configured test credentials; skipping contract test in this environment.')
     const channelId = `phase0-floor-${Date.now()}`
@@ -63,5 +63,19 @@ test.describe('Phase 0-1 Floor Control', () => {
 
     expect(releaseResponse.status(), JSON.stringify(releaseBody)).not.toBe(404)
     expect([200, 409, 501, 503]).toContain(releaseResponse.status())
+
+    const overrideResponse = await request.post(`${SUPABASE_URL}/functions/v1/radio-floor-override`, {
+      headers: commonHeaders,
+      data: {
+        channelId,
+        sessionId,
+        reason: 'phase0_emergency_override_contract_test',
+        bobProposalId: `proposal-${Date.now()}`,
+      },
+    })
+    const overrideBody = await overrideResponse.json().catch(() => ({})) as Record<string, unknown>
+
+    expect(overrideResponse.status(), JSON.stringify(overrideBody)).not.toBe(404)
+    expect([200, 403, 409, 412, 501, 503]).toContain(overrideResponse.status())
   })
 })
