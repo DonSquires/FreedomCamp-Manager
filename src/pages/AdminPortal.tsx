@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Skeleton } from '@/components/ui/skeleton'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Textarea } from '@/components/ui/textarea'
 import { AppLayout } from '@/components/features/AppLayout'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
@@ -104,6 +105,7 @@ import {
   Briefcase,
   Bell,
   PersonStanding,
+  MoreHorizontal,
 } from 'lucide-react'
 
 type DrillConfig = {
@@ -926,9 +928,14 @@ export default function AdminPortal() {
           </span>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {/** One primary CTA only: Welfare takes precedence when alerts exist, otherwise Breaches. */}
+          {(() => {
+            const primaryAction = welfareAlertCount > 0 ? 'welfare' : 'breaches'
+            return (
+              <>
           <Button
             size="sm"
-            variant={metrics.activeBreaches > 0 ? 'default' : 'outline'}
+            variant={primaryAction === 'breaches' ? 'default' : 'outline'}
             className="gap-1.5"
             onClick={() => navigate('/breaches')}
           >
@@ -937,21 +944,36 @@ export default function AdminPortal() {
           </Button>
           <Button
             size="sm"
-            variant={welfareAlertCount > 0 ? 'default' : 'outline'}
+            variant={primaryAction === 'welfare' ? 'default' : 'outline'}
             className="gap-1.5"
             onClick={() => navigate('/officer-welfare')}
           >
             <Heart className="h-3.5 w-3.5" />
             Welfare
           </Button>
-          <Button size="sm" variant="outline" className="gap-1.5" onClick={() => navigate('/dispatch')}>
-            <Radio className="h-3.5 w-3.5" />
-            Dispatch
-          </Button>
-          <Button size="sm" variant="outline" className="gap-1.5" onClick={() => navigate('/reports-hub')}>
-            <FileBarChart className="h-3.5 w-3.5" />
-            Reports
-          </Button>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button size="sm" variant="outline" className="gap-1.5">
+                      <MoreHorizontal className="h-3.5 w-3.5" />
+                      More
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent align="end" className="w-48 p-2">
+                    <div className="flex flex-col gap-1">
+                      <Button size="sm" variant="ghost" className="justify-start gap-2" onClick={() => navigate('/dispatch')}>
+                        <Radio className="h-3.5 w-3.5" />
+                        Dispatch
+                      </Button>
+                      <Button size="sm" variant="ghost" className="justify-start gap-2" onClick={() => navigate('/reports-hub')}>
+                        <FileBarChart className="h-3.5 w-3.5" />
+                        Reports
+                      </Button>
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              </>
+            )
+          })()}
         </div>
       </div>
 

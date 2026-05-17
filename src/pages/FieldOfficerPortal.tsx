@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { AppLayout } from '@/components/features/AppLayout'
 import { OfficerLanguageSelector } from '@/components/features/OfficerLanguageSelector'
 import { useOfficerLocale } from '@/hooks/useOfficerLocale'
@@ -57,7 +58,7 @@ import {
   ShieldAlert, CheckCircle, Shield, Megaphone, FileWarning, XCircle,
   Clock, Home, X, Car, Zap, Search, Printer, PlusCircle, Wrench, Heart, Users,
   Moon, Sun, ParkingSquare, Volume2, Video, Eye, Tent, Timer,
-  ScanFace, CalendarPlus, Siren, Bell, PhoneCall, Lock, Leaf, Wind, Loader2, Mic,
+  ScanFace, CalendarPlus, Siren, Bell, PhoneCall, Lock, Leaf, Wind, Loader2, Mic, ChevronDown,
 } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { Badge } from '@/components/ui/badge'
@@ -522,6 +523,7 @@ export default function FieldOfficerPortal() {
   //              'bulk' = quick area sweep, 'checkpoint' = QR check-in
   const [scanMode,       setScanMode]       = useState<null | 'detail' | 'bulk' | 'live'>(null)
   const [showCheckpoint, setShowCheckpoint] = useState(false)
+  const [moreToolsOpen, setMoreToolsOpen] = useState(false)
 
   // Detail scan state — camera + result panel
   const [detailCameraOpen,  setDetailCameraOpen]  = useState(false)
@@ -2698,7 +2700,8 @@ export default function FieldOfficerPortal() {
               COMMON TOOLS — always visible (shared across all services)
               ═══════════════════════════════════════════════════════════ */}
           {!isDirectorOfficerMode && !activeService && (
-            <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 mb-6">
+            <div className="space-y-3 mb-6">
+              <div className="grid gap-3 grid-cols-1 sm:grid-cols-3">
               <button
                 onClick={() => setShowCheckpoint(true)}
                 className="flex items-center gap-4 w-full rounded-2xl border-2 border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-950/40 p-4 text-left hover:border-indigo-400 hover:shadow-md active:scale-[0.97] transition-all"
@@ -2715,14 +2718,14 @@ export default function FieldOfficerPortal() {
 
               <button
                 onClick={() => navigate('/live-patrol')}
-                className="flex items-center gap-4 w-full rounded-2xl border-2 border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950/40 p-4 text-left hover:border-green-400 hover:shadow-md active:scale-[0.97] transition-all"
+                className="flex items-center gap-4 w-full rounded-2xl border-2 border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-950/40 p-4 text-left hover:border-green-400 hover:shadow-md active:scale-[0.97] transition-all"
               >
                 <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-green-400 to-green-600 flex items-center justify-center shrink-0">
                   <Map className="h-6 w-6 text-white" />
                 </div>
                 <div>
-                  <p className="text-base font-semibold text-green-800 dark:text-green-200">Active Patrol</p>
-                  <p className="text-xs text-green-600 dark:text-green-400 mt-0.5">Manage your patrol session</p>
+                  <p className="text-base font-semibold text-green-800 dark:text-green-200">{activeShift ? 'Resume Patrol' : 'Start Patrol'}</p>
+                  <p className="text-xs text-green-600 dark:text-green-400 mt-0.5">{activeShift ? 'Continue your active patrol session' : 'Begin patrol and tracking workflow'}</p>
                 </div>
               </button>
 
@@ -2738,110 +2741,130 @@ export default function FieldOfficerPortal() {
                   <p className="text-xs text-purple-600 dark:text-purple-400 mt-0.5">H&amp;S, incident or maintenance</p>
                 </div>
               </button>
+              </div>
 
-              <button
-                onClick={handleViewHistory}
-                className="flex items-center gap-4 w-full rounded-2xl border-2 border-orange-200 dark:border-orange-800 bg-orange-50 dark:bg-orange-950/40 p-4 text-left hover:border-orange-400 hover:shadow-md active:scale-[0.97] transition-all"
-              >
-                <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center shrink-0">
-                  <History className="h-6 w-6 text-white" />
-                </div>
-                <div>
-                  <p className="text-base font-semibold text-orange-800 dark:text-orange-200">My Scans</p>
-                  <p className="text-xs text-orange-600 dark:text-orange-400 mt-0.5">{user?.role === 'officer' ? 'View 24h History' : 'View History'}</p>
-                </div>
-              </button>
+              <Collapsible open={moreToolsOpen} onOpenChange={setMoreToolsOpen}>
+                <CollapsibleTrigger asChild>
+                  <button
+                    type="button"
+                    className="w-full flex items-center justify-between rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50/90 dark:bg-slate-900/50 px-3.5 py-2.5 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-900 transition-colors"
+                  >
+                    <span>More tools</span>
+                    <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                      8 modules
+                      <ChevronDown className={`h-4 w-4 transition-transform ${moreToolsOpen ? 'rotate-180' : ''}`} />
+                    </span>
+                  </button>
+                </CollapsibleTrigger>
 
-              <button
-                onClick={() => navigate('/breaches')}
-                className="flex items-center gap-4 w-full rounded-2xl border-2 border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/40 p-4 text-left hover:border-red-400 hover:shadow-md active:scale-[0.97] transition-all"
-              >
-                <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-red-400 to-red-600 flex items-center justify-center shrink-0">
-                  <AlertTriangle className="h-6 w-6 text-white" />
-                </div>
-                <div>
-                  <p className="text-base font-semibold text-red-800 dark:text-red-200">Breach Alerts</p>
-                  <p className="text-xs text-red-600 dark:text-red-400 mt-0.5">Active notifications</p>
-                </div>
-              </button>
+                <CollapsibleContent className="pt-3">
+                  <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
+                    <button
+                      onClick={handleViewHistory}
+                      className="flex items-center gap-4 w-full rounded-2xl border-2 border-orange-200 dark:border-orange-800 bg-orange-50 dark:bg-orange-950/40 p-4 text-left hover:border-orange-400 hover:shadow-md active:scale-[0.97] transition-all"
+                    >
+                      <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center shrink-0">
+                        <History className="h-6 w-6 text-white" />
+                      </div>
+                      <div>
+                        <p className="text-base font-semibold text-orange-800 dark:text-orange-200">My Scans</p>
+                        <p className="text-xs text-orange-600 dark:text-orange-400 mt-0.5">{user?.role === 'officer' ? 'View 24h History' : 'View History'}</p>
+                      </div>
+                    </button>
 
-              <button
-                onClick={() => navigate('/zones')}
-                className="flex items-center gap-4 w-full rounded-2xl border-2 border-teal-200 dark:border-teal-800 bg-teal-50 dark:bg-teal-950/40 p-4 text-left hover:border-teal-400 hover:shadow-md active:scale-[0.97] transition-all"
-              >
-                <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-teal-400 to-teal-600 flex items-center justify-center shrink-0">
-                  <MapPin className="h-6 w-6 text-white" />
-                </div>
-                <div>
-                  <p className="text-base font-semibold text-teal-800 dark:text-teal-200">Zones</p>
-                  <p className="text-xs text-teal-600 dark:text-teal-400 mt-0.5">Enforcement zones</p>
-                </div>
-              </button>
+                    <button
+                      onClick={() => navigate('/breaches')}
+                      className="flex items-center gap-4 w-full rounded-2xl border-2 border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/40 p-4 text-left hover:border-red-400 hover:shadow-md active:scale-[0.97] transition-all"
+                    >
+                      <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-red-400 to-red-600 flex items-center justify-center shrink-0">
+                        <AlertTriangle className="h-6 w-6 text-white" />
+                      </div>
+                      <div>
+                        <p className="text-base font-semibold text-red-800 dark:text-red-200">Breach Alerts</p>
+                        <p className="text-xs text-red-600 dark:text-red-400 mt-0.5">Active notifications</p>
+                      </div>
+                    </button>
 
-              <button
-                onClick={() => navigate('/infringements')}
-                className="flex items-center gap-4 w-full rounded-2xl border-2 border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/40 p-4 text-left hover:border-red-400 hover:shadow-md active:scale-[0.97] transition-all"
-              >
-                <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-red-500 to-red-700 flex items-center justify-center shrink-0">
-                  <Shield className="h-6 w-6 text-white" />
-                </div>
-                <div>
-                  <p className="text-base font-semibold text-red-800 dark:text-red-200">Infringement Notices</p>
-                  <p className="text-xs text-red-600 dark:text-red-400 mt-0.5">Issue fines on-site</p>
-                </div>
-              </button>
+                    <button
+                      onClick={() => navigate('/zones')}
+                      className="flex items-center gap-4 w-full rounded-2xl border-2 border-teal-200 dark:border-teal-800 bg-teal-50 dark:bg-teal-950/40 p-4 text-left hover:border-teal-400 hover:shadow-md active:scale-[0.97] transition-all"
+                    >
+                      <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-teal-400 to-teal-600 flex items-center justify-center shrink-0">
+                        <MapPin className="h-6 w-6 text-white" />
+                      </div>
+                      <div>
+                        <p className="text-base font-semibold text-teal-800 dark:text-teal-200">Zones</p>
+                        <p className="text-xs text-teal-600 dark:text-teal-400 mt-0.5">Enforcement zones</p>
+                      </div>
+                    </button>
 
-              <button
-                onClick={() => navigate('/parking-officer')}
-                className="flex items-center gap-4 w-full rounded-2xl border-2 border-orange-200 dark:border-orange-800 bg-orange-50 dark:bg-orange-950/40 p-4 text-left hover:border-orange-400 hover:shadow-md active:scale-[0.97] transition-all"
-              >
-                <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center shrink-0">
-                  <ParkingSquare className="h-6 w-6 text-white" />
-                </div>
-                <div>
-                  <p className="text-base font-semibold text-orange-800 dark:text-orange-200">Parking Enforcement</p>
-                  <p className="text-xs text-orange-600 dark:text-orange-400 mt-0.5">Chalk pass · Recheck · Infringement</p>
-                </div>
-              </button>
+                    <button
+                      onClick={() => navigate('/infringements')}
+                      className="flex items-center gap-4 w-full rounded-2xl border-2 border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/40 p-4 text-left hover:border-red-400 hover:shadow-md active:scale-[0.97] transition-all"
+                    >
+                      <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-red-500 to-red-700 flex items-center justify-center shrink-0">
+                        <Shield className="h-6 w-6 text-white" />
+                      </div>
+                      <div>
+                        <p className="text-base font-semibold text-red-800 dark:text-red-200">Infringement Notices</p>
+                        <p className="text-xs text-red-600 dark:text-red-400 mt-0.5">Issue fines on-site</p>
+                      </div>
+                    </button>
 
-              <button
-                onClick={() => navigate('/noise-officer')}
-                className="flex items-center gap-4 w-full rounded-2xl border-2 border-yellow-200 dark:border-yellow-800 bg-yellow-50 dark:bg-yellow-950/40 p-4 text-left hover:border-yellow-400 hover:shadow-md active:scale-[0.97] transition-all"
-              >
-                <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-yellow-400 to-yellow-600 flex items-center justify-center shrink-0">
-                  <Volume2 className="h-6 w-6 text-white" />
-                </div>
-                <div>
-                  <p className="text-base font-semibold text-yellow-800 dark:text-yellow-200">Noise Control</p>
-                  <p className="text-xs text-yellow-600 dark:text-yellow-400 mt-0.5">Jobs · AN / DN / END · Seizures</p>
-                </div>
-              </button>
+                    <button
+                      onClick={() => navigate('/parking-officer')}
+                      className="flex items-center gap-4 w-full rounded-2xl border-2 border-orange-200 dark:border-orange-800 bg-orange-50 dark:bg-orange-950/40 p-4 text-left hover:border-orange-400 hover:shadow-md active:scale-[0.97] transition-all"
+                    >
+                      <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center shrink-0">
+                        <ParkingSquare className="h-6 w-6 text-white" />
+                      </div>
+                      <div>
+                        <p className="text-base font-semibold text-orange-800 dark:text-orange-200">Parking Enforcement</p>
+                        <p className="text-xs text-orange-600 dark:text-orange-400 mt-0.5">Chalk pass · Recheck · Infringement</p>
+                      </div>
+                    </button>
 
-              <button
-                onClick={() => navigate('/biosecurity-officer')}
-                className="flex items-center gap-4 w-full rounded-2xl border-2 border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/40 p-4 text-left hover:border-emerald-400 hover:shadow-md active:scale-[0.97] transition-all"
-              >
-                <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center shrink-0">
-                  <Leaf className="h-6 w-6 text-white" />
-                </div>
-                <div>
-                  <p className="text-base font-semibold text-emerald-800 dark:text-emerald-200">Biosecurity (CNG)</p>
-                  <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-0.5">Plant ID · RPMP · Bob</p>
-                </div>
-              </button>
+                    <button
+                      onClick={() => navigate('/noise-officer')}
+                      className="flex items-center gap-4 w-full rounded-2xl border-2 border-yellow-200 dark:border-yellow-800 bg-yellow-50 dark:bg-yellow-950/40 p-4 text-left hover:border-yellow-400 hover:shadow-md active:scale-[0.97] transition-all"
+                    >
+                      <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-yellow-400 to-yellow-600 flex items-center justify-center shrink-0">
+                        <Volume2 className="h-6 w-6 text-white" />
+                      </div>
+                      <div>
+                        <p className="text-base font-semibold text-yellow-800 dark:text-yellow-200">Noise Control</p>
+                        <p className="text-xs text-yellow-600 dark:text-yellow-400 mt-0.5">Jobs · AN / DN / END · Seizures</p>
+                      </div>
+                    </button>
 
-              <button
-                onClick={() => navigate('/smoke-officer')}
-                className="flex items-center gap-4 w-full rounded-2xl border-2 border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 p-4 text-left hover:border-amber-400 hover:shadow-md active:scale-[0.97] transition-all"
-              >
-                <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center shrink-0">
-                  <Wind className="h-6 w-6 text-white" />
-                </div>
-                <div>
-                  <p className="text-base font-semibold text-amber-800 dark:text-amber-200">Smoke Complaint (OOH)</p>
-                  <p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">Opacity · Materials · RMA s.17A</p>
-                </div>
-              </button>
+                    <button
+                      onClick={() => navigate('/biosecurity-officer')}
+                      className="flex items-center gap-4 w-full rounded-2xl border-2 border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/40 p-4 text-left hover:border-emerald-400 hover:shadow-md active:scale-[0.97] transition-all"
+                    >
+                      <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center shrink-0">
+                        <Leaf className="h-6 w-6 text-white" />
+                      </div>
+                      <div>
+                        <p className="text-base font-semibold text-emerald-800 dark:text-emerald-200">Biosecurity (CNG)</p>
+                        <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-0.5">Plant ID · RPMP · Bob</p>
+                      </div>
+                    </button>
+
+                    <button
+                      onClick={() => navigate('/smoke-officer')}
+                      className="flex items-center gap-4 w-full rounded-2xl border-2 border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 p-4 text-left hover:border-amber-400 hover:shadow-md active:scale-[0.97] transition-all"
+                    >
+                      <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center shrink-0">
+                        <Wind className="h-6 w-6 text-white" />
+                      </div>
+                      <div>
+                        <p className="text-base font-semibold text-amber-800 dark:text-amber-200">Smoke Complaint (OOH)</p>
+                        <p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">Opacity · Materials · RMA s.17A</p>
+                      </div>
+                    </button>
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
             </div>
           )}
 

@@ -4,6 +4,25 @@ Date: 2026-05-15
 Owner: GitHub Copilot
 Status: Active staging checklist — Phase E COMPLETE; Star Trek validation lane complete for Phases 1–4; Phase 0 implementation schedule calendarized
 
+## Latest Session Snapshot (CRO Quick Wins Part 1 Pass — Persona-Led Execution — 2026-05-17)
+
+- Timestamp (NZ): 2026-05-17
+- Session focus: Continue remaining to-do execution from staging/manual by implementing CRO Part 1 quick-win UX reductions with specialist-role ownership.
+- Scope completed:
+  - **[UX Designer]** Applied single-primary-CTA interaction pattern across key landing surfaces (`AdminPortal`, `FieldOfficerPortal`, `ReportsHub`).
+  - **[Frontend Developer]** Reduced Admin sticky-header action set to Breaches + Welfare with overflow More menu for Dispatch/Reports.
+  - **[UX Designer]** Reduced Officer common tools from equal-weight full grid to 3 primary cards (Checkpoint, Start/Resume Patrol, New Quick Report) plus collapsible More tools.
+  - **[Frontend Developer]** Redesigned Reports Hub from card-grid + separate quick-actions into Start Here hero + role-aware recommended report + categorized list.
+  - **[Planning/PM]** Reconciled stale historical C/D queue block where unchecked items contradicted recorded completion evidence.
+  - **[Planning/PM]** Updated `docs/CRO_TODOLIST.md` checklist state to mark the completed quick-win items and set Part 1 status to in-progress.
+- Validation evidence:
+  - `get_errors` on changed files (`AdminPortal.tsx`, `FieldOfficerPortal.tsx`, `ReportsHub.tsx`, `STAGING.md`) -> no IDE diagnostics.
+  - `npm run lint` -> PASS with only pre-existing warnings in `src/lib/aiTelemetry.ts` and `src/lib/pttAiContract.ts`.
+  - `npm run build` -> TypeScript + Vite build reached bundle stage but process was terminated in this container during render-chunks (environment/runtime constraint).
+- Open blockers:
+  1. Full production build verification for this pass is pending rerun in an environment where bundling is not terminated mid-chunk.
+  2. Remaining CRO Part 1 items still open: async state standardization + offline sync indicator.
+
 ## Latest Session Snapshot (Phase 0 Contracts 10/10 Green + Secret Capacity Filled — 2026-05-17)
 
 - Timestamp (NZ): 2026-05-17
@@ -535,14 +554,14 @@ Status: Active staging checklist — Phase E COMPLETE; Star Trek validation lane
 - Active two-phase execution to-do list (next phases: C then D):
   - [x] C0. Build authoritative C+D task queue from staging + roadmap documents.
   - [x] C0.1 Validate latest Star Trek lane health with failure-first rerun (avoid redundant full-suite reruns).
-  - [ ] C1. Site Guard / Security Operations contract inventory and shared timeline attachment map.
-  - [ ] C2. Identity + Risk contract alignment map (people/vehicle/place context).
-  - [ ] C3. Intelligence (POI/VOI/LOI/evidence/alerts) shared-contract and org-scope verification map.
-  - [ ] C4. Client Services (assets/keys/client/service agreement) shared-contract attachment map.
-  - [ ] D1. Bob approval/proposal/execution audit-contract verification map.
-  - [ ] D2. Translation/speech runtime boundary + degraded-mode verification map.
-  - [ ] D3. Active-org transition, handshake, offline replay/reconnect verification map.
-  - [ ] C/D gate evidence pack update in staging + roadmap once C1-D3 checks complete.
+  - [x] C1. Site Guard / Security Operations contract inventory and shared timeline attachment map.
+  - [x] C2. Identity + Risk contract alignment map (people/vehicle/place context).
+  - [x] C3. Intelligence (POI/VOI/LOI/evidence/alerts) shared-contract and org-scope verification map.
+  - [x] C4. Client Services (assets/keys/client/service agreement) shared-contract attachment map.
+  - [x] D1. Bob approval/proposal/execution audit-contract verification map.
+  - [x] D2. Translation/speech runtime boundary + degraded-mode verification map.
+  - [x] D3. Active-org transition, handshake, offline replay/reconnect verification map.
+  - [x] C/D gate evidence pack update in staging + roadmap once C1-D3 checks complete.
 
 - Immediate autonomous next action:
   - Start C1 by inventorying Site Guard/Security surfaces, route ownership, and contract hooks in code.

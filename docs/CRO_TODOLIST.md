@@ -29,21 +29,21 @@ The platform has a **conversion dilution problem**: too many equally weighted ac
 
 > These items can be completed independently of the structural refactor. Ship them as soon as each is ready.
 
-- [ ] **[UX Designer]** Design a dominant primary CTA for each role landing page — one button per screen, styled in the brand primary colour, positioned in the page header. See INSTRUCTION_MANUAL.md §1a (Page Anatomy / PRIMARY ACTIONS rule: max one main action per page).
+- [x] **[UX Designer]** Design a dominant primary CTA for each role landing page — one button per screen, styled in the brand primary colour, positioned in the page header. See INSTRUCTION_MANUAL.md §1a (Page Anatomy / PRIMARY ACTIONS rule: max one main action per page).
 
-- [ ] **[Frontend Developer]** Implement the single-primary-CTA rule across `AdminPortal.tsx`, `FieldOfficerPortal.tsx`, and `ReportsHub.tsx`. Demote all secondary actions to `variant="outline"` or `variant="ghost"`.
+- [x] **[Frontend Developer]** Implement the single-primary-CTA rule across `AdminPortal.tsx`, `FieldOfficerPortal.tsx`, and `ReportsHub.tsx`. Demote all secondary actions to `variant="outline"` or `variant="ghost"`.
 
-- [ ] **[UX Designer]** Redesign the Admin Command Centre sticky header (`AdminPortal.tsx` lines 689–733). Reduce from 4 header buttons (Breaches, Welfare, Dispatch, Reports) to 2 primary (Breaches, Welfare) + one overflow "More" menu. Dispatch and Reports move to overflow.
+- [x] **[UX Designer]** Redesign the Admin Command Centre sticky header (`AdminPortal.tsx` lines 689–733). Reduce from 4 header buttons (Breaches, Welfare, Dispatch, Reports) to 2 primary (Breaches, Welfare) + one overflow "More" menu. Dispatch and Reports move to overflow.
 
-- [ ] **[Frontend Developer]** Implement the Admin header reduction. Wire Dispatch and Reports into an overflow `DropdownMenu` component using the existing shadcn/ui primitive.
+- [x] **[Frontend Developer]** Implement the Admin header reduction. Wire Dispatch and Reports into an overflow `DropdownMenu` component using the existing shadcn/ui primitive.
 
-- [ ] **[UX Designer]** Redesign the Officer "common tools" grid (`FieldOfficerPortal.tsx` lines 2431–2575). Currently shows 11 equal-weight cards. Reduce to 3 primary cards (Start/Resume Patrol, Checkpoint, Quick Report) + a collapsible "More tools" section for specialty modules (Noise, Biosecurity, Smoke, Parking, Zones, Infringements, History).
+- [x] **[UX Designer]** Redesign the Officer "common tools" grid (`FieldOfficerPortal.tsx` lines 2431–2575). Currently shows 11 equal-weight cards. Reduce to 3 primary cards (Start/Resume Patrol, Checkpoint, Quick Report) + a collapsible "More tools" section for specialty modules (Noise, Biosecurity, Smoke, Parking, Zones, Infringements, History).
 
-- [ ] **[Frontend Developer]** Implement the Officer tools grid reduction. Group specialty module cards under a collapsible section using Collapsible from shadcn/ui. Remember glove-safe touch targets (≥ 44×44 px).
+- [x] **[Frontend Developer]** Implement the Officer tools grid reduction. Group specialty module cards under a collapsible section using Collapsible from shadcn/ui. Remember glove-safe touch targets (≥ 44×44 px).
 
-- [ ] **[UX Designer]** Redesign `ReportsHub.tsx`. Replace the 4-section report card grid + separate Quick Actions card with a single "Start here" hero section surfacing the most-used report per role (Leadership Pack for admin, Patrol Activity for officer), followed by a categorised list view.
+- [x] **[UX Designer]** Redesign `ReportsHub.tsx`. Replace the 4-section report card grid + separate Quick Actions card with a single "Start here" hero section surfacing the most-used report per role (Leadership Pack for admin, Patrol Activity for officer), followed by a categorised list view.
 
-- [ ] **[Frontend Developer]** Implement the Reports Hub redesign. Remove the standalone Quick Actions card (its actions duplicate the report cards above it). Add a role-aware "recommended" report that appears at the top.
+- [x] **[Frontend Developer]** Implement the Reports Hub redesign. Remove the standalone Quick Actions card (its actions duplicate the report cards above it). Add a role-aware "recommended" report that appears at the top.
 
 - [ ] **[Frontend Developer]** Add explicit status/progress/retry language to all async states in all three shells. Every loading state must use a skeleton that matches the loaded layout (not a spinner). Every error state must show a retry button and a plain-English description of what failed. See INSTRUCTION_MANUAL.md §1a (Page Anatomy rules).
 
@@ -163,7 +163,7 @@ The platform has a **conversion dilution problem**: too many equally weighted ac
 
 | Part | Description | Status |
 |---|---|---|
-| Part 1 — Quick wins | Single CTA, action reduction, async states | ⬜ Not started |
+| Part 1 — Quick wins | Single CTA, action reduction, async states | 🟨 In progress |
 | Part 2 — Route reduction | Route manifest, navigation consolidation | ⬜ Not started |
 | Part 3 — Landing redesigns | Patrol-first, queue-first, governance-first | ⬜ Not started |
 | Part 4 — Workflow consolidation | Guided flows, report workflow | ⬜ Not started |

@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { AppLayout } from '@/components/features/AppLayout'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -6,21 +5,20 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { 
   FileText, 
-  Download, 
-  Clock, 
+  Download,
   BarChart3,
   MapPin,
   Shield,
   AlertTriangle,
   Users,
-  Calendar,
   CheckCircle,
   FileSpreadsheet,
   Activity,
-  Settings,
+  ArrowRight,
   Wand2
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
+import { useAuthStore } from '@/stores/authStore'
 
 interface ReportCard {
   id: string
@@ -35,7 +33,7 @@ interface ReportCard {
 
 export default function ReportsHub() {
   const navigate = useNavigate()
-  const [generating, setGenerating] = useState<string | null>(null)
+  const user = useAuthStore((state) => state.user)
 
   const complianceReports: ReportCard[] = [
     {
@@ -156,39 +154,49 @@ export default function ReportsHub() {
     }
   }
 
+  const recommendedReport = user?.role === 'officer'
+    ? (operationalReports.find((report) => report.id === 'patrol-activity') ?? operationalReports[0])
+    : (analyticsReports.find((report) => report.id === 'leadership-pack') ?? analyticsReports[0])
+
+  const reportSections: Array<{ title: string; reports: ReportCard[] }> = [
+    { title: 'Compliance Reports', reports: complianceReports },
+    { title: 'Operational Reports', reports: operationalReports },
+    { title: 'Analytics and Insights', reports: analyticsReports },
+    { title: 'System Reports', reports: systemReports },
+  ]
+
   const renderReportSection = (title: string, reports: ReportCard[]) => (
-    <div>
-      <h2 className="text-xl font-bold mb-4 text-gray-800 dark:text-gray-200">{title}</h2>
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-lg">{title}</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
         {reports.map((report) => (
-          <Card
+          <div
             key={report.id}
-            className="hover:shadow-lg transition-all cursor-pointer group"
-            onClick={() => handleReportClick(report)}
+            className="flex flex-col gap-3 rounded-xl border p-3 md:flex-row md:items-center md:justify-between"
           >
-            <CardHeader>
-              <div className="flex items-start justify-between mb-2">
-                <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg group-hover:bg-blue-100 dark:group-hover:bg-blue-900/30 transition-colors">
-                  {report.icon}
-                </div>
-                {report.badge && (
-                  <Badge className={report.badgeColor}>
-                    {report.badge}
-                  </Badge>
-                )}
+            <div className="flex items-start gap-3">
+              <div className="rounded-lg bg-blue-50 p-2.5 text-blue-700 dark:bg-blue-900/30 dark:text-blue-200">
+                {report.icon}
               </div>
-              <CardTitle className="text-lg">{report.title}</CardTitle>
-              <CardDescription>{report.description}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button variant="outline" size="sm" className="w-full">
-                {report.badge === 'Interactive' ? 'Open' : 'Generate'} →
+              <div>
+                <p className="font-semibold text-foreground">{report.title}</p>
+                <p className="text-sm text-muted-foreground">{report.description}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              {report.badge && (
+                <Badge className={report.badgeColor}>{report.badge}</Badge>
+              )}
+              <Button variant="outline" size="sm" onClick={() => handleReportClick(report)}>
+                {report.badge === 'Interactive' ? 'Open' : 'Generate'}
               </Button>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         ))}
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   )
 
   return (
@@ -199,93 +207,40 @@ export default function ReportsHub() {
     >
       <GlobalFilterRibbon />
 
-      {/* Quick Stats */}
-      <div className="grid gap-4 md:grid-cols-4 mb-6">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-blue-600 flex items-center gap-2">
-              <FileText className="h-4 w-4" />
-              Available Reports
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-blue-600">
-              {complianceReports.length + operationalReports.length + analyticsReports.length + systemReports.length}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-green-600 flex items-center gap-2">
-              <CheckCircle className="h-4 w-4" />
-              Compliance Reports
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-green-600">{complianceReports.length}</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-purple-600 flex items-center gap-2">
-              <Shield className="h-4 w-4" />
-              Operational Reports
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-purple-600">{operationalReports.length}</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-orange-600 flex items-center gap-2">
-              <BarChart3 className="h-4 w-4" />
-              Analytics
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-orange-600">{analyticsReports.length}</div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="space-y-8">
-        {renderReportSection('Compliance Reports', complianceReports)}
-        {renderReportSection('Operational Reports', operationalReports)}
-        {renderReportSection('Analytics & Insights', analyticsReports)}
-        {renderReportSection('System Reports', systemReports)}
-      </div>
-
-      {/* Quick Actions */}
-      <Card className="mt-8">
+      <Card className="mb-6 border-blue-200 bg-blue-50/70 dark:border-blue-900/60 dark:bg-blue-950/20">
         <CardHeader>
-          <CardTitle>Quick Actions</CardTitle>
-          <CardDescription>Common reporting tasks</CardDescription>
+          <CardTitle className="flex items-center gap-2 text-blue-800 dark:text-blue-100">
+            <FileText className="h-5 w-5" />
+            Start Here
+          </CardTitle>
+          <CardDescription>
+            Recommended next report for your role. Secondary actions stay available below.
+          </CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="flex gap-3 flex-wrap">
-            <Button onClick={() => navigate('/reports')}>
-              <Calendar className="h-4 w-4 mr-2" />
-              Generate Monthly Summary
-            </Button>
-            <Button variant="outline" onClick={() => navigate('/compliance-analytics')}>
-              <BarChart3 className="h-4 w-4 mr-2" />
-              View Analytics Dashboard
-            </Button>
-            <Button variant="outline" onClick={() => navigate('/data')}>
-              <Download className="h-4 w-4 mr-2" />
-              Export All Data
-            </Button>
-            <Button variant="outline" onClick={() => navigate('/audit-log')}>
-              <Activity className="h-4 w-4 mr-2" />
-              View Audit Trail
-            </Button>
+        <CardContent className="space-y-3">
+          <div className="rounded-xl border border-blue-200 bg-white/80 p-4 dark:border-blue-900/60 dark:bg-slate-950/40">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div>
+                <p className="text-sm uppercase tracking-wide text-blue-700 dark:text-blue-300">Recommended</p>
+                <p className="text-lg font-semibold text-foreground">{recommendedReport.title}</p>
+                <p className="text-sm text-muted-foreground">{recommendedReport.description}</p>
+              </div>
+              <Button onClick={() => handleReportClick(recommendedReport)} className="gap-2">
+                Open recommended report
+                <ArrowRight className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={() => navigate('/custom-reports')}>Build custom report</Button>
+            <Button variant="outline" onClick={() => navigate('/audit-log')}>Open audit trail</Button>
           </div>
         </CardContent>
       </Card>
+
+      <div className="space-y-8">
+        {reportSections.map((section) => renderReportSection(section.title, section.reports))}
+      </div>
     </AppLayout>
   )
 }
