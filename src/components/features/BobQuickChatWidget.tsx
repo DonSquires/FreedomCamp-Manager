@@ -19,6 +19,12 @@ type BobQuickChatWidgetProps = {
   currentRoute: string
 }
 
+type BobQuickPrompt = {
+  id: string
+  label: string
+  prompt: string
+}
+
 const GREETING: ChatMessage = {
   id: 'greeting',
   role: 'assistant',
@@ -43,10 +49,154 @@ function toAssistantText(payload: any): string {
   return 'I am online, but I could not parse a response. Please try again.'
 }
 
+function getRouteDomain(route: string): 'biosecurity' | 'noise' | 'parking' | 'freedom_camping' | 'patrol' | 'general' {
+  const normalized = String(route || '').toLowerCase()
+
+  const isPatrolRoute =
+    normalized.includes('/patrol') ||
+    normalized.includes('/live-patrol') ||
+    normalized.includes('/officer-home') ||
+    normalized.includes('/field-officer') ||
+    normalized.includes('/field')
+
+  const isFreedomCampingRoute =
+    normalized.includes('/compliance') ||
+    normalized.includes('/enforcement') ||
+    normalized.includes('/zones') ||
+    normalized.includes('/camper-registrations') ||
+    normalized.includes('/breaches')
+
+  if (normalized.includes('/biosecurity')) return 'biosecurity'
+  if (normalized.includes('/noise')) return 'noise'
+  if (normalized.includes('/parking')) return 'parking'
+  if (isPatrolRoute) return 'patrol'
+  if (isFreedomCampingRoute) return 'freedom_camping'
+  return 'general'
+}
+
+function getQuickPrompts(route: string): BobQuickPrompt[] {
+  const domain = getRouteDomain(route)
+
+  if (domain === 'biosecurity') {
+    return [
+      {
+        id: 'bio-risk-summary',
+        label: 'Risk Summary',
+        prompt: 'Give me a concise biosecurity risk summary for this job with immediate containment priorities and officer safety notes.',
+      },
+      {
+        id: 'bio-legal-basis',
+        label: 'Legal Basis',
+        prompt: 'Summarize the likely legal basis and evidence checklist for this biosecurity action in New Zealand.',
+      },
+      {
+        id: 'bio-next-actions',
+        label: 'Next Actions',
+        prompt: 'List the next 5 operational actions for this biosecurity case with urgency order.',
+      },
+    ]
+  }
+
+  if (domain === 'noise') {
+    return [
+      {
+        id: 'noise-notice-path',
+        label: 'Notice Path',
+        prompt: 'Based on standard NZ noise enforcement progression, should this case be Abatement, Direction, or Enforcement notice and why?',
+      },
+      {
+        id: 'noise-evidence-checklist',
+        label: 'Evidence Checklist',
+        prompt: 'Provide a practical evidence checklist for this noise complaint before issuing the next notice.',
+      },
+      {
+        id: 'noise-officer-brief',
+        label: 'Officer Brief',
+        prompt: 'Generate a short officer brief for this noise job including safety posture, prior-history checks, and escalation triggers.',
+      },
+    ]
+  }
+
+  if (domain === 'parking') {
+    return [
+      {
+        id: 'parking-infringement-check',
+        label: 'Infringement Check',
+        prompt: 'Review this parking scenario and give a decision checklist before issuing or updating an infringement.',
+      },
+      {
+        id: 'parking-appeal-risk',
+        label: 'Appeal Risk',
+        prompt: 'Estimate likely appeal risk for this parking action and list what evidence should be captured now.',
+      },
+      {
+        id: 'parking-zone-compliance',
+        label: 'Zone Compliance',
+        prompt: 'Summarize zone compliance points to verify before enforcing this parking case.',
+      },
+    ]
+  }
+
+  if (domain === 'freedom_camping') {
+    return [
+      {
+        id: 'camp-compliance-check',
+        label: 'Compliance Check',
+        prompt: 'Can you quickly check this freedom camping case and tell me whether we should do a warning, an infringement (FCA s.20), or a Notice to Vacate (s.32/bylaw)?',
+      },
+      {
+        id: 'camp-enforcement-brief',
+        label: 'Enforcement Brief',
+        prompt: 'Please draft a short enforcement brief with the legal basis (FCA s.20(1)(a) or s.32), plus the evidence we need (plate, zone, GPS, photos) and the best service method (hand/post/email).',
+      },
+      {
+        id: 'camp-case-next-steps',
+        label: 'Case Next Steps',
+        prompt: 'What are the next 5 steps for this freedom camping case, including self-contained checks, bylaw limits, and when to escalate to supervisor review or court referral?',
+      },
+    ]
+  }
+
+  if (domain === 'patrol') {
+    return [
+      {
+        id: 'patrol-shift-plan',
+        label: 'Shift Plan',
+        prompt: 'Can you map out a simple patrol shift plan from this screen: start patrol, priority checkpoints, in-progress milestones, and end-of-patrol handover?',
+      },
+      {
+        id: 'patrol-incident-triage',
+        label: 'Incident Triage',
+        prompt: 'Please give me the patrol incident triage order with immediate H&S checks, dispatch priority, and lone-worker or missed patrol escalation triggers.',
+      },
+      {
+        id: 'patrol-officer-brief',
+        label: 'Officer Brief',
+        prompt: 'Write a quick patrol handover brief with route focus, known risks, open incidents, follow-ups, and required evidence capture (GPS, photos, timestamps).',
+      },
+    ]
+  }
+
+  return [
+    {
+      id: 'general-summary',
+      label: 'Operational Summary',
+      prompt: 'Give me a concise operational summary and next steps for the current screen context.',
+    },
+    {
+      id: 'general-risk',
+      label: 'Risk Review',
+      prompt: 'Identify key risks, blockers, and recommended mitigations for the task I am on.',
+    },
+  ]
+}
+
 export function BobQuickChatWidget({ open, onOpenChange, onOpenStudio, currentRoute }: BobQuickChatWidgetProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([GREETING])
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
+  const routeDomain = useMemo(() => getRouteDomain(currentRoute), [currentRoute])
+  const quickPrompts = useMemo(() => getQuickPrompts(currentRoute), [currentRoute])
 
   const hasConversation = useMemo(
     () => messages.some((msg) => msg.role === 'user' && msg.content.trim().length > 0),
@@ -81,6 +231,7 @@ export function BobQuickChatWidget({ open, onOpenChange, onOpenStudio, currentRo
         context: {
           source: 'bob-quick-chat-widget',
           app_route: currentRoute,
+          app_domain: routeDomain,
           compact_chat: true,
         },
       })
@@ -152,6 +303,22 @@ export function BobQuickChatWidget({ open, onOpenChange, onOpenStudio, currentRo
         </ScrollArea>
 
         <div className="border-t border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
+          <div className="mb-2 flex flex-wrap gap-1.5">
+            {quickPrompts.map((item) => (
+              <Button
+                key={item.id}
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7 rounded-full px-2.5 text-[11px]"
+                onClick={() => setInput(item.prompt)}
+                disabled={sending}
+              >
+                {item.label}
+              </Button>
+            ))}
+          </div>
+
           <Textarea
             value={input}
             onChange={(event) => setInput(event.target.value)}
@@ -167,7 +334,7 @@ export function BobQuickChatWidget({ open, onOpenChange, onOpenStudio, currentRo
 
           <div className="mt-2 flex items-center justify-between">
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              {hasConversation ? 'Connected to Bob runtime' : 'Ready'}
+              {hasConversation ? `Connected to Bob runtime (${routeDomain})` : `Ready (${routeDomain})`}
             </p>
             <Button type="button" size="sm" onClick={() => void sendMessage()} disabled={sending || !input.trim()}>
               {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}

@@ -56,6 +56,7 @@ grep_requested_output.txt
 .npm-cache/
 .npm-global/
 .npmrc
+!mobile-app/.npmrc
 .home/
 .local/
 .venv-migrate/

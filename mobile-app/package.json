@@ -44,7 +44,7 @@
     "react-native-web": "^0.19.13",
     "sonner-native": "^0.16.1",
     "zustand": "^5.0.0",
-    "react-native-android-auto": "^1.4.1"
+    "react-native-android-auto": "^1.0.0"
   },
   "overrides": {
     "sonner-native": {
