@@ -27,6 +27,110 @@ For the original full from-zero baseline, use [docs/NEW_PROJECT_SETUP.md](docs/N
 For browser-only deployment steps, use [ONLINE_DEPLOYMENT_GUIDE.md](ONLINE_DEPLOYMENT_GUIDE.md).
 For Bob RunPod setup and daily Codespaces operations, use [README_RUNPOD.md](README_RUNPOD.md).
 
+## Governance Gates & Authorization Enforcement
+
+This project uses fail-closed governance gates to enforce role-based authorization boundaries across routes and endpoints.
+
+**Pre-flight checkers** (run before committing):
+```bash
+bun run data:check:admin-modules              # Admin module policy
+bun run data:check:admin-officer-routes       # Admin+officer portal routes
+bun run data:check:admin-officer-endpoints    # Admin_officer edge functions
+bun run data:check:officer-routes             # Field officer routes
+bun run data:check:officer-endpoints          # Officer-facing endpoints
+bun run data:check:transportation-endpoints   # Vehicle/ALPR endpoints
+```
+
+**Key principle**: Once a baseline is captured, any role mutation, component rewiring, route addition/removal, or endpoint signature change triggers CI failure until explicitly approved via baseline update.
+
+**Learn more**: [docs/GOVERNANCE_GATES_ARCHITECTURE.md](docs/GOVERNANCE_GATES_ARCHITECTURE.md)
+
+## Mobile Deployment Guardrails (EAS)
+
+The GitHub Actions workflow [`.github/workflows/deploy-mobile.yml`](.github/workflows/deploy-mobile.yml) supports safe manual dispatch and CI-triggered builds.
+
+Release manager runbook: [docs/MOBILE_DEPLOY_WORKFLOW_DISPATCH_CHECKLIST.md](docs/MOBILE_DEPLOY_WORKFLOW_DISPATCH_CHECKLIST.md)
+
+Reusable preflight workflow: [.github/workflows/mobile-preflight.yml](.github/workflows/mobile-preflight.yml)
+Preflight self-test workflow: [.github/workflows/mobile-preflight-self-test.yml](.github/workflows/mobile-preflight-self-test.yml)
+
+The main deploy workflow [.github/workflows/deploy-mobile.yml](.github/workflows/deploy-mobile.yml) now delegates input/secret/routing validation to this reusable preflight to keep policy logic centralized.
+
+### Mobile Policy Layer
+
+- Canonical validation: [.github/workflows/mobile-preflight.yml](.github/workflows/mobile-preflight.yml)
+- Self-test coverage: [.github/workflows/mobile-preflight-self-test.yml](.github/workflows/mobile-preflight-self-test.yml)
+- Release dispatch runbook: [docs/MOBILE_DEPLOY_WORKFLOW_DISPATCH_CHECKLIST.md](docs/MOBILE_DEPLOY_WORKFLOW_DISPATCH_CHECKLIST.md)
+- Deploy entrypoint: [.github/workflows/deploy-mobile.yml](.github/workflows/deploy-mobile.yml)
+
+### Valid profiles and expected outputs
+
+| Profile | Channel | Typical use | Android artifact |
+|---|---|---|---|
+| `development` | `development` | Local/internal dev client testing | APK |
+| `staging` | `preview` | Internal QA / UAT | APK |
+| `production_ci` | `production` | CI release build | AAB |
+| `production` | `production` | Store release | AAB |
+
+### Dispatch safety rules
+
+- `dry_run=true` validates platform/profile/OTA-branch mapping without building or publishing.
+- `dry_run=true` does not require deploy secrets; it exercises routing and policy validation only.
+- `platform=all` with `profile=development` is blocked.
+- `profile=production_ci` and `profile=production` are blocked unless the workflow runs from `main` (dry-run excluded).
+- `platform=ios` or `platform=all` with `profile=production_ci` or `profile=production` requires `APPLE_ID`, `APPLE_TEAM_ID`, and `ASC_APP_ID` secrets (non-dry-run).
+- Platform values are allowlisted to `android`, `ios`, and `all`; invalid API-triggered values fail fast.
+
+### Execution safety controls
+
+- Mobile deploy workflow runs are serialized per ref via workflow concurrency (`mobile-deploy-${ref}`), preventing overlapping deploys on the same branch.
+- Job timeout is capped at 60 minutes to avoid stuck runners.
+- Dependency install is deterministic when `package-lock.json` exists (`npm ci`), with automatic fallback to `npm install` when no lockfile is present.
+
+### Run summary decision outcomes
+
+Each workflow run now emits a summary decision outcome in GitHub Actions:
+
+- `DEPLOYING` when secrets are present and `dry_run=false`.
+- `DRY-RUN ONLY` when `dry_run=true`.
+- `SKIPPED (missing secrets)` when required secrets are missing.
+
+### Reusable preflight usage
+
+Run manually from Actions by triggering **Mobile Deploy Preflight**, or call it from another workflow:
+
+```yaml
+jobs:
+  mobile-preflight:
+    uses: ./.github/workflows/mobile-preflight.yml
+    with:
+      mobile_platform: android
+      mobile_profile: staging
+      dry_run: true
+      fail_on_missing: true
+    secrets: inherit
+```
+
+Workflow-call outputs exposed by preflight:
+
+- `decision_outcome`
+- `missing_secrets`
+- `platform`
+- `profile`
+- `ota_branch`
+
+CI safety test:
+
+- The self-test workflow [`.github/workflows/mobile-preflight-self-test.yml`](.github/workflows/mobile-preflight-self-test.yml) runs dry-run validation cases plus one negative case to protect policy logic from regressions.
+
+### OTA update branch mapping
+
+- `production_ci` or `production` -> `production`
+- `staging` -> `preview`
+- `development` -> `development`
+
+This prevents publishing updates to non-existent or incorrect EAS update branches.
+
 ## Recent Deployments
 
 ### Training Feature (May 2026) ✅ Deployed

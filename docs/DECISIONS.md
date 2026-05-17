@@ -14,6 +14,12 @@ When a pattern, platform, or architectural decision changes, append a dated note
 
 ## Current Standing Decisions
 
+- Date: 2026-05-17
+- Decision: Admin_officer role now has fail-closed route and endpoint governance gates separate from admin and officer domains to enforce strict role-specific authorization boundaries.
+- Scope: `scripts/check-admin-officer-routes.mjs`, `scripts/check-admin-officer-endpoints.mjs`, `data/admin-officer-routes-baseline.json`, `data/admin-officer-routes-snapshot.json`, `data/admin-officer-endpoints-baseline.json`, `data/admin-officer-endpoints-snapshot.json`, `.github/workflows/ci-admin-officer-routes-gate.yml`, `.github/workflows/ci-admin-officer-endpoints-gate.yml`, `package.json` (data:check:admin-officer-* scripts).
+- Reason: Mixed admin/officer role requirements were creating ambiguity in enforcement intent and blocking regression detection. Separate admin_officer governance mirrors successful patterns from admin-modules, officer-routes, transportation-endpoints gates; enables precise drift detection and fail-closed CI validation.
+- Consequences: (1) Route mutations touching admin_officer role are now blocked by CI unless baseline/snapshot are updated with explicit justification. (2) Admin_officer endpoints (28 functions) are validated for Deno.serve, CORS helpers, OPTIONS preflight; smoke-notice has internal-endpoint override. (3) Component unexpected-wiring is caught for all admin_officer routes. (4) Role signature changes (admin_officer → admin only, etc.) trigger CI failure. (5) Future admin_officer work must maintain snapshot locks and update baselines as part of review discipline.
+
 - Date: 2026-05-15
 - Decision: Star Trek canonical validations should run in CI-mode (`CI=1`) for deterministic web-server startup; non-CI runs may reuse stale server state and produce false infrastructure failures (`ERR_CONNECTION_REFUSED`).
 - Scope: `docs/STAGING.md`, `plan.md`, Star Trek validation commands in `tests/e2e/phase1-*.spec.ts`, `tests/e2e/phase2-universal-translator.spec.ts`, `tests/e2e/phase3-*.spec.ts`, and `tests/e2e/phase4-*.spec.ts`.
