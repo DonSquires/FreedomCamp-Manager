@@ -11,7 +11,7 @@ import { FunctionsHttpError, FunctionsRelayError, FunctionsFetchError } from '@s
 import { useAuthStore } from '@/stores/authStore'
 import { useSessionLockStore } from '@/stores/sessionLockStore'
 import { getEffectiveBobExecutionPolicy } from '@/stores/bobExecutionPolicyStore'
-import { assertBobMutationAccess, findBobMutationContractsForText, getBobMutationCatalogSummary } from './bobMutationCatalog'
+import { assertBobMutationAccess, findBobMutationContractsForText, getBobGatekeeperPolicySummary, getBobMutationCatalogSummary } from './bobMutationCatalog'
 import { findBobRouteEntriesForText, getBobRouteEntityMapSummary } from './bobRouteEntityMap'
 import { findBobSchemaEntitiesForText, getBobSchemaRegistrySummary } from './bobSchemaRegistry'
 
@@ -126,7 +126,56 @@ function getLatestUserMessage(messages: Array<{ role: string; content: string }>
   return ''
 }
 
-function buildBobExecutionReview(params: Record<string, any>, policy: ReturnType<typeof getEffectiveBobExecutionPolicy>) {
+export type BobEmergencyGateResult = {
+  active: boolean
+  blocked: boolean
+  reasonCode: 'emergency_priority_active' | null
+  reason: string | null
+}
+
+function toFiniteConfidence(value: unknown, fallback = 0.5): number {
+  const n = Number(value)
+  if (!Number.isFinite(n)) return fallback
+  if (n > 1) return Math.max(0, Math.min(1, n / 100))
+  return Math.max(0, Math.min(1, n))
+}
+
+export function evaluateEmergencyPriorityGate(params: Record<string, any>, requestedMutationContract: string | null): BobEmergencyGateResult {
+  const ctx = params.context ?? {}
+  const emergencyPriorityActive = Boolean(
+    ctx.emergencyPriorityActive
+    || ctx.emergency_priority_active
+    || ctx.danger_auto_assist_active,
+  )
+
+  if (!emergencyPriorityActive) {
+    return {
+      active: false,
+      blocked: false,
+      reasonCode: null,
+      reason: null,
+    }
+  }
+
+  // During emergency-priority windows, any explicit mutation contract request is blocked.
+  if (requestedMutationContract) {
+    return {
+      active: true,
+      blocked: true,
+      reasonCode: 'emergency_priority_active',
+      reason: 'Emergency-priority workflow is active. Non-safety administrative mutations are blocked until emergency priority clears.',
+    }
+  }
+
+  return {
+    active: true,
+    blocked: false,
+    reasonCode: 'emergency_priority_active',
+    reason: 'Emergency-priority workflow is active. Continue in safety-first assistive mode.',
+  }
+}
+
+export function buildBobExecutionReview(params: Record<string, any>, policy: ReturnType<typeof getEffectiveBobExecutionPolicy>) {
   const latestUserMessage = getLatestUserMessage(params.messages)
   const currentRoute = typeof params.context?.currentRoute === 'string' ? params.context.currentRoute : null
   const routeMatches = findBobRouteEntriesForText(latestUserMessage, currentRoute)
@@ -140,6 +189,17 @@ function buildBobExecutionReview(params: Record<string, any>, policy: ReturnType
   const mutationAccess = requestedMutationContract
     ? assertBobMutationAccess(requestedMutationContract, policy.mode)
     : null
+  const emergencyGate = evaluateEmergencyPriorityGate(params, requestedMutationContract)
+  const commandBusConfidence = toFiniteConfidence(params.context?.command_bus?.confidence, 0.5)
+  const gateDecisionConfidence = requestedMutationContract
+    ? (mutationAccess?.allowed ? 0.96 : 0.99)
+    : emergencyGate.active
+      ? 0.92
+      : 0.68
+  const decisionReasonCodes = [
+    mutationAccess?.reasonCode,
+    emergencyGate.reasonCode,
+  ].filter(Boolean)
 
   return {
     currentRoute,
@@ -148,6 +208,13 @@ function buildBobExecutionReview(params: Record<string, any>, policy: ReturnType
     candidateMutationContracts: mutationMatches,
     requestedMutationContract,
     mutationAccess,
+    emergencyGate,
+    decisionReasonCodes,
+    confidence: {
+      commandBus: commandBusConfidence,
+      gateDecision: gateDecisionConfidence,
+      composite: Number(((commandBusConfidence * 0.4) + (gateDecisionConfidence * 0.6)).toFixed(3)),
+    },
     policyMode: policy.mode,
   }
 }
@@ -1742,6 +1809,17 @@ export const edgeFunctions = {
       return {
         data: null,
         error: `Bob mutation contract blocked by policy: ${executionReview.mutationAccess.reason}`,
+        reasonCode: executionReview.mutationAccess.reasonCode,
+        executionReview,
+      }
+    }
+
+    if (executionReview.emergencyGate?.blocked) {
+      return {
+        data: null,
+        error: `Bob mutation contract blocked by emergency gate: ${executionReview.emergencyGate.reason}`,
+        reasonCode: executionReview.emergencyGate.reasonCode,
+        executionReview,
       }
     }
 
@@ -1754,6 +1832,7 @@ export const edgeFunctions = {
       schema_registry_summary: getBobSchemaRegistrySummary(),
       route_entity_map_summary: getBobRouteEntityMapSummary(),
       mutation_catalog_summary: getBobMutationCatalogSummary(),
+      gatekeeper_policy_summary: getBobGatekeeperPolicySummary(),
       execution_policy: {
         mode: policy.mode,
         role: policy.role,
@@ -1915,6 +1994,8 @@ export const edgeFunctions = {
           missingRequiredSections,
           hardSectionEnforced: policy.enforceHardSections,
           schemaCheckEnforced: policy.enforceSchemaCheck,
+          decisionReasonCodes: executionReview.decisionReasonCodes,
+          confidence: executionReview.confidence,
         },
       },
       error: null,
