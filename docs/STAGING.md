@@ -4,6 +4,22 @@ Date: 2026-05-15
 Owner: GitHub Copilot
 Status: Active staging checklist — CRO Part 1 COMPLETE; Phase E ready for Part 2 route audit
 
+## Latest Session Snapshot (Part 3 Foundation — Audit Namespace Aliases — 2026-05-17)
+
+- Timestamp (NZ): 2026-05-17
+- Session focus: Start Part 3 route namespace normalization by introducing non-breaking `/audit` aliases for existing log routes.
+- Scope completed:
+  - **[Frontend Platform Lead]** Added `/audit` redirect to `/audit-log`.
+  - **[Frontend Platform Lead]** Added `/audit/:logPath` redirect resolver in `App.tsx`:
+    - redirects to matching legacy `/{entity}-log` route
+    - appends `-log` when omitted in alias
+    - falls back to `/audit-log` when alias target is unknown
+  - **[Planning/PM]** Updated route governance docs in the same change set (`INSTRUCTION_MANUAL.md`, `ROUTE_CONSOLIDATION_MANIFEST.md`).
+- Validation evidence:
+  - IDE diagnostics (`get_errors`) on changed files: no new errors.
+- Open blockers:
+  1. Full CLI lint/build evidence remains environment-dependent in this container lane (node/npm/bun tooling inconsistency).
+
 ## Latest Session Snapshot (Part 2.2 Route Manifest Runtime Enforcement — 2026-05-17)
 
 - Timestamp (NZ): 2026-05-17

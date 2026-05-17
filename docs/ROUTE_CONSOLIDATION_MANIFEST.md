@@ -192,6 +192,13 @@ All log routes follow the canonical pattern: `/{entity}-log`
 - Consider moving to `/admin/logs/{entity}-log` namespace
 - Or `/audit/{domain}/{entity}-log` pattern
 
+**Part 3 Foundation (implemented 2026-05-17):**
+- Added compatibility alias routes:
+  - `/audit` → `/audit-log`
+  - `/audit/:logPath` → `/{logPath}` (or `/{logPath}-log` when suffix omitted)
+- Unknown alias paths safely fall back to `/audit-log`.
+- Existing canonical log routes remain unchanged in this phase; this introduces namespace compatibility first.
+
 ---
 
 ### 7. Internal & Debug Routes

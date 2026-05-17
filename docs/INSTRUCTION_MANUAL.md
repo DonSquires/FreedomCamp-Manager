@@ -687,6 +687,12 @@ The route manifest is environment-aware and applies the following visibility pol
 
 Legacy aliases remain available only as redirect paths for backward compatibility and should not be used as canonical navigation targets.
 
+Audit-log namespace compatibility:
+
+1. `/audit` redirects to `/audit-log`.
+2. `/audit/:logPath` redirects to the matching legacy log route (`/{entity}-log`).
+3. If the `-log` suffix is omitted in the alias path, it is appended automatically.
+
 #### Using the Global Filter Ribbon
 
 The Global Filter Ribbon appears at the top of all admin compliance and reporting screens. Changes here apply to **all currently open tabs** in the admin area.

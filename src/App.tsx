@@ -1,5 +1,5 @@
-import { Component, lazy, Suspense, useEffect, type ErrorInfo, type ReactNode } from 'react'
-import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom'
+import { Component, lazy, Suspense, useEffect, useMemo, type ErrorInfo, type ReactNode } from 'react'
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query'
 import { Toaster } from 'sonner'
 import { useAuthStore } from '@/stores/authStore'
@@ -675,6 +675,33 @@ function RoleRoute({
   }
 
   return <>{children}</>
+}
+
+function AuditNamespaceRedirect() {
+  const location = useLocation()
+  const params = useParams<{ logPath: string }>()
+  const rawLogPath = (params.logPath || '').trim().replace(/^\/+|\/+$/g, '')
+
+  const knownLogPaths = useMemo(
+    () =>
+      new Set(
+        routeManifest
+          .map((entry) => entry.path.replace(/^\//, ''))
+          .filter((path) => path.endsWith('-log')),
+      ),
+    [],
+  )
+
+  if (!rawLogPath) {
+    return <Navigate to="/audit-log" replace />
+  }
+
+  const candidate = rawLogPath.endsWith('-log') ? rawLogPath : `${rawLogPath}-log`
+  if (!knownLogPaths.has(candidate)) {
+    return <Navigate to="/audit-log" replace />
+  }
+
+  return <Navigate to={`/${candidate}${location.search}`} replace />
 }
 
 /**
@@ -2664,6 +2691,10 @@ export default function App() {
           <Route path="/contractor-profiles-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'master']}><ContractorProfileLog /></RoleRoute></ProtectedRoute>} />
           <Route path="/parking-zones-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'master']}><ParkingZoneLog /></RoleRoute></ProtectedRoute>} />
           <Route path="/canonical-persons-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><CanonicalPersonsLog /></RoleRoute></ProtectedRoute>} />
+
+          {/* Part 3 foundation: unified audit namespace aliases */}
+          <Route path="/audit" element={<ProtectedRoute><Navigate to="/audit-log" replace /></ProtectedRoute>} />
+          <Route path="/audit/:logPath" element={<ProtectedRoute><AuditNamespaceRedirect /></ProtectedRoute>} />
 
           {/* CRM – Accounts (Clients + Contractors) */}
           <Route
