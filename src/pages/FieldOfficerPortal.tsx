@@ -2349,10 +2349,15 @@ export default function FieldOfficerPortal() {
         /* ── PORTAL HOME ────────────────────────────────────────────── */
         <>
           {/* ── Offline sync status badge ────────────────────────── */}
-          {pendingSyncCount > 0 && (
+          {pendingSyncCount > 0 ? (
             <div className="flex items-center gap-2 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 px-3 py-2 mb-3 text-sm text-amber-800 dark:text-amber-200">
               <Clock className="h-4 w-4 shrink-0" />
               <span>{pendingSyncCount} pending sync</span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 px-3 py-2 mb-3 text-sm text-emerald-800 dark:text-emerald-200">
+              <CheckCircle className="h-4 w-4 shrink-0" />
+              <span>All actions synced</span>
             </div>
           )}
 

@@ -13,6 +13,7 @@ Status: Active staging checklist — Phase E COMPLETE; Star Trek validation lane
   - **[Frontend Developer]** Reduced Admin sticky-header action set to Breaches + Welfare with overflow More menu for Dispatch/Reports.
   - **[UX Designer]** Reduced Officer common tools from equal-weight full grid to 3 primary cards (Checkpoint, Start/Resume Patrol, New Quick Report) plus collapsible More tools.
   - **[Frontend Developer]** Redesigned Reports Hub from card-grid + separate quick-actions into Start Here hero + role-aware recommended report + categorized list.
+  - **[Frontend Developer]** Added explicit Officer offline sync state banner (`pending sync` vs `all actions synced`) on Field Officer portal home.
   - **[Planning/PM]** Reconciled stale historical C/D queue block where unchecked items contradicted recorded completion evidence.
   - **[Planning/PM]** Updated `docs/CRO_TODOLIST.md` checklist state to mark the completed quick-win items and set Part 1 status to in-progress.
 - Validation evidence:

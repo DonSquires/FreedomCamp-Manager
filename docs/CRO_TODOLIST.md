@@ -47,7 +47,7 @@ The platform has a **conversion dilution problem**: too many equally weighted ac
 
 - [ ] **[Frontend Developer]** Add explicit status/progress/retry language to all async states in all three shells. Every loading state must use a skeleton that matches the loaded layout (not a spinner). Every error state must show a retry button and a plain-English description of what failed. See INSTRUCTION_MANUAL.md §1a (Page Anatomy rules).
 
-- [ ] **[Frontend Developer]** Add a "Last synced" or "X items pending sync" indicator to the Officer shell header when the offline queue has pending items. Officers need confirmation that queued actions will reach the server.
+- [x] **[Frontend Developer]** Add a "Last synced" or "X items pending sync" indicator to the Officer shell header when the offline queue has pending items. Officers need confirmation that queued actions will reach the server.
 
 ---
 
