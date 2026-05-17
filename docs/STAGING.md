@@ -9513,3 +9513,59 @@ Evidence:
 Exit status:
 
 1. C2 degraded-mode behavior is validated and captured in staging evidence.
+
+---
+
+## CRO To-Do Lane
+
+Date added: 2026-05-17  
+Status: **Active — not started**
+
+A CRO (Conversion Rate Optimisation) audit was completed against the current product. It identified a **conversion dilution problem**: too many equally weighted actions are shown to users before they reach the intended next step. The fix is action orchestration, not new features.
+
+The full specialist-labelled to-do list is in **[`docs/CRO_TODOLIST.md`](./CRO_TODOLIST.md)**.
+
+### Lane summary (staging context)
+
+These items are staged in 6 parts, sequenced by effort and dependency:
+
+| Part | Description | Key specialist(s) | Staging test needed |
+|---|---|---|---|
+| 1 — Quick wins | Single CTA per page, action reduction, async state language | UX Designer, Frontend Developer | Visual regression + smoke run |
+| 2 — Route reduction | Route manifest, consolidate 319 routes to 3-shell model | Platform Engineer, Frontend Developer | Capability overview spec (`capability-overview.spec.ts`) |
+| 3 — Landing redesigns | Patrol-first officer, queue-first admin, governance-first master | UX Designer, Frontend Developer | Role journey smoke + UI comprehensive spec |
+| 4 — Workflow consolidation | Guided flows replacing multi-page task sequences | Product Manager, UX Designer, Frontend Developer | Workflow-specific specs |
+| 5 — Trust and consistency | Skeleton/error/offline/empty state standardisation | Frontend Developer | Bob human UX audit suite |
+| 6 — Measurement | Staging specs and analytics for conversion KPIs | QA Engineer, Analytics Engineer | New conversion tracking specs |
+
+### Blocking requirements before Part 3 can start
+
+1. **[Product Manager]** Resolve overlapping admin dashboard routes — decision must be recorded in `docs/DECISIONS.md`.
+2. **[Product Manager]** Resolve overlapping officer entry paths — decision must be recorded in `docs/DECISIONS.md`.
+
+### Staging validation for Part 1
+
+After Part 1 items are implemented:
+
+```bash
+bun run build          # must pass (TypeScript + Vite)
+bun run lint           # must pass (ESLint clean)
+# Run visual regression sweep
+bash scripts/playwright-bob-runtime.sh bunx playwright test tests/e2e/visual-e2e-emulation.spec.ts --project=chromium --workers=1 --reporter=line
+# Run UI comprehensive smoke
+bash scripts/playwright-bob-runtime.sh bunx playwright test tests/e2e/ui-comprehensive.spec.ts --project=chromium --workers=1 --reporter=line
+```
+
+### Exit gate for full CRO lane completion
+
+| Criterion | Target | Status |
+|---|---|---|
+| Officer core task completion | > 95% | ⬜ Not measured |
+| Admin breach triage median time | < 3 min | ⬜ Not measured |
+| Route/navigation error rate | < 0.5% | ⬜ Not measured |
+| Critical accessibility defects | 0 | ⬜ Not measured |
+| Officer time-to-first-action delta | ≥ 20% improvement vs pre-CRO baseline | ⬜ Not measured |
+
+Baseline measurements must be captured **before** shipping Part 1 changes so uplift can be verified.
+
+Full checklist: [`docs/CRO_TODOLIST.md`](./CRO_TODOLIST.md)
