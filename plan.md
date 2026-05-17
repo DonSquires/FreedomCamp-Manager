@@ -4,7 +4,7 @@
 
 Status source: `docs/BUILD_REALIGNMENT_PLAN_2026-05-04.md` and `docs/STAGING.md`
 
-**CURRENT STATUS (2026-05-17)**: Phase A-E ✅ COMPLETE (95+ cumulative tests). Phase F 80% ready (isolated gates passing). Phase G entry gate 50% complete (build budget + Phase E health validated). Phase 0 entry blockers resolved; Phase 0-1 scaffolding complete; Phase 0-2/P0-3 contract lanes green (10/10 deployed, 2026-05-17).
+**CURRENT STATUS (2026-05-17)**: Phase A-E ✅ COMPLETE (95+ cumulative tests). Phase F Star Trek full gate ✅ green on latest head (`3235e0e`, run `25985377537`). Phase G entry gate 50% complete (build budget + Phase E health validated). Phase 0 entry blockers resolved; Phase 0-1 scaffolding complete; Phase 0-2/P0-3 contract lanes green (10/10 deployed, 2026-05-17); Phase 0-4 contract scaffolding complete.
 Intent:
 **Updated Timing Schedule**:
  - Phase A: ✅ Complete (Aug 1 - Aug 25, 2026) — Actual completion: May 14, 2026 (ahead of schedule)
@@ -314,7 +314,7 @@ Implementation note (2026-05-17): caption lane/runtime lives in `src/pages/PTTRa
 - [x] Validate org isolation on translation reads/writes ✅ (new org-isolation spec assertion)
 - [x] Validate low-confidence flagging ✅ (low-confidence spec + is_low_confidence generated column)
 - [x] Validate cross-org caption isolation ✅ (RLS cross-org row count = 0 assertion)
-- [ ] Validate Star Trek Phase 3 (Sentient XO) remains green
+- [x] Validate Star Trek Phase 3 (Sentient XO) remains green ✅ (CI Star Trek full gate run 25985377537)
 - [ ] Canary progression gate: **25% cohort for 3 days; zero org-boundary leaks**
 
 #### P0-3d Capture Evidence
@@ -344,11 +344,11 @@ Implementation note (2026-05-17): caption lane/runtime lives in `src/pages/PTTRa
 - [ ] Validate TTS synthesis latency acceptable for live operations
 - [x] Validate watermark presence on all synthetic audio ✅ (spec asserts watermark field present)
 - [x] Validate original audio remains primary if TTS fails ✅ (degraded-mode spec + fallback signal assertion)
-- [ ] Validate Star Trek Phase 4 (Admiral's Bridge) remains green
+- [x] Validate Star Trek Phase 4 (Admiral's Bridge) remains green ✅ (CI Star Trek full gate run 25985377537)
 - [ ] Canary progression gate: **50% cohort for 1 week; zero TTS failures blocking original audio**
 
 #### P0-4d Capture Evidence
-- [ ] Update `docs/STAGING.md` with Phase 0-4 snapshot
+- [x] Update `docs/STAGING.md` with Phase 0-4 snapshot ✅ 2026-05-17
 
 ### Phase 0-5: Voice-Twin Enrollment & Governance (2026-07-23 to 2026-08-12)
 
