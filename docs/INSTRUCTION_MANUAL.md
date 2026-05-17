@@ -677,6 +677,16 @@ Every portal has the same layout skeleton:
 4. **From breadcrumb links**: Detail pages (vehicle, zone, breach) have breadcrumbs at the top — click a breadcrumb to navigate back without losing your filter state.
 5. **Direct URL**: Every page has a stable URL. Bookmark frequently used pages.
 
+#### Route visibility modes (environment governance)
+
+The route manifest is environment-aware and applies the following visibility policy:
+
+1. **Production mode**: internal and hidden routes are not shown in navigation.
+2. **Staging/Development mode**: internal routes may be visible, but only if role and feature-flag checks pass.
+3. **Hidden routes**: never shown in navigation in any environment.
+
+Legacy aliases remain available only as redirect paths for backward compatibility and should not be used as canonical navigation targets.
+
 #### Using the Global Filter Ribbon
 
 The Global Filter Ribbon appears at the top of all admin compliance and reporting screens. Changes here apply to **all currently open tabs** in the admin area.

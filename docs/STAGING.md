@@ -4,6 +4,21 @@ Date: 2026-05-15
 Owner: GitHub Copilot
 Status: Active staging checklist — CRO Part 1 COMPLETE; Phase E ready for Part 2 route audit
 
+## Latest Session Snapshot (Part 2.2 Route Manifest Runtime Enforcement — 2026-05-17)
+
+- Timestamp (NZ): 2026-05-17
+- Session focus: Complete Part 2.2 by wiring route visibility modes and manifest preflight validation into runtime/build paths.
+- Scope completed:
+  - **[Frontend Platform Lead]** Added runtime visibility mode support in route adapter (`production` / `staging` / `development`) and introduced `isRouteHidden(...)` + `resolveRuntimeVisibilityMode(...)` helper APIs.
+  - **[Frontend Platform Lead]** Updated route consumers (`App.tsx`, `AppLayout.tsx`) to pass environment-derived visibility mode into `isRouteVisibleForRole(...)`.
+  - **[Platform Engineering Lead]** Added Vite config preflight route-manifest validation (`validateRouteManifest(routeManifest)`) to fail fast on invalid manifest shape during dev server start and build.
+  - **[Planning/PM]** Updated canonical docs in same change set (`INSTRUCTION_MANUAL.md` route visibility modes, `ROUTE_CONSOLIDATION_MANIFEST.md` v1.1).
+- Validation evidence:
+  - IDE diagnostics (`get_errors`) across changed route files: no new errors.
+  - Focused command-line lint/build could not be fully executed in this container lane because node/npm tooling is not consistently available on PATH.
+- Open blockers:
+  1. Run full `bun run lint` and `bun run build` in standard project runtime where bun/node tooling is available to attach final gate evidence.
+
 ## Latest Session Snapshot (CRO Quick Wins Part 1 COMPLETE — Async State Standardization Shipped — 2026-05-17)
 
 - Timestamp (NZ): 2026-05-17

@@ -1,7 +1,7 @@
 # Route Consolidation Manifest
 
-**Status**: Part 2.1 consolidation complete (2026-05-17)
-**Version**: 1.0  
+**Status**: Part 2.2 runtime manifest enforcement complete (2026-05-17)
+**Version**: 1.1  
 **Maintained by**: Platform Engineer
 
 This document establishes the canonical route paths for all FieldOps Manager portals and tools, serving as the authoritative source of truth for frontend navigation and API route references.
@@ -21,6 +21,15 @@ This document establishes the canonical route paths for all FieldOps Manager por
 - **Duplicate definitions**: 0
 - **Canonical paths**: Established and documented
 - **Redirect strategy**: All deprecated paths → canonical via Navigate()
+
+### Part 2.2 Runtime Enforcement
+- Visibility mode filtering now runs in runtime consumers using environment context:
+  - `production`: hides `internal` and `hidden` routes
+  - `staging` / `development`: permits `internal` routes (still role + feature-flag gated)
+- Added helper APIs:
+  - `isRouteHidden(path, entries, mode)`
+  - `resolveRuntimeVisibilityMode(envMode, isProd)`
+- Build/start preflight now validates route manifest at Vite config load and fails fast on invalid schema.
 
 ---
 
