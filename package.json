@@ -39,6 +39,8 @@
     "evidence:workflow:ids:p0": "node scripts/get-workflow-ids.mjs --criticality P0",
     "research:stack:scorecard": "node scripts/generate-live-stack-scorecard.mjs",
     "research:ci:self-heal-report": "node scripts/generate-live-stack-scorecard.mjs --out=data/live-stack-scorecard.json",
+    "self-heal:ci": "node scripts/run-ci-self-heal-cycle.mjs",
+    "self-heal:ci:rerun-failed": "node scripts/run-ci-self-heal-cycle.mjs --rerun-failed=true",
     "governance:summary": "node scripts/generate-governance-run-summary.mjs",
     "review:evidence": "node scripts/generate-bob-build-review-evidence.mjs tools/bob-build-review-evidence.json",
     "bob:self-heal-bridge": "node scripts/generate-bob-self-heal-bridge.mjs",

@@ -1,218 +1,381 @@
 {
-  "generatedAt": "2026-05-17T06:07:36.247Z",
+  "generatedAt": "2026-05-17T06:12:40.144Z",
   "repository": {
     "owner": "DonSquires",
     "repo": "FreedomCamp-Manager",
-    "headSha": "14982663020898b56ea8235777781a280cfa8da0"
+    "headSha": "977c1d381c7dfac3e70abe65dc9da1dc9dcdcefe"
   },
   "ci": {
     "source": "github_actions",
     "error": null,
     "runs": [
       {
-        "id": 25983029240,
-        "name": "Synthetic UI Monitor",
-        "status": "completed",
-        "conclusion": "success",
-        "created_at": "2026-05-17T06:03:12Z",
-        "updated_at": "2026-05-17T06:06:24Z",
-        "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25983029240"
-      },
-      {
-        "id": 25983029231,
+        "id": 25983128661,
         "name": "Ops Bob Assess Failed Actions",
         "status": "completed",
         "conclusion": "success",
-        "created_at": "2026-05-17T06:03:11Z",
-        "updated_at": "2026-05-17T06:03:17Z",
-        "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25983029231"
+        "created_at": "2026-05-17T06:08:24Z",
+        "updated_at": "2026-05-17T06:08:30Z",
+        "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25983128661"
       },
       {
-        "id": 25983000726,
+        "id": 25983125197,
         "name": "Ops Bob Assess Failed Actions",
         "status": "completed",
         "conclusion": "success",
-        "created_at": "2026-05-17T06:01:43Z",
-        "updated_at": "2026-05-17T06:01:51Z",
-        "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25983000726"
+        "created_at": "2026-05-17T06:08:12Z",
+        "updated_at": "2026-05-17T06:08:18Z",
+        "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25983125197"
       },
       {
-        "id": 25982949497,
-        "name": "Ops Strict Uptime Gate",
+        "id": 25983119132,
+        "name": "Ops Bob Operational Testing Gate",
+        "status": "in_progress",
+        "conclusion": null,
+        "created_at": "2026-05-17T06:07:52Z",
+        "updated_at": "2026-05-17T06:07:55Z",
+        "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25983119132"
+      },
+      {
+        "id": 25983119112,
+        "name": "Deploy Admin Portal to Vercel",
+        "status": "in_progress",
+        "conclusion": null,
+        "created_at": "2026-05-17T06:07:52Z",
+        "updated_at": "2026-05-17T06:07:55Z",
+        "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25983119112"
+      },
+      {
+        "id": 25983119142,
+        "name": "CI Phase C2 Access Control Gate",
         "status": "completed",
         "conclusion": "success",
-        "created_at": "2026-05-17T05:59:13Z",
-        "updated_at": "2026-05-17T06:00:26Z",
-        "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25982949497"
+        "created_at": "2026-05-17T06:07:52Z",
+        "updated_at": "2026-05-17T06:08:15Z",
+        "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25983119142"
       },
       {
-        "id": 25982899848,
-        "name": "Validate RunPod Image Tags",
+        "id": 25983119130,
+        "name": "CI Phase B2 Dispatch Gate",
         "status": "completed",
         "conclusion": "success",
-        "created_at": "2026-05-17T05:56:16Z",
-        "updated_at": "2026-05-17T05:56:24Z",
-        "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25982899848"
+        "created_at": "2026-05-17T06:07:52Z",
+        "updated_at": "2026-05-17T06:08:15Z",
+        "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25983119130"
       },
       {
-        "id": 25982899858,
-        "name": "Docs — Flag Canonical Manual Drift",
+        "id": 25983119123,
+        "name": "CI Phase B1 Patrol Gate",
         "status": "completed",
         "conclusion": "success",
-        "created_at": "2026-05-17T05:56:16Z",
-        "updated_at": "2026-05-17T05:56:26Z",
-        "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25982899858"
+        "created_at": "2026-05-17T06:07:52Z",
+        "updated_at": "2026-05-17T06:08:15Z",
+        "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25983119123"
       },
       {
-        "id": 25982899865,
-        "name": "Triage Production Bug Reports",
+        "id": 25983119174,
+        "name": "CI Phase C1 Site Guard Gate",
         "status": "completed",
         "conclusion": "success",
-        "created_at": "2026-05-17T05:56:16Z",
-        "updated_at": "2026-05-17T05:56:24Z",
-        "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25982899865"
+        "created_at": "2026-05-17T06:07:52Z",
+        "updated_at": "2026-05-17T06:08:16Z",
+        "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25983119174"
       },
       {
-        "id": 25982899844,
-        "name": "policy-bob-openai-research-training",
+        "id": 25983119179,
+        "name": "Ops - MLOps Domain Canary",
+        "status": "completed",
+        "conclusion": "failure",
+        "created_at": "2026-05-17T06:07:52Z",
+        "updated_at": "2026-05-17T06:08:16Z",
+        "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25983119179"
+      },
+      {
+        "id": 25983119116,
+        "name": "CI Phase B3 Communications Gate",
         "status": "completed",
         "conclusion": "success",
-        "created_at": "2026-05-17T05:56:16Z",
-        "updated_at": "2026-05-17T05:56:36Z",
-        "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25982899844"
+        "created_at": "2026-05-17T06:07:52Z",
+        "updated_at": "2026-05-17T06:08:16Z",
+        "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25983119116"
       },
       {
-        "id": 25982899850,
+        "id": 25983119124,
+        "name": "CI Phase D3 Transition/Handshake/Offline Gate",
+        "status": "completed",
+        "conclusion": "success",
+        "created_at": "2026-05-17T06:07:52Z",
+        "updated_at": "2026-05-17T06:08:16Z",
+        "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25983119124"
+      },
+      {
+        "id": 25983119146,
+        "name": "CI Phase B4 Enforcement Gate",
+        "status": "completed",
+        "conclusion": "success",
+        "created_at": "2026-05-17T06:07:52Z",
+        "updated_at": "2026-05-17T06:08:12Z",
+        "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25983119146"
+      },
+      {
+        "id": 25983119137,
         "name": "Playwright Deep Functional Cross-Browser",
         "status": "queued",
         "conclusion": null,
-        "created_at": "2026-05-17T05:56:16Z",
-        "updated_at": "2026-05-17T05:56:16Z",
-        "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25982899850"
+        "created_at": "2026-05-17T06:07:52Z",
+        "updated_at": "2026-05-17T06:08:09Z",
+        "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25983119137"
       },
       {
-        "id": 25982899845,
-        "name": "CI Phase E3 Communications Audit Retry Gate",
+        "id": 25983119118,
+        "name": "CI Phase C4 Assets Keys Client Gate",
         "status": "completed",
         "conclusion": "success",
-        "created_at": "2026-05-17T05:56:16Z",
-        "updated_at": "2026-05-17T05:56:47Z",
-        "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25982899845"
+        "created_at": "2026-05-17T06:07:52Z",
+        "updated_at": "2026-05-17T06:08:12Z",
+        "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25983119118"
       },
       {
-        "id": 25982899843,
+        "id": 25983119147,
         "name": "CI Phase E1 Data Access Consolidation Gate",
         "status": "completed",
         "conclusion": "success",
-        "created_at": "2026-05-17T05:56:16Z",
-        "updated_at": "2026-05-17T05:56:38Z",
-        "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25982899843"
+        "created_at": "2026-05-17T06:07:52Z",
+        "updated_at": "2026-05-17T06:08:12Z",
+        "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25983119147"
       },
       {
-        "id": 25982899859,
-        "name": "CI Phase E2 Enterprise Hardening Tenancy Gate",
+        "id": 25983119182,
+        "name": "CI Phase B Canary Gate",
         "status": "completed",
         "conclusion": "success",
-        "created_at": "2026-05-17T05:56:16Z",
-        "updated_at": "2026-05-17T05:56:50Z",
-        "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25982899859"
+        "created_at": "2026-05-17T06:07:52Z",
+        "updated_at": "2026-05-17T06:08:13Z",
+        "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25983119182"
       },
       {
-        "id": 25982899861,
-        "name": "CI Phase E4 Release Evidence Gate",
+        "id": 25983119158,
+        "name": "policy-bob-openai-research-training",
         "status": "completed",
         "conclusion": "success",
-        "created_at": "2026-05-17T05:56:16Z",
-        "updated_at": "2026-05-17T05:56:48Z",
-        "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25982899861"
+        "created_at": "2026-05-17T06:07:52Z",
+        "updated_at": "2026-05-17T06:08:13Z",
+        "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25983119158"
       },
       {
-        "id": 25982899868,
+        "id": 25983119114,
+        "name": "CI Phase C Canary Gate",
+        "status": "completed",
+        "conclusion": "success",
+        "created_at": "2026-05-17T06:07:52Z",
+        "updated_at": "2026-05-17T06:08:14Z",
+        "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25983119114"
+      },
+      {
+        "id": 25983119111,
+        "name": "CI Phase C3 POI VOI LOI Evidence Gate",
+        "status": "completed",
+        "conclusion": "success",
+        "created_at": "2026-05-17T06:07:52Z",
+        "updated_at": "2026-05-17T06:08:14Z",
+        "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25983119111"
+      },
+      {
+        "id": 25983119150,
+        "name": "CI Phase D1 Bob Approval Gate",
+        "status": "completed",
+        "conclusion": "success",
+        "created_at": "2026-05-17T06:07:52Z",
+        "updated_at": "2026-05-17T06:08:14Z",
+        "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25983119150"
+      },
+      {
+        "id": 25983119138,
+        "name": "CI Phase D2 Translation/Speech Gate",
+        "status": "completed",
+        "conclusion": "success",
+        "created_at": "2026-05-17T06:07:52Z",
+        "updated_at": "2026-05-17T06:08:14Z",
+        "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25983119138"
+      },
+      {
+        "id": 25983119122,
+        "name": "Validate RunPod Image Tags",
+        "status": "completed",
+        "conclusion": "success",
+        "created_at": "2026-05-17T06:07:52Z",
+        "updated_at": "2026-05-17T06:08:02Z",
+        "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25983119122"
+      },
+      {
+        "id": 25983119161,
+        "name": "Triage Production Bug Reports",
+        "status": "completed",
+        "conclusion": "success",
+        "created_at": "2026-05-17T06:07:52Z",
+        "updated_at": "2026-05-17T06:08:00Z",
+        "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25983119161"
+      },
+      {
+        "id": 25983119129,
+        "name": "Ops - MLOps Domain Promotion Gate",
+        "status": "completed",
+        "conclusion": "failure",
+        "created_at": "2026-05-17T06:07:52Z",
+        "updated_at": "2026-05-17T06:08:07Z",
+        "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25983119129"
+      },
+      {
+        "id": 25983119136,
+        "name": "CI Phase E3 Communications Audit Retry Gate",
+        "status": "completed",
+        "conclusion": "success",
+        "created_at": "2026-05-17T06:07:52Z",
+        "updated_at": "2026-05-17T06:08:26Z",
+        "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25983119136"
+      },
+      {
+        "id": 25983119127,
         "name": "Governance Release Gate",
         "status": "completed",
         "conclusion": "success",
-        "created_at": "2026-05-17T05:56:16Z",
-        "updated_at": "2026-05-17T05:57:49Z",
-        "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25982899868"
+        "created_at": "2026-05-17T06:07:52Z",
+        "updated_at": "2026-05-17T06:09:20Z",
+        "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25983119127"
       },
       {
-        "id": 25982899862,
-        "name": "Playwright Monitoring Pulse",
+        "id": 25983119120,
+        "name": "CI Phase E4 Release Evidence Gate",
         "status": "completed",
         "conclusion": "success",
-        "created_at": "2026-05-17T05:56:16Z",
-        "updated_at": "2026-05-17T06:01:34Z",
-        "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25982899862"
+        "created_at": "2026-05-17T06:07:52Z",
+        "updated_at": "2026-05-17T06:08:22Z",
+        "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25983119120"
       },
       {
-        "id": 25982899846,
-        "name": "CI Build High Memory",
+        "id": 25983119153,
+        "name": "CI Org Isolation API",
         "status": "completed",
-        "conclusion": "failure",
-        "created_at": "2026-05-17T05:56:16Z",
-        "updated_at": "2026-05-17T06:01:40Z",
-        "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25982899846"
+        "conclusion": "success",
+        "created_at": "2026-05-17T06:07:52Z",
+        "updated_at": "2026-05-17T06:08:22Z",
+        "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25983119153"
       },
       {
-        "id": 25982899864,
+        "id": 25983119172,
+        "name": "CI Phase E2 Enterprise Hardening Tenancy Gate",
+        "status": "completed",
+        "conclusion": "success",
+        "created_at": "2026-05-17T06:07:52Z",
+        "updated_at": "2026-05-17T06:08:22Z",
+        "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25983119172"
+      },
+      {
+        "id": 25983119187,
         "name": "Playwright Bob Agent Conversation",
-        "status": "completed",
-        "conclusion": "failure",
-        "created_at": "2026-05-17T05:56:16Z",
-        "updated_at": "2026-05-17T06:02:32Z",
-        "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25982899864"
+        "status": "in_progress",
+        "conclusion": null,
+        "created_at": "2026-05-17T06:07:52Z",
+        "updated_at": "2026-05-17T06:09:41Z",
+        "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25983119187"
       },
       {
-        "id": 25982899851,
+        "id": 25983119149,
+        "name": "CI Build High Memory",
+        "status": "in_progress",
+        "conclusion": null,
+        "created_at": "2026-05-17T06:07:52Z",
+        "updated_at": "2026-05-17T06:09:45Z",
+        "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25983119149"
+      },
+      {
+        "id": 25983119144,
+        "name": "Playwright Monitoring Pulse",
+        "status": "in_progress",
+        "conclusion": null,
+        "created_at": "2026-05-17T06:07:52Z",
+        "updated_at": "2026-05-17T06:09:37Z",
+        "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25983119144"
+      },
+      {
+        "id": 25983119121,
         "name": "Bob Full Service Self-Test",
-        "status": "completed",
-        "conclusion": "success",
-        "created_at": "2026-05-17T05:56:16Z",
-        "updated_at": "2026-05-17T06:02:47Z",
-        "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25982899851"
-      },
-      {
-        "id": 25982899855,
-        "name": "Deploy Admin Portal to Vercel",
-        "status": "completed",
-        "conclusion": "success",
-        "created_at": "2026-05-17T05:56:16Z",
-        "updated_at": "2026-05-17T06:03:10Z",
-        "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25982899855"
+        "status": "in_progress",
+        "conclusion": null,
+        "created_at": "2026-05-17T06:07:52Z",
+        "updated_at": "2026-05-17T06:09:53Z",
+        "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25983119121"
       }
     ],
-    "total": 19,
+    "total": 33,
     "byStatus": {
-      "completed": 18,
+      "completed": 26,
+      "in_progress": 6,
       "queued": 1
     },
     "byConclusion": {
-      "success": 16,
-      "null": 1,
+      "success": 24,
+      "null": 7,
       "failure": 2
     },
     "active": [
       {
-        "id": 25982899850,
+        "id": 25983119132,
+        "name": "Ops Bob Operational Testing Gate",
+        "status": "in_progress",
+        "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25983119132"
+      },
+      {
+        "id": 25983119112,
+        "name": "Deploy Admin Portal to Vercel",
+        "status": "in_progress",
+        "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25983119112"
+      },
+      {
+        "id": 25983119137,
         "name": "Playwright Deep Functional Cross-Browser",
         "status": "queued",
-        "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25982899850"
+        "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25983119137"
+      },
+      {
+        "id": 25983119187,
+        "name": "Playwright Bob Agent Conversation",
+        "status": "in_progress",
+        "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25983119187"
+      },
+      {
+        "id": 25983119149,
+        "name": "CI Build High Memory",
+        "status": "in_progress",
+        "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25983119149"
+      },
+      {
+        "id": 25983119144,
+        "name": "Playwright Monitoring Pulse",
+        "status": "in_progress",
+        "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25983119144"
+      },
+      {
+        "id": 25983119121,
+        "name": "Bob Full Service Self-Test",
+        "status": "in_progress",
+        "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25983119121"
       }
     ],
     "failed": [
       {
-        "id": 25982899846,
-        "name": "CI Build High Memory",
+        "id": 25983119179,
+        "name": "Ops - MLOps Domain Canary",
         "status": "completed",
         "conclusion": "failure",
-        "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25982899846"
+        "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25983119179"
       },
       {
-        "id": 25982899864,
-        "name": "Playwright Bob Agent Conversation",
+        "id": 25983119129,
+        "name": "Ops - MLOps Domain Promotion Gate",
         "status": "completed",
         "conclusion": "failure",
-        "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25982899864"
+        "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25983119129"
       }
     ]
   },
@@ -347,11 +510,11 @@
     "bridgeDraft": {
       "title": "CI Self-Heal Review Request",
       "workflow": "ci-self-heal-bridge",
-      "summary": "CI has 2 failed workflow(s) on 14982663 with self-heal telemetry attached.",
+      "summary": "CI has 2 failed workflow(s) on 977c1d38 with self-heal telemetry attached.",
       "report": {
         "severity": "high",
         "expected_behavior": "All required CI workflows complete successfully for the head commit.",
-        "actual_behavior": "2 workflow(s) failed; 1 still active.",
+        "actual_behavior": "2 workflow(s) failed; 7 still active.",
         "reproduction_steps": [
           "Run bun run research:stack:scorecard to refresh CI + self-heal telemetry.",
           "Review ci.failed list and linked workflow URLs.",
@@ -360,26 +523,62 @@
         "evidence": {
           "failed_workflows": [
             {
-              "id": 25982899846,
-              "name": "CI Build High Memory",
+              "id": 25983119179,
+              "name": "Ops - MLOps Domain Canary",
               "status": "completed",
               "conclusion": "failure",
-              "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25982899846"
+              "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25983119179"
             },
             {
-              "id": 25982899864,
-              "name": "Playwright Bob Agent Conversation",
+              "id": 25983119129,
+              "name": "Ops - MLOps Domain Promotion Gate",
               "status": "completed",
               "conclusion": "failure",
-              "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25982899864"
+              "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25983119129"
             }
           ],
           "active_workflows": [
             {
-              "id": 25982899850,
+              "id": 25983119132,
+              "name": "Ops Bob Operational Testing Gate",
+              "status": "in_progress",
+              "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25983119132"
+            },
+            {
+              "id": 25983119112,
+              "name": "Deploy Admin Portal to Vercel",
+              "status": "in_progress",
+              "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25983119112"
+            },
+            {
+              "id": 25983119137,
               "name": "Playwright Deep Functional Cross-Browser",
               "status": "queued",
-              "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25982899850"
+              "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25983119137"
+            },
+            {
+              "id": 25983119187,
+              "name": "Playwright Bob Agent Conversation",
+              "status": "in_progress",
+              "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25983119187"
+            },
+            {
+              "id": 25983119149,
+              "name": "CI Build High Memory",
+              "status": "in_progress",
+              "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25983119149"
+            },
+            {
+              "id": 25983119144,
+              "name": "Playwright Monitoring Pulse",
+              "status": "in_progress",
+              "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25983119144"
+            },
+            {
+              "id": 25983119121,
+              "name": "Bob Full Service Self-Test",
+              "status": "in_progress",
+              "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25983119121"
             }
           ],
           "monitor_heartbeat": {

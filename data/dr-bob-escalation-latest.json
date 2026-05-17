@@ -1,17 +1,15 @@
 {
-  "timestamp": "2026-05-16T12:08:23.227Z",
-  "sourceFile": "/workspaces/FreedomCamp-Manager/spec.md",
-  "reviewArtifact": "/workspaces/FreedomCamp-Manager/data/dr-bob-reviews/spec.md.2026-05-16T12-08-23-215Z.json",
-  "escalationArtifact": "/workspaces/FreedomCamp-Manager/data/dr-bob-escalations/escalation.2026-05-16T12-08-23-227Z.json",
-  "structured": false,
+  "timestamp": "2026-05-17T06:11:50.326Z",
+  "sourceFile": "/workspaces/FreedomCamp-Manager/data/live-stack-scorecard.json",
+  "structured": true,
   "decision": "needs-revision",
-  "reason": "unstructured-review",
-  "summary": "Dr Bob returned an unstructured review. Inspect the raw response.",
-  "findingsCount": 1,
-  "topFinding": "Unstructured review response",
-  "selfHealAttempted": false,
+  "reason": "ci-failures-detected",
+  "summary": "CI self-heal detected 2 failed workflow(s) on 977c1d38.",
+  "findingsCount": 2,
+  "topFinding": "Ops - MLOps Domain Canary",
+  "selfHealAttempted": true,
   "selfHealSuccess": false,
   "handoffRequired": true,
-  "copilotActionHint": "Investigate escalation artifact and implement targeted fix",
-  "responsePreview": "{\"delayTime\":21102,\"id\":\"sync-ed33f265-4f6d-4df3-a5c8-40a1e93e8ead-u2\",\"status\":\"IN_PROGRESS\",\"workerId\":\"pcphpozeaakwq6\"}"
+  "copilotActionHint": "Inspect failed runs and apply targeted fixes; rerun failed workflows after patching.",
+  "responsePreview": "{\"failedRuns\":[{\"id\":25983119179,\"name\":\"Ops - MLOps Domain Canary\",\"status\":\"completed\",\"conclusion\":\"failure\",\"url\":\"https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25983119179\",\"updated_at\":null},{\"id\":25983119129,\"name\":\"Ops - MLOps Domain Promotion Gate\",\"status\":\"completed\",\"conclusion\":\"failure\",\"url\":\"https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25983119129\",\"updated_at\":null}],\"activeRuns\":[{\"id\":25983119132,\"name\":\"Ops Bob Operational Testing Gate\",\"status\":\"in_progress\",\"conclusion\":null,\"url\":\"https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25983119132\",\"updated_at\":null},{\"id\":25983119112,\"name\":\"Deploy Admin Portal to Vercel\",\"sta"
 }

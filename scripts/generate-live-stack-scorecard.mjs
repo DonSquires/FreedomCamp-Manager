@@ -65,6 +65,7 @@ async function fetchGithubRuns({ owner, repo, sha, token }) {
 }
 
 function summarizeRuns(workflowRuns) {
+  const activeStatuses = new Set(['queued', 'in_progress', 'pending', 'waiting'])
   const byStatus = {}
   const byConclusion = {}
 
@@ -76,7 +77,7 @@ function summarizeRuns(workflowRuns) {
   }
 
   const active = workflowRuns
-    .filter((r) => r.status === 'queued' || r.status === 'in_progress')
+    .filter((r) => activeStatuses.has(String(r.status || '')))
     .map((r) => ({
       id: r.id,
       name: r.name,
