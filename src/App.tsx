@@ -1363,16 +1363,8 @@ export default function App() {
               </ProtectedRoute>
             }
           />
-          <Route
-            path="/admin/enforcement"
-            element={
-              <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'officer']}>
-                  <EnforcementActions />
-                </RoleRoute>
-              </ProtectedRoute>
-            }
-          />
+          {/* Legacy redirect: /admin/enforcement → /enforcement-actions */}
+          <Route path="/admin/enforcement" element={<ProtectedRoute><Navigate to="/enforcement-actions" replace /></ProtectedRoute>} />
 
           <Route
             path="/enforcement-command-center"
@@ -1961,6 +1953,19 @@ export default function App() {
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
                   <VehicleDiscrepancies />
+                          {/* Canonical path: /vehicle-discrepancies */}
+                          <Route
+                            path="/vehicle-discrepancies"
+                            element={
+                              <ProtectedRoute>
+                                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                                  <VehicleDiscrepancies />
+                                </RoleRoute>
+                              </ProtectedRoute>
+                            }
+                          />
+                          {/* Legacy redirect: /admin/discrepancies → /vehicle-discrepancies */}
+                          <Route path="/admin/discrepancies" element={<ProtectedRoute><Navigate to="/vehicle-discrepancies" replace /></ProtectedRoute>} />
                 </RoleRoute>
               </ProtectedRoute>
             }
@@ -2423,16 +2428,8 @@ export default function App() {
               </ProtectedRoute>
             }
           />
-          <Route
-            path="/admin/dispatch"
-            element={
-              <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
-                  <DispatchConsole />
-                </RoleRoute>
-              </ProtectedRoute>
-            }
-          />
+          {/* Legacy redirect: /admin/dispatch → /dispatch */}
+          <Route path="/admin/dispatch" element={<ProtectedRoute><Navigate to="/dispatch" replace /></ProtectedRoute>} />
           <Route
             path="/dispatch-monitor"
             element={
@@ -2543,15 +2540,7 @@ export default function App() {
           />
 
           {/* Sprint 19–21: B-67–B-75 */}
-          <Route path="/roster-shifts" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><RosterShiftLog /></RoleRoute></ProtectedRoute>} />
-          <Route path="/noise-notices" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><NoiseNoticeLog /></RoleRoute></ProtectedRoute>} />
-          <Route path="/site-incidents" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><SiteIncidentLog /></RoleRoute></ProtectedRoute>} />
-          <Route path="/person-interactions" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><PersonInteractionLog /></RoleRoute></ProtectedRoute>} />
-          <Route path="/plate-scans-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><PlateScanLog /></RoleRoute></ProtectedRoute>} />
-          <Route path="/dispatch-events" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><DispatchEventLog /></RoleRoute></ProtectedRoute>} />
-          <Route path="/notices-to-vacate" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><NoticeToVacateLog /></RoleRoute></ProtectedRoute>} />
-          <Route path="/contractor-manager" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><ContractorManager /></RoleRoute></ProtectedRoute>} />
-          <Route path="/vehicle-discrepancies" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><VehicleDiscrepancyLog /></RoleRoute></ProtectedRoute>} />
+          {/* Duplicates removed - routes defined earlier in the file */}
 
           {/* Sprint 22–26: B-76–B-90 */}
           <Route path="/drift-events" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><DriftEventLog /></RoleRoute></ProtectedRoute>} />
@@ -2807,303 +2796,3 @@ export default function App() {
               </ProtectedRoute>
             }
           />
-
-          {/* Roster Shift Log — B-67 */}
-          <Route
-            path="/roster-shifts"
-            element={
-              <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
-                  <RosterShiftLog />
-                </RoleRoute>
-              </ProtectedRoute>
-            }
-          />
-
-          {/* Noise Notice Log — B-68 */}
-          <Route
-            path="/noise-notices"
-            element={
-              <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
-                  <NoiseNoticeLog />
-                </RoleRoute>
-              </ProtectedRoute>
-            }
-          />
-
-          {/* Site Incident Log — B-69 */}
-          <Route
-            path="/site-incidents"
-            element={
-              <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
-                  <SiteIncidentLog />
-                </RoleRoute>
-              </ProtectedRoute>
-            }
-          />
-
-          {/* Person Interaction Log — B-70 */}
-          <Route
-            path="/person-interactions"
-            element={
-              <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
-                  <PersonInteractionLog />
-                </RoleRoute>
-              </ProtectedRoute>
-            }
-          />
-
-          {/* Plate Scan Log — B-71 */}
-          <Route
-            path="/plate-scans-log"
-            element={
-              <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
-                  <PlateScanLog />
-                </RoleRoute>
-              </ProtectedRoute>
-            }
-          />
-
-          {/* Dispatch Event Log — B-72 */}
-          <Route
-            path="/dispatch-events"
-            element={
-              <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
-                  <DispatchEventLog />
-                </RoleRoute>
-              </ProtectedRoute>
-            }
-          />
-
-          {/* Notice to Vacate Log — B-73 */}
-          <Route
-            path="/notices-to-vacate"
-            element={
-              <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
-                  <NoticeToVacateLog />
-                </RoleRoute>
-              </ProtectedRoute>
-            }
-          />
-
-          {/* Contractor Manager — B-74 */}
-          <Route
-            path="/contractor-manager"
-            element={
-              <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
-                  <ContractorManager />
-                </RoleRoute>
-              </ProtectedRoute>
-            }
-          />
-
-          {/* Vehicle Discrepancy Log — B-75 */}
-          <Route
-            path="/vehicle-discrepancies"
-            element={
-              <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
-                  <VehicleDiscrepancyLog />
-                </RoleRoute>
-              </ProtectedRoute>
-            }
-          />
-
-          {/* Drift Event Log — B-76 */}
-          <Route
-            path="/drift-events"
-            element={
-              <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
-                  <DriftEventLog />
-                </RoleRoute>
-              </ProtectedRoute>
-            }
-          />
-
-          {/* Investigation Job Config — B-77 */}
-          <Route
-            path="/investigation-job-config"
-            element={
-              <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'master']}>
-                  <InvestigationJobConfig />
-                </RoleRoute>
-              </ProtectedRoute>
-            }
-          />
-
-          {/* Zone Legal Config — B-78 */}
-          <Route
-            path="/zone-legal-config"
-            element={
-              <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'master']}>
-                  <ZoneLegalConfigViewer />
-                </RoleRoute>
-              </ProtectedRoute>
-            }
-          />
-
-          {/* Alarm Event Log — B-79 */}
-          <Route
-            path="/alarm-events-log"
-            element={
-              <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
-                  <AlarmEventLog />
-                </RoleRoute>
-              </ProtectedRoute>
-            }
-          />
-
-          {/* Enforcement Event Log — B-80 */}
-          <Route
-            path="/enforcement-events-log"
-            element={
-              <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
-                  <EnforcementEventLog />
-                </RoleRoute>
-              </ProtectedRoute>
-            }
-          />
-
-          {/* Open Shift Manager — B-81 */}
-          <Route
-            path="/open-shifts-manager"
-            element={
-              <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
-                  <OpenShiftManager />
-                </RoleRoute>
-              </ProtectedRoute>
-            }
-          />
-
-          {/* Checkpoint Visit Log — B-82 */}
-          <Route
-            path="/checkpoint-visits-log"
-            element={
-              <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
-                  <CheckpointVisitLog />
-                </RoleRoute>
-              </ProtectedRoute>
-            }
-          />
-
-          {/* EMS Attendance Log — B-83 */}
-          <Route
-            path="/ems-attendances-log"
-            element={
-              <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
-                  <EmsAttendanceLog />
-                </RoleRoute>
-              </ProtectedRoute>
-            }
-          />
-
-          {/* Parking Session Log — B-84 */}
-          <Route
-            path="/parking-sessions-log"
-            element={
-              <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
-                  <ParkingSessionLog />
-                </RoleRoute>
-              </ProtectedRoute>
-            }
-          />
-
-          {/* Flagged Vehicle Manager — B-85 */}
-          <Route
-            path="/flagged-vehicles-manager"
-            element={
-              <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
-                  <FlaggedVehicleManager />
-                </RoleRoute>
-              </ProtectedRoute>
-            }
-          />
-
-          {/* Parking Payment Log — B-86 */}
-          <Route
-            path="/parking-payments-log"
-            element={
-              <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
-                  <ParkingPaymentLog />
-                </RoleRoute>
-              </ProtectedRoute>
-            }
-          />
-
-          {/* Zone Signage Evidence — B-87 */}
-          <Route
-            path="/zone-signage-evidence"
-            element={
-              <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
-                  <ZoneSignageEvidence />
-                </RoleRoute>
-              </ProtectedRoute>
-            }
-          />
-
-          {/* Officer Activity Log — B-88 */}
-          <Route
-            path="/officer-activity-log"
-            element={
-              <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
-                  <OfficerActivityLog />
-                </RoleRoute>
-              </ProtectedRoute>
-            }
-          />
-
-          {/* Credential Processing Log — B-89 */}
-          <Route
-            path="/credential-processing-log"
-            element={
-              <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
-                  <CredentialProcessingLog />
-                </RoleRoute>
-              </ProtectedRoute>
-            }
-          />
-
-          {/* Dispatch Acknowledgement Log — B-90 */}
-          <Route
-            path="/dispatch-ack-log"
-            element={
-              <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
-                  <DispatchAcknowledgementLog />
-                </RoleRoute>
-              </ProtectedRoute>
-            }
-          />
-
-        </Routes>
-        </Suspense>
-        </RouteErrorBoundary>
-        <Toaster position="top-right" />
-        <Suspense fallback={null}>
-          <GlobalOperationsBar />
-        </Suspense>
-      </BrowserRouter>
-    </QueryClientProvider>
-  )
-}
