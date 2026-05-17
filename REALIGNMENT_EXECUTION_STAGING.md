@@ -162,7 +162,7 @@ Bob governance note for this lane:
 
 #### To-Do Items
 
-- [ ] **May 12 (Monday)**: Team kickoff & ownership alignment
+- [x] **May 12 (Monday)**: Team kickoff & ownership alignment — Completed (see `docs/BUILD_REALIGNMENT_PLAN_2026-05-04.md`, Criterion 5)
   ```bash
   # Action: Confirm team roles in GitHub @DonSquires/team-realignment
   # Verify in Slack #realignment-kickoff thread
