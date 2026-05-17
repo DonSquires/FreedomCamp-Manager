@@ -204,6 +204,11 @@ All log routes follow the canonical pattern: `/{entity}-log`
 - Alias resolution is manifest-driven using `auditDomain` metadata on log routes.
 - Navigation surfaces now prefer `/audit/{domain}/{entity}` links for selected high-traffic logs while preserving legacy route compatibility.
 
+**Part 3 Coverage Completion (implemented 2026-05-17):**
+- All `*-log` route manifest entries now include explicit `auditDomain` metadata.
+- Validator enforces allowed `auditDomain` values to prevent alias drift.
+- Structured alias mapping now has complete metadata coverage across the full log-route set.
+
 ---
 
 ### 7. Internal & Debug Routes

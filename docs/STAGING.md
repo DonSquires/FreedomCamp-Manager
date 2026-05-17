@@ -38,6 +38,20 @@ Status: Active staging checklist — CRO Part 1 COMPLETE; Phase E ready for Part
 - Open blockers:
   1. Full CLI lint/build gate re-run remains environment-dependent in this container lane.
 
+## Latest Session Snapshot (Part 3 Coverage Completion — Full Log Route Domain Tags — 2026-05-17)
+
+- Timestamp (NZ): 2026-05-17
+- Session focus: Finish Part 3 by completing explicit `auditDomain` metadata coverage for all `*-log` routes in the route manifest.
+- Scope completed:
+  - **[Frontend Platform Lead]** Tagged all remaining log-route manifest entries with explicit `auditDomain` values.
+  - **[Frontend Platform Lead]** Verified no log-route objects are missing `auditDomain` using block-level manifest scan.
+  - **[Planning/PM]** Updated route consolidation documentation with coverage completion status.
+- Validation evidence:
+  - Block-level manifest validation check reported zero `*-log` routes without `auditDomain`.
+  - IDE diagnostics (`get_errors`) remain clean on changed files.
+- Open blockers:
+  1. Full CLI lint/build gate re-run remains environment-dependent in this container lane.
+
 ## Latest Session Snapshot (Part 2.2 Route Manifest Runtime Enforcement — 2026-05-17)
 
 - Timestamp (NZ): 2026-05-17
