@@ -1,0 +1,2761 @@
+{
+  "checkedAt": "2026-05-17T03:36:19.976Z",
+  "adminOfficerRouteCount": 229,
+  "routeSignatures": [
+    {
+      "path": "/portal-selection",
+      "roles": [
+        "admin_officer"
+      ],
+      "components": [
+        "PortalSelection"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/waiting-for-shift",
+      "roles": [
+        "officer",
+        "admin_officer"
+      ],
+      "components": [],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/officer-home",
+      "roles": [
+        "officer",
+        "admin_officer"
+      ],
+      "components": [],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/my-roster",
+      "roles": [
+        "officer",
+        "admin_officer"
+      ],
+      "components": [
+        "OfficerHomePage"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/field-officer/dispatch",
+      "roles": [
+        "officer",
+        "admin_officer"
+      ],
+      "components": [
+        "FieldOfficerDispatch"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/field-officer",
+      "roles": [
+        "officer",
+        "admin_officer"
+      ],
+      "components": [
+        "FieldOfficerPortal"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/admin",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "AdminHub"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/admin/dashboard",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "AdminPortal"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/dashboard",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master",
+        "officer"
+      ],
+      "components": [
+        "ModuleDashboard"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/patrols",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master",
+        "officer"
+      ],
+      "components": [
+        "PatrolModule"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/patrols/:id",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master",
+        "officer"
+      ],
+      "components": [
+        "PatrolDetail"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/enforcement",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "EnforcementModule"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/zones",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "ZoneManagement"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/compliance",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "CompliancePage"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/data",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "DataManagement"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/users",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/access-control",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "AccessControlPage"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/client-portal",
+      "roles": [
+        "client_viewer",
+        "client_officer",
+        "client_admin",
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "ClientOrganisationPortal"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/evidence-packages",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master",
+        "officer"
+      ],
+      "components": [
+        "EvidencePackages"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/cohort-analysis",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "CohortAnalysis"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/alarm-events",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "AlarmEvents"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/occupancy-analytics",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "OccupancyAnalytics"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/patrol-route-optimiser",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master",
+        "officer"
+      ],
+      "components": [
+        "PatrolRouteOptimiser"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/fixed-cameras",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "FixedCameras"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/patrol-navigation",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master",
+        "officer"
+      ],
+      "components": [
+        "PatrolNavigation"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/dynamic-pricing",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "DynamicPricing"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/revenue-forecasting",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "RevenueForecast"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/lmr-bridge",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "LMRBridge"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/case-bridge",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "CaseBridge"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/service-agreements",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "ServiceAgreements"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/poi-voi-dashboard",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "POIVOIDashboard"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/access-audit",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "AccessAuditLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/reports",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "Reports"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/compliance-recalculation",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "ComplianceRecalculation"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/photo-reingest",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "PhotoReingest"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/evidence-photo-linker",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "EvidencePhotoLinker"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/live-tracking",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "LiveOfficerTracking"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/organization-profile",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "OrganizationProfile"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/audit-log",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "AuditLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/enforcement-actions",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master",
+        "officer"
+      ],
+      "components": [
+        "EnforcementActions"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/admin/enforcement",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master",
+        "officer"
+      ],
+      "components": [
+        "EnforcementActions"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/enforcement-command-center",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "EnforcementCommandCenter"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/infringements",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master",
+        "officer"
+      ],
+      "components": [
+        "InfringementNotices"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/privacy-curtain",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "PrivacyCurtain"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/patrol-checkpoints",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "PatrolCheckpointManagement"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/patrol-schedule",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "PatrolScheduleManagement"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/patrol-kpis",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "PatrolKPIDashboard"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/admin/data-hub",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "DataManagementHub"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/admin/data-cleanup",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "DataCleanupUtility"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/admin/data-integrity",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "DataIntegrityDashboard"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/live-patrol",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "LivePatrolMonitor"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/custom-reports",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "CustomReportBuilder"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/ai-analysis",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "AiAnalysis"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/hotspots",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "HotspotsMap"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/spatial-compliance",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "SpatialComplianceAdmin"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/compliance-analytics",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "ComplianceAnalytics"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/incident-reports",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "IncidentReports"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/observations",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "ObservationsView"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/radio/audit",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "RadioAuditDashboard"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/radio-transmissions",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "RadioTransmissionsLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/voice-profiles",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "VoiceProfilesConsent"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/on-call-periods",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master",
+        "officer"
+      ],
+      "components": [
+        "OnCallPeriods"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/callout-shifts",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master",
+        "officer"
+      ],
+      "components": [
+        "CalloutShifts"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/officer-allowances",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "OfficerAllowances"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/travel-allowances",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "TravelAllowances"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/parking-appeals",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "ParkingAppeals"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/camper-registrations",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "CamperRegistrations"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/zone-amenities",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "ZoneAmenities"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/noise-complaints",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "NoiseComplaintsLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/patrol-events",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "PatrolEventLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/breach-escalation",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "BreachEscalation"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/officer-performance",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "OfficerPerformanceReport"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/site-risk-trends",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "SiteRiskTrends"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/incident-heatmap",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "IncidentHeatmap"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/health-safety-reports",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "HealthSafetyReports"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/welfare-checkins",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "WelfareCheckinLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/parking-permits",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "ParkingPermitManager"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/bob-intake-queue",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "BobIntakeQueue"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/bob-assistant",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master",
+        "officer"
+      ],
+      "components": [
+        "BobAssistantStudio"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/admin/video-generation",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "BriefingVideoSuite"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/bob-ui-review",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "BobUIReview"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/live-plan-reviews",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "OpsLivePlanReviewQueue"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/notice-to-vacate",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "NoticeToVacate"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/disputes",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "Disputes"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/admin/discrepancies",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "VehicleDiscrepancies"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/admin/nzscv",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master",
+        "nzscv_monitor"
+      ],
+      "components": [
+        "NZSCVMonitor"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/officer-welfare",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "OfficerWelfareSettings"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/enforcement-review",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "EnforcementReview"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/investigations",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "InvestigationJobsPage"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/parking",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "ParkingEnforcementPortal"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/parking-officer",
+      "roles": [
+        "officer",
+        "admin_officer"
+      ],
+      "components": [
+        "ParkingOfficerPortal"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/noise-control",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "NoiseControlPortal"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/noise-officer",
+      "roles": [
+        "officer",
+        "admin_officer"
+      ],
+      "components": [
+        "NoiseOfficerPortal"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/biosecurity-control",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "BiosecurityControlPage"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/biosecurity-officer",
+      "roles": [
+        "officer",
+        "admin_officer"
+      ],
+      "components": [
+        "BiosecurityOfficerPortal"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/smoke-control",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "SmokeComplaintControlPage"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/smoke-officer",
+      "roles": [
+        "officer",
+        "admin_officer"
+      ],
+      "components": [
+        "SmokeComplaintOfficerPortal"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/person-records",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "PersonRecords"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/points-of-interest",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master",
+        "officer"
+      ],
+      "components": [
+        "PointsOfInterest"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/site-risk-assessment",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master",
+        "officer"
+      ],
+      "components": [
+        "SiteRiskAssessment"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/loi-browser",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "DispatchLOIBrowser"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/trespass-notices",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "TrespassNotices"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/access-permissions",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "AccessPermissions"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/canonical-persons",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "CanonicalPersonViewer"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/face-recognition",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master",
+        "officer"
+      ],
+      "components": [
+        "FaceRecognitionPage"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/identity-verification",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "IdentityVerificationPage"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/import-data",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "ImportData"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/breach-notices",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master",
+        "officer"
+      ],
+      "components": [
+        "BreachNotices"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/observations-report",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "ObservationsReport"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/vehicle-registry",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master",
+        "nzscv_monitor"
+      ],
+      "components": [
+        "VehicleRegistry"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/plate-finder",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master",
+        "officer"
+      ],
+      "components": [
+        "MobilePlateFinder"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/admin/canonical-records",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "CanonicalRecordsManager"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/clean-dashboard",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "CleanDashboard"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/asset-management",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "AssetManagement"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/patrol-chain-audits",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "PatrolChainAudits"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/invoicing",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "InvoicingPage"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/pricing",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "PricingPage"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/timesheets",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "TimesheetReview"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/leave-management",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master",
+        "officer"
+      ],
+      "components": [
+        "LeaveManagement"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/open-shifts",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master",
+        "officer"
+      ],
+      "components": [
+        "OpenShifts"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/dispatch",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "DispatchConsole"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/admin/dispatch",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "DispatchConsole"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/dispatch-monitor",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "DispatchMonitor"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/dispatch-wizard",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "DispatchWizard"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/dispatched-jobs",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "DispatchedJobsList"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/job-map",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master",
+        "officer"
+      ],
+      "components": [
+        "JobMap"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/operations-map",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "OperationsMap"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/client-sites",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "ClientSites"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/client-master-list",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "ClientMasterList"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/roster",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "RosterPlanner"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/officer-skills",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "OfficerSkills"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/roster-shifts",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "RosterShiftLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/noise-notices",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "NoiseNoticeLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/site-incidents",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "SiteIncidentLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/person-interactions",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "PersonInteractionLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/plate-scans-log",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "PlateScanLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/dispatch-events",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "DispatchEventLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/notices-to-vacate",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "NoticeToVacateLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/contractor-manager",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "ContractorManager"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/vehicle-discrepancies",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "VehicleDiscrepancyLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/drift-events",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "DriftEventLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/investigation-jobs-log",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "InvestigationJobLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/operational-cases-log",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "OperationalCaseLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/patrol-events-log",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "PatrolEventLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/checkpoint-visits-log",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "CheckpointVisitLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/ems-attendances-log",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "EmsAttendanceLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/parking-sessions-log",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "ParkingSessionLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/flagged-vehicles-manager",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "FlaggedVehicleManager"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/parking-payments-log",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "ParkingPaymentLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/zone-signage-evidence",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "ZoneSignageEvidence"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/officer-activity-log",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "OfficerActivityLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/credential-processing-log",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "CredentialProcessingLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/dispatch-ack-log",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "DispatchAcknowledgementLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/compliance-audit-log",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "ComplianceAuditLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/enforcement-events-log",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "EnforcementEventLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/noise-jobs-log",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "NoiseJobLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/patrol-route-log",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "PatrolRouteLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/alarm-events-log",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "AlarmEventLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/radio-transmissions-log",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master",
+        "officer"
+      ],
+      "components": [
+        "RadioTransmissionLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/noise-assessments-log",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "NoiseAssessmentLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/trespass-notices-log",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "TrespassNoticeLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/parking-infringements-log",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "ParkingInfringementLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/person-observations-log",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "PersonObservationLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/vehicles-of-interest-log",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "VehiclesOfInterestLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/persons-of-interest-log",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "PersonsOfInterestLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/radio-comms-events-log",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "RadioCommsEventLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/case-comments-log",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "CaseCommentLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/lmr-bridge-sessions-log",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "LmrBridgeSessionLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/patrol-session-events-log",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "PatrolSessionEventLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/radio-transcript-log",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "RadioTranscriptLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/dispute-intake-log",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "DisputeIntakeLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/radio-tts-render-log",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "RadioTtsRenderLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/health-safety-report-log",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "HealthSafetyReportLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/noise-seizures-log",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "NoiseSeizureLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/locations-of-interest-log",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "LocationsOfInterestLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/vehicle-monthly-stays-log",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "VehicleMonthlyStayLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/radio-voice-consent-log",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "RadioVoiceConsentLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/patrol-field-events-log",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "PatrolFieldEventLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/alert-queue-log",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "AlertQueueLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/compliance-results-log",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "ComplianceResultLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/welfare-events-log",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "WelfareEventB1Log"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/zone-geofence-snapshots",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "ZoneGeofenceSnapshotLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/missing-photo-queue",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "MissingPhotoQueueLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/photo-integrity-health-log",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "PhotoIntegrityHealthLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/photo-recovery-audit-log",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "PhotoRecoveryAuditLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/recent-observations-photo-status-log",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "RecentObservationPhotoStatusLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/observation-zone-audit-log",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "ObservationZoneAuditLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/alert-acknowledgements-log",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "AlertAcknowledgementsLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/officer-welfare-alerts-log",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "OfficerWelfareAlertsLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/dispatch-resources-log",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "DispatchResourceLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/radio-translation-log",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "RadioTranslationLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/bob-proposals-log",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "BobProposalLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/bob-proposal-events-log",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "BobProposalEventLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/contractor-documents-log",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "ContractorDocumentLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/radio-voice-profiles-log",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "RadioVoiceProfileLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/bob-action-proposal-events-log",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "BobActionProposalEventLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/homeless-records-log",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "HomelessRecordLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/client-sites-log",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "ClientSiteLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/parking-permits-log",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "ParkingPermitLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/incidents-log",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "IncidentLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/person-records-log",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "PersonRecordLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/notifications-log",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "NotificationLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/face-records-log",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "FaceRecordLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/infringement-notices-log",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "InfringementNoticeLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/site-risk-assessments-log",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "SiteRiskAssessmentLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/dispatch-jobs-log",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "DispatchJobLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/enforcement-actions-log",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "EnforcementActionLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/observations-log",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "ObservationLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/canonical-scv-log",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "CanonicalScvLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/officer-availability-log",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "OfficerAvailabilityLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/canonical-homeless-log",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "CanonicalHomelessLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/breach-alerts-log",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "BreachAlertLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/canonical-vehicles-log",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "CanonicalVehicleLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/flagged-vehicles-log",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "FlaggedVehicleLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/officer-shifts-log",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "OfficerShiftLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/open-shifts-log",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "OpenShiftLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/zone-compliance-matrix-log",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "ZoneComplianceMatrixLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/pricing-rules-log",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "PricingRuleLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/zone-signage-evidence-log",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "ZoneSignageEvidenceLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/fixed-cameras-log",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "FixedCameraLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/officer-skills-log",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "OfficerSkillsLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/patrol-checkpoints-log",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "PatrolCheckpointLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/canonical-persons-log",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "CanonicalPersonsLog"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/crm",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "CRMModule"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/crm/contractor/:orgId",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "ContractorAccountPage"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/crm/client/:orgId",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "ClientAccountPage"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/ems",
+      "roles": [
+        "officer",
+        "admin_officer"
+      ],
+      "components": [
+        "EMSPortal"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/site-guard",
+      "roles": [
+        "officer",
+        "admin_officer"
+      ],
+      "components": [
+        "SiteGuardPortal"
+      ],
+      "hasRoleGuard": true
+    },
+    {
+      "path": "/open-shifts-manager",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "components": [
+        "OpenShiftManager"
+      ],
+      "hasRoleGuard": true
+    }
+  ]
+}

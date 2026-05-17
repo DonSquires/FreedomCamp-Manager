@@ -1,0 +1,82 @@
+{
+  "version": "1.0.0",
+  "thresholds": {
+    "minAdminOfficerEndpointCount": 28
+  },
+  "requiredEndpoints": [
+    "create-user",
+    "deputy-roster-import",
+    "generate-briefing-video",
+    "generate-infringement",
+    "generate-noise-notice",
+    "generate-seizure-receipt",
+    "generate-warning-notice",
+    "import-historical-data",
+    "live-session-diagnostics-summary",
+    "manage-dispatch-operations",
+    "manage-lmr-governance",
+    "manage-parking-governance",
+    "manage-platform-feedback",
+    "manage-site-governance",
+    "manage-tender-artifacts",
+    "manage-user",
+    "monitor-officer-welfare",
+    "nightly-privacy-cleanup",
+    "parkpow-photo-sync",
+    "photo-maintenance",
+    "process-officer-scan",
+    "ptt-signaling-token",
+    "radio-token",
+    "render-infringement-notice",
+    "revoke-briefing-video",
+    "smoke-notice",
+    "video-audit-log",
+    "wearable-sos"
+  ],
+  "endpointRequirements": {
+    "requireDenoServe": true,
+    "requireOptionsHandler": true,
+    "requireCorsHelper": true
+  },
+  "endpointRequirementOverrides": {
+    "deputy-roster-import": {
+      "requireOptionsHandler": false
+    },
+    "live-session-diagnostics-summary": {
+      "requireOptionsHandler": false
+    },
+    "manage-lmr-governance": {
+      "requireOptionsHandler": false
+    },
+    "manage-tender-artifacts": {
+      "requireOptionsHandler": false
+    },
+    "nightly-privacy-cleanup": {
+      "requireOptionsHandler": false
+    },
+    "photo-maintenance": {
+      "requireOptionsHandler": false
+    },
+    "process-officer-scan": {
+      "requireOptionsHandler": false
+    },
+    "ptt-signaling-token": {
+      "requireOptionsHandler": false
+    },
+    "radio-token": {
+      "requireOptionsHandler": false
+    },
+    "smoke-notice": {
+      "requireOptionsHandler": false
+    },
+    "video-audit-log": {
+      "requireOptionsHandler": false
+    }
+  },
+  "regressionSnapshot": {
+    "path": "data/admin-officer-endpoints-snapshot.json",
+    "allowEndpointAdditions": false,
+    "allowEndpointRemovals": false,
+    "enforceEndpointDiff": true
+  }
+}

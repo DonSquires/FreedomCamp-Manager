@@ -1,0 +1,37 @@
+name: CI Admin Officer Endpoints Gate
+
+on:
+  pull_request:
+    paths:
+      - supabase/functions/**
+      - data/admin-officer-endpoints-baseline.json
+      - data/admin-officer-endpoints-snapshot.json
+      - scripts/check-admin-officer-endpoints.mjs
+      - .github/workflows/ci-admin-officer-endpoints-gate.yml
+  workflow_dispatch:
+
+jobs:
+  admin-officer-endpoints-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run Admin Officer Endpoints Governance Check
+        run: node scripts/check-admin-officer-endpoints.mjs
+
+      - name: Upload Admin Officer Endpoints Reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: admin-officer-endpoints-governance-reports
+          path: |
+            data/prepared/admin-officer-endpoints-report.json
+            data/prepared/admin-officer-endpoints-trend.json
+          if-no-files-found: error

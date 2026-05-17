@@ -1,0 +1,202 @@
+{
+  "checkedAt": "2026-05-17T03:36:20.029Z",
+  "adminOfficerEndpointCount": 28,
+  "endpointSignatures": [
+    {
+      "name": "create-user",
+      "hasIndexFile": true,
+      "hasDenoServe": true,
+      "hasOptionsHandler": true,
+      "usesCorsHelper": true
+    },
+    {
+      "name": "deputy-roster-import",
+      "hasIndexFile": true,
+      "hasDenoServe": true,
+      "hasOptionsHandler": true,
+      "usesCorsHelper": true
+    },
+    {
+      "name": "generate-briefing-video",
+      "hasIndexFile": true,
+      "hasDenoServe": true,
+      "hasOptionsHandler": true,
+      "usesCorsHelper": true
+    },
+    {
+      "name": "generate-infringement",
+      "hasIndexFile": true,
+      "hasDenoServe": true,
+      "hasOptionsHandler": true,
+      "usesCorsHelper": true
+    },
+    {
+      "name": "generate-noise-notice",
+      "hasIndexFile": true,
+      "hasDenoServe": true,
+      "hasOptionsHandler": true,
+      "usesCorsHelper": true
+    },
+    {
+      "name": "generate-seizure-receipt",
+      "hasIndexFile": true,
+      "hasDenoServe": true,
+      "hasOptionsHandler": true,
+      "usesCorsHelper": true
+    },
+    {
+      "name": "generate-warning-notice",
+      "hasIndexFile": true,
+      "hasDenoServe": true,
+      "hasOptionsHandler": true,
+      "usesCorsHelper": true
+    },
+    {
+      "name": "import-historical-data",
+      "hasIndexFile": true,
+      "hasDenoServe": true,
+      "hasOptionsHandler": true,
+      "usesCorsHelper": true
+    },
+    {
+      "name": "live-session-diagnostics-summary",
+      "hasIndexFile": true,
+      "hasDenoServe": true,
+      "hasOptionsHandler": false,
+      "usesCorsHelper": true
+    },
+    {
+      "name": "manage-dispatch-operations",
+      "hasIndexFile": true,
+      "hasDenoServe": true,
+      "hasOptionsHandler": true,
+      "usesCorsHelper": true
+    },
+    {
+      "name": "manage-lmr-governance",
+      "hasIndexFile": true,
+      "hasDenoServe": true,
+      "hasOptionsHandler": true,
+      "usesCorsHelper": true
+    },
+    {
+      "name": "manage-parking-governance",
+      "hasIndexFile": true,
+      "hasDenoServe": true,
+      "hasOptionsHandler": true,
+      "usesCorsHelper": true
+    },
+    {
+      "name": "manage-platform-feedback",
+      "hasIndexFile": true,
+      "hasDenoServe": true,
+      "hasOptionsHandler": true,
+      "usesCorsHelper": true
+    },
+    {
+      "name": "manage-site-governance",
+      "hasIndexFile": true,
+      "hasDenoServe": true,
+      "hasOptionsHandler": true,
+      "usesCorsHelper": true
+    },
+    {
+      "name": "manage-tender-artifacts",
+      "hasIndexFile": true,
+      "hasDenoServe": true,
+      "hasOptionsHandler": true,
+      "usesCorsHelper": true
+    },
+    {
+      "name": "manage-user",
+      "hasIndexFile": true,
+      "hasDenoServe": true,
+      "hasOptionsHandler": true,
+      "usesCorsHelper": true
+    },
+    {
+      "name": "monitor-officer-welfare",
+      "hasIndexFile": true,
+      "hasDenoServe": true,
+      "hasOptionsHandler": true,
+      "usesCorsHelper": true
+    },
+    {
+      "name": "nightly-privacy-cleanup",
+      "hasIndexFile": true,
+      "hasDenoServe": true,
+      "hasOptionsHandler": true,
+      "usesCorsHelper": true
+    },
+    {
+      "name": "parkpow-photo-sync",
+      "hasIndexFile": true,
+      "hasDenoServe": true,
+      "hasOptionsHandler": true,
+      "usesCorsHelper": true
+    },
+    {
+      "name": "photo-maintenance",
+      "hasIndexFile": true,
+      "hasDenoServe": true,
+      "hasOptionsHandler": true,
+      "usesCorsHelper": true
+    },
+    {
+      "name": "process-officer-scan",
+      "hasIndexFile": true,
+      "hasDenoServe": true,
+      "hasOptionsHandler": true,
+      "usesCorsHelper": true
+    },
+    {
+      "name": "ptt-signaling-token",
+      "hasIndexFile": true,
+      "hasDenoServe": true,
+      "hasOptionsHandler": true,
+      "usesCorsHelper": true
+    },
+    {
+      "name": "radio-token",
+      "hasIndexFile": true,
+      "hasDenoServe": true,
+      "hasOptionsHandler": false,
+      "usesCorsHelper": true
+    },
+    {
+      "name": "render-infringement-notice",
+      "hasIndexFile": true,
+      "hasDenoServe": true,
+      "hasOptionsHandler": true,
+      "usesCorsHelper": true
+    },
+    {
+      "name": "revoke-briefing-video",
+      "hasIndexFile": true,
+      "hasDenoServe": true,
+      "hasOptionsHandler": true,
+      "usesCorsHelper": true
+    },
+    {
+      "name": "smoke-notice",
+      "hasIndexFile": true,
+      "hasDenoServe": true,
+      "hasOptionsHandler": false,
+      "usesCorsHelper": true
+    },
+    {
+      "name": "video-audit-log",
+      "hasIndexFile": true,
+      "hasDenoServe": true,
+      "hasOptionsHandler": true,
+      "usesCorsHelper": true
+    },
+    {
+      "name": "wearable-sos",
+      "hasIndexFile": true,
+      "hasDenoServe": true,
+      "hasOptionsHandler": true,
+      "usesCorsHelper": true
+    }
+  ]
+}

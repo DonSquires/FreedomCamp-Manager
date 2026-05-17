@@ -1,0 +1,96 @@
+{
+  "version": "1.0.0",
+  "thresholds": {
+    "includeRouteRegexes": [],
+    "excludeRouteRegexes": [
+      "^/public/"
+    ],
+    "includeRoutesWithAdminOfficerRole": true,
+    "minAdminOfficerRouteCount": 229,
+    "requireRoleGuard": true,
+    "requiredRolesAnyOf": [
+      "admin_officer"
+    ],
+    "wrapperComponents": [
+      "Route",
+      "ProtectedRoute",
+      "RoleRoute",
+      "AreaRoute",
+      "Navigate"
+    ]
+  },
+  "routeRoleRequirements": {
+    "/portal-selection": [
+      "admin_officer"
+    ],
+    "/admin": [
+      "admin_officer"
+    ],
+    "/field-officer": [
+      "admin_officer"
+    ],
+    "/field-officer/dispatch": [
+      "admin_officer"
+    ]
+  },
+  "routeComponentAllowlist": {
+    "/portal-selection": [
+      "PortalSelection"
+    ],
+    "/admin": [
+      "AdminHub"
+    ],
+    "/field-officer": [
+      "FieldOfficerPortal"
+    ],
+    "/field-officer/dispatch": [
+      "FieldOfficerDispatch"
+    ]
+  },
+  "criticalRoutes": [
+    {
+      "path": "/portal-selection",
+      "requiredRoles": [
+        "admin_officer"
+      ],
+      "requiredComponents": [
+        "PortalSelection"
+      ]
+    },
+    {
+      "path": "/admin",
+      "requiredRoles": [
+        "admin_officer"
+      ],
+      "requiredComponents": [
+        "AdminHub"
+      ]
+    },
+    {
+      "path": "/field-officer",
+      "requiredRoles": [
+        "admin_officer"
+      ],
+      "requiredComponents": [
+        "FieldOfficerPortal"
+      ]
+    },
+    {
+      "path": "/field-officer/dispatch",
+      "requiredRoles": [
+        "admin_officer"
+      ],
+      "requiredComponents": [
+        "FieldOfficerDispatch"
+      ]
+    }
+  ],
+  "regressionSnapshot": {
+    "path": "data/admin-officer-routes-snapshot.json",
+    "allowRouteAdditions": false,
+    "allowRouteRemovals": false,
+    "enforceRoleDiff": true,
+    "enforceComponentDiff": true,
+    "enforceRoleGuardDiff": true
+  }
+}
