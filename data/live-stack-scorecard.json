@@ -1,0 +1,425 @@
+{
+  "generatedAt": "2026-05-17T06:07:36.247Z",
+  "repository": {
+    "owner": "DonSquires",
+    "repo": "FreedomCamp-Manager",
+    "headSha": "14982663020898b56ea8235777781a280cfa8da0"
+  },
+  "ci": {
+    "source": "github_actions",
+    "error": null,
+    "runs": [
+      {
+        "id": 25983029240,
+        "name": "Synthetic UI Monitor",
+        "status": "completed",
+        "conclusion": "success",
+        "created_at": "2026-05-17T06:03:12Z",
+        "updated_at": "2026-05-17T06:06:24Z",
+        "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25983029240"
+      },
+      {
+        "id": 25983029231,
+        "name": "Ops Bob Assess Failed Actions",
+        "status": "completed",
+        "conclusion": "success",
+        "created_at": "2026-05-17T06:03:11Z",
+        "updated_at": "2026-05-17T06:03:17Z",
+        "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25983029231"
+      },
+      {
+        "id": 25983000726,
+        "name": "Ops Bob Assess Failed Actions",
+        "status": "completed",
+        "conclusion": "success",
+        "created_at": "2026-05-17T06:01:43Z",
+        "updated_at": "2026-05-17T06:01:51Z",
+        "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25983000726"
+      },
+      {
+        "id": 25982949497,
+        "name": "Ops Strict Uptime Gate",
+        "status": "completed",
+        "conclusion": "success",
+        "created_at": "2026-05-17T05:59:13Z",
+        "updated_at": "2026-05-17T06:00:26Z",
+        "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25982949497"
+      },
+      {
+        "id": 25982899848,
+        "name": "Validate RunPod Image Tags",
+        "status": "completed",
+        "conclusion": "success",
+        "created_at": "2026-05-17T05:56:16Z",
+        "updated_at": "2026-05-17T05:56:24Z",
+        "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25982899848"
+      },
+      {
+        "id": 25982899858,
+        "name": "Docs — Flag Canonical Manual Drift",
+        "status": "completed",
+        "conclusion": "success",
+        "created_at": "2026-05-17T05:56:16Z",
+        "updated_at": "2026-05-17T05:56:26Z",
+        "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25982899858"
+      },
+      {
+        "id": 25982899865,
+        "name": "Triage Production Bug Reports",
+        "status": "completed",
+        "conclusion": "success",
+        "created_at": "2026-05-17T05:56:16Z",
+        "updated_at": "2026-05-17T05:56:24Z",
+        "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25982899865"
+      },
+      {
+        "id": 25982899844,
+        "name": "policy-bob-openai-research-training",
+        "status": "completed",
+        "conclusion": "success",
+        "created_at": "2026-05-17T05:56:16Z",
+        "updated_at": "2026-05-17T05:56:36Z",
+        "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25982899844"
+      },
+      {
+        "id": 25982899850,
+        "name": "Playwright Deep Functional Cross-Browser",
+        "status": "queued",
+        "conclusion": null,
+        "created_at": "2026-05-17T05:56:16Z",
+        "updated_at": "2026-05-17T05:56:16Z",
+        "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25982899850"
+      },
+      {
+        "id": 25982899845,
+        "name": "CI Phase E3 Communications Audit Retry Gate",
+        "status": "completed",
+        "conclusion": "success",
+        "created_at": "2026-05-17T05:56:16Z",
+        "updated_at": "2026-05-17T05:56:47Z",
+        "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25982899845"
+      },
+      {
+        "id": 25982899843,
+        "name": "CI Phase E1 Data Access Consolidation Gate",
+        "status": "completed",
+        "conclusion": "success",
+        "created_at": "2026-05-17T05:56:16Z",
+        "updated_at": "2026-05-17T05:56:38Z",
+        "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25982899843"
+      },
+      {
+        "id": 25982899859,
+        "name": "CI Phase E2 Enterprise Hardening Tenancy Gate",
+        "status": "completed",
+        "conclusion": "success",
+        "created_at": "2026-05-17T05:56:16Z",
+        "updated_at": "2026-05-17T05:56:50Z",
+        "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25982899859"
+      },
+      {
+        "id": 25982899861,
+        "name": "CI Phase E4 Release Evidence Gate",
+        "status": "completed",
+        "conclusion": "success",
+        "created_at": "2026-05-17T05:56:16Z",
+        "updated_at": "2026-05-17T05:56:48Z",
+        "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25982899861"
+      },
+      {
+        "id": 25982899868,
+        "name": "Governance Release Gate",
+        "status": "completed",
+        "conclusion": "success",
+        "created_at": "2026-05-17T05:56:16Z",
+        "updated_at": "2026-05-17T05:57:49Z",
+        "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25982899868"
+      },
+      {
+        "id": 25982899862,
+        "name": "Playwright Monitoring Pulse",
+        "status": "completed",
+        "conclusion": "success",
+        "created_at": "2026-05-17T05:56:16Z",
+        "updated_at": "2026-05-17T06:01:34Z",
+        "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25982899862"
+      },
+      {
+        "id": 25982899846,
+        "name": "CI Build High Memory",
+        "status": "completed",
+        "conclusion": "failure",
+        "created_at": "2026-05-17T05:56:16Z",
+        "updated_at": "2026-05-17T06:01:40Z",
+        "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25982899846"
+      },
+      {
+        "id": 25982899864,
+        "name": "Playwright Bob Agent Conversation",
+        "status": "completed",
+        "conclusion": "failure",
+        "created_at": "2026-05-17T05:56:16Z",
+        "updated_at": "2026-05-17T06:02:32Z",
+        "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25982899864"
+      },
+      {
+        "id": 25982899851,
+        "name": "Bob Full Service Self-Test",
+        "status": "completed",
+        "conclusion": "success",
+        "created_at": "2026-05-17T05:56:16Z",
+        "updated_at": "2026-05-17T06:02:47Z",
+        "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25982899851"
+      },
+      {
+        "id": 25982899855,
+        "name": "Deploy Admin Portal to Vercel",
+        "status": "completed",
+        "conclusion": "success",
+        "created_at": "2026-05-17T05:56:16Z",
+        "updated_at": "2026-05-17T06:03:10Z",
+        "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25982899855"
+      }
+    ],
+    "total": 19,
+    "byStatus": {
+      "completed": 18,
+      "queued": 1
+    },
+    "byConclusion": {
+      "success": 16,
+      "null": 1,
+      "failure": 2
+    },
+    "active": [
+      {
+        "id": 25982899850,
+        "name": "Playwright Deep Functional Cross-Browser",
+        "status": "queued",
+        "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25982899850"
+      }
+    ],
+    "failed": [
+      {
+        "id": 25982899846,
+        "name": "CI Build High Memory",
+        "status": "completed",
+        "conclusion": "failure",
+        "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25982899846"
+      },
+      {
+        "id": 25982899864,
+        "name": "Playwright Bob Agent Conversation",
+        "status": "completed",
+        "conclusion": "failure",
+        "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25982899864"
+      }
+    ]
+  },
+  "supabase": {
+    "projectRef": "kxwjcupuxnnbnzcgmkoi",
+    "source": "supabase_cli",
+    "total": 142,
+    "version": {
+      "min": 1,
+      "max": 601,
+      "avg": 352.24
+    },
+    "stale": {
+      "olderThan30d": 4,
+      "olderThan90d": 0
+    },
+    "newest": [
+      {
+        "name": "translate-text",
+        "version": 45,
+        "updated_at": 1778993553034
+      },
+      {
+        "name": "detect-welfare-anomaly",
+        "version": 1,
+        "updated_at": 1778972984735
+      },
+      {
+        "name": "assess-compliance-multi",
+        "version": 1,
+        "updated_at": 1778972981801
+      },
+      {
+        "name": "infer-alpr-optimized",
+        "version": 1,
+        "updated_at": 1778972979112
+      },
+      {
+        "name": "speech-to-intent-improved",
+        "version": 1,
+        "updated_at": 1778972975985
+      },
+      {
+        "name": "manage-platform-feedback",
+        "version": 4,
+        "updated_at": 1778967597886
+      },
+      {
+        "name": "onspace-ai-chat",
+        "version": 601,
+        "updated_at": 1778932328813
+      },
+      {
+        "name": "manage-lmr-governance",
+        "version": 2,
+        "updated_at": 1778932323919
+      },
+      {
+        "name": "create-user",
+        "version": 559,
+        "updated_at": 1778932321001
+      },
+      {
+        "name": "manage-user",
+        "version": 491,
+        "updated_at": 1778931508275
+      }
+    ]
+  },
+  "selfHealing": {
+    "source": "existing-repo-self-heal-system",
+    "monitorHeartbeat": {
+      "checked_at": "2026-05-16T07:03:11.097Z",
+      "monitor_version": "2026-05-13.enterprise.v1",
+      "error_count": 0,
+      "unique_error_signatures": 0,
+      "window_minutes": 15,
+      "threshold": 5
+    },
+    "liveSessionDiagnostics": {
+      "schema_version": "2026-05-13.enterprise.v1",
+      "checked_at": "2026-05-16T07:03:11.243Z",
+      "started_at": "2026-05-16T07:03:11.242Z",
+      "window_minutes": 20,
+      "status": "stale",
+      "source": "live-session-diagnostics-summary",
+      "reason": "No live session diagnostic events detected in last 20m.",
+      "strict_mode": false,
+      "retries": 2,
+      "timeout_ms": 12000,
+      "lock_file": "/workspaces/FreedomCamp-Manager/tmp/locks/live-session-self-heal.lock",
+      "recent_events": 0,
+      "route_changes": 0,
+      "offline_events": 0,
+      "console_error_count": 0,
+      "unhandled_count": 0,
+      "latest_route": null,
+      "top_event_types": [],
+      "query": {
+        "source_table": "bug_reports",
+        "source_fallback": true,
+        "attempts": 1,
+        "status": 200,
+        "duration_ms": 52
+      },
+      "execution_ms": 623
+    },
+    "runpodSelfTest": {
+      "status": "success",
+      "scope": "quick",
+      "job_id": "b9b161c2-f6cf-4206-99a9-1ec48c7bcaaf-u2",
+      "started_at": "2026-05-05T15:02:07.441Z",
+      "finished_at": "2026-05-05T15:18:52.126Z",
+      "selected_specs": [
+        "tests/e2e/deep-functional.spec.ts"
+      ],
+      "failed_specs": [],
+      "stats": {
+        "passed": 0,
+        "failed": 0,
+        "skipped": 5
+      },
+      "success": true,
+      "failures": []
+    },
+    "posture": {
+      "ciFailuresPresent": true,
+      "monitorHealthy": true,
+      "liveDiagnosticsHealthy": false,
+      "requiresAction": true
+    },
+    "bridgeDraft": {
+      "title": "CI Self-Heal Review Request",
+      "workflow": "ci-self-heal-bridge",
+      "summary": "CI has 2 failed workflow(s) on 14982663 with self-heal telemetry attached.",
+      "report": {
+        "severity": "high",
+        "expected_behavior": "All required CI workflows complete successfully for the head commit.",
+        "actual_behavior": "2 workflow(s) failed; 1 still active.",
+        "reproduction_steps": [
+          "Run bun run research:stack:scorecard to refresh CI + self-heal telemetry.",
+          "Review ci.failed list and linked workflow URLs.",
+          "Submit report to /self-heal/bug-report or Bob collaboration queue for remediation planning."
+        ],
+        "evidence": {
+          "failed_workflows": [
+            {
+              "id": 25982899846,
+              "name": "CI Build High Memory",
+              "status": "completed",
+              "conclusion": "failure",
+              "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25982899846"
+            },
+            {
+              "id": 25982899864,
+              "name": "Playwright Bob Agent Conversation",
+              "status": "completed",
+              "conclusion": "failure",
+              "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25982899864"
+            }
+          ],
+          "active_workflows": [
+            {
+              "id": 25982899850,
+              "name": "Playwright Deep Functional Cross-Browser",
+              "status": "queued",
+              "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25982899850"
+            }
+          ],
+          "monitor_heartbeat": {
+            "checked_at": "2026-05-16T07:03:11.097Z",
+            "monitor_version": "2026-05-13.enterprise.v1",
+            "error_count": 0,
+            "unique_error_signatures": 0,
+            "window_minutes": 15,
+            "threshold": 5
+          },
+          "live_session_diagnostics": {
+            "schema_version": "2026-05-13.enterprise.v1",
+            "checked_at": "2026-05-16T07:03:11.243Z",
+            "started_at": "2026-05-16T07:03:11.242Z",
+            "window_minutes": 20,
+            "status": "stale",
+            "source": "live-session-diagnostics-summary",
+            "reason": "No live session diagnostic events detected in last 20m.",
+            "strict_mode": false,
+            "retries": 2,
+            "timeout_ms": 12000,
+            "lock_file": "/workspaces/FreedomCamp-Manager/tmp/locks/live-session-self-heal.lock",
+            "recent_events": 0,
+            "route_changes": 0,
+            "offline_events": 0,
+            "console_error_count": 0,
+            "unhandled_count": 0,
+            "latest_route": null,
+            "top_event_types": [],
+            "query": {
+              "source_table": "bug_reports",
+              "source_fallback": true,
+              "attempts": 1,
+              "status": 200,
+              "duration_ms": 52
+            },
+            "execution_ms": 623
+          }
+        }
+      }
+    }
+  }
+}

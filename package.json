@@ -37,6 +37,8 @@
     "evidence:workflow:all": "node scripts/collect-workflow-evidence.mjs --all",
     "evidence:workflow:validate": "node scripts/validate-workflow-evidence.mjs",
     "evidence:workflow:ids:p0": "node scripts/get-workflow-ids.mjs --criticality P0",
+    "research:stack:scorecard": "node scripts/generate-live-stack-scorecard.mjs",
+    "research:ci:self-heal-report": "node scripts/generate-live-stack-scorecard.mjs --out=data/live-stack-scorecard.json",
     "governance:summary": "node scripts/generate-governance-run-summary.mjs",
     "review:evidence": "node scripts/generate-bob-build-review-evidence.mjs tools/bob-build-review-evidence.json",
     "bob:self-heal-bridge": "node scripts/generate-bob-self-heal-bridge.mjs",
