@@ -12,7 +12,7 @@
  *   - Delete with confirmation
  */
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { format, parseISO, differenceInDays, isPast, isWithinInterval, addDays } from 'date-fns'
 import { toast } from 'sonner'
 import {
@@ -77,6 +77,11 @@ type ServiceAgreement = {
   allows_auto_dispatch: boolean
   default_sla_minutes: number
   default_priority: string
+  client_portal_access_mode: 'full_modules' | 'transparency_only'
+  client_portal_reports_enabled: boolean
+  client_portal_finance_enabled: boolean
+  contract_profile_code: string | null
+  monthly_report_template_code: string | null
   active_from: string | null
   active_to: string | null
   notes: string | null
@@ -84,6 +89,19 @@ type ServiceAgreement = {
   created_by: string | null
   created_at: string
   updated_at: string
+}
+
+type ServiceAgreementObligation = {
+  id: string
+  service_agreement_id: string
+  obligation_code: string
+  obligation_kind: string
+  target_minutes: number | null
+  escalation_minutes: number | null
+  proof_artifact_types: string[] | null
+  report_template_code: string | null
+  notes: string | null
+  is_active: boolean
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -94,6 +112,8 @@ const AGREEMENT_TYPES = [
 ]
 
 const PRIORITY_OPTIONS = ['low', 'normal', 'high', 'urgent']
+const CLIENT_ACCESS_MODES = ['transparency_only', 'full_modules'] as const
+const OBLIGATION_KINDS = ['response_sla', 'reporting', 'attendance', 'proof', 'frequency', 'consent', 'closure', 'other'] as const
 
 const EMPTY_FORM = {
   name: '',
@@ -103,8 +123,24 @@ const EMPTY_FORM = {
   allows_auto_dispatch: false,
   default_sla_minutes: 60,
   default_priority: 'normal',
+  client_portal_access_mode: 'transparency_only',
+  client_portal_reports_enabled: true,
+  client_portal_finance_enabled: false,
+  contract_profile_code: '',
+  monthly_report_template_code: '',
   active_from: '',
   active_to: '',
+  notes: '',
+  is_active: true,
+}
+
+const EMPTY_OBLIGATION_FORM = {
+  obligation_code: '',
+  obligation_kind: 'other' as const,
+  target_minutes: '',
+  escalation_minutes: '',
+  proof_artifact_types: '',
+  report_template_code: '',
   notes: '',
   is_active: true,
 }
@@ -158,6 +194,9 @@ export default function ServiceAgreements() {
   const [showDialog, setShowDialog]   = useState(false)
   const [editing, setEditing]         = useState<ServiceAgreement | null>(null)
   const [form, setForm]               = useState({ ...EMPTY_FORM })
+  const [selectedAgreementId, setSelectedAgreementId] = useState('')
+  const [editingObligationId, setEditingObligationId] = useState<string | null>(null)
+  const [obligationForm, setObligationForm] = useState({ ...EMPTY_OBLIGATION_FORM })
 
   // Delete confirm
   const [deleteTarget, setDeleteTarget] = useState<ServiceAgreement | null>(null)
@@ -178,6 +217,26 @@ export default function ServiceAgreements() {
     },
   })
 
+  useEffect(() => {
+    if (!selectedAgreementId && agreements.length > 0) {
+      setSelectedAgreementId(agreements[0].id)
+    }
+  }, [agreements, selectedAgreementId])
+
+  const { data: obligations = [], isLoading: obligationsLoading } = useQuery({
+    queryKey: ['service-agreement-obligations', selectedAgreementId],
+    enabled: !!selectedAgreementId,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from('service_agreement_obligations')
+        .select('id, service_agreement_id, obligation_code, obligation_kind, target_minutes, escalation_minutes, proof_artifact_types, report_template_code, notes, is_active')
+        .eq('service_agreement_id', selectedAgreementId)
+        .order('obligation_code', { ascending: true })
+      if (error) throw error
+      return (data ?? []) as ServiceAgreementObligation[]
+    },
+  })
+
   // ── Mutations ─────────────────────────────────────────────────────────────
 
   const saveAgreement = useMutation({
@@ -191,6 +250,11 @@ export default function ServiceAgreements() {
         allows_auto_dispatch: form.allows_auto_dispatch,
         default_sla_minutes: form.default_sla_minutes,
         default_priority: form.default_priority,
+        client_portal_access_mode: form.client_portal_access_mode,
+        client_portal_reports_enabled: form.client_portal_reports_enabled,
+        client_portal_finance_enabled: form.client_portal_finance_enabled,
+        contract_profile_code: form.contract_profile_code.trim() || null,
+        monthly_report_template_code: form.monthly_report_template_code.trim() || null,
         active_from: form.active_from || null,
         active_to: form.active_to || null,
         notes: form.notes.trim() || null,
@@ -249,6 +313,69 @@ export default function ServiceAgreements() {
     onError: (e: Error) => toast.error(e.message),
   })
 
+  const saveObligation = useMutation({
+    mutationFn: async () => {
+      if (!selectedAgreementId) throw new Error('Select an agreement first')
+
+      const proofArtifactTypes = obligationForm.proof_artifact_types
+        .split(',')
+        .map((item) => item.trim())
+        .filter(Boolean)
+
+      const payload = {
+        organization_id: orgId,
+        service_agreement_id: selectedAgreementId,
+        obligation_code: obligationForm.obligation_code.trim(),
+        obligation_kind: obligationForm.obligation_kind,
+        target_minutes: obligationForm.target_minutes ? Number(obligationForm.target_minutes) : null,
+        escalation_minutes: obligationForm.escalation_minutes ? Number(obligationForm.escalation_minutes) : null,
+        proof_artifact_types: proofArtifactTypes,
+        report_template_code: obligationForm.report_template_code.trim() || null,
+        notes: obligationForm.notes.trim() || null,
+        is_active: obligationForm.is_active,
+      }
+
+      if (!payload.obligation_code) {
+        throw new Error('Obligation code is required')
+      }
+
+      if (editingObligationId) {
+        const { error } = await (supabase as any)
+          .from('service_agreement_obligations')
+          .update(payload)
+          .eq('id', editingObligationId)
+        if (error) throw error
+      } else {
+        const { error } = await (supabase as any)
+          .from('service_agreement_obligations')
+          .insert(payload)
+        if (error) throw error
+      }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['service-agreement-obligations', selectedAgreementId] })
+      toast.success(editingObligationId ? 'Obligation updated' : 'Obligation created')
+      setEditingObligationId(null)
+      setObligationForm({ ...EMPTY_OBLIGATION_FORM })
+    },
+    onError: (e: Error) => toast.error(e.message),
+  })
+
+  const deleteObligation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await (supabase as any)
+        .from('service_agreement_obligations')
+        .delete()
+        .eq('id', id)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['service-agreement-obligations', selectedAgreementId] })
+      toast.success('Obligation deleted')
+    },
+    onError: (e: Error) => toast.error(e.message),
+  })
+
   // ── Dialog helpers ─────────────────────────────────────────────────────────
 
   function openCreate() {
@@ -267,6 +394,11 @@ export default function ServiceAgreements() {
       allows_auto_dispatch: a.allows_auto_dispatch,
       default_sla_minutes: a.default_sla_minutes,
       default_priority: a.default_priority,
+      client_portal_access_mode: a.client_portal_access_mode ?? 'transparency_only',
+      client_portal_reports_enabled: a.client_portal_reports_enabled ?? true,
+      client_portal_finance_enabled: a.client_portal_finance_enabled ?? false,
+      contract_profile_code: a.contract_profile_code ?? '',
+      monthly_report_template_code: a.monthly_report_template_code ?? '',
       active_from: a.active_from ?? '',
       active_to: a.active_to ?? '',
       notes: a.notes ?? '',
@@ -282,6 +414,34 @@ export default function ServiceAgreements() {
 
   function setField<K extends keyof typeof EMPTY_FORM>(k: K, v: typeof EMPTY_FORM[K]) {
     setForm(prev => ({ ...prev, [k]: v }))
+  }
+
+  function setObligationField<K extends keyof typeof EMPTY_OBLIGATION_FORM>(
+    key: K,
+    value: typeof EMPTY_OBLIGATION_FORM[K]
+  ) {
+    setObligationForm(prev => ({ ...prev, [key]: value }))
+  }
+
+  function openEditObligation(obligation: ServiceAgreementObligation) {
+    setEditingObligationId(obligation.id)
+    setObligationForm({
+      obligation_code: obligation.obligation_code,
+      obligation_kind: (OBLIGATION_KINDS.includes(obligation.obligation_kind as any)
+        ? obligation.obligation_kind
+        : 'other') as typeof EMPTY_OBLIGATION_FORM.obligation_kind,
+      target_minutes: obligation.target_minutes != null ? String(obligation.target_minutes) : '',
+      escalation_minutes: obligation.escalation_minutes != null ? String(obligation.escalation_minutes) : '',
+      proof_artifact_types: (obligation.proof_artifact_types ?? []).join(', '),
+      report_template_code: obligation.report_template_code ?? '',
+      notes: obligation.notes ?? '',
+      is_active: obligation.is_active,
+    })
+  }
+
+  function resetObligationForm() {
+    setEditingObligationId(null)
+    setObligationForm({ ...EMPTY_OBLIGATION_FORM })
   }
 
   // ── Filtered list ──────────────────────────────────────────────────────────
@@ -400,6 +560,7 @@ export default function ServiceAgreements() {
               <TableHead>Reference</TableHead>
               <TableHead>Type</TableHead>
               <TableHead>SLA</TableHead>
+              <TableHead>Client Access</TableHead>
               <TableHead>Valid From</TableHead>
               <TableHead>Valid To</TableHead>
               <TableHead>Expiry</TableHead>
@@ -410,14 +571,14 @@ export default function ServiceAgreements() {
           <TableBody>
             {isLoading && (
               <TableRow>
-                <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
                   <Loader2 className="h-4 w-4 animate-spin inline mr-2" /> Loading…
                 </TableCell>
               </TableRow>
             )}
             {!isLoading && filtered.length === 0 && (
               <TableRow>
-                <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
                   No agreements found.
                 </TableCell>
               </TableRow>
@@ -434,6 +595,17 @@ export default function ServiceAgreements() {
                   </Badge>
                 </TableCell>
                 <TableCell className="text-sm">{a.default_sla_minutes} min</TableCell>
+                <TableCell>
+                  <div className="flex flex-col gap-1">
+                    <Badge variant="secondary" className="text-[11px] capitalize w-fit">
+                      {a.client_portal_access_mode?.replace(/_/g, ' ') ?? 'transparency only'}
+                    </Badge>
+                    <div className="flex gap-1 flex-wrap">
+                      {a.client_portal_reports_enabled && <Badge variant="outline" className="text-[10px]">Reports</Badge>}
+                      {a.client_portal_finance_enabled && <Badge variant="outline" className="text-[10px]">Finance</Badge>}
+                    </div>
+                  </div>
+                </TableCell>
                 <TableCell className="text-xs text-muted-foreground">{formatDate(a.active_from)}</TableCell>
                 <TableCell className="text-xs text-muted-foreground">{formatDate(a.active_to)}</TableCell>
                 <TableCell>{expiryBadge(a.active_to)}</TableCell>
@@ -444,6 +616,17 @@ export default function ServiceAgreements() {
                 </TableCell>
                 <TableCell>
                   <div className="flex items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2 text-[11px]"
+                      onClick={() => {
+                        setSelectedAgreementId(a.id)
+                        resetObligationForm()
+                      }}
+                    >
+                      Rules
+                    </Button>
                     <Button
                       variant="ghost"
                       size="icon"
@@ -477,6 +660,182 @@ export default function ServiceAgreements() {
             ))}
           </TableBody>
         </Table>
+      </Card>
+
+      <Card className="mt-5">
+        <CardHeader>
+          <CardTitle className="text-base">Agreement Obligations</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="md:col-span-2 space-y-1">
+              <Label>Service Agreement</Label>
+              <Select value={selectedAgreementId} onValueChange={(value) => {
+                setSelectedAgreementId(value)
+                resetObligationForm()
+              }}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select agreement" />
+                </SelectTrigger>
+                <SelectContent>
+                  {agreements.map((agreement) => (
+                    <SelectItem key={agreement.id} value={agreement.id}>
+                      {agreement.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-end gap-2">
+              <Button variant="outline" onClick={resetObligationForm}>New Rule</Button>
+              <Button
+                onClick={() => saveObligation.mutate()}
+                disabled={!selectedAgreementId || !obligationForm.obligation_code.trim() || saveObligation.isPending}
+              >
+                {saveObligation.isPending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+                {editingObligationId ? 'Update Rule' : 'Add Rule'}
+              </Button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+            <div className="space-y-1 md:col-span-2">
+              <Label>Obligation Code</Label>
+              <Input
+                value={obligationForm.obligation_code}
+                onChange={(event) => setObligationField('obligation_code', event.target.value)}
+                placeholder="e.g. ncc_alarm_first_response_45m"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>Kind</Label>
+              <Select
+                value={obligationForm.obligation_kind}
+                onValueChange={(value) => setObligationField('obligation_kind', value as typeof EMPTY_OBLIGATION_FORM.obligation_kind)}
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {OBLIGATION_KINDS.map((kind) => (
+                    <SelectItem key={kind} value={kind}>{kind.replace(/_/g, ' ')}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label>Template Code</Label>
+              <Input
+                value={obligationForm.report_template_code}
+                onChange={(event) => setObligationField('report_template_code', event.target.value)}
+                placeholder="optional"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+            <div className="space-y-1">
+              <Label>Target (minutes)</Label>
+              <Input
+                type="number"
+                min={0}
+                value={obligationForm.target_minutes}
+                onChange={(event) => setObligationField('target_minutes', event.target.value)}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>Escalation (minutes)</Label>
+              <Input
+                type="number"
+                min={0}
+                value={obligationForm.escalation_minutes}
+                onChange={(event) => setObligationField('escalation_minutes', event.target.value)}
+              />
+            </div>
+            <div className="space-y-1 md:col-span-2">
+              <Label>Proof Artifact Types</Label>
+              <Input
+                value={obligationForm.proof_artifact_types}
+                onChange={(event) => setObligationField('proof_artifact_types', event.target.value)}
+                placeholder="dispatch_event, arrival_timestamp, incident_report"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+            <div className="space-y-1 md:col-span-3">
+              <Label>Notes</Label>
+              <Input
+                value={obligationForm.notes}
+                onChange={(event) => setObligationField('notes', event.target.value)}
+                placeholder="Optional implementation notes"
+              />
+            </div>
+            <div className="flex items-end justify-between rounded-md border px-3 py-2">
+              <div>
+                <p className="text-sm font-medium">Active</p>
+                <p className="text-xs text-muted-foreground">Enable this obligation</p>
+              </div>
+              <Switch
+                checked={obligationForm.is_active}
+                onCheckedChange={(value) => setObligationField('is_active', value)}
+              />
+            </div>
+          </div>
+
+          <div className="overflow-x-auto rounded-md border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Code</TableHead>
+                  <TableHead>Kind</TableHead>
+                  <TableHead>Target</TableHead>
+                  <TableHead>Escalation</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="w-32">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {obligationsLoading && (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-6 text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin inline mr-2" /> Loading obligations…
+                    </TableCell>
+                  </TableRow>
+                )}
+                {!obligationsLoading && obligations.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-6 text-muted-foreground">No obligations configured for this agreement.</TableCell>
+                  </TableRow>
+                )}
+                {obligations.map((obligation) => (
+                  <TableRow key={obligation.id}>
+                    <TableCell className="font-mono text-xs">{obligation.obligation_code}</TableCell>
+                    <TableCell className="text-xs capitalize">{obligation.obligation_kind.replace(/_/g, ' ')}</TableCell>
+                    <TableCell className="text-xs">{obligation.target_minutes ?? '—'}</TableCell>
+                    <TableCell className="text-xs">{obligation.escalation_minutes ?? '—'}</TableCell>
+                    <TableCell>
+                      <Badge variant={obligation.is_active ? 'default' : 'secondary'}>
+                        {obligation.is_active ? 'Active' : 'Inactive'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1">
+                        <Button variant="ghost" size="sm" className="h-7 px-2 text-[11px]" onClick={() => openEditObligation(obligation)}>Edit</Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 px-2 text-[11px] text-destructive hover:text-destructive"
+                          onClick={() => deleteObligation.mutate(obligation.id)}
+                        >
+                          Delete
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
       </Card>
 
       {/* Create / Edit Dialog */}
@@ -535,6 +894,63 @@ export default function ServiceAgreements() {
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+            </div>
+            <div className="space-y-3 rounded-lg border p-3">
+              <div>
+                <p className="text-sm font-medium">Client Portal Access</p>
+                <p className="text-xs text-muted-foreground">Choose whether the client gets a reduced transparency shell or full module access for this agreement.</p>
+              </div>
+              <div className="space-y-1">
+                <Label>Access Mode</Label>
+                <Select value={form.client_portal_access_mode} onValueChange={v => setField('client_portal_access_mode', v as typeof EMPTY_FORM.client_portal_access_mode)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {CLIENT_ACCESS_MODES.map(mode => (
+                      <SelectItem key={mode} value={mode}>{mode.replace(/_/g, ' ')}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex items-center justify-between rounded-md border px-3 py-2">
+                  <div>
+                    <p className="text-sm font-medium">Reports</p>
+                    <p className="text-xs text-muted-foreground">Allow client report generation for this agreement</p>
+                  </div>
+                  <Switch
+                    checked={form.client_portal_reports_enabled}
+                    onCheckedChange={v => setField('client_portal_reports_enabled', v)}
+                  />
+                </div>
+                <div className="flex items-center justify-between rounded-md border px-3 py-2">
+                  <div>
+                    <p className="text-sm font-medium">Finance</p>
+                    <p className="text-xs text-muted-foreground">Allow client admins to view billing for this agreement</p>
+                  </div>
+                  <Switch
+                    checked={form.client_portal_finance_enabled}
+                    onCheckedChange={v => setField('client_portal_finance_enabled', v)}
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label>Contract Profile Code</Label>
+                <Input
+                  value={form.contract_profile_code}
+                  onChange={e => setField('contract_profile_code', e.target.value)}
+                  placeholder="e.g. ncc_facilities_2025"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>Monthly Report Template Code</Label>
+                <Input
+                  value={form.monthly_report_template_code}
+                  onChange={e => setField('monthly_report_template_code', e.target.value)}
+                  placeholder="e.g. ncc_monthly_facilities_v1"
+                />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">

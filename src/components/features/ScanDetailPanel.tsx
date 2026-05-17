@@ -85,14 +85,14 @@ export interface DetailScanData {
     value_a: string | null
     value_b: string | null
   }> | null
-  // ── TicketOr2-style stay duration fields (from observations) ──────────────
+  // ── Stay duration fields (from observations) ───────────────────────────────
   /** Number of consecutive nights this vehicle has been in this zone */
   consecutiveNights: number | null
   /** Total nights stayed in this zone this calendar month */
   nightsStayedThisMonth: number | null
 }
 
-// ── TicketOr2-style enforcement history for a plate ──────────────────────────
+// ── Enforcement history for a plate ───────────────────────────────────────────
 // Fetched client-side once the plate is known; gives the officer full prior
 // enforcement context before deciding on an action.
 interface PlateHistory {
@@ -293,7 +293,7 @@ export function ScanDetailPanel({
     onError: (err: any) => toast.error(err.message || 'Failed to escalate'),
   })
 
-  // ── TicketOr2-style: fetch plate enforcement history ─────────────────────
+  // ── Fetch plate enforcement history ───────────────────────────────────────
   // Fires once the plate is resolved (non-null, non-MANUAL_REQUIRED).
   // Queries prior warnings, NtVs, infringements, and return detection.
   const plate_known = obs?.plateNumber && obs.plateNumber !== 'MANUAL_REQUIRED' && obs.plateNumber !== 'PROCESSING...'
@@ -350,7 +350,7 @@ export function ScanDetailPanel({
         }
       }
 
-      // Smart recommendation (TicketOr2 escalation ladder)
+      // Smart recommendation (escalation ladder)
       let recommendation: PlateHistory['recommendation'] = 'none'
       let recommendationReason = ''
 
@@ -916,7 +916,7 @@ export function ScanDetailPanel({
               )
             })()}
 
-            {/* ── TicketOr2-style Stay Duration + Prior History card ── */}
+            {/* ── Stay Duration + Prior History card ── */}
             {!obs.processingPending && obs.plateNumber && obs.plateNumber !== 'MANUAL_REQUIRED' && (
               <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 p-3 space-y-2.5">
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
@@ -1378,7 +1378,7 @@ export function ScanDetailPanel({
                   All actions are logged and visible to administration.
                 </p>
 
-                {/* ── TicketOr2-style action recommendation ──────────────── */}
+                {/* ── Action recommendation ─────────────────────────────── */}
                 {plateHistory && plateHistory.recommendation !== 'none' && (
                   <div className={`rounded-xl border-2 p-3 space-y-1 ${
                     plateHistory.recommendation === 'infringement'

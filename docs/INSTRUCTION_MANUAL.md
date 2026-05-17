@@ -1725,6 +1725,29 @@ The invoicing module manages billing for all contracted services.
 3. **Tracking payment**: Update the invoice status to `paid` when payment is received, or `overdue` if the payment deadline passes.
 4. **Export**: Use **Export PDF** to download a print-ready invoice, or **Export CSV** to export the line items for accounting.
 
+For client roles, invoicing is read-only and depends on client finance policy being enabled.
+
+---
+
+###### Service Agreements (`/service-agreements`)
+
+**Navigating to Service Agreements:**  
+Sidebar → CRM/Operations → **Service Agreements**
+
+Service Agreements define contract defaults and client policy controls.
+
+**Workflow:**
+
+1. Create or edit agreement defaults for service type, SLA, priority, active dates, and submission/dispatch behavior.
+2. Set client policy fields:
+   - `client_portal_access_mode` (`transparency_only` or `full_modules`)
+   - `client_portal_reports_enabled`
+   - `client_portal_finance_enabled`
+   - `contract_profile_code`
+   - `monthly_report_template_code`
+3. In the **Agreement Obligations** panel, add contract rules (`obligation_code`, kind, target/escalation minutes, proof artifact types, optional template code).
+4. Use Edit/Delete actions to maintain obligation rules as contract terms evolve.
+
 ---
 
 ###### Tender Workspace (`/tenders`)
@@ -2413,9 +2436,13 @@ All infringement notices issued at your contracted sites. Read-only.
 #### Reporting
 
 **How to navigate:**  
-Client Portal sidebar → Reports
+Client Portal → **Quick Actions** → **Generate Compliance Report** or navigate directly to `/reports`
 
 Click **Generate Compliance Report** to download a PDF or CSV compliance summary for your sites for any date range. Reports include: scan counts, breach rates, notice counts, incident counts, and officer patrol hours.
+
+Client reporting access is policy-controlled. If client reporting is disabled for the organisation policy, `/reports` will show an access-disabled state.
+
+When `contract_profile_code` or `monthly_report_template_code` are configured in reporting policy, those codes are included in report metadata and export filenames.
 
 ---
 
@@ -2441,7 +2468,9 @@ From any site detail page or from the guard activity feed, a Client Officer can 
 | Add / update site contact information | Client Portal → Sites → [Site name] → Contacts tab → Edit |
 | Request additional portal user accounts | Client Portal → sidebar → Settings → Users → Request User |
 | View and comment on disputes | Client Portal → Enforcement → Disputes |
-| Download invoices (if billing integration enabled) | Client Portal → Settings → Invoices |
+| Download invoices (if billing integration enabled) | Client Portal → Quick Actions → Invoices or navigate directly to `/invoicing` |
+
+Client finance visibility is policy-controlled. If client finance is disabled for the organisation policy, `/invoicing` will show an access-disabled state.
 
 Requested user accounts require approval from the service provider before becoming active.
 

@@ -40,6 +40,7 @@ import { generateReportHTML, exportReportPDF } from '@/lib/pdfExport'
 import type { PDFReportConfig, PDFSection } from '@/lib/pdfExport'
 import { edgeFunctions } from '@/lib/edgeFunctions'
 import { AsyncStateWrapper } from '@/components/features/AsyncStateWrapper'
+import { useClientAccessPolicy } from '@/hooks/useClientAccessPolicy'
 
 const EMAIL_TIMEOUT_MS = 45000
 
@@ -108,9 +109,33 @@ function complianceColorClass(pct: number): string {
   return 'text-red-600'
 }
 
+function getMonthlyTemplateSummary(templateCode: string | null) {
+  switch (templateCode) {
+    case 'ncc_monthly_facilities_v1':
+      return {
+        title: 'Nelson Council Board Pack',
+        description: 'Adds council-facing facilities, patrol, infringement, and remediation framing for the Nelson monthly pack.',
+      }
+    case 'mdc_monthly_parking_v1':
+      return {
+        title: 'Marlborough Parking Pack',
+        description: 'Adds parking evidence, appeal-readiness, and monitored-area framing for Marlborough monthly reporting.',
+      }
+    default:
+      return null
+  }
+}
+
 export default function Reports() {
   const { user } = useAuthStore()
   const { organizationId, zoneId, dateFrom, dateTo } = useGlobalFiltersStore()
+  const {
+    isClientRole: isClientReportUser,
+    isLoading: policyLoading,
+    reportsEnabled,
+    contractProfileCode,
+    monthlyReportTemplateCode,
+  } = useClientAccessPolicy()
 
   const effectiveOrgId =
     user?.role === 'grand_master' || user?.role === 'master'
@@ -165,6 +190,10 @@ export default function Reports() {
   const [emailRecipient, setEmailRecipient] = useState(user?.email || '')
   const [sendingEmail, setSendingEmail] = useState(false)
   const [generatingReport, setGeneratingReport] = useState(false)
+
+  const reportConfigTag = monthlyReportTemplateCode ?? contractProfileCode ?? 'compliance'
+  const reportAccessBlocked = isClientReportUser && !policyLoading && !reportsEnabled
+  const templateSummary = getMonthlyTemplateSummary(monthlyReportTemplateCode)
 
   // ── Observations query ───────────────────────────────────────────────
   const { data: observations = [], isLoading: loadingObs } = useQuery({
@@ -340,7 +369,7 @@ export default function Reports() {
         { key: 'officer', label: 'Officer' },
       ]
     )
-    downloadCSV(csv, `observations-${reportDateFrom}-to-${reportDateTo}.csv`)
+    downloadCSV(csv, `${reportConfigTag}-observations-${reportDateFrom}-to-${reportDateTo}.csv`)
     toast.success('Observations CSV downloaded')
   }
 
@@ -363,7 +392,7 @@ export default function Reports() {
         { key: 'created_at', label: 'Created At' },
       ]
     )
-    downloadCSV(csv, `breaches-${reportDateFrom}-to-${reportDateTo}.csv`)
+    downloadCSV(csv, `${reportConfigTag}-breaches-${reportDateFrom}-to-${reportDateTo}.csv`)
     toast.success('Breaches CSV downloaded')
   }
 
@@ -376,7 +405,7 @@ export default function Reports() {
       { key: 'self_contained_required', label: 'SC Required' },
       { key: 'max_stay_nights', label: 'Max Consecutive Nights' },
     ])
-    downloadCSV(csv, `zones-report-${reportDateFrom}-to-${reportDateTo}.csv`)
+    downloadCSV(csv, `${reportConfigTag}-zones-${reportDateFrom}-to-${reportDateTo}.csv`)
     toast.success('Zones CSV downloaded')
   }
 
@@ -399,19 +428,67 @@ export default function Reports() {
         { key: 'created_at', label: 'Created At' },
       ]
     )
-    downloadCSV(csv, `enforcement-${reportDateFrom}-to-${reportDateTo}.csv`)
+    downloadCSV(csv, `${reportConfigTag}-enforcement-${reportDateFrom}-to-${reportDateTo}.csv`)
     toast.success('Enforcement CSV downloaded')
   }
 
   // ── PDF export ──────────────────────────────────────────────────────
   const buildPDFConfig = (): PDFReportConfig => ({
-    title: 'Compliance Summary Report',
-    subtitle: 'Freedom Camping Compliance Analysis',
+    title: monthlyReportTemplateCode
+      ? `Compliance Summary Report (${monthlyReportTemplateCode})`
+      : 'Compliance Summary Report',
+    subtitle: contractProfileCode
+      ? `Freedom Camping Compliance Analysis • Profile ${contractProfileCode}`
+      : 'Freedom Camping Compliance Analysis',
     organizationName: user?.organization_id ? 'Organisation Report' : 'All Organisations',
     generatedBy: user?.email || 'System',
     generatedAt: new Date(),
     dateRange: { from: new Date(reportDateFrom), to: new Date(reportDateTo) },
   })
+
+  const buildTemplateSpecificSections = (): PDFSection[] => {
+    const topZone = zoneRows[0]
+
+    if (monthlyReportTemplateCode === 'ncc_monthly_facilities_v1') {
+      return [
+        {
+          heading: 'Council Board Pack Summary',
+          content: [
+            `Patrol and facilities scope: ${activeZones.length} active zones in reporting window`,
+            `Highest breach zone: ${topZone?.name ?? 'n/a'}${topZone ? ` (${topZone.breaches} breaches)` : ''}`,
+            `Enforcement outcomes logged: ${enforcement.length}`,
+            `Remediation focus: ${breaches.filter((b) => (b.status ?? '').toLowerCase() !== 'closed').length} breach alerts remain open or in progress`,
+          ],
+          type: 'list',
+        },
+      ]
+    }
+
+    if (monthlyReportTemplateCode === 'mdc_monthly_parking_v1') {
+      return [
+        {
+          heading: 'Parking Evidence Pack Summary',
+          content: [
+            `Parking enforcement actions: ${enforcement.length}`,
+            `Monitored areas covered: ${activeZones.length}`,
+            `Top monitored area: ${topZone?.name ?? 'n/a'}`,
+            `Appeal-ready records: ${topOffenders.length} high-activity vehicles captured for review`,
+          ],
+          type: 'list',
+        },
+        {
+          heading: 'Parking Action Mix',
+          content: Object.entries(enforcementByType).map(([type, count]) => ({
+            action_type: type,
+            count,
+          })),
+          type: 'table',
+        },
+      ]
+    }
+
+    return []
+  }
 
   const buildPDFSections = (): PDFSection[] => [
     {
@@ -425,9 +502,12 @@ export default function Reports() {
         `Total Breach Alerts: ${breaches.length}`,
         `Enforcement Actions: ${enforcement.length}`,
         `Homeless Vehicles in System: ${statsRpc?.homeless_vehicles ?? '—'}`,
+        `Contract Profile Code: ${contractProfileCode ?? 'standard'}`,
+        `Monthly Report Template: ${monthlyReportTemplateCode ?? 'default'}`,
       ],
       type: 'list',
     },
+    ...buildTemplateSpecificSections(),
     {
       heading: 'Breach Type Breakdown',
       content: Object.entries(breachByType).map(([type, count]) => ({
@@ -522,10 +602,52 @@ export default function Reports() {
   }
 
   // ── Render ──────────────────────────────────────────────────────────
+  if (reportAccessBlocked) {
+    return (
+      <AppLayout
+        title="Reports"
+        description="Report access is disabled for your organisation policy"
+        showBackButton
+      >
+        <Card>
+          <CardHeader>
+            <CardTitle>Report Access Disabled</CardTitle>
+            <CardDescription>
+              Your organisation currently has client report access disabled. Contact your service provider admin to enable reporting for this agreement.
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      </AppLayout>
+    )
+  }
+
   return (
     <>
-      <AppLayout title="Reports" description="Generate compliance reports, view data previews, and export" showBackButton>
-        <GlobalFilterRibbon />
+      <AppLayout
+        title="Reports"
+        description={isClientReportUser
+          ? 'Generate compliance reports for your organisation and export the results'
+          : 'Generate compliance reports, view data previews, and export'}
+        showBackButton
+      >
+        <GlobalFilterRibbon showOrgFilter={!isClientReportUser} />
+
+        {(contractProfileCode || monthlyReportTemplateCode) && (
+          <Card className="mb-4">
+            <CardContent className="pt-4">
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                {contractProfileCode && <Badge variant="outline">Profile: {contractProfileCode}</Badge>}
+                {monthlyReportTemplateCode && <Badge variant="outline">Template: {monthlyReportTemplateCode}</Badge>}
+              </div>
+              {templateSummary && (
+                <div className="mt-3 rounded-lg border bg-muted/20 p-3">
+                  <p className="text-sm font-medium">{templateSummary.title}</p>
+                  <p className="text-xs text-muted-foreground mt-1">{templateSummary.description}</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         <AsyncStateWrapper isLoading={isLoading} loadingText="Loading report data…">
         {/* Summary statistics */}
@@ -580,17 +702,19 @@ export default function Reports() {
                 <Download className="h-4 w-4 mr-2" />
                 Export Breaches CSV
               </Button>
-              <Button
-                variant="outline"
-                disabled={isLoading}
-                onClick={() => {
-                  setEmailRecipient(user?.email || '')
-                  setEmailDialogOpen(true)
-                }}
-              >
-                <Mail className="h-4 w-4 mr-2" />
-                Send by Email
-              </Button>
+              {!isClientReportUser && (
+                <Button
+                  variant="outline"
+                  disabled={isLoading}
+                  onClick={() => {
+                    setEmailRecipient(user?.email || '')
+                    setEmailDialogOpen(true)
+                  }}
+                >
+                  <Mail className="h-4 w-4 mr-2" />
+                  Send by Email
+                </Button>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -908,7 +1032,7 @@ export default function Reports() {
               <CardHeader className="flex flex-row items-center justify-between">
                 <div>
                   <CardTitle className="text-base">Enforcement Actions</CardTitle>
-                  <CardDescription>Actions taken during the selected period</CardDescription>
+                  <CardDescription>Warnings, notices, and other enforcement actions for the selected period</CardDescription>
                 </div>
                 <Button variant="outline" size="sm" onClick={handleExportEnforcementCSV}>
                   <Download className="h-4 w-4 mr-2" />
@@ -927,7 +1051,7 @@ export default function Reports() {
                         <tr>
                           <th className="text-left px-3 py-2 font-medium">Plate</th>
                           <th className="text-left px-3 py-2 font-medium">Zone</th>
-                          <th className="text-left px-3 py-2 font-medium">Type</th>
+                          <th className="text-left px-3 py-2 font-medium">Action</th>
                           <th className="text-left px-3 py-2 font-medium">Status</th>
                           <th className="text-left px-3 py-2 font-medium">Created</th>
                         </tr>
@@ -939,10 +1063,7 @@ export default function Reports() {
                             <td className="px-3 py-2 text-muted-foreground">{e.zone?.name || '—'}</td>
                             <td className="px-3 py-2 capitalize">{(e.action_type || '').replace(/_/g, ' ')}</td>
                             <td className="px-3 py-2">
-                              <Badge
-                                variant={e.status === 'completed' ? 'default' : 'secondary'}
-                                className="text-xs capitalize"
-                              >
+                              <Badge variant="secondary" className="text-xs capitalize">
                                 {(e.status || '').replace(/_/g, ' ')}
                               </Badge>
                             </td>
@@ -994,44 +1115,45 @@ export default function Reports() {
         </DialogContent>
       </Dialog>
 
-      {/* Email Dialog */}
-      <Dialog open={emailDialogOpen} onOpenChange={(open) => { if (!open) setSendingEmail(false); setEmailDialogOpen(open) }}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Send className="h-5 w-5 text-blue-600" />
-              Send Compliance Report by Email
-            </DialogTitle>
-            <DialogDescription>
-              Sends compliance report for {reportDateFrom} to {reportDateTo}.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3 py-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="report-email-recipient">Recipient email address</Label>
-              <Input
-                id="report-email-recipient"
-                type="email"
-                placeholder="e.g. manager@example.com"
-                value={emailRecipient}
-                onChange={(e) => setEmailRecipient(e.target.value)}
-                disabled={sendingEmail}
-                autoFocus
-              />
+      {!isClientReportUser && (
+        <Dialog open={emailDialogOpen} onOpenChange={(open) => { if (!open) setSendingEmail(false); setEmailDialogOpen(open) }}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Send className="h-5 w-5 text-blue-600" />
+                Send Compliance Report by Email
+              </DialogTitle>
+              <DialogDescription>
+                Sends compliance report for {reportDateFrom} to {reportDateTo}.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3 py-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="report-email-recipient">Recipient email address</Label>
+                <Input
+                  id="report-email-recipient"
+                  type="email"
+                  placeholder="e.g. manager@example.com"
+                  value={emailRecipient}
+                  onChange={(e) => setEmailRecipient(e.target.value)}
+                  disabled={sendingEmail}
+                  autoFocus
+                />
+              </div>
             </div>
-          </div>
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button variant="outline" onClick={() => { setSendingEmail(false); setEmailDialogOpen(false) }}>Cancel</Button>
-            <Button onClick={handleSendEmail} disabled={sendingEmail || !emailRecipient.trim()}>
-              {sendingEmail ? (
-                <><Clock className="h-4 w-4 mr-2 animate-spin" />Sending…</>
-              ) : (
-                <><Send className="h-4 w-4 mr-2" />Send Report</>
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button variant="outline" onClick={() => { setSendingEmail(false); setEmailDialogOpen(false) }}>Cancel</Button>
+              <Button onClick={handleSendEmail} disabled={sendingEmail || !emailRecipient.trim()}>
+                {sendingEmail ? (
+                  <><Clock className="h-4 w-4 mr-2 animate-spin" />Sending…</>
+                ) : (
+                  <><Send className="h-4 w-4 mr-2" />Send Report</>
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </>
   )
 }

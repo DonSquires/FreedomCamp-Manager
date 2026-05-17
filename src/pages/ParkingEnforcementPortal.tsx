@@ -3,13 +3,13 @@
  *
  * Admin-facing parking enforcement management portal.
  *
- * Covers the full TicketOr2 / NZ council parking lifecycle:
+ * Covers the full in-house / NZ council parking lifecycle:
  *   Sessions      — live ANPR/officer-chalked vehicles per zone
  *   Infringements — issued notices, appeals, payment tracking
  *   Permits       — virtual permit management
  *   Zones         — parking zone config (time limits, fine amounts)
  *   Analytics     — occupancy, revenue, repeat offenders
- *   ParkPow Sync  — watchlist, lots, violations sync
+ *   External Sync — optional interoperability adapter
  */
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -309,7 +309,7 @@ export default function ParkingEnforcementPortal() {
     return () => { supabase.removeChannel(channel) }
   }, [operationalOrganizationId, refetchSessions])
 
-  // ── ParkPow Sync ─────────────────────────────────────────────
+  // ── Optional external sync adapter ───────────────────────────
   const handleParkPowSync = async (action: 'sync-lots' | 'sync-watchlist' | 'push-violations') => {
     setSyncing(true)
     try {
@@ -346,7 +346,7 @@ export default function ParkingEnforcementPortal() {
   return (
     <AppLayout
       title="Parking Enforcement"
-      description="NZ council-style parking management — TicketOr2 workflow"
+      description="NZ council-style parking management — in-house workflow"
     >
       {/* ── KPI summary strip ─────────────────────────────────── */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 mb-6">
@@ -410,7 +410,7 @@ export default function ParkingEnforcementPortal() {
           <TabsTrigger value="infringements">Infringements</TabsTrigger>
           <TabsTrigger value="permits">Permits</TabsTrigger>
           <TabsTrigger value="zones">Zones</TabsTrigger>
-          <TabsTrigger value="sync">ParkPow Sync</TabsTrigger>
+          <TabsTrigger value="sync">External Sync (Optional)</TabsTrigger>
           <TabsTrigger value="occupancy">
             <Activity className="h-3.5 w-3.5 mr-1" />
             Occupancy
@@ -678,7 +678,7 @@ export default function ParkingEnforcementPortal() {
                     </div>
                     {z.parkpow_lot_id && (
                       <div className="flex justify-between">
-                        <span className="text-muted-foreground">ParkPow Lot</span>
+                        <span className="text-muted-foreground">External Lot ID</span>
                         <span className="font-mono">#{z.parkpow_lot_id}</span>
                       </div>
                     )}
@@ -689,16 +689,16 @@ export default function ParkingEnforcementPortal() {
           )}
         </TabsContent>
 
-        {/* ── ParkPow Sync ─────────────────────────────────── */}
+        {/* ── External Sync (Optional) ─────────────────────── */}
         <TabsContent value="sync" className="mt-4 space-y-4">
           <Card>
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2">
                 <Zap className="h-4 w-4 text-yellow-500" />
-                ParkPow Integration Sync
+                External Enforcement Sync (Optional)
               </CardTitle>
               <CardDescription>
-                Synchronise Field Compliance Manager zones, watchlists, and violations with ParkPow's enforcement platform.
+                Synchronise zones, watchlists, and violations to an external enforcement platform when interoperability is required.
                 Requires PARKPOW_API_TOKEN to be configured in Supabase secrets.
               </CardDescription>
             </CardHeader>
@@ -708,7 +708,7 @@ export default function ParkingEnforcementPortal() {
                   <div>
                     <p className="font-semibold text-sm">Sync Lots</p>
                     <p className="text-xs text-muted-foreground mt-1">
-                      Push parking zones to ParkPow as enforcement lots. Assigns ParkPow lot IDs back to zones.
+                      Push parking zones as enforcement lots to an external system. Writes returned lot IDs back to zones.
                     </p>
                   </div>
                   <Button
@@ -726,7 +726,7 @@ export default function ParkingEnforcementPortal() {
                   <div>
                     <p className="font-semibold text-sm">Sync Watchlist</p>
                     <p className="text-xs text-muted-foreground mt-1">
-                      Push flagged / exempt vehicles to ParkPow watchlists (block / allow lists).
+                      Push flagged / exempt vehicles to external watchlists (block / allow lists).
                     </p>
                   </div>
                   <Button
@@ -744,7 +744,7 @@ export default function ParkingEnforcementPortal() {
                   <div>
                     <p className="font-semibold text-sm">Push Violations</p>
                     <p className="text-xs text-muted-foreground mt-1">
-                      Push unsynced parking infringements to ParkPow as formal violations for enforcement workflow.
+                      Push unsynced parking infringements as formal violations into the external workflow.
                     </p>
                   </div>
                   <Button
@@ -760,15 +760,13 @@ export default function ParkingEnforcementPortal() {
               </div>
 
               <div className="bg-blue-50 border border-blue-200 rounded p-3 text-xs text-blue-900 space-y-1">
-                <p className="font-semibold">About ParkPow (by Plate Recognizer)</p>
+                <p className="font-semibold">Integration Note</p>
                 <p>
-                  ParkPow is used by NZ councils and private operators for ANPR-based enforcement.
-                  Syncing here pushes data to ParkPow's cloud for their enforcement workflow,
-                  including email/SMS alerts to officers, violation dashboards, and appeal handling.
+                  The in-house enforcement workflow is the default and system of record.
+                  This sync tab is only for councils that explicitly require external interoperability.
                 </p>
                 <p>
-                  ParkPow is complementary to TicketOr2 (ADR) — use ParkPow for automated ANPR camera
-                  enforcement, TicketOr2 (this portal) for officer-issued hand-written / handheld enforcement.
+                  Keep notices, permits, sessions, and compliance logic in this platform unless a contract requires outbound sync.
                 </p>
               </div>
             </CardContent>

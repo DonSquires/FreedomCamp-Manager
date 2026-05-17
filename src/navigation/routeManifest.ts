@@ -220,7 +220,7 @@ export const routeManifest: RouteManifestEntry[] = [
     routeId: 'admin.disputes',
     path: '/disputes',
     shell: 'admin',
-    rolesAllowed: ['admin', 'admin_officer', 'master', 'grand_master'],
+    rolesAllowed: ['client_admin', 'admin', 'admin_officer', 'master', 'grand_master'],
     navGroup: 'Operations',
     navLabel: 'Disputes',
     visibilityMode: 'production',

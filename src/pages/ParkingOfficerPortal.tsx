@@ -3,11 +3,11 @@
  *
  * Field-officer-facing parking enforcement portal.
  *
- * Workflow mirrors TicketOr2 (ADR) + NZ council best practice:
+ * Workflow follows the in-house enforcement model + NZ council best practice:
  *   1. CHALK PASS   — scan plate, photo address + tyre valve, start session
  *   2. RECHECK PASS — re-scan plate, system shows dwell time vs. limit
  *   3. INFRINGEMENT — if over limit & vehicle unmoved, pre-fill & issue notice
- *   4. PERMIT CHECK — lookup permit before issuing (ParkPow allow-list)
+ *   4. PERMIT CHECK — lookup permit before issuing
  *
  * Inference service (ONNX) is used for vehicle detection + plate pre-fill.
  */
@@ -136,7 +136,7 @@ interface InfringementForm {
   notes: string
 }
 
-// ─── Tyre valve positions — the TicketOr2 standard ───────────────────────────
+// ─── Tyre valve positions — standard enforcement evidence pattern ─────────────
 const VALVE_POSITIONS = [
   { value: 'north', label: "\u2191 North (12 o'clock)" },
   { value: 'east',  label: "\u2192 East  (3 o'clock)" },
@@ -457,7 +457,7 @@ export default function ParkingOfficerPortal() {
   return (
     <AppLayout
       title="Parking Enforcement"
-      description={`${activeSessions.length} active session${activeSessions.length !== 1 ? 's' : ''} · TicketOr2-style workflow`}
+      description={`${activeSessions.length} active session${activeSessions.length !== 1 ? 's' : ''} · in-house enforcement workflow`}
       showBackButton
     >
       {/* ── Safety bar — welfare, SOS, quick reports ──────────────── */}
@@ -740,7 +740,7 @@ export default function ParkingOfficerPortal() {
               </Select>
             </div>
 
-            {/* Tyre valve position — TicketOr2 core feature */}
+            {/* Tyre valve position — core evidence feature */}
             <div className="space-y-2">
               <Label>Tyre Valve Position *</Label>
               <p className="text-xs text-muted-foreground">

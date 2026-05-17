@@ -1,0 +1,54 @@
+{
+  "profileCode": "mdc_parking_2026",
+  "organization": "Marlborough District Council",
+  "sourceDate": "2026-05-17",
+  "clientPortal": {
+    "accessMode": "transparency_only",
+    "reportsEnabled": true,
+    "financeEnabled": true
+  },
+  "monthlyReportTemplateCode": "mdc_monthly_parking_v1",
+  "serviceAgreements": [
+    {
+      "agreementType": "parking",
+      "referenceNumber": "MDC-PARKING-2026",
+      "name": "Marlborough Roads Parking Operations",
+      "obligations": [
+        {
+          "obligationCode": "mdc_parking_evidence_checklist",
+          "obligationKind": "proof",
+          "proofArtifactTypes": ["vehicle_photo", "signage_photo", "officer_notes", "notice_record"],
+          "rulePayload": {
+            "source": "nzta_warden_training_v1",
+            "coverageAreas": [
+              "Blenheim CBD time restricted parking",
+              "reserved parking sites",
+              "kerbside meter coverage"
+            ]
+          }
+        },
+        {
+          "obligationCode": "mdc_parking_appeal_bundle",
+          "obligationKind": "reporting",
+          "reportTemplateCode": "mdc_monthly_parking_v1",
+          "proofArtifactTypes": ["appeal_bundle_pdf", "evidence_index", "delivery_log"],
+          "rulePayload": {
+            "supportsNztaAlignedAppeals": true,
+            "requiresEvidenceChecklist": true
+          }
+        },
+        {
+          "obligationCode": "mdc_monthly_parking_report_pack",
+          "obligationKind": "reporting",
+          "reportTemplateCode": "mdc_monthly_parking_v1",
+          "proofArtifactTypes": ["monthly_report_pdf", "email_delivery_log"],
+          "rulePayload": {
+            "cadence": "monthly",
+            "areaGrouping": true,
+            "serviceProviderBranch": "First Security - Blenheim"
+          }
+        }
+      ]
+    }
+  ]
+}

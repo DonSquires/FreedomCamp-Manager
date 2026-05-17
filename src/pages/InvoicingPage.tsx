@@ -66,6 +66,7 @@ import {
   isInvoicePastDue,
   validatePaymentAmountInput,
 } from '@/lib/invoicing'
+import { useClientAccessPolicy } from '@/hooks/useClientAccessPolicy'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -113,18 +114,24 @@ function InvoiceRow({
   onUpdateStatus,
   onRecordPayment,
   onMarkOverdue,
+  readOnly,
   isUpdating,
 }: {
   invoice: any
   onUpdateStatus: (invoice: any, status: 'sent' | 'cancelled') => void
   onRecordPayment: (invoice: any) => void
   onMarkOverdue: (invoice: any) => void
+  readOnly?: boolean
   isUpdating: boolean
 }) {
   const [expanded, setExpanded] = useState(false)
   const lines: any[] = invoice.lines ?? []
 
   const actionButtons = useMemo(() => {
+    if (readOnly) {
+      return <span className="text-[11px] text-muted-foreground">View only</span>
+    }
+
     if (invoice.status === 'draft') {
       return (
         <div className="flex items-center gap-1 justify-end">
@@ -199,7 +206,7 @@ function InvoiceRow({
     }
 
     return <span className="text-[11px] text-muted-foreground">No actions</span>
-  }, [invoice, isUpdating, onMarkOverdue, onRecordPayment, onUpdateStatus])
+  }, [invoice, isUpdating, onMarkOverdue, onRecordPayment, onUpdateStatus, readOnly])
 
   return (
     <>
@@ -263,8 +270,10 @@ function InvoiceRow({
 export default function InvoicingPage() {
   const { user } = useAuthStore()
   const qc = useQueryClient()
+  const { isClientRole: isClientBillingUser, isLoading: policyLoading, financeEnabled } = useClientAccessPolicy()
+  const scopedClientOrgId = isClientBillingUser ? user?.organization_id ?? null : null
   const [search, setSearch] = useState('')
-  const [clientFilter, setClientFilter] = useState('all')
+  const [clientFilter, setClientFilter] = useState(scopedClientOrgId ?? 'all')
   const [statusFilter, setStatusFilter] = useState('all')
   const [paymentStateFilter, setPaymentStateFilter] = useState('all')
   const [invoiceSort, setInvoiceSort] = useState('date_desc')
@@ -276,14 +285,16 @@ export default function InvoicingPage() {
 
   // Load client orgs
   const { data: clients = [] } = useQuery({
-    queryKey: ['invoicing-clients'],
+    queryKey: ['invoicing-clients', scopedClientOrgId],
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
+      let q = (supabase as any)
         .from('organizations')
         .select('id, name')
         .eq('organization_type', 'client')
         .eq('is_active', true)
         .order('name')
+      if (scopedClientOrgId) q = q.eq('id', scopedClientOrgId)
+      const { data, error } = await q
       if (error) throw error
       return data ?? []
     },
@@ -291,7 +302,7 @@ export default function InvoicingPage() {
 
   // Load invoices with line items
   const { data: invoices = [], isLoading: invoicesLoading } = useQuery({
-    queryKey: ['crm-invoices', clientFilter],
+    queryKey: ['crm-invoices', clientFilter, scopedClientOrgId],
     queryFn: async () => {
       let q = (supabase as any)
         .from('crm_invoices')
@@ -305,7 +316,11 @@ export default function InvoicingPage() {
         `)
         .order('invoice_date', { ascending: false })
         .limit(200)
-      if (clientFilter !== 'all') q = q.eq('client_organization_id', clientFilter)
+      if (scopedClientOrgId) {
+        q = q.eq('client_organization_id', scopedClientOrgId)
+      } else if (clientFilter !== 'all') {
+        q = q.eq('client_organization_id', clientFilter)
+      }
       const { data, error } = await q
       if (error) {
         // Table may not be populated yet; return empty gracefully
@@ -318,7 +333,7 @@ export default function InvoicingPage() {
 
   // Load contracts
   const { data: contracts = [], isLoading: contractsLoading } = useQuery({
-    queryKey: ['crm-contracts', clientFilter],
+    queryKey: ['crm-contracts', clientFilter, scopedClientOrgId],
     queryFn: async () => {
       let q = (supabase as any)
         .from('crm_contracts')
@@ -331,7 +346,11 @@ export default function InvoicingPage() {
         `)
         .order('created_at', { ascending: false })
         .limit(100)
-      if (clientFilter !== 'all') q = q.eq('client_organization_id', clientFilter)
+      if (scopedClientOrgId) {
+        q = q.eq('client_organization_id', scopedClientOrgId)
+      } else if (clientFilter !== 'all') {
+        q = q.eq('client_organization_id', clientFilter)
+      }
       const { data, error } = await q
       if (error) {
         console.warn('crm_contracts query error:', error.message)
@@ -667,6 +686,21 @@ export default function InvoicingPage() {
     [paymentAmount, paymentBalanceCents]
   )
 
+  if (isClientBillingUser && !policyLoading && !financeEnabled) {
+    return (
+      <AppLayout title="Invoicing" description="Billing visibility is disabled for your organisation" showBackButton>
+        <Card>
+          <CardHeader>
+            <CardTitle>Finance Access Disabled</CardTitle>
+            <CardDescription>
+              Your organisation currently has client finance visibility disabled. Contact your service provider admin to enable invoice access.
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      </AppLayout>
+    )
+  }
+
   return (
     <AppLayout title="Invoicing" description="Draft invoice generation and status management">
       <div className="space-y-5">
@@ -680,12 +714,14 @@ export default function InvoicingPage() {
             <div>
               <h1 className="text-xl font-bold text-gray-900 dark:text-white">Invoicing</h1>
               <p className="text-sm text-muted-foreground">
-                Contracts, draft invoice generation, and invoice status management
+                {isClientBillingUser
+                  ? 'Invoice history and payment status for your organisation'
+                  : 'Contracts, draft invoice generation, and invoice status management'}
               </p>
             </div>
           </div>
           <Badge variant="outline" className="text-xs self-start sm:self-auto">
-            Billing operations enabled
+            {isClientBillingUser ? 'Client billing view' : 'Billing operations enabled'}
           </Badge>
         </div>
 
@@ -720,17 +756,19 @@ export default function InvoicingPage() {
               className="pl-9 h-9"
             />
           </div>
-          <Select value={clientFilter} onValueChange={setClientFilter}>
-            <SelectTrigger className="h-9 w-48">
-              <SelectValue placeholder="All clients" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All clients</SelectItem>
-              {clients.map((c: any) => (
-                <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {!isClientBillingUser && (
+            <Select value={clientFilter} onValueChange={setClientFilter}>
+              <SelectTrigger className="h-9 w-48">
+                <SelectValue placeholder="All clients" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All clients</SelectItem>
+                {clients.map((c: any) => (
+                  <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger className="h-9 w-40">
               <SelectValue placeholder="All statuses" />
@@ -785,15 +823,17 @@ export default function InvoicingPage() {
                 </span>
               )}
             </TabsTrigger>
-            <TabsTrigger value="contracts" className="gap-1.5 text-xs">
-              <FileText className="h-3.5 w-3.5" />
-              Contracts
-              {contracts.length > 0 && (
-                <span className="ml-1 rounded-full bg-blue-200 dark:bg-blue-800 text-blue-800 dark:text-blue-200 text-[10px] font-semibold px-1.5 py-0.5">
-                  {contracts.length}
-                </span>
-              )}
-            </TabsTrigger>
+            {!isClientBillingUser && (
+              <TabsTrigger value="contracts" className="gap-1.5 text-xs">
+                <FileText className="h-3.5 w-3.5" />
+                Contracts
+                {contracts.length > 0 && (
+                  <span className="ml-1 rounded-full bg-blue-200 dark:bg-blue-800 text-blue-800 dark:text-blue-200 text-[10px] font-semibold px-1.5 py-0.5">
+                    {contracts.length}
+                  </span>
+                )}
+              </TabsTrigger>
+            )}
           </TabsList>
 
           {/* Invoices tab */}
@@ -807,18 +847,22 @@ export default function InvoicingPage() {
                       Invoice History
                     </CardTitle>
                     <CardDescription className="text-xs">
-                      Click a row to expand line items. Draft invoices can be sent or cancelled.
+                      {isClientBillingUser
+                        ? 'Click a row to expand line items and review balances for your organisation.'
+                        : 'Click a row to expand line items. Draft invoices can be sent or cancelled.'}
                     </CardDescription>
                   </div>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={overdueCandidateIds.length === 0 || markAllOverdueMutation.isPending}
-                    onClick={() => markAllOverdueMutation.mutate(overdueCandidateIds)}
-                  >
-                    <AlertCircle className="h-3.5 w-3.5 mr-1" />
-                    Mark Due Invoices Overdue
-                  </Button>
+                  {!isClientBillingUser && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={overdueCandidateIds.length === 0 || markAllOverdueMutation.isPending}
+                      onClick={() => markAllOverdueMutation.mutate(overdueCandidateIds)}
+                    >
+                      <AlertCircle className="h-3.5 w-3.5 mr-1" />
+                      Mark Due Invoices Overdue
+                    </Button>
+                  )}
                 </div>
               </CardHeader>
               <CardContent className="pt-0">
@@ -859,6 +903,7 @@ export default function InvoicingPage() {
                             onUpdateStatus={(invoice, status) => updateInvoiceStatusMutation.mutate({ invoiceId: invoice.id, status })}
                             onRecordPayment={openPaymentDialog}
                             onMarkOverdue={(invoice) => markOverdueMutation.mutate(invoice)}
+                            readOnly={isClientBillingUser}
                             isUpdating={
                               updateInvoiceStatusMutation.isPending ||
                               recordPaymentMutation.isPending ||
@@ -875,7 +920,7 @@ export default function InvoicingPage() {
           </TabsContent>
 
           {/* Contracts tab */}
-          <TabsContent value="contracts" className="mt-4">
+          {!isClientBillingUser && <TabsContent value="contracts" className="mt-4">
             <Card className="bg-white dark:bg-[#1A1A1A] shadow-sm">
               <CardHeader className="pb-3">
                 <CardTitle className="text-base flex items-center gap-2">
@@ -975,7 +1020,7 @@ export default function InvoicingPage() {
                 )}
               </CardContent>
             </Card>
-          </TabsContent>
+          </TabsContent>}
         </Tabs>
 
         <Dialog open={paymentDialogOpen} onOpenChange={setPaymentDialogOpen}>

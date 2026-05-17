@@ -14,6 +14,7 @@ import { OrganizationContext } from '@/contexts/OrganizationContext'
 import { useFeedbackCapture } from '@/hooks/useFeedbackCapture'
 import { useLiveSessionDiagnostics } from '@/hooks/useLiveSessionDiagnostics'
 import { useAiTelemetryAuditSync } from '@/hooks/useAiTelemetryAuditSync'
+import { useClientAccessPolicy } from '@/hooks/useClientAccessPolicy'
 import { getDefaultRouteForRole, getRoleConstrainedRedirect } from '@/navigation/rolePath'
 import { isRouteVisibleForRole, resolveAuditAliasPath, resolveRuntimeVisibilityMode } from '@/navigation/routeManifestAdapter'
 import { routeManifest, type AppRole } from '@/navigation/routeManifest'
@@ -643,6 +644,12 @@ function RoleRoute({
 }) {
   const { user } = useAuthStore()
   const location = useLocation()
+  const {
+    isClientRole,
+    isLoading: clientPolicyLoading,
+    reportsEnabled,
+    financeEnabled,
+  } = useClientAccessPolicy()
 
   if (!user) return <Navigate to="/login" replace />
 
@@ -668,6 +675,15 @@ function RoleRoute({
     )
   ) {
     return <AccessDenied requiredRoles={manifestEntry.rolesAllowed} currentRole={user.role} />
+  }
+
+  if (isClientRole && !clientPolicyLoading) {
+    if (currentPath === '/reports' && !reportsEnabled) {
+      return <AccessDenied requiredRoles={['client_reporting_enabled']} currentRole={user.role} />
+    }
+    if (currentPath === '/invoicing' && !financeEnabled) {
+      return <AccessDenied requiredRoles={['client_finance_enabled']} currentRole={user.role} />
+    }
   }
 
   if (!allowedRoles.includes(user.role)) {
@@ -1275,7 +1291,7 @@ export default function App() {
             path="/reports"
             element={
               <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                <RoleRoute allowedRoles={['client_viewer', 'client_officer', 'client_admin', 'admin', 'admin_officer', 'master']}>
                   <Reports />
                 </RoleRoute>
               </ProtectedRoute>
@@ -1959,7 +1975,7 @@ export default function App() {
             path="/disputes"
             element={
               <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                <RoleRoute allowedRoles={['client_admin', 'admin', 'admin_officer', 'master']}>
                   <Disputes />
                 </RoleRoute>
               </ProtectedRoute>
@@ -2373,7 +2389,7 @@ export default function App() {
             path="/invoicing"
             element={
               <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'grand_master']}>
+                <RoleRoute allowedRoles={['client_admin', 'admin', 'admin_officer', 'master', 'grand_master']}>
                   <InvoicingPage />
                 </RoleRoute>
               </ProtectedRoute>

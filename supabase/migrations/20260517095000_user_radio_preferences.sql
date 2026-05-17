@@ -24,6 +24,11 @@ comment on table user_radio_preferences is
 -- RLS
 alter table public.user_radio_preferences enable row level security;
 
+drop policy if exists "user_radio_preferences_select_own" on public.user_radio_preferences;
+drop policy if exists "user_radio_preferences_insert_own" on public.user_radio_preferences;
+drop policy if exists "user_radio_preferences_update_own" on public.user_radio_preferences;
+drop policy if exists "user_radio_preferences_delete_own" on public.user_radio_preferences;
+
 create policy "user_radio_preferences_select_own"
   on public.user_radio_preferences for select
   using (auth.uid() = user_id);

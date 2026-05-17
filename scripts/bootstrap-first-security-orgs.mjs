@@ -5,21 +5,28 @@ import { loadLocalEnv } from './load-local-env.mjs'
 
 loadLocalEnv()
 
-const BRANCH_NAMES = [
-  'First Security - Nelson',
-  'First Security - Blenheim',
-  'First Security - Greymouth',
-  'First Security - Christchurch',
-  'First Security - Ashburton',
-  'First Security - Timaru',
-  'First Security - Oamaru',
-  'First Security - Dunedin',
-  'First Security - Invercargill',
-  'First Security - Queenstown',
-]
+const BRANCH_JURISDICTIONS = {
+  'First Security - Nelson': ['Nelson', 'Tasman'],
+  'First Security - Blenheim': ['Marlborough'],
+  'First Security - Greymouth': ['Buller', 'Grey', 'Westland'],
+  'First Security - Christchurch': ['North Canterbury', 'Central Canterbury'],
+  'First Security - Ashburton': ['Ashburton District'],
+  'First Security - Timaru': ['South Canterbury'],
+  'First Security - Oamaru': ['North Otago'],
+  'First Security - Dunedin': ['Otago'],
+  'First Security - Invercargill': ['Southland'],
+  'First Security - Queenstown': ['Central Otago'],
+}
+
+const BRANCH_NAMES = Object.keys(BRANCH_JURISDICTIONS)
 
 const HELP_TEXT = `
 Bootstrap the canonical First Security organization tree.
+
+Canonical branch coverage:
+${Object.entries(BRANCH_JURISDICTIONS)
+  .map(([name, regions]) => `  - ${name}: ${regions.join(', ')}`)
+  .join('\n')}
 
 Usage:
   node scripts/bootstrap-first-security-orgs.mjs [--apply]

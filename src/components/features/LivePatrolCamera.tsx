@@ -2,7 +2,7 @@
  * LivePatrolCamera
  *
  * Continuous auto-capture patrol mode for freedom camping and parking enforcement.
- * Inspired by ParkPow / TicketOr2 drive-and-scan approach:
+ * Designed for an in-house drive-and-scan enforcement approach:
  *  - Camera viewfinder stays live at all times
  *  - Officer presses "Start Patrol Scan" to begin auto-capture loop
  *  - Frame is captured every N seconds (default 4 s), submitted to the ALPR pipeline

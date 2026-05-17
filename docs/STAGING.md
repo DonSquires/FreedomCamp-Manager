@@ -86,6 +86,48 @@ Status: Active staging checklist — CRO Part 1 COMPLETE; Phase E ready for Part
   - Code matches INSTRUCTION_MANUAL.md requirements: every error has retry button + plain-English description.
 - Open blockers: None for Part 1. Ready to proceed to Part 2 (route audit and consolidation).
 
+## Latest Session Snapshot (Client Portal Reports + Billing Route Alignment — 2026-05-17)
+
+- Timestamp (NZ): 2026-05-17
+- Session focus: Align client-facing reporting and billing access with the instruction manual before continuing broader service-provider implementation work.
+- Scope completed:
+  - **[Frontend Platform Lead]** Opened `/reports` to `client_viewer`, `client_officer`, and `client_admin` while preserving org-scoped filtering.
+  - **[Frontend Platform Lead]** Opened `/invoicing` to `client_admin` only and hardened `InvoicingPage` so client roles are forced to their own org scope with view-only billing access.
+  - **[Frontend Platform Lead]** Added client portal quick actions for compliance report generation and invoice access.
+  - **[Data Platform Lead]** Added additive migration `20260517170000_service_agreement_obligations_and_client_access.sql` to extend `service_agreements` with client access policy fields and create `service_agreement_obligations` for SLA, reporting, proof, consent, and closure rules.
+  - **[Frontend Platform Lead]** Added `useClientAccessPolicy` and wired role + route-level policy gating for client reporting and finance (`/reports`, `/invoicing`) from module config.
+  - **[Frontend Platform Lead]** Wired report metadata exports to include contract/template tags (`contract_profile_code`, `monthly_report_template_code`) when configured.
+  - **[Frontend Platform Lead]** Implemented `ServiceAgreements` obligation management UI (create/edit/delete) backed by `service_agreement_obligations`.
+  - **[Data Platform Lead]** Implemented `scripts/import-service-provider-profile.mjs` with dry-run/apply modes to import profile seeds into `org_module_subscriptions`, `service_agreements`, and `service_agreement_obligations` idempotently.
+  - **[Platform Engineering Lead]** Applied pending linked-project migrations required for live schema compatibility (`20260517095000_user_radio_preferences`, `20260517170000_service_agreement_obligations_and_client_access`, `20260709000008_radio_floor_events`) and hardened two drifted migrations to be policy-idempotent.
+  - **[Data Platform Lead]** Successfully applied the Nelson City Council contract profile into live runtime tables and verified post-apply dry-run update behavior.
+  - **[Planning/PM]** Added `data/service-provider-profiles/nelson-city-council.contract-profile.seed.json` as an import-ready Nelson profile seed covering facilities reporting and responsible-camping bylaw obligations.
+  - **[Planning/PM]** Reviewed the `docs/First-Security-Docs/` bundle and used its fit/todo guidance to drive the next council-pack, reporting, and client-portal slice.
+  - **[Planning/PM]** Corrected source-document grounding after user clarification: the broader First Security corpus also includes Microsoft 365 finance material, a First Security Queenstown LINZ freedom-camping report, field-officer dispatch/job training, and a capabilities statement; primary artifacts are now also verified under `tmp/docs/storage-review/` (Downer/LINZ historical logs and NZTA warden training guidelines), with implementation anchors retained for delivery wiring.
+  - **[Planning/PM]** Added a canonical First Security national branch-jurisdiction map and wired it into the active org bootstrap script so future onboarding work uses branch context correctly (Nelson/Tasman, Marlborough, North/Central Canterbury, South Canterbury, Ashburton District, Central Otago, Southland, Otago, North Otago, Buller/Grey/Westland), including Ashburton as its own confirmed branch.
+  - **[Planning/PM]** Added `data/service-provider-profiles/marlborough-district-council.parking-profile.seed.json` as a grounded Marlborough District Council parking profile seed using the existing Marlborough parking staging material.
+  - **[Frontend Platform Lead]** Extended `Reports` with template-aware monthly pack summaries for `ncc_monthly_facilities_v1` and `mdc_monthly_parking_v1`.
+  - **[Frontend Platform Lead]** Extended `ClientOrganisationPortal` with client-side site incident submission and dispute quick access using existing `incidents` and `dispute_intake` data surfaces.
+  - **[Frontend Platform Lead]** Opened `/disputes` to `client_admin` and converted `Disputes` into a dual-mode page: provider review for admin roles, provider-contact/status visibility for client admins.
+  - **[Planning/PM]** Updated `docs/INSTRUCTION_MANUAL.md` to reflect the delivered client reporting and invoice navigation path.
+  - **[Planning/PM]** Added a curated `docs/First-Security-Docs/` bundle containing the new fit assessment, alignment todo, and Nelson contract profile seed.
+- Validation evidence:
+  - File diagnostics on touched route/page/manual/schema files are clean.
+  - `bun run lint src/App.tsx src/pages/Reports.tsx src/pages/ClientOrganisationPortal.tsx src/pages/InvoicingPage.tsx` → PASS on touched files, with only pre-existing warnings in unrelated files.
+  - `python3 -m json.tool data/service-provider-profiles/nelson-city-council.contract-profile.seed.json` → PASS.
+  - Focused ESLint checks pass on touched files: `src/App.tsx`, `src/pages/Reports.tsx`, `src/pages/InvoicingPage.tsx`, `src/pages/ServiceAgreements.tsx`, `src/hooks/useClientAccessPolicy.ts`.
+  - `node scripts/import-service-provider-profile.mjs --help` → PASS.
+  - `node scripts/import-service-provider-profile.mjs` (pre-apply dry-run) → PASS; planned inserts: module configs (reporting/crm), 2 agreements, 6 obligations.
+  - `supabase db push --include-all --yes` → PASS after making two drifted migrations idempotent around pre-existing RLS policies.
+  - `node scripts/import-service-provider-profile.mjs --apply` → PASS; imported 2 agreements and 6 obligations.
+  - `node scripts/import-service-provider-profile.mjs` (post-apply dry-run) → PASS; now plans updates instead of inserts for the imported agreements.
+  - `bunx eslint src/pages/Reports.tsx src/pages/ClientOrganisationPortal.tsx src/pages/Disputes.tsx src/App.tsx src/navigation/routeManifest.ts` → PASS.
+  - `python3 -m json.tool data/service-provider-profiles/marlborough-district-council.parking-profile.seed.json` → PASS.
+  - `node scripts/import-service-provider-profile.mjs --file data/service-provider-profiles/marlborough-district-council.parking-profile.seed.json` → PASS (dry-run planned inserts: reporting/crm modules, 1 agreement, 3 obligations).
+- Open blockers:
+  1. Marlborough profile has been authored and dry-run validated, but has not been applied live yet.
+  2. Further cross-council packs beyond Nelson and Marlborough still need to be authored.
+
 ## Latest Session Snapshot (CRO Quick Wins Part 1 Pass — Persona-Led Execution — 2026-05-17)
 
 - Timestamp (NZ): 2026-05-17

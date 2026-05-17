@@ -10,7 +10,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
-import { AlertTriangle } from 'lucide-react'
+import { AlertTriangle, Mail, Phone } from 'lucide-react'
 
 type DisputeRow = {
   id: string
@@ -35,10 +35,16 @@ function DisputeCard({
   d,
   onSave,
   saving,
+  canReview,
+  contactEmail,
+  contactPhone,
 }: {
   d: DisputeRow
   onSave: (id: string, status: string, notes: string) => void
   saving: boolean
+  canReview: boolean
+  contactEmail: string | null
+  contactPhone: string | null
 }) {
   const [status, setStatus] = useState(d.status)
   const [notes, setNotes] = useState(d.admin_notes || '')
@@ -79,27 +85,58 @@ function DisputeCard({
           </div>
         )}
 
-        <div className="grid md:grid-cols-2 gap-3">
-          <div className="space-y-1.5">
-            <Label>Status</Label>
-            <Select value={status} onValueChange={setStatus}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {STATUSES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5">
-            <Label>Admin notes</Label>
-            <Textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} />
-          </div>
-        </div>
+        {canReview ? (
+          <>
+            <div className="grid md:grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Status</Label>
+                <Select value={status} onValueChange={setStatus}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {STATUSES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Admin notes</Label>
+                <Textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} />
+              </div>
+            </div>
 
-        <Button onClick={() => onSave(d.id, status, notes)} disabled={saving}>
-          Save Review Update
-        </Button>
+            <Button onClick={() => onSave(d.id, status, notes)} disabled={saving}>
+              Save Review Update
+            </Button>
+          </>
+        ) : (
+          <div className="space-y-3 rounded border p-3 bg-muted/20">
+            <div>
+              <p className="font-medium mb-1">Provider update</p>
+              <p className="whitespace-pre-wrap">{d.admin_notes || 'No provider update has been posted yet.'}</p>
+            </div>
+            {(contactEmail || contactPhone) && (
+              <div className="flex flex-wrap gap-2 pt-2 border-t">
+                {contactEmail && (
+                  <Button asChild size="sm" variant="outline">
+                    <a href={`mailto:${contactEmail}?subject=Dispute%20${encodeURIComponent(d.source_reference || d.id)}`}>
+                      <Mail className="h-4 w-4 mr-2" />
+                      Email Provider
+                    </a>
+                  </Button>
+                )}
+                {contactPhone && (
+                  <Button asChild size="sm" variant="outline">
+                    <a href={`tel:${contactPhone}`}>
+                      <Phone className="h-4 w-4 mr-2" />
+                      Call Provider
+                    </a>
+                  </Button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </CardContent>
     </Card>
   )
@@ -109,6 +146,22 @@ export default function Disputes() {
   const { user } = useAuthStore()
   const queryClient = useQueryClient()
   const [statusFilter, setStatusFilter] = useState('all')
+  const isClientAdmin = user?.role === 'client_admin'
+
+  const { data: providerContact } = useQuery({
+    queryKey: ['dispute-provider-contact', user?.organization_id],
+    queryFn: async () => {
+      if (!user?.organization_id) return null
+      const { data, error } = await (supabase as any)
+        .from('organizations')
+        .select('parent:organizations!parent_organization_id(contact_email, contact_phone)')
+        .eq('id', user.organization_id)
+        .single()
+      if (error) throw error
+      return data?.parent ?? null
+    },
+    enabled: !!user?.organization_id,
+  })
 
   const { data: disputes = [], isLoading } = useQuery({
     queryKey: ['dispute-intake', user?.organization_id, statusFilter],
@@ -151,7 +204,7 @@ export default function Disputes() {
   })
 
   return (
-    <AppLayout title="Disputes" description="Review recipient disputes and homeless/hardship requests">
+    <AppLayout title="Disputes" description={isClientAdmin ? 'Track dispute outcomes and contact your service provider when needed' : 'Review recipient disputes and homeless/hardship requests'}>
       <div className="mb-4 flex items-center gap-3">
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="w-56">
@@ -163,6 +216,30 @@ export default function Disputes() {
           </SelectContent>
         </Select>
       </div>
+
+      {isClientAdmin && (providerContact?.contact_email || providerContact?.contact_phone) && (
+        <Card className="mb-4">
+          <CardContent className="pt-4 flex flex-wrap items-center gap-2 text-sm">
+            <span className="font-medium">Service provider contact:</span>
+            {providerContact?.contact_email && (
+              <Button asChild size="sm" variant="outline">
+                <a href={`mailto:${providerContact.contact_email}`}>
+                  <Mail className="h-4 w-4 mr-2" />
+                  {providerContact.contact_email}
+                </a>
+              </Button>
+            )}
+            {providerContact?.contact_phone && (
+              <Button asChild size="sm" variant="outline">
+                <a href={`tel:${providerContact.contact_phone}`}>
+                  <Phone className="h-4 w-4 mr-2" />
+                  {providerContact.contact_phone}
+                </a>
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {isLoading ? (
         <Card><CardContent className="py-10 text-center text-muted-foreground">Loading disputes…</CardContent></Card>
@@ -176,6 +253,9 @@ export default function Disputes() {
               d={d}
               onSave={(id, status, admin_notes) => updateMutation.mutate({ id, status, admin_notes })}
               saving={updateMutation.isPending}
+              canReview={!isClientAdmin}
+              contactEmail={providerContact?.contact_email ?? null}
+              contactPhone={providerContact?.contact_phone ?? null}
             />
           ))}
         </div>

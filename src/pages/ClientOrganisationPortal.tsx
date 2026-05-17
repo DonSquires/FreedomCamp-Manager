@@ -1,9 +1,9 @@
 /**
  * ClientOrganisationPortal
  *
- * A read-only portal for client organisation contacts (client_viewer role).
- * Shows guard/patrol activity, compliance scan stats, infringements, KPIs,
- * risk assessments and all sites scoped to their own organisation.
+ * A client-scoped portal for client organisation roles.
+ * Shows guard/patrol activity, compliance scan stats, enforcement context,
+ * report access, and site visibility scoped to the user's organisation.
  *
  * UX inspired by: Lighthouse IO (KPI tiles), Rapid Global (RAG status),
  * GDS CATS (clean accessible tables), Deputy (activity feed).
@@ -13,7 +13,7 @@
 
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { AppLayout } from '@/components/features/AppLayout'
@@ -22,6 +22,10 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Input } from '@/components/ui/input'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Textarea } from '@/components/ui/textarea'
 import {
   AlertTriangle,
   ArrowRight,
@@ -38,8 +42,11 @@ import {
   TrendingUp,
   Phone,
   ChevronRight,
+  Receipt,
+  MessageSquareWarning,
 } from 'lucide-react'
 import { formatDateTime } from '@/lib/utils'
+import { toast } from 'sonner'
 
 // ─── Client hub card ──────────────────────────────────────────────────────────
 
@@ -165,9 +172,21 @@ function StatCard({ title, value, icon: Icon, colour = 'blue', description, onCl
 export default function ClientOrganisationPortal() {
   const { user } = useAuthStore()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const orgId = user?.organization_id
+  const isClientAdmin = user?.role === 'client_admin'
+  const canLogIncident = user?.role === 'client_admin' || user?.role === 'client_officer'
   const [searchTerm, setSearchTerm] = useState('')
   const [activeTab, setActiveTab] = useState('patrols')
+  const [incidentDialogOpen, setIncidentDialogOpen] = useState(false)
+  const [incidentForm, setIncidentForm] = useState({
+    clientSiteId: '',
+    incidentType: 'client_site_incident',
+    severity: 'medium',
+    plateNumber: '',
+    description: '',
+    actionTaken: '',
+  })
 
   // ── Organisation details ─────────────────────────────────────────────────
 
@@ -176,7 +195,7 @@ export default function ClientOrganisationPortal() {
     queryFn: async () => {
       if (!orgId) return null
       const { data, error } = await ((supabase as any).from('organizations') as any)
-        .select('id, name, organization_type, contact_email, contact_phone, is_active')
+        .select('id, name, organization_type, contact_email, contact_phone, is_active, parent:organizations!parent_organization_id(name, contact_email, contact_phone)')
         .eq('id', orgId)
         .single()
       if (error) throw error
@@ -358,9 +377,60 @@ export default function ClientOrganisationPortal() {
     )
   })
 
+  const createIncidentMutation = useMutation({
+    mutationFn: async () => {
+      if (!user?.id || !orgId) throw new Error('Missing user or organisation context')
+      if (clientSites.length > 0 && !incidentForm.clientSiteId) throw new Error('Select a permitted site')
+      if (!incidentForm.description.trim()) throw new Error('Incident description is required')
+
+      const selectedSite = clientSites.find((site: any) => site.id === incidentForm.clientSiteId) ?? null
+      const locationAddress = [selectedSite?.name, selectedSite?.address, selectedSite?.city].filter(Boolean).join(', ') || null
+
+      const { error } = await ((supabase as any).from('incidents') as any).insert({
+        organization_id: orgId,
+        user_id: user.id,
+        plate_number: incidentForm.plateNumber.trim().toUpperCase() || null,
+        incident_type: incidentForm.incidentType,
+        severity: incidentForm.severity,
+        status: 'new',
+        location_address: locationAddress,
+        description: [
+          incidentForm.description.trim(),
+          selectedSite ? `Client site: ${selectedSite.name}` : '',
+          incidentForm.actionTaken.trim() ? `Immediate action: ${incidentForm.actionTaken.trim()}` : '',
+        ].filter(Boolean).join('\n\n'),
+        metadata: {
+          source: 'client_portal',
+          client_site_id: selectedSite?.id ?? null,
+          client_site_name: selectedSite?.name ?? null,
+          submitted_by_role: user.role,
+        },
+      })
+
+      if (error) throw error
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['incidents'] })
+      setIncidentDialogOpen(false)
+      setIncidentForm({
+        clientSiteId: '',
+        incidentType: 'client_site_incident',
+        severity: 'medium',
+        plateNumber: '',
+        description: '',
+        actionTaken: '',
+      })
+      toast.success('Incident submitted to the service provider queue')
+    },
+    onError: (error: any) => {
+      toast.error(error?.message || 'Failed to submit incident')
+    },
+  })
+
   // ─────────────────────────────────────────────────────────────────────────
 
   return (
+    <>
     <AppLayout>
       <div className="space-y-5">
 
@@ -540,6 +610,41 @@ export default function ClientOrganisationPortal() {
             className="pl-9 h-9"
           />
         </div>
+
+        <Card className="bg-white dark:bg-[#1A1A1A] shadow-sm">
+          <CardContent className="p-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-gray-900 dark:text-white">Quick Actions</p>
+              <p className="text-xs text-muted-foreground">
+                Generate contract reports, review disputes, and submit site incidents to the provider queue.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" onClick={() => navigate('/reports')}>
+                <FileText className="h-4 w-4 mr-2" />
+                Generate Compliance Report
+              </Button>
+              {canLogIncident && (
+                <Button size="sm" variant="outline" onClick={() => setIncidentDialogOpen(true)}>
+                  <AlertTriangle className="h-4 w-4 mr-2" />
+                  Log Site Incident
+                </Button>
+              )}
+              {isClientAdmin && (
+                <Button size="sm" variant="outline" onClick={() => navigate('/disputes')}>
+                  <MessageSquareWarning className="h-4 w-4 mr-2" />
+                  View Disputes
+                </Button>
+              )}
+              {isClientAdmin && (
+                <Button size="sm" variant="outline" onClick={() => navigate('/invoicing')}>
+                  <Receipt className="h-4 w-4 mr-2" />
+                  View Invoices
+                </Button>
+              )}
+            </div>
+          </CardContent>
+        </Card>
 
         {/* ── Tabs — GDS CATS / Lighthouse IO inspired ─────────────────────── */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -818,5 +923,79 @@ export default function ClientOrganisationPortal() {
 
       </div>
     </AppLayout>
+    <Dialog open={incidentDialogOpen} onOpenChange={setIncidentDialogOpen}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Log Site Incident</DialogTitle>
+          <DialogDescription>
+            Submit a client-side incident for the service provider to review and action.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="space-y-1.5">
+            <Label>Permitted site</Label>
+            <Select value={incidentForm.clientSiteId} onValueChange={(value) => setIncidentForm((current) => ({ ...current, clientSiteId: value }))}>
+              <SelectTrigger>
+                <SelectValue placeholder={clientSites.length > 0 ? 'Select a site' : 'No active sites configured'} />
+              </SelectTrigger>
+              <SelectContent>
+                {clientSites.map((site: any) => (
+                  <SelectItem key={site.id} value={site.id}>{site.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label>Incident type</Label>
+              <Select value={incidentForm.incidentType} onValueChange={(value) => setIncidentForm((current) => ({ ...current, incidentType: value }))}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="client_site_incident">Client site incident</SelectItem>
+                  <SelectItem value="access_issue">Access issue</SelectItem>
+                  <SelectItem value="damage_report">Damage report</SelectItem>
+                  <SelectItem value="safety_concern">Safety concern</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Severity</Label>
+              <Select value={incidentForm.severity} onValueChange={(value) => setIncidentForm((current) => ({ ...current, severity: value }))}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="low">Low</SelectItem>
+                  <SelectItem value="medium">Medium</SelectItem>
+                  <SelectItem value="high">High</SelectItem>
+                  <SelectItem value="critical">Critical</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Vehicle plate</Label>
+            <Input value={incidentForm.plateNumber} onChange={(e) => setIncidentForm((current) => ({ ...current, plateNumber: e.target.value }))} placeholder="Optional" />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Description</Label>
+            <Textarea rows={4} value={incidentForm.description} onChange={(e) => setIncidentForm((current) => ({ ...current, description: e.target.value }))} placeholder="Describe what happened, what was observed, and what the provider should know." />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Immediate action taken</Label>
+            <Textarea rows={3} value={incidentForm.actionTaken} onChange={(e) => setIncidentForm((current) => ({ ...current, actionTaken: e.target.value }))} placeholder="Optional actions already taken by your team." />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setIncidentDialogOpen(false)}>Cancel</Button>
+          <Button onClick={() => createIncidentMutation.mutate()} disabled={createIncidentMutation.isPending || clientSites.length === 0}>
+            Submit Incident
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+    </>
   )
 }

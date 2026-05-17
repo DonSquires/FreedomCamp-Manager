@@ -32,6 +32,10 @@ comment on table public.radio_floor_events is
 
 alter table public.radio_floor_events enable row level security;
 
+drop policy if exists radio_floor_events_select_own_org on public.radio_floor_events;
+drop policy if exists radio_floor_events_insert_own_org on public.radio_floor_events;
+drop policy if exists radio_floor_events_update_admin on public.radio_floor_events;
+
 create policy radio_floor_events_select_own_org
   on public.radio_floor_events for select
   using (

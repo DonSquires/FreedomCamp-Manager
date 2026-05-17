@@ -1,12 +1,12 @@
 {
-  "generatedAt": "2026-05-16T11:57:31.880Z",
+  "generatedAt": "2026-05-17T10:53:11.658Z",
   "windowHours": 24,
-  "totalEntries": 6,
-  "lowScoreCount": 1,
+  "totalEntries": 5,
+  "lowScoreCount": 2,
   "topFailureReasons": [
     {
       "name": "quality_gate_failed",
-      "count": 1
+      "count": 2
     }
   ],
   "topHallucinationPatterns": [],
@@ -14,7 +14,7 @@
   "topFlaggedArtifacts": [
     {
       "name": "/workspaces/FreedomCamp-Manager/spec.md",
-      "count": 4
+      "count": 5
     }
   ],
   "recommendations": [

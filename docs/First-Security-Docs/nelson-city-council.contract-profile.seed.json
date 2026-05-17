@@ -1,0 +1,85 @@
+{
+  "profileCode": "ncc_facilities_2025",
+  "organization": "Nelson City Council",
+  "sourceDate": "2026-05-17",
+  "clientPortal": {
+    "accessMode": "transparency_only",
+    "reportsEnabled": true,
+    "financeEnabled": true
+  },
+  "monthlyReportTemplateCode": "ncc_monthly_facilities_v1",
+  "serviceAgreements": [
+    {
+      "agreementType": "guarding",
+      "referenceNumber": "4038",
+      "name": "Security Services for Council Facilities",
+      "obligations": [
+        {
+          "obligationCode": "ncc_patrol_frequency_matrix",
+          "obligationKind": "frequency",
+          "proofArtifactTypes": ["patrol_log", "checkpoint_scan"],
+          "rulePayload": {
+            "template": "facility_frequency_matrix",
+            "notes": "Apply A-J facility frequency templates from NCC schedules and variations."
+          }
+        },
+        {
+          "obligationCode": "ncc_alarm_first_response_45m",
+          "obligationKind": "response_sla",
+          "targetMinutes": 45,
+          "escalationMinutes": 60,
+          "proofArtifactTypes": ["dispatch_event", "arrival_timestamp", "incident_report"],
+          "rulePayload": {
+            "serviceTypes": ["alarm_response", "security_breach"]
+          }
+        },
+        {
+          "obligationCode": "ncc_monthly_report_pack",
+          "obligationKind": "reporting",
+          "reportTemplateCode": "ncc_monthly_facilities_v1",
+          "proofArtifactTypes": ["monthly_report_pdf", "email_delivery_log"],
+          "rulePayload": {
+            "cadence": "monthly",
+            "facilityGrouping": true
+          }
+        }
+      ]
+    },
+    {
+      "agreementType": "freedom_camping",
+      "referenceNumber": "NCC-RCB-2025",
+      "name": "Responsible Camping Bylaw Enforcement",
+      "obligations": [
+        {
+          "obligationCode": "ncc_repeat_stay_500m",
+          "obligationKind": "proof",
+          "proofArtifactTypes": ["geofence_event", "stay_history", "map_overlay"],
+          "rulePayload": {
+            "radiusMeters": 500,
+            "maxConsecutiveNights": 2,
+            "maxMonthlyOccasions": 2
+          }
+        },
+        {
+          "obligationCode": "ncc_camping_consent_lead_time",
+          "obligationKind": "consent",
+          "proofArtifactTypes": ["consent_record", "revocation_log"],
+          "rulePayload": {
+            "leadTimeWorkingDays": 20,
+            "revocable": true
+          }
+        },
+        {
+          "obligationCode": "ncc_temporary_closure_overlay",
+          "obligationKind": "closure",
+          "proofArtifactTypes": ["closure_resolution", "effective_dates", "notice_bundle"],
+          "rulePayload": {
+            "supportsNztaDeclaredLand": true,
+            "supportsRestrictedAreas": true,
+            "supportsProhibitedAreas": true
+          }
+        }
+      ]
+    }
+  ]
+}
