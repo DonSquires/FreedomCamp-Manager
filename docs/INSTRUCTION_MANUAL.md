@@ -53,6 +53,7 @@
 9. [Appendix A — Enforcement Document Quick Reference](#appendix-a--enforcement-document-quick-reference)
 10. [Appendix B — Role Access Matrix](#appendix-b--role-access-matrix)
 11. [Appendix C — Common Troubleshooting](#appendix-c--common-troubleshooting)
+12. [Appendix D — CRO To-Do List](#appendix-d--cro-to-do-list)
 
 ---
 
@@ -3030,6 +3031,41 @@ The `proxy-server/` is deployed to Railway. The Railway project's **Root Directo
 | Edge Function CORS error | Missing OPTIONS handler or corsHeaders | Check function follows `_shared/cors.ts` pattern |
 | `get_user_organization_ids()` returns empty | User profile has no `organization_id` set | Update user profile in User Management |
 | Bob `health` check fails in serverless mode | `health` is pod-only; not available in serverless | Use `ping` action via `/runsync` to verify Bob connectivity |
+
+---
+
+## Appendix D — CRO To-Do List
+
+A full Conversion Rate Optimisation (CRO) audit was conducted against this product in May 2026. The audit identified a **conversion dilution problem**: too many equally weighted actions are presented to users before they can reach the intended next step.
+
+The complete specialist-labelled to-do list derived from that audit lives at:
+
+**[`docs/CRO_TODOLIST.md`](./CRO_TODOLIST.md)**
+
+### Summary of CRO gaps (relative to the design standards in §1a)
+
+The current UI deviates from the Page Anatomy rule that specifies **"max one primary action per page"** in the following pages:
+
+| Page / component | Deviation | Responsible specialist |
+|---|---|---|
+| `AdminPortal` — sticky header | 4 equal-weight header buttons instead of 1 primary + overflow | UX Designer + Frontend Developer |
+| `FieldOfficerPortal` — common tools grid | 11 equal-weight action cards with no dominant primary | UX Designer + Frontend Developer |
+| `ReportsHub` — Quick Actions card | Duplicate actions that compete with the card grid above | Frontend Developer |
+| `PortalSelection` — portal grid | 7 portals displayed without role-based prioritisation | UX Designer + Frontend Developer |
+| `App.tsx` — route registry | 319 registered routes, many not visible in any shell nav | Platform Engineer |
+
+### CRO to-do scope at a glance
+
+| Part | Description | Primary specialist |
+|---|---|---|
+| Quick wins | Single CTA dominance, action reduction, async state language | UX Designer + Frontend Developer |
+| Route reduction | Route manifest, consolidate 319 routes to shell model | Platform Engineer + Frontend Developer |
+| Landing redesigns | Patrol-first, queue-first, governance-first landings | UX Designer + Frontend Developer |
+| Workflow consolidation | Guided flows replacing multi-page task sequences | Product Manager + UX Designer + Frontend Developer |
+| Trust and consistency | Loading, error, offline, empty state standardisation | Frontend Developer |
+| Measurement | Staging specs and analytics for conversion KPIs | QA Engineer + Analytics Engineer |
+
+See [`docs/CRO_TODOLIST.md`](./CRO_TODOLIST.md) for the full checklist with individual to-do items.
 
 ---
 
