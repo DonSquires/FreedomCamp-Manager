@@ -52,7 +52,29 @@ on:
       - 'docs/PHASE1_WORKFLOW_MATRIX_2026-05-02.json'
 
 jobs:
+  typecheck-preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      NODE_OPTIONS: --max-old-space-size=4096
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Typecheck preflight
+        run: bun run typecheck
+
   build-high-memory:
+    needs: [typecheck-preflight]
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:

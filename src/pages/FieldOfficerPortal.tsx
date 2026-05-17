@@ -1048,6 +1048,34 @@ export default function FieldOfficerPortal() {
     user,
   ])
 
+  // Open quick-report modal and opportunistically prefill location from GPS.
+  const handleOpenQuickReport = useCallback(() => {
+    setQuickReportStatusText(null)
+    setQRVehiclePlate('')
+    setQRDescription('')
+    setQRActionTaken('')
+    setQRLocationAddress('')
+    setQRReportType('incident')
+    setQRIncidentType('general_incident')
+    setQRSeverity('medium')
+    setShowQuickReport(true)
+    if (currentLocation?.latitude && currentLocation?.longitude) {
+      reverseGeocode(currentLocation.latitude, currentLocation.longitude)
+        .then(result => {
+          if (!result) return
+          const parts = [
+            result.street_number && result.street_name
+              ? `${result.street_number} ${result.street_name}`
+              : result.street_name,
+            result.suburb,
+            result.city,
+          ].filter(Boolean)
+          if (parts.length > 0) setQRLocationAddress(parts.join(', '))
+        })
+        .catch(() => { /* non-critical */ })
+    }
+  }, [currentLocation])
+
   const applyPendingSpeechAction = useCallback(() => {
     if (!pendingSpeechAction) return
 
@@ -1513,35 +1541,6 @@ export default function FieldOfficerPortal() {
     }
     navigate('/compliance')
   }
-
-  // ── Open quick-report modal, auto-fill location from GPS ─────────────────
-  const handleOpenQuickReport = useCallback(() => {
-    setQuickReportStatusText(null)
-    setQRVehiclePlate('')
-    setQRDescription('')
-    setQRActionTaken('')
-    setQRLocationAddress('')
-    setQRReportType('incident')
-    setQRIncidentType('general_incident')
-    setQRSeverity('medium')
-    setShowQuickReport(true)
-    // Auto-fill location from GPS
-    if (currentLocation?.latitude && currentLocation?.longitude) {
-      reverseGeocode(currentLocation.latitude, currentLocation.longitude)
-        .then(result => {
-          if (!result) return
-          const parts = [
-            result.street_number && result.street_name
-              ? `${result.street_number} ${result.street_name}`
-              : result.street_name,
-            result.suburb,
-            result.city,
-          ].filter(Boolean)
-          if (parts.length > 0) setQRLocationAddress(parts.join(', '))
-        })
-        .catch(() => { /* non-critical */ })
-    }
-  }, [currentLocation])
 
   // ── Submit standalone quick report ────────────────────────────────────────
   const handleSubmitQuickReport = useCallback(async () => {

@@ -78,6 +78,20 @@ Material changes since the prior mainline CI remediation cycle:
 
 1. `enterprise-console` is not a canonical live route in the current router topology and must not be used as an operational validation anchor.
 2. Monitoring operations are represented by Dispatch Monitor for live queue oversight and Alarm Events for inbound alarm triage.
+
+## Current Cycle Snapshot (2026-05-17)
+
+Material changes and governance implications in the latest cycle:
+
+1. CI failure triage identified a dual-source gate pattern: TypeScript build regressions and documentation-authority drift.
+2. Canonical authority documents are now explicitly refreshed in the same change set for route/page architecture-impacting updates.
+3. Build-first governance now prioritizes an early typecheck preflight ahead of high-cost Playwright/Bob matrix jobs to reduce wasted CI cycles.
+
+### Architecture / Governance Implications
+
+1. Route, page, and architecture deltas are considered incomplete until this canonical file and the module roadmap are updated.
+2. Expensive Bob and Playwright validations should run only after fast static correctness gates pass.
+3. This cycle reinforces fail-closed behavior: if type safety or doc authority fails, downstream matrix suites should not execute.
 3. Bob operational UI validation remains split across `/bob-assistant` and `/grandmaster-code-studio` depending on role.
 
 ### Validation Notes

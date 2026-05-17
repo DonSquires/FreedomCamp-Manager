@@ -1,9 +1,15 @@
 # Module Roadmap (Operator Navigation Map)
 
-Date: 2026-05-16 (verified against src/navigation/routeManifest.ts)
+Date: 2026-05-17 (verified against src/navigation/routeManifest.ts)
 Source of truth for routes: route manifest file src/navigation/routeManifest.ts (350 manifest rows / 286 unique paths as of Sprint 70 hardening audit)
 
- > **Last Verification**: 2026-05-16 — Role-gating and route docs reviewed through governance strict-gate remediation. Production main includes canonical dedupe alignment for `/investigation-job-config` and `/zone-legal-config`.
+ > **Last Verification**: 2026-05-17 — Route and portal governance docs synchronized with current mainline build/authority gates. Production main includes canonical dedupe alignment for `/investigation-job-config` and `/zone-legal-config`.
+
+## Current Cycle Delta (2026-05-17)
+
+1. Route authority documentation has been refreshed to remain in lock-step with App router evolution and strict doc-authority enforcement.
+2. Admin and officer operational surfaces now include expanded Bob triage/copilot controls; route governance remains anchored to the manifest source of truth.
+3. Canonical route-map updates are now treated as mandatory in the same change set whenever route topology changes in src/App.tsx.
 
 ## How To Use
 

@@ -9,6 +9,12 @@
 > If the app currently behaves differently from this manual, that drift is a defect to resolve or an explicit product decision to document here first.  
 > Last reviewed: 2026-05-17
 
+### Current Cycle Amendment (2026-05-17)
+
+1. Documentation authority enforcement is active in strict mode for route/page/architecture changes.
+2. CI now emphasizes fast type-safety preflight before high-cost integration matrices to fail early on compile regressions.
+3. Bob triage and officer copilot surface updates are treated as architecture-impacting workflow changes and must be mirrored in canonical documentation updates.
+
 ---
 
 ## Table of Contents

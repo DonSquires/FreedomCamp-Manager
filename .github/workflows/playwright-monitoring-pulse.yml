@@ -28,8 +28,34 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  typecheck-preflight:
+    name: Typecheck Preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Typecheck preflight
+        run: bun run typecheck
+
   monitoring-pulse:
     name: Monitoring Pulse Smoke (Ubuntu Chromium)
+    needs: [typecheck-preflight]
     runs-on: ubuntu-latest
     timeout-minutes: 25
 
