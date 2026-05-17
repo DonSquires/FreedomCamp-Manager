@@ -48,6 +48,11 @@ jobs:
           STAGING_MAX_AGE_DAYS: '14'
         run: bun run lint:staging-doc
 
+      - name: Bob governance drift gate
+        env:
+          BOB_GOVERNANCE_DRIFT_STRICT: 'true'
+        run: bun run lint:bob-governance-drift
+
       - name: Resolve required P0 workflow IDs
         id: required-workflows
         run: |

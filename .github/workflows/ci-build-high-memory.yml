@@ -8,6 +8,7 @@ on:
       - 'src/**'
       - 'supabase/functions/**'
       - 'supabase/migrations/**'
+      - 'docs/INSTRUCTION_MANUAL.md'
       - 'docs/MODULE_ROADMAP.md'
       - 'docs/ENTERPRISE_PAIR_REVIEW_CANONICAL.md'
       - 'package.json'
@@ -20,6 +21,7 @@ on:
       - 'scripts/build-diagnostics.sh'
       - 'scripts/check-eslint-warning-budget.mjs'
       - 'scripts/check-build-budgets.mjs'
+      - 'scripts/check-bob-governance-drift.mjs'
       - 'scripts/doc-authority-check.mjs'
       - 'scripts/collect-workflow-evidence.mjs'
       - 'tools/budgets/eslint-warning-budget.json'
@@ -30,6 +32,7 @@ on:
       - 'src/**'
       - 'supabase/functions/**'
       - 'supabase/migrations/**'
+      - 'docs/INSTRUCTION_MANUAL.md'
       - 'docs/MODULE_ROADMAP.md'
       - 'docs/ENTERPRISE_PAIR_REVIEW_CANONICAL.md'
       - 'package.json'
@@ -42,6 +45,7 @@ on:
       - 'scripts/build-diagnostics.sh'
       - 'scripts/check-eslint-warning-budget.mjs'
       - 'scripts/check-build-budgets.mjs'
+      - 'scripts/check-bob-governance-drift.mjs'
       - 'scripts/doc-authority-check.mjs'
       - 'scripts/collect-workflow-evidence.mjs'
       - 'tools/budgets/eslint-warning-budget.json'
@@ -96,6 +100,11 @@ jobs:
           DOC_AUTHORITY_STRICT: 'true'
           DOC_AUTHORITY_DIFF_RANGE: ${{ github.event_name == 'pull_request' && format('origin/{0}...{1}', github.base_ref, github.sha) || format('{0}..{1}', github.event.before, github.sha) }}
         run: bun run lint:doc-authority
+
+      - name: Bob governance drift lint (mandatory)
+        env:
+          BOB_GOVERNANCE_DRIFT_STRICT: 'true'
+        run: bun run lint:bob-governance-drift
 
       - name: Navigation parity tests
         run: bun run test:nav-parity

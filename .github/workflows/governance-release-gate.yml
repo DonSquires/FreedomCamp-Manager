@@ -5,12 +5,18 @@ on:
     branches: [main]
     paths:
       - 'src/App.tsx'
+      - 'src/lib/edgeFunctions.ts'
+      - 'src/lib/bobMutationCatalog.ts'
+      - 'src/lib/bob-brain.ts'
+      - 'src/pages/BobAssistantStudio.tsx'
       - 'supabase/functions/**'
       - 'supabase/migrations/**'
+      - 'docs/INSTRUCTION_MANUAL.md'
       - 'docs/MODULE_ROADMAP.md'
       - 'docs/ENTERPRISE_PAIR_REVIEW_CANONICAL.md'
       - 'docs/PHASE1_WORKFLOW_MATRIX_2026-05-02.json'
       - 'docs/STAGING.md'
+      - 'scripts/check-bob-governance-drift.mjs'
       - 'scripts/check-staging-doc.mjs'
       - 'scripts/doc-authority-check.mjs'
       - 'scripts/check-eslint-warning-budget.mjs'
@@ -33,12 +39,18 @@ on:
     branches: [main]
     paths:
       - 'src/App.tsx'
+      - 'src/lib/edgeFunctions.ts'
+      - 'src/lib/bobMutationCatalog.ts'
+      - 'src/lib/bob-brain.ts'
+      - 'src/pages/BobAssistantStudio.tsx'
       - 'supabase/functions/**'
       - 'supabase/migrations/**'
+      - 'docs/INSTRUCTION_MANUAL.md'
       - 'docs/MODULE_ROADMAP.md'
       - 'docs/ENTERPRISE_PAIR_REVIEW_CANONICAL.md'
       - 'docs/PHASE1_WORKFLOW_MATRIX_2026-05-02.json'
       - 'docs/STAGING.md'
+      - 'scripts/check-bob-governance-drift.mjs'
       - 'scripts/check-staging-doc.mjs'
       - 'scripts/doc-authority-check.mjs'
       - 'scripts/check-eslint-warning-budget.mjs'
@@ -114,6 +126,11 @@ jobs:
           DOC_AUTHORITY_STRICT: 'true'
           DOC_AUTHORITY_DIFF_RANGE: ${{ github.event_name == 'pull_request' && format('origin/{0}...{1}', github.base_ref, github.sha) || format('{0}..{1}', github.event.before, github.sha) }}
         run: bun run lint:doc-authority
+
+      - name: Bob governance drift strict gate
+        env:
+          BOB_GOVERNANCE_DRIFT_STRICT: 'true'
+        run: bun run lint:bob-governance-drift
 
       - name: Staging doc presence and freshness gate
         env:
@@ -220,6 +237,7 @@ jobs:
         run: |
           echo "## Governance Release Gate" >> "$GITHUB_STEP_SUMMARY"
           echo "- Doc authority strict gate: completed" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Bob governance drift strict gate: completed" >> "$GITHUB_STEP_SUMMARY"
           echo "- Staging doc presence/freshness gate: completed" >> "$GITHUB_STEP_SUMMARY"
           echo "- Lint warning budget gate: completed" >> "$GITHUB_STEP_SUMMARY"
           echo "- Route roadmap strict gate: completed" >> "$GITHUB_STEP_SUMMARY"
