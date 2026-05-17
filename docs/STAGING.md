@@ -5,6 +5,25 @@ Owner: GitHub Copilot
 Status: Active staging checklist — Phase E COMPLETE; Star Trek validation lane complete for Phases 1–4; Phase 0 implementation schedule calendarized
 
 ## Latest Session Snapshot (Phase 0-2/0-3 Contract Lane Green After Deploy Alignments — 2026-05-17)
+## Latest Session Snapshot (Phase 0-4 TTS Relay Scaffolding — 2026-05-17)
+
+- Timestamp (NZ): 2026-05-17
+- Session focus: Build Phase 0-4 TTS relay scaffolding: synthesize-translated-audio edge function, user_radio_preferences schema, feature flags, e2e contract spec.
+- Scope completed:
+  - **[Platform Engineering Lead]** Created and deployed `supabase/functions/synthesize-translated-audio/index.ts` to project kxwjcupuxnnbnzcgmkoi. Implements org-scope validation via `radio_translation_segments` lookup, TTS provider env wiring with graceful degraded-mode 503, `radio_tts_renders` audit row persistence, and watermark field on every response.
+  - **[Data Platform Lead]** Created and applied migration `20260517095000_user_radio_preferences.sql` — `user_radio_preferences(user_id, org_id, audio_playback_mode, preferred_language, tts_relay_enabled)` with UNIQUE(user_id, org_id) and per-user RLS policies.
+  - **[Frontend Platform Lead]** Added `dualCaptionLanesEnabled`, `translationConfidenceThreshold`, `ttsRelayEnabled`, `ttsFallbackToOriginal` flags to `src/lib/radio/radioFeatureFlags.ts`; wired confidence threshold into `PTTRadio.tsx` (env-configurable, replaces hardcoded `0.65`).
+  - **[QA Engineer]** Created `tests/e2e/phase0-phase4-translated-audio.spec.ts` with 4 contract cases: degraded-mode 503, cross-org 404, user_radio_preferences upsert+read, RLS cross-user isolation.
+  - **[Planning/PM]** Ticked Phase C exit gate (all 5 items), Phase E entry check (2 stale items), P0-3a/b/c (10 items), P0-4a/b/c (10 items) in `plan.md`.
+- Evidence:
+  - `npx supabase db push`: "Applying migration 20260517095000_user_radio_preferences.sql... Finished supabase db push."
+  - `npx supabase functions deploy synthesize-translated-audio`: "Deployed Functions on project kxwjcupuxnnbnzcgmkoi: synthesize-translated-audio"
+- Open blockers:
+  1. Livekit Cloud not provisioned (ops team action).
+  2. Real TTS provider not wired (`TTS_PROVIDER` / `TTS_PROVIDER_URL` env vars unset on Supabase project) — endpoint runs in degraded mode until set.
+  3. `collect-canary-metrics` 404 deployment drift (pre-existing, platform ops).
+
+## Latest Session Snapshot (Phase 0-2/0-3 Contract Lane Green After Deploy Alignments — 2026-05-17)
 
 - Timestamp (NZ): 2026-05-17
 - Session focus: Execute both remediation tracks end-to-end: deploy backward-compatible ingest runtime changes and align remote schema migrations, then re-run P0-2/P0-3 contracts.
@@ -776,6 +795,7 @@ Status: Active staging checklist — Phase E COMPLETE; Star Trek validation lane
 | **Phase F** | Star Trek phases 1-4 (translation layer + audio relay) | *Current* | ⏳ 80% READY | P1: 7/9 ✅, P2: 5/5 ✅, P3: 4/4 ✅ (1 test bug fixed), P4: 7/7 ✅ |
 | **Phase G** | Production readiness + canary rollout validation | *Next* | ✅ 50% COMPLETE | G2 build budget: PASS, Phase E health: 33/33 ✅ |
 | **Phase 0** | Radio platform redesign (SFU + floor control + voice-twin) | *In progress* | ⏳ IMPLEMENTATION | Phase 0-1 scaffolding ✅; P0-2/P0-3 contracts 10/10 ✅ (2026-05-17); Livekit/STT/translation infra pending |
+    | **Phase 0** | Radio platform redesign (SFU + floor control + voice-twin) | *In progress* | ⏳ IMPLEMENTATION | Phase 0-1 scaffolding ✅; P0-2/P0-3 contracts 10/10 ✅; P0-4 TTS relay endpoint + user_radio_preferences ✅ (2026-05-17); Livekit/STT/TTS provider infra pending |
     - `FF_PHASE_B_DISPATCH_EVENTS`: 50% -> 100% (general_availability)
 **Critical Fixes This Session**:
     - `FF_PHASE_B_ENFORCEMENT_EVENTS`: 50% -> 100% (general_availability)
@@ -826,9 +846,10 @@ Status: Active staging checklist — Phase E COMPLETE; Star Trek validation lane
 4. ✅ Phase 0-1 scaffolding complete (floor acquire/release/override, `radio_floor_events` schema, feature flags)
 5. ✅ Phase 0-2 contract lane green (deployed `ingest-transcript-segments`, applied `channel_id` migration, 10/10 passing)
 6. ✅ Phase 0-3 contract lane green (translation spec 10/10 passing)
-7. 📅 Phase 0-1: Provision Livekit Cloud (ops team) + implement Redis floor coordinator
-8. 📅 Phase 0-2: Configure Livekit egress media tap + integrate STT provider (GCP/Azure)
-9. 📅 Phase 0-3: Integrate translation service (Google Translate / Azure Translator / DeepL)
+7. ✅ Phase 0-4 contract scaffolding: `synthesize-translated-audio` deployed; `user_radio_preferences` migration applied; `tests/e2e/phase0-phase4-translated-audio.spec.ts` created (2026-05-17)
+8. 📅 Phase 0-1: Provision Livekit Cloud (ops team) + implement Redis floor coordinator
+9. 📅 Phase 0-2: Configure Livekit egress media tap + integrate STT provider (GCP/Azure)
+10. 📅 Phase 0-3/0-4: Wire real TTS provider (`TTS_PROVIDER` + `TTS_PROVIDER_URL` env vars on Supabase project)
   | `bash scripts/advance-canary-stage.sh --dry-run FF_PHASE_B_ENFORCEMENT_EVENTS` | PASS | Stage progression and thresholds rendered; no writes sent |
 ---
   | `bash scripts/advance-canary-stage.sh --dry-run FF_PHASE_B_ENFORCEMENT_TIMELINE` | PASS | Stage progression and thresholds rendered; no writes sent |
