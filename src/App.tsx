@@ -15,7 +15,7 @@ import { useFeedbackCapture } from '@/hooks/useFeedbackCapture'
 import { useLiveSessionDiagnostics } from '@/hooks/useLiveSessionDiagnostics'
 import { useAiTelemetryAuditSync } from '@/hooks/useAiTelemetryAuditSync'
 import { getDefaultRouteForRole, getRoleConstrainedRedirect } from '@/navigation/rolePath'
-import { isRouteVisibleForRole, resolveRuntimeVisibilityMode } from '@/navigation/routeManifestAdapter'
+import { isRouteVisibleForRole, resolveAuditAliasPath, resolveRuntimeVisibilityMode } from '@/navigation/routeManifestAdapter'
 import { routeManifest, type AppRole } from '@/navigation/routeManifest'
 import { isDirectorOfficerPathAllowed, useDirectorRosterGate, useSiteToolPermissions, WAITING_FOR_SHIFT_PATH } from '@/middleware'
 import { ShieldOff } from 'lucide-react'
@@ -679,29 +679,18 @@ function RoleRoute({
 
 function AuditNamespaceRedirect() {
   const location = useLocation()
-  const params = useParams<{ logPath: string }>()
-  const rawLogPath = (params.logPath || '').trim().replace(/^\/+|\/+$/g, '')
+  const params = useParams<{ domain?: string; logPath?: string }>()
 
-  const knownLogPaths = useMemo(
-    () =>
-      new Set(
-        routeManifest
-          .map((entry) => entry.path.replace(/^\//, ''))
-          .filter((path) => path.endsWith('-log')),
-      ),
-    [],
-  )
+  const aliasPath = useMemo(() => {
+    if (!params.logPath) return '/audit'
+    if (params.domain) return `/audit/${params.domain}/${params.logPath}`
+    return `/audit/${params.logPath}`
+  }, [params.domain, params.logPath])
 
-  if (!rawLogPath) {
-    return <Navigate to="/audit-log" replace />
-  }
+  const resolvedPath = resolveAuditAliasPath(aliasPath, routeManifest)
+  if (!resolvedPath) return <Navigate to="/audit-log" replace />
 
-  const candidate = rawLogPath.endsWith('-log') ? rawLogPath : `${rawLogPath}-log`
-  if (!knownLogPaths.has(candidate)) {
-    return <Navigate to="/audit-log" replace />
-  }
-
-  return <Navigate to={`/${candidate}${location.search}`} replace />
+  return <Navigate to={`${resolvedPath}${location.search}`} replace />
 }
 
 /**
@@ -2694,6 +2683,7 @@ export default function App() {
 
           {/* Part 3 foundation: unified audit namespace aliases */}
           <Route path="/audit" element={<ProtectedRoute><Navigate to="/audit-log" replace /></ProtectedRoute>} />
+          <Route path="/audit/:domain/:logPath" element={<ProtectedRoute><AuditNamespaceRedirect /></ProtectedRoute>} />
           <Route path="/audit/:logPath" element={<ProtectedRoute><AuditNamespaceRedirect /></ProtectedRoute>} />
 
           {/* CRM – Accounts (Clients + Contractors) */}

@@ -20,6 +20,24 @@ Status: Active staging checklist — CRO Part 1 COMPLETE; Phase E ready for Part
 - Open blockers:
   1. Full CLI lint/build evidence remains environment-dependent in this container lane (node/npm/bun tooling inconsistency).
 
+## Latest Session Snapshot (Part 3 Expansion — Domain Audit Aliases + Manifest Metadata — 2026-05-17)
+
+- Timestamp (NZ): 2026-05-17
+- Session focus: Complete Part 3 expansion by introducing structured audit-domain aliases and moving nav links onto the new namespace.
+- Scope completed:
+  - **[Frontend Platform Lead]** Added manifest-driven alias resolver in `routeManifestAdapter.ts` (`resolveAuditAliasPath`) using route metadata.
+  - **[Frontend Platform Lead]** Added `auditDomain` metadata field in `routeManifest.ts` and tagged high-traffic log routes.
+  - **[Frontend Platform Lead]** Expanded routing to support `/audit/:domain/:logPath` in `App.tsx` and resolve both legacy/simple and domain aliases via manifest resolver.
+  - **[Frontend Platform Lead]** Updated navigation surfaces to prefer `/audit/{domain}/{entity}` links:
+    - `AppLayout.tsx`
+    - `AdminPortal.tsx`
+    - `Platform.tsx` (`/audit` entrypoint)
+  - **[Frontend Platform Lead]** Hardened AppLayout nav visibility with explicit role checks for alias paths not yet canonical manifest paths.
+- Validation evidence:
+  - IDE diagnostics (`get_errors`) across changed files: no new errors.
+- Open blockers:
+  1. Full CLI lint/build gate re-run remains environment-dependent in this container lane.
+
 ## Latest Session Snapshot (Part 2.2 Route Manifest Runtime Enforcement — 2026-05-17)
 
 - Timestamp (NZ): 2026-05-17

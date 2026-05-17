@@ -2,6 +2,58 @@ import type { AppRole, RouteManifestEntry } from './routeManifest'
 
 export type RouteVisibilityRuntimeMode = 'production' | 'staging' | 'development'
 
+const AUDIT_PATH_PREFIX = '/audit/'
+
+interface AuditAliasCandidate {
+  aliasPath: string
+  targetPath: string
+}
+
+function normalizeAuditAliasPath(path: string): string {
+  return `/${path.trim().replace(/^\/+|\/+$/g, '')}`
+}
+
+function getAuditDomain(entry: RouteManifestEntry): string {
+  return entry.auditDomain || 'records'
+}
+
+function buildAuditAliasCandidates(entries: RouteManifestEntry[]): AuditAliasCandidate[] {
+  const candidates: AuditAliasCandidate[] = []
+
+  for (const entry of entries) {
+    if (!entry.path.startsWith('/') || !entry.path.endsWith('-log')) continue
+
+    const slugWithSuffix = entry.path.slice(1)
+    const slug = slugWithSuffix.replace(/-log$/, '')
+    const domain = getAuditDomain(entry)
+
+    candidates.push({ aliasPath: `/audit/${slugWithSuffix}`, targetPath: entry.path })
+    candidates.push({ aliasPath: `/audit/${slug}`, targetPath: entry.path })
+    candidates.push({ aliasPath: `/audit/${domain}/${slugWithSuffix}`, targetPath: entry.path })
+    candidates.push({ aliasPath: `/audit/${domain}/${slug}`, targetPath: entry.path })
+  }
+
+  return candidates
+}
+
+/**
+ * Resolves a /audit alias path to a canonical legacy log route using manifest metadata.
+ * Returns null when no known alias mapping exists.
+ */
+export function resolveAuditAliasPath(
+  aliasPath: string,
+  entries: RouteManifestEntry[],
+): string | null {
+  const normalizedAlias = normalizeAuditAliasPath(aliasPath)
+  if (!normalizedAlias.startsWith(AUDIT_PATH_PREFIX)) return null
+
+  for (const candidate of buildAuditAliasCandidates(entries)) {
+    if (candidate.aliasPath === normalizedAlias) return candidate.targetPath
+  }
+
+  return null
+}
+
 export interface LegacyNavItem {
   path: string
   label: string

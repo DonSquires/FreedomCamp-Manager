@@ -1,4 +1,4 @@
-import { routeManifest, type AppShell, type PreloadPolicy, type RouteManifestEntry, type VisibilityMode } from './routeManifest'
+import { routeManifest, type AppShell, type AuditDomain, type PreloadPolicy, type RouteManifestEntry, type VisibilityMode } from './routeManifest'
 
 export interface RouteManifestValidationResult {
   valid: boolean
@@ -9,6 +9,7 @@ export interface RouteManifestValidationResult {
 const VALID_SHELLS: AppShell[] = ['officer', 'admin', 'master', 'shared']
 const VALID_VISIBILITY: VisibilityMode[] = ['production', 'internal', 'hidden']
 const VALID_PRELOAD: PreloadPolicy[] = ['none', 'intent', 'viewport', 'eager']
+const VALID_AUDIT_DOMAINS: AuditDomain[] = ['operations', 'compliance', 'enforcement', 'dispatch', 'people', 'management', 'records', 'system', 'bob', 'specialist']
 const VALID_CATCH_ALL_PATHS = new Set(['*'])
 
 function isUnique(items: string[]): boolean {
@@ -38,6 +39,9 @@ export function validateRouteManifest(entries: RouteManifestEntry[]): RouteManif
     }
     if (!VALID_PRELOAD.includes(entry.preloadPolicy)) {
       errors.push(`${prefix}: invalid preloadPolicy '${entry.preloadPolicy}'.`)
+    }
+    if (entry.auditDomain && !VALID_AUDIT_DOMAINS.includes(entry.auditDomain)) {
+      errors.push(`${prefix}: invalid auditDomain '${entry.auditDomain}'.`)
     }
     if (!entry.rolesAllowed.length) errors.push(`${prefix}: rolesAllowed must include at least one role.`)
 

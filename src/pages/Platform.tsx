@@ -191,7 +191,7 @@ const FEATURE_GROUPS = [
     icon: Settings,
     items: [
       { path: '/diagnostics', label: 'Diagnostics', icon: Settings },
-      { path: '/audit-log', label: 'Audit Log', icon: ScrollText },
+      { path: '/audit', label: 'Audit Log', icon: ScrollText },
       { path: '/notifications', label: 'Notifications', icon: AlertTriangle },
       { path: '/settings', label: 'Settings', icon: Settings },
       { path: '/profile', label: 'My Profile', icon: User },

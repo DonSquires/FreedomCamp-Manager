@@ -1413,15 +1413,15 @@ export default function AdminPortal() {
                     { path: '/breaches',                   label: 'Breaches',         Icon: AlertTriangle, color: 'text-red-600',    bg: 'bg-red-50 dark:bg-red-900/20',    badge: metrics.activeBreaches > 0 ? metrics.activeBreaches : undefined },
                     { path: '/enforcement-command-center', label: 'Command Centre',   Icon: Gavel,         color: 'text-indigo-600', bg: 'bg-indigo-50 dark:bg-indigo-900/20' },
                     { path: '/enforcement-review',         label: 'Review',           Icon: ClipboardCheck,color: 'text-teal-600',   bg: 'bg-teal-50 dark:bg-teal-900/20' },
-                    { path: '/enforcement-events-log',     label: 'Event Log',        Icon: Siren,         color: 'text-red-600',    bg: 'bg-red-50 dark:bg-red-900/20' },
-                    { path: '/trespass-notices-log',       label: 'Trespass Log',     Icon: Ban,            color: 'text-rose-700',   bg: 'bg-rose-50 dark:bg-rose-900/20' },
-                    { path: '/parking-infringements-log',  label: 'Infringement Log', Icon: TicketX,        color: 'text-orange-700', bg: 'bg-orange-50 dark:bg-orange-900/20' },
+                    { path: '/audit/enforcement/enforcement-events',    label: 'Event Log',        Icon: Siren,         color: 'text-red-600',    bg: 'bg-red-50 dark:bg-red-900/20' },
+                    { path: '/audit/enforcement/trespass-notices',      label: 'Trespass Log',     Icon: Ban,            color: 'text-rose-700',   bg: 'bg-rose-50 dark:bg-rose-900/20' },
+                    { path: '/audit/enforcement/parking-infringements', label: 'Infringement Log', Icon: TicketX,        color: 'text-orange-700', bg: 'bg-orange-50 dark:bg-orange-900/20' },
                     { path: '/disputes',                   label: 'Disputes',         Icon: FileWarning,   color: 'text-amber-600',  bg: 'bg-amber-50 dark:bg-amber-900/20', badge: (data as any)?.openDisputeIntake > 0 ? (data as any)?.openDisputeIntake : undefined },
                     { path: '/infringements',              label: 'Infringements',    Icon: Receipt,       color: 'text-orange-600', bg: 'bg-orange-50 dark:bg-orange-900/20' },
                     { path: '/breach-notices',             label: 'Breach Notices',   Icon: ScrollText,    color: 'text-rose-600',   bg: 'bg-rose-50 dark:bg-rose-900/20' },
                     { path: '/notice-to-vacate',           label: 'Notice to Vacate', Icon: FileText,      color: 'text-purple-600', bg: 'bg-purple-50 dark:bg-purple-900/20' },
                     { path: '/compliance-analytics',       label: 'Analytics',        Icon: PieChart,      color: 'text-violet-600', bg: 'bg-violet-50 dark:bg-violet-900/20' },
-                    { path: '/compliance-audit-log',       label: 'Audit Log',        Icon: BadgeCheck,    color: 'text-emerald-600', bg: 'bg-emerald-50 dark:bg-emerald-900/20' },
+                    { path: '/audit/compliance/compliance-audit', label: 'Audit Log', Icon: BadgeCheck, color: 'text-emerald-600', bg: 'bg-emerald-50 dark:bg-emerald-900/20' },
                     { path: '/spatial-compliance',         label: 'Spatial',          Icon: Map,           color: 'text-cyan-600',   bg: 'bg-cyan-50 dark:bg-cyan-900/20' },
                   ].map(({ path, label, Icon, color, bg, badge }) => (
                     <button key={path} onClick={() => navigate(path)} aria-label={`Open ${label}`} className={`${moduleTileClass} ${bg}`}>
@@ -1451,9 +1451,9 @@ export default function AdminPortal() {
                     { path: '/patrol-events',      label: 'Event Log',       Icon: Route,         color: 'text-slate-600',  bg: 'bg-slate-50 dark:bg-slate-900/30' },
                     { path: '/patrol-route-log',   label: 'Route Log',       Icon: Navigation,    color: 'text-teal-600',   bg: 'bg-teal-50 dark:bg-teal-900/20' },
                     { path: '/alarm-events-log',       label: 'Alarm Events',     Icon: BellRing,   color: 'text-red-600',    bg: 'bg-red-50 dark:bg-red-900/20' },
-                    { path: '/checkpoint-visits-log',  label: 'Checkpoint Visits',Icon: ScanLine,   color: 'text-teal-700',   bg: 'bg-teal-50 dark:bg-teal-900/20' },
+                    { path: '/audit/operations/checkpoint-visits', label: 'Checkpoint Visits',Icon: ScanLine, color: 'text-teal-700', bg: 'bg-teal-50 dark:bg-teal-900/20' },
                     { path: '/ems-attendances-log',    label: 'EMS Attendances',  Icon: HeartPulse, color: 'text-rose-600',   bg: 'bg-rose-50 dark:bg-rose-900/20' },
-                    { path: '/officer-activity-log',  label: 'Officer Activity', Icon: Activity,   color: 'text-indigo-600', bg: 'bg-indigo-50 dark:bg-indigo-900/20' },
+                    { path: '/audit/operations/officer-activity', label: 'Officer Activity', Icon: Activity, color: 'text-indigo-600', bg: 'bg-indigo-50 dark:bg-indigo-900/20' },
                     { path: '/officer-performance',label: 'Performance',     Icon: UserCheck,     color: 'text-blue-600',   bg: 'bg-blue-50 dark:bg-blue-900/20' },
                   ].map(({ path, label, Icon, color, bg, badge }) => (
                     <button key={path} onClick={() => navigate(path)} aria-label={`Open ${label}`} className={`${moduleTileClass} ${bg}`}>

@@ -692,6 +692,8 @@ Audit-log namespace compatibility:
 1. `/audit` redirects to `/audit-log`.
 2. `/audit/:logPath` redirects to the matching legacy log route (`/{entity}-log`).
 3. If the `-log` suffix is omitted in the alias path, it is appended automatically.
+4. `/audit/:domain/:logPath` is supported for structured namespaces (for example: `/audit/enforcement/enforcement-events`).
+5. Structured aliases resolve from route-manifest metadata (audit domain tags), then redirect to canonical legacy `/{entity}-log` routes.
 
 #### Using the Global Filter Ribbon
 

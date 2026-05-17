@@ -15,6 +15,18 @@ export type VisibilityMode = 'production' | 'internal' | 'hidden'
 
 export type PreloadPolicy = 'none' | 'intent' | 'viewport' | 'eager'
 
+export type AuditDomain =
+  | 'operations'
+  | 'compliance'
+  | 'enforcement'
+  | 'dispatch'
+  | 'people'
+  | 'management'
+  | 'records'
+  | 'system'
+  | 'bob'
+  | 'specialist'
+
 export interface RouteManifestEntry {
   routeId: string
   path: string
@@ -23,6 +35,7 @@ export interface RouteManifestEntry {
   permissionArea?: string | null
   navGroup?: string | null
   navLabel?: string | null
+  auditDomain?: AuditDomain | null
   visibilityMode: VisibilityMode
   featureFlag?: string | null
   mobilePriority?: number | null
@@ -1489,18 +1502,18 @@ export const routeManifest: RouteManifestEntry[] = [
   { routeId: 'admin.investigation-jobs-log', path: '/investigation-jobs-log', shell: 'admin', rolesAllowed: ['admin', 'admin_officer', 'master'], navGroup: 'Records', navLabel: 'Investigation Jobs', visibilityMode: 'production', featureFlag: null, mobilePriority: null, preloadPolicy: 'none' },
   { routeId: 'admin.operational-cases-log', path: '/operational-cases-log', shell: 'admin', rolesAllowed: ['admin', 'admin_officer', 'master'], navGroup: 'Records', navLabel: 'Operational Cases', visibilityMode: 'production', featureFlag: null, mobilePriority: null, preloadPolicy: 'none' },
   { routeId: 'admin.patrol-events-log', path: '/patrol-events-log', shell: 'admin', rolesAllowed: ['admin', 'admin_officer', 'master'], navGroup: 'Records', navLabel: 'Patrol Events Log', visibilityMode: 'production', featureFlag: null, mobilePriority: null, preloadPolicy: 'none' },
-  { routeId: 'admin.checkpoint-visits-log', path: '/checkpoint-visits-log', shell: 'admin', rolesAllowed: ['admin', 'admin_officer', 'master'], navGroup: 'Records', navLabel: 'Checkpoint Visits', visibilityMode: 'production', featureFlag: null, mobilePriority: null, preloadPolicy: 'none' },
+  { routeId: 'admin.checkpoint-visits-log', path: '/checkpoint-visits-log', shell: 'admin', rolesAllowed: ['admin', 'admin_officer', 'master'], navGroup: 'Records', navLabel: 'Checkpoint Visits', auditDomain: 'operations', visibilityMode: 'production', featureFlag: null, mobilePriority: null, preloadPolicy: 'none' },
   { routeId: 'admin.ems-attendances-log', path: '/ems-attendances-log', shell: 'admin', rolesAllowed: ['admin', 'admin_officer', 'master'], navGroup: 'Records', navLabel: 'EMS Attendances', visibilityMode: 'production', featureFlag: null, mobilePriority: null, preloadPolicy: 'none' },
   { routeId: 'admin.parking-sessions-log', path: '/parking-sessions-log', shell: 'admin', rolesAllowed: ['admin', 'admin_officer', 'master'], navGroup: 'Records', navLabel: 'Parking Sessions', visibilityMode: 'production', featureFlag: null, mobilePriority: null, preloadPolicy: 'none' },
   { routeId: 'admin.flagged-vehicles-manager', path: '/flagged-vehicles-manager', shell: 'admin', rolesAllowed: ['admin', 'admin_officer', 'master'], navGroup: 'Management', navLabel: 'Flagged Vehicles', visibilityMode: 'production', featureFlag: null, mobilePriority: null, preloadPolicy: 'none' },
   { routeId: 'admin.parking-payments-log', path: '/parking-payments-log', shell: 'admin', rolesAllowed: ['admin', 'admin_officer', 'master'], navGroup: 'Records', navLabel: 'Parking Payments', visibilityMode: 'production', featureFlag: null, mobilePriority: null, preloadPolicy: 'none' },
   { routeId: 'admin.zone-signage-evidence', path: '/zone-signage-evidence', shell: 'admin', rolesAllowed: ['admin', 'admin_officer', 'master'], navGroup: 'Records', navLabel: 'Zone Signage Evidence', visibilityMode: 'production', featureFlag: null, mobilePriority: null, preloadPolicy: 'none' },
-  { routeId: 'admin.officer-activity-log', path: '/officer-activity-log', shell: 'admin', rolesAllowed: ['admin', 'admin_officer', 'master'], navGroup: 'Records', navLabel: 'Officer Activity Log', visibilityMode: 'production', featureFlag: null, mobilePriority: null, preloadPolicy: 'none' },
+  { routeId: 'admin.officer-activity-log', path: '/officer-activity-log', shell: 'admin', rolesAllowed: ['admin', 'admin_officer', 'master'], navGroup: 'Records', navLabel: 'Officer Activity Log', auditDomain: 'operations', visibilityMode: 'production', featureFlag: null, mobilePriority: null, preloadPolicy: 'none' },
   { routeId: 'admin.credential-processing-log', path: '/credential-processing-log', shell: 'admin', rolesAllowed: ['admin', 'admin_officer', 'master'], navGroup: 'Records', navLabel: 'Credential Processing', visibilityMode: 'production', featureFlag: null, mobilePriority: null, preloadPolicy: 'none' },
   { routeId: 'admin.dispatch-ack-log', path: '/dispatch-ack-log', shell: 'admin', rolesAllowed: ['admin', 'admin_officer', 'master'], navGroup: 'Records', navLabel: 'Dispatch Acknowledgements', visibilityMode: 'production', featureFlag: null, mobilePriority: null, preloadPolicy: 'none' },
   // --- Sprint 27: B-91–B-93 ---
-  { routeId: 'admin.compliance-audit-log', path: '/compliance-audit-log', shell: 'admin', rolesAllowed: ['admin', 'admin_officer', 'master'], navGroup: 'Compliance', navLabel: 'Compliance Audit Log', visibilityMode: 'production', featureFlag: null, mobilePriority: null, preloadPolicy: 'none' },
-  { routeId: 'admin.enforcement-events-log', path: '/enforcement-events-log', shell: 'admin', rolesAllowed: ['admin', 'admin_officer', 'master'], navGroup: 'Enforcement', navLabel: 'Enforcement Event Log', visibilityMode: 'production', featureFlag: null, mobilePriority: null, preloadPolicy: 'none' },
+  { routeId: 'admin.compliance-audit-log', path: '/compliance-audit-log', shell: 'admin', rolesAllowed: ['admin', 'admin_officer', 'master'], navGroup: 'Compliance', navLabel: 'Compliance Audit Log', auditDomain: 'compliance', visibilityMode: 'production', featureFlag: null, mobilePriority: null, preloadPolicy: 'none' },
+  { routeId: 'admin.enforcement-events-log', path: '/enforcement-events-log', shell: 'admin', rolesAllowed: ['admin', 'admin_officer', 'master'], navGroup: 'Enforcement', navLabel: 'Enforcement Event Log', auditDomain: 'enforcement', visibilityMode: 'production', featureFlag: null, mobilePriority: null, preloadPolicy: 'none' },
   { routeId: 'admin.noise-jobs-log', path: '/noise-jobs-log', shell: 'admin', rolesAllowed: ['admin', 'admin_officer', 'master'], navGroup: 'Records', navLabel: 'Noise Job Log', visibilityMode: 'production', featureFlag: null, mobilePriority: null, preloadPolicy: 'none' },
   // --- Sprint 28: B-94–B-96 ---
   { routeId: 'admin.patrol-route-log', path: '/patrol-route-log', shell: 'admin', rolesAllowed: ['admin', 'admin_officer', 'master'], navGroup: 'Operations', navLabel: 'Patrol Route Log', visibilityMode: 'production', featureFlag: null, mobilePriority: null, preloadPolicy: 'none' },
@@ -1510,8 +1523,8 @@ export const routeManifest: RouteManifestEntry[] = [
   { routeId: 'admin.radio-transmissions-log', path: '/radio-transmissions-log', shell: 'admin', rolesAllowed: ['admin', 'admin_officer', 'master', 'officer'], navGroup: 'Operations', navLabel: 'Radio Transmission Log', visibilityMode: 'production', featureFlag: null, mobilePriority: null, preloadPolicy: 'none' },
   { routeId: 'admin.noise-assessments-log', path: '/noise-assessments-log', shell: 'admin', rolesAllowed: ['admin', 'admin_officer', 'master'], navGroup: 'Records', navLabel: 'Noise Assessment Log', visibilityMode: 'production', featureFlag: null, mobilePriority: null, preloadPolicy: 'none' },
   // --- Sprint 30: B-100–B-102 ---
-  { routeId: 'admin.trespass-notices-log', path: '/trespass-notices-log', shell: 'admin', rolesAllowed: ['admin', 'admin_officer', 'master'], navGroup: 'Enforcement', navLabel: 'Trespass Notice Log', visibilityMode: 'production', featureFlag: null, mobilePriority: null, preloadPolicy: 'none' },
-  { routeId: 'admin.parking-infringements-log', path: '/parking-infringements-log', shell: 'admin', rolesAllowed: ['admin', 'admin_officer', 'master'], navGroup: 'Enforcement', navLabel: 'Parking Infringement Log', visibilityMode: 'production', featureFlag: null, mobilePriority: null, preloadPolicy: 'none' },
+  { routeId: 'admin.trespass-notices-log', path: '/trespass-notices-log', shell: 'admin', rolesAllowed: ['admin', 'admin_officer', 'master'], navGroup: 'Enforcement', navLabel: 'Trespass Notice Log', auditDomain: 'enforcement', visibilityMode: 'production', featureFlag: null, mobilePriority: null, preloadPolicy: 'none' },
+  { routeId: 'admin.parking-infringements-log', path: '/parking-infringements-log', shell: 'admin', rolesAllowed: ['admin', 'admin_officer', 'master'], navGroup: 'Enforcement', navLabel: 'Parking Infringement Log', auditDomain: 'enforcement', visibilityMode: 'production', featureFlag: null, mobilePriority: null, preloadPolicy: 'none' },
   { routeId: 'admin.person-observations-log', path: '/person-observations-log', shell: 'admin', rolesAllowed: ['admin', 'admin_officer', 'master'], navGroup: 'Records', navLabel: 'Person Observation Log', visibilityMode: 'production', featureFlag: null, mobilePriority: null, preloadPolicy: 'none' },
   // --- Sprint 31: B-103–B-105 ---
   { routeId: 'admin.vehicles-of-interest-log', path: '/vehicles-of-interest-log', shell: 'admin', rolesAllowed: ['admin', 'admin_officer', 'master'], navGroup: 'Enforcement', navLabel: 'Vehicles of Interest Log', visibilityMode: 'production', featureFlag: null, mobilePriority: null, preloadPolicy: 'none' },
@@ -1582,20 +1595,20 @@ export const routeManifest: RouteManifestEntry[] = [
   { routeId: 'admin.client-sites-log', path: '/client-sites-log', shell: 'admin', rolesAllowed: ['admin', 'admin_officer', 'master'], navGroup: 'Records', navLabel: 'Client Site Log', visibilityMode: 'production', featureFlag: null, mobilePriority: null, preloadPolicy: 'none' },
   { routeId: 'admin.parking-permits-log', path: '/parking-permits-log', shell: 'admin', rolesAllowed: ['admin', 'admin_officer', 'master'], navGroup: 'Specialist Portals', navLabel: 'Parking Permit Log', visibilityMode: 'production', featureFlag: null, mobilePriority: null, preloadPolicy: 'none' },
   // --- Sprint 48: B-154–B-156 ---
-  { routeId: 'admin.incidents-log', path: '/incidents-log', shell: 'admin', rolesAllowed: ['admin', 'admin_officer', 'master'], navGroup: 'Operations', navLabel: 'Incident Log', visibilityMode: 'production', featureFlag: null, mobilePriority: null, preloadPolicy: 'none' },
+  { routeId: 'admin.incidents-log', path: '/incidents-log', shell: 'admin', rolesAllowed: ['admin', 'admin_officer', 'master'], navGroup: 'Operations', navLabel: 'Incident Log', auditDomain: 'operations', visibilityMode: 'production', featureFlag: null, mobilePriority: null, preloadPolicy: 'none' },
   { routeId: 'admin.person-records-log', path: '/person-records-log', shell: 'admin', rolesAllowed: ['admin', 'admin_officer', 'master'], navGroup: 'Records', navLabel: 'Person Record Log', visibilityMode: 'production', featureFlag: null, mobilePriority: null, preloadPolicy: 'none' },
-  { routeId: 'admin.notifications-log', path: '/notifications-log', shell: 'admin', rolesAllowed: ['admin', 'admin_officer', 'master'], navGroup: 'Operations', navLabel: 'Notification Log', visibilityMode: 'production', featureFlag: null, mobilePriority: null, preloadPolicy: 'none' },
+  { routeId: 'admin.notifications-log', path: '/notifications-log', shell: 'admin', rolesAllowed: ['admin', 'admin_officer', 'master'], navGroup: 'Operations', navLabel: 'Notification Log', auditDomain: 'operations', visibilityMode: 'production', featureFlag: null, mobilePriority: null, preloadPolicy: 'none' },
   // --- Sprint 49: B-157–B-159 ---
   { routeId: 'admin.face-records-log', path: '/face-records-log', shell: 'admin', rolesAllowed: ['admin', 'admin_officer', 'master'], navGroup: 'Records', navLabel: 'Face Record Log', visibilityMode: 'production', featureFlag: null, mobilePriority: null, preloadPolicy: 'none' },
-  { routeId: 'admin.infringement-notices-log', path: '/infringement-notices-log', shell: 'admin', rolesAllowed: ['admin', 'admin_officer', 'master'], navGroup: 'Operations', navLabel: 'Infringement Notice Log', visibilityMode: 'production', featureFlag: null, mobilePriority: null, preloadPolicy: 'none' },
+  { routeId: 'admin.infringement-notices-log', path: '/infringement-notices-log', shell: 'admin', rolesAllowed: ['admin', 'admin_officer', 'master'], navGroup: 'Operations', navLabel: 'Infringement Notice Log', auditDomain: 'enforcement', visibilityMode: 'production', featureFlag: null, mobilePriority: null, preloadPolicy: 'none' },
   { routeId: 'admin.site-risk-assessments-log', path: '/site-risk-assessments-log', shell: 'admin', rolesAllowed: ['admin', 'admin_officer', 'master'], navGroup: 'Records', navLabel: 'Site Risk Assessment Log', visibilityMode: 'production', featureFlag: null, mobilePriority: null, preloadPolicy: 'none' },
   // --- Sprint 50: B-160–B-162 ---
-  { routeId: 'admin.dispatch-jobs-log', path: '/dispatch-jobs-log', shell: 'admin', rolesAllowed: ['admin', 'admin_officer', 'master'], navGroup: 'Operations', navLabel: 'Dispatch Job Log', visibilityMode: 'production', featureFlag: null, mobilePriority: null, preloadPolicy: 'none' },
-  { routeId: 'admin.enforcement-actions-log', path: '/enforcement-actions-log', shell: 'admin', rolesAllowed: ['admin', 'admin_officer', 'master'], navGroup: 'Operations', navLabel: 'Enforcement Action Log', visibilityMode: 'production', featureFlag: null, mobilePriority: null, preloadPolicy: 'none' },
+  { routeId: 'admin.dispatch-jobs-log', path: '/dispatch-jobs-log', shell: 'admin', rolesAllowed: ['admin', 'admin_officer', 'master'], navGroup: 'Operations', navLabel: 'Dispatch Job Log', auditDomain: 'dispatch', visibilityMode: 'production', featureFlag: null, mobilePriority: null, preloadPolicy: 'none' },
+  { routeId: 'admin.enforcement-actions-log', path: '/enforcement-actions-log', shell: 'admin', rolesAllowed: ['admin', 'admin_officer', 'master'], navGroup: 'Operations', navLabel: 'Enforcement Action Log', auditDomain: 'enforcement', visibilityMode: 'production', featureFlag: null, mobilePriority: null, preloadPolicy: 'none' },
   { routeId: 'admin.observations-log', path: '/observations-log', shell: 'admin', rolesAllowed: ['admin', 'admin_officer', 'master'], navGroup: 'Records', navLabel: 'Observation Log', visibilityMode: 'production', featureFlag: null, mobilePriority: null, preloadPolicy: 'none' },
   // --- Sprint 51: B-163–B-165 ---
   { routeId: 'admin.canonical-scv-log', path: '/canonical-scv-log', shell: 'admin', rolesAllowed: ['admin', 'admin_officer', 'master'], navGroup: 'Records', navLabel: 'Canonical SCV Log', visibilityMode: 'production', featureFlag: null, mobilePriority: null, preloadPolicy: 'none' },
-  { routeId: 'admin.officer-availability-log', path: '/officer-availability-log', shell: 'admin', rolesAllowed: ['admin', 'admin_officer', 'master'], navGroup: 'Operations', navLabel: 'Officer Availability Log', visibilityMode: 'production', featureFlag: null, mobilePriority: null, preloadPolicy: 'none' },
+  { routeId: 'admin.officer-availability-log', path: '/officer-availability-log', shell: 'admin', rolesAllowed: ['admin', 'admin_officer', 'master'], navGroup: 'Operations', navLabel: 'Officer Availability Log', auditDomain: 'operations', visibilityMode: 'production', featureFlag: null, mobilePriority: null, preloadPolicy: 'none' },
   { routeId: 'admin.canonical-homeless-log', path: '/canonical-homeless-log', shell: 'admin', rolesAllowed: ['admin', 'admin_officer', 'master'], navGroup: 'Records', navLabel: 'Canonical Homeless Log', visibilityMode: 'production', featureFlag: null, mobilePriority: null, preloadPolicy: 'none' },
   // --- Sprint 52: B-166–B-168 ---
   { routeId: 'admin.breach-alerts-log', path: '/breach-alerts-log', shell: 'admin', rolesAllowed: ['admin', 'admin_officer', 'master'], navGroup: 'Operations', navLabel: 'Breach Alert Log', visibilityMode: 'production', featureFlag: null, mobilePriority: null, preloadPolicy: 'none' },
@@ -1606,13 +1619,13 @@ export const routeManifest: RouteManifestEntry[] = [
   { routeId: 'admin.open-shifts-log', path: '/open-shifts-log', shell: 'admin', rolesAllowed: ['admin', 'admin_officer', 'master'], navGroup: 'Operations', navLabel: 'Open Shift Log', visibilityMode: 'production', featureFlag: null, mobilePriority: null, preloadPolicy: 'none' },
   { routeId: 'admin.zone-compliance-matrix-log', path: '/zone-compliance-matrix-log', shell: 'admin', rolesAllowed: ['admin', 'admin_officer', 'master'], navGroup: 'Management', navLabel: 'Zone Compliance Matrix Log', visibilityMode: 'production', featureFlag: null, mobilePriority: null, preloadPolicy: 'none' },
   // --- Sprint 54: B-172–B-174 ---
-  { routeId: 'admin.pricing-rules-log', path: '/pricing-rules-log', shell: 'admin', rolesAllowed: ['admin', 'admin_officer', 'master'], navGroup: 'Operations', navLabel: 'Pricing Rule Log', visibilityMode: 'production', featureFlag: null, mobilePriority: null, preloadPolicy: 'none' },
+  { routeId: 'admin.pricing-rules-log', path: '/pricing-rules-log', shell: 'admin', rolesAllowed: ['admin', 'admin_officer', 'master'], navGroup: 'Operations', navLabel: 'Pricing Rule Log', auditDomain: 'management', visibilityMode: 'production', featureFlag: null, mobilePriority: null, preloadPolicy: 'none' },
   { routeId: 'admin.zone-legal-config-log', path: '/zone-legal-config-log', shell: 'admin', rolesAllowed: ['admin', 'master'], navGroup: 'Management', navLabel: 'Zone Legal Config Log', visibilityMode: 'production', featureFlag: null, mobilePriority: null, preloadPolicy: 'none' },
   { routeId: 'admin.zone-signage-evidence-log', path: '/zone-signage-evidence-log', shell: 'admin', rolesAllowed: ['admin', 'admin_officer', 'master'], navGroup: 'Records', navLabel: 'Zone Signage Evidence Log', visibilityMode: 'production', featureFlag: null, mobilePriority: null, preloadPolicy: 'none' },
   // --- Sprint 55: B-175–B-177 ---
-  { routeId: 'admin.fixed-cameras-log', path: '/fixed-cameras-log', shell: 'admin', rolesAllowed: ['admin', 'admin_officer', 'master'], navGroup: 'Operations', navLabel: 'Fixed Camera Log', visibilityMode: 'production', featureFlag: null, mobilePriority: null, preloadPolicy: 'none' },
-  { routeId: 'admin.officer-skills-log', path: '/officer-skills-log', shell: 'admin', rolesAllowed: ['admin', 'admin_officer', 'master'], navGroup: 'Operations', navLabel: 'Officer Skills Log', visibilityMode: 'production', featureFlag: null, mobilePriority: null, preloadPolicy: 'none' },
-  { routeId: 'admin.patrol-checkpoints-log', path: '/patrol-checkpoints-log', shell: 'admin', rolesAllowed: ['admin', 'admin_officer', 'master'], navGroup: 'Operations', navLabel: 'Patrol Checkpoint Log', visibilityMode: 'production', featureFlag: null, mobilePriority: null, preloadPolicy: 'none' },
+  { routeId: 'admin.fixed-cameras-log', path: '/fixed-cameras-log', shell: 'admin', rolesAllowed: ['admin', 'admin_officer', 'master'], navGroup: 'Operations', navLabel: 'Fixed Camera Log', auditDomain: 'operations', visibilityMode: 'production', featureFlag: null, mobilePriority: null, preloadPolicy: 'none' },
+  { routeId: 'admin.officer-skills-log', path: '/officer-skills-log', shell: 'admin', rolesAllowed: ['admin', 'admin_officer', 'master'], navGroup: 'Operations', navLabel: 'Officer Skills Log', auditDomain: 'operations', visibilityMode: 'production', featureFlag: null, mobilePriority: null, preloadPolicy: 'none' },
+  { routeId: 'admin.patrol-checkpoints-log', path: '/patrol-checkpoints-log', shell: 'admin', rolesAllowed: ['admin', 'admin_officer', 'master'], navGroup: 'Operations', navLabel: 'Patrol Checkpoint Log', auditDomain: 'operations', visibilityMode: 'production', featureFlag: null, mobilePriority: null, preloadPolicy: 'none' },
   // --- Sprint 56: B-178–B-180 ---
   { routeId: 'admin.contractor-profiles-log', path: '/contractor-profiles-log', shell: 'admin', rolesAllowed: ['admin', 'master'], navGroup: 'Records', navLabel: 'Contractor Profile Log', visibilityMode: 'production', featureFlag: null, mobilePriority: null, preloadPolicy: 'none' },
   { routeId: 'admin.parking-zones-log', path: '/parking-zones-log', shell: 'admin', rolesAllowed: ['admin', 'master'], navGroup: 'Management', navLabel: 'Parking Zone Log', visibilityMode: 'production', featureFlag: null, mobilePriority: null, preloadPolicy: 'none' },

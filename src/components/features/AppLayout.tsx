@@ -237,14 +237,14 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/enforcement-actions', icon: Gavel, label: 'Enforcement Actions', roles: ['admin', 'admin_officer', 'master', 'officer'] },
       { path: '/enforcement-review', icon: ClipboardCheck, label: 'Enforcement Review', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/enforcement-command-center', icon: MonitorPlay, label: 'Enforcement Console', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/enforcement-events-log', icon: Siren, label: 'Enforcement Event Log', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/trespass-notices-log', icon: Ban, label: 'Trespass Notice Log', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/parking-infringements-log', icon: TicketX, label: 'Parking Infringement Log', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/audit/enforcement/enforcement-events', icon: Siren, label: 'Enforcement Event Log', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/audit/enforcement/trespass-notices', icon: Ban, label: 'Trespass Notice Log', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/audit/enforcement/parking-infringements', icon: TicketX, label: 'Parking Infringement Log', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/disputes', icon: AlertTriangle, label: 'Disputes', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/vehicle-discrepancies', icon: AlertTriangle, label: 'Discrepancies', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/infringements', icon: Receipt, label: 'Infringements', roles: ['admin', 'admin_officer', 'master', 'officer'] },
       { path: '/compliance-analytics', icon: PieChart, label: 'Compliance Analytics', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/compliance-audit-log', icon: BadgeCheck, label: 'Compliance Audit Log', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/audit/compliance/compliance-audit', icon: BadgeCheck, label: 'Compliance Audit Log', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/patrol-checkpoints', icon: ScanLine, label: 'Checkpoints', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/patrol-schedule', icon: CalendarDays, label: 'Patrol Schedule', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/patrol-kpis', icon: TrendingUp, label: 'Patrol KPIs', roles: ['admin', 'admin_officer', 'master'] },
@@ -254,19 +254,19 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/notices-to-vacate', icon: FileWarning, label: 'Notices to Vacate', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/alarm-events-log', icon: Bell, label: 'Alarm Event Log', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/enforcement-events-log', icon: Gavel, label: 'Enforcement Event Log', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/checkpoint-visits-log', icon: ScanLine, label: 'Checkpoint Visit Log', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/officer-activity-log', icon: Activity, label: 'Officer Activity Log', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/audit/operations/checkpoint-visits', icon: ScanLine, label: 'Checkpoint Visit Log', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/audit/operations/officer-activity', icon: Activity, label: 'Officer Activity Log', roles: ['admin', 'admin_officer', 'master'] },
       // Sprint 48: B-154
-      { path: '/incidents-log', icon: AlertTriangle, label: 'Incident Log', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/audit/operations/incidents', icon: AlertTriangle, label: 'Incident Log', roles: ['admin', 'admin_officer', 'master'] },
       // Sprint 48: B-156
-      { path: '/notifications-log', icon: Bell, label: 'Notification Log', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/audit/operations/notifications', icon: Bell, label: 'Notification Log', roles: ['admin', 'admin_officer', 'master'] },
       // Sprint 49: B-158
-      { path: '/infringement-notices-log', icon: Receipt, label: 'Infringement Notice Log', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/audit/enforcement/infringement-notices', icon: Receipt, label: 'Infringement Notice Log', roles: ['admin', 'admin_officer', 'master'] },
       // Sprint 50: B-160–B-161
-      { path: '/dispatch-jobs-log', icon: ClipboardList, label: 'Dispatch Job Log', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/enforcement-actions-log', icon: ShieldAlert, label: 'Enforcement Action Log', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/audit/dispatch/dispatch-jobs', icon: ClipboardList, label: 'Dispatch Job Log', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/audit/enforcement/enforcement-actions', icon: ShieldAlert, label: 'Enforcement Action Log', roles: ['admin', 'admin_officer', 'master'] },
       // Sprint 51: B-164
-      { path: '/officer-availability-log', icon: CalendarCheck2, label: 'Officer Availability Log', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/audit/operations/officer-availability', icon: CalendarCheck2, label: 'Officer Availability Log', roles: ['admin', 'admin_officer', 'master'] },
       // Sprint 52: B-166–B-168
       { path: '/breach-alerts-log', icon: AlertTriangle, label: 'Breach Alert Log', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/flagged-vehicles-log', icon: Flag, label: 'Flagged Vehicle Log', roles: ['admin', 'admin_officer', 'master'] },
@@ -274,11 +274,11 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/officer-shifts-log', icon: CalendarClock, label: 'Officer Shift Log', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/open-shifts-log', icon: CalendarDays, label: 'Open Shift Log', roles: ['admin', 'admin_officer', 'master'] },
       // Sprint 54: B-172
-      { path: '/pricing-rules-log', icon: DollarSign, label: 'Pricing Rule Log', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/audit/management/pricing-rules', icon: DollarSign, label: 'Pricing Rule Log', roles: ['admin', 'admin_officer', 'master'] },
       // Sprint 55: B-175–B-177
-      { path: '/fixed-cameras-log', icon: Camera, label: 'Fixed Camera Log', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/officer-skills-log', icon: GraduationCap, label: 'Officer Skills Log', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/patrol-checkpoints-log', icon: Navigation2, label: 'Patrol Checkpoint Log', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/audit/operations/fixed-cameras', icon: Camera, label: 'Fixed Camera Log', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/audit/operations/officer-skills', icon: GraduationCap, label: 'Officer Skills Log', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/audit/operations/patrol-checkpoints', icon: Navigation2, label: 'Patrol Checkpoint Log', roles: ['admin', 'admin_officer', 'master'] },
     ],
   },
   {
@@ -579,6 +579,11 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
 
   // Keep the effective role aligned with route-manifest authority.
   const effectiveNavRole = user?.role
+    const isNavItemVisible = (item: NavItem): boolean => {
+      if (!effectiveNavRole) return false
+      if (!item.roles.includes(effectiveNavRole)) return false
+      return isRouteVisibleForRole(item.path, effectiveNavRole as AppRole, routeManifest, activeFeatureFlags, runtimeRouteVisibilityMode)
+    }
 
   const toggleGroup = (label: string) => {
     setOpenGroups(prev => {
@@ -603,7 +608,7 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
         group.items.some(
           (item) =>
             location.pathname === item.path &&
-            isRouteVisibleForRole(item.path, effectiveNavRole as AppRole, routeManifest, activeFeatureFlags, runtimeRouteVisibilityMode),
+            isNavItemVisible(item),
         )
       ) {
         setOpenGroups((prev) => {
@@ -664,9 +669,7 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
 
   const visiblePinned = isDirectorOfficerMode
     ? injectedOfficerPinned
-    : pinnedItems.filter(item =>
-      user && isRouteVisibleForRole(item.path, user.role as AppRole, routeManifest, activeFeatureFlags, runtimeRouteVisibilityMode)
-    )
+    : pinnedItems.filter((item) => isNavItemVisible(item))
 
   return (
     <nav className="space-y-2">
@@ -703,9 +706,7 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
       {/* Grouped navigation with accordion */}
       {!isDirectorOfficerMode && navigationGroups.map((group) => {
         const GroupIcon = group.icon
-        const visibleItems = group.items.filter(item =>
-            isRouteVisibleForRole(item.path, effectiveNavRole as AppRole, routeManifest, activeFeatureFlags, runtimeRouteVisibilityMode)
-        )
+        const visibleItems = group.items.filter((item) => isNavItemVisible(item))
         if (visibleItems.length === 0) return null
 
         const isOpen = openGroups.has(group.label)

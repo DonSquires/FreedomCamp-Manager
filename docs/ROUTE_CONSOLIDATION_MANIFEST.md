@@ -199,6 +199,11 @@ All log routes follow the canonical pattern: `/{entity}-log`
 - Unknown alias paths safely fall back to `/audit-log`.
 - Existing canonical log routes remain unchanged in this phase; this introduces namespace compatibility first.
 
+**Part 3 Domain Alias Expansion (implemented 2026-05-17):**
+- Added structured alias route: `/audit/:domain/:logPath`.
+- Alias resolution is manifest-driven using `auditDomain` metadata on log routes.
+- Navigation surfaces now prefer `/audit/{domain}/{entity}` links for selected high-traffic logs while preserving legacy route compatibility.
+
 ---
 
 ### 7. Internal & Debug Routes
