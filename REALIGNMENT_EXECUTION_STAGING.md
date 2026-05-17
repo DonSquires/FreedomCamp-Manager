@@ -162,7 +162,7 @@ Bob governance note for this lane:
 
 #### To-Do Items
 
-- [ ] **May 12 (Monday)**: Team kickoff & ownership alignment
+- [x] **May 12 (Monday)**: Team kickoff & ownership alignment — Completed (see `docs/BUILD_REALIGNMENT_PLAN_2026-05-04.md`, Criterion 5)
   ```bash
   # Action: Confirm team roles in GitHub @DonSquires/team-realignment
   # Verify in Slack #realignment-kickoff thread
@@ -171,7 +171,7 @@ Bob governance note for this lane:
   # Commit: git commit -m "realignment: team alignment — kickoff complete"
   ```
 
-- [ ] **May 13–14**: Unified case model schema design (Platform Arch Lead + Data Platform Lead)
+- [x] **May 13–14**: Unified case model schema design (Platform Arch Lead + Data Platform Lead) — Completed (migration present: `20260504000002_case_model.sql`)
   ```bash
   # Location: supabase/migrations/202605_case_model.sql
   # Requirements (from 11.2a):
@@ -186,7 +186,7 @@ Bob governance note for this lane:
   # Commit: git commit -m "realignment: case model schema — operational_cases + event tables"
   ```
 
-- [ ] **May 15–16**: Org isolation test harness creation (Data Platform Lead + QA)
+- [x] **May 15–16**: Org isolation test harness creation (Data Platform Lead + QA) — Completed (`tests/integration/org-isolation.test.ts` with 5 gate scenarios)
   ```bash
   # Location: tests/integration/org-isolation.test.ts
   # Framework: Vitest (configured in vitest.config.ts)
@@ -212,7 +212,7 @@ Bob governance note for this lane:
   # Commit: git commit -m "realignment: org isolation test harness — 5 scenarios (Phase A gate)"
   ```
 
-- [ ] **May 17**: Event family contract documentation
+- [x] **May 17**: Event family contract documentation (Data Eng) — Completed (`docs/EVENT_FAMILY_CONTRACT_2026-05-04.md`)
   ```bash
   # Location: docs/EVENT_FAMILY_CONTRACT_2026-05-04.md (new file)
   # Content:
