@@ -1,6 +1,14 @@
 name: Ops - MLOps Domain Canary
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/ops-mlops-domain-canary.yml'
+      - '.github/workflows/ops-mlops-domain-promotion-gate.yml'
+      - 'scripts/mlops-domain-inference-canary.mjs'
+      - 'scripts/mlops-canary-promotion-gate.mjs'
+      - 'package.json'
   schedule:
     - cron: '30 6 * * *'
   workflow_dispatch:
@@ -30,7 +38,7 @@ jobs:
       INFERENCE_SERVICE_URL: ${{ secrets.INFERENCE_SERVICE_URL || secrets.BOB_SERVICE_URL }}
       BOB_INFERENCE_API_KEY: ${{ secrets.BOB_INFERENCE_API_KEY || secrets.INFERENCE_API_KEY }}
       INFERENCE_API_KEY: ${{ secrets.INFERENCE_API_KEY || secrets.BOB_INFERENCE_API_KEY }}
-      MLOPS_SLACK_WEBHOOK_URL: ${{ secrets.MLOPS_SLACK_WEBHOOK_URL }}
+      MLOPS_SLACK_WEBHOOK_URL: ${{ secrets.MLOPS_SLACK_WEBHOOK_URL || secrets.RADIO_SPEECH_WEBHOOK_SECRET }}
 
     steps:
       - name: Checkout

@@ -1,6 +1,14 @@
 name: Ops - MLOps Domain Promotion Gate
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/ops-mlops-domain-canary.yml'
+      - '.github/workflows/ops-mlops-domain-promotion-gate.yml'
+      - 'scripts/mlops-domain-inference-canary.mjs'
+      - 'scripts/mlops-canary-promotion-gate.mjs'
+      - 'package.json'
   schedule:
     - cron: '45 6 * * *'
   workflow_dispatch:
