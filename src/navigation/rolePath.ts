@@ -33,6 +33,9 @@ export function getDefaultRouteForRole(role?: string | null): string {
       return '/officer-home'
     case 'admin_officer':
       return '/portal-selection'
+    case 'admin':
+    case 'master':
+      return '/admin/dashboard'
     case 'nzscv_monitor':
       return '/admin/nzscv'
     case 'grand_master':
@@ -42,7 +45,7 @@ export function getDefaultRouteForRole(role?: string | null): string {
     case 'client_admin':
       return '/client-portal'
     default:
-      return '/'
+      return '/admin/dashboard'
   }
 }
 

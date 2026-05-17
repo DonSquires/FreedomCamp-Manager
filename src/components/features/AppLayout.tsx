@@ -579,11 +579,19 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
 
   // Keep the effective role aligned with route-manifest authority.
   const effectiveNavRole = user?.role
-    const isNavItemVisible = (item: NavItem): boolean => {
-      if (!effectiveNavRole) return false
-      if (!item.roles.includes(effectiveNavRole)) return false
-      return isRouteVisibleForRole(item.path, effectiveNavRole as AppRole, routeManifest, activeFeatureFlags, runtimeRouteVisibilityMode)
-    }
+
+  // Derive active feature flags from role — master/grand_master can access internal tools.
+  const activeFeatureFlags = useMemo<Set<string>>(() => {
+    const flags = new Set<string>()
+    if (user?.role === 'master' || user?.role === 'grand_master') flags.add('enable_internal_tools')
+    return flags
+  }, [user?.role])
+
+  const isNavItemVisible = useCallback((item: NavItem): boolean => {
+    if (!effectiveNavRole) return false
+    if (!item.roles.includes(effectiveNavRole)) return false
+    return isRouteVisibleForRole(item.path, effectiveNavRole as AppRole, routeManifest, activeFeatureFlags, runtimeRouteVisibilityMode)
+  }, [activeFeatureFlags, effectiveNavRole])
 
   const toggleGroup = (label: string) => {
     setOpenGroups(prev => {
@@ -593,13 +601,6 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
       return next
     })
   }
-
-  // Derive active feature flags from role — master/grand_master can access internal tools
-  const activeFeatureFlags = useMemo<Set<string>>(() => {
-    const flags = new Set<string>()
-    if (user?.role === 'master' || user?.role === 'grand_master') flags.add('enable_internal_tools')
-    return flags
-  }, [user?.role])
 
   // Auto-expand the group containing the active path using manifest authority.
   useEffect(() => {
@@ -619,7 +620,7 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
         })
       }
     }
-  }, [activeFeatureFlags, effectiveNavRole, location.pathname])
+  }, [isNavItemVisible, location.pathname])
 
   const isDirectorOfficerMode = user?.role === 'officer'
 

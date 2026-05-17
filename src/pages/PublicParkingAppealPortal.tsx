@@ -17,7 +17,7 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
-import { AlertTriangle, Car, CheckCircle2, Search, Send, ShieldCheck } from 'lucide-react'
+import { AlertTriangle, Car, CheckCircle2, Loader2, Search, Send, ShieldCheck } from 'lucide-react'
 import { edgeFunctions } from '@/lib/edgeFunctions'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -60,6 +60,7 @@ export default function PublicParkingAppealPortal() {
   const [plateInput, setPlateInput] = useState('')
   const [looking, setLooking]       = useState(false)
   const [infData, setInfData]       = useState<InfringementLookup | null>(null)
+  const [lookupError, setLookupError] = useState<string | null>(null)
 
   // Appeal form state
   const [appellantName,   setAppellantName]   = useState('')
@@ -84,6 +85,7 @@ export default function PublicParkingAppealPortal() {
     }
     setLooking(true)
     setInfData(null)
+    setLookupError(null)
     try {
       // Use the Supabase anon client directly — anon SELECT policy is applied
       const { supabase } = await import('@/lib/supabase')
@@ -100,9 +102,12 @@ export default function PublicParkingAppealPortal() {
       if (error || !data) throw new Error('No matching notice found. Check your infringement number and plate.')
 
       setInfData(data as unknown as InfringementLookup)
+      setLookupError(null)
       toast.success('Notice found')
     } catch (err: any) {
-      toast.error(err?.message || 'Could not find a matching notice')
+      const message = err?.message || 'Could not find a matching notice'
+      setLookupError(message)
+      toast.error(message)
     } finally {
       setLooking(false)
     }
@@ -178,9 +183,18 @@ export default function PublicParkingAppealPortal() {
               </div>
             </div>
             <Button onClick={handleLookup} disabled={looking}>
-              <Search className="h-4 w-4 mr-2" />
+              {looking ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Search className="h-4 w-4 mr-2" />}
               {looking ? 'Searching…' : 'Find My Notice'}
             </Button>
+
+            {lookupError && (
+              <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                <p className="font-medium">We could not find your notice.</p>
+                <p className="text-xs mt-1">
+                  {lookupError} Re-check the notice number and plate, then retry. If this keeps happening, contact support.
+                </p>
+              </div>
+            )}
           </CardContent>
         </Card>
 

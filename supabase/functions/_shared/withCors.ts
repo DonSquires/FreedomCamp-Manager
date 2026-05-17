@@ -32,6 +32,8 @@ const ALLOWED_ORIGINS_EXACT = new Set<string>([
   'https://react-9b4t5o.onspace.build',        // Static build
   'http://localhost:5173',                      // Local dev
   'http://localhost:3000',                      // Local dev (alternate port)
+  'http://127.0.0.1:5173',                      // Local dev (IP host)
+  'http://127.0.0.1:3000',                      // Local dev (IP host alt)
 ]);
 
 /**
@@ -55,6 +57,11 @@ function isAllowedPreview(origin: string): boolean {
 
     // Allow Vercel preview/prod deployments for this project.
     if (host.endsWith('.vercel.app')) {
+      return true;
+    }
+
+    // Allow Codespaces/web-preview origins used for hosted development.
+    if (host.endsWith('.app.github.dev') || host.endsWith('.github.dev')) {
       return true;
     }
 

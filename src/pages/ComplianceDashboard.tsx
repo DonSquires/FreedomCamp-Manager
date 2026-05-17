@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Skeleton } from '@/components/ui/skeleton'
 import { 
   CheckCircle, 
   AlertTriangle, 
@@ -23,6 +24,7 @@ import { formatDate, formatDateTime } from '@/lib/utils'
 import { AppLayout } from '@/components/features/AppLayout'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
 import { PaperworkSearchAnimation } from '@/components/features/PaperworkSearchAnimation'
+import { AsyncStateWrapper } from '@/components/features/AsyncStateWrapper'
 import { analyzeVehiclePhoto } from '@/lib/proxyServices'
 import { toast } from 'sonner'
 
@@ -39,6 +41,7 @@ interface DashboardStats {
 export default function ComplianceDashboard() {
   const { user } = useAuthStore()
   const { organizationId, zoneId, dateFrom, dateTo } = useGlobalFiltersStore()
+  const queryClient = useQueryClient()
   const [analyzingPhotos, setAnalyzingPhotos] = useState(false)
   const [analysisResults, setAnalysisResults] = useState<any>(null)
 
@@ -47,7 +50,7 @@ export default function ComplianceDashboard() {
   const endDate = dateTo ? nzDateToUTCEnd(dateTo) : null
 
   // Single RPC call – all aggregation and rate calculation done on the server.
-  const { data: stats, isLoading } = useQuery({
+  const { data: stats, isLoading, isError: statsIsError, error: statsError } = useQuery({
     queryKey: ['dashboard-stats', effectiveOrganizationId, zoneId, dateFrom, dateTo],
     queryFn: async () => {
       const start = startDate ?? new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()
@@ -72,7 +75,7 @@ export default function ComplianceDashboard() {
   })
 
   // Fetch recent activity
-  const { data: recentActivity } = useQuery({
+  const { data: recentActivity, isError: activityIsError, error: activityError } = useQuery({
     queryKey: ['recent-activity', effectiveOrganizationId, zoneId, dateFrom, dateTo],
     queryFn: async () => {
       let query = (supabase.from('observations') as any)
@@ -112,7 +115,7 @@ export default function ComplianceDashboard() {
   })
 
   // Zone compliance breakdown (Jurisdiction vs specific zones)
-  const { data: zoneBreakdown = [] } = useQuery({
+  const { data: zoneBreakdown = [], isError: zoneIsError, error: zoneError } = useQuery({
     queryKey: ['zone-breakdown', effectiveOrganizationId, dateFrom, dateTo],
     queryFn: async ({ signal }) => {
       const start = (dateFrom ? nzDateToUTCStart(dateFrom) : null) ?? new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()
@@ -191,12 +194,40 @@ export default function ComplianceDashboard() {
     <AppLayout title="Compliance Dashboard" description="Real-time compliance monitoring and analytics" showBackButton>
       <GlobalFilterRibbon />
 
-      {isLoading ? (
-        <PaperworkSearchAnimation text="Loading compliance data…" />
-      ) : (
+      <AsyncStateWrapper
+        isLoading={isLoading}
+        isError={statsIsError || activityIsError || zoneIsError}
+        isEmpty={!stats && !recentActivity && !zoneBreakdown}
+        error={statsError || activityError || zoneError}
+        onRetry={() => {
+          queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] })
+          queryClient.invalidateQueries({ queryKey: ['recent-activity'] })
+          queryClient.invalidateQueries({ queryKey: ['zone-breakdown'] })
+        }}
+        loadingText="Loading compliance data…"
+        errorTitle="Failed to load compliance dashboard"
+        emptyTitle="No data available"
+        emptyDescription="Try adjusting your date range or organization filters to find compliance data."
+      >
         <>
-          {/* KPI Grid */}
+          {/* KPI Grid - show skeletons while loading */}
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-8">
+            {isLoading ? (
+              <>
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <Card key={i}>
+                    <CardHeader className="pb-2">
+                      <Skeleton className="h-4 w-24" />
+                    </CardHeader>
+                    <CardContent>
+                      <Skeleton className="h-8 w-16 mb-2" />
+                      <Skeleton className="h-3 w-32" />
+                    </CardContent>
+                  </Card>
+                ))}
+              </>
+            ) : (
+              <>
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium text-gray-600 flex items-center gap-2">
@@ -258,6 +289,8 @@ export default function ComplianceDashboard() {
                 <p className="text-xs text-gray-500 mt-1">In registry</p>
               </CardContent>
             </Card>
+              </>
+            )}
           </div>
 
           {/* Secondary Metrics */}
@@ -454,7 +487,7 @@ export default function ComplianceDashboard() {
             </CardContent>
           </Card>
         </>
-      )}
+      </AsyncStateWrapper>
     </AppLayout>
   )
 }

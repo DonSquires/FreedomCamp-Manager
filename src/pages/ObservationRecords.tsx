@@ -6,6 +6,7 @@ import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
 import { edgeFunctions } from '@/lib/edgeFunctions'
 import { AppLayout } from '@/components/features/AppLayout'
+import { AsyncStateWrapper } from '@/components/features/AsyncStateWrapper'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -488,16 +489,37 @@ export default function ObservationRecords() {
       </div>
 
       {observationsIsError ? (
-        <Card>
-          <CardContent className="py-8 text-sm text-red-600">
-            Failed to load observations: {(observationsError as any)?.message || 'Unknown error'}
+        <Card className="border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-950/20">
+          <CardContent className="py-8">
+            <div className="space-y-4">
+              <div>
+                <p className="text-base font-semibold text-red-800 dark:text-red-200">Observation records failed to load</p>
+                <p className="text-sm text-red-700 dark:text-red-300 mt-1">
+                  {(observationsError as any)?.message || 'We could not fetch observation data right now. Try again or return to the dashboard while data recovers.'}
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button variant="outline" onClick={() => refetch()}>
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Retry observations
+                </Button>
+                <Button variant="ghost" onClick={() => navigate('/admin')}>
+                  Return to dashboard
+                </Button>
+              </div>
+            </div>
           </CardContent>
         </Card>
-      ) : observationsLoading ? (
-        <Card>
-          <CardContent className="py-10 text-center text-muted-foreground">Loading observation records...</CardContent>
-        </Card>
       ) : (
+        <AsyncStateWrapper
+          isLoading={observationsLoading}
+          isEmpty={observations.length === 0}
+          loadingText="Loading observation records..."
+          emptyTitle="No observations found"
+          emptyDescription="No observation records match your current filters. Try adjusting date range, organization, or zone filters."
+          emptyActionLabel="Open patrol map"
+          onEmptyAction={() => navigate('/live-patrol')}
+        >
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           <Card className="lg:col-span-1">
             <CardHeader className="pb-3">
@@ -683,6 +705,7 @@ export default function ObservationRecords() {
             </CardContent>
           </Card>
         </div>
+        </AsyncStateWrapper>
       )}
     </AppLayout>
   )

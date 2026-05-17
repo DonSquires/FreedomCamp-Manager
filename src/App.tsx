@@ -1,4 +1,4 @@
-import { Component, lazy, Suspense, useEffect, useMemo, type ErrorInfo, type ReactNode } from 'react'
+import { Component, lazy, Suspense, useEffect, useMemo, useState, type ErrorInfo, type ReactNode } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query'
 import { Toaster } from 'sonner'
@@ -761,6 +761,69 @@ function AreaRoute({
   )
 }
 
+function GovernanceMutationGate({
+  children,
+  actionLabel,
+  impactPreview,
+}: {
+  children: React.ReactNode
+  actionLabel: string
+  impactPreview: string
+}) {
+  const { user } = useAuthStore()
+  const location = useLocation()
+  const [confirmed, setConfirmed] = useState(false)
+
+  const requiresGate = user?.role === 'master' || user?.role === 'grand_master'
+
+  useEffect(() => {
+    if (!requiresGate) return
+    try {
+      const key = `gov-gate:${location.pathname}`
+      if (window.sessionStorage.getItem(key) === 'confirmed') {
+        setConfirmed(true)
+      } else {
+        setConfirmed(false)
+      }
+    } catch {
+      setConfirmed(false)
+    }
+  }, [location.pathname, requiresGate])
+
+  const handleContinue = () => {
+    try {
+      const key = `gov-gate:${location.pathname}`
+      window.sessionStorage.setItem(key, 'confirmed')
+    } catch {
+      // Non-blocking if storage is unavailable.
+    }
+    setConfirmed(true)
+  }
+
+  if (!requiresGate || confirmed) {
+    return <>{children}</>
+  }
+
+  return (
+    <div className="mx-auto mt-10 max-w-2xl rounded-xl border border-amber-300 bg-amber-50 p-6 dark:border-amber-900 dark:bg-amber-950/20">
+      <h2 className="text-base font-semibold text-amber-900 dark:text-amber-200">Confirm Governance Action</h2>
+      <p className="mt-2 text-sm text-amber-800 dark:text-amber-300">
+        You are opening a high-risk governance surface: <span className="font-semibold">{actionLabel}</span>
+      </p>
+      <p className="mt-2 text-xs text-amber-700 dark:text-amber-400">{impactPreview}</p>
+      <div className="mt-4 flex gap-2">
+        <button
+          type="button"
+          onClick={handleContinue}
+          className="rounded-md bg-amber-600 px-3 py-2 text-sm font-semibold text-white hover:bg-amber-700"
+        >
+          Previewed Impact - Continue
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export default function App() {
   const { user, loading, checkSession, initializeAuth, ensureLoadingResolved } = useAuthStore()
   useSessionInactivityLock()
@@ -916,8 +979,12 @@ export default function App() {
                   <Navigate to="/portal-selection" replace />
                 ) : user?.role === 'nzscv_monitor' ? (
                   <Navigate to="/admin/nzscv" replace />
+                ) : user?.role === 'grand_master' ? (
+                  <Navigate to="/platform" replace />
+                ) : user?.role === 'admin' || user?.role === 'master' ? (
+                  <Navigate to="/admin/dashboard" replace />
                 ) : (
-                  <AdminHub />
+                  <Navigate to="/admin/dashboard" replace />
                 )}
               </ProtectedRoute>
             }
@@ -1059,7 +1126,12 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <AreaRoute allowedRoles={['admin', 'admin_officer', 'master', 'grand_master']} area="users">
-                  <AccessControlPage />
+                  <GovernanceMutationGate
+                    actionLabel="Access Control"
+                    impactPreview="May alter role permissions and user access boundaries across multiple modules."
+                  >
+                    <AccessControlPage />
+                  </GovernanceMutationGate>
                 </AreaRoute>
               </ProtectedRoute>
             }
@@ -1070,7 +1142,12 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['master', 'grand_master']}>
-                  <OrganizationManagement />
+                  <GovernanceMutationGate
+                    actionLabel="Organization Management"
+                    impactPreview="May create, modify, or archive tenant-level organization records and inheritance links."
+                  >
+                    <OrganizationManagement />
+                  </GovernanceMutationGate>
                 </RoleRoute>
               </ProtectedRoute>
             }
@@ -2624,7 +2701,21 @@ export default function App() {
           {/* Sprint 37: B-121–B-123 */}
           <Route path="/welfare-events-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><WelfareEventB1Log /></RoleRoute></ProtectedRoute>} />
           <Route path="/zone-geofence-snapshots" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><ZoneGeofenceSnapshotLog /></RoleRoute></ProtectedRoute>} />
-          <Route path="/feature-flags" element={<ProtectedRoute><RoleRoute allowedRoles={['master']}><FeatureFlagManager /></RoleRoute></ProtectedRoute>} />
+          <Route
+            path="/feature-flags"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['master']}>
+                  <GovernanceMutationGate
+                    actionLabel="Feature Flag Manager"
+                    impactPreview="May enable or disable runtime behavior for all organizations and officer workflows."
+                  >
+                    <FeatureFlagManager />
+                  </GovernanceMutationGate>
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
           <Route path="/feature-flag-evaluations-log" element={<ProtectedRoute><RoleRoute allowedRoles={['master']}><FeatureFlagEvaluationLog /></RoleRoute></ProtectedRoute>} />
           <Route path="/feature-flag-rollout-log" element={<ProtectedRoute><RoleRoute allowedRoles={['master']}><FeatureFlagRolloutLog /></RoleRoute></ProtectedRoute>} />
           <Route path="/missing-photo-queue" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><MissingPhotoQueueLog /></RoleRoute></ProtectedRoute>} />
@@ -2825,3 +2916,11 @@ export default function App() {
               </ProtectedRoute>
             }
           />
+        </Routes>
+      </Suspense>
+    </RouteErrorBoundary>
+    <Toaster richColors position="top-right" />
+  </BrowserRouter>
+</QueryClientProvider>
+  )
+}

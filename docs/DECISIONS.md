@@ -13,6 +13,36 @@ When a pattern, platform, or architectural decision changes, append a dated note
 - Consequences: follow-on constraints Bob must persist
 
 ## Current Standing Decisions
+- Date: 2026-05-17
+- Decision: Trust-and-consistency async state contract is now canonical across primary operational shells: loading must use structure-matched skeleton/async states; errors must include plain-English explanation + retry + fallback; empty states must include explanatory CTA.
+- Scope: `src/pages/AdminPortal.tsx`, `src/pages/BreachAlerts.tsx`, `src/pages/ComplianceDashboard.tsx`, `src/pages/FieldOfficerPortal.tsx`, `src/pages/ObservationRecords.tsx`, `src/pages/PatrolKPIDashboard.tsx`, `src/pages/PublicParkingAppealPortal.tsx`, `src/components/features/AsyncStateWrapper.tsx`, `docs/CRO_TODOLIST.md`, `docs/STAGING.md`, `docs/INSTRUCTION_MANUAL.md`.
+- Reason: Part 5 CRO work identified state inconsistency as a direct source of operator hesitation and task drop-off. Standardising async-state behavior across high-traffic shells reduces ambiguity during degraded network/data conditions and improves recoverability.
+- Consequences: (1) New/modified shell pages must adopt the same state contract and avoid spinner-only/blank state regressions. (2) Retry/fallback paths are mandatory for operational errors. (3) Empty states must tell operators what to do next. (4) Officer offline queue UX remains explicit and reconnect-aware by design.
+
+- Date: 2026-05-17
+- Decision: Officer workflow consolidation is anchored in `FieldOfficerPortal.tsx` through a guided 5-step shift flow overlay that orchestrates existing shift, zone, scan, and report actions.
+- Scope: `src/pages/FieldOfficerPortal.tsx`, `docs/CRO_TODOLIST.md`, `docs/STAGING.md`, `docs/INSTRUCTION_MANUAL.md`.
+- Reason: CRO Part 4 identified the officer primary path as fragmented across start-shift controls, zone selection, scanner entry, and reporting. The owning portal already contains all required state and handlers, so an in-page guided flow reduces navigation friction without introducing new routes or backend mutations.
+- Consequences: (1) `Guided shift flow` is the recommended officer path for first-pass workflow completion. (2) Existing direct controls remain available for experienced officers and rapid actions. (3) Future officer workflow consolidation should extend this guided overlay before creating additional standalone workflow routes.
+
+- Date: 2026-05-17
+- Decision: Admin breach workflow consolidation is anchored in `BreachAlerts.tsx` using an in-page guided triage flow layered over the existing Decision Dock actions rather than introducing a new standalone route.
+- Scope: `src/pages/BreachAlerts.tsx`, `docs/CRO_TODOLIST.md`, `docs/STAGING.md`, `docs/INSTRUCTION_MANUAL.md`.
+- Reason: CRO Part 4 requires reducing breach-task navigation hops (review -> assign -> notice -> outcome). Route audit confirmed `/breaches` is a passthrough to `BreachAlerts.tsx`, and the owning page already contains selected-breach context plus all core mutations. Adding a guided flow at this seam delivers workflow consolidation without backend contract churn.
+- Consequences: (1) Guided triage becomes the recommended path for breach decisions while existing direct buttons remain available for rapid actions. (2) Assignment uses the existing `AdminFollowUpDrawer` handoff and enforcement/notice actions keep current mutation and navigation semantics. (3) Future breach workflow changes should extend this in-page flow first before introducing new routes.
+
+- Date: 2026-05-17
+- Decision: Canonical post-login landing paths are: admin/master → /admin/dashboard (AdminPortal command centre); officer → /officer-home; admin_officer → /portal-selection; grand_master → /platform; client roles → /client-portal; nzscv_monitor → /admin/nzscv.
+- Scope: `src/navigation/rolePath.ts` (getDefaultRouteForRole), `src/App.tsx` root `/` route redirect block.
+- Reason: CRO Part 2 audit found that `admin` and `master` roles had no explicit default route and fell through to render AdminHub at `/` rather than navigating to the full operational command centre at `/admin/dashboard`. Root `/` also rendered AdminHub as a component instead of redirecting, creating ambiguity and URL inconsistency. Canonical paths are now declared in one authoritative switch block and mirrored in the root route redirect.
+- Consequences: (1) admin/master always land at /admin/dashboard on fresh login or root navigation. (2) AdminHub at /admin remains a valid navigation target (hub overview) but is no longer the default entry point. (3) /dashboard (ModuleDashboard) remains distinct — it is a cross-role data/analytics dashboard, not an entry point. (4) getDefaultRouteForRole default branch also redirects to /admin/dashboard to handle any future role additions safely. (5) Root `/` route now contains no component renders — it is a pure redirect block; all roles have explicit handling.
+
+- Date: 2026-05-17
+- Decision: Officer landing path consolidation: /officer-home is the canonical officer entry point; /field-officer is the patrol working surface reached from officer-home. These serve distinct sequential purposes and are not redundant.
+- Scope: `src/navigation/rolePath.ts` (getDefaultRouteForRole officer case), `src/App.tsx` officer role redirects, `docs/ROUTE_CONSOLIDATION_MANIFEST.md`.
+- Reason: CRO Part 2 task required resolving "overlapping officer landing paths" (/field-officer, /portal-selection, /officer-home). Audit confirmed: /officer-home = shift status + welfare entry + module chooser (landing); /field-officer = active patrol workspace (scan, breach, SOS); /portal-selection = dual-role chooser for admin_officer only. These are sequential waypoints, not duplicates. No route consolidation needed.
+- Consequences: (1) officer role continues to default to /officer-home. (2) admin_officer continues to default to /portal-selection. (3) /field-officer is not a default entry point — officers navigate there from officer-home. (4) These path semantics must be preserved in any future nav redesign.
+
 
 - Date: 2026-05-17
 - Decision: SFA smoke routing policy with fire-type-specific gates and road-hazard escalation achieves 100% routing accuracy by distinguishing industrial operations, residential fires, burn-offs, and road hazards into explicit decision paths.

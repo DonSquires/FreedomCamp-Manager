@@ -8,6 +8,7 @@
 import { useState } from 'react'
 import { useAuthStore } from '@/stores/authStore'
 import { usePatrolKPIs } from '@/hooks/usePatrols'
+import { AsyncStateWrapper } from '@/components/features/AsyncStateWrapper'
 import { AppLayout } from '@/components/features/AppLayout'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -49,7 +50,7 @@ export default function PatrolKPIDashboard() {
   })
   const [toDate, setToDate] = useState(() => new Date().toISOString().split('T')[0])
 
-  const { data: kpis, isLoading } = usePatrolKPIs({
+  const { data: kpis, isLoading, isError, error, refetch } = usePatrolKPIs({
     from: `${fromDate}T00:00:00`,
     to: `${toDate}T23:59:59`,
   })
@@ -84,11 +85,20 @@ export default function PatrolKPIDashboard() {
           </div>
         </div>
 
-        {isLoading && (
-          <p className="text-muted-foreground py-8 text-center">Loading KPI data…</p>
-        )}
-
-        {kpis && (
+        <AsyncStateWrapper
+          isLoading={isLoading}
+          isError={isError}
+          error={error}
+          onRetry={() => {
+            void refetch()
+          }}
+          isEmpty={!kpis || kpis.total_patrols === 0}
+          loadingText="Loading KPI data..."
+          errorTitle="Failed to load patrol KPIs"
+          emptyTitle="No patrol data found"
+          emptyDescription="No patrols were found for this date range. Try widening your date filters."
+        >
+          {kpis && (
           <>
             {/* ── Overview KPI cards ─── */}
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
@@ -224,7 +234,8 @@ export default function PatrolKPIDashboard() {
               </CardContent>
             </Card>
           </>
-        )}
+          )}
+        </AsyncStateWrapper>
       </div>
     </AppLayout>
   )
