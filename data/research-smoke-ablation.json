@@ -1,0 +1,45 @@
+{
+  "generatedAt": "2026-05-17T10:34:38.357Z",
+  "input": "data/smoke-ablation-evals.jsonl",
+  "framework": {
+    "note": "Smoke Force Assessment (SFA) ablation: testing smoke profile scoring with duration and context variants",
+    "variants": [
+      "sfa_only",
+      "sfa_with_duration",
+      "sfa_contextual"
+    ],
+    "baseline": "sfa_only"
+  },
+  "metrics": {
+    "sfa_only": {
+      "sampleSize": 14,
+      "actionAccuracy": 1,
+      "excessiveF1": 1,
+      "overrideRate": 0,
+      "avgConfidence": 0.718,
+      "avgDecisionSeconds": 54
+    },
+    "sfa_with_duration": {
+      "sampleSize": 14,
+      "actionAccuracy": 1,
+      "excessiveF1": 0.8571,
+      "overrideRate": 0,
+      "avgConfidence": 0.7907,
+      "avgDecisionSeconds": 49.571
+    },
+    "sfa_contextual": {
+      "sampleSize": 14,
+      "actionAccuracy": 1,
+      "excessiveF1": 1,
+      "overrideRate": 0,
+      "avgConfidence": 0.8669,
+      "avgDecisionSeconds": 54.857
+    }
+  },
+  "bestVariant": "sfa_only",
+  "notes": [
+    "sfa_only: Base SFA score (opacity, color, materials, duration, continuity, drifting, odor)",
+    "sfa_with_duration: SFA + duration term emphasizes long-burning fires",
+    "sfa_contextual: SFA + context bias for residential_domestic and burn_off cases"
+  ]
+}
