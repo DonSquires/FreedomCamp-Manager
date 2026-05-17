@@ -1,0 +1,86 @@
+{
+  "generated_for": "small-client alarm/patrol/deputy ingestion",
+  "notes": [
+    "Noise control historical data for Nelson must map to Nelson City Council by default.",
+    "Use explicit per-row overrides only when source evidence proves a different client owner.",
+    "Double-ups are handled with deterministic dedupe keys before write and idempotent upsert keys at write time."
+  ],
+  "dedupe_policy": {
+    "ingest_mode": "idempotent_upsert",
+    "default_conflict_behavior": "keep_latest_by_source_timestamp",
+    "datasets": [
+      {
+        "dataset_kind": "alarm_noise_control_historical",
+        "natural_key_fields": [
+          "Client ID",
+          "Alarm Response Date/Time",
+          "Despatch No."
+        ],
+        "fallback_key_fields": [
+          "Client ID",
+          "Alarm Response Date/Time",
+          "Alarm Docket No."
+        ],
+        "source_timestamp_field": "Off-site Date/Time"
+      },
+      {
+        "dataset_kind": "patrol_historical",
+        "natural_key_fields": [
+          "Client ID",
+          "Despatch Date/Time",
+          "Internal DespatchId"
+        ],
+        "fallback_key_fields": [
+          "Client ID",
+          "On-site Date/Time",
+          "Off-site Date/Time",
+          "Patrol Type"
+        ],
+        "source_timestamp_field": "Off-site Date/Time"
+      },
+      {
+        "dataset_kind": "deputy_locations_sites_zones",
+        "natural_key_fields": [
+          "Location Code",
+          "Location Name",
+          "Area Name"
+        ],
+        "fallback_key_fields": [
+          "Location Name",
+          "Area Name"
+        ],
+        "source_timestamp_field": "Area Modified"
+      },
+      {
+        "dataset_kind": "deputy_staff_roster",
+        "natural_key_fields": [
+          "Payroll ID",
+          "Timesheet Date",
+          "Timesheet Start Time",
+          "Timesheet End Time",
+          "Location Code"
+        ],
+        "fallback_key_fields": [
+          "Display Name",
+          "Schedule Date",
+          "Schedule Start Time",
+          "Schedule End Time",
+          "Location Code"
+        ],
+        "source_timestamp_field": "Timesheet Modified"
+      }
+    ]
+  },
+  "rules": [
+    {
+      "id": "ncc-noise-control-default-owner",
+      "source_bucket": "Service-Contracts",
+      "source_path": "Wilsar-Data/Nelsn Alarm-Noise control historical data.csv",
+      "dataset_kind": "alarm_noise_control_historical",
+      "default_target_organization_name": "Nelson City Council",
+      "enforcement": "strict_default",
+      "target_table_hint": "alarm_events",
+      "target_domain": "noise_control"
+    }
+  ]
+}

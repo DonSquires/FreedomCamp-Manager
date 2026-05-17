@@ -4,9 +4,19 @@
  * Parses a Deputy schedule/timesheet TSV or CSV export and upserts the data
  * into the following tables:
  *   - deputy_locations   (area/location lookup)
+ *   - client_sites       (site lookup / create-if-missing)
  *   - roster_shifts      (planned schedule rows)
  *   - leave_requests     (is-leave rows)
  *   - officer_shifts     (timesheet rows)
+ *
+ * Double-up handling:
+ *   - deterministic deputy_* IDs are generated when source IDs are absent
+ *   - row-level duplicate IDs in the same import are skipped
+ *   - write path uses upsert on deputy IDs for idempotent re-import
+ *
+ * Staff creation (optional):
+ *   - set create_missing_staff=true to stage missing officers
+ *   - staged users are created WITHOUT invite delivery
  *
  * Deputy exports a single flat file with one row per schedule entry.
  * The header row names the columns — this function is column-order agnostic.
@@ -128,6 +138,38 @@ function col(row: Record<string, string>, ...names: string[]): string | undefine
   return undefined
 }
 
+function normalizeName(value: string | undefined): string {
+  return String(value ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+}
+
+function splitDisplayName(value: string | undefined): { firstName: string; lastName: string } {
+  const cleaned = String(value ?? '')
+    .replace(/\[.*?\]/g, '')
+    .replace(/^\(.*?\)\s*-\s*/, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+  if (!cleaned) return { firstName: 'Deputy', lastName: 'Staff' }
+  const parts = cleaned.split(' ')
+  const firstName = parts[0] || 'Deputy'
+  const lastName = parts.slice(1).join(' ') || 'Staff'
+  return { firstName, lastName }
+}
+
+function stableImportKey(prefix: string, parts: Array<string | null | undefined>): string {
+  const normalized = parts
+    .map((part) => String(part ?? '').trim().toLowerCase() || '-')
+    .join('|')
+  return `${prefix}:${normalized}`
+}
+
+function randomPassword(): string {
+  return `Staged-${crypto.randomUUID()}-Tmp1!`
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Handler
 // ─────────────────────────────────────────────────────────────────────────────
@@ -173,6 +215,7 @@ Deno.serve(async (req: Request) => {
     // ── Body ──────────────────────────────────────────────────────────────────
     const ct = req.headers.get('content-type') ?? ''
     let fileText = ''
+    let createMissingStaff = false
 
     if (ct.includes('multipart/form-data')) {
       const form = await req.formData()
@@ -181,9 +224,12 @@ Deno.serve(async (req: Request) => {
         return new Response(JSON.stringify({ error: 'Missing "file" field in multipart form' }), { status: 400, headers: responseHeaders })
       }
       fileText = await file.text()
+      const createFlag = String(form.get('create_missing_staff') ?? '').trim().toLowerCase()
+      createMissingStaff = ['1', 'true', 'yes', 'y'].includes(createFlag)
     } else {
       const body = await req.json()
       fileText = body.fileContent ?? body.content ?? ''
+      createMissingStaff = Boolean(body.create_missing_staff ?? body.createMissingStaff)
     }
 
     if (!fileText.trim()) {
@@ -198,15 +244,22 @@ Deno.serve(async (req: Request) => {
 
     // ── Summary counters ──────────────────────────────────────────────────────
     let employeesMatched = 0
+    let staffStaged = 0
     let locationsEnsured = 0
+    let clientSitesEnsured = 0
     let schedulesImported = 0
     let leavesImported = 0
     let timesheetsImported = 0
+    let duplicateRowsSkipped = 0
     const warnings: string[] = []
 
     // ── Cache maps (per-request) ───────────────────────────────────────────────
-    const employeeCache = new Map<string, string>()   // exportCode → user_profiles.id
-    const locationCache = new Map<string, string>()   // areaExportCode → deputy_locations.id
+    const employeeCache = new Map<string, string>()   // exportCode/displayName → user_profiles.id
+    const locationCache = new Map<string, string>()   // areaExportCode/name key → deputy_locations.id
+    const clientSiteCache = new Map<string, string>() // locationCode/name key → client_sites.id
+    const seenLeaveIds = new Set<string>()
+    const seenScheduleIds = new Set<string>()
+    const seenTimesheetIds = new Set<string>()
 
     // ── Helper: resolve officer  ──────────────────────────────────────────────
     async function resolveOfficer(exportCode: string | undefined, displayName: string | undefined): Promise<string | null> {
@@ -230,31 +283,77 @@ Deno.serve(async (req: Request) => {
         }
       }
 
-      // Fallback: extract [exportCode] from display name and match by name
+      // Fallback: match by normalized first/last name
       if (displayName) {
-        // e.g. "(N)CAS - Angel Moerua [512060]" → first/last name extraction
-        const namePart = displayName.replace(/\[.*?\]/g, '').replace(/^\(.*?\)\s*-\s*/, '').trim()
-        const parts = namePart.split(/\s+/)
-        if (parts.length >= 2) {
-          const firstName = parts[0]
-          const lastName = parts.slice(1).join(' ')
-          const { data } = await sb
-            .from('user_profiles')
-            .select('id')
-            .eq('organization_id', orgId)
-            .ilike('first_name', firstName)
-            .ilike('last_name', lastName)
-            .maybeSingle()
-          if (data?.id) {
-            // Persist the deputy_employee_id so future imports match faster
-            if (exportCode) {
-              await sb.from('user_profiles').update({ deputy_employee_id: exportCode, deputy_display_name: displayName }).eq('id', data.id)
-            }
-            employeeCache.set(cacheKey, data.id)
-            employeesMatched++
-            return data.id
+        const names = splitDisplayName(displayName)
+        const { data } = await sb
+          .from('user_profiles')
+          .select('id')
+          .eq('organization_id', orgId)
+          .ilike('first_name', names.firstName)
+          .ilike('last_name', names.lastName)
+          .maybeSingle()
+        if (data?.id) {
+          // Persist the deputy_employee_id so future imports match faster
+          if (exportCode) {
+            await sb
+              .from('user_profiles')
+              .update({ deputy_employee_id: exportCode, deputy_display_name: displayName })
+              .eq('id', data.id)
           }
+          employeeCache.set(cacheKey, data.id)
+          employeesMatched++
+          return data.id
         }
+      }
+
+      // Optional build-stage staff creation with NO invite flow.
+      if (createMissingStaff) {
+        const names = splitDisplayName(displayName || exportCode)
+        const stagedEmail = exportCode
+          ? `deputy-${String(exportCode).trim().toLowerCase()}@staged.local`
+          : `deputy-${crypto.randomUUID()}@staged.local`
+
+        const { data: createdAuth, error: createAuthError } = await sb.auth.admin.createUser({
+          email: stagedEmail,
+          password: randomPassword(),
+          email_confirm: false,
+          user_metadata: {
+            staged_import: true,
+            staged_source: 'deputy-roster-import',
+            suppress_invite: true,
+          },
+        })
+
+        if (createAuthError || !createdAuth?.user?.id) {
+          warnings.push(`Officer not found and staged create failed: export_code=${exportCode ?? 'n/a'} display="${displayName ?? 'n/a'}" err=${createAuthError?.message ?? 'unknown'}`)
+          return null
+        }
+
+        const stagedId = createdAuth.user.id
+        const { error: stagedProfileError } = await sb
+          .from('user_profiles')
+          .upsert({
+            id: stagedId,
+            organization_id: orgId,
+            email: stagedEmail,
+            first_name: names.firstName,
+            last_name: names.lastName,
+            role: 'officer',
+            is_active: false,
+            deputy_employee_id: exportCode ?? null,
+            deputy_display_name: displayName ?? null,
+            updated_at: new Date().toISOString(),
+          }, { onConflict: 'id', ignoreDuplicates: false })
+
+        if (stagedProfileError) {
+          warnings.push(`Created auth user but failed to stage user_profiles row for ${stagedEmail}: ${stagedProfileError.message}`)
+          return null
+        }
+
+        staffStaged++
+        employeeCache.set(cacheKey, stagedId)
+        return stagedId
       }
 
       warnings.push(`Officer not found: export_code=${exportCode ?? 'n/a'} display="${displayName ?? 'n/a'}"`)
@@ -268,7 +367,7 @@ Deno.serve(async (req: Request) => {
       locationCode: string | undefined,
       areaExportCode: string | undefined,
     ): Promise<string | null> {
-      const cacheKey = areaExportCode ?? `${areaName}||${locationName}`
+      const cacheKey = areaExportCode ?? locationCode ?? `${normalizeName(areaName)}||${normalizeName(locationName)}`
       if (locationCache.has(cacheKey)) return locationCache.get(cacheKey)!
 
       if (areaExportCode) {
@@ -284,13 +383,40 @@ Deno.serve(async (req: Request) => {
         }
       }
 
-      // Create
+      if (locationCode) {
+        const { data: existingByCode } = await sb
+          .from('deputy_locations')
+          .select('id')
+          .eq('organization_id', orgId)
+          .eq('location_code', locationCode)
+          .maybeSingle()
+        if (existingByCode?.id) {
+          locationCache.set(cacheKey, existingByCode.id)
+          return existingByCode.id
+        }
+      }
+
+      if (locationName || areaName) {
+        const { data: existingByName } = await sb
+          .from('deputy_locations')
+          .select('id, area_name, location_name')
+          .eq('organization_id', orgId)
+          .ilike('location_name', locationName || areaName)
+          .limit(1)
+          .maybeSingle()
+        if (existingByName?.id) {
+          locationCache.set(cacheKey, existingByName.id)
+          return existingByName.id
+        }
+      }
+
+      // Create only when no existing row resolves.
       const { data: created, error } = await sb
         .from('deputy_locations')
         .insert({
           organization_id: orgId,
-          area_name: areaName,
-          location_name: locationName,
+          area_name: areaName || null,
+          location_name: locationName || areaName || null,
           location_code: locationCode ?? null,
           area_export_code: areaExportCode ?? null,
         })
@@ -305,6 +431,65 @@ Deno.serve(async (req: Request) => {
       locationsEnsured++
       locationCache.set(cacheKey, created.id)
       return created.id
+    }
+
+    async function ensureClientSite(locationName: string, locationCode: string | undefined, areaName: string): Promise<string | null> {
+      const candidateName = (locationName || areaName || '').trim()
+      if (!candidateName && !locationCode) return null
+
+      const cacheKey = locationCode ?? normalizeName(candidateName)
+      if (clientSiteCache.has(cacheKey)) return clientSiteCache.get(cacheKey)!
+
+      if (locationCode) {
+        const { data: byCode } = await sb
+          .from('client_sites')
+          .select('id')
+          .eq('organization_id', orgId)
+          .eq('site_code', locationCode)
+          .limit(1)
+          .maybeSingle()
+
+        if (byCode?.id) {
+          clientSiteCache.set(cacheKey, byCode.id)
+          return byCode.id
+        }
+      }
+
+      if (candidateName) {
+        const { data: byName } = await sb
+          .from('client_sites')
+          .select('id')
+          .eq('organization_id', orgId)
+          .ilike('name', candidateName)
+          .limit(1)
+          .maybeSingle()
+
+        if (byName?.id) {
+          clientSiteCache.set(cacheKey, byName.id)
+          return byName.id
+        }
+      }
+
+      const { data: createdSite, error: siteCreateError } = await sb
+        .from('client_sites')
+        .insert({
+          organization_id: orgId,
+          name: candidateName || `Site ${locationCode || crypto.randomUUID().slice(0, 8)}`,
+          site_code: locationCode ?? null,
+          site_type: 'guarding',
+          is_active: true,
+        })
+        .select('id')
+        .single()
+
+      if (siteCreateError || !createdSite?.id) {
+        warnings.push(`Could not create client_site: ${candidateName || locationCode || 'unnamed'} — ${siteCreateError?.message}`)
+        return null
+      }
+
+      clientSitesEnsured++
+      clientSiteCache.set(cacheKey, createdSite.id)
+      return createdSite.id
     }
 
     // ── Process rows ──────────────────────────────────────────────────────────
@@ -341,36 +526,52 @@ Deno.serve(async (req: Request) => {
       const autoRounded   = col(row, 'Auto-Rounded', 'AutoRounded')
       const discarded     = col(row, 'Discarded')
 
-      // Resolve officer
+      const schedStartIso = parseDeputyDatetime(schedStart)
+      const schedEndIso = parseDeputyDatetime(schedFinish)
+      const tsStartIso = parseDeputyDatetime(tsStart)
+      const tsEndIso = parseDeputyDatetime(tsFinish)
+
+      // Deterministic import IDs prevent double-ups across repeated imports.
+      const deputyScheduleId = (col(row, 'Schedule ID', 'Schedule Id', 'ScheduleID', 'External Schedule ID') || '').trim() || stableImportKey('schedule', [exportCode, schedStartIso, schedEndIso, locationCode, areaExportCode])
+      const deputyLeaveId = (col(row, 'Leave ID', 'Leave Id', 'LeaveID', 'External Leave ID') || '').trim() || stableImportKey('leave', [exportCode, leaveType, schedStartIso, schedEndIso, locationCode])
+      const deputyTimesheetId = (col(row, 'Timesheet ID', 'Timesheet Id', 'TimesheetID', 'External Timesheet ID') || '').trim() || stableImportKey('timesheet', [exportCode, tsStartIso, tsEndIso, locationCode])
+
+      // Resolve officer (match existing, optionally stage-create without invite flow)
       const officerId = await resolveOfficer(exportCode, displayName)
 
-      // Ensure location record
+      // Ensure location + site records (reuse existing where possible)
       let _locationId: string | null = null
-      if (areaName || locationName) {
+      if (areaName || locationName || locationCode) {
         _locationId = await ensureLocation(areaName, locationName, locationCode, areaExportCode)
       }
-
-      const schedStartIso = parseDeputyDatetime(schedStart)
+      const clientSiteId = await ensureClientSite(locationName, locationCode, areaName)
 
       // ── Leave request  ────────────────────────────────────────────────────
       if (isLeave && leaveType) {
+        if (seenLeaveIds.has(deputyLeaveId)) {
+          duplicateRowsSkipped++
+          continue
+        }
+        seenLeaveIds.add(deputyLeaveId)
+
         const dateStartStr = schedStartIso ? schedStartIso.slice(0, 10) : parseDeputyDate(schedStart)
-        const dateEndStr   = parseDeputyDatetime(schedFinish)?.slice(0, 10) ?? dateStartStr
+        const dateEndStr   = schedEndIso?.slice(0, 10) ?? dateStartStr
         if (!dateStartStr) {
           warnings.push(`Leave row skipped — cannot parse date for ${displayName ?? exportCode ?? 'unknown'}`)
           continue
         }
 
         const leavePayload = {
-          organization_id:  orgId,
-          officer_id:       officerId,
-          leave_type_name:  leaveType,
+          organization_id:   orgId,
+          officer_id:        officerId,
+          leave_type_name:   leaveType,
           leave_export_code: leaveCode ?? null,
-          is_paid:          leavePaid !== undefined ? bool(leavePaid) : true,
-          date_start:       dateStartStr,
-          date_end:         dateEndStr!,
-          total_hours:      num(schedDuration),
-          status:           bool(schedApproved) ? 'approved' : 'pending',
+          is_paid:           leavePaid !== undefined ? bool(leavePaid) : true,
+          date_start:        dateStartStr,
+          date_end:          dateEndStr!,
+          total_hours:       num(schedDuration),
+          status:            bool(schedApproved) ? 'approved' : 'pending',
+          deputy_leave_id:   deputyLeaveId,
           deputy_imported_at: new Date().toISOString(),
         }
 
@@ -388,52 +589,65 @@ Deno.serve(async (req: Request) => {
 
       // ── Roster shift (planned schedule)  ─────────────────────────────────
       if (schedStartIso) {
-        const shiftDate = schedStartIso.slice(0, 10)
-
-        const shiftPayload: Record<string, unknown> = {
-          organization_id:       orgId,
-          officer_id:            officerId,
-          shift_date:            shiftDate,
-          start_time:            schedStartIso,
-          end_time:              parseDeputyDatetime(schedFinish),
-          break_minutes:         0,
-          status:                bool(schedApproved) ? 'confirmed' : 'published',
-          deputy_area_name:      areaName || null,
-          deputy_location_name:  locationName || null,
-          location_code:         locationCode ?? null,
-          area_export_code:      areaExportCode ?? null,
-          schedule_cost:         num(schedCost),
-          schedule_warning:      schedWarning?.trim() || null,
-          pay_period_name:       payPeriod ?? null,
-          deputy_approved:       bool(schedApproved),
-          deputy_imported_at:    new Date().toISOString(),
-        }
-
-        const { error: shiftErr } = await sb
-          .from('roster_shifts')
-          .upsert(shiftPayload, { onConflict: 'organization_id,deputy_schedule_id', ignoreDuplicates: false })
-
-        if (shiftErr) {
-          warnings.push(`Roster shift upsert error: ${shiftErr.message}`)
+        if (seenScheduleIds.has(deputyScheduleId)) {
+          duplicateRowsSkipped++
         } else {
-          schedulesImported++
+          seenScheduleIds.add(deputyScheduleId)
+
+          const shiftDate = schedStartIso.slice(0, 10)
+          const shiftPayload: Record<string, unknown> = {
+            organization_id:       orgId,
+            officer_id:            officerId,
+            client_site_id:        clientSiteId,
+            shift_date:            shiftDate,
+            start_time:            schedStartIso,
+            end_time:              schedEndIso,
+            break_minutes:         0,
+            status:                bool(schedApproved) ? 'confirmed' : 'published',
+            deputy_schedule_id:    deputyScheduleId,
+            deputy_area_name:      areaName || null,
+            deputy_location_name:  locationName || null,
+            location_code:         locationCode ?? null,
+            area_export_code:      areaExportCode ?? null,
+            schedule_cost:         num(schedCost),
+            schedule_warning:      schedWarning?.trim() || null,
+            pay_period_name:       payPeriod ?? null,
+            deputy_approved:       bool(schedApproved),
+            deputy_imported_at:    new Date().toISOString(),
+          }
+
+          const { error: shiftErr } = await sb
+            .from('roster_shifts')
+            .upsert(shiftPayload, { onConflict: 'organization_id,deputy_schedule_id', ignoreDuplicates: false })
+
+          if (shiftErr) {
+            warnings.push(`Roster shift upsert error: ${shiftErr.message}`)
+          } else {
+            schedulesImported++
+          }
         }
       }
 
       // ── Timesheet (officer_shifts)  ───────────────────────────────────────
-      const tsStartIso = parseDeputyDatetime(tsStart)
       if (tsStartIso && officerId) {
+        if (seenTimesheetIds.has(deputyTimesheetId)) {
+          duplicateRowsSkipped++
+          continue
+        }
+        seenTimesheetIds.add(deputyTimesheetId)
+
         const tsPayload: Record<string, unknown> = {
-          organization_id:    orgId,
-          officer_id:         officerId,
-          started_at:         tsStartIso,
-          ended_at:           parseDeputyDatetime(tsFinish),
-          employee_comment:   empComment ?? null,
-          timesheet_cost:     num(tsCost),
-          is_in_progress:     bool(isInProgress),
-          auto_rounded:       bool(autoRounded),
-          discarded:          bool(discarded),
-          deputy_imported_at: new Date().toISOString(),
+          organization_id:     orgId,
+          officer_id:          officerId,
+          started_at:          tsStartIso,
+          ended_at:            tsEndIso,
+          employee_comment:    empComment ?? null,
+          timesheet_cost:      num(tsCost),
+          is_in_progress:      bool(isInProgress),
+          auto_rounded:        bool(autoRounded),
+          discarded:           bool(discarded),
+          deputy_timesheet_id: deputyTimesheetId,
+          deputy_imported_at:  new Date().toISOString(),
         }
 
         const { error: tsErr } = await sb
@@ -452,12 +666,17 @@ Deno.serve(async (req: Request) => {
     return new Response(
       JSON.stringify({
         success: true,
-        rows_processed:      rows.length,
-        employees_matched:   employeesMatched,
-        locations_ensured:   locationsEnsured,
-        schedules_imported:  schedulesImported,
-        leaves_imported:     leavesImported,
-        timesheets_imported: timesheetsImported,
+        rows_processed:         rows.length,
+        employees_matched:      employeesMatched,
+        staff_staged:           staffStaged,
+        create_missing_staff:   createMissingStaff,
+        invite_suppressed:      true,
+        locations_ensured:      locationsEnsured,
+        client_sites_ensured:   clientSitesEnsured,
+        duplicate_rows_skipped: duplicateRowsSkipped,
+        schedules_imported:     schedulesImported,
+        leaves_imported:        leavesImported,
+        timesheets_imported:    timesheetsImported,
         warnings,
       }),
       { headers: responseHeaders },

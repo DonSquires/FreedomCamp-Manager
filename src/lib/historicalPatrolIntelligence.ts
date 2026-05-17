@@ -355,10 +355,18 @@ function parseHistoricalPatrolRows(raw: string): HistoricalPatrolRow[] {
   }
 
   const rows: HistoricalPatrolRow[] = []
+  const seenDispatchIds = new Set<string>()
   for (let i = headerIndex + 1; i < records.length; i += 1) {
     const row = toRow(records[i], indexes)
     const hasSignal = row.internalDespatchId || row.clientName || row.despatchAt
     if (!hasSignal) continue
+
+    const normalizedDispatchId = String(row.internalDespatchId || '').trim()
+    if (normalizedDispatchId) {
+      if (seenDispatchIds.has(normalizedDispatchId)) continue
+      seenDispatchIds.add(normalizedDispatchId)
+    }
+
     rows.push(row)
   }
 

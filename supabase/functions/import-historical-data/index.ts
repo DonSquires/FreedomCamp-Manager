@@ -256,6 +256,8 @@ Deno.serve(async (req) => {
     const input_bucket = body.bucket || body.storage_bucket || null;
     const batch_name = body.batch_name || body.batchName || null;
     const organization_id = body.organization_id || body.organizationId;
+    const audit_bucket = body.audit_bucket || body.auditBucket || 'import-audits';
+    const audit_prefix = body.audit_prefix || body.auditPrefix || 'historical-imports';
 
     const inputFile = (file_url || file_path || '').trim();
 
@@ -905,8 +907,10 @@ Deno.serve(async (req) => {
 
     let successful = 0;
     let failed = 0;
+    let duplicatesSkipped = 0;
     let gpsInferredCount = 0;
     let gpsFallbackCount = 0;
+    const seenIdempotencyKeys = new Set<string>();
     const processingErrors: any[] = []; // Separate error log for processing phase (distinct from parsing errors)
 
     for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
@@ -969,6 +973,16 @@ Deno.serve(async (req) => {
           const dayEndNz = `${record.date}T23:59:59+13:00`;
           const idempotencyKey = `import:historical:${observationOrgId}:${record.zoneId}:${record.plate}:${record.date}`;
 
+          // In-batch duplicate guard before DB checks.
+          if (seenIdempotencyKeys.has(idempotencyKey)) {
+            console.log(`⏭️ [IMPORT] Skipping duplicate in current batch: ${record.plate} ${record.date}`);
+            record.status = 'success';
+            successful++;
+            duplicatesSkipped++;
+            continue;
+          }
+          seenIdempotencyKeys.add(idempotencyKey);
+
           // Check whether this record was already imported (idempotency guard)
           const { data: existing } = await supabaseAdmin
             .from('observations')
@@ -981,6 +995,7 @@ Deno.serve(async (req) => {
             console.log(`⏭️ [IMPORT] Skipping duplicate – already imported: ${record.plate} ${record.date} (obs ${existingObservationId})`);
             record.status = 'success';
             successful++;
+            duplicatesSkipped++;
             continue;
           }
 
@@ -1003,6 +1018,7 @@ Deno.serve(async (req) => {
             console.log(`⏭️ [IMPORT] Skipping duplicate – legacy match found: ${record.plate} ${record.date} (obs ${existingObservationId})`);
             record.status = 'success';
             successful++;
+            duplicatesSkipped++;
             continue;
           }
 
@@ -1139,9 +1155,54 @@ Deno.serve(async (req) => {
     console.log(`   Total: ${processedRecords.length}`);
     console.log(`   Success: ${successful}`);
     console.log(`   Failed: ${failed}`);
+    console.log(`   Duplicates Skipped: ${duplicatesSkipped}`);
     console.log(`   Zones Created: ${zonesCreated}`);
     console.log(`   GPS Inferred: ${gpsInferredCount}`);
     console.log(`   GPS Fallback (0,0): ${gpsFallbackCount}`);
+
+    const auditPayload = {
+      generated_at: new Date().toISOString(),
+      importer: 'import-historical-data',
+      batch_id: importBatchId,
+      organization_id: targetOrganizationId,
+      source: {
+        bucket,
+        file_path: resolvedFilePath,
+      },
+      metrics: {
+        total_records: processedRecords.length,
+        successful,
+        failed,
+        duplicates_skipped: duplicatesSkipped,
+        zones_created: zonesCreated,
+        gps_inferred_records: gpsInferredCount,
+        gps_fallback_records: gpsFallbackCount,
+      },
+      new_zones: uniqueNewZones,
+      processing_errors_sample: processingErrors.slice(0, 50),
+    };
+
+    let auditArtifactPath: string | null = null;
+    try {
+      const safeFileName = String(resolvedFilePath.split('/').pop() || 'unknown').replace(/[^a-zA-Z0-9._-]+/g, '_');
+      const ts = new Date().toISOString().replace(/[:.]/g, '-');
+      auditArtifactPath = `${String(audit_prefix).trim()}/import-historical-data/${targetOrganizationId}/${ts}_${safeFileName}.json`;
+
+      const { error: auditUploadError } = await supabaseAdmin.storage
+        .from(String(audit_bucket).trim())
+        .upload(auditArtifactPath, JSON.stringify(auditPayload, null, 2), {
+          contentType: 'application/json',
+          upsert: true,
+        });
+
+      if (auditUploadError) {
+        console.warn('⚠️ [IMPORT] Failed to upload audit artifact:', auditUploadError.message);
+        auditArtifactPath = null;
+      }
+    } catch (auditError: any) {
+      console.warn('⚠️ [IMPORT] Failed to write audit artifact:', auditError?.message || String(auditError));
+      auditArtifactPath = null;
+    }
 
     return new Response(
       JSON.stringify({
@@ -1153,10 +1214,15 @@ Deno.serve(async (req) => {
           total: processedRecords.length,
           successful,
           failed,
+          duplicates_skipped: duplicatesSkipped,
           zones_created: zonesCreated,
           gps_inferred_records: gpsInferredCount,
           gps_fallback_records: gpsFallbackCount,
           new_zones: uniqueNewZones,
+        },
+        audit_artifact: {
+          bucket: String(audit_bucket).trim(),
+          path: auditArtifactPath,
         },
         error_log: processingErrors.length > 0 ? processingErrors.slice(0, 10) : undefined,
       }),

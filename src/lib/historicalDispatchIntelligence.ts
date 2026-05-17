@@ -279,13 +279,24 @@ export function buildHistoricalDispatchPlacementReview(raw: string): HistoricalD
   let rowsMissingDespatchNo = 0
   let rowsMissingTimestamps = 0
   let rowsRequiringReview = 0
+  let duplicateDespatchRows = 0
   const typeCounts = defaultTypeCounts()
+  const seenDespatchNos = new Set<string>()
 
   for (let i = headerIndex + 1; i < records.length; i += 1) {
     const cells = records[i]
     const row = toRow(cells, indexes)
     const hasSignal = row.despatchNo || row.clientName || row.despatchComments
     if (!hasSignal) continue
+
+    const normalizedDespatchNo = String(row.despatchNo || '').trim()
+    if (normalizedDespatchNo) {
+      if (seenDespatchNos.has(normalizedDespatchNo)) {
+        duplicateDespatchRows += 1
+        continue
+      }
+      seenDespatchNos.add(normalizedDespatchNo)
+    }
 
     let requiresReview = false
     if (!row.despatchNo) rowsMissingDespatchNo += 1
@@ -308,6 +319,9 @@ export function buildHistoricalDispatchPlacementReview(raw: string): HistoricalD
   }
   if (typeCounts.other_dispatch > 0) {
     trainingTips.push('Rows classified as other_dispatch should be reviewed by admin and assigned an explicit job type before import.')
+  }
+  if (duplicateDespatchRows > 0) {
+    trainingTips.push(`Detected ${duplicateDespatchRows} duplicate despatch row(s); only the first row per despatch number is staged.`)
   }
 
   return {

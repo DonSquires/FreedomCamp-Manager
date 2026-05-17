@@ -8,6 +8,8 @@ interface ImportRequest {
   isImage?: boolean;
   recordDate?: string;
   organizationId?: string;
+  auditBucket?: string;
+  auditPrefix?: string;
 }
 
 function normalizeTimestamp(input: unknown): string | null {
@@ -45,7 +47,16 @@ Deno.serve(withCors(async (req) => {
       });
     }
 
-    const { fileContent, fileName, isImage, recordDate, organizationId }: ImportRequest = await req.json();
+    const reqBody = await req.json();
+    const {
+      fileContent,
+      fileName,
+      isImage,
+      recordDate,
+      organizationId,
+      auditBucket,
+      auditPrefix,
+    }: ImportRequest = reqBody;
 
     const resolvedOrgId =
       organizationId ||
@@ -132,9 +143,11 @@ ${fileContent}`;
       // Get or create "To Sort" organization for non-master users
       let toSortOrg = await supabaseClient
         .from('organizations')
-        .select('id')
+        .select('id, created_at')
         .eq('name', 'To Sort')
-        .single();
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle();
 
       if (!toSortOrg.data) {
         const { data: newOrg, error: orgError } = await supabaseClient
@@ -177,7 +190,8 @@ ${fileContent}`;
           .select('id, loi_id')
           .eq('name', zone.name)
           .eq('organization_id', targetOrgId)
-          .single();
+          .limit(1)
+          .maybeSingle();
 
         if (existingZone) {
           zoneMap.set(zone.name, existingZone.id);
@@ -212,6 +226,7 @@ ${fileContent}`;
 
     // Insert vehicle observations (new schema)
     const observationsToInsert = [];
+    const seenObservationKeys = new Set<string>();
     const skippedRecords = [];
 
     for (const record of extractedData.records || []) {
@@ -268,14 +283,25 @@ ${fileContent}`;
         continue;
       }
 
+      const plate = String(record.plate_number || '').toUpperCase();
+      const day = timestamp.slice(0, 10);
+      const idempotencyKey = `import:historical:${targetOrgId}:${zoneId}:${plate}:${day}`;
+
+      if (seenObservationKeys.has(idempotencyKey)) {
+        skippedRecords.push({ record, reason: `Duplicate row in file (idempotency key ${idempotencyKey})` });
+        continue;
+      }
+      seenObservationKeys.add(idempotencyKey);
+
       observationsToInsert.push({
         organization_id: targetOrgId,
         zone_id: zoneId,
         loi_id: resolvedLoiId,
-        plate_number: record.plate_number.toUpperCase(),
+        plate_number: plate,
         self_contained: record.is_self_contained ?? false,
         recorded_at: timestamp,
         recorded_by: user.id,
+        idempotency_key: idempotencyKey,
         officer_notes: record.notes || null,
         has_notes: !!record.notes,
         is_compliant: record.is_compliant ?? true,
@@ -283,19 +309,39 @@ ${fileContent}`;
     }
 
     let insertedCount = 0;
+    let duplicateCount = 0;
     const insertErrors = [];
 
     if (observationsToInsert.length > 0) {
-      const { data, error: insertError } = await supabaseClient
-        .from('observations')
-        .insert(observationsToInsert)
-        .select();
+      for (const row of observationsToInsert) {
+        const { data: existingByKey, error: existingErr } = await supabaseClient
+          .from('observations')
+          .select('id, observation_id')
+          .eq('idempotency_key', row.idempotency_key)
+          .limit(1)
+          .maybeSingle();
 
-      if (insertError) {
-        console.error('Error inserting observations:', insertError);
-        insertErrors.push(insertError.message);
-      } else {
-        insertedCount = data?.length || 0;
+        if (existingErr) {
+          console.error('Error checking duplicate observation:', existingErr);
+          insertErrors.push(existingErr.message);
+          continue;
+        }
+
+        if (existingByKey) {
+          duplicateCount += 1;
+          continue;
+        }
+
+        const { error: insertError } = await supabaseClient
+          .from('observations')
+          .insert(row);
+
+        if (insertError) {
+          console.error('Error inserting observation row:', insertError);
+          insertErrors.push(insertError.message);
+        } else {
+          insertedCount += 1;
+        }
       }
     }
 
@@ -303,6 +349,7 @@ ${fileContent}`;
       success: true,
       zonesCreated: zoneMap.size,
       observationsInserted: insertedCount,
+      duplicateObservationsSkipped: duplicateCount,
       recordsSkipped: skippedRecords.length,
       errors: insertErrors,
       details: {
@@ -311,9 +358,57 @@ ${fileContent}`;
       },
     };
 
+    const auditPayload = {
+      generated_at: new Date().toISOString(),
+      importer: 'import-data',
+      source_file: fileName,
+      organization_id: targetOrgId,
+      metrics: {
+        zones_created: zoneMap.size,
+        observations_inserted: insertedCount,
+        duplicate_observations_skipped: duplicateCount,
+        records_skipped: skippedRecords.length,
+      },
+      skipped_records_sample: skippedRecords.slice(0, 50),
+      errors: insertErrors,
+    };
+
+    let auditArtifactPath: string | null = null;
+    const effectiveAuditBucket = String(auditBucket || '').trim() || 'import-audits';
+    const effectiveAuditPrefix = String(auditPrefix || '').trim() || 'historical-imports';
+
+    try {
+      const safeFileName = String(fileName || 'unknown').replace(/[^a-zA-Z0-9._-]+/g, '_');
+      const ts = new Date().toISOString().replace(/[:.]/g, '-');
+      auditArtifactPath = `${effectiveAuditPrefix}/import-data/${targetOrgId}/${ts}_${safeFileName}.json`;
+
+      const { error: auditUploadError } = await supabaseClient.storage
+        .from(effectiveAuditBucket)
+        .upload(auditArtifactPath, JSON.stringify(auditPayload, null, 2), {
+          contentType: 'application/json',
+          upsert: true,
+        });
+
+      if (auditUploadError) {
+        console.warn('Failed to upload historical import audit artifact:', auditUploadError.message);
+        insertErrors.push(`audit_upload_failed:${auditUploadError.message}`);
+        auditArtifactPath = null;
+      }
+    } catch (auditError: any) {
+      console.warn('Failed to write historical import audit artifact:', auditError?.message || String(auditError));
+      insertErrors.push(`audit_write_failed:${auditError?.message || String(auditError)}`);
+      auditArtifactPath = null;
+    }
+
     console.log('Import summary:', summary);
 
-    return new Response(JSON.stringify(summary), {
+    return new Response(JSON.stringify({
+      ...summary,
+      audit_artifact: {
+        bucket: effectiveAuditBucket,
+        path: auditArtifactPath,
+      },
+    }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
 
