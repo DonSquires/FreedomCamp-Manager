@@ -6,6 +6,7 @@
  * explicitly enabled per environment.
  *
  * VITE_RADIO_SFU_ENABLED          — Phase 1: use mediasoup SFU transport instead of P2P
+ * VITE_RADIO_TRANSCRIPT_INGESTION_ENABLED — Phase 2: enable transcript ingestion pipeline features
  * VITE_RADIO_CAPTIONS_ENABLED     — Phase 2: display live STT captions panel
  * VITE_RADIO_TRANSLATION_ENABLED  — Phase 3: display translation controls and output
  * VITE_RADIO_SYNTHETIC_AUDIO_ENABLED — Phase 4+5: badge synthetic/TTS audio in TX log
@@ -23,6 +24,12 @@ function anyFlag(keys: string[]): boolean {
 export const radioFeatureFlags = {
   /** Use mediasoup SFU transport instead of peer-to-peer WebRTC. Phase 1. */
   sfuEnabled: anyFlag(['VITE_RADIO_SFU_ENABLED', 'VITE_FF_PHASE_0_SFU_ENABLED']),
+
+  /** Enable transcript ingestion pipeline features. Phase 2. */
+  transcriptIngestionEnabled: anyFlag([
+    'VITE_RADIO_TRANSCRIPT_INGESTION_ENABLED',
+    'VITE_FF_PHASE_0_TRANSCRIPT_INGESTION',
+  ]),
 
   /** Show live STT caption panel below the transmission log. Phase 2. */
   captionsEnabled: anyFlag(['VITE_RADIO_CAPTIONS_ENABLED', 'VITE_FF_PHASE_0_LIVE_CAPTIONS']),

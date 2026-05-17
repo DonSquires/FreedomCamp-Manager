@@ -14,7 +14,12 @@ export interface PTTTransport {
   isConnected(): boolean;
 }
 
-const SFU_ENABLED = import.meta.env.VITE_RADIO_SFU_ENABLED === 'true';
+function flag(name: string): boolean {
+  const raw = String((import.meta.env as Record<string, string | undefined>)[name] ?? '').toLowerCase()
+  return raw === '1' || raw === 'true' || raw === 'yes' || raw === 'on'
+}
+
+const SFU_ENABLED = flag('VITE_RADIO_SFU_ENABLED') || flag('VITE_FF_PHASE_0_SFU_ENABLED')
 
 export async function createTransport(config: any): Promise<PTTTransport> {
   console.log(`[PTT Transport] Creating ${SFU_ENABLED ? 'SFU' : 'P2P'} transport`);

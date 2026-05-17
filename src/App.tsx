@@ -158,6 +158,7 @@ const PatrolModule = lazy(() => import('@/modules').then((m) => ({ default: m.Pa
 const PatrolDetail = lazy(() => import('@/modules').then((m) => ({ default: m.PatrolDetail })))
 const EnforcementModule = lazy(() => import('@/modules').then((m) => ({ default: m.EnforcementModule })))
 const PTTRadio = lazy(() => import('@/pages/PTTRadio'))
+const RadioUI = lazy(() => import('@/pages/RadioUI'))
 const PTTTransmissionLog = lazy(() => import('@/pages/PTTTransmissionLog').then((m) => ({ default: m.PTTTransmissionLog })))
 const RadioAuditDashboard = lazy(() => import('@/pages/RadioAuditDashboard'))
 const RadioTransmissionsLog = lazy(() => import('@/pages/RadioTransmissionsLog'))
@@ -1609,6 +1610,15 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <PTTRadio />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/radio-ui"
+            element={
+              <ProtectedRoute>
+                <RadioUI />
               </ProtectedRoute>
             }
           />

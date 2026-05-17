@@ -246,9 +246,26 @@ const CONNECT_STORM_WINDOW_MS = 15000
 const CONNECT_STORM_MAX_ATTEMPTS = 6
 const CONNECT_STORM_COOLDOWN_MS = 20000
 const CONNECTION_WARNING_TIMEOUT_MS = 12000
-const CAPTION_DELAY_THRESHOLD_MS = 6000
 const CAPTION_LOW_CONFIDENCE_THRESHOLD = 0.65
 const SYNTHETIC_RELAY_DELAY_THRESHOLD_MS = 1500
+
+function readCaptionDelayThresholdMs(): number {
+  const env = import.meta.env as Record<string, string | undefined>
+  const raw = String(
+    env.VITE_FF_PHASE_0_CAPTION_LATENCY_THRESHOLD_MS
+      ?? env.VITE_RADIO_CAPTION_DELAY_THRESHOLD_MS
+      ?? '',
+  ).trim()
+
+  const parsed = Number.parseInt(raw, 10)
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return 6000
+  }
+
+  return parsed
+}
+
+const CAPTION_DELAY_THRESHOLD_MS = readCaptionDelayThresholdMs()
 
 function isLowConfidenceCaption(seg: CaptionSegment): boolean {
   return seg.isFinal

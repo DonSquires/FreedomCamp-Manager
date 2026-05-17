@@ -4,6 +4,11 @@ import { corsHeaders } from '../_shared/cors.ts'
 
 const RADIO_FLOOR_PROVIDER_URL = Deno.env.get('RADIO_FLOOR_PROVIDER_URL') ?? ''
 const RADIO_PROXY_SECRET = Deno.env.get('RADIO_PROXY_SECRET') ?? Deno.env.get('PTT_PROXY_SECRET') ?? ''
+const REQUIRE_BOB_APPROVAL = ['1', 'true', 'yes', 'on'].includes(
+  String(Deno.env.get('RADIO_REQUIRE_BOB_APPROVAL') ?? '').toLowerCase(),
+)
+
+const SUPERVISOR_ROLES = new Set(['admin', 'admin_officer', 'master', 'grand_master'])
 
 function json(status: number, body: Record<string, unknown>) {
   return new Response(JSON.stringify(body), {
@@ -12,16 +17,17 @@ function json(status: number, body: Record<string, unknown>) {
   })
 }
 
-async function logFloorEvent(
+async function logOverrideEvent(
   supabase: ReturnType<typeof createClient>,
   event: {
     orgId: string
     channelId: string
     sessionId: string
     status: 'requested' | 'granted' | 'rejected' | 'released'
-    speakerId: string
+    speakerId: string | null
     operatorId: string
-    reason?: string
+    reason: string
+    bobProposalId: string | null
     details?: Record<string, unknown>
   },
 ) {
@@ -29,16 +35,20 @@ async function logFloorEvent(
     org_id: event.orgId,
     channel_id: event.channelId,
     session_id: event.sessionId,
-    event_type: 'release',
+    event_type: 'override',
     status: event.status,
     speaker_id: event.speakerId,
     operator_id: event.operatorId,
-    reason: event.reason ?? null,
-    details: event.details ?? {},
+    reason: event.reason,
+    details: {
+      emergency_override: true,
+      bob_proposal_id: event.bobProposalId,
+      ...(event.details ?? {}),
+    },
   })
 
   if (error) {
-    console.error('radio-floor-release: failed to write floor event', error)
+    console.error('radio-floor-override: failed to write override event', error)
   }
 }
 
@@ -73,15 +83,25 @@ serve(async (req: Request) => {
 
   const { data: profile, error: profileError } = await supabase
     .from('user_profiles')
-    .select('organization_id')
+    .select('organization_id, role')
     .eq('id', authData.user.id)
     .maybeSingle()
 
-  if (profileError || !profile?.organization_id) {
+  if (profileError || !profile?.organization_id || !profile?.role) {
     return json(403, { error: 'Profile missing organization context' })
   }
 
-  let body: { channelId?: string; sessionId?: string; reason?: string; bobProposalId?: string }
+  if (!SUPERVISOR_ROLES.has(profile.role)) {
+    return json(403, { error: 'Emergency override requires supervisor role' })
+  }
+
+  let body: {
+    channelId?: string
+    sessionId?: string
+    reason?: string
+    targetSpeakerId?: string
+    bobProposalId?: string
+  }
   try {
     body = await req.json()
   } catch {
@@ -90,42 +110,65 @@ serve(async (req: Request) => {
 
   const channelId = String(body.channelId ?? '').trim()
   const sessionId = String(body.sessionId ?? '').trim()
-  const reason = String(body.reason ?? 'user_release').trim()
+  const reason = String(body.reason ?? 'supervisor_override').trim()
+  const targetSpeakerId = String(body.targetSpeakerId ?? '').trim() || null
   const bobProposalId = String(body.bobProposalId ?? '').trim() || null
+
   if (!channelId || !sessionId) {
     return json(400, { error: 'channelId and sessionId are required' })
   }
 
-  // Phase 0-1 scaffold: relay to external floor coordinator when configured.
-  if (!RADIO_FLOOR_PROVIDER_URL || !RADIO_PROXY_SECRET) {
-    await logFloorEvent(supabase, {
+  if (REQUIRE_BOB_APPROVAL && !bobProposalId) {
+    await logOverrideEvent(supabase, {
       orgId: profile.organization_id,
       channelId,
       sessionId,
       status: 'rejected',
-      speakerId: authData.user.id,
+      speakerId: targetSpeakerId,
       operatorId: authData.user.id,
       reason,
+      bobProposalId,
       details: {
-        source: 'radio-floor-release',
+        failure: 'missing_bob_proposal_id',
+        gate: 'phase-d-d1',
+      },
+    })
+
+    return json(412, {
+      error: 'Bob approval contract required',
+      message: 'Provide bobProposalId when RADIO_REQUIRE_BOB_APPROVAL is enabled.',
+      gate: 'phase-d-d1',
+    })
+  }
+
+  if (!RADIO_FLOOR_PROVIDER_URL || !RADIO_PROXY_SECRET) {
+    await logOverrideEvent(supabase, {
+      orgId: profile.organization_id,
+      channelId,
+      sessionId,
+      status: 'rejected',
+      speakerId: targetSpeakerId,
+      operatorId: authData.user.id,
+      reason,
+      bobProposalId,
+      details: {
+        source: 'radio-floor-override',
         phase: 'phase-0-1-scaffold',
         failure: 'provider_not_configured',
-        bobProposalId,
       },
     })
 
     return json(501, {
-      error: 'radio-floor-release not configured',
-      message: 'Set RADIO_FLOOR_PROVIDER_URL and RADIO_PROXY_SECRET to enable floor release.',
+      error: 'radio-floor-override not configured',
+      message: 'Set RADIO_FLOOR_PROVIDER_URL and RADIO_PROXY_SECRET to enable override.',
       phase: 'phase-0-1-scaffold',
       channelId,
       sessionId,
-      reason,
     })
   }
 
   try {
-    const upstream = await fetch(`${RADIO_FLOOR_PROVIDER_URL.replace(/\/+$/, '')}/release`, {
+    const upstream = await fetch(`${RADIO_FLOOR_PROVIDER_URL.replace(/\/+$/, '')}/override`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -136,46 +179,48 @@ serve(async (req: Request) => {
         channelId,
         sessionId,
         reason,
-        userId: authData.user.id,
+        targetSpeakerId,
+        operatorId: authData.user.id,
+        bobProposalId,
       }),
     })
 
     const payload = await upstream.json().catch(() => ({ error: 'Invalid upstream response' }))
     if (!upstream.ok) {
-      await logFloorEvent(supabase, {
+      await logOverrideEvent(supabase, {
         orgId: profile.organization_id,
         channelId,
         sessionId,
         status: 'rejected',
-        speakerId: authData.user.id,
+        speakerId: targetSpeakerId,
         operatorId: authData.user.id,
         reason,
+        bobProposalId,
         details: {
-          source: 'radio-floor-release',
+          source: 'radio-floor-override',
           phase: 'phase-0-1-scaffold',
-          bobProposalId,
           upstream: payload,
         },
       })
 
       return json(409, {
-        error: 'Floor release rejected',
+        error: 'Floor override rejected',
         details: payload,
       })
     }
 
-    await logFloorEvent(supabase, {
+    await logOverrideEvent(supabase, {
       orgId: profile.organization_id,
       channelId,
       sessionId,
-      status: 'released',
-      speakerId: authData.user.id,
+      status: 'granted',
+      speakerId: targetSpeakerId,
       operatorId: authData.user.id,
       reason,
+      bobProposalId,
       details: {
-        source: 'radio-floor-release',
+        source: 'radio-floor-override',
         phase: 'phase-0-1-scaffold',
-        bobProposalId,
       },
     })
 
@@ -185,8 +230,26 @@ serve(async (req: Request) => {
       channelId,
       sessionId,
       reason,
+      operatorId: authData.user.id,
+      bobProposalId,
     })
   } catch (error) {
+    await logOverrideEvent(supabase, {
+      orgId: profile.organization_id,
+      channelId,
+      sessionId,
+      status: 'rejected',
+      speakerId: targetSpeakerId,
+      operatorId: authData.user.id,
+      reason,
+      bobProposalId,
+      details: {
+        source: 'radio-floor-override',
+        phase: 'phase-0-1-scaffold',
+        exception: String(error),
+      },
+    })
+
     return json(503, {
       error: 'Floor coordinator unavailable',
       details: String(error),

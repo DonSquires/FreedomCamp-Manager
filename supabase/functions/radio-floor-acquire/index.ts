@@ -12,6 +12,36 @@ function json(status: number, body: Record<string, unknown>) {
   })
 }
 
+async function logFloorEvent(
+  supabase: ReturnType<typeof createClient>,
+  event: {
+    orgId: string
+    channelId: string
+    sessionId: string
+    status: 'requested' | 'granted' | 'rejected' | 'released'
+    speakerId: string
+    operatorId: string
+    reason?: string
+    details?: Record<string, unknown>
+  },
+) {
+  const { error } = await supabase.from('radio_floor_events').insert({
+    org_id: event.orgId,
+    channel_id: event.channelId,
+    session_id: event.sessionId,
+    event_type: 'acquire',
+    status: event.status,
+    speaker_id: event.speakerId,
+    operator_id: event.operatorId,
+    reason: event.reason ?? null,
+    details: event.details ?? {},
+  })
+
+  if (error) {
+    console.error('radio-floor-acquire: failed to write floor event', error)
+  }
+}
+
 serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -41,7 +71,17 @@ serve(async (req: Request) => {
     return json(401, { error: 'Unauthorized' })
   }
 
-  let body: { channelId?: string; sessionId?: string }
+  const { data: profile, error: profileError } = await supabase
+    .from('user_profiles')
+    .select('organization_id')
+    .eq('id', authData.user.id)
+    .maybeSingle()
+
+  if (profileError || !profile?.organization_id) {
+    return json(403, { error: 'Profile missing organization context' })
+  }
+
+  let body: { channelId?: string; sessionId?: string; reason?: string; bobProposalId?: string }
   try {
     body = await req.json()
   } catch {
@@ -50,12 +90,30 @@ serve(async (req: Request) => {
 
   const channelId = String(body.channelId ?? '').trim()
   const sessionId = String(body.sessionId ?? '').trim()
+  const reason = String(body.reason ?? 'floor_request').trim()
+  const bobProposalId = String(body.bobProposalId ?? '').trim() || null
   if (!channelId || !sessionId) {
     return json(400, { error: 'channelId and sessionId are required' })
   }
 
   // Phase 0-1 scaffold: relay to external floor coordinator when configured.
   if (!RADIO_FLOOR_PROVIDER_URL || !RADIO_PROXY_SECRET) {
+    await logFloorEvent(supabase, {
+      orgId: profile.organization_id,
+      channelId,
+      sessionId,
+      status: 'rejected',
+      speakerId: authData.user.id,
+      operatorId: authData.user.id,
+      reason,
+      details: {
+        source: 'radio-floor-acquire',
+        phase: 'phase-0-1-scaffold',
+        failure: 'provider_not_configured',
+        bobProposalId,
+      },
+    })
+
     return json(501, {
       error: 'radio-floor-acquire not configured',
       message: 'Set RADIO_FLOOR_PROVIDER_URL and RADIO_PROXY_SECRET to enable floor acquisition.',
@@ -82,11 +140,42 @@ serve(async (req: Request) => {
 
     const payload = await upstream.json().catch(() => ({ error: 'Invalid upstream response' }))
     if (!upstream.ok) {
+      await logFloorEvent(supabase, {
+        orgId: profile.organization_id,
+        channelId,
+        sessionId,
+        status: 'rejected',
+        speakerId: authData.user.id,
+        operatorId: authData.user.id,
+        reason,
+        details: {
+          source: 'radio-floor-acquire',
+          phase: 'phase-0-1-scaffold',
+          bobProposalId,
+          upstream: payload,
+        },
+      })
+
       return json(409, {
         error: 'Floor acquire rejected',
         details: payload,
       })
     }
+
+    await logFloorEvent(supabase, {
+      orgId: profile.organization_id,
+      channelId,
+      sessionId,
+      status: 'granted',
+      speakerId: authData.user.id,
+      operatorId: authData.user.id,
+      reason,
+      details: {
+        source: 'radio-floor-acquire',
+        phase: 'phase-0-1-scaffold',
+        bobProposalId,
+      },
+    })
 
     return json(200, {
       ...payload,
