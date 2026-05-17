@@ -1,12 +1,3 @@
-interface TranslationResult {
-  translated_text: string;
-  target_language: string;
-  detected_source?: string | null;
-  translation_confidence?: number;
-  confidence_reason?: string;
-  provider?: string;
-  fallback?: boolean;
-}
 /**
  * PTTRadio — Independent 2-way radio system
  *
@@ -70,6 +61,12 @@ import { radioTranslationService, type TranslationSegment } from '@/lib/radio/ra
 import { containsWakeWord, getCoworkerChannelVolume } from '@/lib/radio/phase2AudioLogic'
 import { reverseGeocode } from '@/lib/geocoding'
 import { checkInferenceHealth } from '@/lib/proxyServices'
+import {
+  emitPTTAiTelemetry,
+  normalizePTTTranscriptionPayload,
+  normalizePTTTranslationPayload,
+  type PTTTranslationContract,
+} from '@/lib/pttAiContract'
 import { AppLayout } from '@/components/features/AppLayout'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -558,7 +555,7 @@ export default function PTTRadio() {
   const [resolvedMultiplexMode, setResolvedMultiplexMode] = useState<'tactical' | 'diplomatic' | null>(null)
   const [interpreterInput, setInterpreterInput] = useState('')
   const [interpreterOutput, setInterpreterOutput] = useState('')
-  const [interpreterTranslationMeta, setInterpreterTranslationMeta] = useState<TranslationResult | null>(null)
+  const [interpreterTranslationMeta, setInterpreterTranslationMeta] = useState<PTTTranslationContract | null>(null)
   const [interpreterTargetLanguage, setInterpreterTargetLanguage] = useState('en-NZ')
   const [interpreterPrefsHydrated, setInterpreterPrefsHydrated] = useState(false)
   const [isInterpreterListening, setIsInterpreterListening] = useState(false)
@@ -2214,9 +2211,21 @@ export default function PTTRadio() {
     setLastClipTranscript(null)
     setIsTranscribing(true)
 
+    const startedAt = Date.now()
     edgeFunctions.transcribeAudio({ clip_url: clip.clipUrl, language: 'en' })
-      .then((result: any) => {
-        const text = result?.transcript ?? result?.text ?? null
+      .then(({ data, error }) => {
+        if (error) throw new Error(error)
+        const normalized = normalizePTTTranscriptionPayload(data, Date.now() - startedAt)
+        emitPTTAiTelemetry({
+          surface: 'web',
+          stage: 'transcribe',
+          success: normalized.transcript.length > 0,
+          latency_ms: normalized.latency_ms,
+          details: {
+            provider: normalized.provider,
+          },
+        })
+        const text = normalized.transcript || null
         setLastClipTranscript(text)
 
         if (radioFeatureFlags.captionsEnabled && text?.trim()) {
@@ -2226,13 +2235,20 @@ export default function PTTRadio() {
             segmentStartMs: 0,
             segmentEndMs: Math.max(1000, Math.round(Number(clip.duration || 0) * 1000) || 3000),
             text: String(text).trim(),
-            language: 'en',
-            confidence: typeof result?.confidence === 'number' ? Number(result.confidence) : 0.72,
+            language: normalized.source_language || 'en',
+            confidence: normalized.confidence ?? 0.72,
             isFinal: true,
           })
         }
       })
-      .catch(() => {
+      .catch((err: any) => {
+        emitPTTAiTelemetry({
+          surface: 'web',
+          stage: 'transcribe',
+          success: false,
+          latency_ms: Date.now() - startedAt,
+          reason: err?.message || 'unknown-error',
+        })
         // Transcription is best-effort — silently fail
       })
       .finally(() => setIsTranscribing(false))
@@ -2387,8 +2403,31 @@ export default function PTTRadio() {
         if (!clipUrl) return
 
         try {
-          const result = await edgeFunctions.transcribeAudio({ clip_url: clipUrl, language: 'en' })
-          const transcript = String((result as any)?.transcript ?? (result as any)?.text ?? '').trim()
+          const startedAt = Date.now()
+          const { data, error } = await edgeFunctions.transcribeAudio({ clip_url: clipUrl, language: 'en' })
+          if (error) {
+            emitPTTAiTelemetry({
+              surface: 'web',
+              stage: 'transcribe',
+              success: false,
+              latency_ms: Date.now() - startedAt,
+              reason: error,
+            })
+            return
+          }
+
+          const normalized = normalizePTTTranscriptionPayload(data, Date.now() - startedAt)
+          emitPTTAiTelemetry({
+            surface: 'web',
+            stage: 'transcribe',
+            success: normalized.transcript.length > 0,
+            latency_ms: normalized.latency_ms,
+            details: {
+              provider: normalized.provider,
+            },
+          })
+
+          const transcript = normalized.transcript.trim()
           if (!transcript) return
 
           setTxLog((prev) => prev.map((item) => (item.id === entry.id ? { ...item, transcript } : item)))
@@ -2534,7 +2573,8 @@ export default function PTTRadio() {
     setIsInterpreterTranslating(true)
     try {
       let translatedText = ''
-      let meta: TranslationResult | null = null
+      let meta: PTTTranslationContract | null = null
+      const startedAt = Date.now()
 
       const { data, error } = await edgeFunctions.translateMessage({
         text,
@@ -2542,22 +2582,29 @@ export default function PTTRadio() {
       })
 
       if (!error && data) {
-        translatedText = String((data as any)?.translated_text || '').trim()
+        const normalized = normalizePTTTranslationPayload(data, {
+          targetLanguage: interpreterTargetLanguage,
+          latencyMs: Date.now() - startedAt,
+        })
+        translatedText = normalized.translated_text.trim()
         if (translatedText) {
-          meta = {
-            translated_text: translatedText,
-            target_language: String((data as any)?.target_language || interpreterTargetLanguage),
-            detected_source: typeof (data as any)?.detected_source === 'string' ? (data as any).detected_source : null,
-            translation_confidence: typeof (data as any)?.translation_confidence === 'number' ? (data as any).translation_confidence : undefined,
-            confidence_reason: typeof (data as any)?.confidence_reason === 'string' ? (data as any).confidence_reason : undefined,
-            provider: typeof (data as any)?.provider === 'string' ? (data as any).provider : undefined,
-            fallback: (data as any)?.fallback === true,
-          }
+          meta = normalized
+          emitPTTAiTelemetry({
+            surface: 'web',
+            stage: 'translate',
+            success: true,
+            latency_ms: normalized.latency_ms,
+            details: {
+              target_language: normalized.target_language,
+              fallback: normalized.fallback,
+            },
+          })
         }
       }
 
       // Tactical fallback: use translator pod REST when edge translation path fails.
       if (!translatedText && translatorRestUrl) {
+        const fallbackStartedAt = Date.now()
         const controller = new AbortController()
         const timeout = setTimeout(() => controller.abort(), 15000)
         try {
@@ -2583,18 +2630,39 @@ export default function PTTRadio() {
             const fallbackText = String(fallbackData?.translated || fallbackData?.translated_text || '').trim()
             if (fallbackText) {
               translatedText = fallbackText
-              meta = {
+              meta = normalizePTTTranslationPayload({
                 translated_text: fallbackText,
                 target_language: String(fallbackData?.target_lang || interpreterTargetLanguage),
-                detected_source: typeof fallbackData?.source_lang === 'string' ? fallbackData.source_lang : null,
+                source_lang: typeof fallbackData?.source_lang === 'string' ? fallbackData.source_lang : null,
                 translation_confidence: 0.7,
                 confidence_reason: 'Direct translator pod fallback path used.',
                 provider: 'translator-rest-fallback',
                 fallback: true,
-              }
+              }, {
+                targetLanguage: interpreterTargetLanguage,
+                latencyMs: Date.now() - fallbackStartedAt,
+              })
+              emitPTTAiTelemetry({
+                surface: 'web',
+                stage: 'translate',
+                success: true,
+                latency_ms: meta.latency_ms,
+                details: {
+                  target_language: meta.target_language,
+                  fallback: true,
+                  provider: meta.provider,
+                },
+              })
             }
           }
         } catch (fetchErr: any) {
+          emitPTTAiTelemetry({
+            surface: 'web',
+            stage: 'translate',
+            success: false,
+            latency_ms: Date.now() - fallbackStartedAt,
+            reason: fetchErr?.message || 'translator-rest-failed',
+          })
           // Translator pod unreachable — log quietly and allow outer handler to surface degraded message
           console.warn('PTT interpreter translator pod unavailable:', fetchErr?.message || fetchErr)
         } finally {
@@ -2603,6 +2671,13 @@ export default function PTTRadio() {
       }
 
       if (!translatedText || !meta) {
+        emitPTTAiTelemetry({
+          surface: 'web',
+          stage: 'translate',
+          success: false,
+          latency_ms: Date.now() - startedAt,
+          reason: error || 'translation-unavailable',
+        })
         throw new Error('Translation unavailable right now')
       }
 

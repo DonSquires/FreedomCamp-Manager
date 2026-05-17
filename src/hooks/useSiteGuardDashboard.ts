@@ -303,7 +303,7 @@ export function useSiteGuardDashboard(
         camera_review_notes: data.camera_review_notes || null,
         location_description: data.location_description || null,
         status: 'submitted',
-      })
+      } as any)
       if (error) throw error
     },
     onSuccess: () => {

@@ -7,7 +7,7 @@
 > **Canonical product authority** — this manual defines what the application is intended to do and how users are meant to use it. It is not a passive dump of current implementation details.  
 > If code, routes, role behavior, workflows, edge functions, schema-backed user flows, or operational UX change, the corresponding sections in this manual must be updated in the same change set.  
 > If the app currently behaves differently from this manual, that drift is a defect to resolve or an explicit product decision to document here first.  
-> Last reviewed: 2026-05-16
+> Last reviewed: 2026-05-17
 
 ---
 
@@ -127,7 +127,11 @@ FieldOps Manager uses three distinct experience "shells". Each shell is optimise
 | **Admin Shell** | Admins, admin officers on desktop/tablet | Standard → dense | Queue management and triage |
 | **Master/Governance Shell** | Master, Grand Master | Standard | Policy, oversight, configuration |
 
-The **Bob Workspace** (AI assistant panel) sits inside the Admin and Master shells as a slide-out panel. It is never a primary navigation destination — it is always assistive and supplementary.
+The **Bob Workspace** is a governed operations workspace used in Admin and Master contexts.
+
+- Bob remains assistive for analysis, drafting, and recommendations.
+- Bob also serves as a governance and gatekeeper layer for approved automation paths.
+- High-impact actions must pass proposal/approval contracts and human authorization boundaries where required.
 
 ---
 
@@ -515,10 +519,10 @@ If you log in and **do have an active roster shift** for today:
 - If a new roster entry is created for you, the cache updates on the next poll cycle (max 60 second lag)
 - If you think you should have access but don't, try the **refresh** button on the welfare screen, or log out and log back in
 
-### 2.3c Phase 3: Sentient XO (Bob Memory and Administrative Actuation)
+### 2.3c Phase 3: Sentient XO (Bob Memory, Governance, and Administrative Actuation)
 
 **Who sees this:** Bob users with admin-authorized workflows
-**What it does:** Bob keeps operational memory context and can execute validated setup actions by command.
+**What it does:** Bob keeps operational memory context, governs proposal/approval paths, and can execute validated setup actions by command.
 
 #### Persistent memory behavior
 
@@ -537,9 +541,19 @@ For valid setup commands (example: creating a new client/site/shift bundle), Bob
 
 1. Validates organization and actor context
 2. Validates required fields before any write
-3. Creates records in sequence (client, site, shift)
-4. Applies baseline rate rules and conflict checks
-5. Returns a success summary or a clarification request
+3. Runs policy and gate checks before mutating operations
+4. Creates records in sequence (client, site, shift)
+5. Applies baseline rate rules and conflict checks
+6. Returns a success summary or a clarification request
+
+#### Governance and gatekeeper behavior
+
+Bob is a gatekeeper for approved operational automation:
+
+1. Bob can draft and score actions autonomously, but execution-capable paths must use explicit approval contracts.
+2. Sensitive or legal actions remain human-authorized.
+3. In emergency-priority mode, non-safety administrative writes are blocked.
+4. All governed actions must remain tenant-scoped and auditable.
 
 #### Gap detection and missing-field prompts
 
@@ -1331,6 +1345,20 @@ Officers are assigned to one or more PTT channels via their user profile. Admins
 **Transcription and translation (Phase 1):**  
 When the inference service is connected, PTT transmissions are automatically transcribed. Transcripts are stored in `radio_transcript_segments` and are searchable from the PTT Transmission Log. Translation to a secondary language is available when configured.
 
+**Mobile AI domain assist (Phase 2):**  
+The officer mobile experience includes domain-lane AI assist cards across patrol, scan, breach, enforcement, and infringement workflows.
+
+- Available domain lanes: `freedom_camping`, `biosecurity`, `noise_control`, `smoke_control`, `parking_enforcement`
+- The assistant returns concise risk, immediate actions, and evidence checklist guidance grounded in the current screen context
+- In scan capture flow, assist appears after a capture result so camera operations remain unobstructed
+- In infringement drafting, assist appears inside the issue modal to support legal/offence wording before notice issuance
+
+**Telemetry and governance:**
+
+- Mobile AI assist emits request/success/failure telemetry with lane, latency, provider/model metadata, and error reason when applicable
+- Daily lane summaries are available for operational analytics (`requests`, `successes`, `failures`, `avg latency`)
+- Persisted AI telemetry audit sink remains restricted to owner-tier governance roles (`master`, `grand_master`)
+
 > **Voice consent**: Officers must provide consent before their voice profile is registered. Consent is managed via `radio_voice_consents` and is fully revocable at any time from their profile settings.
 
 ---
@@ -1759,7 +1787,7 @@ Bob AI-generated insights for compliance patterns, breach hotspots, and enforcem
    - Recommended actions
 5. All analyses are logged in the audit trail. Significant findings can be **published** to the Compliance Dashboard as a permanent insight record.
 
-> **Human approval required**: Bob's recommendations are advisory. No data is changed until a human administrator explicitly approves and applies a recommended action.
+> **Human approval required**: Bob governs and gates operational workflows, but legal or high-risk actions still require explicit human authorization and remain fully auditable.
 
 ---
 
@@ -2696,7 +2724,7 @@ supabase functions deploy
 
 ### 8.5 AI Services (Bob / Inference)
 
-**Bob** is the in-platform AI assistant for compliance, noise, biosecurity, smoke, and operational triage.
+**Bob** is the in-platform AI system for compliance, noise, biosecurity, smoke, operational triage, and governed operational actuation.
 
 #### Inference Service
 
@@ -2710,11 +2738,25 @@ Environment variable: `OLLAMA_BASE_URL=http://ollama:11434` (use service name in
 
 #### Bob AI Configuration
 
-- Bob's capabilities are configured via the **Bob Assistant Studio** (`/bob-studio`) — grand_master only.
+- Primary Bob workspace route is `/bob-assistant`.
 - Bob conversations are persisted per user per org in the `bob_conversations` and `bob_messages` tables.
 - `currentConversationId` is stored in `sessionStorage` under `bob-conversation-id-${organizationId}`.
 - Bob uses `SUPABASE_SERVICE_ROLE_KEY` for background tasks (never exposed to the browser).
 - Tenant context is passed via `x-org-id` header on all Bob requests.
+
+#### Bob Governance and Gatekeeper Model
+
+Bob runs in two coordinated modes:
+
+1. Assistive mode: analysis, drafting, recommendations, and guided prompts.
+2. Governance mode: proposal/approval orchestration and policy-gated actuation for authorized workflows.
+
+Gatekeeper rules:
+
+1. Execution-capable workflows must use explicit mutation/approval contracts.
+2. Human authorization remains mandatory for legal and fire-control boundaries.
+3. Emergency posture can preempt non-safety writes.
+4. Org isolation and audit attribution are mandatory on all governed operations.
 
 #### Bob Capability Modules
 

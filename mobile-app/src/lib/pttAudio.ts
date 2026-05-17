@@ -12,6 +12,7 @@
  */
 
 import { supabase } from './supabase'
+import * as FileSystem from 'expo-file-system'
 
 const BUCKET = 'ptt-clips'
 const SIGNED_URL_EXPIRES_IN = 60 * 60 * 24 // 24 hours
@@ -63,4 +64,51 @@ export async function uploadPTTClip(params: {
   }
 
   return { clipUrl: signedData.signedUrl, storagePath }
+}
+
+/**
+ * Write a WAV blob returned by synthesize-speech to a temporary cache file
+ * and return a local file:// URI that expo-av can play directly.
+ *
+ * Returns null when FileSystem is unavailable or the blob is empty.
+ */
+export async function writeSynthesizedSpeechToCache(blob: Blob): Promise<string | null> {
+  try {
+    if (!blob || blob.size === 0) return null
+
+    const cacheDir = FileSystem.cacheDirectory
+    if (!cacheDir) return null
+
+    const filename = `tts_${Date.now()}.wav`
+    const localUri = `${cacheDir}${filename}`
+
+    const buffer = await blob.arrayBuffer()
+    const bytes = new Uint8Array(buffer)
+    const chunkSize = 0x8000
+    const chunks: string[] = []
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+      chunks.push(String.fromCharCode(...bytes.subarray(i, i + chunkSize)))
+    }
+    const base64 = btoa(chunks.join(''))
+
+    await FileSystem.writeAsStringAsync(localUri, base64, {
+      encoding: FileSystem.EncodingType.Base64,
+    })
+
+    return localUri
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Delete a temporary TTS cache file after playback completes.
+ * No-op if the file has already been removed.
+ */
+export async function deleteTTSCacheFile(localUri: string): Promise<void> {
+  try {
+    await FileSystem.deleteAsync(localUri, { idempotent: true })
+  } catch {
+    // Ignore — cache eviction is best-effort
+  }
 }

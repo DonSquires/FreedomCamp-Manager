@@ -25,6 +25,7 @@ import { useRoute } from '@react-navigation/native'
 import { useAuthStore } from '../stores/authStore'
 import { edgeFunctions, withTimeout } from '../lib/edgeFunctions'
 import { supabase } from '../lib/supabase'
+import AiDomainAssistCard from '../components/AiDomainAssistCard'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -547,6 +548,23 @@ export default function InfringementNoticesScreen() {
               </View>
 
               {/* Issue button */}
+              <View style={styles.assistWrap}>
+                <AiDomainAssistCard
+                  organizationId={user?.organization_id}
+                  title="AI Notice Draft Assist"
+                  subtitle="Domain-focused guidance before issuing notices"
+                  contextSummary={[
+                    `Plate: ${form.plate_number || 'UNKNOWN'}`,
+                    `Zone: ${form.zone_name || 'Unspecified'}`,
+                    `Offence: ${form.offence_description || 'Not entered'}`,
+                    `Legal basis: ${form.legal_basis || 'Not entered'}`,
+                    `Amount: $${(form.amount_cents / 100).toFixed(2)}`,
+                    `Service: ${form.service_method}`,
+                    `Outstanding notices: ${outstanding}`,
+                  ].join(' | ')}
+                />
+              </View>
+
               <TouchableOpacity
                 style={[styles.issueSubmitBtn, issuing && styles.issueSubmitBtnDisabled]}
                 onPress={handleIssue}
@@ -780,6 +798,7 @@ const styles = StyleSheet.create({
   },
   pickerValueText: { fontSize: 15, color: '#111827' },
   pickerPlaceholder: { fontSize: 15, color: '#9ca3af' },
+  assistWrap: { marginBottom: 14 },
   issueSubmitBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     backgroundColor: '#1d4ed8', borderRadius: 12, padding: 15, marginTop: 8,

@@ -3,6 +3,8 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
+import { useBobBrain } from '@/hooks/useBobBrain'
+import { emitAiTelemetry } from '@/lib/aiTelemetry'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Badge } from '@/components/ui/badge'
@@ -112,6 +114,15 @@ type DrillConfig = {
   label?: string
 }
 
+type AdminTriageRisk = 'low' | 'medium' | 'high'
+
+type AdminTriageSuggestion = {
+  label: string
+  route: string
+  reason: string
+  risk: AdminTriageRisk
+}
+
 // SCV enforcement date: NZ midnight 1 June 2026 (NZST, UTC+12).
 // parseNZDate anchors the date to NZ timezone so the countdown is accurate
 // for NZ operators regardless of the server/browser UTC offset.
@@ -123,12 +134,76 @@ function scvEnforcementCountdown(): string {
   return days > 0 ? `${days}d` : 'Active'
 }
 
+function deriveAdminTriageConfidence(answer: string): 'high' | 'medium' | 'low' {
+  const normalized = String(answer || '').toLowerCase()
+  if (/uncertain|unknown|possibly|might|insufficient|not enough/.test(normalized)) return 'low'
+  if (/critical|immediate|urgent|escalate now|must/.test(normalized)) return 'high'
+  return 'medium'
+}
+
+function deriveAdminTriageSuggestion(params: {
+  answer: string
+  welfareAlertCount: number
+  activeBreaches: number
+  openDisputes: number
+}): AdminTriageSuggestion | null {
+  const normalized = String(params.answer || '').toLowerCase()
+
+  if (params.welfareAlertCount > 0 || /welfare|officer safety|man down|panic/.test(normalized)) {
+    return {
+      label: 'Open welfare command',
+      route: '/officer-welfare',
+      reason: 'Officer safety signals detected in triage output',
+      risk: 'high',
+    }
+  }
+
+  if (params.activeBreaches > 0 || /breach|enforcement|notice|infringement/.test(normalized)) {
+    return {
+      label: 'Open breach command',
+      route: '/breaches',
+      reason: 'Active compliance risk needs enforcement review',
+      risk: params.activeBreaches >= 10 ? 'high' : 'medium',
+    }
+  }
+
+  if (params.openDisputes > 0 || /dispute|appeal|review queue/.test(normalized)) {
+    return {
+      label: 'Open dispute queue',
+      route: '/disputes',
+      reason: 'Triage indicates pending dispute workload',
+      risk: 'medium',
+    }
+  }
+
+  if (/patrol|dispatch|tracking|coverage/.test(normalized)) {
+    return {
+      label: 'Open live patrol monitor',
+      route: '/live-patrol',
+      reason: 'Triage recommends patrol posture review',
+      risk: 'low',
+    }
+  }
+
+  return null
+}
+
 export default function AdminPortal() {
   const { user } = useAuthStore()
   const { organizationId, zoneId, dateFrom, dateTo } = useGlobalFiltersStore()
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const [lastZeroToastKey, setLastZeroToastKey] = useState<string | null>(null)
+  const [adminTriagePrompt, setAdminTriagePrompt] = useState('')
+  const [pendingTriageSuggestion, setPendingTriageSuggestion] = useState<AdminTriageSuggestion | null>(null)
+  const {
+    askBobBrain,
+    clearResponse: clearTriageResponse,
+    response: triageResponse,
+    error: triageError,
+    isLoading: isTriageLoading,
+    completedAt: triageCompletedAt,
+  } = useBobBrain()
 
   const effectiveOrganizationId =
     user?.role === 'master' ? organizationId || null : user?.organization_id || null
@@ -628,6 +703,153 @@ export default function AdminPortal() {
   const listRowClass =
     'flex items-center justify-between gap-3 rounded-lg border border-white/60 dark:border-white/10 bg-white/70 dark:bg-slate-800/50 px-3 py-2.5'
 
+  const openDisputesCount = Number(data?.openDisputeIntake ?? 0)
+
+  const triageQuickPrompts = useMemo(() => {
+    if (welfareAlertCount > 0) {
+      return [
+        'Prioritize current welfare and officer-safety actions for the next 30 minutes.',
+        'Generate an immediate safety triage sequence for active patrol supervisors.',
+      ]
+    }
+
+    if (metrics.activeBreaches > 0) {
+      return [
+        'Summarize enforcement triage priorities for current active breaches.',
+        'Recommend the top 3 operational actions for compliance risk reduction today.',
+      ]
+    }
+
+    return [
+      'Provide a concise admin triage summary and the next three actions.',
+      'Assess operational risks from dashboard metrics and suggest response order.',
+    ]
+  }, [metrics.activeBreaches, welfareAlertCount])
+
+  const domainTriagePrompts = useMemo(() => ([
+    {
+      key: 'freedom_camping',
+      label: 'Freedom Camping',
+      prompt: 'Run triage for freedom camping operations with top risk areas, enforcement queue priorities, and immediate supervisor actions.',
+    },
+    {
+      key: 'biosecurity',
+      label: 'Biosecurity',
+      prompt: 'Run triage for biosecurity operations with containment priorities, escalation triggers, and evidence requirements.',
+    },
+    {
+      key: 'noise',
+      label: 'Noise Control',
+      prompt: 'Run triage for noise-control workload with priority incidents, officer deployment guidance, and compliance risks.',
+    },
+    {
+      key: 'smoke',
+      label: 'Smoke Control',
+      prompt: 'Run triage for smoke-control complaints with immediate public-safety priorities and recommended enforcement sequence.',
+    },
+    {
+      key: 'parking',
+      label: 'Parking',
+      prompt: 'Run triage for parking enforcement with hotspots, infringement queue priorities, and dispute-risk indicators.',
+    },
+  ]), [])
+
+  const triageConfidence = useMemo(() => {
+    if (!triageResponse?.answer) return null
+    return deriveAdminTriageConfidence(triageResponse.answer)
+  }, [triageResponse?.answer])
+
+  const runAdminTriage = useCallback(async (promptOverride?: string) => {
+    const prompt = String(promptOverride ?? adminTriagePrompt).trim()
+    if (!prompt) {
+      toast.warning('Enter a triage prompt first')
+      return
+    }
+
+    const startedAt = Date.now()
+    emitAiTelemetry({
+      surface: 'admin-triage',
+      stage: 'request',
+      success: true,
+      details: {
+        active_breaches: metrics.activeBreaches,
+        welfare_alerts: welfareAlertCount,
+      },
+    })
+
+    const contextPrompt = [
+      'You are an admin operations triage assistant for NZ field operations.',
+      'Return concise triage priorities with clear human-review checkpoints.',
+      `Organization: ${effectiveOrganizationId ?? 'all visible orgs'}`,
+      `Compliance rate: ${metrics.complianceRate}%`,
+      `Active breaches: ${metrics.activeBreaches}`,
+      `Welfare alerts: ${welfareAlertCount}`,
+      `Active patrols: ${activePatrolCount}`,
+      `Open disputes: ${openDisputesCount}`,
+      `Admin request: ${prompt}`,
+    ].join('\n')
+
+    const result = await askBobBrain({
+      prompt: contextPrompt,
+      organizationId: effectiveOrganizationId,
+    })
+
+    emitAiTelemetry({
+      surface: 'admin-triage',
+      stage: 'response',
+      success: !!result?.answer,
+      latency_ms: Date.now() - startedAt,
+      reason: result?.answer ? undefined : 'empty-answer',
+    })
+
+    if (!result?.answer) return
+
+    const suggestion = deriveAdminTriageSuggestion({
+      answer: result.answer,
+      welfareAlertCount,
+      activeBreaches: metrics.activeBreaches,
+      openDisputes: openDisputesCount,
+    })
+    if (suggestion) {
+      emitAiTelemetry({
+        surface: 'admin-triage',
+        stage: 'action_suggested',
+        success: true,
+        details: {
+          action: suggestion.label,
+          route: suggestion.route,
+          risk: suggestion.risk,
+        },
+      })
+    }
+    setPendingTriageSuggestion(suggestion)
+  }, [
+    activePatrolCount,
+    adminTriagePrompt,
+    askBobBrain,
+    effectiveOrganizationId,
+    metrics.activeBreaches,
+    metrics.complianceRate,
+    openDisputesCount,
+    welfareAlertCount,
+  ])
+
+  const applyTriageSuggestion = useCallback(() => {
+    if (!pendingTriageSuggestion) return
+    emitAiTelemetry({
+      surface: 'admin-triage',
+      stage: 'action_applied',
+      success: true,
+      details: {
+        action: pendingTriageSuggestion.label,
+        route: pendingTriageSuggestion.route,
+      },
+    })
+    navigate(pendingTriageSuggestion.route)
+    toast.success(`Opened ${pendingTriageSuggestion.label}`)
+    setPendingTriageSuggestion(null)
+  }, [navigate, pendingTriageSuggestion])
+
   if (isError) {
     return (
       <AppLayout
@@ -787,6 +1009,189 @@ export default function AdminPortal() {
             </button>
           )}
         </div>
+
+        <Card className="border-violet-200 dark:border-violet-900/60 bg-violet-50/60 dark:bg-violet-950/20">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <BrainCircuit className="h-4 w-4 text-violet-600" />
+              Admin AI Triage
+            </CardTitle>
+            <CardDescription>
+              AI-assisted triage summary with explicit operator-controlled action routing.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <Badge variant="outline" className="border-violet-300 text-violet-700 dark:text-violet-300">
+                Assistive only
+              </Badge>
+              {triageConfidence && (
+                <Badge
+                  variant="outline"
+                  className={
+                    triageConfidence === 'high'
+                      ? 'border-emerald-300 text-emerald-700 dark:text-emerald-300'
+                      : triageConfidence === 'medium'
+                        ? 'border-amber-300 text-amber-700 dark:text-amber-300'
+                        : 'border-rose-300 text-rose-700 dark:text-rose-300'
+                  }
+                >
+                  Confidence: {triageConfidence}
+                </Badge>
+              )}
+              {pendingTriageSuggestion && (
+                <Badge
+                  variant="outline"
+                  className={
+                    pendingTriageSuggestion.risk === 'high'
+                      ? 'border-rose-300 text-rose-700 dark:text-rose-300'
+                      : pendingTriageSuggestion.risk === 'medium'
+                        ? 'border-amber-300 text-amber-700 dark:text-amber-300'
+                        : 'border-emerald-300 text-emerald-700 dark:text-emerald-300'
+                  }
+                >
+                  Suggested risk: {pendingTriageSuggestion.risk}
+                </Badge>
+              )}
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {triageQuickPrompts.map((prompt) => (
+                <Button
+                  key={prompt}
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setAdminTriagePrompt(prompt)
+                    void runAdminTriage(prompt)
+                  }}
+                  disabled={isTriageLoading}
+                >
+                  {prompt.length > 50 ? `${prompt.slice(0, 50)}...` : prompt}
+                </Button>
+              ))}
+            </div>
+
+            <div className="space-y-1.5">
+              <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Domain triage lanes</p>
+              <div className="flex flex-wrap gap-2">
+                {domainTriagePrompts.map((domainPrompt) => (
+                  <Button
+                    key={domainPrompt.key}
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setAdminTriagePrompt(domainPrompt.prompt)
+                      void runAdminTriage(domainPrompt.prompt)
+                    }}
+                    disabled={isTriageLoading}
+                  >
+                    {domainPrompt.label}
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            <Textarea
+              value={adminTriagePrompt}
+              onChange={(event) => setAdminTriagePrompt(event.target.value)}
+              placeholder="Ask for triage priorities, risk review, or action sequencing..."
+              rows={3}
+            />
+
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" onClick={() => void runAdminTriage()} disabled={isTriageLoading}>
+                {isTriageLoading ? (
+                  <>
+                    <RotateCcw className="h-4 w-4 mr-1.5 animate-spin" />
+                    Triage running...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="h-4 w-4 mr-1.5" />
+                    Run triage
+                  </>
+                )}
+              </Button>
+
+              {(triageResponse || triageError) && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    clearTriageResponse()
+                    setPendingTriageSuggestion(null)
+                  }}
+                  disabled={isTriageLoading}
+                >
+                  Clear
+                </Button>
+              )}
+            </div>
+
+            {triageError && (
+              <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-300">
+                {triageError}
+              </div>
+            )}
+
+            {triageResponse?.answer && (
+              <div className="rounded-lg border border-violet-200 bg-white/80 dark:border-violet-900 dark:bg-slate-950/40 p-3 space-y-2">
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                  <p className="text-xs text-muted-foreground">
+                    Triage result {triageCompletedAt ? `· ${format(new Date(triageCompletedAt), 'dd MMM yyyy HH:mm')}` : ''}
+                  </p>
+                  {triageResponse.provider && (
+                    <Badge variant="outline" className="border-violet-300 text-violet-700 dark:text-violet-300">
+                      Provider: {triageResponse.provider}
+                    </Badge>
+                  )}
+                  {triageResponse.model && (
+                    <Badge variant="outline" className="border-blue-300 text-blue-700 dark:text-blue-300">
+                      Model: {triageResponse.model}
+                    </Badge>
+                  )}
+                </div>
+                <p className="text-sm whitespace-pre-wrap text-foreground">{triageResponse.answer}</p>
+              </div>
+            )}
+
+            {pendingTriageSuggestion && (
+              <div className="rounded-lg border border-emerald-200 bg-emerald-50/70 dark:border-emerald-900/60 dark:bg-emerald-950/20 p-3 space-y-2">
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                  <Badge variant="outline" className="border-emerald-300 text-emerald-700 dark:text-emerald-300">
+                    Suggested next action
+                  </Badge>
+                  <span className="text-muted-foreground">{pendingTriageSuggestion.reason}</span>
+                </div>
+                <p className="text-sm font-medium text-foreground">{pendingTriageSuggestion.label}</p>
+                <div className="flex flex-wrap gap-2">
+                  <Button size="sm" onClick={applyTriageSuggestion}>
+                    Open recommended queue
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      emitAiTelemetry({
+                        surface: 'admin-triage',
+                        stage: 'action_dismissed',
+                        success: true,
+                        details: {
+                          action: pendingTriageSuggestion.label,
+                          route: pendingTriageSuggestion.route,
+                        },
+                      })
+                      setPendingTriageSuggestion(null)
+                    }}
+                  >
+                    Dismiss
+                  </Button>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         {/* ── LIVE OPS STATUS BAR — 5 key real-time metrics ───────────────────────── */}
         <section

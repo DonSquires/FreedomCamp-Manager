@@ -13,6 +13,7 @@ import { useRosteredShift } from '@/hooks/useRosteredShift'
 import { OrganizationContext } from '@/contexts/OrganizationContext'
 import { useFeedbackCapture } from '@/hooks/useFeedbackCapture'
 import { useLiveSessionDiagnostics } from '@/hooks/useLiveSessionDiagnostics'
+import { useAiTelemetryAuditSync } from '@/hooks/useAiTelemetryAuditSync'
 import { getDefaultRouteForRole, getRoleConstrainedRedirect } from '@/navigation/rolePath'
 import { isRouteVisibleForRole } from '@/navigation/routeManifestAdapter'
 import { routeManifest, type AppRole } from '@/navigation/routeManifest'
@@ -492,6 +493,7 @@ function RouteChangeCleanup() {
 function GlobalAppObservers() {
   useFeedbackCapture()
   useLiveSessionDiagnostics()
+  useAiTelemetryAuditSync()
 
   return null
 }

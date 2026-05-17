@@ -9,6 +9,7 @@ import { toast } from 'sonner-native'
 import { useNavigation } from '@react-navigation/native'
 import { useAuthStore } from '../stores/authStore'
 import { supabase } from '../lib/supabase'
+import AiDomainAssistCard from '../components/AiDomainAssistCard'
 
 const BREACH_LABELS: Record<string, string> = {
   consecutive_nights:   'Consecutive Nights',
@@ -190,6 +191,20 @@ export default function BreachAlertsScreen() {
           ))}
         </View>
       </View>
+      <View style={styles.assistWrap}>
+        <AiDomainAssistCard
+          organizationId={user?.organization_id}
+          title="AI Breach Triage"
+          subtitle="Domain-lane guidance for prioritizing breach response"
+          contextSummary={[
+            `Filter: ${filter}`,
+            `Visible alerts: ${breaches.length}`,
+            `Pending: ${breaches.filter((b: any) => b.status === 'pending').length}`,
+            `Acknowledged: ${breaches.filter((b: any) => b.status === 'acknowledged').length}`,
+            `Enforcement started: ${breaches.filter((b: any) => b.status === 'enforcement_started').length}`,
+          ].join(' | ')}
+        />
+      </View>
       <FlatList
         data={breaches}
         keyExtractor={(item) => item.id}
@@ -225,6 +240,7 @@ const styles = StyleSheet.create({
   filterBtnActive: { backgroundColor: '#1d4ed8', borderColor: '#1d4ed8' },
   filterText: { fontSize: 13, color: '#64748b', fontWeight: '600' },
   filterTextActive: { color: '#fff' },
+  assistWrap: { paddingHorizontal: 16, paddingBottom: 6 },
   list: { padding: 16, gap: 10 },
   card: {
     backgroundColor: '#fff',

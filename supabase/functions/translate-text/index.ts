@@ -27,6 +27,7 @@
  */
 
 import { corsHeaders } from '../_shared/cors.ts'
+import { requireAuth } from '../_shared/requireAuth.ts'
 
 const AZURE_ENDPOINT = 'https://api.cognitive.microsofttranslator.com/translate?api-version=3.0'
 
@@ -39,6 +40,13 @@ Deno.serve(async (req) => {
   }
 
   try {
+    const authResult = await requireAuth(req)
+    if (!authResult.user) {
+      return new Response(JSON.stringify({ error: authResult.error ?? 'Unauthorized' }), {
+        status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
     if (req.method !== 'POST') {
       return new Response(JSON.stringify({ error: 'Method not allowed' }), {
         status: 405, headers: { ...corsHeaders, 'Content-Type': 'application/json' },

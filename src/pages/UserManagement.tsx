@@ -194,9 +194,11 @@ export default function UserManagement({ embedded = false }: UserManagementProps
   })
 
   // Organizations available for assignment, scoped by role
-  const availableOrgs = isMaster
-    ? (organizations || [])
-    : (organizations || []).filter((o) => accessibleOrgIds?.includes(o.id))
+  const availableOrgs = useMemo(() => {
+    const orgs = organizations || []
+    if (isMaster) return orgs
+    return orgs.filter((o) => accessibleOrgIds?.includes(o.id))
+  }, [isMaster, organizations, accessibleOrgIds])
 
   const preferredCreateOrgId = useMemo(() => {
     const ironEagleOrg = availableOrgs.find((org) => /iron\s*eagle/i.test(org.name || ''))

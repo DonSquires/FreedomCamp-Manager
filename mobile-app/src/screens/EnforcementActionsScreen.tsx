@@ -9,6 +9,7 @@ import { toast } from 'sonner-native'
 import { useNavigation } from '@react-navigation/native'
 import { useAuthStore } from '../stores/authStore'
 import { supabase } from '../lib/supabase'
+import AiDomainAssistCard from '../components/AiDomainAssistCard'
 
 const ACTION_META: Record<string, { icon: string; label: string; color: string }> = {
   warning:          { icon: 'warning-outline',      label: 'Warning',           color: '#b45309' },
@@ -169,6 +170,19 @@ export default function EnforcementActionsScreen() {
           </Text>
         </View>
       </View>
+      <View style={styles.assistWrap}>
+        <AiDomainAssistCard
+          organizationId={user?.organization_id}
+          title="AI Enforcement Copilot"
+          subtitle="Domain triage for queue prioritization"
+          contextSummary={[
+            `Workflow: ${enforcementWorkflow || 'unknown'}`,
+            `Queue size: ${actions.length}`,
+            `Pending actions: ${actions.filter((item: any) => item.status === 'pending').length}`,
+            `Assigned actions: ${actions.filter((item: any) => item.status === 'assigned').length}`,
+          ].join(' | ')}
+        />
+      </View>
       <FlatList
         data={actions}
         keyExtractor={(item) => item.id}
@@ -210,6 +224,10 @@ const styles = StyleSheet.create({
     borderColor: '#bfdbfe',
   },
   workflowText: { fontSize: 11, fontWeight: '600', color: '#1d4ed8' },
+  assistWrap: {
+    paddingHorizontal: 16,
+    paddingBottom: 6,
+  },
   list: { padding: 16, gap: 10 },
   card: {
     backgroundColor: '#fff',

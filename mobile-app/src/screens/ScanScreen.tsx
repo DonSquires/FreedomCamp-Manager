@@ -12,6 +12,7 @@ import { toast } from 'sonner-native'
 import { edgeFunctions } from '../lib/edgeFunctions'
 import { useAuthStore } from '../stores/authStore'
 import { supabase } from '../lib/supabase'
+import AiDomainAssistCard from '../components/AiDomainAssistCard'
 
 /** React Native multipart file descriptor accepted by fetch/FormData on iOS + Android */
 interface RNFileInfo {
@@ -236,6 +237,22 @@ export default function ScanScreen({ navigation }: any) {
               <Text style={styles.captureHint}>
                 {isProcessing ? 'Processing...' : 'Tap to capture'}
               </Text>
+
+              {(quickResult || lastResult) && (
+                <View style={styles.assistWrap}>
+                  <AiDomainAssistCard
+                    organizationId={user?.organization_id}
+                    title="AI Capture Assist"
+                    subtitle="Domain-focused next steps after plate capture"
+                    contextSummary={[
+                      `Latest plate: ${quickResult?.plate || lastResult?.plate || 'UNKNOWN'}`,
+                      `Capture status: ${quickResult?.status || (lastResult?.compliant ? 'compliant' : 'unknown') || 'unknown'}`,
+                      `Officer: ${user?.first_name || ''} ${user?.last_name || ''}`.trim(),
+                      'Screen: scan capture workflow',
+                    ].join(' | ')}
+                  />
+                </View>
+              )}
             </View>
           </View>
         </CameraView>
@@ -336,4 +353,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   quickActionText: { color: '#fff', fontSize: 14, fontWeight: '800' },
+  assistWrap: {
+    width: '100%',
+    marginTop: 4,
+  },
 })

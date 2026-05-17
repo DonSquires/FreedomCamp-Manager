@@ -169,7 +169,7 @@ export function useSiteRiskAssessments(options?: {
       const { zone: _zone, assessor: _assessor, reviewer: _reviewer, ...dbUpdates } = updates
       const { data, error } = await supabase
         .from('site_risk_assessments')
-        .update(dbUpdates)
+        .update(dbUpdates as any)
         .eq('id', id)
         .eq('organization_id', orgId)
         .select()

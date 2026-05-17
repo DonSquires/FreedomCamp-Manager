@@ -8,6 +8,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { useAuthStore } from '../stores/authStore'
 import { supabase } from '../lib/supabase'
 import { fetchAllObservations } from '../lib/observations'
+import AiDomainAssistCard from '../components/AiDomainAssistCard'
 
 function timeAgo(iso: string): string {
   const diff = (Date.now() - new Date(iso).getTime()) / 1000
@@ -152,6 +153,21 @@ export default function RecentScansScreen() {
         </ScrollView>
       </View>
 
+      <View style={styles.assistWrap}>
+        <AiDomainAssistCard
+          organizationId={user?.organization_id}
+          title="AI Scan Review Assist"
+          subtitle="Domain guidance for visible scan history"
+          contextSummary={[
+            `Date preset: ${datePreset}`,
+            `Zone filter: ${zones.find((z) => z.id === zoneId)?.name || 'All zones'}`,
+            `Visible scans: ${scans.length}`,
+            `Potential breaches: ${scans.filter((s: any) => !s.is_compliant && s.plate_number !== 'PROCESSING...').length}`,
+            `Compliant: ${scans.filter((s: any) => s.is_compliant).length}`,
+          ].join(' | ')}
+        />
+      </View>
+
       <FlatList
         data={scans}
         keyExtractor={(item) => item.id}
@@ -178,6 +194,7 @@ const styles = StyleSheet.create({
   title: { fontSize: 22, fontWeight: '700', color: '#0f172a' },
   subtitle: { fontSize: 13, color: '#64748b', marginTop: 2 },
   filtersWrap: { paddingHorizontal: 16, paddingBottom: 8, gap: 8 },
+  assistWrap: { paddingHorizontal: 16, paddingBottom: 8 },
   filterRow: { flexDirection: 'row', gap: 8 },
   filterChip: {
     borderWidth: 1,

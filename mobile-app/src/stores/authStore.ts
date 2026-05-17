@@ -47,7 +47,7 @@ async function registerPushToken(userId: string): Promise<string | null> {
 export interface AuthUser {
   id: string
   email: string
-  role: 'master' | 'admin' | 'officer' | 'admin_officer'
+  role: 'grand_master' | 'master' | 'admin' | 'officer' | 'admin_officer'
   organization_id: string | null
   full_name: string
   first_name: string

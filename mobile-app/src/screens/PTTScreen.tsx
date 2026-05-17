@@ -28,10 +28,17 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { Audio } from 'expo-av'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 
 import { supabase } from '../lib/supabase'
 import { edgeFunctions } from '../lib/edgeFunctions'
-import { uploadPTTClip } from '../lib/pttAudio'
+import { uploadPTTClip, writeSynthesizedSpeechToCache, deleteTTSCacheFile } from '../lib/pttAudio'
+import {
+  emitPTTAiTelemetry,
+  normalizePTTTranscriptionPayload,
+  normalizePTTTranslationPayload,
+  type PTTTranslationContract,
+} from '../lib/pttAiContract'
 import { useAuthStore } from '../stores/authStore'
 import { highVis } from '../lib/highVisTheme'
 
@@ -39,6 +46,40 @@ const MIN_TOKEN_REFRESH_DELAY_MS = 15_000
 const MAX_TOKEN_MINT_RETRIES = 3
 const TOKEN_MINT_RETRY_DELAY_MS = 2000
 const MAX_WS_RECONNECT_ATTEMPTS = 8
+const PTT_TRANSLATION_PREF_KEY = 'ptt.translation.language.v1'
+const INCOMING_CLIP_NORMAL_VOLUME = 1
+const INCOMING_CLIP_DUCK_VOLUME = 0.05
+
+const TRANSLATION_OPTIONS = [
+  { value: 'mi', label: 'Māori' },
+  { value: 'zh-Hans', label: 'Chinese' },
+  { value: 'hi', label: 'Hindi' },
+  { value: 'ko', label: 'Korean' },
+  { value: 'en', label: 'English' },
+] as const
+
+type TranslationOptionValue = typeof TRANSLATION_OPTIONS[number]['value']
+
+type MobileTranslationResult = PTTTranslationContract
+
+type DomainLane = 'freedom_camping' | 'biosecurity' | 'noise_control' | 'smoke_control' | 'parking_enforcement'
+
+type DomainAssistResult = {
+  lane: DomainLane
+  label: string
+  answer: string
+  provider: string | null
+  model: string | null
+  updatedAt: string
+}
+
+const DOMAIN_LANES: Array<{ value: DomainLane; label: string; promptLabel: string }> = [
+  { value: 'freedom_camping', label: 'Freedom Camping', promptLabel: 'Freedom camping' },
+  { value: 'biosecurity', label: 'Biosecurity', promptLabel: 'Biosecurity' },
+  { value: 'noise_control', label: 'Noise Control', promptLabel: 'Noise control' },
+  { value: 'smoke_control', label: 'Smoke Control', promptLabel: 'Smoke control' },
+  { value: 'parking_enforcement', label: 'Parking', promptLabel: 'Parking enforcement' },
+]
 
 // ---------------------------------------------------------------------------
 // Types
@@ -158,6 +199,7 @@ export default function PTTScreen() {
   const [uploading, setUploading] = useState(false)
   const [audioError, setAudioError] = useState<string | null>(null)
   const soundRef = useRef<Audio.Sound | null>(null)
+  const ttsRef = useRef<Audio.Sound | null>(null)
   const appStateRef = useRef<AppStateStatus>(AppState.currentState)
   const reconnectTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const tokenRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -170,6 +212,19 @@ export default function PTTScreen() {
   const [lastCloseCode, setLastCloseCode] = useState<number | null>(null)
   const [lastCloseReason, setLastCloseReason] = useState<string | null>(null)
   const [tokenRefreshInSeconds, setTokenRefreshInSeconds] = useState<number | null>(null)
+  const [lastClipTranscript, setLastClipTranscript] = useState<string | null>(null)
+  const [transcriptUpdatedAt, setTranscriptUpdatedAt] = useState<string | null>(null)
+  const [lastTranscriptLabel, setLastTranscriptLabel] = useState<string>('Latest local transmission')
+  const [selectedTranslationLanguage, setSelectedTranslationLanguage] = useState<TranslationOptionValue>('mi')
+  const [translationResult, setTranslationResult] = useState<MobileTranslationResult | null>(null)
+  const [translationError, setTranslationError] = useState<string | null>(null)
+  const [isTranslating, setIsTranslating] = useState(false)
+  const [selectedDomainLane, setSelectedDomainLane] = useState<DomainLane>('freedom_camping')
+  const [isRunningDomainAssist, setIsRunningDomainAssist] = useState(false)
+  const [domainAssistResult, setDomainAssistResult] = useState<DomainAssistResult | null>(null)
+  const [domainAssistError, setDomainAssistError] = useState<string | null>(null)
+  const [isTranscribingIncoming, setIsTranscribingIncoming] = useState(false)
+  const transcribedClipUrlsRef = useRef<Set<string>>(new Set())
 
   // ------------------------------------------------------------------
   // Play incoming clip
@@ -194,6 +249,157 @@ export default function PTTScreen() {
       // Non-critical – clip may have expired
     }
   }, [])
+
+  const playTTSOverlay = useCallback(async (localUri: string) => {
+    const incomingSound = soundRef.current
+    let didDuckIncoming = false
+
+    // If an older TTS clip is still active, stop it and ensure incoming audio is restored first.
+    if (ttsRef.current) {
+      await ttsRef.current.unloadAsync().catch(() => {})
+      ttsRef.current = null
+      if (soundRef.current) {
+        await soundRef.current.setVolumeAsync(INCOMING_CLIP_NORMAL_VOLUME).catch(() => {})
+      }
+    }
+
+    if (incomingSound) {
+      await incomingSound.setVolumeAsync(INCOMING_CLIP_DUCK_VOLUME).catch(() => {})
+      didDuckIncoming = true
+    }
+
+    try {
+      await Audio.setAudioModeAsync({ allowsRecordingIOS: false, playsInSilentModeIOS: true, staysActiveInBackground: true })
+      const { sound } = await Audio.Sound.createAsync({ uri: localUri }, { shouldPlay: true })
+      ttsRef.current = sound
+      sound.setOnPlaybackStatusUpdate((status) => {
+        if (status.isLoaded && status.didJustFinish) {
+          sound.unloadAsync().catch(() => {})
+          ttsRef.current = null
+          if (didDuckIncoming && soundRef.current === incomingSound && incomingSound) {
+            void incomingSound.setVolumeAsync(INCOMING_CLIP_NORMAL_VOLUME).catch(() => {})
+          }
+          void deleteTTSCacheFile(localUri)
+        }
+      })
+    } catch (err) {
+      if (didDuckIncoming && soundRef.current === incomingSound && incomingSound) {
+        await incomingSound.setVolumeAsync(INCOMING_CLIP_NORMAL_VOLUME).catch(() => {})
+      }
+      throw err
+    }
+  }, [])
+
+  const translateTranscriptText = useCallback(async (
+    transcript: string,
+    targetLanguage: TranslationOptionValue,
+  ): Promise<MobileTranslationResult> => {
+    const startedAt = Date.now()
+    const { data, error } = await edgeFunctions.translateText({
+      text: transcript,
+      target_lang: targetLanguage,
+    })
+
+    const latencyMs = Date.now() - startedAt
+    if (error) {
+      emitPTTAiTelemetry({
+        surface: 'mobile',
+        stage: 'translate',
+        success: false,
+        latency_ms: latencyMs,
+        reason: error,
+      })
+      throw new Error(error)
+    }
+
+    const normalized = normalizePTTTranslationPayload(data, {
+      targetLanguage,
+      latencyMs,
+    })
+
+    emitPTTAiTelemetry({
+      surface: 'mobile',
+      stage: 'translate',
+      success: normalized.translated_text.length > 0,
+      latency_ms: normalized.latency_ms,
+      details: {
+        target_language: normalized.target_language,
+        fallback: normalized.fallback,
+      },
+    })
+
+    if (normalized.translated_text) return normalized
+    return {
+      ...normalized,
+      translated_text: transcript,
+    }
+  }, [])
+
+  const presentTranscript = useCallback(async (params: {
+    transcript: string
+    label: string
+    autoTranslate?: boolean
+    speakVoice?: string
+  }) => {
+    const transcript = String(params.transcript || '').trim()
+    if (!transcript || !mountedRef.current) return
+
+    setLastClipTranscript(transcript)
+    setTranscriptUpdatedAt(new Date().toISOString())
+    setLastTranscriptLabel(params.label)
+    setTranslationError(null)
+    setDomainAssistError(null)
+    setDomainAssistResult(null)
+
+    if (!params.autoTranslate || selectedTranslationLanguage === 'en') {
+      setTranslationResult(null)
+      return
+    }
+
+    setIsTranslating(true)
+    try {
+      const result = await translateTranscriptText(transcript, selectedTranslationLanguage)
+      if (!mountedRef.current) return
+      setTranslationResult(result)
+
+      // Speak the translated text aloud via the synthesize-speech edge function.
+      const translatedText = result?.translated_text?.trim()
+      if (translatedText) {
+        void (async () => {
+          try {
+            const synthStartedAt = Date.now()
+            const blob = await edgeFunctions.synthesizeSpeech({
+              text: translatedText,
+              voice: params.speakVoice,
+            })
+            emitPTTAiTelemetry({
+              surface: 'mobile',
+              stage: 'synthesize',
+              success: !!blob,
+              latency_ms: Date.now() - synthStartedAt,
+              details: {
+                voice: params.speakVoice || null,
+              },
+            })
+            if (!blob || !mountedRef.current) return
+            const localUri = await writeSynthesizedSpeechToCache(blob)
+            if (!localUri || !mountedRef.current) return
+            await playTTSOverlay(localUri)
+          } catch {
+            // TTS playback is best-effort; do not surface errors to the officer
+          }
+        })()
+      }
+    } catch (err: any) {
+      if (!mountedRef.current) return
+      setTranslationResult(null)
+      setTranslationError(err?.message ?? 'Translation failed')
+    } finally {
+      if (mountedRef.current) {
+        setIsTranslating(false)
+      }
+    }
+  }, [playTTSOverlay, selectedTranslationLanguage, translateTranscriptText])
 
   // ------------------------------------------------------------------
   // Message handler
@@ -234,6 +440,46 @@ export default function PTTScreen() {
         // Play incoming clip if from another user
         if (msg.clipUrl && msg.userId !== user?.id) {
           playClip(msg.clipUrl)
+          if (!transcribedClipUrlsRef.current.has(msg.clipUrl)) {
+            transcribedClipUrlsRef.current.add(msg.clipUrl)
+            setIsTranscribingIncoming(true)
+            const transcribeStartedAt = Date.now()
+            void edgeFunctions.transcribeAudio({ clip_url: msg.clipUrl, language: 'en' })
+              .then(({ data, error }) => {
+                if (error) throw new Error(error)
+                const normalized = normalizePTTTranscriptionPayload(data, Date.now() - transcribeStartedAt)
+                emitPTTAiTelemetry({
+                  surface: 'mobile',
+                  stage: 'transcribe',
+                  success: normalized.transcript.length > 0,
+                  latency_ms: normalized.latency_ms,
+                  details: {
+                    provider: normalized.provider,
+                  },
+                })
+                const transcript = normalized.transcript.trim()
+                if (!transcript) return
+                return presentTranscript({
+                  transcript,
+                  label: `Incoming from ${msg.name || 'another unit'}`,
+                  autoTranslate: true,
+                  speakVoice: 'en_nz',
+                })
+              })
+              .catch((err: any) => {
+                emitPTTAiTelemetry({
+                  surface: 'mobile',
+                  stage: 'transcribe',
+                  success: false,
+                  latency_ms: Date.now() - transcribeStartedAt,
+                  reason: err?.message || 'unknown-error',
+                })
+                // best effort only
+              })
+              .finally(() => {
+                if (mountedRef.current) setIsTranscribingIncoming(false)
+              })
+          }
         }
       }
       return
@@ -261,7 +507,7 @@ export default function PTTScreen() {
         setAudioError(msg.message || 'Radio error')
       }
     }
-  }, [playClip, user?.id])
+  }, [playClip, presentTranscript, user?.id])
 
   const clearTokenRefreshTimer = useCallback(() => {
     if (tokenRefreshTimerRef.current) {
@@ -333,11 +579,38 @@ export default function PTTScreen() {
     if (!clipUrl) return
 
     try {
+      const transcribeStartedAt = Date.now()
       const { data, error } = await edgeFunctions.transcribeAudio({ clip_url: clipUrl, language: 'en' })
-      if (error) return
+      if (error) {
+        emitPTTAiTelemetry({
+          surface: 'mobile',
+          stage: 'transcribe',
+          success: false,
+          latency_ms: Date.now() - transcribeStartedAt,
+          reason: error,
+        })
+        return
+      }
 
-      const transcript = String((data as any)?.transcript ?? (data as any)?.text ?? '').trim()
+      const normalized = normalizePTTTranscriptionPayload(data, Date.now() - transcribeStartedAt)
+      emitPTTAiTelemetry({
+        surface: 'mobile',
+        stage: 'transcribe',
+        success: normalized.transcript.length > 0,
+        latency_ms: normalized.latency_ms,
+        details: {
+          provider: normalized.provider,
+        },
+      })
+
+      const transcript = normalized.transcript.trim()
       if (!transcript || !insertedId) return
+
+      void presentTranscript({
+        transcript,
+        label: 'Latest local transmission',
+        autoTranslate: true,
+      })
 
       await (supabase as any)
         .from('ptt_transmission_log')
@@ -346,7 +619,127 @@ export default function PTTScreen() {
     } catch {
       // best effort only
     }
-  }, [channelId, emergency?.active, orgId, user])
+  }, [channelId, emergency?.active, orgId, presentTranscript, user])
+
+  const translateTranscript = useCallback(async () => {
+    const transcript = String(lastClipTranscript || '').trim()
+    if (!transcript) return
+
+    setIsTranslating(true)
+    setTranslationError(null)
+
+    try {
+      const data = await translateTranscriptText(transcript, selectedTranslationLanguage)
+
+      if (mountedRef.current) {
+        setTranslationResult(data)
+      }
+
+      // Speak the translated text aloud (same as auto-translate path)
+      const translatedText = data?.translated_text?.trim()
+      if (translatedText && mountedRef.current) {
+        void (async () => {
+          try {
+            const synthStartedAt = Date.now()
+            const blob = await edgeFunctions.synthesizeSpeech({ text: translatedText })
+            emitPTTAiTelemetry({
+              surface: 'mobile',
+              stage: 'synthesize',
+              success: !!blob,
+              latency_ms: Date.now() - synthStartedAt,
+            })
+            if (!blob || !mountedRef.current) return
+            const localUri = await writeSynthesizedSpeechToCache(blob)
+            if (!localUri || !mountedRef.current) return
+            await playTTSOverlay(localUri)
+          } catch {
+            // TTS is best-effort
+          }
+        })()
+      }
+    } catch (err: any) {
+      if (mountedRef.current) {
+        setTranslationResult(null)
+        setTranslationError(err?.message ?? 'Translation failed')
+      }
+    } finally {
+      if (mountedRef.current) {
+        setIsTranslating(false)
+      }
+    }
+  }, [lastClipTranscript, playTTSOverlay, selectedTranslationLanguage, translateTranscriptText])
+
+  const runDomainAssist = useCallback(async () => {
+    const transcript = String(lastClipTranscript || '').trim()
+    if (!transcript) return
+
+    const lane = DOMAIN_LANES.find((item) => item.value === selectedDomainLane)
+    const laneLabel = lane?.promptLabel || 'Operations'
+
+    setIsRunningDomainAssist(true)
+    setDomainAssistError(null)
+    try {
+      const prompt = [
+        `You are assisting a New Zealand ${laneLabel} operations team via radio transcript triage.`,
+        'Return concise actionable guidance with this structure:',
+        '1) Risk level: Low/Medium/High.',
+        '2) Immediate actions: maximum 3 bullet points.',
+        '3) Evidence checklist: short practical list.',
+        `Transcript: ${transcript}`,
+      ].join('\n')
+
+      const { data, error } = await edgeFunctions.askBob({
+        prompt,
+        organization_id: user?.organization_id ?? orgId,
+      })
+
+      if (error) throw new Error(error)
+
+      const answer = String((data as any)?.answer || '').trim()
+      if (!answer) throw new Error('No assistive guidance returned')
+
+      setDomainAssistResult({
+        lane: selectedDomainLane,
+        label: DOMAIN_LANES.find((item) => item.value === selectedDomainLane)?.label || selectedDomainLane,
+        answer,
+        provider: typeof (data as any)?.provider === 'string' ? (data as any).provider : null,
+        model: typeof (data as any)?.model === 'string' ? (data as any).model : null,
+        updatedAt: new Date().toISOString(),
+      })
+    } catch (err: any) {
+      setDomainAssistResult(null)
+      setDomainAssistError(err?.message ?? 'Domain assist unavailable right now')
+    } finally {
+      if (mountedRef.current) {
+        setIsRunningDomainAssist(false)
+      }
+    }
+  }, [lastClipTranscript, orgId, selectedDomainLane, user?.organization_id])
+
+  useEffect(() => {
+    let cancelled = false
+
+    AsyncStorage.getItem(PTT_TRANSLATION_PREF_KEY)
+      .then((value) => {
+        if (cancelled || !value) return
+        if (TRANSLATION_OPTIONS.some((option) => option.value === value)) {
+          setSelectedTranslationLanguage(value as TranslationOptionValue)
+        }
+      })
+      .catch(() => {
+        // Ignore persisted preference failures.
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    AsyncStorage.setItem(PTT_TRANSLATION_PREF_KEY, selectedTranslationLanguage).catch(() => {
+      // Ignore persisted preference failures.
+    })
+  }, [selectedTranslationLanguage])
 
   // ------------------------------------------------------------------
   // Connect to PTT server
@@ -472,10 +865,15 @@ export default function PTTScreen() {
       recordingRef.current.stopAndUnloadAsync().catch(() => {})
       recordingRef.current = null
     }
-    // Unload any playing sound
+    // Unload any playing incoming clip
     if (soundRef.current) {
       soundRef.current.unloadAsync().catch(() => {})
       soundRef.current = null
+    }
+    // Unload any playing synthesized TTS clip
+    if (ttsRef.current) {
+      ttsRef.current.unloadAsync().catch(() => {})
+      ttsRef.current = null
     }
     wsRef.current?.close(1000, 'screen_cleanup')
     wsRef.current = null
@@ -790,6 +1188,159 @@ export default function PTTScreen() {
         )}
       </View>
 
+      <View style={styles.transcriptPanel}>
+        <View style={styles.transcriptHeader}>
+          <View style={styles.transcriptHeaderCopy}>
+            <Text style={styles.transcriptHeading}>Latest transcript</Text>
+            <Text style={styles.transcriptSubheading}>{lastTranscriptLabel}</Text>
+          </View>
+          {transcriptUpdatedAt && (
+            <Text style={styles.transcriptMeta}>
+              {new Date(transcriptUpdatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </Text>
+          )}
+        </View>
+
+        {isTranscribingIncoming && !lastClipTranscript ? (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <ActivityIndicator size="small" color={highVis.colors.actionBlue} />
+            <Text style={styles.transcriptPlaceholder}>Transcribing incoming transmission…</Text>
+          </View>
+        ) : lastClipTranscript ? (
+          <>
+            <Text style={styles.transcriptBody}>{lastClipTranscript}</Text>
+
+            <View style={styles.translationControls}>
+              {TRANSLATION_OPTIONS.map((option) => (
+                <Pressable
+                  key={option.value}
+                  style={[
+                    styles.translationChip,
+                    selectedTranslationLanguage === option.value && styles.translationChipActive,
+                  ]}
+                  onPress={() => setSelectedTranslationLanguage(option.value)}
+                >
+                  <Text
+                    style={[
+                      styles.translationChipText,
+                      selectedTranslationLanguage === option.value && styles.translationChipTextActive,
+                    ]}
+                  >
+                    {option.label}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+
+            <View style={styles.domainLanePanel}>
+              <Text style={styles.domainLaneHeading}>AI focus lane</Text>
+              <View style={styles.domainLaneControls}>
+                {DOMAIN_LANES.map((lane) => (
+                  <Pressable
+                    key={lane.value}
+                    style={[
+                      styles.domainLaneChip,
+                      selectedDomainLane === lane.value && styles.domainLaneChipActive,
+                    ]}
+                    onPress={() => setSelectedDomainLane(lane.value)}
+                  >
+                    <Text
+                      style={[
+                        styles.domainLaneChipText,
+                        selectedDomainLane === lane.value && styles.domainLaneChipTextActive,
+                      ]}
+                    >
+                      {lane.label}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+
+              <Pressable
+                style={[styles.domainAssistButton, isRunningDomainAssist && styles.translateButtonDisabled]}
+                onPress={runDomainAssist}
+                disabled={isRunningDomainAssist}
+              >
+                {isRunningDomainAssist ? (
+                  <ActivityIndicator size="small" color={highVis.colors.nightBlack} />
+                ) : (
+                  <Ionicons name="sparkles-outline" size={16} color={highVis.colors.nightBlack} />
+                )}
+                <Text style={styles.translateButtonText}>
+                  {isRunningDomainAssist ? 'Generating assist…' : 'Run domain assist'}
+                </Text>
+              </Pressable>
+            </View>
+
+            <Pressable
+              style={[styles.translateButton, isTranslating && styles.translateButtonDisabled]}
+              onPress={translateTranscript}
+              disabled={isTranslating}
+            >
+              {isTranslating ? (
+                <ActivityIndicator size="small" color={highVis.colors.nightBlack} />
+              ) : (
+                <Ionicons name="language-outline" size={16} color={highVis.colors.nightBlack} />
+              )}
+              <Text style={styles.translateButtonText}>
+                {isTranslating ? 'Translating…' : 'Translate transcript'}
+              </Text>
+            </Pressable>
+
+            {translationError && (
+              <Text style={styles.translationErrorText}>{translationError}</Text>
+            )}
+
+            {translationResult?.translated_text ? (
+              <View style={styles.translationResultCard}>
+                <Text style={styles.translationResultHeading}>
+                  Translation · {TRANSLATION_OPTIONS.find((option) => option.value === selectedTranslationLanguage)?.label || selectedTranslationLanguage}
+                </Text>
+                <Text style={styles.translationResultBody}>{translationResult.translated_text}</Text>
+                {(translationResult.provider || translationResult.model || translationResult.detected_language || translationResult.translation_confidence != null || translationResult.fallback) && (
+                  <Text style={styles.translationResultMeta}>
+                    {translationResult.detected_language ? `Source ${translationResult.detected_language}` : 'Source auto'}
+                    {translationResult.provider ? ` · ${translationResult.provider}` : ''}
+                    {translationResult.model ? ` · ${translationResult.model}` : ''}
+                    {translationResult.translation_confidence != null ? ` · ${(translationResult.translation_confidence * 100).toFixed(0)}%` : ''}
+                    {translationResult.fallback ? ' · fallback' : ''}
+                  </Text>
+                )}
+              </View>
+            ) : null}
+
+            {domainAssistError ? (
+              <Text style={styles.translationErrorText}>{domainAssistError}</Text>
+            ) : null}
+
+            {domainAssistResult?.answer ? (
+              <View style={styles.domainAssistResultCard}>
+                <Text style={styles.domainAssistResultHeading}>
+                  Domain assist · {domainAssistResult.label}
+                </Text>
+                <Text style={styles.domainAssistResultBody}>{domainAssistResult.answer}</Text>
+                {(domainAssistResult.provider || domainAssistResult.model || domainAssistResult.updatedAt) && (
+                  <Text style={styles.translationResultMeta}>
+                    {domainAssistResult.provider ? domainAssistResult.provider : 'provider unknown'}
+                    {domainAssistResult.model ? ` · ${domainAssistResult.model}` : ''}
+                    {domainAssistResult.updatedAt ? ` · ${new Date(domainAssistResult.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''}
+                  </Text>
+                )}
+              </View>
+            ) : null}
+          </>
+        ) : isTranscribingIncoming ? (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 }}>
+            <ActivityIndicator size="small" color={highVis.colors.actionBlue} />
+            <Text style={styles.transcriptPlaceholder}>Transcribing incoming transmission…</Text>
+          </View>
+        ) : (
+          <Text style={styles.transcriptPlaceholder}>
+            Send a transmission to generate a transcript and translation assist.
+          </Text>
+        )}
+      </View>
+
       {/* ── PTT button ── */}
       <View style={styles.pttContainer}>
         {wsStatus !== 'connected' ? (
@@ -1015,6 +1566,187 @@ const styles = StyleSheet.create({
   },
   separator: {
     height: 6,
+  },
+  transcriptPanel: {
+    marginHorizontal: highVis.spacing.md,
+    marginBottom: highVis.spacing.sm,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: highVis.colors.nightTextSecondary,
+    backgroundColor: highVis.colors.nightSurface,
+    padding: 12,
+    gap: 10,
+  },
+  transcriptHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  transcriptHeaderCopy: {
+    flex: 1,
+    paddingRight: 10,
+  },
+  transcriptHeading: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: highVis.colors.nightTextSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+  },
+  transcriptSubheading: {
+    marginTop: 2,
+    fontSize: 12,
+    color: highVis.colors.nightTextSecondary,
+  },
+  transcriptMeta: {
+    fontSize: 11,
+    color: highVis.colors.nightTextSecondary,
+  },
+  transcriptBody: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: highVis.colors.nightTextPrimary,
+  },
+  transcriptPlaceholder: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: highVis.colors.nightTextSecondary,
+  },
+  translationControls: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  domainLanePanel: {
+    gap: 8,
+  },
+  domainLaneHeading: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: highVis.colors.nightTextSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+  },
+  domainLaneControls: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  domainLaneChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#0284c7',
+    backgroundColor: highVis.colors.nightBlack,
+  },
+  domainLaneChipActive: {
+    backgroundColor: '#38bdf8',
+    borderColor: '#38bdf8',
+  },
+  domainLaneChipText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#7dd3fc',
+  },
+  domainLaneChipTextActive: {
+    color: highVis.colors.nightBlack,
+  },
+  domainAssistButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderRadius: 8,
+    backgroundColor: '#38bdf8',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+  },
+  translationChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: highVis.colors.nightTextSecondary,
+    backgroundColor: highVis.colors.nightBlack,
+  },
+  translationChipActive: {
+    borderColor: highVis.colors.actionBlue,
+    backgroundColor: highVis.colors.actionBlue,
+  },
+  translationChipText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: highVis.colors.nightTextSecondary,
+  },
+  translationChipTextActive: {
+    color: highVis.colors.nightBlack,
+  },
+  translateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderRadius: 8,
+    backgroundColor: highVis.colors.actionBlue,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+  },
+  translateButtonDisabled: {
+    opacity: 0.7,
+  },
+  translateButtonText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: highVis.colors.nightBlack,
+  },
+  translationErrorText: {
+    fontSize: 12,
+    color: highVis.colors.infringementRed,
+  },
+  translationResultCard: {
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: highVis.colors.compliantGreen,
+    backgroundColor: 'rgba(34, 197, 94, 0.12)',
+    padding: 10,
+    gap: 6,
+  },
+  translationResultHeading: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: highVis.colors.compliantGreen,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  translationResultBody: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: highVis.colors.nightTextPrimary,
+  },
+  translationResultMeta: {
+    fontSize: 11,
+    color: highVis.colors.nightTextSecondary,
+  },
+  domainAssistResultCard: {
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#0284c7',
+    backgroundColor: 'rgba(14, 165, 233, 0.12)',
+    padding: 10,
+    gap: 6,
+  },
+  domainAssistResultHeading: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#7dd3fc',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  domainAssistResultBody: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: highVis.colors.nightTextPrimary,
   },
   pttContainer: {
     paddingHorizontal: highVis.spacing.md,

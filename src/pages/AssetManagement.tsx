@@ -14,7 +14,7 @@
  *   c) Manual entry — always available as fallback
  */
 
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { format, parseISO, differenceInDays } from 'date-fns'
 import { toast } from 'sonner'
@@ -2499,7 +2499,7 @@ export default function AssetManagement() {
   const userId = user?.id ?? ''
 
   const requestedTab = searchParams.get('tab')
-  const validTabs = new Set(['overview', 'equipment', 'stock', 'stocktake', 'keys'])
+  const validTabs = useMemo(() => new Set(['overview', 'equipment', 'stock', 'stocktake', 'keys']), [])
   const [activeTab, setActiveTab] = useState(validTabs.has(requestedTab || '') ? String(requestedTab) : 'overview')
   const deepLinkOfficerId = searchParams.get('officer_id') || ''
   const deepLinkIssue = searchParams.get('issue') === '1'
@@ -2509,7 +2509,7 @@ export default function AssetManagement() {
     if (nextTab && validTabs.has(nextTab) && nextTab !== activeTab) {
       setActiveTab(nextTab)
     }
-  }, [searchParams, activeTab])
+  }, [searchParams, activeTab, validTabs])
 
   const [loading, setLoading] = useState(true)
   const [assetTypes, setAssetTypes] = useState<AssetType[]>([])

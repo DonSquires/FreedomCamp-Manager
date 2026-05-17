@@ -159,8 +159,66 @@ export const edgeFunctions = {
   listObservations: async (params: any) => callEdgeFunction('observations-list', params, 'Failed to fetch observations'),
   renderInfringementNotice: async (params: { notice_id: string }) => callEdgeFunction('render-infringement-notice', params, 'Failed to load printable notice'),
   generateInfringement: async (params: any) => callEdgeFunctionHttp('generate-infringement', params, 'Failed to issue notice'),
+  askBob: async (params: {
+    prompt: string
+    organization_id?: string | null
+    lat?: number | null
+    lng?: number | null
+  }) => callEdgeFunction('ask-bob', params, 'Bob assistant request failed'),
   pttSignalingToken: async (params: { channelScope: string }) => callEdgeFunction('ptt-signaling-token', params, 'Failed to mint PTT token'),
   transcribeAudio: async (params: { clip_url: string; language?: string }) => callEdgeFunction('transcribe-audio', params, 'Failed to transcribe audio'),
+  translateText: async (params: { text: string; target_lang: string; source_lang?: string }) => callEdgeFunction('translate-text', params, 'Failed to translate text'),
+
+  /**
+   * Synthesize speech via the synthesize-speech edge function.
+   * Returns the raw WAV blob on success, or null when TTS is unavailable
+   * (e.g. BOB_SERVICE_URL not configured in the environment).
+   */
+  synthesizeSpeech: async (params: {
+    text: string
+    voice?: string
+    style?: 'default' | 'bridge_lead' | 'wise_mentor'
+  }): Promise<Blob | null> => {
+    const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL
+    const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY
+    if (!supabaseUrl || !anonKey) return null
+
+    const token = await getValidAccessToken()
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 20_000)
+
+    try {
+      const response = await fetch(`${supabaseUrl}/functions/v1/synthesize-speech`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: anonKey,
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(params),
+        signal: controller.signal,
+      })
+      clearTimeout(timer)
+
+      if (!response.ok) {
+        return null
+      }
+
+      const contentType = response.headers.get('Content-Type') ?? ''
+      // Binary audio path (audio/wav)
+      if (contentType.startsWith('audio/')) {
+        return await response.blob()
+      }
+      // Fallback JSON path — inference service returned spoken_text only
+      const json = await response.json().catch(() => null)
+      if (!json || !json.audio_base64) return null
+      const bytes = Uint8Array.from(atob(json.audio_base64), (c) => c.charCodeAt(0))
+      return new Blob([bytes], { type: json.audio_mime_type ?? 'audio/wav' })
+    } catch {
+      clearTimeout(timer)
+      return null
+    }
+  },
 }
 
 export { withTimeout }

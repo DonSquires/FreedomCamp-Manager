@@ -42,9 +42,11 @@ import {
 } from '@/hooks/usePatrolRouteInstances'
 import { useDispatchCompletion } from '@/hooks/useDispatchCompletion'
 import { useSpeechIntent, type SpeechIntentResult } from '@/hooks/useSpeechIntent'
+import { useBobBrain } from '@/hooks/useBobBrain'
 import { GeofenceWarningBanner } from '@/components/features/GeofenceWarningBanner'
 import { reverseGeocode } from '@/lib/geocoding'
 import { subscribeBobVoiceState } from '@/lib/bob-brain'
+import { emitAiTelemetry } from '@/lib/aiTelemetry'
 import { PatrolChainAuditPrompt } from '@/components/features/PatrolChainAuditPrompt'
 import { recordChainAudit } from '@/lib/keyAudits'
 import { useKeyAuditEnabled } from '@/hooks/useKeyAuditEnabled'
@@ -107,6 +109,19 @@ const CAPTURE_TOAST_DURATION_MS = 5000
 
 /** Service types an officer can select — determines which tools are shown. */
 type ServiceType = 'freedom_camping' | 'guarding' | 'parking' | 'noise' | 'biosecurity_inspection' | 'smoke_complaint_ooh'
+
+type SpeechActionSuggestion = {
+  kind: 'open_quick_report' | 'open_alpr_scanner'
+  title: string
+  reason: string
+  preview?: {
+    description?: string
+    plate?: string
+    reportType?: 'incident' | 'hs' | 'maintenance'
+  }
+}
+
+type CopilotConfidenceBand = 'high' | 'medium' | 'low'
 
 type AssignedDispatchJob = Pick<
   Database['public']['Tables']['dispatch_jobs']['Row'],
@@ -208,6 +223,100 @@ function extractRapidReference(value: string | null | undefined): string | null 
   if (numericMatch?.[1]) return numericMatch[1].toUpperCase()
 
   return null
+}
+
+function readSpeechEntity(entities: Record<string, unknown> | undefined, keys: string[]): string | null {
+  if (!entities) return null
+  for (const key of keys) {
+    const value = entities[key]
+    if (typeof value !== 'string') continue
+    const trimmed = value.trim()
+    if (trimmed) return trimmed
+  }
+  return null
+}
+
+function deriveSpeechActionSuggestion(speechResult: SpeechIntentResult): SpeechActionSuggestion | null {
+  const intent = String(speechResult.intent.intent || '').toLowerCase()
+  const transcript = String(speechResult.transcript || '').toLowerCase()
+  const summary = String(speechResult.intent.summary || '').toLowerCase()
+  const combined = `${intent} ${summary} ${transcript}`
+  const entities = speechResult.intent.entities as Record<string, unknown> | undefined
+
+  const shouldOpenQuickReport =
+    /incident|hazard|maintenance|damage|report|complaint|unsafe/.test(combined)
+
+  if (shouldOpenQuickReport) {
+    const description = speechResult.intent.summary || speechResult.transcript
+    const plate = readSpeechEntity(entities, ['plate_number', 'vehicle_plate', 'plate'])
+    const reportType: 'incident' | 'hs' | 'maintenance' =
+      /maintenance|repair|broken|fault/.test(combined)
+        ? 'maintenance'
+        : /health|safety|injury|hazard|unsafe/.test(combined)
+          ? 'hs'
+          : 'incident'
+
+    return {
+      kind: 'open_quick_report',
+      title: 'Open quick report draft',
+      reason: 'Detected reporting intent from speech',
+      preview: {
+        description,
+        plate: plate ? plate.toUpperCase() : undefined,
+        reportType,
+      },
+    }
+  }
+
+  const shouldOpenScanner =
+    /scan|plate|vehicle|alpr|camera|registration/.test(combined)
+
+  if (shouldOpenScanner) {
+    return {
+      kind: 'open_alpr_scanner',
+      title: 'Open ALPR scanner',
+      reason: 'Detected vehicle scan intent from speech',
+    }
+  }
+
+  return null
+}
+
+function deriveCopilotActionSuggestion(answer: string): SpeechActionSuggestion | null {
+  const normalized = String(answer || '').toLowerCase()
+
+  if (/scan|alpr|plate|vehicle|registration|camera/.test(normalized)) {
+    return {
+      kind: 'open_alpr_scanner',
+      title: 'Open ALPR scanner',
+      reason: 'Copilot suggested a vehicle scan workflow',
+    }
+  }
+
+  if (/incident|hazard|maintenance|report|notice|complaint|unsafe/.test(normalized)) {
+    const firstLine = String(answer || '').split('\n').find((line) => line.trim().length > 0)?.trim() || ''
+    return {
+      kind: 'open_quick_report',
+      title: 'Open quick report draft',
+      reason: 'Copilot suggested creating a report draft',
+      preview: {
+        description: firstLine.slice(0, 220),
+      },
+    }
+  }
+
+  return null
+}
+
+function deriveCopilotConfidenceBand(answer: string): CopilotConfidenceBand {
+  const normalized = String(answer || '').toLowerCase()
+  if (/uncertain|unknown|might|could|possibly|not enough/.test(normalized)) {
+    return 'low'
+  }
+  if (/likely|recommend|suggest|best option|should/.test(normalized)) {
+    return 'high'
+  }
+  return 'medium'
 }
 
 function speakBobShiftHandshake(message: string): void {
@@ -342,6 +451,14 @@ export default function FieldOfficerPortal() {
   const isNightPatrol = themeMode === 'night-patrol'
   const employerOrganizationId = user?.employer_organization_id || user?.organization_id || null
   const routeTestOverride = useFieldOfficerRouteTestOverride()
+  const {
+    askBobBrain,
+    clearResponse: clearBobResponse,
+    response: bobResponse,
+    isLoading: isBobThinking,
+    error: bobError,
+    completedAt: bobCompletedAt,
+  } = useBobBrain()
 
   const insertWelfareAlert = useInsertWelfareAlert()
   const markNotificationReadMutation = useMarkNotificationRead()
@@ -463,6 +580,8 @@ export default function FieldOfficerPortal() {
   const [isSubmittingReport,   setIsSubmittingReport]   = useState(false)
   const [quickReportStatusText, setQuickReportStatusText] = useState<string | null>(null)
   const [quickReportStatusKind, setQuickReportStatusKind] = useState<'success' | 'error'>('success')
+  const [pendingSpeechAction, setPendingSpeechAction] = useState<SpeechActionSuggestion | null>(null)
+  const [copilotPrompt, setCopilotPrompt] = useState('')
 
   // Man-Down Detection — records GPS updates and fires alert if stationary too long
   const { recordGPSUpdate, isManDownActive } = useManDownDetection()
@@ -829,6 +948,48 @@ export default function FieldOfficerPortal() {
     return null
   }, [activeRouteInstance, primaryDispatchJob])
 
+  const officerCopilotQuickPrompts = useMemo(() => {
+    if (activeService === 'freedom_camping') {
+      return [
+        'Give me a freedom-camping enforcement checklist for this zone and shift context.',
+        'Draft a concise freedom-camping incident brief with evidence priorities (plate, GPS, photos, timeline).',
+      ]
+    }
+    if (activeService === 'parking') {
+      return [
+        'Give me a parking enforcement checklist for the current shift context.',
+        'Draft a concise parking incident summary I can log now.',
+      ]
+    }
+    if (activeService === 'noise') {
+      return [
+        'Give me a practical noise-control response sequence for this context.',
+        'Draft a short on-scene brief with evidence capture priorities for noise enforcement.',
+      ]
+    }
+    if (activeService === 'biosecurity_inspection') {
+      return [
+        'Summarize immediate biosecurity containment actions and reporting steps.',
+        'Draft a concise biosecurity incident brief with next actions.',
+      ]
+    }
+    if (activeService === 'smoke_complaint_ooh') {
+      return [
+        'Give me a smoke-control response sequence for this complaint context with safe escalation triggers.',
+        'Draft a short smoke-control incident summary with evidence capture priorities and follow-up actions.',
+      ]
+    }
+    return [
+      'Draft a concise field incident summary for my current context.',
+      'Recommend the next 3 operational actions for this patrol context.',
+    ]
+  }, [activeService])
+
+  const copilotConfidenceBand = useMemo(() => {
+    if (!bobResponse?.answer) return null
+    return deriveCopilotConfidenceBand(bobResponse.answer)
+  }, [bobResponse?.answer])
+
   const handleSpeechIntentResult = useCallback(async (speechResult: SpeechIntentResult) => {
     if (!user?.id || !user.organization_id) return
 
@@ -871,6 +1032,7 @@ export default function FieldOfficerPortal() {
     queryClient.invalidateQueries({ queryKey: ['dispatch-monitor-parity'] })
     setQuickReportStatusKind('success')
     setQuickReportStatusText(`Speech activity attached to ${speechActivityTarget?.label ?? 'field session'}`)
+    setPendingSpeechAction(deriveSpeechActionSuggestion(speechResult))
     toast.success('Officer activity enriched from speech capture')
   }, [
     activeRouteInstance?.id,
@@ -884,6 +1046,115 @@ export default function FieldOfficerPortal() {
     queryClient,
     speechActivityTarget,
     user,
+  ])
+
+  const applyPendingSpeechAction = useCallback(() => {
+    if (!pendingSpeechAction) return
+
+    if (pendingSpeechAction.kind === 'open_quick_report') {
+      emitAiTelemetry({
+        surface: 'officer-copilot',
+        stage: 'action_applied',
+        success: true,
+        details: { action: pendingSpeechAction.kind },
+      })
+      handleOpenQuickReport()
+      setQRDescription(pendingSpeechAction.preview?.description || '')
+      setQRVehiclePlate(pendingSpeechAction.preview?.plate || '')
+      setQRReportType(pendingSpeechAction.preview?.reportType || 'incident')
+      setQuickReportStatusKind('success')
+      setQuickReportStatusText('Quick report draft opened from speech intent')
+      toast.success('Quick report draft prepared')
+      setPendingSpeechAction(null)
+      return
+    }
+
+    if (pendingSpeechAction.kind === 'open_alpr_scanner') {
+      emitAiTelemetry({
+        surface: 'officer-copilot',
+        stage: 'action_applied',
+        success: true,
+        details: { action: pendingSpeechAction.kind },
+      })
+      setActiveService('freedom_camping')
+      setScanMode('detail')
+      setDetailCameraOpen(true)
+      setShowManualEntry(false)
+      setShowDetailPanel(false)
+      setDetailScanData(null)
+      setQuickReportStatusKind('success')
+      setQuickReportStatusText('ALPR scanner opened from speech intent')
+      toast.success('ALPR scanner opened')
+      setPendingSpeechAction(null)
+    }
+  }, [handleOpenQuickReport, pendingSpeechAction])
+
+  const runOfficerCopilot = useCallback(async (promptOverride?: string) => {
+    const prompt = String(promptOverride ?? copilotPrompt).trim()
+    if (!prompt) {
+      toast.warning('Enter a copilot prompt first')
+      return
+    }
+
+    const startedAt = Date.now()
+    emitAiTelemetry({
+      surface: 'officer-copilot',
+      stage: 'request',
+      success: true,
+      details: {
+        active_service: activeService ?? null,
+      },
+    })
+
+    const contextLines = [
+      'You are Bob assisting a field officer in New Zealand.',
+      'Return concise operational guidance with clear safety and evidence priorities.',
+      `Active service: ${activeService ?? 'unknown'}`,
+      `Target context: ${speechActivityTarget?.label ?? 'none'}`,
+      `Zone: ${effectivePatrolZone ?? manualZoneId ?? 'unknown'}`,
+      `Shift active: ${activeShift?.id ? 'yes' : 'no'}`,
+      `Officer prompt: ${prompt}`,
+    ]
+
+    const result = await askBobBrain({
+      prompt: contextLines.join('\n'),
+      lat: currentLocation?.latitude ?? null,
+      lng: currentLocation?.longitude ?? null,
+      organizationId: user?.organization_id ?? null,
+    })
+
+    emitAiTelemetry({
+      surface: 'officer-copilot',
+      stage: 'response',
+      success: !!result?.answer,
+      latency_ms: Date.now() - startedAt,
+      reason: result?.answer ? undefined : 'empty-answer',
+    })
+
+    if (!result?.answer) return
+    const suggestion = deriveCopilotActionSuggestion(result.answer)
+    if (suggestion) {
+      emitAiTelemetry({
+        surface: 'officer-copilot',
+        stage: 'action_suggested',
+        success: true,
+        details: {
+          action: suggestion.kind,
+        },
+      })
+    }
+    setPendingSpeechAction(suggestion)
+  }, [
+    activeService,
+    activeShift?.id,
+    askBobBrain,
+    copilotPrompt,
+    currentLocation?.latitude,
+    currentLocation?.longitude,
+    effectivePatrolZone,
+    manualZoneId,
+    speechActivityTarget?.label,
+    user?.organization_id,
   ])
 
   const speechIntent = useSpeechIntent({
@@ -2785,9 +3056,171 @@ export default function FieldOfficerPortal() {
                       </p>
                     </div>
                   )}
+
+                  {pendingSpeechAction && (
+                    <div className="rounded-lg border border-emerald-200 bg-emerald-50/70 dark:border-emerald-900/60 dark:bg-emerald-950/20 p-3 space-y-2">
+                      <div className="flex flex-wrap items-center gap-2 text-xs">
+                        <Badge variant="outline" className="border-emerald-300 text-emerald-700 dark:text-emerald-300">
+                          Suggested action
+                        </Badge>
+                        <span className="text-muted-foreground">{pendingSpeechAction.reason}</span>
+                      </div>
+                      <p className="text-sm font-medium text-foreground">{pendingSpeechAction.title}</p>
+                      {pendingSpeechAction.preview?.description && (
+                        <p className="text-xs text-muted-foreground line-clamp-3">
+                          Draft: {pendingSpeechAction.preview.description}
+                        </p>
+                      )}
+                      {pendingSpeechAction.preview?.plate && (
+                        <p className="text-xs text-muted-foreground">
+                          Plate: {pendingSpeechAction.preview.plate}
+                        </p>
+                      )}
+                      <div className="flex flex-wrap gap-2">
+                        <Button size="sm" onClick={applyPendingSpeechAction}>
+                          Apply suggested action
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            emitAiTelemetry({
+                              surface: 'officer-copilot',
+                              stage: 'action_dismissed',
+                              success: true,
+                              details: {
+                                action: pendingSpeechAction.kind,
+                              },
+                            })
+                            setPendingSpeechAction(null)
+                          }}
+                        >
+                          Dismiss
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             )}
+
+            <Card className="mb-6 border-violet-200 dark:border-violet-900/60 bg-violet-50/60 dark:bg-violet-950/20">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Zap className="h-4 w-4 text-violet-600" />
+                  Officer AI Copilot
+                </CardTitle>
+                <CardDescription>
+                  Context-aware guidance with confirm-before-apply workflow actions.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                  <Badge variant="outline" className="border-violet-300 text-violet-700 dark:text-violet-300">
+                    Assistive only
+                  </Badge>
+                  {speechActivityTarget && (
+                    <Badge variant="outline" className="border-blue-300 text-blue-700 dark:text-blue-300">
+                      Context: {speechActivityTarget.label}
+                    </Badge>
+                  )}
+                  {copilotConfidenceBand && (
+                    <Badge
+                      variant="outline"
+                      className={
+                        copilotConfidenceBand === 'high'
+                          ? 'border-emerald-300 text-emerald-700 dark:text-emerald-300'
+                          : copilotConfidenceBand === 'medium'
+                            ? 'border-amber-300 text-amber-700 dark:text-amber-300'
+                            : 'border-rose-300 text-rose-700 dark:text-rose-300'
+                      }
+                    >
+                      Confidence: {copilotConfidenceBand}
+                    </Badge>
+                  )}
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  {officerCopilotQuickPrompts.map((quickPrompt) => (
+                    <Button
+                      key={quickPrompt}
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setCopilotPrompt(quickPrompt)
+                        void runOfficerCopilot(quickPrompt)
+                      }}
+                      disabled={isBobThinking}
+                    >
+                      {quickPrompt.length > 44 ? `${quickPrompt.slice(0, 44)}...` : quickPrompt}
+                    </Button>
+                  ))}
+                </div>
+
+                <Textarea
+                  value={copilotPrompt}
+                  onChange={(event) => setCopilotPrompt(event.target.value)}
+                  placeholder="Ask Bob for a field-ready plan, report draft, or next-action sequence..."
+                  rows={3}
+                />
+
+                <div className="flex flex-wrap gap-2">
+                  <Button size="sm" onClick={() => void runOfficerCopilot()} disabled={isBobThinking}>
+                    {isBobThinking ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+                        Thinking...
+                      </>
+                    ) : (
+                      <>
+                        <Zap className="h-4 w-4 mr-1.5" />
+                        Ask copilot
+                      </>
+                    )}
+                  </Button>
+                  {(bobResponse || bobError) && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        clearBobResponse()
+                        setPendingSpeechAction(null)
+                      }}
+                      disabled={isBobThinking}
+                    >
+                      Clear response
+                    </Button>
+                  )}
+                </div>
+
+                {bobError && (
+                  <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-300">
+                    {bobError}
+                  </div>
+                )}
+
+                {bobResponse?.answer && (
+                  <div className="rounded-lg border border-violet-200 bg-white/80 dark:border-violet-900 dark:bg-slate-950/40 p-3 space-y-2">
+                    <div className="flex flex-wrap items-center gap-2 text-xs">
+                      <p className="text-xs text-muted-foreground">
+                        Copilot response {bobCompletedAt ? `· ${formatDateTime(bobCompletedAt)}` : ''}
+                      </p>
+                      {bobResponse.provider && (
+                        <Badge variant="outline" className="border-violet-300 text-violet-700 dark:text-violet-300">
+                          Provider: {bobResponse.provider}
+                        </Badge>
+                      )}
+                      {bobResponse.model && (
+                        <Badge variant="outline" className="border-blue-300 text-blue-700 dark:text-blue-300">
+                          Model: {bobResponse.model}
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="text-sm whitespace-pre-wrap text-foreground">{bobResponse.answer}</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
 
             {/* ── Dispatched Job Queue (GDS CATS-style) ──────────────── */}
             {myDispatchJobs.length > 0 && (
