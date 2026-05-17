@@ -29,6 +29,8 @@ const MAX_ATTEMPTS = Math.max(1, parseInt(process.env.RADIO_SPEECH_MAX_ATTEMPTS 
 const BACKOFF_BASE_MS = Math.max(100, parseInt(process.env.RADIO_SPEECH_BACKOFF_BASE_MS || '1000', 10));
 const BACKOFF_MAX_MS = Math.max(BACKOFF_BASE_MS, parseInt(process.env.RADIO_SPEECH_BACKOFF_MAX_MS || '10000', 10));
 const POP_TIMEOUT_SECONDS = Math.max(1, parseInt(process.env.RADIO_SPEECH_POP_TIMEOUT_SECONDS || '5', 10));
+const DEFAULT_SOURCE = String(process.env.RADIO_SPEECH_SOURCE || 'ptt-server.speech-worker').trim() || 'ptt-server.speech-worker';
+const DEFAULT_PROVIDER_NAME = String(process.env.RADIO_SPEECH_PROVIDER || process.env.RADIO_SFU_PROVIDER || 'mediasoup').trim() || 'mediasoup';
 
 if (!REDIS_URL) {
   console.error('[speech-worker] REDIS_URL is required');
@@ -47,6 +49,52 @@ function boundedBackoffMs(attempt) {
   const exponential = BACKOFF_BASE_MS * Math.pow(2, Math.max(0, attempt - 1));
   const jitter = Math.floor(Math.random() * 250);
   return Math.min(BACKOFF_MAX_MS, exponential + jitter);
+}
+
+function normalizedString(value, maxLength = 256) {
+  if (value === null || value === undefined) return null;
+  const text = String(value).trim();
+  if (!text) return null;
+  return text.slice(0, maxLength);
+}
+
+function normalizeProvider(provider, fallbackName) {
+  if (provider && typeof provider === 'object' && !Array.isArray(provider)) {
+    return {
+      ...provider,
+      name: normalizedString(provider.name || fallbackName, 120) || fallbackName,
+      pipeline: normalizedString(provider.pipeline || 'speech-event-queue', 120) || 'speech-event-queue',
+    };
+  }
+
+  return {
+    name: normalizedString(provider || fallbackName, 120) || fallbackName,
+    pipeline: 'speech-event-queue',
+  };
+}
+
+function normalizeSpeechPayload(payload) {
+  const incoming = payload && typeof payload === 'object' ? payload : {};
+
+  const transmissionId = normalizedString(incoming.transmissionId, 128);
+  const orgId = normalizedString(incoming.orgId, 128);
+  const providerName = normalizedString(incoming.providerName, 120) || DEFAULT_PROVIDER_NAME;
+
+  return {
+    ...incoming,
+    type: normalizedString(incoming.type, 120) || 'unknown',
+    transmissionId,
+    orgId,
+    speakerId: normalizedString(incoming.speakerId, 128),
+    channelId: normalizedString(incoming.channelId || incoming.channel_scope || incoming.channelScope, 128),
+    channelType: normalizedString(incoming.channelType || incoming.channel_type, 64),
+    source: normalizedString(incoming.source, 160) || DEFAULT_SOURCE,
+    provider: normalizeProvider(incoming.provider, providerName),
+    traceId: normalizedString(incoming.traceId || incoming.requestId, 160)
+      || `${transmissionId || 'tx-unknown'}:${Date.now()}`,
+    enqueuedAt: normalizedString(incoming.enqueuedAt, 64) || new Date().toISOString(),
+    forwardedAt: new Date().toISOString(),
+  };
 }
 
 async function callWebhook(payload) {
@@ -92,12 +140,28 @@ async function processMessage(raw, redisClient) {
     return;
   }
 
+  const normalizedPayload = normalizeSpeechPayload(payload);
+  if (!normalizedPayload.transmissionId || !normalizedPayload.type) {
+    const dead = {
+      payload: normalizedPayload,
+      reason: 'invalid_payload',
+      missing: [
+        !normalizedPayload.transmissionId ? 'transmissionId' : null,
+        !normalizedPayload.type ? 'type' : null,
+      ].filter(Boolean),
+      failedAt: new Date().toISOString(),
+    };
+    await redisClient.rPush(DLQ_KEY, JSON.stringify(dead));
+    console.warn('[speech-worker] dropped invalid payload; moved to DLQ');
+    return;
+  }
+
   let lastError = null;
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     try {
-      await callWebhook(payload);
+      await callWebhook(normalizedPayload);
       if (attempt > 1) {
-        console.log(`[speech-worker] recovered after retry ${attempt}/${MAX_ATTEMPTS} for ${payload.type || 'unknown'}`);
+        console.log(`[speech-worker] recovered after retry ${attempt}/${MAX_ATTEMPTS} for ${normalizedPayload.type || 'unknown'}`);
       }
       return;
     } catch (err) {
@@ -112,7 +176,7 @@ async function processMessage(raw, redisClient) {
   }
 
   const dead = {
-    payload,
+    payload: normalizedPayload,
     reason: 'max_attempts_exceeded',
     attempts: MAX_ATTEMPTS,
     error: lastError ? String(lastError.message || lastError) : 'unknown',

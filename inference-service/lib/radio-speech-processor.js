@@ -41,6 +41,13 @@ const MAX_SEGMENT_TEXT_LENGTH = 120;
 const DUB_MODE_ENABLED = String(process.env.RADIO_DUB_MODE_ENABLED || 'true').toLowerCase() === 'true';
 const DUB_TARGET_LANGUAGE = String(process.env.RADIO_DUB_TARGET_LANGUAGE || 'en-NZ').trim() || 'en-NZ';
 const DUB_PROVIDER = String(process.env.RADIO_DUB_PROVIDER || 'fieldops-dub').trim() || 'fieldops-dub';
+const RADIO_INGEST_ENDPOINT_ENABLED = ['1', 'true', 'yes', 'on'].includes(String(process.env.RADIO_TRANSCRIPT_INGEST_ENABLED || 'true').toLowerCase());
+const RADIO_INGEST_ENDPOINT_URL = String(
+  process.env.RADIO_TRANSCRIPT_INGEST_URL
+  || (SUPABASE_URL ? `${SUPABASE_URL}/functions/v1/ingest-transcript-segments` : '')
+).replace(/\/+$/, '');
+const RADIO_INGEST_ENDPOINT_API_KEY = String(process.env.RADIO_TRANSCRIPT_INGEST_API_KEY || SUPABASE_SERVICE_ROLE_KEY || '').trim();
+const RADIO_INGEST_TIMEOUT_MS = Math.max(3000, parseInt(process.env.RADIO_TRANSCRIPT_INGEST_TIMEOUT_MS || '10000', 10));
 
 // ─── Supabase REST helpers ────────────────────────────────────────────────────
 
@@ -85,6 +92,70 @@ async function supabasePatch(table, id, patch) {
   if (!res.ok) {
     const text = await res.text().catch(() => res.statusText);
     throw new Error(`supabasePatch(${table}, ${id}) failed ${res.status}: ${text}`);
+  }
+}
+
+function buildIngestContractPayload({ event, rows, result, processingLatencyMs }) {
+  const sourceProvider = event?.provider && typeof event.provider === 'object' ? event.provider : {};
+  const normalizedSource = String(event?.source || 'inference-service.radio-speech-processor').trim();
+
+  return {
+    orgId: event?.orgId || null,
+    channelId: event?.channelId || event?.channel_scope || event?.channelScope || null,
+    transmissionId: event?.transmissionId || null,
+    source: normalizedSource || 'inference-service.radio-speech-processor',
+    provider: {
+      name: String(result?.provider || sourceProvider.name || 'unknown').trim() || 'unknown',
+      requestId: sourceProvider.requestId || event?.traceId || event?.requestId || null,
+      model: sourceProvider.model || null,
+      region: sourceProvider.region || null,
+      latencyMs: Number.isFinite(Number(sourceProvider.latencyMs)) ? Number(sourceProvider.latencyMs) : processingLatencyMs,
+      pipeline: String(sourceProvider.pipeline || 'speech-processor').trim() || 'speech-processor',
+    },
+    segments: (Array.isArray(rows) ? rows : []).map((row) => ({
+      sequenceNum: row.sequence_num,
+      segmentStartMs: row.segment_start_ms,
+      segmentEndMs: row.segment_end_ms,
+      text: row.text,
+      language: row.language,
+      confidence: row.confidence,
+      isFinal: row.is_final,
+      source: normalizedSource || 'inference-service.radio-speech-processor',
+      provider: result?.provider || sourceProvider.name || 'unknown',
+    })),
+  };
+}
+
+async function emitIngestContractPayload({ event, rows, result, processingLatencyMs }) {
+  if (!RADIO_INGEST_ENDPOINT_ENABLED) return { sent: false, reason: 'disabled' };
+  if (!RADIO_INGEST_ENDPOINT_URL) return { sent: false, reason: 'missing_url' };
+  if (!RADIO_INGEST_ENDPOINT_API_KEY) return { sent: false, reason: 'missing_api_key' };
+
+  const payload = buildIngestContractPayload({ event, rows, result, processingLatencyMs });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort('timeout'), RADIO_INGEST_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(RADIO_INGEST_ENDPOINT_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: RADIO_INGEST_ENDPOINT_API_KEY,
+        Authorization: `Bearer ${RADIO_INGEST_ENDPOINT_API_KEY}`,
+        'x-org-id': String(payload.orgId || ''),
+      },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      const body = await response.text().catch(() => response.statusText);
+      throw new Error(`ingest-transcript-segments ${response.status}: ${body}`);
+    }
+
+    return { sent: true, status: response.status };
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -455,6 +526,12 @@ async function handleProducerCreated(event) {
 
   try {
     const insertedTranscriptRows = await supabaseInsert('radio_transcript_segments', rows);
+    try {
+      await emitIngestContractPayload({ event, rows, result, processingLatencyMs });
+    } catch (ingestErr) {
+      console.warn('[radio-speech-processor] ingest endpoint emit failed:', ingestErr.message);
+    }
+
     pipelineMetrics.processed_events += 1;
     pipelineMetrics.last_processed_at = new Date().toISOString();
     pipelineMetrics.last_latency_ms = processingLatencyMs;
@@ -584,4 +661,10 @@ function getRadioPipelineStatus() {
   };
 }
 
-module.exports = { processSpeechEvent, getRadioPipelineStatus };
+module.exports = {
+  processSpeechEvent,
+  getRadioPipelineStatus,
+  __test: {
+    buildIngestContractPayload,
+  },
+};

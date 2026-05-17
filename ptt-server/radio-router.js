@@ -116,8 +116,11 @@ async function initRadioRedis() {
 async function enqueueSpeechEvent(event) {
   if (!(redisClient && redisReady)) return;
   try {
+    const providerName = String(process.env.RADIO_SFU_PROVIDER || 'mediasoup').trim() || 'mediasoup';
     await redisClient.rPush(RADIO_SPEECH_QUEUE_KEY, JSON.stringify({
       ...event,
+      source: event?.source || 'ptt-server.radio-router',
+      provider: event?.provider || { name: providerName, pipeline: 'sfu-session-events' },
       enqueuedAt: new Date().toISOString(),
     }));
     speechQueueMetrics.eventsEnqueued += 1;
@@ -501,6 +504,7 @@ router.post('/radio/producer/create', verifyRadioJwt, verifyTransmissionScope, a
     producerId: producer.id,
     orgId: claims.org || null,
     speakerId: claims.sub || null,
+    channelId: claims.channel_scope || null,
     channelType: claims.channel_type || null,
     isEmergency: !!claims.is_emergency,
     voiceMetadata: req.body?.appData?.voice_metadata || null,
@@ -598,6 +602,8 @@ router.delete('/radio/session/:transmissionId', verifyRadioJwt, verifyTransmissi
     transmissionId,
     orgId: claims.org || null,
     speakerId: claims.sub || null,
+    channelId: claims.channel_scope || null,
+    channelType: claims.channel_type || null,
     isEmergency: !!claims.is_emergency,
   });
 
