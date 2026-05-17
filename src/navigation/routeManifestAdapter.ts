@@ -1,5 +1,7 @@
 import type { AppRole, RouteManifestEntry } from './routeManifest'
 
+export type RouteVisibilityRuntimeMode = 'production' | 'staging' | 'development'
+
 export interface LegacyNavItem {
   path: string
   label: string
@@ -14,12 +16,13 @@ export interface LegacyNavGroup {
 export interface RouteProjectionOptions {
   role?: AppRole
   includeInternal?: boolean
+  visibilityMode?: RouteVisibilityRuntimeMode
   shell?: RouteManifestEntry['shell']
 }
 
-function isVisible(entry: RouteManifestEntry, includeInternal: boolean): boolean {
+function isVisible(entry: RouteManifestEntry, visibilityMode: RouteVisibilityRuntimeMode): boolean {
   if (entry.visibilityMode === 'hidden') return false
-  if (!includeInternal && entry.visibilityMode === 'internal') return false
+  if (entry.visibilityMode === 'internal' && visibilityMode === 'production') return false
   return true
 }
 
@@ -35,9 +38,9 @@ export function projectLegacyNavItems(
   entries: RouteManifestEntry[],
   options: RouteProjectionOptions = {},
 ): LegacyNavItem[] {
-  const includeInternal = options.includeInternal ?? false
+  const visibilityMode = options.visibilityMode ?? ((options.includeInternal ?? false) ? 'staging' : 'production')
   return entries
-    .filter((entry) => isVisible(entry, includeInternal))
+    .filter((entry) => isVisible(entry, visibilityMode))
     .filter((entry) => canAccess(entry, options.role))
     .filter((entry) => !options.shell || entry.shell === options.shell || entry.shell === 'shared')
     .filter((entry) => !!entry.navLabel)
@@ -74,26 +77,25 @@ export function projectLegacyNavGroups(
  * Determines if a route should be visible in the navigation for a given role.
  * If the path is in the manifest, the manifest is authoritative.
  * If the path is NOT in the manifest yet, returns `true` (backward-compat fallback).
- */
-/**
- * Determines if a route should be visible in the navigation for a given role.
- * If the path is in the manifest, the manifest is authoritative.
- * If the path is NOT in the manifest yet, returns `true` (backward-compat fallback).
  *
  * @param featureFlagsActive - optional set of active feature flag keys. When provided,
  *   routes gated by a featureFlag are hidden unless the flag is present in this set.
  *   When omitted, feature-flagged routes default to visible (fallback for callers that
  *   have not yet wired up the flag store).
+ * @param visibilityMode - runtime visibility context. Internal routes are hidden in
+ *   production mode and allowed in staging/development (subject to role/flag checks).
  */
 export function isRouteVisibleForRole(
   path: string,
   role: AppRole | null | undefined,
   entries: RouteManifestEntry[],
   featureFlagsActive?: Set<string>,
+  visibilityMode: RouteVisibilityRuntimeMode = 'production',
 ): boolean {
   const entry = entries.find((e) => e.path === path)
   if (!entry) return true // not in manifest yet — allow (backward compat)
   if (entry.visibilityMode === 'hidden') return false
+  if (entry.visibilityMode === 'internal' && visibilityMode === 'production') return false
   if (role === 'grand_master') {
     if (entry.featureFlag && featureFlagsActive && !featureFlagsActive.has(entry.featureFlag)) return false
     return true
@@ -105,6 +107,33 @@ export function isRouteVisibleForRole(
   // Feature-flag gate: hide if a flag is required and the caller supplied the active set without it
   if (entry.featureFlag && featureFlagsActive && !featureFlagsActive.has(entry.featureFlag)) return false
   return true
+}
+
+/**
+ * Returns whether a path is hidden for the provided runtime mode.
+ * Unknown paths are treated as not-hidden for backward compatibility.
+ */
+export function isRouteHidden(
+  path: string,
+  entries: RouteManifestEntry[],
+  visibilityMode: RouteVisibilityRuntimeMode = 'production',
+): boolean {
+  const entry = entries.find((e) => e.path === path)
+  if (!entry) return false
+  if (entry.visibilityMode === 'hidden') return true
+  return entry.visibilityMode === 'internal' && visibilityMode === 'production'
+}
+
+/**
+ * Maps runtime environment settings to manifest visibility mode.
+ */
+export function resolveRuntimeVisibilityMode(
+  envMode: string | undefined,
+  isProd: boolean,
+): RouteVisibilityRuntimeMode {
+  if (isProd) return 'production'
+  if (envMode === 'staging') return 'staging'
+  return 'development'
 }
 
 /**

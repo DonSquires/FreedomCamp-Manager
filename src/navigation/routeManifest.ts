@@ -10,8 +10,6 @@ export type AppRole =
   | 'client_admin'
   | 'client_officer'
   | 'client_viewer'
-  | 'client_officer'
-  | 'client_admin'
 
 export type VisibilityMode = 'production' | 'internal' | 'hidden'
 
@@ -230,15 +228,15 @@ export const routeManifest: RouteManifestEntry[] = [
     preloadPolicy: 'none',
   },
   {
-    routeId: 'admin.discrepancies',
+    routeId: 'admin.discrepancies-alias',
     path: '/admin/discrepancies',
     shell: 'admin',
     rolesAllowed: ['admin', 'admin_officer', 'master', 'grand_master'],
-    navGroup: 'Operations',
-    navLabel: 'Discrepancies',
-    visibilityMode: 'production',
+    navGroup: null,
+    navLabel: null,
+    visibilityMode: 'hidden',
     featureFlag: null,
-    mobilePriority: 2,
+    mobilePriority: null,
     preloadPolicy: 'none',
   },
   {
