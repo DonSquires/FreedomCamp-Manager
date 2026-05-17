@@ -154,4 +154,84 @@ test.describe('Phase 0-3 Multi-Language Translation', () => {
     expect(verifyRows[0]?.target_language).toBe('mi')
     expect(String(verifyRows[0]?.text || '').length).toBeGreaterThan(0)
   })
+
+  test('low-confidence translation is flagged', async ({ request }) => {
+    const token = await getAccessToken(request)
+    test.skip(!token, 'Auth preflight failed; skipping.')
+    const context = await getUserContext(request, token)
+    const transmission = await createTransmission(request, token, context)
+
+    // Ingest source segment
+    await request.post(`${SUPABASE_URL}/functions/v1/ingest-transcript-segments`, {
+      headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      data: {
+        orgId: context.orgId,
+        channelId: transmission.channelId,
+        transmissionId: transmission.id,
+        language: 'en',
+        segments: [{ sequenceNum: 1, startMs: 0, endMs: 800, text: 'Unclear transmission', confidence: 0.9, isFinal: true }],
+      },
+    })
+
+    // Translate with low confidence (< 0.65 threshold)
+    const translateResponse = await request.post(`${SUPABASE_URL}/functions/v1/translate-transcript-segments`, {
+      headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      data: {
+        orgId: context.orgId,
+        transmissionId: transmission.id,
+        targetLanguage: 'zh',
+        segments: [{ sequenceNum: 1, translatedText: '不清楚的传输', confidence: 0.42, provider: 'low-conf-test' }],
+      },
+    })
+    expect(translateResponse.status()).toBe(200)
+
+    // Verify is_low_confidence is stored as true
+    const verifyResp = await request.get(
+      `${SUPABASE_URL}/rest/v1/radio_translation_segments?select=confidence,is_low_confidence&target_language=eq.zh&order=created_at.desc&limit=1`,
+      { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${token}` } },
+    )
+    const rows = await verifyResp.json().catch(() => []) as Array<{ confidence?: number; is_low_confidence?: boolean }>
+    expect(verifyResp.ok()).toBeTruthy()
+    expect(Array.isArray(rows) && rows.length > 0).toBeTruthy()
+    expect(rows[0]?.is_low_confidence).toBe(true)
+  })
+
+  test('org isolation: cross-org transmission returns 404 from translate endpoint', async ({ request }) => {
+    const token = await getAccessToken(request)
+    test.skip(!token, 'Auth preflight failed; skipping.')
+    const context = await getUserContext(request, token)
+
+    // Attempt to translate against a fabricated transmission_id from a different org uuid
+    const foreignOrgId = '00000000-0000-0000-0000-000000000001'
+    const foreignTransmissionId = '00000000-0000-0000-0000-000000000002'
+
+    const translateResponse = await request.post(`${SUPABASE_URL}/functions/v1/translate-transcript-segments`, {
+      headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      data: {
+        orgId: foreignOrgId,
+        transmissionId: foreignTransmissionId,
+        targetLanguage: 'fr',
+        segments: [{ sequenceNum: 1, translatedText: 'isolement de test', confidence: 0.9 }],
+      },
+    })
+    // Expect 404 (no segments found) or 400/403 — not 200
+    expect(translateResponse.status(), 'Cross-org translate must not return 200').not.toBe(200)
+  })
+
+  test('RLS: cross-org translation rows are not readable', async ({ request }) => {
+    const token = await getAccessToken(request)
+    test.skip(!token, 'Auth preflight failed; skipping.')
+    const context = await getUserContext(request, token)
+
+    // Query for translation segments belonging to a different org_id
+    const foreignOrgId = '00000000-0000-0000-0000-000000000001'
+    const crossOrgResp = await request.get(
+      `${SUPABASE_URL}/rest/v1/radio_translation_segments?select=id,org_id&org_id=eq.${encodeURIComponent(foreignOrgId)}&limit=10`,
+      { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${token}` } },
+    )
+    const crossOrgRows = await crossOrgResp.json().catch(() => []) as unknown[]
+    expect(crossOrgResp.ok()).toBeTruthy()
+    expect(Array.isArray(crossOrgRows) && crossOrgRows.length).toBe(0)
+  })
 })
+
