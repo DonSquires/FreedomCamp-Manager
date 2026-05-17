@@ -11,7 +11,7 @@ import { FunctionsHttpError, FunctionsRelayError, FunctionsFetchError } from '@s
 import { useAuthStore } from '@/stores/authStore'
 import { useSessionLockStore } from '@/stores/sessionLockStore'
 import { getEffectiveBobExecutionPolicy } from '@/stores/bobExecutionPolicyStore'
-import { assertBobMutationAccess, findBobMutationContractsForText, getBobGatekeeperPolicySummary, getBobMutationCatalogSummary } from './bobMutationCatalog'
+import { assertBobMutationAccess, findBobMutationContractsForText, getBobGatekeeperPolicySummary, getBobMutationCatalogEntry, getBobMutationCatalogSummary } from './bobMutationCatalog'
 import { findBobRouteEntriesForText, getBobRouteEntityMapSummary } from './bobRouteEntityMap'
 import { findBobSchemaEntitiesForText, getBobSchemaRegistrySummary } from './bobSchemaRegistry'
 
@@ -157,8 +157,17 @@ export function evaluateEmergencyPriorityGate(params: Record<string, any>, reque
     }
   }
 
-  // During emergency-priority windows, any explicit mutation contract request is blocked.
   if (requestedMutationContract) {
+    const entry = getBobMutationCatalogEntry(requestedMutationContract)
+    if (entry?.emergencyPriorityBehavior !== 'block') {
+      return {
+        active: true,
+        blocked: false,
+        reasonCode: 'emergency_priority_active',
+        reason: 'Emergency-priority workflow is active. Only non-safety administrative writes are blocked; this contract remains available.',
+      }
+    }
+
     return {
       active: true,
       blocked: true,
@@ -192,7 +201,7 @@ export function buildBobExecutionReview(params: Record<string, any>, policy: Ret
   const emergencyGate = evaluateEmergencyPriorityGate(params, requestedMutationContract)
   const commandBusConfidence = toFiniteConfidence(params.context?.command_bus?.confidence, 0.5)
   const gateDecisionConfidence = requestedMutationContract
-    ? (mutationAccess?.allowed ? 0.96 : 0.99)
+    ? (mutationAccess?.allowed && !emergencyGate.blocked ? 0.96 : 0.99)
     : emergencyGate.active
       ? 0.92
       : 0.68

@@ -11,6 +11,7 @@ describe('bobMutationCatalog getBobGatekeeperPolicyMatrix', () => {
 
     expect(entry).toBeDefined()
     expect(entry?.approvalLevel).toBe('review')
+    expect(entry?.emergencyPriorityBehavior).toBe('block')
     expect(entry?.governanceClass).toBe('approval_gated')
   })
 
@@ -29,6 +30,7 @@ describe('bobMutationCatalog getBobGatekeeperPolicyMatrix', () => {
 
     expect(entry).toBeDefined()
     expect(entry?.approvalLevel).toBe('none')
+    expect(entry?.emergencyPriorityBehavior).toBe('allow')
     expect(entry?.governanceClass).toBe('assistive_only')
   })
 })

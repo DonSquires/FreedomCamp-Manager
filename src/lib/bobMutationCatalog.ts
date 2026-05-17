@@ -3,6 +3,7 @@ export interface BobMutationCatalogEntry {
   contract: string
   writesTo: string[]
   purpose: string
+  emergencyPriorityBehavior: 'allow' | 'block'
   allowedExecutionModes: Array<'owner_full' | 'master_balanced' | 'officer_assist'>
   approvalLevel: 'none' | 'review' | 'owner_only'
   dryRunSupported: boolean
@@ -15,6 +16,7 @@ export const BOB_MUTATION_CATALOG: BobMutationCatalogEntry[] = [
     contract: 'supabase.directPatrolSetupDraft',
     writesTo: ['client_sites', 'zones'],
     purpose: 'Create draft site and linked zone records from approved patrol setup briefs.',
+    emergencyPriorityBehavior: 'block',
     allowedExecutionModes: ['owner_full', 'master_balanced'],
     approvalLevel: 'review',
     dryRunSupported: true,
@@ -25,6 +27,7 @@ export const BOB_MUTATION_CATALOG: BobMutationCatalogEntry[] = [
     contract: 'supabase.clientSiteShiftProvisioning',
     writesTo: ['clients', 'client_sites', 'patrol_shifts'],
     purpose: 'Create a client, site, and patrol shift bundle through the guarded Bob administrative actuation path.',
+    emergencyPriorityBehavior: 'block',
     allowedExecutionModes: ['owner_full', 'master_balanced'],
     approvalLevel: 'review',
     dryRunSupported: true,
@@ -35,6 +38,7 @@ export const BOB_MUTATION_CATALOG: BobMutationCatalogEntry[] = [
     contract: 'edgeFunctions.importData',
     writesTo: ['zones', 'observations'],
     purpose: 'General AI-assisted file import for operational data using controlled backend validation.',
+    emergencyPriorityBehavior: 'block',
     allowedExecutionModes: ['owner_full', 'master_balanced'],
     approvalLevel: 'review',
     dryRunSupported: false,
@@ -45,6 +49,7 @@ export const BOB_MUTATION_CATALOG: BobMutationCatalogEntry[] = [
     contract: 'edgeFunctions.importHistoricalData',
     writesTo: ['patrol_events', 'zones'],
     purpose: 'Excel or batch import path for historical patrol records with controlled matching.',
+    emergencyPriorityBehavior: 'block',
     allowedExecutionModes: ['owner_full', 'master_balanced'],
     approvalLevel: 'review',
     dryRunSupported: false,
@@ -54,6 +59,7 @@ export const BOB_MUTATION_CATALOG: BobMutationCatalogEntry[] = [
     contract: 'supabase.aiImportIntake',
     writesTo: ['ai_import_intakes'],
     purpose: 'Stage parking training manuals, zoning guidance, and setup context for reviewed Bob-driven client and geofence creation.',
+    emergencyPriorityBehavior: 'block',
     allowedExecutionModes: ['owner_full', 'master_balanced'],
     approvalLevel: 'review',
     dryRunSupported: true,
@@ -64,6 +70,7 @@ export const BOB_MUTATION_CATALOG: BobMutationCatalogEntry[] = [
     contract: 'supabase.organizationsInsert',
     writesTo: ['organizations'],
     purpose: 'Create a missing organization row and stage follow-on client, site, zone, and geofence setup context.',
+    emergencyPriorityBehavior: 'block',
     allowedExecutionModes: ['owner_full', 'master_balanced'],
     approvalLevel: 'review',
     dryRunSupported: true,
@@ -74,6 +81,7 @@ export const BOB_MUTATION_CATALOG: BobMutationCatalogEntry[] = [
     contract: 'edgeFunctions.processTenderDocument',
     writesTo: ['organizations', 'assessment artifact'],
     purpose: 'Analyze tender/RFP material and persist structured assessment safely.',
+    emergencyPriorityBehavior: 'block',
     allowedExecutionModes: ['owner_full', 'master_balanced'],
     approvalLevel: 'review',
     dryRunSupported: false,
@@ -83,6 +91,7 @@ export const BOB_MUTATION_CATALOG: BobMutationCatalogEntry[] = [
     contract: 'edgeFunctions.generateTenderSections',
     writesTo: ['generated tender content only'],
     purpose: 'Generate application or response sections from approved tender context.',
+    emergencyPriorityBehavior: 'allow',
     allowedExecutionModes: ['owner_full', 'master_balanced'],
     approvalLevel: 'review',
     dryRunSupported: false,
@@ -92,6 +101,7 @@ export const BOB_MUTATION_CATALOG: BobMutationCatalogEntry[] = [
     contract: 'edgeFunctions.generateDashboardReport',
     writesTo: ['generated report artifact only'],
     purpose: 'Create report output from existing operational data without direct table mutation.',
+    emergencyPriorityBehavior: 'allow',
     allowedExecutionModes: ['owner_full', 'master_balanced', 'officer_assist'],
     approvalLevel: 'none',
     dryRunSupported: true,
@@ -101,6 +111,7 @@ export const BOB_MUTATION_CATALOG: BobMutationCatalogEntry[] = [
       contract: 'edgeFunctions.generateBriefingVideo',
       writesTo: ['media_generation_log', 'video_briefing_packs'],
       purpose: 'Generate briefing video artifact via FFmpeg or deterministic rendering, with immutable audit trail.',
+      emergencyPriorityBehavior: 'allow',
       allowedExecutionModes: ['owner_full', 'master_balanced', 'officer_assist'],
       approvalLevel: 'review',
       dryRunSupported: true,
@@ -111,6 +122,7 @@ export const BOB_MUTATION_CATALOG: BobMutationCatalogEntry[] = [
     contract: 'edgeFunctions.sendReportEmail',
     writesTo: ['email delivery only'],
     purpose: 'Send generated report output to a validated recipient.',
+    emergencyPriorityBehavior: 'allow',
     allowedExecutionModes: ['owner_full', 'master_balanced'],
     approvalLevel: 'review',
     dryRunSupported: false,
@@ -120,6 +132,7 @@ export const BOB_MUTATION_CATALOG: BobMutationCatalogEntry[] = [
     contract: 'edgeFunctions.createUser',
     writesTo: ['user_profiles', 'auth.users'],
     purpose: 'Create a user via the managed user creation path.',
+    emergencyPriorityBehavior: 'block',
     allowedExecutionModes: ['owner_full', 'master_balanced'],
     approvalLevel: 'review',
     dryRunSupported: false,
@@ -129,6 +142,7 @@ export const BOB_MUTATION_CATALOG: BobMutationCatalogEntry[] = [
     contract: 'edgeFunctions.setUserActiveStatus',
     writesTo: ['user_profiles'],
     purpose: 'Activate or deactivate a user via a controlled admin contract.',
+    emergencyPriorityBehavior: 'block',
     allowedExecutionModes: ['owner_full', 'master_balanced'],
     approvalLevel: 'review',
     dryRunSupported: false,
@@ -138,6 +152,7 @@ export const BOB_MUTATION_CATALOG: BobMutationCatalogEntry[] = [
     contract: 'edgeFunctions.bobCodeChangeTask',
     writesTo: ['task queue only'],
     purpose: 'Queue a Bob code-change or human-test task instead of editing systems directly.',
+    emergencyPriorityBehavior: 'allow',
     allowedExecutionModes: ['owner_full'],
     approvalLevel: 'owner_only',
     dryRunSupported: true,
@@ -147,6 +162,7 @@ export const BOB_MUTATION_CATALOG: BobMutationCatalogEntry[] = [
     contract: 'edgeFunctions.grandmasterStudio',
     writesTo: ['diagnostic logs only'],
     purpose: 'Run guarded Bob health and infrastructure diagnostics through the Grandmaster workflow.',
+    emergencyPriorityBehavior: 'allow',
     allowedExecutionModes: ['owner_full'],
     approvalLevel: 'owner_only',
     dryRunSupported: true,
@@ -156,6 +172,7 @@ export const BOB_MUTATION_CATALOG: BobMutationCatalogEntry[] = [
     contract: 'edgeFunctions.grandmasterStudio',
     writesTo: ['owner research queue only'],
     purpose: 'Queue owner-reviewed research or Copilot task requests for later execution.',
+    emergencyPriorityBehavior: 'allow',
     allowedExecutionModes: ['owner_full'],
     approvalLevel: 'owner_only',
     dryRunSupported: true,
@@ -191,6 +208,7 @@ export interface BobGatekeeperPolicyMatrixEntry {
   id: string
   contract: string
   governanceClass: BobGovernanceClass
+  emergencyPriorityBehavior: BobMutationCatalogEntry['emergencyPriorityBehavior']
   approvalLevel: BobMutationCatalogEntry['approvalLevel']
   allowedExecutionModes: BobMutationCatalogEntry['allowedExecutionModes']
   dryRunSupported: boolean
@@ -230,6 +248,7 @@ export function getBobGatekeeperPolicyMatrix(): BobGatekeeperPolicyMatrixEntry[]
     id: entry.id,
     contract: entry.contract,
     governanceClass: resolveGovernanceClass(entry),
+    emergencyPriorityBehavior: entry.emergencyPriorityBehavior,
     approvalLevel: entry.approvalLevel,
     allowedExecutionModes: entry.allowedExecutionModes,
     dryRunSupported: entry.dryRunSupported,
@@ -239,7 +258,7 @@ export function getBobGatekeeperPolicyMatrix(): BobGatekeeperPolicyMatrixEntry[]
 export function getBobGatekeeperPolicySummary(limit = 12): string {
   return getBobGatekeeperPolicyMatrix()
     .slice(0, limit)
-    .map((entry) => `${entry.id} | class=${entry.governanceClass} | approval=${entry.approvalLevel} | modes=${entry.allowedExecutionModes.join('/')}`)
+    .map((entry) => `${entry.id} | class=${entry.governanceClass} | emergency=${entry.emergencyPriorityBehavior} | approval=${entry.approvalLevel} | modes=${entry.allowedExecutionModes.join('/')}`)
     .join('\n')
 }
 
