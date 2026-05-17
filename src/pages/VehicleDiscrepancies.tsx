@@ -6,7 +6,7 @@
  * (e.g. ALPR vs manual vs NZSCV).
  *
  * Roles: admin, admin_officer, master
- * Route: /admin/discrepancies
+ * Route: /vehicle-discrepancies
  */
 
 import { useState } from 'react'

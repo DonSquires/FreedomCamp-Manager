@@ -90,7 +90,7 @@ const FEATURE_GROUPS = [
       { path: '/enforcement-actions', label: 'Enforcement Actions', icon: Gavel },
       { path: '/enforcement-review', label: 'Enforcement Review', icon: ClipboardCheck },
       { path: '/disputes', label: 'Disputes', icon: AlertTriangle },
-      { path: '/admin/discrepancies', label: 'Discrepancies', icon: AlertTriangle },
+      { path: '/vehicle-discrepancies', label: 'Discrepancies', icon: AlertTriangle },
       { path: '/infringements', label: 'Infringements', icon: Receipt },
       { path: '/enforcement-command-center', label: 'Command Centre Ops', icon: MonitorPlay },
     ],

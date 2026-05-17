@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, useCallback } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useIsFetching, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
-import { isRouteVisibleForRole } from '@/navigation/routeManifestAdapter'
+import { isRouteVisibleForRole, resolveRuntimeVisibilityMode } from '@/navigation/routeManifestAdapter'
 import { routeManifest, type AppRole } from '@/navigation/routeManifest'
 import { useSessionLockStore } from '@/stores/sessionLockStore'
 import { useAutoErrorReporter } from '@/hooks/useAutoErrorReporter'
@@ -241,7 +241,7 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/trespass-notices-log', icon: Ban, label: 'Trespass Notice Log', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/parking-infringements-log', icon: TicketX, label: 'Parking Infringement Log', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/disputes', icon: AlertTriangle, label: 'Disputes', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/admin/discrepancies', icon: AlertTriangle, label: 'Discrepancies', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/vehicle-discrepancies', icon: AlertTriangle, label: 'Discrepancies', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/infringements', icon: Receipt, label: 'Infringements', roles: ['admin', 'admin_officer', 'master', 'officer'] },
       { path: '/compliance-analytics', icon: PieChart, label: 'Compliance Analytics', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/compliance-audit-log', icon: BadgeCheck, label: 'Compliance Audit Log', roles: ['admin', 'admin_officer', 'master'] },
@@ -559,6 +559,7 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
 const navigationLabelByPath = new globalThis.Map(
   [...pinnedItems, ...navigationGroups.flatMap((group) => group.items)].map((item) => [item.path.split('?')[0], item.label])
 )
+const runtimeRouteVisibilityMode = resolveRuntimeVisibilityMode(import.meta.env.MODE, import.meta.env.PROD)
 
 function formatBreadcrumbSegment(segment: string) {
   return segment
@@ -602,7 +603,7 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
         group.items.some(
           (item) =>
             location.pathname === item.path &&
-            isRouteVisibleForRole(item.path, effectiveNavRole as AppRole, routeManifest, activeFeatureFlags),
+            isRouteVisibleForRole(item.path, effectiveNavRole as AppRole, routeManifest, activeFeatureFlags, runtimeRouteVisibilityMode),
         )
       ) {
         setOpenGroups((prev) => {
@@ -664,7 +665,7 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
   const visiblePinned = isDirectorOfficerMode
     ? injectedOfficerPinned
     : pinnedItems.filter(item =>
-      user && isRouteVisibleForRole(item.path, user.role as AppRole, routeManifest, activeFeatureFlags)
+      user && isRouteVisibleForRole(item.path, user.role as AppRole, routeManifest, activeFeatureFlags, runtimeRouteVisibilityMode)
     )
 
   return (
@@ -703,7 +704,7 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
       {!isDirectorOfficerMode && navigationGroups.map((group) => {
         const GroupIcon = group.icon
         const visibleItems = group.items.filter(item =>
-           isRouteVisibleForRole(item.path, effectiveNavRole as AppRole, routeManifest, activeFeatureFlags)
+            isRouteVisibleForRole(item.path, effectiveNavRole as AppRole, routeManifest, activeFeatureFlags, runtimeRouteVisibilityMode)
         )
         if (visibleItems.length === 0) return null
 

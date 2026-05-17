@@ -15,10 +15,12 @@ import { useFeedbackCapture } from '@/hooks/useFeedbackCapture'
 import { useLiveSessionDiagnostics } from '@/hooks/useLiveSessionDiagnostics'
 import { useAiTelemetryAuditSync } from '@/hooks/useAiTelemetryAuditSync'
 import { getDefaultRouteForRole, getRoleConstrainedRedirect } from '@/navigation/rolePath'
-import { isRouteVisibleForRole } from '@/navigation/routeManifestAdapter'
+import { isRouteVisibleForRole, resolveRuntimeVisibilityMode } from '@/navigation/routeManifestAdapter'
 import { routeManifest, type AppRole } from '@/navigation/routeManifest'
 import { isDirectorOfficerPathAllowed, useDirectorRosterGate, useSiteToolPermissions, WAITING_FOR_SHIFT_PATH } from '@/middleware'
 import { ShieldOff } from 'lucide-react'
+
+const runtimeRouteVisibilityMode = resolveRuntimeVisibilityMode(import.meta.env.MODE, import.meta.env.PROD)
 
 // ---------------------------------------------------------------------------
 // Lazy-loaded page chunks — Vite code-splits each of these into a separate
@@ -662,6 +664,7 @@ function RoleRoute({
       user.role as AppRole,
       routeManifest,
       activeFeatureFlags,
+      runtimeRouteVisibilityMode,
     )
   ) {
     return <AccessDenied requiredRoles={manifestEntry.rolesAllowed} currentRole={user.role} />
@@ -1948,28 +1951,17 @@ export default function App() {
           />
 
           <Route
-            path="/admin/discrepancies"
+            path="/vehicle-discrepancies"
             element={
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
                   <VehicleDiscrepancies />
-                          {/* Canonical path: /vehicle-discrepancies */}
-                          <Route
-                            path="/vehicle-discrepancies"
-                            element={
-                              <ProtectedRoute>
-                                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
-                                  <VehicleDiscrepancies />
-                                </RoleRoute>
-                              </ProtectedRoute>
-                            }
-                          />
-                          {/* Legacy redirect: /admin/discrepancies → /vehicle-discrepancies */}
-                          <Route path="/admin/discrepancies" element={<ProtectedRoute><Navigate to="/vehicle-discrepancies" replace /></ProtectedRoute>} />
                 </RoleRoute>
               </ProtectedRoute>
             }
           />
+          {/* Legacy redirect: /admin/discrepancies → /vehicle-discrepancies */}
+          <Route path="/admin/discrepancies" element={<ProtectedRoute><Navigate to="/vehicle-discrepancies" replace /></ProtectedRoute>} />
 
           <Route
             path="/admin/nzscv"

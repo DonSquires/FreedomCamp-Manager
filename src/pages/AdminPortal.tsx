@@ -664,7 +664,7 @@ export default function AdminPortal() {
       value: isLoading ? '...' : (data?.discrepanciesPending ?? 0),
       icon: AlertTriangle,
       iconColor: 'text-amber-500',
-      config: { to: '/admin/discrepancies', metric: 'discrepancies_pending', period: periodLabel, label: 'Pending Discrepancies' },
+      config: { to: '/vehicle-discrepancies', metric: 'discrepancies_pending', period: periodLabel, label: 'Pending Discrepancies' },
     },
     {
       title: 'SCV Expiring (30d)',
@@ -1480,7 +1480,7 @@ export default function AdminPortal() {
                     { path: '/zones',                  label: 'Zones',             Icon: MapPin,        color: 'text-green-600',  bg: 'bg-green-50 dark:bg-green-900/20' },
                     { path: '/hotspots',               label: 'Hotspots',          Icon: Map,           color: 'text-red-600',    bg: 'bg-red-50 dark:bg-red-900/20' },
                     { path: '/admin/nzscv',            label: 'NZSCV Monitor',     Icon: Shield,        color: 'text-blue-600',   bg: 'bg-blue-50 dark:bg-blue-900/20', badge: (data as any)?.scvExpiringSoon > 0 ? (data as any)?.scvExpiringSoon : undefined },
-                    { path: '/admin/discrepancies',    label: 'Discrepancies',     Icon: AlertTriangle, color: 'text-amber-600',  bg: 'bg-amber-50 dark:bg-amber-900/20', badge: (data as any)?.discrepanciesPending > 0 ? (data as any)?.discrepanciesPending : undefined },
+                    { path: '/vehicle-discrepancies',  label: 'Discrepancies',     Icon: AlertTriangle, color: 'text-amber-600',  bg: 'bg-amber-50 dark:bg-amber-900/20', badge: (data as any)?.discrepanciesPending > 0 ? (data as any)?.discrepanciesPending : undefined },
                     { path: '/admin/canonical-records',label: 'Canonical Records', Icon: Database,      color: 'text-purple-600', bg: 'bg-purple-50 dark:bg-purple-900/20' },
                     { path: '/drift-events',          label: 'Drift Events',      Icon: Navigation,    color: 'text-slate-600',  bg: 'bg-slate-50 dark:bg-slate-900/30' },
                     { path: '/parking-payments-log',  label: 'Parking Payments',  Icon: Receipt,       color: 'text-emerald-600',bg: 'bg-emerald-50 dark:bg-emerald-900/20' },
