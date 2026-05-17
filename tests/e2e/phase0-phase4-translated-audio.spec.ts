@@ -173,7 +173,9 @@ test.describe('Phase 0-4 Translated Audio Relay', () => {
     const context = await getUserContext(request, token)
 
     // Upsert preference
-    const upsertResp = await request.post(`${SUPABASE_URL}/rest/v1/user_radio_preferences`, {
+    const upsertResp = await request.post(
+      `${SUPABASE_URL}/rest/v1/user_radio_preferences?on_conflict=user_id,org_id`,
+      {
       headers: {
         apikey: SUPABASE_ANON_KEY,
         Authorization: `Bearer ${token}`,
@@ -187,7 +189,8 @@ test.describe('Phase 0-4 Translated Audio Relay', () => {
         preferred_language: 'mi',
         tts_relay_enabled: false,
       },
-    })
+      },
+    )
     expect(upsertResp.ok(), `Upsert failed: ${upsertResp.status()}`).toBeTruthy()
 
     // Read back
