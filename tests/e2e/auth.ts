@@ -92,7 +92,12 @@ const skipRoleAssertions = readEnv('PLAYWRIGHT_SKIP_ROLE_ASSERTIONS') === '1' ||
 const roleAssertionMode = readEnv('PLAYWRIGHT_ROLE_ASSERTION_MODE') || 'strict'
 const adminSupabaseUrl = readEnv('VITE_SUPABASE_URL')
 const serviceRoleKey = readEnv('PLAYWRIGHT_SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_SERVICE_ROLE_KEY')
-const serviceRoleSupabase = adminSupabaseUrl && serviceRoleKey
+const hasRuntimeWebSocket = typeof WebSocket !== 'undefined'
+const canInitServiceRoleSupabase = !!(adminSupabaseUrl && serviceRoleKey && hasRuntimeWebSocket)
+if (adminSupabaseUrl && serviceRoleKey && !hasRuntimeWebSocket) {
+  console.warn('[e2e/auth] Skipping service-role Supabase client init: WebSocket unavailable in runtime.')
+}
+const serviceRoleSupabase = canInitServiceRoleSupabase
   ? createClient(adminSupabaseUrl, serviceRoleKey, {
       auth: {
         persistSession: false,
