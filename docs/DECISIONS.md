@@ -235,3 +235,9 @@ When a pattern, platform, or architectural decision changes, append a dated note
 - Scope: `runpod-worker/Dockerfile`, `runpod-worker/start_mode.sh`, `runpod-worker/start.sh`, `runpod-worker/handler.py`.
 - Reason: RunPod Serverless requires the container to stay alive and poll jobs via `runpod.serverless.start({"handler": handler})`. Using a one-shot command as CMD causes `test_input.json not found, exiting` failures and no job processing.
 - Consequences: Boot chain must remain: start_mode.sh → start.sh → `exec python3 handler.py` → `runpod.serverless.start(...)`. Do not replace CMD with a one-shot command, a bare test runner, or a pod-style always-on webserver without ensuring the handler loop is the final process.
+
+- Date: 2026-05-18
+- Decision: All data-table pages (DispatchJobLog, EnforcementActionLog, PricingRuleLog, ObservationsView, BreachAlerts) must expose accessible search/filter controls with aria-labels and expandable row detail panels using keyboard-reachable buttons.
+- Scope: `src/pages/DispatchJobLog.tsx`, `src/pages/EnforcementActionLog.tsx`, `src/pages/PricingRuleLog.tsx`, `src/pages/ObservationsView.tsx`, `src/pages/BreachAlerts.tsx`, `docs/UI_UX_ACCESSIBILITY_CHECKLIST.md`.
+- Reason: Previous tables had click-only row expansion, placeholder-only labels, and no keyboard path to detail views, violating WCAG 2.1 AA.
+- Consequences: All new Input/Select/Textarea controls must carry aria-label or an associated Label. Expandable rows must use a <button> with aria-expanded and aria-controls. See `docs/UI_UX_ACCESSIBILITY_CHECKLIST.md` for the full pattern library.

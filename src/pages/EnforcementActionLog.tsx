@@ -87,6 +87,10 @@ export default function EnforcementActionLog() {
   const actionTypes = [...new Set(rows.map(r => r.action_type).filter(Boolean))].sort()
   const statuses = [...new Set(rows.map(r => r.status).filter(Boolean))].sort()
 
+  const toggleExpanded = (rowId: string) => {
+    setExpanded(expanded === rowId ? null : rowId)
+  }
+
   return (
     <AppLayout>
       <div className="p-6 space-y-6">
@@ -118,22 +122,28 @@ export default function EnforcementActionLog() {
         </div>
 
         <div className="flex flex-wrap gap-3">
-          <Input value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search plate or notes…" className="w-56" />
+          <Input
+            aria-label="Search by plate or notes"
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            placeholder="Search plate or notes…"
+            className="w-56"
+          />
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-44"><SelectValue placeholder="Status" /></SelectTrigger>
+            <SelectTrigger className="w-44" aria-label="Filter by status"><SelectValue placeholder="Status" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All statuses</SelectItem>
               {statuses.map(s => <SelectItem key={s} value={s!}>{s}</SelectItem>)}
             </SelectContent>
           </Select>
           <Select value={actionTypeFilter} onValueChange={setActionTypeFilter}>
-            <SelectTrigger className="w-48"><SelectValue placeholder="Action type" /></SelectTrigger>
+            <SelectTrigger className="w-48" aria-label="Filter by action type"><SelectValue placeholder="Action type" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All action types</SelectItem>
               {actionTypes.map(t => <SelectItem key={t} value={t!}>{t}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="w-40" />
+          <Input aria-label="Filter from created date" type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="w-40" />
         </div>
 
         {isLoading ? (
@@ -157,17 +167,32 @@ export default function EnforcementActionLog() {
               <TableBody>
                 {rows.map(row => (
                   <Fragment key={row.id}>
-                    <TableRow className="cursor-pointer hover:bg-muted/40" onClick={() => setExpanded(expanded === row.id ? null : row.id)}>
+                    <TableRow className="hover:bg-muted/40">
                       <TableCell className="text-sm">{row.action_type ?? '—'}</TableCell>
                       <TableCell><Badge className={statusBadge(row.status)}>{row.status ?? '—'}</Badge></TableCell>
                       <TableCell className="font-mono text-xs">{row.plate_number ?? '—'}</TableCell>
                       <TableCell className="font-mono text-xs">{row.assigned_to ? `${row.assigned_to.slice(0, 8)}…` : '—'}</TableCell>
                       <TableCell className="font-mono text-xs">{row.observation_id ? `${row.observation_id.slice(0, 8)}…` : '—'}</TableCell>
                       <TableCell className="text-sm">{fmtDate(row.created_at)}</TableCell>
-                      <TableCell className="text-xs text-sky-600">{expanded === row.id ? '▲ hide' : '▼ show'}</TableCell>
+                      <TableCell>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 px-2 text-xs text-sky-700"
+                          aria-expanded={expanded === row.id}
+                          aria-controls={`enforcement-action-detail-${row.id}`}
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            toggleExpanded(row.id)
+                          }}
+                        >
+                          {expanded === row.id ? 'Hide details' : 'Show details'}
+                        </Button>
+                      </TableCell>
                     </TableRow>
                     {expanded === row.id && (
-                      <TableRow className="bg-muted/20">
+                      <TableRow id={`enforcement-action-detail-${row.id}`} className="bg-muted/20">
                         <TableCell colSpan={7} className="text-xs text-muted-foreground space-y-1 py-3">
                           <div><span className="font-medium">Action ID:</span> {row.id}</div>
                           <div><span className="font-medium">Zone:</span> {row.zone_id ?? '—'} &nbsp; <span className="font-medium">Breach status:</span> {row.breach_status ?? '—'}</div>

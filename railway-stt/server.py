@@ -112,6 +112,16 @@ async def transcribe(
     return await _do_transcribe(payload)
 
 
+@app.post("/infer/transcribe", response_model=TranscribeResponse, include_in_schema=False)
+async def transcribe_infer_compat(
+    payload: TranscribeRequest,
+    authorization: str | None = Header(default=None),
+) -> TranscribeResponse:
+    # Compatibility alias for older callers still posting to /infer/transcribe.
+    _check_auth(authorization)
+    return await _do_transcribe(payload)
+
+
 # The speech-router posts directly to STT_URL with no path appended, so expose
 # /transcribe AND handle a root POST for callers that send to the bare URL.
 @app.post("/", response_model=TranscribeResponse, include_in_schema=False)
@@ -128,6 +138,10 @@ async def _do_transcribe(payload: TranscribeRequest) -> TranscribeResponse:
         raise HTTPException(status_code=503, detail="Model not loaded")
 
     audio_b64 = (payload.audio_base64 or payload.audio_b64 or "").strip()
+    if audio_b64.startswith("data:") and "," in audio_b64:
+        # Accept browser-style data URLs: data:audio/...;base64,<payload>
+        audio_b64 = audio_b64.split(",", 1)[1].strip()
+
     if not audio_b64:
         raise HTTPException(status_code=422, detail="audio_base64 is required")
 
@@ -160,8 +174,14 @@ async def _do_transcribe(payload: TranscribeRequest) -> TranscribeResponse:
         )
         transcript_parts = [seg.text for seg in segments]
     except Exception as exc:
-        logger.error("Transcription error: %s", exc)
-        raise HTTPException(status_code=500, detail=f"Transcription failed: {exc}") from exc
+        err_text = str(exc)
+        logger.error("Transcription error: %s", err_text)
+        if "Invalid data found when processing input" in err_text:
+            raise HTTPException(
+                status_code=422,
+                detail="Unsupported or corrupt audio payload",
+            ) from exc
+        raise HTTPException(status_code=500, detail=f"Transcription failed: {err_text}") from exc
     finally:
         try:
             os.unlink(tmp_path)

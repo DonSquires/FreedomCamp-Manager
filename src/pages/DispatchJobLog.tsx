@@ -92,6 +92,10 @@ export default function DispatchJobLog() {
   const jobTypeOptions = [...new Set(rows.map(r => r.job_type).filter(Boolean))].sort()
   const priorityOptions = [...new Set(rows.map(r => r.priority).filter(Boolean))].sort()
 
+  const toggleExpanded = (rowId: string) => {
+    setExpanded(expanded === rowId ? null : rowId)
+  }
+
   return (
     <AppLayout>
       <div className="p-6 space-y-6">
@@ -123,29 +127,35 @@ export default function DispatchJobLog() {
         </div>
 
         <div className="flex flex-wrap gap-3">
-          <Input value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search job #, title, address…" className="w-60" />
+          <Input
+            aria-label="Search job number, title, or address"
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            placeholder="Search job #, title, address…"
+            className="w-60"
+          />
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-44"><SelectValue placeholder="Status" /></SelectTrigger>
+            <SelectTrigger className="w-44" aria-label="Filter by status"><SelectValue placeholder="Status" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All statuses</SelectItem>
               {statusOptions.map(s => <SelectItem key={s} value={s!}>{s}</SelectItem>)}
             </SelectContent>
           </Select>
           <Select value={jobTypeFilter} onValueChange={setJobTypeFilter}>
-            <SelectTrigger className="w-48"><SelectValue placeholder="Job type" /></SelectTrigger>
+            <SelectTrigger className="w-48" aria-label="Filter by job type"><SelectValue placeholder="Job type" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All job types</SelectItem>
               {jobTypeOptions.map(t => <SelectItem key={t} value={t!}>{t}</SelectItem>)}
             </SelectContent>
           </Select>
           <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-            <SelectTrigger className="w-40"><SelectValue placeholder="Priority" /></SelectTrigger>
+            <SelectTrigger className="w-40" aria-label="Filter by priority"><SelectValue placeholder="Priority" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All priorities</SelectItem>
               {priorityOptions.map(p => <SelectItem key={p} value={p!}>{p}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="w-40" />
+          <Input aria-label="Filter from created date" type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="w-40" />
         </div>
 
         {isLoading ? (
@@ -170,7 +180,7 @@ export default function DispatchJobLog() {
               <TableBody>
                 {rows.map(row => (
                   <Fragment key={row.id}>
-                    <TableRow className="cursor-pointer hover:bg-muted/40" onClick={() => setExpanded(expanded === row.id ? null : row.id)}>
+                    <TableRow className="hover:bg-muted/40">
                       <TableCell className="font-mono text-xs">{row.job_number ?? '—'}</TableCell>
                       <TableCell className="text-sm">{row.job_type}</TableCell>
                       <TableCell><Badge className={statusBadge(row.status)}>{row.status}</Badge></TableCell>
@@ -178,10 +188,25 @@ export default function DispatchJobLog() {
                       <TableCell className="text-sm max-w-[12rem] truncate">{row.title}</TableCell>
                       <TableCell className="font-mono text-xs">{row.assigned_to ? `${row.assigned_to.slice(0, 8)}…` : '—'}</TableCell>
                       <TableCell className="text-sm">{fmtDate(row.created_at)}</TableCell>
-                      <TableCell className="text-xs text-sky-600">{expanded === row.id ? '▲ hide' : '▼ show'}</TableCell>
+                      <TableCell>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 px-2 text-xs text-sky-700"
+                          aria-expanded={expanded === row.id}
+                          aria-controls={`dispatch-job-detail-${row.id}`}
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            toggleExpanded(row.id)
+                          }}
+                        >
+                          {expanded === row.id ? 'Hide details' : 'Show details'}
+                        </Button>
+                      </TableCell>
                     </TableRow>
                     {expanded === row.id && (
-                      <TableRow className="bg-muted/20">
+                      <TableRow id={`dispatch-job-detail-${row.id}`} className="bg-muted/20">
                         <TableCell colSpan={8} className="text-xs text-muted-foreground space-y-1 py-3">
                           {row.address && <div><span className="font-medium">Address:</span> {row.address}</div>}
                           {row.description && <div><span className="font-medium">Description:</span> {row.description}</div>}

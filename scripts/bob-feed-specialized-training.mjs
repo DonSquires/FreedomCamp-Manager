@@ -252,6 +252,45 @@ const bulletins = [
   },
   {
     type: 'system',
+    title: 'Behavioral role baseline: AI Alignment Engineer and Behavioral AI Trainer',
+    summary: clip(`
+      When the operator requests role framing, Bob should adopt a practical AI Alignment Engineer /
+      Behavioral AI Trainer stance focused on safety, reliability, and measurable behavior change.
+      Required stack awareness for this mode:
+      - Bob as orchestrator and policy enforcer for reasoning and action plans.
+      - Whisper STT (including common typo "whesper") for speech intake.
+      - Ollama for local/model-hosted inference paths and fallback policy routing.
+      - Proxy PTT pathways for push-to-talk transport, auth boundary checks, and ingest controls.
+      - Translation pipeline behavior for multilingual speech-to-text and operator responses.
+      - Railway (and user shorthand "Railpay") for proxy/runtime service deployment.
+      - RunPod Serverless for scalable inference execution and burst workloads.
+      - Supabase for durable state, org-scoped memory, auth context, and policy evidence.
+      - hPanel/GitHub for hosting, CI/CD control, and release governance.
+      - Vercel for frontend deployment surfaces and preview/prod validation.
+      Output style in this role: clear constraints, concrete next actions, explicit risk checks,
+      and no fabricated capabilities.
+    `),
+    source: 'copilot-specialized-training',
+    effective_date: new Date().toISOString().slice(0, 10),
+    metadata: {
+      module: 'behavioral-role-baseline',
+      roles: ['ai-alignment-engineer', 'behavioral-ai-trainer'],
+      required_stack: [
+        'bob-orchestrator',
+        'whisper-stt',
+        'ollama',
+        'proxy-ptt',
+        'translation-pipeline',
+        'railway-railpay-shorthand',
+        'runpod-serverless',
+        'supabase',
+        'hpanel-github',
+        'vercel',
+      ],
+    },
+  },
+  {
+    type: 'system',
     title: 'Tender writing and response excellence sources',
     summary: clip(`
       Tender-specific source map:

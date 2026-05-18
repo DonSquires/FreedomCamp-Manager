@@ -177,13 +177,14 @@ export default function ObservationsView() {
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
+            aria-label="Search observations by plate number"
             placeholder="Search plate number..."
             value={searchPlate}
             onChange={(e) => setSearchPlate(e.target.value)}
             className="pl-9"
           />
         </div>
-        <Button variant="outline" size="icon" onClick={() => refetch()}>
+        <Button aria-label="Refresh observations" title="Refresh observations" variant="outline" size="icon" onClick={() => refetch()}>
           <RefreshCw className="h-4 w-4" />
         </Button>
       </div>
@@ -210,7 +211,11 @@ export default function ObservationsView() {
             <Card><CardContent className="pt-6 text-center text-muted-foreground py-12">No observations found</CardContent></Card>
           ) : (
             <div className="space-y-2">
-              {filtered.map((obs) => (
+              {filtered.map((obs) => {
+                const photoUrl = getObservationPhotoUrl(obs as any)
+                const canOpenPhoto = Boolean(photoUrl)
+
+                return (
                 <Card
                   key={obs.observation_id}
                   className={`border-l-4 ${obs.is_compliant ? 'border-l-green-500' : 'border-l-red-500'}`}
@@ -218,13 +223,16 @@ export default function ObservationsView() {
                   <CardContent className="pt-3 pb-3">
                     <div className="flex items-start gap-3">
                       {/* Thumbnail */}
-                      <div
-                        className="h-14 w-14 shrink-0 rounded-md overflow-hidden bg-muted cursor-pointer"
-                        onClick={() => getObservationPhotoUrl(obs as any) && setSelectedPhoto(obs)}
+                      <button
+                        type="button"
+                        className="h-14 w-14 shrink-0 rounded-md overflow-hidden bg-muted cursor-pointer disabled:cursor-default"
+                        onClick={() => canOpenPhoto && setSelectedPhoto(obs)}
+                        disabled={!canOpenPhoto}
+                        aria-label={canOpenPhoto ? `Open photo for ${obs.plate_number || 'observation'}` : 'No photo available'}
                       >
-                        {getObservationPhotoUrl(obs as any) ? (
+                        {photoUrl ? (
                           <img
-                            src={getObservationPhotoUrl(obs as any)!}
+                            src={photoUrl}
                             alt={obs.plate_number}
                             className="h-full w-full object-cover"
                             loading="lazy"
@@ -234,7 +242,7 @@ export default function ObservationsView() {
                             <Car className="h-6 w-6 text-muted-foreground" />
                           </div>
                         )}
-                      </div>
+                      </button>
 
                       {/* Details */}
                       <div className="flex-1 min-w-0">
@@ -264,7 +272,7 @@ export default function ObservationsView() {
                     </div>
                   </CardContent>
                 </Card>
-              ))}
+              )})}
             </div>
           )}
         </TabsContent>
@@ -416,14 +424,14 @@ export default function ObservationsView() {
                     {/* Overlay on hover */}
                     <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors" />
                     {/* Bottom caption */}
-                    <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white px-1.5 py-1">
+                    <div className="absolute bottom-0 left-0 right-0 bg-black/75 text-white px-1.5 py-1">
                       <div className="flex items-center justify-between">
                         <span className="font-mono text-xs font-bold truncate">{obs.plate_number}</span>
                         <span
                           className={`h-2 w-2 rounded-full shrink-0 ${obs.is_compliant ? 'bg-green-400' : 'bg-red-400'}`}
                         />
                       </div>
-                      <div className="text-[10px] text-white/70 truncate">{obs.zone?.name}</div>
+                      <div className="text-[10px] text-white/90 truncate">{obs.zone?.name}</div>
                     </div>
                   </div>
                 ))}

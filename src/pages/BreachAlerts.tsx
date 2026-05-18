@@ -798,7 +798,7 @@ export default function BreachAlerts() {
                       <Badge variant="outline" className="text-xs">
                         {getBreachTypeLabel(a.breach_type)}
                       </Badge>
-                      <span className="flex items-center gap-1 text-xs text-gray-500">
+                      <span className="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-300">
                         <MapPin className="h-3 w-3" />
                         {(a.zones as any)?.name || 'Unknown Zone'}
                       </span>
@@ -806,7 +806,7 @@ export default function BreachAlerts() {
                   )}
                   right={(
                     <>
-                      <span className="text-xs text-gray-400">{formatDateTime(a.created_at)}</span>
+                      <span className="text-xs text-gray-600 dark:text-gray-300">{formatDateTime(a.created_at)}</span>
                       <Button
                         size="sm"
                         variant="outline"
@@ -851,7 +851,7 @@ export default function BreachAlerts() {
                   )}
                   right={(
                     <>
-                      <span className="text-xs text-gray-400">{formatDateTime(a.created_at)}</span>
+                      <span className="text-xs text-gray-600 dark:text-gray-300">{formatDateTime(a.created_at)}</span>
                       <Button
                         size="sm"
                         variant="outline"
@@ -964,7 +964,7 @@ export default function BreachAlerts() {
                 checked={allSelected || false}
                 onCheckedChange={(checked) => toggleSelectAll(!!checked)}
               />
-              <label htmlFor="select-all" className="text-xs text-gray-500 cursor-pointer select-none">
+              <label htmlFor="select-all" className="text-xs text-gray-600 dark:text-gray-300 cursor-pointer select-none">
                 {selectedIds.size > 0 ? `${selectedIds.size} selected` : 'Select all'}
               </label>
               {selectedIds.size > 0 && (
@@ -1043,11 +1043,11 @@ export default function BreachAlerts() {
                         <span className="capitalize">{breach.status?.replace(/_/g, ' ')}</span>
                       </Badge>
                     </div>
-                    <p className="text-xs text-gray-500 truncate">
+                    <p className="text-xs text-gray-600 dark:text-gray-300 truncate">
                       {(breach.zones as any)?.name || 'Unknown Zone'}
                     </p>
-                    <p className="text-xs text-gray-400 truncate">{getBreachTypeLabel(breach.breach_type)}</p>
-                    <p className="text-xs text-gray-400 mt-0.5">{formatDateTime(getBreachDisplayTimestamp(breach) || breach.created_at)}</p>
+                    <p className="text-xs text-gray-600 dark:text-gray-300 truncate">{getBreachTypeLabel(breach.breach_type)}</p>
+                    <p className="text-xs text-gray-600 dark:text-gray-300 mt-0.5">{formatDateTime(getBreachDisplayTimestamp(breach) || breach.created_at)}</p>
                   </div>
                   <ChevronRight className="h-4 w-4 text-gray-400 mt-1 flex-shrink-0" />
                 </div>
@@ -1153,7 +1153,7 @@ export default function BreachAlerts() {
                   {/* Breach details */}
                   {activeBreach.breach_details && Object.keys(activeBreach.breach_details).length > 0 && (
                     <div className="bg-gray-50 dark:bg-[#2A2A2A]/50 rounded-lg p-3">
-                      <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Breach Details</p>
+                      <p className="text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase mb-2">Breach Details</p>
                       <div className="flex flex-wrap gap-2">
                         {activeBreach.breach_details.nights_count && (
                           <Badge variant="outline" className="text-xs">{activeBreach.breach_details.nights_count} nights</Badge>
@@ -1223,7 +1223,7 @@ export default function BreachAlerts() {
                   {/* Homeless Claim Status */}
                   {triggeringObservation && (
                     <div className={`rounded-lg p-3 text-sm border ${triggeringObservation.has_homeless_claim ? 'bg-amber-50 border-amber-200 dark:bg-amber-950/40 dark:border-amber-800' : 'bg-gray-50 border-gray-200 dark:bg-[#2A2A2A]/50 dark:border-gray-600'}`}>
-                      <p className="text-xs font-semibold text-gray-500 uppercase mb-1">Homeless Claim</p>
+                      <p className="text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase mb-1">Homeless Claim</p>
                       {triggeringObservation.has_homeless_claim ? (
                         <div>
                           <Badge className="bg-amber-500 text-white text-xs mb-1">⚠ Homeless Claim Recorded</Badge>
@@ -1232,14 +1232,14 @@ export default function BreachAlerts() {
                           )}
                         </div>
                       ) : (
-                        <p className="text-xs text-gray-500">No homeless claim on file</p>
+                        <p className="text-xs text-gray-600 dark:text-gray-300">No homeless claim on file</p>
                       )}
                     </div>
                   )}
 
                   {/* Evidence Photos */}
                   <div>
-                    <p className="text-xs font-semibold text-gray-500 uppercase mb-2">
+                    <p className="text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase mb-2">
                       Photo Evidence ({evidencePhotos?.length || 0})
                     </p>
                     {evidencePhotos && evidencePhotos.length > 0 ? (
@@ -1314,7 +1314,7 @@ export default function BreachAlerts() {
                   {/* Vehicle Record */}
                   {detailVehicle ? (
                     <div>
-                      <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Vehicle Record</p>
+                      <p className="text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase mb-2">Vehicle Record</p>
                       <div className="bg-blue-50 dark:bg-blue-950/50 rounded-lg p-3 text-sm space-y-1">
                         <p className="font-bold text-lg">{detailVehicle.plate_number}</p>
                         <p>{
@@ -1383,7 +1383,7 @@ export default function BreachAlerts() {
                     </div>
                   ) : (
                     <div>
-                      <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Vehicle Record</p>
+                      <p className="text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase mb-2">Vehicle Record</p>
                       <div className="bg-blue-50 dark:bg-blue-950/50 rounded-lg p-3 text-sm space-y-1">
                         <p className="font-bold text-lg">{activeBreach.plate_number}</p>
                         {triggeringObservation && formatVehicleDescription(triggeringObservation.vehicle_make, triggeringObservation.vehicle_model, triggeringObservation.vehicle_year, triggeringObservation.vehicle_color) && (
@@ -1410,7 +1410,7 @@ export default function BreachAlerts() {
                   {/* Admin notes */}
                   {activeBreach.admin_review_notes && (
                     <div>
-                      <p className="text-xs font-semibold text-gray-500 uppercase mb-1">Admin Notes</p>
+                      <p className="text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase mb-1">Admin Notes</p>
                       <p className="text-sm text-gray-600 bg-yellow-50 dark:bg-yellow-950/30 rounded p-2">
                         {activeBreach.admin_review_notes}
                       </p>
@@ -1422,7 +1422,7 @@ export default function BreachAlerts() {
                 <TabsContent value="rapsheet" className="flex-1 overflow-y-auto p-4 mt-0">
                   {vehicleHistory && vehicleHistory.length > 0 ? (
                     <div className="space-y-2">
-                      <p className="text-xs font-semibold text-gray-500 uppercase mb-3">
+                      <p className="text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase mb-3">
                         Previous Breaches for {activeBreach.plate_number} ({vehicleHistory.length})
                       </p>
                       {vehicleHistory.map((b: any) => (
@@ -1436,7 +1436,7 @@ export default function BreachAlerts() {
                               {getBreachTypeLabel(b.breach_type)}
                             </span>
                           </div>
-                          <div className="flex gap-3 text-xs text-gray-500">
+                          <div className="flex gap-3 text-xs text-gray-600 dark:text-gray-300">
                             <span className="flex items-center gap-1">
                               <MapPin className="h-3 w-3" />
                               {(b.zones as any)?.name || 'Unknown Zone'}
@@ -1471,7 +1471,7 @@ export default function BreachAlerts() {
                 <Eye className="h-14 w-14 mx-auto mb-4 opacity-20" />
                 <p className="font-medium text-gray-500">Select a breach to review evidence</p>
                 <p className="text-sm mt-2">Click any item in the queue to load its evidence here</p>
-                <div className="mt-4 text-xs text-gray-400 space-y-1">
+                <div className="mt-4 text-xs text-gray-600 dark:text-gray-300 space-y-1">
                   <p>↑↓ Navigate the queue</p>
                   <p>Esc  Deselect</p>
                 </div>
@@ -1489,7 +1489,7 @@ export default function BreachAlerts() {
             <div className="flex flex-col h-full">
               <div className="p-4 border-b dark:border-[#9E9E9E]/20 flex-shrink-0">
                 <h3 className="font-semibold">Decision Dock</h3>
-                <p className="text-xs text-gray-500">What is the verdict?</p>
+                <p className="text-xs text-gray-600 dark:text-gray-300">What is the verdict?</p>
                 {isAdmin && (
                   <Button
                     variant="outline"
@@ -1501,7 +1501,7 @@ export default function BreachAlerts() {
                       <ClipboardCheck className="h-4 w-4" />
                       Guided triage flow
                     </span>
-                    <span className="text-xs text-gray-500">Review, assign, issue, resolve</span>
+                    <span className="text-xs text-gray-600 dark:text-gray-300">Review, assign, issue, resolve</span>
                   </Button>
                 )}
               </div>
@@ -1611,7 +1611,7 @@ export default function BreachAlerts() {
                 )}
 
                 <div className="border-t dark:border-[#9E9E9E]/20 pt-3">
-                  <Label className="text-xs text-gray-500">Rejection Reason</Label>
+                  <Label className="text-xs text-gray-600 dark:text-gray-300">Rejection Reason</Label>
                   <Select value={rejectionReason} onValueChange={setRejectionReason}>
                     <SelectTrigger className="h-9 mt-1 text-sm">
                       <SelectValue placeholder="Select canned reason..." />
@@ -1625,7 +1625,7 @@ export default function BreachAlerts() {
                 </div>
 
                 <div>
-                  <Label className="text-xs text-gray-500">Resolution Notes</Label>
+                  <Label className="text-xs text-gray-600 dark:text-gray-300">Resolution Notes</Label>
                   <Textarea
                     value={resolveNotes}
                     onChange={(e) => setResolveNotes(e.target.value)}
@@ -1648,7 +1648,7 @@ export default function BreachAlerts() {
                 )}
 
                 {activeBreach.resolution_notes && (
-                  <div className="p-2 bg-green-50 dark:bg-green-950/30 rounded text-xs text-gray-600 dark:text-gray-400">
+                  <div className="p-2 bg-green-50 dark:bg-green-950/30 rounded text-xs text-gray-600 dark:text-gray-300">
                     <p className="font-semibold text-green-700 dark:text-green-400 mb-1">Resolution Notes</p>
                     {activeBreach.resolution_notes}
                   </div>
@@ -1666,11 +1666,11 @@ export default function BreachAlerts() {
 
               {/* Keyboard Shortcuts Footer */}
               <div className="p-3 border-t dark:border-[#9E9E9E]/20 bg-gray-50 dark:bg-[#2A2A2A]/50 flex-shrink-0">
-                <div className="flex items-center gap-1.5 mb-1.5 text-xs font-medium text-gray-500">
+                <div className="flex items-center gap-1.5 mb-1.5 text-xs font-medium text-gray-600 dark:text-gray-300">
                   <Keyboard className="h-3.5 w-3.5" />
                   Keyboard Shortcuts
                 </div>
-                <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-xs text-gray-400">
+                <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-xs text-gray-600 dark:text-gray-300">
                   <span>⌃↵ Issue</span>
                   <span>⌃W Warning</span>
                   <span>⌃R Reject</span>
@@ -1686,10 +1686,10 @@ export default function BreachAlerts() {
                 <p className="font-medium text-gray-500">Decision Dock</p>
                 <p className="text-sm mt-2">Select a breach from the queue to make a decision</p>
                 <div className="mt-5 space-y-2 text-left border dark:border-[#9E9E9E]/20 rounded p-3 bg-gray-50 dark:bg-[#2A2A2A]/50">
-                  <p className="text-xs font-semibold text-gray-500 flex items-center gap-1.5">
+                  <p className="text-xs font-semibold text-gray-600 dark:text-gray-300 flex items-center gap-1.5">
                     <Keyboard className="h-3.5 w-3.5" /> Keyboard Shortcuts
                   </p>
-                  <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-xs text-gray-400">
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-xs text-gray-600 dark:text-gray-300">
                     <span>⌃↵ Issue</span>
                     <span>⌃W Warning</span>
                     <span>⌃R Reject</span>
@@ -1780,10 +1780,10 @@ export default function BreachAlerts() {
                   <ClipboardCheck className="h-4 w-4" />
                   Guided triage flow
                 </span>
-                <span className="text-xs text-gray-500">Recommended</span>
+                <span className="text-xs text-gray-600 dark:text-gray-300">Recommended</span>
               </Button>
 
-              <Label className="text-xs text-gray-500">Rejection Reason</Label>
+              <Label className="text-xs text-gray-600 dark:text-gray-300">Rejection Reason</Label>
               <Select value={rejectionReason} onValueChange={setRejectionReason}>
                 <SelectTrigger className="h-9 text-sm">
                   <SelectValue placeholder="Select canned reason..." />
@@ -1795,7 +1795,7 @@ export default function BreachAlerts() {
                 </SelectContent>
               </Select>
 
-              <Label className="text-xs text-gray-500">Resolution Notes</Label>
+              <Label className="text-xs text-gray-600 dark:text-gray-300">Resolution Notes</Label>
               <Textarea
                 value={resolveNotes}
                 onChange={(e) => setResolveNotes(e.target.value)}
@@ -1925,7 +1925,7 @@ export default function BreachAlerts() {
               ].map(({ step, label }) => (
                 <div
                   key={step}
-                  className={`rounded-lg border px-3 py-2 text-xs ${workflowStep === step ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300' : 'border-gray-200 text-gray-500 dark:border-[#9E9E9E]/20 dark:text-gray-400'}`}
+                  className={`rounded-lg border px-3 py-2 text-xs ${workflowStep === step ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300' : 'border-gray-200 text-gray-600 dark:border-[#9E9E9E]/20 dark:text-gray-300'}`}
                 >
                   <div className="font-semibold">Step {step}</div>
                   <div>{label}</div>
@@ -1942,7 +1942,7 @@ export default function BreachAlerts() {
                   </Badge>
                   <span className="text-gray-500">{(activeBreach.zones as any)?.name || 'Unknown Zone'}</span>
                 </div>
-                <p className="mt-1 text-xs text-gray-500">{getBreachTypeLabel(activeBreach.breach_type)}</p>
+                <p className="mt-1 text-xs text-gray-600 dark:text-gray-300">{getBreachTypeLabel(activeBreach.breach_type)}</p>
               </div>
             )}
 
@@ -1957,7 +1957,7 @@ export default function BreachAlerts() {
                     className={`w-full rounded-lg border px-4 py-3 text-left transition-colors ${workflowAction === option.id ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/30' : 'border-gray-200 hover:border-gray-300 dark:border-[#9E9E9E]/20 dark:hover:border-[#9E9E9E]/40'} ${option.disabled ? 'cursor-not-allowed opacity-50' : ''}`}
                   >
                     <div className="font-medium text-sm">{option.label}</div>
-                    <div className="text-xs text-gray-500 mt-1">{option.description}</div>
+                    <div className="text-xs text-gray-600 dark:text-gray-300 mt-1">{option.description}</div>
                   </button>
                 ))}
               </div>
@@ -1975,13 +1975,13 @@ export default function BreachAlerts() {
                 {workflowAction === 'assign_officer' && (
                   <div className="rounded-lg border p-3 text-sm space-y-2">
                     <p className="font-medium">Officer handoff</p>
-                    <p className="text-xs text-gray-500">The next step opens the follow-up drawer so you can assign an officer, due date, and supervisor notes without leaving the selected breach.</p>
+                    <p className="text-xs text-gray-600 dark:text-gray-300">The next step opens the follow-up drawer so you can assign an officer, due date, and supervisor notes without leaving the selected breach.</p>
                   </div>
                 )}
 
                 {workflowAction === 'reject' && (
                   <div>
-                    <Label className="text-xs text-gray-500">Rejection Reason</Label>
+                    <Label className="text-xs text-gray-600 dark:text-gray-300">Rejection Reason</Label>
                     <Select value={rejectionReason} onValueChange={setRejectionReason}>
                       <SelectTrigger className="h-9 mt-1 text-sm">
                         <SelectValue placeholder="Select canned reason..." />
@@ -1997,7 +1997,7 @@ export default function BreachAlerts() {
 
                 {workflowAction === 'resolve' && (
                   <div>
-                    <Label className="text-xs text-gray-500">Outcome Notes</Label>
+                    <Label className="text-xs text-gray-600 dark:text-gray-300">Outcome Notes</Label>
                     <Textarea
                       value={resolveNotes}
                       onChange={(e) => setResolveNotes(e.target.value)}
@@ -2011,7 +2011,7 @@ export default function BreachAlerts() {
                 {['start_enforcement', 'issue_warning', 'issue_notice_email', 'issue_notice_post', 'issue_ntv'].includes(workflowAction) && (
                   <div className="rounded-lg border p-3 text-sm space-y-2">
                     <p className="font-medium">Prepared handoff</p>
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-gray-600 dark:text-gray-300">
                       This flow will run the existing breach action for the selected vehicle and keep the current adjudication rules intact.
                     </p>
                   </div>
@@ -2022,26 +2022,26 @@ export default function BreachAlerts() {
             {workflowStep === 3 && (
               <div className="space-y-3 text-sm">
                 <div className="rounded-lg border p-3">
-                  <p className="text-xs text-gray-500 uppercase">Next action</p>
+                  <p className="text-xs text-gray-600 dark:text-gray-300 uppercase">Next action</p>
                   <p className="font-medium mt-1">{selectedWorkflowOption?.label || 'No action selected'}</p>
                 </div>
 
                 {workflowAction === 'reject' && rejectionReason && (
                   <div className="rounded-lg border p-3">
-                    <p className="text-xs text-gray-500 uppercase">Rejection reason</p>
+                    <p className="text-xs text-gray-600 dark:text-gray-300 uppercase">Rejection reason</p>
                     <p className="mt-1">{rejectionReason}</p>
                   </div>
                 )}
 
                 {workflowAction === 'resolve' && resolveNotes.trim() && (
                   <div className="rounded-lg border p-3">
-                    <p className="text-xs text-gray-500 uppercase">Outcome notes</p>
+                    <p className="text-xs text-gray-600 dark:text-gray-300 uppercase">Outcome notes</p>
                     <p className="mt-1 whitespace-pre-wrap">{resolveNotes}</p>
                   </div>
                 )}
 
                 {workflowAction === 'assign_officer' && (
-                  <div className="rounded-lg border p-3 text-xs text-gray-500">
+                  <div className="rounded-lg border p-3 text-xs text-gray-600 dark:text-gray-300">
                     Confirm to open the officer follow-up drawer for final assignment details.
                   </div>
                 )}

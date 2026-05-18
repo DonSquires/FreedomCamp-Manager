@@ -3729,7 +3729,7 @@ export default function FieldOfficerPortal() {
           <CardTitle className="text-sm">Officer Status</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-col gap-2 text-xs text-gray-500">
+          <div className="flex flex-col gap-2 text-xs text-gray-600 dark:text-gray-300">
             <div className="flex justify-between">
               <span>Current Zone:</span>
               <span className="font-semibold text-blue-600">{displayZone}</span>

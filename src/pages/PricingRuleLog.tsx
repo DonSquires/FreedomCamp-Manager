@@ -88,6 +88,10 @@ export default function PricingRuleLog() {
   const withZone = rows.filter(r => r.zone_id).length
   const withFlatOverride = rows.filter(r => r.flat_override_nzd != null).length
 
+  const toggleExpanded = (rowId: string) => {
+    setExpanded(expanded === rowId ? null : rowId)
+  }
+
   return (
     <AppLayout>
       <div className="p-6 space-y-6">
@@ -119,9 +123,15 @@ export default function PricingRuleLog() {
         </div>
 
         <div className="flex flex-wrap gap-3">
-          <Input value={labelQuery} onChange={e => setLabelQuery(e.target.value)} placeholder="Search label…" className="w-52" />
+          <Input
+            aria-label="Search pricing rule label"
+            value={labelQuery}
+            onChange={e => setLabelQuery(e.target.value)}
+            placeholder="Search label…"
+            className="w-52"
+          />
           <Select value={activeFilter} onValueChange={setActiveFilter}>
-            <SelectTrigger className="w-40"><SelectValue placeholder="Status" /></SelectTrigger>
+            <SelectTrigger className="w-40" aria-label="Filter by active status"><SelectValue placeholder="Status" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All statuses</SelectItem>
               <SelectItem value="active">Active</SelectItem>
@@ -129,7 +139,7 @@ export default function PricingRuleLog() {
             </SelectContent>
           </Select>
           <Select value={dayFilter} onValueChange={setDayFilter}>
-            <SelectTrigger className="w-40"><SelectValue placeholder="Day of week" /></SelectTrigger>
+            <SelectTrigger className="w-40" aria-label="Filter by day of week"><SelectValue placeholder="Day of week" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All days</SelectItem>
               {DAY_NAMES.map((d, i) => (
@@ -137,7 +147,7 @@ export default function PricingRuleLog() {
               ))}
             </SelectContent>
           </Select>
-          <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="w-44" />
+          <Input aria-label="Filter from created date" type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="w-44" />
         </div>
 
         {isLoading ? (
@@ -164,8 +174,7 @@ export default function PricingRuleLog() {
                   <>
                     <TableRow
                       key={row.id}
-                      className="cursor-pointer hover:bg-muted/40"
-                      onClick={() => setExpanded(expanded === row.id ? null : row.id)}
+                      className="hover:bg-muted/40"
                     >
                       <TableCell className="font-medium text-sm">{row.label}</TableCell>
                       <TableCell className="text-sm">{row.day_of_week != null ? DAY_NAMES[row.day_of_week] ?? row.day_of_week : '—'}</TableCell>
@@ -180,10 +189,25 @@ export default function PricingRuleLog() {
                       </TableCell>
                       <TableCell>{boolBadge(row.is_active, 'Active', 'Inactive')}</TableCell>
                       <TableCell className="text-sm">{fmtDate(row.created_at)}</TableCell>
-                      <TableCell className="text-xs text-sky-600">{expanded === row.id ? '▲ hide' : '▼ show'}</TableCell>
+                      <TableCell>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 px-2 text-xs text-sky-700"
+                          aria-expanded={expanded === row.id}
+                          aria-controls={`pricing-rule-detail-${row.id}`}
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            toggleExpanded(row.id)
+                          }}
+                        >
+                          {expanded === row.id ? 'Hide details' : 'Show details'}
+                        </Button>
+                      </TableCell>
                     </TableRow>
                     {expanded === row.id && (
-                      <TableRow key={`${row.id}-exp`} className="bg-muted/20">
+                      <TableRow key={`${row.id}-exp`} id={`pricing-rule-detail-${row.id}`} className="bg-muted/20">
                         <TableCell colSpan={8} className="text-xs text-muted-foreground space-y-1 py-3">
                           <div><span className="font-medium">ID:</span> {row.id} &nbsp; <span className="font-medium">Org ID:</span> {row.organization_id ?? '—'}</div>
                           <div><span className="font-medium">Zone ID:</span> {row.zone_id ?? '—'}</div>

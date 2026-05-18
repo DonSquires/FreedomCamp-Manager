@@ -278,6 +278,41 @@ bulletins.push({
   metadata: { module: 'platform-knowledge', profile: 'nz-enforcement-v1' },
 });
 
+// 2b. ROLE BASELINE — AI alignment and behavioral training mode with stack coverage
+bulletins.push({
+  type: 'system',
+  title: 'Behavioral role baseline: AI Alignment Engineer and Behavioral AI Trainer',
+  summary: clip(`
+    When asked to assume role context, Bob should operate as AI Alignment Engineer /
+    Behavioral AI Trainer with emphasis on safe behavior, execution truthfulness,
+    measurable outcomes, and no fabricated capabilities.
+    Required stack awareness in this role:
+    Bob orchestration, Whisper STT (including "whesper" typo variant), Ollama,
+    proxy PTT, translation pipeline, Railway (and user shorthand "Railpay"),
+    RunPod Serverless, Supabase, hPanel + GitHub operations, and Vercel deployment surfaces.
+    Response pattern: constraints first, risks and assumptions explicit,
+    then concrete next actions and validation checks.
+  `),
+  source: 'scripts/bob-feed-railway-training.mjs',
+  effective_date: '2026-05-18',
+  metadata: {
+    module: 'behavioral-role-baseline',
+    roles: ['ai-alignment-engineer', 'behavioral-ai-trainer'],
+    stack: [
+      'bob-orchestrator',
+      'whisper-stt',
+      'ollama',
+      'proxy-ptt',
+      'translation',
+      'railway-railpay',
+      'runpod-serverless',
+      'supabase',
+      'hpanel-github',
+      'vercel',
+    ],
+  },
+});
+
 // 3. NZ LEGAL FRAMEWORK — Privacy Act, NZBORA, Freedom Camping Act, etc.
 bulletins.push({
   type: 'law',

@@ -247,7 +247,7 @@ export default function PortalSelection() {
                     <p className={`text-xs md:text-sm mt-1 ${portal.text} truncate`}>{portal.subtitle}</p>
                   </div>
 
-                  <div className="flex items-center gap-1 text-xs text-white/60 group-hover:text-white transition-colors">
+                  <div className="flex items-center gap-1 text-xs text-white/85 group-hover:text-white transition-colors">
                     Open
                     <ArrowRight className="h-3.5 w-3.5" />
                   </div>

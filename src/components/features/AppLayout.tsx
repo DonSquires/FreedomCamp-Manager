@@ -688,7 +688,7 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
       })}
 
       {isDirectorOfficerMode && visiblePinned.length === 0 && !siteToolPermissions.isLoading && (
-        <div className="rounded-lg border border-dashed border-gray-300 px-3 py-2 text-xs text-gray-500 dark:border-[#9E9E9E]/20 dark:text-gray-400">
+        <div className="rounded-lg border border-dashed border-gray-300 px-3 py-2 text-xs text-gray-600 dark:border-[#9E9E9E]/20 dark:text-gray-300">
           No site tools are enabled for this shift.
         </div>
       )}
@@ -749,7 +749,7 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
                       <span className="min-w-0">
                         <span className="block truncate">{item.label}</span>
                         {item.scopeHint && (
-                          <span className="block text-[10px] leading-tight text-gray-500 dark:text-gray-400">
+                          <span className="block text-[10px] leading-tight text-gray-600 dark:text-gray-300">
                             {item.scopeHint}
                           </span>
                         )}
@@ -1099,7 +1099,7 @@ export function AppLayout({ children, title, description, showBackButton, immers
           <div className="flex items-center gap-3">
             <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
               <SheetTrigger asChild>
-                <Button variant="ghost" size="icon">
+                <Button variant="ghost" size="icon" aria-label="Open navigation menu" title="Open navigation menu">
                   <Menu className="h-6 w-6" />
                 </Button>
               </SheetTrigger>
@@ -1110,7 +1110,7 @@ export function AppLayout({ children, title, description, showBackButton, immers
                     <p className="text-sm text-gray-600 dark:text-gray-400">
                       {user?.full_name}
                     </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-500">
+                    <p className="text-xs text-gray-600 dark:text-gray-300">
                       {user?.role === 'grand_master' ? 'Platform Administrator' :
                        user?.role === 'master' ? 'System Admin' : 
                        user?.role === 'admin' ? 'Admin' :
@@ -1138,7 +1138,7 @@ export function AppLayout({ children, title, description, showBackButton, immers
             </Sheet>
 
             {showBackButton && (
-              <Button variant="ghost" size="icon" onClick={handleBack}>
+              <Button variant="ghost" size="icon" onClick={handleBack} aria-label="Go back" title="Go back">
                 <ChevronLeft className="h-6 w-6" />
               </Button>
             )}
@@ -1247,6 +1247,7 @@ export function AppLayout({ children, title, description, showBackButton, immers
                   variant="ghost"
                   size="icon"
                   onClick={toggleDesktopNav}
+                  aria-label={desktopNavOpen ? 'Collapse navigation menu' : 'Open navigation menu'}
                   title={desktopNavOpen ? 'Collapse menu' : 'Open menu'}
                   className="mt-0.5"
                 >

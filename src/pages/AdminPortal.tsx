@@ -1522,7 +1522,7 @@ export default function AdminPortal() {
         <details className="group">
           <summary className="flex items-center gap-2 cursor-pointer text-xs text-muted-foreground hover:text-foreground transition-colors list-none mb-2 select-none">
             <span className="font-medium">System Health</span>
-            <span className="text-[10px] text-gray-400 group-open:hidden">(click to expand)</span>
+            <span className="text-[10px] text-gray-600 dark:text-gray-300 group-open:hidden">(click to expand)</span>
           </summary>
           <SystemHealthIndicator />
         </details>
