@@ -94,7 +94,7 @@ jobs:
 
       - name: Build and push image to GHCR
         if: steps.check-secrets.outputs.secrets_present == 'true'
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7
         with:
           context: ./railway-stt
           push: true
