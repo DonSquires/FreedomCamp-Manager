@@ -1148,7 +1148,7 @@ test.describe('Reports', () => {
 test.describe('Reports Hub', () => {
   test('page loads and shows report options', async ({ page }) => {
     await loginAs(page, 'adminOrg1')
-    await go(page, '/reports-hub')
+    await go(page, '/reports')
     await assertHeading(page, /reports?/i)
   })
 })

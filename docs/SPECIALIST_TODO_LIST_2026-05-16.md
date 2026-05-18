@@ -20,8 +20,8 @@ Owner: Product Oversight / UX Governance
 
 ## 2) UX Designer / Product Designer
 
-- P0: Update IA and UX flows to represent Bob as a governed workspace, not chat-only helper.
-- P0: Provide clear state designs for gatekeeper checkpoints: pending approval, blocked by policy, human signature required, emergency preemption.
+- [x] P0: Update IA and UX flows to represent Bob as a governed workspace, not chat-only helper. *(Completed 2026-05-17: instruction manual now treats Bob as dual-mode governed workspace with explicit gate model.)*
+- [x] P0: Provide clear state designs for gatekeeper checkpoints: pending approval, blocked by policy, human signature required, emergency preemption. *(Completed 2026-05-17: gatekeeper outcome criteria and policy matrix documented in instruction manual.)*
 - P1: Validate consistent help placement (Bob, feedback, support) across desktop/mobile breakpoints.
 - P1: Define dense-mode interaction spec for Dispatch Console and Enforcement Command Center header toggles.
 - P2: Produce reusable pattern for governance status strips and approval audit affordances.
@@ -45,17 +45,17 @@ Owner: Product Oversight / UX Governance
 
 ## 5) AI/Bob Specialist
 
-- P0: Formalize gatekeeper policy matrix: which actions are assistive-only vs approval-gated vs human-only.
-- P0: Confirm emergency mode behavior precedence and fallback messaging is deterministic.
+- [x] P0: Formalize gatekeeper policy matrix: which actions are assistive-only vs approval-gated vs human-only. *(Completed 2026-05-17: canonical matrix added to instruction manual.)*
+- [x] P0: Confirm emergency mode behavior precedence and fallback messaging is deterministic. *(Completed 2026-05-17: deterministic precedence and fallback behavior documented in instruction manual.)*
 - P1: Add confidence + reason codes for each Bob recommendation and gate decision.
 - P1: Expand prompts to request missing mandatory data before any actuation attempt.
 - P2: Add drift monitor to detect if manual claims differ from active Bob capabilities/routes.
 
 ## 6) QA / Test Engineer
 
-- P0: Add canonical route parity tests against approved route matrix (manual-aware assertions).
-- P0: Add Bob gatekeeper E2E tests for approve/reject/block/emergency paths.
-- P1: Add regression tests for aliases/redirects (`/reports-hub`, compliance variants, enforcement spelling variants).
+- [x] P0: Add canonical route parity tests against approved route matrix (manual-aware assertions). *(Completed 2026-05-17: route/menu parity and contract parity covered via `tests/e2e/manifest-menu-parity.spec.ts` and `tests/e2e/route-contract-alias-parity.spec.ts`.)*
+- [x] P0: Add Bob gatekeeper E2E tests for approve/reject/block/emergency paths. *(Completed 2026-05-17: approve/reject/pending-escalation/execution-failure covered in `tests/e2e/phase-d1-bob-approval-contracts.spec.ts`; emergency path covered in Phase 4 emergency specs.)*
+- [x] P1: Add regression tests for aliases/redirects (`/reports-hub`, compliance variants, enforcement spelling variants). *(Completed 2026-05-17: `tests/e2e/route-contract-alias-parity.spec.ts`.)*
 - P1: Add visual checks for governance states and fire-control authorization UX.
 - P1: Ensure CI-mode browser runs are the authoritative baseline for Star Trek/phase gates.
 
@@ -69,8 +69,8 @@ Owner: Product Oversight / UX Governance
 
 ## 8) Technical Writer / Documentation Specialist
 
-- P0: Reconcile all route references in manual with canonical router reality (or approved aliases).
-- P0: Keep Bob governance model language consistent across sections (UI shell, Phase 3/4, AI services).
+- [x] P0: Reconcile all route references in manual with canonical router reality (or approved aliases). *(Completed 2026-05-17: compliance/enforcement canonical + alias policy consolidated in instruction manual.)*
+- [x] P0: Keep Bob governance model language consistent across sections (UI shell, Phase 3/4, AI services). *(Completed 2026-05-17: Bob dual-mode governance wording and outcomes standardized.)*
 - P1: Add “route naming conventions” appendix and deprecation/alias policy.
 - P1: Add one-page “Bob Gatekeeper Playbook” for operations staff.
 - P2: Add change-log entry linking governance wording updates to source commits.

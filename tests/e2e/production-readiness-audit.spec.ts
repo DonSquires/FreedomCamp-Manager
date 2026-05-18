@@ -129,7 +129,7 @@ test.describe('Production Readiness Audit', () => {
   test('admin can access analytical report pages and notice/document tooling', async ({ adminUser }) => {
     const page = adminUser
 
-    await page.goto('/reports-hub')
+    await page.goto('/reports')
     await expect(page.locator('h1').first()).toContainText('Reports')
 
     await page.goto('/compliance-analytics')

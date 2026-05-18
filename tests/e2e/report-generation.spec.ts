@@ -6,11 +6,11 @@
 import { test, expect } from './setup'
 
 test.describe('Report Generation - Leadership Pack', () => {
-  test('should navigate to Reports Hub page', async ({ adminUser }) => {
+  test('should navigate to Reports page', async ({ adminUser }) => {
     const page = adminUser
 
-    await page.goto('/reports-hub')
-    await expect(page).toHaveURL(/\/reports-hub/, { timeout: 10000 })
+    await page.goto('/reports')
+    await expect(page).toHaveURL(/\/reports/, { timeout: 10000 })
     await expect(page.locator('main')).toContainText(/reports|leadership|export|dashboard/i)
   })
 

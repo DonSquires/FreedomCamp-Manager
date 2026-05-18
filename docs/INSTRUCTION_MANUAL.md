@@ -2867,6 +2867,21 @@ Acceptance criteria for governed outcomes:
    - Safety-critical action can preempt non-safety writes.
    - Override actor, reason, and timeline are audit-logged for post-incident review.
 
+Gatekeeper policy matrix (canonical):
+
+| Action class | Gate level | Required controls |
+|---|---|---|
+| Read-only assistance (summaries, drafting, recommendations) | Assistive-only | Org-scoped context; no side effects |
+| Operational low-risk automation | Approval-gated | Proposal record, approver identity, contract-validated execution |
+| Legal / fire-control / irreversible actions | Human-only unless emergency policy explicitly allows | Human signature or explicit human authorization boundary |
+| Safety-critical emergency actions | Emergency override policy | Supervisor authorization, emergency reason, audit timeline |
+
+Deterministic emergency precedence and fallback messaging:
+
+1. Emergency operations preempt non-safety writes.
+2. If emergency authorization fails policy or role checks, return a deterministic blocked response with reason code and human-readable fallback instruction.
+3. If emergency authorization succeeds, all non-safety pending actions remain blocked until emergency state clears.
+
 #### Bob Capability Modules
 
 | Module | Purpose |

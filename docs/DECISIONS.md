@@ -14,6 +14,12 @@ When a pattern, platform, or architectural decision changes, append a dated note
 
 ## Current Standing Decisions
 - Date: 2026-05-17
+- Decision: Specialist-list governance tranche is now canonical for Bob gatekeeper policy matrix, emergency precedence semantics, and route-contract alias regression coverage.
+- Scope: `docs/INSTRUCTION_MANUAL.md`, `docs/SPECIALIST_TODO_LIST_2026-05-16.md`, `tests/e2e/route-contract-alias-parity.spec.ts`, existing Bob/Phase 4 gatekeeper specs.
+- Reason: Continuing the specialist execution plan required converting open UX/AI/QA/documentation governance tasks into explicit acceptance artifacts and verifiable tests.
+- Consequences: (1) Bob governed operations now have a documented action-class matrix and deterministic emergency fallback language. (2) Canonical route contract and compatibility aliases are test-asserted in E2E. (3) Specialist checklist completion state should reference concrete files/specs when closing P0/P1 governance items.
+
+- Date: 2026-05-17
 - Decision: PM route contract and governance release gate are canonical for compliance/enforcement routes and Bob dual-mode governance outcomes.
 - Scope: `src/App.tsx`, `docs/INSTRUCTION_MANUAL.md`, `docs/SPECIALIST_TODO_LIST_2026-05-16.md`.
 - Reason: PM priority list required resolving route contract ambiguity (`/compliance` vs `/admin/compliance`, `center` vs `centre`) and formalizing Bob gatekeeper acceptance outcomes plus release checklist governance.
