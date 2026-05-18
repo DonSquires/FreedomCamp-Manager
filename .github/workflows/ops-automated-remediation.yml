@@ -74,7 +74,7 @@ jobs:
           retention-days: 14
 
       - name: Create remediation pull request
-        uses: peter-evans/create-pull-request@v7
+        uses: peter-evans/create-pull-request@v8
         with:
           token: ${{ secrets.BOB_WORKER_GITHUB_TOKEN }}
           branch: ops/remediation/auto
