@@ -88,6 +88,7 @@ NZSCV API requires **IP whitelisting**. Supabase Edge Functions use dynamic IPs,
 Note: CI now verifies `/intel/ingest-bulletin` exists after Railway deploys.
 If deploy fails with a missing `proxy-server` path in Railway build logs, check for duplicate root-directory scoping.
 If Bob training returns HTTP 401 on `/intel/ingest-bulletin`, verify proxy env includes `INFERENCE_API_KEY` or `PROXY_SECRET`.
+If Railway variable sync fails in CI, the workflow now uses `variableCollectionUpsert` scoped by project+environment+service to prevent silent no-op updates.
 
 **Advantages:**
 - ✅ Auto-deployment from Git

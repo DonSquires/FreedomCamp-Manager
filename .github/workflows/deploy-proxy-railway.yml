@@ -152,6 +152,8 @@ jobs:
         env:
           RAILWAY_TOKEN:            ${{ secrets.RAILWAY_TOKEN }}
           RAILWAY_PROXY_SERVICE_ID: ${{ secrets.RAILWAY_PROXY_SERVICE_ID }}
+          RAILWAY_PROXY_PROJECT_ID: ${{ env.RAILWAY_PROXY_PROJECT_ID }}
+          RAILWAY_PROXY_ENVIRONMENT_ID: ${{ secrets.RAILWAY_PROXY_ENVIRONMENT_ID }}
           NZSCV_ID_KEY:             ${{ secrets.NZSCV_ID_KEY }}
           NZSCV_API_KEY:            ${{ secrets.NZSCV_API_KEY }}
           NZSCV_ENDPOINT_URL:       ${{ secrets.NZSCV_ENDPOINT_URL }}
@@ -161,13 +163,24 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Build the upsert variables array — only include vars that are actually set
-          VARS_JSON="[]"
+          : "${RAILWAY_PROXY_PROJECT_ID:=c5305775-ecf5-4d67-a59f-b7ae49838561}"
+          : "${RAILWAY_PROXY_ENVIRONMENT_ID:=dd4cf850-e604-458c-869d-da4ad54279db}"
+
+          # Build EnvironmentVariables object — only include vars that are actually set
+          VARS_JSON="{}"
           add_var() {
             local name="$1" value="$2"
             [ -z "$value" ] && return
-            VARS_JSON=$(echo "$VARS_JSON" | jq --arg n "$name" --arg v "$value" '. + [{"name":$n,"value":$v}]')
+            VARS_JSON=$(echo "$VARS_JSON" | jq --arg n "$name" --arg v "$value" '. + {($n): $v}')
           }
+
+          # Keep ingest auth aligned even if only one of these secrets is configured.
+          if [ -z "${PROXY_SECRET:-}" ] && [ -n "${INFERENCE_API_KEY:-}" ]; then
+            PROXY_SECRET="${INFERENCE_API_KEY}"
+          fi
+          if [ -z "${BOB_INFERENCE_API_KEY:-}" ] && [ -n "${INFERENCE_API_KEY:-}" ]; then
+            BOB_INFERENCE_API_KEY="${INFERENCE_API_KEY}"
+          fi
 
           add_var "NZSCV_ID_KEY"       "${NZSCV_ID_KEY:-}"
           add_var "NZSCV_API_KEY"      "${NZSCV_API_KEY:-}"
@@ -176,7 +189,7 @@ jobs:
           add_var "INFERENCE_API_KEY"  "${INFERENCE_API_KEY:-}"
           add_var "BOB_INFERENCE_API_KEY" "${BOB_INFERENCE_API_KEY:-}"
 
-          COUNT=$(echo "$VARS_JSON" | jq 'length')
+          COUNT=$(echo "$VARS_JSON" | jq 'keys | length')
           if [ "$COUNT" -eq 0 ]; then
             echo "ℹ️  No NZSCV/proxy secrets found in GitHub secrets — skipping Railway variable sync."
             exit 0
@@ -184,13 +197,23 @@ jobs:
 
           echo "🔧 Setting $COUNT Railway environment variable(s) on service $RAILWAY_PROXY_SERVICE_ID ..."
 
-          # Railway GraphQL: upsertVariables mutation
+          # Railway GraphQL: variableCollectionUpsert mutation
           MUTATION=$(jq -n \
+            --arg environmentId "$RAILWAY_PROXY_ENVIRONMENT_ID" \
+            --arg projectId "$RAILWAY_PROXY_PROJECT_ID" \
             --arg serviceId "$RAILWAY_PROXY_SERVICE_ID" \
             --argjson variables "$VARS_JSON" \
             '{
-              query: "mutation UpsertVariables($serviceId: String!, $variables: [VariableUpsertInput!]!) { variablesUpsert(serviceId: $serviceId, variables: $variables) }",
-              variables: { serviceId: $serviceId, variables: $variables }
+              query: "mutation UpsertVariableCollection($input: VariableCollectionUpsertInput!) { variableCollectionUpsert(input: $input) }",
+              variables: {
+                input: {
+                  environmentId: $environmentId,
+                  projectId: $projectId,
+                  serviceId: $serviceId,
+                  skipDeploys: true,
+                  variables: $variables
+                }
+              }
             }')
 
           HTTP_STATUS=$(curl -sS -o /tmp/railway-vars-response.json -w "%{http_code}" https://backboard.railway.app/graphql/v2 \
@@ -200,9 +223,12 @@ jobs:
           RESPONSE=$(cat /tmp/railway-vars-response.json 2>/dev/null || echo '{}')
 
           if [ "$HTTP_STATUS" != "200" ]; then
-            echo "::warning::Railway variables sync returned HTTP $HTTP_STATUS; continuing deploy."
+            echo "::error::Railway variables sync returned HTTP $HTTP_STATUS"
+            echo "::error::Railway response: $(echo "$RESPONSE" | jq -c '.')"
+            exit 1
           elif echo "$RESPONSE" | jq -e '.errors | length > 0' >/dev/null 2>&1; then
-            echo "::warning::Railway variables may not have been set: $(echo "$RESPONSE" | jq -r '.errors[0].message')"
+            echo "::error::Railway variables sync failed: $(echo "$RESPONSE" | jq -r '.errors[0].message')"
+            exit 1
           else
             echo "✅ Railway environment variables updated."
           fi
