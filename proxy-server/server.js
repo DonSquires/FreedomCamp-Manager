@@ -275,7 +275,7 @@ function checkIntelIngestAuth(req) {
   };
 }
 
-// Durable bulletin ingest bridge for Bob training.
+// Durable bulletin ingest bridge for Bob training and persistence.
 // Accepts the same { bulletin } contract used by feeder scripts and writes to
 // Supabase external_intel_bulletins for persistent retrieval.
 app.post('/intel/ingest-bulletin', rateLimitMiddleware, async (req, res) => {
