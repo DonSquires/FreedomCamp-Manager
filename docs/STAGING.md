@@ -35,6 +35,30 @@ Notes:
 
 ---
 
+## DBA Migration Naming Policy (2026-05-18)
+
+This policy prevents schema drift and broken migration chains.
+
+Rules:
+
+1. Migration version prefix must be globally unique.
+2. Use 14-digit UTC timestamp prefixes: `YYYYMMDDHHMMSS_description.sql`.
+3. Do not reuse the same semantic stem unless it is intentionally a v2/v3 follow-up and the reason is documented in the SQL header.
+4. If a migration is superseded, create a new migration; do not rename already-applied migration files.
+
+CI guard:
+
+- `.github/workflows/db-migration-check.yml` runs `scripts/check-migration-integrity.sh`.
+- The guard fails on duplicate version prefixes and warns on duplicate semantic stems.
+
+Current integrity findings to resolve:
+
+- Hard error: duplicate prefix `20260517000001`.
+- Warning: duplicate stem `bob_conversation_memory`.
+- Warning: duplicate stem `poi_face_matching`.
+
+---
+
 ## Latest Session Snapshot (QA Bug Fix Pass — 2026-05-18)
 
 - Timestamp (NZ): 2026-05-18

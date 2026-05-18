@@ -45,6 +45,12 @@ jobs:
         with:
           version: latest
 
+      - name: Run migration integrity guard script
+        run: |
+          set -euo pipefail
+          chmod +x scripts/check-migration-integrity.sh
+          scripts/check-migration-integrity.sh
+
       - name: Check for duplicate migration version prefixes
         run: |
           set -euo pipefail

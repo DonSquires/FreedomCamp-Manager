@@ -33,6 +33,15 @@ Execution note:
 
 - Items above are tracked in staging execution under the same date and were worked agentically in this change cycle.
 
+### Current Cycle DBA Guardrail (2026-05-18)
+
+Migration naming and integrity policy:
+
+1. Every migration filename prefix must be unique across the repository.
+2. Preferred format is `YYYYMMDDHHMMSS_description.sql`.
+3. Semantic duplicates (same suffix such as `*_bob_conversation_memory.sql`) must be explicitly versioned or documented in SQL headers.
+4. CI enforces this via `scripts/check-migration-integrity.sh` executed in `.github/workflows/db-migration-check.yml`.
+
 ---
 
 ## Table of Contents

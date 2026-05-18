@@ -124,6 +124,52 @@ Then run smoke tests for:
 3. Photo recovery views and functions (if enabled)
 4. Bob governance regression (`bun run test:bob:governance`) after deploying Bob edge functions
 
+### Live Schema Verification Runbook (DBA)
+
+Use this block to verify live database truth and reconcile docs/types after migrations.
+
+1. Link the project and validate migration state:
+
+```bash
+supabase link --project-ref "$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
+supabase migration list
+```
+
+2. Export live table/column metadata from information_schema:
+
+```bash
+supabase db query <<'SQL'
+SELECT
+   table_name,
+   column_name,
+   data_type,
+   is_nullable,
+   column_default
+FROM information_schema.columns
+WHERE table_schema = 'public'
+ORDER BY table_name, ordinal_position;
+SQL
+```
+
+3. Reconcile and update the following artifacts in one PR:
+
+- `docs/LIVE_SCHEMA.md` (set a new Last verified date)
+- `src/types/database.ts` (regenerated/updated to match live schema)
+- Any migration notes in `docs/STAGING.md` when integrity issues are found
+
+4. Re-run build/lint after type updates:
+
+```bash
+export PATH="$HOME/.bun/bin:$PATH"
+bun run lint && bun run build
+```
+
+5. Optional local guard before pushing migration changes:
+
+```bash
+scripts/check-migration-integrity.sh
+```
+
 ---
 
 ## 🚀 Deployment Options
