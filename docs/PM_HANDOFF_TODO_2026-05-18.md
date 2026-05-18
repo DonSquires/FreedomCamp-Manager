@@ -2,7 +2,7 @@
 
 Date: 2026-05-18
 Owner: Product + ML + LLM
-Status: Active
+Status: Completed (Go with Caveats)
 
 ## Objective
 
@@ -72,3 +72,21 @@ No-Go if any strict check fails or PM wording exceeds current evidence posture.
 2. Show evidence artifacts for smoke, ALPR, and face review in that order.
 3. State remaining gaps plainly (production ALPR corpus, expanded face adjudicated set, independent smoke signoff approval if pending).
 4. End with next remediation milestone and owner.
+
+## Execution Run (2026-05-18)
+
+Checklist completion:
+
+- [x] Step 1 complete: `npm run bob:evidence:pm` passed.
+- [x] Step 2 complete: `npm run bob:evidence:pm:strict` passed.
+- [x] Step 3 complete: `npm run bob:readiness:data` passed.
+- [x] Step 4 complete: smoke signoff ledger exists for current cycle (`status=pending`).
+- [x] Step 5 complete: ALPR redacted sample and inventory are present.
+- [x] Step 6 complete: face redacted sample and adjudication packet are present.
+- [x] Step 7 complete: PM claim boundaries validated against latest packet.
+- [x] Step 8 complete: PM packet bundle refreshed in `tools/bob-pm-evidence/latest/`.
+
+Go / No-Go outcome:
+
+- Decision: Go
+- Condition: PM narrative must explicitly keep smoke signoff as pending independent approval and keep ALPR/face claims within current evidence boundaries.
