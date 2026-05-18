@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "bob.alpr.redacted.sample.schema.v1",
+  "title": "ALPR Redacted Sample",
+  "type": "object",
+  "required": [
+    "sample_id",
+    "source_type",
+    "vehicle_bbox",
+    "sticker_presence",
+    "sticker_color",
+    "manual_review_required",
+    "reviewed_at"
+  ],
+  "properties": {
+    "sample_id": { "type": "string", "pattern": "^alpr_redacted_[0-9]{3,}$" },
+    "source_type": { "type": "string", "enum": ["reference_asset", "ui_snapshot", "redacted_observation"] },
+    "vehicle_bbox": {
+      "type": "object",
+      "required": ["x", "y", "width", "height"],
+      "properties": {
+        "x": { "type": "number" },
+        "y": { "type": "number" },
+        "width": { "type": "number", "minimum": 0 },
+        "height": { "type": "number", "minimum": 0 }
+      }
+    },
+    "sticker_presence": { "type": "string", "enum": ["present", "absent", "inconclusive"] },
+    "sticker_color": { "type": "string", "enum": ["blue", "green", "unknown"] },
+    "movement_reference_match": { "type": "string", "enum": ["same_vehicle", "different_vehicle", "cannot_determine"] },
+    "manual_review_required": { "type": "boolean" },
+    "redaction_notes": { "type": "string" },
+    "reviewed_at": { "type": "string", "format": "date-time" }
+  },
+  "additionalProperties": false
+}

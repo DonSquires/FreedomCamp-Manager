@@ -1,0 +1,42 @@
+{
+  "generatedAt": "2026-05-18T09:36:15.219Z",
+  "reviewStatus": "adjudication-packet-attached-case-samples-pending",
+  "schemaAnchors": {
+    "faceRecordsTable": "supabase/migrations/20260425000002_face_records_table.sql",
+    "matchFaceRpc": [
+      "supabase/migrations/20260426000001_poi_face_matching.sql",
+      "supabase/migrations/20260426000002_poi_face_matching_v2.sql"
+    ],
+    "reviewSurface": "src/pages/FaceRecordLog.tsx"
+  },
+  "evidenceAnchors": {
+    "faceUiSnapshots": [
+      "tests/e2e/__snapshots__/visual-regression.spec.ts/face-recognition--full-chromium.png",
+      "tests/e2e/__snapshots__/visual-regression.spec.ts/face-recognition--header-chromium.png",
+      "tests/e2e/__snapshots__/visual-regression.spec.ts/face-recognition--mainContent-chromium.png"
+    ],
+    "requiredFields": [
+      "id",
+      "label",
+      "detection_method",
+      "embedding_quality",
+      "person_record_id",
+      "photo_url",
+      "incident_id",
+      "observation_id"
+    ],
+    "adjudicationDecisions": [
+      "identity_match",
+      "poi_status",
+      "image_quality",
+      "duplicate_face_record",
+      "manual_escalation_required"
+    ]
+  },
+  "adjudicationChecklist": [
+    "Confirm embedding quality and photo evidence are sufficient before any identity link is accepted.",
+    "Use inconclusive when quality, angle, or occlusion prevents a defensible match.",
+    "Treat duplicate detection separately from identity certainty.",
+    "Require human confirmation for POI-sensitive or trespass-sensitive outcomes before operations use."
+  ]
+}

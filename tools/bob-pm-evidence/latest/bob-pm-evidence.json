@@ -1,0 +1,83 @@
+{
+  "generatedAt": "2026-05-18T09:36:15.219Z",
+  "pmPosture": "partial-pass",
+  "capabilities": {
+    "smokeRecommendation": {
+      "pmPosture": "evidence-backed-assistive",
+      "datasetPath": "data/smoke-ablation-evals.jsonl",
+      "recordCount": 14,
+      "actionDistribution": {
+        "no_action": 3,
+        "verbal_warning": 3,
+        "abatement_notice": 4,
+        "infringement_notice": 3,
+        "prosecution_referral": 1
+      },
+      "excessiveDistribution": {
+        "false": 8,
+        "true": 6
+      },
+      "variantMetrics": {
+        "sfa_only": {
+          "sampleSize": 14,
+          "actionAccuracy": 1,
+          "excessiveF1": 1,
+          "avgConfidence": 0.718,
+          "avgDecisionSeconds": 54,
+          "overrideRate": 0
+        },
+        "sfa_with_duration": {
+          "sampleSize": 14,
+          "actionAccuracy": 1,
+          "excessiveF1": 0.8571,
+          "avgConfidence": 0.7907,
+          "avgDecisionSeconds": 49.571,
+          "overrideRate": 0
+        },
+        "sfa_contextual": {
+          "sampleSize": 14,
+          "actionAccuracy": 1,
+          "excessiveF1": 1,
+          "avgConfidence": 0.8669,
+          "avgDecisionSeconds": 54.857,
+          "overrideRate": 0
+        }
+      },
+      "bestVariant": "sfa_only",
+      "reviewerSamplingPacketAttached": true,
+      "independentReviewerSignoffComplete": false,
+      "reviewerSamplingPacketPath": "tools/bob-pm-evidence/latest/smoke-reviewer-sampling-packet.md",
+      "notes": [
+        "Repo contains a labeled evaluation corpus and an existing ablation script.",
+        "A deterministic reviewer sampling packet is now attached in-repo.",
+        "Independent human reviewer sign-off is still pending."
+      ]
+    },
+    "alprInference": {
+      "pmPosture": "reference-inventory-attached-manual-review",
+      "contractPath": "docs/INFERENCE_CONTRACT_V1.md",
+      "runtimePath": "supabase/functions/alpr-process/index.ts",
+      "contractPresent": true,
+      "runtimePresent": true,
+      "corpusInventoryAttached": true,
+      "inventoryScope": "local-reference-attached",
+      "inventoryPath": "tools/bob-pm-evidence/latest/alpr-local-image-inventory.md"
+    },
+    "faceReview": {
+      "pmPosture": "human-reviewed-only",
+      "migrationPaths": [
+        "supabase/migrations/20260426000001_poi_face_matching.sql",
+        "supabase/migrations/20260426000002_poi_face_matching_v2.sql"
+      ],
+      "migrationAnchorsPresent": true,
+      "adjudicationArtifactAttached": true,
+      "adjudicatedCaseSampleAttached": false,
+      "adjudicationArtifactPath": "tools/bob-pm-evidence/latest/face-review-adjudication-packet.md"
+    }
+  },
+  "blockingGaps": [
+    "ALPR production observation corpus is still not checked into the repository; the attached inventory covers local reference assets and UI snapshots only.",
+    "Smoke reviewer sampling packet is attached, but independent human reviewer sign-off is still pending.",
+    "Face-review adjudication packet is attached, but no redacted adjudicated case sample set is stored in-repo yet."
+  ]
+}

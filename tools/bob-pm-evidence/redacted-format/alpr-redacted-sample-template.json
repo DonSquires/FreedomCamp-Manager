@@ -1,0 +1,11 @@
+{
+  "sample_id": "alpr_redacted_001",
+  "source_type": "reference_asset",
+  "vehicle_bbox": { "x": 120, "y": 40, "width": 320, "height": 200 },
+  "sticker_presence": "inconclusive",
+  "sticker_color": "unknown",
+  "movement_reference_match": "cannot_determine",
+  "manual_review_required": true,
+  "redaction_notes": "Plate text and exact location removed; image references only local non-production assets.",
+  "reviewed_at": "2026-05-18T00:00:00.000Z"
+}

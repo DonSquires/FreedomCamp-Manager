@@ -1,0 +1,52 @@
+{
+  "generatedAt": "2026-05-18T09:36:15.196Z",
+  "scope": "repo-local-image-anchors",
+  "intendedUse": "ALPR and face-review PM evidence grounding",
+  "inventoryStatus": "local-reference-attached",
+  "counts": {
+    "sticker_reference": 2,
+    "face_ui_snapshot": 3,
+    "vehicle_ui_snapshot": 2
+  },
+  "assets": [
+    {
+      "path": "src/assets/blue-self-contained-sticker.jpg",
+      "category": "sticker_reference",
+      "evidenceClass": "reference_asset"
+    },
+    {
+      "path": "src/assets/green-self-contained-sticker.png",
+      "category": "sticker_reference",
+      "evidenceClass": "reference_asset"
+    },
+    {
+      "path": "tests/e2e/__snapshots__/visual-regression.spec.ts/face-recognition--full-chromium.png",
+      "category": "face_ui_snapshot",
+      "evidenceClass": "ui_snapshot"
+    },
+    {
+      "path": "tests/e2e/__snapshots__/visual-regression.spec.ts/face-recognition--header-chromium.png",
+      "category": "face_ui_snapshot",
+      "evidenceClass": "ui_snapshot"
+    },
+    {
+      "path": "tests/e2e/__snapshots__/visual-regression.spec.ts/face-recognition--mainContent-chromium.png",
+      "category": "face_ui_snapshot",
+      "evidenceClass": "ui_snapshot"
+    },
+    {
+      "path": "tests/e2e/__snapshots__/visual-regression.spec.ts/vehicle-management--full-chromium.png",
+      "category": "vehicle_ui_snapshot",
+      "evidenceClass": "ui_snapshot"
+    },
+    {
+      "path": "tests/e2e/__snapshots__/visual-regression.spec.ts/vehicle-management--mainContent-chromium.png",
+      "category": "vehicle_ui_snapshot",
+      "evidenceClass": "ui_snapshot"
+    }
+  ],
+  "limitations": [
+    "No raw production observation corpus is checked into this repository.",
+    "This inventory covers local reference assets and UI snapshots only."
+  ]
+}

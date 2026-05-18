@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "bob.face.review.redacted.sample.schema.v1",
+  "title": "Face Review Redacted Sample",
+  "type": "object",
+  "required": [
+    "sample_id",
+    "identity_match",
+    "poi_status",
+    "image_quality",
+    "duplicate_face_record",
+    "manual_escalation_required",
+    "reviewed_at"
+  ],
+  "properties": {
+    "sample_id": { "type": "string", "pattern": "^face_redacted_[0-9]{3,}$" },
+    "identity_match": { "type": "string", "enum": ["match", "non_match", "inconclusive"] },
+    "poi_status": { "type": "string", "enum": ["poi", "non_poi", "unknown"] },
+    "image_quality": { "type": "string", "enum": ["usable", "degraded", "reject"] },
+    "duplicate_face_record": { "type": "boolean" },
+    "manual_escalation_required": { "type": "boolean" },
+    "adjudication_notes": { "type": "string" },
+    "reviewer_role": { "type": "string", "enum": ["annotator", "reviewer", "adjudicator"] },
+    "reviewed_at": { "type": "string", "format": "date-time" }
+  },
+  "additionalProperties": false
+}

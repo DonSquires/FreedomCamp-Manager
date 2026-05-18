@@ -59,6 +59,50 @@ Current integrity findings to resolve:
 
 ---
 
+## Bob Data Labeling and PM Readiness (2026-05-18)
+
+Owner: GitHub Copilot
+Mode: Agentic documentation and governance hardening for Bob review readiness
+
+Checklist:
+
+- [x] Verify current Bob dataset and annotation surfaces already present in the repository.
+- [x] Publish Bob labeling taxonomy and reviewer workflow for ALPR, smoke, and face-review surfaces.
+- [x] Publish a dataset manifest recording modality, labels, intended use, and PM readiness posture.
+- [x] Publish a PM readiness gate that forbids overclaiming beyond grounded evidence.
+- [x] Wire the new artifacts into the instruction manual and Bob quality baseline.
+
+Artifacts created:
+
+- `docs/BOB_DATA_LABELING_RUNBOOK_2026-05-18.md`
+- `docs/BOB_DATASET_MANIFEST_2026-05-18.md`
+- `docs/BOB_PM_READINESS_GATE_2026-05-18.md`
+- `scripts/generate-bob-pm-evidence.mjs`
+- `scripts/check-bob-pm-evidence-artifacts.mjs`
+- `tools/bob-pm-evidence/latest/alpr-local-image-inventory.md`
+- `tools/bob-pm-evidence/latest/smoke-reviewer-sampling-packet.md`
+- `tools/bob-pm-evidence/latest/face-review-adjudication-packet.md`
+- `tools/bob-pm-evidence/redacted-format/alpr-redacted-sample.schema.json`
+- `tools/bob-pm-evidence/redacted-format/alpr-redacted-sample-template.json`
+- `tools/bob-pm-evidence/redacted-format/face-review-redacted-sample.schema.json`
+- `tools/bob-pm-evidence/redacted-format/face-review-redacted-sample-template.json`
+
+Open gaps retained intentionally:
+
+1. No production ALPR observation corpus is checked into this repository yet; attached inventory is local-reference-only.
+2. No redacted face-review adjudicated case sample set is attached in-repo yet.
+3. Smoke reviewer sampling packet is attached, but independent human reviewer sign-off is still a follow-up governance task.
+
+Validation command:
+
+- `npm run bob:readiness:data`
+
+Strict gate command:
+
+- `npm run bob:evidence:pm:strict`
+
+---
+
 ## Latest Session Snapshot (QA Bug Fix Pass — 2026-05-18)
 
 - Timestamp (NZ): 2026-05-18

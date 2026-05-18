@@ -1,0 +1,79 @@
+{
+  "generatedAt": "2026-05-18T09:36:15.219Z",
+  "source": "data/smoke-ablation-evals.jsonl",
+  "reviewStatus": "sampling-packet-attached-human-signoff-pending",
+  "sampleSize": 5,
+  "sampledRecords": [
+    {
+      "id": "a0000000-0000-4000-0000-000000000000",
+      "groundTruthAction": "no_action",
+      "groundTruthExcessive": false,
+      "summary": {
+        "opacity": "light",
+        "color": "white",
+        "fireType": "residential_domestic",
+        "durationMinutes": 8,
+        "prohibitedMaterialsSuspected": false,
+        "smokeAffectingRoad": false
+      }
+    },
+    {
+      "id": "a1000000-0000-4000-0001-000000000000",
+      "groundTruthAction": "verbal_warning",
+      "groundTruthExcessive": false,
+      "summary": {
+        "opacity": "moderate",
+        "color": "light_grey",
+        "fireType": "burn_off",
+        "durationMinutes": 20,
+        "prohibitedMaterialsSuspected": false,
+        "smokeAffectingRoad": false
+      }
+    },
+    {
+      "id": "a10000000-0000-4000-0010-000000000000",
+      "groundTruthAction": "abatement_notice",
+      "groundTruthExcessive": false,
+      "summary": {
+        "opacity": "moderate",
+        "color": "grey",
+        "fireType": "residential_domestic",
+        "durationMinutes": 90,
+        "prohibitedMaterialsSuspected": false,
+        "smokeAffectingRoad": false
+      }
+    },
+    {
+      "id": "a11000000-0000-4000-0011-000000000000",
+      "groundTruthAction": "prosecution_referral",
+      "groundTruthExcessive": true,
+      "summary": {
+        "opacity": "heavy",
+        "color": "yellow",
+        "fireType": "industrial",
+        "durationMinutes": 40,
+        "prohibitedMaterialsSuspected": true,
+        "smokeAffectingRoad": true
+      }
+    },
+    {
+      "id": "a3000000-0000-4000-0003-000000000000",
+      "groundTruthAction": "infringement_notice",
+      "groundTruthExcessive": true,
+      "summary": {
+        "opacity": "very_heavy",
+        "color": "black",
+        "fireType": "industrial",
+        "durationMinutes": 60,
+        "prohibitedMaterialsSuspected": false,
+        "smokeAffectingRoad": true
+      }
+    }
+  ],
+  "reviewerChecklist": [
+    "Confirm the action label matches the observed source facts, not the model prediction.",
+    "Confirm excessive or non-excessive classification is still defensible under the current policy.",
+    "Confirm no ambiguity requires adjudication or escalation.",
+    "Record reviewer identity and review date outside the generated packet before PM use."
+  ]
+}

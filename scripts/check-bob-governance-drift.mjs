@@ -31,6 +31,16 @@ const MANUAL_RULES = [
     description: 'Manual states governed actions remain tenant-scoped and auditable.',
     regex: /governed actions must remain tenant-scoped and auditable/i,
   },
+  {
+    id: 'manual-data-grounding-artifacts',
+    description: 'Manual states Bob claims require dataset inventory, labeling taxonomy, PM gate, and quality baseline artifacts.',
+    regex: /dataset inventory: `docs\/BOB_DATASET_MANIFEST_2026-05-18\.md`[\s\S]*label taxonomy and review workflow: `docs\/BOB_DATA_LABELING_RUNBOOK_2026-05-18\.md`[\s\S]*PM-facing acceptance gate: `docs\/BOB_PM_READINESS_GATE_2026-05-18\.md`[\s\S]*quality baseline and freshness policy: `docs\/BOB_MODEL_QUALITY_BASELINE_2026-05-18\.md`/i,
+  },
+  {
+    id: 'manual-unknown-states-visible',
+    description: 'Manual states unknown, inconclusive, and manual-review outcomes must remain visible.',
+    regex: /unknown`, `inconclusive`, and manual-review states are first-class outcomes/i,
+  },
 ]
 
 const CODE_RULES = [

@@ -22,6 +22,9 @@ Primary artifacts:
 - `tools/llm-regression/<run-id>/bob-llm-regression-report.json`
 - `inference-service/data/onnx-runtime-benchmark-<run-id>.json`
 - `inference-service/data/onnx-runtime-benchmark-<run-id>.md`
+- `docs/BOB_DATASET_MANIFEST_2026-05-18.md`
+- `docs/BOB_DATA_LABELING_RUNBOOK_2026-05-18.md`
+- `docs/BOB_PM_READINESS_GATE_2026-05-18.md`
 
 ## 2) Confidence Calibration Method
 
@@ -57,6 +60,7 @@ Dataset freshness criteria:
 - Training/eval corpus refresh at least every 30 days.
 - Emergency and governance edge-case examples refreshed after every major incident or policy change.
 - Any stale corpus older than 60 days requires explicit waiver in governance review notes.
+- Every active corpus or contract-backed capability used in PM or promotion review must have a manifest entry and runbook taxonomy reference.
 
 ## 4) Promotion Gates (Offline Before Runtime Rollout)
 
@@ -66,6 +70,7 @@ Model/runtime promotion sequence:
 2. Pass promotion gate (`ops-mlops-domain-promotion-gate.yml`) with required consecutive green threshold.
 3. Pass Bob policy regression suite for emergency and payload-contract safety.
 4. Confirm docs/runtime drift checks are green before production promotion.
+5. Confirm PM-facing claims do not exceed manifested datasets and documented human-review boundaries.
 
 ## 5) Drift Detection and Retraining Cadence
 

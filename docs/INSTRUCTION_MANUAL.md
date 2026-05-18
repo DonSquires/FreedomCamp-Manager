@@ -42,6 +42,20 @@ Migration naming and integrity policy:
 3. Semantic duplicates (same suffix such as `*_bob_conversation_memory.sql`) must be explicitly versioned or documented in SQL headers.
 4. CI enforces this via `scripts/check-migration-integrity.sh` executed in `.github/workflows/db-migration-check.yml`.
 
+### Current Cycle Bob Readiness Board (2026-05-18)
+
+AI/data-labeling execution list:
+
+- [x] Inventory the currently verified Bob dataset and annotation surfaces in-repo.
+- [x] Publish a canonical Bob data-labeling runbook for ALPR, smoke, and face-review workflows.
+- [x] Publish a dataset manifest so PM-facing claims map to real repo-backed evidence.
+- [x] Publish a PM readiness gate that distinguishes validated evidence from contract-only or human-review-only capability.
+- [x] Require PM-facing Bob claims to preserve unknown/inconclusive/manual-review states.
+
+Execution note:
+
+- These Bob readiness controls are grounded in the current repository state and must be updated in the same change set as future model-quality or capability-claim changes.
+
 ---
 
 ## Table of Contents
@@ -2917,6 +2931,24 @@ Gatekeeper rules:
 2. Human authorization remains mandatory for legal and fire-control boundaries.
 3. Emergency posture can preempt non-safety writes.
 4. Org isolation and audit attribution are mandatory on all governed operations.
+
+#### Bob Data Grounding and PM Readiness
+
+Bob capability claims must be backed by explicit data and evaluation governance.
+
+Required artifacts:
+
+1. Dataset inventory: `docs/BOB_DATASET_MANIFEST_2026-05-18.md`
+2. Label taxonomy and review workflow: `docs/BOB_DATA_LABELING_RUNBOOK_2026-05-18.md`
+3. PM-facing acceptance gate: `docs/BOB_PM_READINESS_GATE_2026-05-18.md`
+4. Quality baseline and freshness policy: `docs/BOB_MODEL_QUALITY_BASELINE_2026-05-18.md`
+
+Rules:
+
+1. Bob claims shown to PM must not exceed the dataset, contract, and review evidence recorded in those artifacts.
+2. `unknown`, `inconclusive`, and manual-review states are first-class outcomes and must not be hidden in product narration.
+3. Contract-defined inference outputs may be presented as supported runtime fields, but not as validated corpus performance unless evaluation evidence exists.
+4. Human-review-only flows remain human-review-only until a product decision and supporting evidence explicitly change that boundary.
 
 Acceptance criteria for governed outcomes:
 
