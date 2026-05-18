@@ -160,6 +160,9 @@ jobs:
           PROXY_SECRET:             ${{ secrets.PROXY_SECRET }}
           INFERENCE_API_KEY:        ${{ secrets.INFERENCE_API_KEY }}
           BOB_INFERENCE_API_KEY:    ${{ secrets.BOB_INFERENCE_API_KEY }}
+          SUPABASE_URL:             ${{ secrets.SUPABASE_URL }}
+          VITE_SUPABASE_URL:        ${{ secrets.VITE_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
           set -euo pipefail
 
@@ -181,6 +184,9 @@ jobs:
           if [ -z "${BOB_INFERENCE_API_KEY:-}" ] && [ -n "${INFERENCE_API_KEY:-}" ]; then
             BOB_INFERENCE_API_KEY="${INFERENCE_API_KEY}"
           fi
+          if [ -z "${SUPABASE_URL:-}" ] && [ -n "${VITE_SUPABASE_URL:-}" ]; then
+            SUPABASE_URL="${VITE_SUPABASE_URL}"
+          fi
 
           add_var "NZSCV_ID_KEY"       "${NZSCV_ID_KEY:-}"
           add_var "NZSCV_API_KEY"      "${NZSCV_API_KEY:-}"
@@ -188,6 +194,8 @@ jobs:
           add_var "PROXY_SECRET"       "${PROXY_SECRET:-}"
           add_var "INFERENCE_API_KEY"  "${INFERENCE_API_KEY:-}"
           add_var "BOB_INFERENCE_API_KEY" "${BOB_INFERENCE_API_KEY:-}"
+          add_var "SUPABASE_URL" "${SUPABASE_URL:-}"
+          add_var "SUPABASE_SERVICE_ROLE_KEY" "${SUPABASE_SERVICE_ROLE_KEY:-}"
 
           COUNT=$(echo "$VARS_JSON" | jq 'keys | length')
           if [ "$COUNT" -eq 0 ]; then

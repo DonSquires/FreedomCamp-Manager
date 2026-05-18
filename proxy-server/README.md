@@ -90,6 +90,7 @@ If deploy fails with a missing `proxy-server` path in Railway build logs, check 
 If Bob training returns HTTP 401 on `/intel/ingest-bulletin`, verify proxy env includes `INFERENCE_API_KEY` or `PROXY_SECRET`.
 If Railway variable sync fails in CI, the workflow now uses `variableCollectionUpsert` scoped by project+environment+service to prevent silent no-op updates.
 If Railway GraphQL auth is denied, CI retries with `Project-Access-Token` header using the normalized Railway token.
+Durable ingest persistence also requires proxy runtime `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`.
 
 **Advantages:**
 - ✅ Auto-deployment from Git
