@@ -12,7 +12,7 @@ Requires Ollama >= 0.3.x for /api/chat support (pinned in Dockerfile via OLLAMA_
 
 import os
 import json
-import re as regex
+import re
 import shutil
 import base64
 import hashlib
@@ -22,6 +22,8 @@ import subprocess
 import time
 import requests
 import runpod
+
+regex = re
 
 
 def normalize_ollama_base(raw_value):
