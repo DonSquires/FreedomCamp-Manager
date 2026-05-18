@@ -60,6 +60,7 @@
 10. [Appendix B — Role Access Matrix](#appendix-b--role-access-matrix)
 11. [Appendix C — Common Troubleshooting](#appendix-c--common-troubleshooting)
 12. [Appendix D — CRO To-Do List](#appendix-d--cro-to-do-list)
+13. [Appendix E — QA Bug Fix To-Do List](#appendix-e--qa-bug-fix-to-do-list)
 
 ---
 
@@ -3275,3 +3276,36 @@ See [`docs/CRO_TODOLIST.md`](./CRO_TODOLIST.md) for the full checklist with indi
 
 *Document maintained by Iron Eagle Security / OnSpace AI.  
 Source of truth: [`docs/DECISIONS.md`](./DECISIONS.md) · [`docs/LESSONS_LEARNED.md`](./LESSONS_LEARNED.md)*
+
+---
+
+## Appendix E — QA Bug Fix To-Do List
+
+Audit date: **2026-05-18**  
+Auditor persona: QA Engineer / Software Tester  
+Scope: Broken buttons, layout issues on different phone sizes, functional bugs.  
+Build baseline: lint 0 errors, Vite build EXIT:0 (clean).
+
+### Bug Fix Checklist
+
+| ID | Severity | Status | File | Description |
+|---|---|---|---|---|
+| BUG-01 | 🔴 Critical | [x] | `AppLayout.tsx` | Mobile: page content hidden under stacked fixed overlays (PTT bar + floating buttons). Add `pb-28 md:pb-6` to `<main>`. |
+| BUG-02 | 🟠 High | [x] | `AppLayout.tsx` | No iOS safe-area-inset on mobile PTT bar. Devices with home indicator clip the control. |
+| BUG-03 | 🟠 High | [x] | `AppLayout.tsx` | Duplicate sidebar nav items in multiple groups (Dispatch Events, Vehicle Discrepancies, Investigation Job Config, and others each appear twice). |
+| BUG-04 | 🟡 Medium | [x] | `FieldOfficerPortal.tsx` | Parking action `<button>` elements missing `type="button"` attribute. |
+| BUG-05 | 🟡 Medium | [x] | `AppLayout.tsx` | PTT FAB (Popover trigger, `fixed bottom-16 right-4`) shown on all screen sizes, duplicating the dedicated mobile PTT bar. Hide on `< md`. |
+| BUG-06 | 🟡 Medium | [x] | `FieldOfficerPortal.tsx` | Guarding service tool grid uses `md:grid-cols-2 lg:grid-cols-3` without matching `sm:` breakpoint used in other service grids. |
+| BUG-07 | 🟢 Low | [x] | `Login.tsx` | Operational pillar cards switch to 3-column at `sm:` (640px), producing cramped 195px columns. Should activate at `md:` (768px). |
+
+### Fix Progress
+
+- [x] **BUG-01** — `<main>` padding-bottom for mobile overlays
+- [x] **BUG-02** — iOS safe-area-inset on mobile PTT bar (`bottom` CSS)
+- [x] **BUG-03** — Remove duplicate nav entries from `navigationGroups` in `AppLayout.tsx`
+- [x] **BUG-04** — Add `type="button"` to parking `<button>` elements in `FieldOfficerPortal.tsx`
+- [x] **BUG-05** — Wrap PTT FAB `<Popover>` in `hidden md:block` div in `AppLayout.tsx`
+- [x] **BUG-06** — Align guarding grid to `grid-cols-1 sm:grid-cols-2 lg:grid-cols-3` in `FieldOfficerPortal.tsx`
+- [x] **BUG-07** — Change `sm:grid-cols-3` → `md:grid-cols-3` on Login pillar grid
+
+> Tracking note: All 7 bugs fixed. Build confirmed: lint 0 errors, Vite EXIT:0.

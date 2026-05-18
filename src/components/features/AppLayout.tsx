@@ -345,7 +345,6 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       // Sprint 22–26 (B-76–B-90) config/manager
       { path: '/investigation-job-config', icon: Settings, label: 'Investigation Job Config', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/zone-legal-config', icon: FileText, label: 'Zone Legal Config', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/flagged-vehicles-manager', icon: AlertTriangle, label: 'Flagged Vehicles', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/bug-reports-log', icon: Bug, label: 'Bug Report Log', roles: ['admin', 'master'] },
       { path: '/feature-flags', icon: Settings, label: 'Feature Flags', roles: ['master'] },
       // Sprint 43: B-141
@@ -380,7 +379,6 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/occupancy-analytics', icon: TrendingUp, label: 'Occupancy Analytics', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/incident-reports', icon: ClipboardList, label: 'Incident Reports', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/investigations', icon: BrainCircuit, label: 'Investigations', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/investigation-job-config', icon: FlaskConical, label: 'Job Config', roles: ['admin', 'master'] },
       { path: '/credential-processing-log', icon: FileCheck, label: 'Credential Processing Log', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/person-records', icon: PersonStanding, label: 'Person Records', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/canonical-persons', icon: Users, label: 'Canonical Persons', roles: ['admin', 'admin_officer', 'master'] },
@@ -394,16 +392,10 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/audit-log', icon: Activity, label: 'Audit Log', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/privacy-curtain', icon: EyeOff, label: 'Privacy Curtain', roles: ['admin', 'admin_officer', 'master'] },
       // Sprint 19–21 (B-67–B-75) logs
-      { path: '/noise-notices', icon: Volume2, label: 'Noise Notices', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/site-incidents', icon: Shield, label: 'Site Incidents', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/person-interactions', icon: Users, label: 'Person Interactions', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/person-observations-log', icon: Eye, label: 'Person Observation Log', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/plate-scans-log', icon: ScanSearch, label: 'Plate Scans', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/dispatch-events', icon: Radio, label: 'Dispatch Events', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/notices-to-vacate', icon: ScrollText, label: 'Notices to Vacate', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/vehicle-discrepancies', icon: AlertTriangle, label: 'Vehicle Discrepancies', roles: ['admin', 'admin_officer', 'master'] },
       // Sprint 22–26 (B-76–B-90) logs
-      { path: '/drift-events', icon: Navigation2, label: 'Drift Events', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/investigation-jobs-log', icon: BrainCircuit, label: 'Investigation Jobs', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/operational-cases-log', icon: FolderKanban, label: 'Operational Cases', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/patrol-events-log', icon: Route, label: 'Patrol Events Log', roles: ['admin', 'admin_officer', 'master'] },
@@ -411,7 +403,6 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/ems-attendances-log', icon: HeartPulse, label: 'EMS Attendances', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/parking-sessions-log', icon: ParkingSquare, label: 'Parking Sessions', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/parking-payments-log', icon: Receipt, label: 'Parking Payments', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/zone-signage-evidence', icon: ImageIcon, label: 'Zone Signage Evidence', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/officer-activity-log', icon: Activity, label: 'Officer Activity Log', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/dispatch-ack-log', icon: Radio, label: 'Dispatch Acknowledgements', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/noise-jobs-log', icon: Volume2, label: 'Noise Job Log', roles: ['admin', 'admin_officer', 'master'] },
@@ -1330,7 +1321,9 @@ export function AppLayout({ children, title, description, showBackButton, immers
         )}
 
         {/* Page Content */}
-        <main className={cn('relative', immersive ? 'p-0 lg:p-0' : 'p-4 lg:p-6')}>
+        {/* pb-28 md:pb-6: on mobile the fixed PTT bar + floating buttons occupy ~96px at the bottom;
+            extra bottom padding prevents content from being hidden under them. */}
+        <main className={cn('relative', immersive ? 'p-0 lg:p-0' : 'p-4 pb-28 md:pb-6 lg:p-6')}>
           {!immersive && <PublicSafetyBanner />}
           {!immersive && <JurisdictionBanner />}
           {!immersive && (user?.role === 'admin' || user?.role === 'master' || user?.role === 'grand_master') && <HealthBanner />}
@@ -1347,8 +1340,9 @@ export function AppLayout({ children, title, description, showBackButton, immers
           )}
           {children}
 
-          {/* PTT / Team Chat floating action button */}
+          {/* PTT / Team Chat floating action button — desktop only; mobile uses the bottom PTT bar */}
           {user && !isLocked && (
+            <div className="hidden md:block">
             <Popover open={pttFabOpen} onOpenChange={setPttFabOpen}>
               <PopoverTrigger asChild>
                 <button
@@ -1378,13 +1372,17 @@ export function AppLayout({ children, title, description, showBackButton, immers
                 <PTTBar />
               </PopoverContent>
             </Popover>
+            </div>
           )}
 
           {/* Global feedback button — visible to all authenticated users */}
           {user && !isLocked && (
             <>
               {location.pathname !== '/radio' && (
-                <div className="md:hidden fixed bottom-2 left-2 right-2 z-40">
+                <div
+                  className="md:hidden fixed left-2 right-2 z-40"
+                  style={{ bottom: 'calc(0.5rem + env(safe-area-inset-bottom, 0px))' }}
+                >
                   <div className="rounded-2xl border border-slate-700 bg-slate-900/95 shadow-xl px-3 py-2 flex items-center gap-2">
                     <button
                       onClick={() => setPttExpanded(v => !v)}

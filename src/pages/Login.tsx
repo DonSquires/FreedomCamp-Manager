@@ -159,7 +159,7 @@ export default function Login() {
               </p>
             </div>
 
-            <div className="mt-8 grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-3">
               {operationalPillars.map((pillar) => {
                 const Icon = pillar.icon
                 return (

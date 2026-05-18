@@ -2733,7 +2733,7 @@ export default function FieldOfficerPortal() {
                 <Shield className="h-3.5 w-3.5" />
                 Guarding
               </h3>
-              <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3 mb-6">
+              <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 mb-6">
                 {/* Checkpoint */}
                 <button
                   type="button"
@@ -2869,6 +2869,7 @@ export default function FieldOfficerPortal() {
               </h3>
               <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 mb-6">
                 <button
+                  type="button"
                   onClick={() => navigate('/parking-officer')}
                   className="flex items-center gap-4 w-full rounded-2xl border-2 border-orange-200 dark:border-orange-800 bg-orange-50 dark:bg-orange-950/40 p-4 text-left hover:border-orange-400 hover:shadow-md active:scale-[0.97] transition-all"
                 >
@@ -2881,6 +2882,7 @@ export default function FieldOfficerPortal() {
                   </div>
                 </button>
                 <button
+                  type="button"
                   onClick={() => navigate('/infringements')}
                   className="flex items-center gap-4 w-full rounded-2xl border-2 border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/40 p-4 text-left hover:border-red-400 hover:shadow-md active:scale-[0.97] transition-all"
                 >

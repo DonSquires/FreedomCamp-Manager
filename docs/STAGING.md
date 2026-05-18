@@ -1,5 +1,41 @@
 # STAGING — Unified Execution To-Do and Crash Recovery Plan
 
+Date: 2026-05-18
+Owner: GitHub Copilot
+Status: **ALL GATES GREEN** — Lint 0 errors / 0 warnings; Vite build EXIT:0; All 7 QA bugs fixed ✓
+
+---
+
+## Latest Session Snapshot (QA Bug Fix Pass — 2026-05-18)
+
+- Timestamp (NZ): 2026-05-18
+- Session focus: QA Engineer persona — audit and fix broken buttons, mobile layout issues, and functional bugs found in the field-officer and admin shells.
+- Bugs identified (full detail in `docs/INSTRUCTION_MANUAL.md` Appendix E):
+
+| ID | Severity | File | Description |
+|---|---|---|---|
+| BUG-01 | 🔴 Critical | `AppLayout.tsx` | Mobile: `<main>` has no bottom padding — page content hidden under stacked fixed PTT bar + floating buttons |
+| BUG-02 | 🟠 High | `AppLayout.tsx` | Mobile PTT bar has no `env(safe-area-inset-bottom)` — clipped on iPhones with home indicator |
+| BUG-03 | 🟠 High | `AppLayout.tsx` | Duplicate sidebar nav items (8 paths appear in 2 groups each) |
+| BUG-04 | 🟡 Medium | `FieldOfficerPortal.tsx` | Parking action `<button>` elements missing `type="button"` |
+| BUG-05 | 🟡 Medium | `AppLayout.tsx` | PTT FAB Popover (`fixed bottom-16 right-4`) not hidden on mobile — duplicates dedicated PTT bar |
+| BUG-06 | 🟡 Medium | `FieldOfficerPortal.tsx` | Guarding tool grid uses `md:grid-cols-2` without `sm:` variant used by other service grids |
+| BUG-07 | 🟢 Low | `Login.tsx` | Pillar cards switch to 3-col at 640px (`sm:`) — cramped at that breakpoint, should be `md:` |
+
+### Fix checklist
+
+- [x] BUG-01 — `<main>` bottom padding (`pb-28 md:pb-6`)
+- [x] BUG-02 — iOS safe-area-inset on mobile PTT bar
+- [x] BUG-03 — Remove 8 duplicate nav entries from `navigationGroups`
+- [x] BUG-04 — `type="button"` on parking action buttons
+- [x] BUG-05 — `hidden md:block` wrapper on PTT FAB Popover
+- [x] BUG-06 — Guarding grid `grid-cols-1 sm:grid-cols-2 lg:grid-cols-3`
+- [x] BUG-07 — `sm:grid-cols-3` → `md:grid-cols-3` on Login pillar grid
+
+- Validation gate: `bun run lint && bun run build` must remain EXIT:0 after all fixes.
+
+---
+
 Date: 2026-05-17
 Owner: GitHub Copilot
 Status: **ALL GATES GREEN** — Lint 0 errors / 0 warnings; Vite build EXIT:0 (4382 modules); ready for next phase
