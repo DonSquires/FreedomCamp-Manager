@@ -64,6 +64,7 @@ Operational automation now includes two distinct loops:
    - Workflow: `.github/workflows/ops-automated-remediation.yml`
    - Primary script: `scripts/auto-remediation-cycle.mjs`
    - Runs ESLint autofix, dependency audit/outdated scans, optional Snyk scan (when `SNYK_TOKEN` is configured), then opens an automated PR when safe file changes are produced.
+   - If repository-level Actions secret writes are blocked for automation tokens, store `SNYK_TOKEN` as an environment secret under `remediation-secrets` and keep this workflow bound to that environment.
    - Dependency update PRs are additionally handled by Dependabot via `.github/dependabot.yml`.
 
 2. Self-Healing Watchdog Loop
