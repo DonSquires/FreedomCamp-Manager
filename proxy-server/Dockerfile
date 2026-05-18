@@ -15,6 +15,7 @@ RUN npm install --omit=dev && npm cache clean --force
 
 # Copy application source
 COPY server.js ./
+COPY lib ./lib
 
 # Set ownership to non-root user
 RUN chown -R nodejs:nodejs /app
