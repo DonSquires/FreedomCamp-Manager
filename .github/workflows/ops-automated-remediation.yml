@@ -11,6 +11,11 @@ on:
         type: boolean
         required: false
         default: false
+      run_snyk_scan:
+        description: Run Snyk scan (requires SNYK_TOKEN in remediation-secrets environment)
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: write
@@ -45,7 +50,7 @@ jobs:
         run: node scripts/auto-remediation-cycle.mjs
 
       - name: Run Snyk security scan
-        if: ${{ env.SNYK_TOKEN != '' }}
+        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.run_snyk_scan == 'true' && env.SNYK_TOKEN != '' }}
         continue-on-error: true
         uses: snyk/actions/node@master
         env:
@@ -54,7 +59,7 @@ jobs:
           args: --all-projects --json-file-output=tools/auto-remediation/snyk-report.json
 
       - name: Note Snyk token missing
-        if: ${{ env.SNYK_TOKEN == '' }}
+        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.run_snyk_scan == 'true' && env.SNYK_TOKEN == '' }}
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         run: echo "SNYK_TOKEN is not configured; skipping Snyk scan." >> tools/auto-remediation/summary.md
