@@ -185,6 +185,14 @@ const RUNPOD_API_KEY = process.env.RUNPOD_API_KEY;
 const RUNPOD_ENDPOINT_ID = process.env.RUNPOD_ENDPOINT_ID;
 const POSTAL_API_URL = process.env.POSTAL_API_URL;
 const POSTAL_API_KEY = process.env.POSTAL_API_KEY;
+const INFERENCE_API_KEY = process.env.INFERENCE_API_KEY;
+const BOB_INFERENCE_API_KEY = process.env.BOB_INFERENCE_API_KEY;
+const DEFAULT_INTEL_ORG_ID =
+  process.env.INTEL_ORGANIZATION_ID ||
+  process.env.BOB_ORG_ID ||
+  process.env.ORG_ID ||
+  process.env.DEFAULT_ORG_ID ||
+  '';
 
 if (!MOTORWEB_API_KEY || !MOTORWEB_ID_KEY) {
   console.warn('⚠️  WARNING: MotorWeb API credentials not configured (enrichment will fail)');
@@ -226,6 +234,153 @@ app.get('/api/bob/system-auth/status', rateLimitMiddleware, (req, res) => {
     success: true,
     bob_system_auth: getBobSystemAuthStatus(),
   });
+});
+
+function checkIntelIngestAuth(req) {
+  const bearer = String(req.headers.authorization || '')
+    .replace(/^Bearer\s+/i, '')
+    .trim();
+  const proxySecret = String(req.headers['x-proxy-secret'] || '').trim();
+
+  const allowed = [
+    PROXY_SECRET,
+    INFERENCE_API_KEY,
+    BOB_INFERENCE_API_KEY,
+    RUNPOD_API_KEY,
+    SUPABASE_SERVICE_ROLE_KEY,
+  ]
+    .map((v) => String(v || '').trim())
+    .filter(Boolean);
+
+  if (!allowed.length) {
+    return {
+      status: 503,
+      body: {
+        error: 'Service not configured',
+        message: 'No shared secret configured for intel ingest auth.',
+      },
+    };
+  }
+
+  if (allowed.includes(proxySecret) || allowed.includes(bearer)) {
+    return null;
+  }
+
+  return {
+    status: 401,
+    body: {
+      error: 'Unauthorized',
+      message: 'Invalid intel ingest authentication.',
+    },
+  };
+}
+
+// Durable bulletin ingest bridge for Bob training.
+// Accepts the same { bulletin } contract used by feeder scripts and writes to
+// Supabase external_intel_bulletins for persistent retrieval.
+app.post('/intel/ingest-bulletin', rateLimitMiddleware, async (req, res) => {
+  try {
+    const authResult = checkIntelIngestAuth(req);
+    if (authResult) {
+      return res.status(authResult.status).json(authResult.body);
+    }
+
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+      return res.status(503).json({
+        error: 'Service not configured',
+        message: 'SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not set for durable ingest.',
+      });
+    }
+
+    const bulletin = req.body?.bulletin;
+    if (!bulletin || typeof bulletin !== 'object') {
+      return res.status(400).json({ error: 'Bad Request', message: 'Missing bulletin payload.' });
+    }
+
+    const organizationId =
+      String(req.body?.organization_id || '').trim() ||
+      String(req.headers['x-org-id'] || '').trim() ||
+      String(DEFAULT_INTEL_ORG_ID || '').trim();
+
+    if (!organizationId) {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: 'organization_id (or x-org-id / INTEL_ORGANIZATION_ID) is required for ingest.',
+      });
+    }
+
+    const typeRaw = String(bulletin.type || 'system').toLowerCase();
+    const mappedType = ['law', 'security', 'jurisdiction', 'system', 'other'].includes(typeRaw)
+      ? typeRaw
+      : 'other';
+
+    const title = String(bulletin.title || '').trim();
+    const summary = String(bulletin.summary || '').trim();
+    if (!title || !summary) {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: 'Bulletin title and summary are required.',
+      });
+    }
+
+    const sourceUrl = String(bulletin.source_url || bulletin.source || '').trim() || null;
+    const effectiveDate = String(bulletin.effective_date || '').trim();
+    const publishedAt = effectiveDate ? new Date(effectiveDate).toISOString() : null;
+
+    const metadata = {
+      ...(typeof bulletin.metadata === 'object' && bulletin.metadata ? bulletin.metadata : {}),
+      source: bulletin.source || null,
+      effective_date: effectiveDate || null,
+      ingested_via: 'railway-proxy',
+      ingested_at: new Date().toISOString(),
+    };
+
+    const supabaseHeaders = {
+      apikey: SUPABASE_SERVICE_ROLE_KEY,
+      Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+      'Content-Type': 'application/json',
+      Prefer: 'return=representation',
+    };
+
+    const row = {
+      organization_id: organizationId,
+      type: mappedType,
+      title,
+      summary,
+      source_url: sourceUrl,
+      published_at: publishedAt,
+      metadata,
+    };
+
+    const insertRes = await axios.post(
+      `${SUPABASE_URL}/rest/v1/external_intel_bulletins`,
+      [row],
+      {
+        headers: supabaseHeaders,
+        timeout: 15000,
+      },
+    );
+
+    const inserted = Array.isArray(insertRes.data) ? insertRes.data[0] : null;
+    return res.status(200).json({
+      success: true,
+      memory_applied: true,
+      persisted: true,
+      route: '/intel/ingest-bulletin',
+      id: inserted?.id || null,
+      organization_id: organizationId,
+    });
+  } catch (error) {
+    const detail =
+      error?.response?.data ||
+      error?.message ||
+      'unknown_error';
+    console.error('[intel-ingest-bulletin] failed:', detail);
+    return res.status(502).json({
+      error: 'Ingest failed',
+      message: typeof detail === 'string' ? detail : JSON.stringify(detail).slice(0, 500),
+    });
+  }
 });
 
 // PTT stream multiplexing context resolver.

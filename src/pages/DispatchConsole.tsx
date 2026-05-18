@@ -287,6 +287,19 @@ export default function DispatchConsole() {
   })
 
   const caseStatusFilter = statusFilter === 'active' ? undefined : statusFilter === 'completed' ? 'completed' : undefined
+  const [denseMode, setDenseMode] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return window.localStorage.getItem('fc_dispatch_dense_mode') === 'true'
+  })
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem('fc_dispatch_dense_mode', String(denseMode))
+    } catch {
+      // Ignore storage failures; the toggle still works for the current session.
+    }
+  }, [denseMode])
+
   const { data: operationalCases = [] } = useOperationalCases({
     caseType: 'dispatch_job',
     status: caseStatusFilter,
@@ -504,7 +517,7 @@ export default function DispatchConsole() {
   return (
     <AppLayout>
       <GlobalFilterRibbon />
-      <div className="p-4 md:p-6 space-y-4 max-w-screen-2xl mx-auto">
+      <div className={denseMode ? 'p-3 md:p-5 space-y-3 max-w-screen-2xl mx-auto' : 'p-4 md:p-6 space-y-4 max-w-screen-2xl mx-auto'}>
 
       {/* Offline warning */}
         {isOffline && (
@@ -517,15 +530,18 @@ export default function DispatchConsole() {
         {/* Header */}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h1 data-testid="console-title" className="text-2xl font-bold flex items-center gap-2">
+            <h1 data-testid="console-title" className={denseMode ? 'text-xl font-bold flex items-center gap-2' : 'text-2xl font-bold flex items-center gap-2'}>
               <Radio className="h-6 w-6 text-primary" />
               Dispatch Console
             </h1>
-            <p className="text-sm text-muted-foreground mt-0.5">
+            <p className={denseMode ? 'text-xs text-muted-foreground mt-0.5 max-w-3xl' : 'text-sm text-muted-foreground mt-0.5 max-w-3xl'}>
               GDS CATS-style job dispatch — assign jobs to officers in real time and coordinate on the employer-wide dispatch radio net
             </p>
           </div>
           <div className="flex gap-2 flex-wrap">
+            <Button variant={denseMode ? 'default' : 'outline'} size="sm" onClick={() => setDenseMode((value) => !value)} className="gap-1.5">
+              <LayoutList className="h-4 w-4" /> {denseMode ? 'Dense' : 'Dense mode'}
+            </Button>
             <Button variant="outline" size="sm" onClick={() => navigate('/radio?mode=dispatch')} className="gap-1.5">
               <Radio className="h-4 w-4" /> Dispatch Radio
             </Button>
@@ -548,7 +564,7 @@ export default function DispatchConsole() {
         </div>
 
         {/* Summary row */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className={denseMode ? 'grid grid-cols-2 md:grid-cols-4 gap-2' : 'grid grid-cols-2 md:grid-cols-4 gap-3'}>
           {[
             { label: 'Awaiting Dispatch', value: pending,  icon: Clock,         cls: 'text-gray-600'   },
             { label: 'Active Jobs',        value: active,   icon: Navigation,    cls: 'text-blue-600'   },
@@ -557,7 +573,7 @@ export default function DispatchConsole() {
             { label: 'Case Model',         value: operationalCases.length, icon: FileText, cls: 'text-violet-600' },
           ].map(({ label, value, icon: Icon, cls }) => (
             <Card key={label} className={breached > 0 && label === 'SLA Breached' ? 'border-red-300 bg-red-50/30' : ''}>
-              <CardContent className="pt-3 pb-2">
+              <CardContent className={denseMode ? 'pt-2.5 pb-2' : 'pt-3 pb-2'}>
                 <div className="flex items-center gap-2 mb-1">
                   <Icon className={`h-4 w-4 ${cls}`} />
                   <span className="text-xs text-muted-foreground">{label}</span>
@@ -569,7 +585,7 @@ export default function DispatchConsole() {
         </div>
 
         {/* Status filter */}
-        <div className="flex gap-2">
+        <div className={denseMode ? 'flex gap-1.5 flex-wrap' : 'flex gap-2 flex-wrap'}>
           {(['active', 'completed', 'all'] as const).map(f => (
             <Button key={f} size="sm" variant={statusFilter === f ? 'default' : 'outline'}
               className="capitalize" onClick={() => setStatusFilter(f)}>
@@ -579,15 +595,15 @@ export default function DispatchConsole() {
         </div>
 
         {/* Main two-panel layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className={denseMode ? 'grid grid-cols-1 lg:grid-cols-3 gap-3' : 'grid grid-cols-1 lg:grid-cols-3 gap-4'}>
 
           {/* ── Job Queue (2/3 width) ──────────────────────────────────── */}
-          <div className="lg:col-span-2 space-y-3" data-testid="job-list">
+          <div className={denseMode ? 'lg:col-span-2 space-y-2.5' : 'lg:col-span-2 space-y-3'} data-testid="job-list">
             {jobsLoading && (
               <div className="space-y-3">
                 {[1, 2, 3].map((i) => (
                   <Card key={`job-skel-${i}`} className="animate-pulse border-l-4 border-l-gray-300">
-                    <CardContent className="p-4 space-y-2">
+                    <CardContent className={denseMode ? 'p-3 space-y-2' : 'p-4 space-y-2'}>
                       <div className="h-3 w-24 rounded bg-muted" />
                       <div className="h-4 w-2/3 rounded bg-muted" />
                       <div className="h-3 w-1/2 rounded bg-muted" />
@@ -682,13 +698,13 @@ export default function DispatchConsole() {
           {/* ── Officer Panel (1/3 width) ──────────────────────────────── */}
           <div className="space-y-3">
             <Card>
-              <CardHeader className="pb-2 pt-4 px-4">
+              <CardHeader className={denseMode ? 'pb-1.5 pt-3 px-4' : 'pb-2 pt-4 px-4'}>
                 <CardTitle className="text-sm flex items-center gap-2">
                   <User className="h-4 w-4" /> Officers
                   <Badge variant="secondary" className="ml-auto">{onShift} on shift</Badge>
                 </CardTitle>
               </CardHeader>
-              <CardContent className="px-4 pb-4 space-y-2">
+              <CardContent className={denseMode ? 'px-4 pb-3 space-y-2' : 'px-4 pb-4 space-y-2'}>
                 {officers.map(o => (
                   <div key={o.id} className={`flex items-center gap-3 rounded-lg p-2 border ${
                     o.is_on_shift ? 'border-green-200 bg-green-50/50 dark:bg-green-950/20' : 'border-gray-100 opacity-60'

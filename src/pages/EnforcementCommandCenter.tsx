@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
@@ -85,12 +85,24 @@ export default function EnforcementCommandCenter() {
   const { user } = useAuthStore()
   const { organizationId, zoneId, dateFrom, dateTo } = useGlobalFiltersStore()
   const [selectedView, setSelectedView] = useState<'all' | 'urgent' | 'pending'>('all')
+  const [denseMode, setDenseMode] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return window.localStorage.getItem('fc_enforcement_dense_mode') === 'true'
+  })
   const effectiveOrganizationId =
     user?.role !== 'master' ? user?.organization_id || null : organizationId || null
   const startDate = dateFrom ? nzDateToUTCStart(dateFrom) : null
   const endDate = dateTo ? nzDateToUTCEnd(dateTo) : null
   const todayNz = new Date().toLocaleDateString('en-CA', { timeZone: 'Pacific/Auckland' })
   const todayStart = nzDateToUTCStart(todayNz)
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem('fc_enforcement_dense_mode', String(denseMode))
+    } catch {
+      // Ignore storage failures; the toggle still works for the current session.
+    }
+  }, [denseMode])
 
   // Fetch enforcement stats
   const { data: stats } = useQuery({
@@ -362,10 +374,22 @@ export default function EnforcementCommandCenter() {
     >
       <GlobalFilterRibbon />
 
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className={denseMode ? 'text-2xl font-bold tracking-tight' : 'text-3xl font-bold tracking-tight'}>Enforcement Command Centre</h1>
+          <p className={denseMode ? 'text-sm text-muted-foreground mt-1 max-w-3xl' : 'text-base text-muted-foreground mt-1 max-w-3xl'}>
+            Real-time breach monitoring, patrol oversight, and action management.
+          </p>
+        </div>
+        <Button variant={denseMode ? 'default' : 'outline'} size="sm" onClick={() => setDenseMode((value) => !value)} className="gap-1.5">
+          <MoreHorizontal className="h-4 w-4" /> {denseMode ? 'Dense' : 'Dense mode'}
+        </Button>
+      </div>
+
       {/* Stats Grid */}
-      <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-6 mb-6">
+      <div className={denseMode ? 'grid gap-3 md:grid-cols-3 lg:grid-cols-6 mb-6' : 'grid gap-4 md:grid-cols-3 lg:grid-cols-6 mb-6'}>
         <Card>
-          <CardHeader className="pb-2">
+          <CardHeader className={denseMode ? 'pb-1.5' : 'pb-2'}>
             <CardTitle className="text-sm font-medium text-red-600 flex items-center gap-2">
               <AlertTriangle className="h-4 w-4" />
               Active Breaches
@@ -379,7 +403,7 @@ export default function EnforcementCommandCenter() {
         </Card>
 
         <Card>
-          <CardHeader className="pb-2">
+          <CardHeader className={denseMode ? 'pb-1.5' : 'pb-2'}>
             <CardTitle className="text-sm font-medium text-orange-600 flex items-center gap-2">
               <Clock className="h-4 w-4" />
               Pending Actions
@@ -393,7 +417,7 @@ export default function EnforcementCommandCenter() {
         </Card>
 
         <Card>
-          <CardHeader className="pb-2">
+          <CardHeader className={denseMode ? 'pb-1.5' : 'pb-2'}>
             <CardTitle className="text-sm font-medium text-blue-600 flex items-center gap-2">
               <MapPin className="h-4 w-4" />
               Active Patrols
@@ -407,7 +431,7 @@ export default function EnforcementCommandCenter() {
         </Card>
 
         <Card>
-          <CardHeader className="pb-2">
+          <CardHeader className={denseMode ? 'pb-1.5' : 'pb-2'}>
             <CardTitle className="text-sm font-medium text-purple-600 flex items-center gap-2">
               <Users className="h-4 w-4" />
               Officers On Duty
@@ -421,7 +445,7 @@ export default function EnforcementCommandCenter() {
         </Card>
 
         <Card>
-          <CardHeader className="pb-2">
+          <CardHeader className={denseMode ? 'pb-1.5' : 'pb-2'}>
             <CardTitle className="text-sm font-medium text-indigo-600 flex items-center gap-2">
               <FileText className="h-4 w-4" />
               Notices Today
@@ -449,7 +473,7 @@ export default function EnforcementCommandCenter() {
         </Card>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
+      <div className={denseMode ? 'grid gap-4 lg:grid-cols-3' : 'grid gap-6 lg:grid-cols-3'}>
         {/* Active Breaches - Takes 2 columns */}
         <div className="lg:col-span-2">
           <Card>
@@ -462,7 +486,7 @@ export default function EnforcementCommandCenter() {
                   </CardTitle>
                   <CardDescription>Real-time breach monitoring</CardDescription>
                 </div>
-                <div className="flex gap-2">
+                <div className={denseMode ? 'flex gap-1.5' : 'flex gap-2'}>
                   <Button
                     variant={selectedView === 'all' ? 'default' : 'outline'}
                     size="sm"
@@ -487,7 +511,7 @@ export default function EnforcementCommandCenter() {
                 </div>
               </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className={denseMode ? 'pt-3' : undefined}>
               {breachesLoading ? (
                 <div className="text-center py-8">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
@@ -536,7 +560,7 @@ export default function EnforcementCommandCenter() {
         </div>
 
         {/* Right Column */}
-        <div className="space-y-6">
+        <div className={denseMode ? 'space-y-4' : 'space-y-6'}>
           {/* Active Patrols */}
           <Card>
             <CardHeader>
@@ -545,9 +569,9 @@ export default function EnforcementCommandCenter() {
                 Active Patrols
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className={denseMode ? 'pt-3' : undefined}>
               {patrols && patrols.length > 0 ? (
-                <div className="space-y-2">
+                <div className={denseMode ? 'space-y-1.5' : 'space-y-2'}>
                   {patrols.map((patrol) => (
                     <div
                       key={patrol.id}
@@ -586,9 +610,9 @@ export default function EnforcementCommandCenter() {
                 Recent Actions
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className={denseMode ? 'pt-3' : undefined}>
               {actions && actions.length > 0 ? (
-                <div className="space-y-2">
+                <div className={denseMode ? 'space-y-1.5' : 'space-y-2'}>
                   {actions.slice(0, 5).map((action) => (
                     <div
                       key={action.id}

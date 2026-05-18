@@ -206,7 +206,7 @@ The `deploy-frontend.yml` workflow blocks preview deployments that use productio
 | `BOB_SYNC_PAT` | ✅ | `sync-bob-repo.yml` | GitHub PAT (classic or fine-grained) with `Contents: Read+Write` on `DonSquires/Bob` |
 | `INTEL_FEED_URLS` | Required for intel sync | `ops-intel-feed-sync.yml` | Comma or newline-separated feed URLs to harvest |
 | `INTEL_HMAC_KEY` | ⚠️ Strongly recommended | `ops-intel-feed-sync.yml` | HMAC key for bulletin signing (`openssl rand -hex 32`). If absent, bulletin signature verification is disabled on Bob |
-| `INTEL_INGEST_URL` | Optional | `ops-intel-feed-sync.yml` | Derived from `BOB_SERVICE_URL` if not set |
+| `INTEL_INGEST_URL` | Optional | `ops-intel-feed-sync.yml` | Preferred explicit URL to `/intel/ingest-bulletin` (usually Railway inference service). If omitted and `BOB_SERVICE_URL` points to RunPod serverless, ingest falls back to runsync session-context and may be ephemeral |
 | `INTEL_ALLOWED_HOSTS` | Optional | `ops-intel-feed-sync.yml` | Comma-separated allowlist of feed hostnames |
 | `INTEL_ORGANIZATION_ID` | Optional | `ops-intel-feed-sync.yml` | Org UUID for DB sync targeting |
 | `INTEL_DB_TABLE` | Optional | `ops-intel-feed-sync.yml` | Default: `external_intel_bulletins` |

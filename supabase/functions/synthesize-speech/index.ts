@@ -89,7 +89,7 @@ Deno.serve(withCors(async (req: Request) => {
                 },
               },
             }),
-          }, { retries: 1, timeoutMs: 28_000, backoffMs: 500 })
+          }, { retries: 1, timeoutMs: 75_000, backoffMs: 700 })
 
           const runpodText = await inferResp.text().catch(() => '')
           let runpodJson: any = null
@@ -117,12 +117,10 @@ Deno.serve(withCors(async (req: Request) => {
           }
 
           // Some worker variants return speech directives instead of binary audio.
-          return jsonResponse({
-            success: true,
-            spoken_text: String(output?.spoken_text || output?.response || text),
-            client_action: String(output?.client_action || 'web_speech_synthesis'),
-            provider: String(output?.provider || 'runpod'),
-          }, req, 200)
+          // Try any configured fallback endpoint first so mobile receives actual WAV bytes.
+          lastError = new Error('RunPod synth returned no audio payload')
+          console.warn(`synthesize-speech: runpod endpoint ${serviceUrl} returned no audio payload, trying fallback endpoint if available`)
+          continue
         } else {
           inferResp = await fetchWithRetry(`${serviceUrl}/infer/speak`, {
             method: 'POST',
@@ -140,7 +138,7 @@ Deno.serve(withCors(async (req: Request) => {
               style: typeof body.style === 'string' ? body.style : undefined,
               format: 'wav',
             }),
-          }, { retries: 1, timeoutMs: 22_000, backoffMs: 500 })
+          }, { retries: 1, timeoutMs: 45_000, backoffMs: 700 })
         }
 
         if (!inferResp.ok) {
@@ -165,7 +163,13 @@ Deno.serve(withCors(async (req: Request) => {
     // All endpoints exhausted
     const errMsg = lastError?.message || 'Speech synthesis unavailable'
     console.error('synthesize-speech: all endpoints failed', errMsg)
-    return errorResponse(errMsg, req, 502)
+    return jsonResponse({
+      success: false,
+      spoken_text: text,
+      client_action: 'web_speech_synthesis',
+      provider: 'fallback',
+      error: errMsg,
+    }, req, 200)
   } catch (err: any) {
     console.error('synthesize-speech: inference fetch exception', err?.message || String(err))
     return errorResponse(err?.message || 'Speech synthesis unavailable', req, 502)

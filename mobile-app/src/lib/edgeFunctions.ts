@@ -185,7 +185,7 @@ export const edgeFunctions = {
 
     const token = await getValidAccessToken()
     const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), 20_000)
+    const timer = setTimeout(() => controller.abort(), 60_000)
 
     try {
       const response = await fetch(`${supabaseUrl}/functions/v1/synthesize-speech`, {
@@ -209,7 +209,7 @@ export const edgeFunctions = {
       if (contentType.startsWith('audio/')) {
         return await response.blob()
       }
-      // Fallback JSON path — inference service returned spoken_text only
+      // Fallback JSON path — inference service returned an envelope instead of raw audio.
       const json = await response.json().catch(() => null)
       if (!json || !json.audio_base64) return null
       const bytes = Uint8Array.from(atob(json.audio_base64), (c) => c.charCodeAt(0))

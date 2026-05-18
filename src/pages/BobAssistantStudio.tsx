@@ -6017,6 +6017,26 @@ export default function BobAssistantStudio() {
                   <Button size="sm" variant={policyMode === 'master_balanced' ? 'default' : 'outline'} onClick={() => setPolicyMode('master_balanced')} disabled={!isPolicyManager || thinking}>Master Balanced</Button>
                   <Button size="sm" variant={policyMode === 'officer_assist' ? 'default' : 'outline'} onClick={() => setPolicyMode('officer_assist')} disabled={!isPolicyManager || thinking}>Officer Assist</Button>
                 </div>
+                <div className="rounded border bg-background/70 p-3 space-y-2">
+                  <div className="text-sm font-medium">Gate Status</div>
+                  <div className="flex flex-wrap gap-2">
+                    <Badge variant={pendingCommandConfirmation ? 'default' : 'outline'} className="gap-1">
+                      <ClipboardList className="h-3 w-3" /> Proposal submitted
+                    </Badge>
+                    <Badge variant={pendingCommandConfirmation ? 'default' : 'secondary'} className="gap-1">
+                      <Loader2 className="h-3 w-3 animate-spin" /> Awaiting approver
+                    </Badge>
+                    <Badge variant={!pendingCommandConfirmation && effectivePolicy.mode !== 'officer_assist' && !bobDegraded ? 'default' : 'outline'} className="gap-1">
+                      <CheckCircle2 className="h-3 w-3" /> Approved
+                    </Badge>
+                    <Badge variant={effectivePolicy.mode === 'officer_assist' || bobDegraded ? 'destructive' : 'outline'} className="gap-1">
+                      <XCircle className="h-3 w-3" /> Blocked
+                    </Badge>
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    Proposal flow, approval state, and policy blocks are shown together so operators can tell at a glance whether Bob is ready, waiting, approved, or blocked.
+                  </div>
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                   <div className="flex items-center justify-between rounded border px-2 py-1.5">
                     <Label className="text-xs">Schema checks</Label>

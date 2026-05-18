@@ -224,12 +224,10 @@ async function main() {
     `Output: ${args.outDir}`,
     `Report: ${reportFile}`,
   ]
-  // eslint-disable-next-line no-console
   console.log(summary.join('\n'))
 }
 
 main().catch((err) => {
-  // eslint-disable-next-line no-console
   console.error('ocr-and-picture-extract failed:', err)
   process.exit(1)
 })

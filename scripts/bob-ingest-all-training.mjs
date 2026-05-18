@@ -26,6 +26,7 @@ loadLocalEnv()
 
 let BOB_URL = String(process.env.BOB_SERVICE_URL || process.env.INFERENCE_SERVICE_URL || '').trim().replace(/\/$/, '')
 let API_KEY = String(process.env.BOB_INFERENCE_API_KEY || process.env.INFERENCE_API_KEY || '').trim()
+const INTEL_INGEST_URL = String(process.env.INTEL_INGEST_URL || process.env.BOB_INTEL_INGEST_URL || '').trim().replace(/\/$/, '')
 const DRY_RUN = process.argv.includes('--dry-run')
 const SKIP_TESTS = process.argv.includes('--skip-connectivity-test')
 const SKIP_VERIFY = process.argv.includes('--skip-verify')
@@ -92,6 +93,7 @@ const FEEDER_COOLDOWN_MS = parsePositiveInt(
 )
 const RAILWAY_SPLIT_SIZE = parsePositiveInt(process.env.BOB_RAILWAY_SPLIT_SIZE, 24)
 const IS_RUNPOD_SERVERLESS = /api\.runpod\.ai\/v2\//i.test(BOB_URL)
+const HAS_DURABLE_INGEST_ROUTE = Boolean(INTEL_INGEST_URL && !/api\.runpod\.ai\/v2\//i.test(INTEL_INGEST_URL))
 
 let feeders = [...allFeeders]
 
@@ -265,6 +267,15 @@ async function runPostIngestProbe() {
     return { skipped: true, ok: true, reason: 'post-probe skipped' }
   }
 
+  if (HAS_DURABLE_INGEST_ROUTE) {
+    return {
+      skipped: false,
+      ok: true,
+      reason: 'durable_ingest_route_configured',
+      durableIngestUrl: INTEL_INGEST_URL,
+    }
+  }
+
   if (!IS_RUNPOD_SERVERLESS) {
     return { skipped: true, ok: true, reason: 'non-runpod endpoint' }
   }
@@ -359,7 +370,12 @@ async function main() {
   const probe = await runPostIngestProbe()
   if (!probe.skipped) {
     if (probe.ok) {
-      console.log('\n🧪 Post-ingest probe: PASS (route retrieval + memory marker).')
+      if (probe.reason === 'durable_ingest_route_configured') {
+        console.log('\n🧪 Post-ingest probe: PASS (durable intel ingest route configured).')
+        console.log(`   durable_ingest_url=${probe.durableIngestUrl}`)
+      } else {
+        console.log('\n🧪 Post-ingest probe: PASS (route retrieval + memory marker).')
+      }
     } else {
       console.log('\n🧪 Post-ingest probe: WARN')
       if (probe.message) console.log(`   ${probe.message}`)

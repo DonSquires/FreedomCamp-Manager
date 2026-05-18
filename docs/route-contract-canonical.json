@@ -1,0 +1,77 @@
+{
+  "version": "2026-05-18.governance-slice",
+  "routes": [
+    {
+      "routeId": "admin.compliance",
+      "path": "/compliance",
+      "shell": "admin",
+      "rolesAllowed": ["admin", "admin_officer", "master", "grand_master"],
+      "navLabel": "Compliance Hub",
+      "visibilityMode": "production",
+      "preloadPolicy": "intent"
+    },
+    {
+      "routeId": "admin.compliance-analytics",
+      "path": "/compliance-analytics",
+      "shell": "admin",
+      "rolesAllowed": ["admin", "admin_officer", "master", "grand_master"],
+      "navLabel": "Compliance Analytics",
+      "visibilityMode": "production",
+      "preloadPolicy": "none"
+    },
+    {
+      "routeId": "admin.enforcement-command-center",
+      "path": "/enforcement-command-center",
+      "shell": "admin",
+      "rolesAllowed": ["admin", "admin_officer", "master", "grand_master"],
+      "navLabel": "Enforcement Console",
+      "visibilityMode": "production",
+      "preloadPolicy": "intent"
+    },
+    {
+      "routeId": "admin.bob-assistant",
+      "path": "/bob-assistant",
+      "shell": "admin",
+      "rolesAllowed": ["admin", "admin_officer", "master", "grand_master", "officer"],
+      "navLabel": "Bob Assistant",
+      "visibilityMode": "production",
+      "preloadPolicy": "none"
+    },
+    {
+      "routeId": "admin.bob-intake-queue",
+      "path": "/bob-intake-queue",
+      "shell": "admin",
+      "rolesAllowed": ["admin", "admin_officer", "master", "grand_master"],
+      "navLabel": "Bob Intake Queue",
+      "visibilityMode": "production",
+      "preloadPolicy": "none"
+    },
+    {
+      "routeId": "admin.bob-studio",
+      "path": "/bob-studio",
+      "shell": "admin",
+      "rolesAllowed": ["admin", "admin_officer", "master", "grand_master"],
+      "navLabel": "Bob Studio",
+      "visibilityMode": "production",
+      "preloadPolicy": "none"
+    },
+    {
+      "routeId": "shared.bob-alias",
+      "path": "/bob",
+      "shell": "shared",
+      "rolesAllowed": ["admin", "admin_officer", "master", "officer", "grand_master"],
+      "navLabel": null,
+      "visibilityMode": "production",
+      "preloadPolicy": "none"
+    },
+    {
+      "routeId": "shared.bob-assistant-studio-alias",
+      "path": "/bob/assistant-studio",
+      "shell": "shared",
+      "rolesAllowed": ["admin", "admin_officer", "master", "officer", "grand_master"],
+      "navLabel": null,
+      "visibilityMode": "production",
+      "preloadPolicy": "none"
+    }
+  ]
+}

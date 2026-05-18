@@ -253,6 +253,21 @@ export default function IntelApprovalQueue() {
         <Badge>{totalPending}</Badge>
       </div>
 
+      <div className="mb-4 flex flex-wrap gap-2">
+        <Badge variant="outline" className="gap-1">
+          <AlertTriangle className="h-3 w-3" /> Proposal submitted
+        </Badge>
+        <Badge variant={totalPending > 0 ? 'default' : 'secondary'} className="gap-1">
+          <ShieldAlert className="h-3 w-3" /> Awaiting approver
+        </Badge>
+        <Badge variant="outline" className="gap-1">
+          <CheckCircle2 className="h-3 w-3" /> Approved
+        </Badge>
+        <Badge variant="destructive" className="gap-1">
+          <XCircle className="h-3 w-3" /> Blocked
+        </Badge>
+      </div>
+
       <Tabs defaultValue="bulletins" className="space-y-4">
         <TabsList>
           <TabsTrigger value="bulletins">External Intel ({bulletins.length})</TabsTrigger>

@@ -20,6 +20,8 @@ const RAW_INFERENCE_URL =
   'https://api.runpod.ai/v2/n0bp1ifmq01cx2';
 const INFERENCE_API_KEY = process.env.INFERENCE_API_KEY || '';
 const RUNPOD_TIMEOUT_MS = parseInt(process.env.BOB_RUNPOD_TIMEOUT_MS || '90000', 10);
+const RUNPOD_STATUS_TIMEOUT_MS = parseInt(process.env.BOB_RUNPOD_STATUS_TIMEOUT_MS || '300000', 10);
+const RUNPOD_STATUS_POLL_MS = parseInt(process.env.BOB_RUNPOD_STATUS_POLL_MS || '1500', 10);
 
 function normalizeRunpodInvokeUrl(rawUrl) {
   const value = String(rawUrl || '').trim().replace(/\/+$/, '');
@@ -32,6 +34,7 @@ function normalizeRunpodInvokeUrl(rawUrl) {
 }
 
 const RUNSYNC_URL = normalizeRunpodInvokeUrl(RAW_INFERENCE_URL);
+const RUNPOD_BASE_URL = RUNSYNC_URL.replace(/\/(runsync|run-sync|run)$/i, '');
 
 const colors = {
   reset: '\x1b[0m',
@@ -70,56 +73,137 @@ async function chatWithBob(message) {
     },
   };
 
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), RUNPOD_TIMEOUT_MS);
+  const extractResponse = (result) => {
+    const output = result?.output ?? result;
+    if (typeof output === 'string' && output.trim()) return output;
+    if (typeof output?.response === 'string' && output.response.trim()) return output.response;
+    if (typeof output?.message === 'string' && output.message.trim()) return output.message;
+    if (typeof output?.content === 'string' && output.content.trim()) return output.content;
+    return '';
+  };
 
-  try {
-    const response = await fetchFn(
-      RUNSYNC_URL,
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${INFERENCE_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-        signal: controller.signal,
-      }
-    );
-
-    clearTimeout(timeout);
-
-    if (!response.ok) {
-      log('error', `HTTP ${response.status}: ${response.statusText}`);
-      const text = await response.text();
-      log('error', `Response: ${text.substring(0, 200)}`);
-      process.exit(1);
-    }
-
-    const result = await response.json();
-
-    log('info', `Status: ${result.status}`);
-
-    if (result.status === 'COMPLETED' && result.output) {
+  const printResponse = (result) => {
+    log('info', `Status: ${result.status || 'COMPLETED'}`);
+    const text = extractResponse(result);
+    if (text) {
       log('success', 'Bob responded:');
-      if (typeof result.output === 'string') {
-        console.log(`\n${colors.cyan}${result.output}${colors.reset}\n`);
-      } else if (result.output?.response && typeof result.output.response === 'string') {
-        console.log(`\n${colors.cyan}${result.output.response}${colors.reset}\n`);
-      } else {
-        console.log(`\n${JSON.stringify(result.output, null, 2)}\n`);
-      }
-    } else if (result.output) {
+      console.log(`\n${colors.cyan}${text}${colors.reset}\n`);
+      return;
+    }
+    const output = result?.output ?? result;
+    if (output) {
       log('info', 'Response output:');
-      console.log(`\n${JSON.stringify(result.output, null, 2)}\n`);
+      console.log(`\n${JSON.stringify(output, null, 2)}\n`);
     } else {
       log('info', 'Full response:');
       console.log(`\n${JSON.stringify(result, null, 2)}\n`);
     }
+  };
 
-    return result;
+  const runSyncCall = async () => {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), RUNPOD_TIMEOUT_MS);
+    try {
+      const response = await fetchFn(
+        RUNSYNC_URL,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${INFERENCE_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(payload),
+          signal: controller.signal,
+        }
+      );
+
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`HTTP ${response.status}: ${text.substring(0, 300)}`);
+      }
+
+      return await response.json();
+    } finally {
+      clearTimeout(timeout);
+    }
+  };
+
+  const pollStatus = async (jobId) => {
+    const deadline = Date.now() + RUNPOD_STATUS_TIMEOUT_MS;
+    while (Date.now() < deadline) {
+      const res = await fetchFn(`${RUNPOD_BASE_URL}/status/${jobId}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${INFERENCE_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        throw new Error(`RunPod status HTTP ${res.status}: ${text.substring(0, 300)}`);
+      }
+
+      const status = await res.json();
+      const state = String(status?.status || '').toUpperCase();
+      if (state === 'COMPLETED') return status;
+      if (state === 'FAILED' || state === 'CANCELLED' || state === 'TIMED_OUT') {
+        throw new Error(`RunPod job ${state}: ${JSON.stringify(status?.error || status?.output || '').substring(0, 300)}`);
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, RUNPOD_STATUS_POLL_MS));
+    }
+
+    throw new Error(`RunPod status polling timed out after ${RUNPOD_STATUS_TIMEOUT_MS}ms`);
+  };
+
+  const runAsyncFallback = async () => {
+    log('warn', 'runsync stalled; falling back to /run + /status polling');
+    const res = await fetchFn(`${RUNPOD_BASE_URL}/run`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${INFERENCE_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw new Error(`RunPod run HTTP ${res.status}: ${text.substring(0, 300)}`);
+    }
+
+    const submitted = await res.json();
+    const jobId = String(submitted?.id || '');
+    if (!jobId) {
+      throw new Error(`RunPod run did not return job id: ${JSON.stringify(submitted).substring(0, 300)}`);
+    }
+
+    log('info', `Queued job ${jobId}; polling status...`);
+    return await pollStatus(jobId);
+  };
+
+  try {
+    try {
+      const result = await runSyncCall();
+      printResponse(result);
+      return result;
+    } catch (runSyncErr) {
+      const messageText = String(runSyncErr?.message || runSyncErr);
+      const shouldFallback =
+        runSyncErr?.name === 'AbortError' ||
+        messageText.includes('AbortError') ||
+        messageText.includes('timed out') ||
+        messageText.includes('The operation was aborted') ||
+        messageText.includes('fetch failed');
+
+      if (!shouldFallback) throw runSyncErr;
+
+      const fallbackResult = await runAsyncFallback();
+      printResponse(fallbackResult);
+      return fallbackResult;
+    }
   } catch (err) {
-    clearTimeout(timeout);
     if (err.name === 'AbortError') {
       log('error', `Request timed out after ${RUNPOD_TIMEOUT_MS}ms`);
     } else {

@@ -673,6 +673,14 @@ function getSafetyCapabilitySummary() {
       requested_families: ['yamnet', 'vggish', 'ast'],
       implemented_runtime: true,
     },
+    runtime_tuning: {
+      profile: ONNX_RUNTIME_PROFILE,
+      execution_mode: ONNX_EXECUTION_MODE,
+      graph_optimization_level: ONNX_GRAPH_OPT_LEVEL,
+      intra_op_threads: ONNX_INTRA_OP_THREADS,
+      inter_op_threads: ONNX_INTER_OP_THREADS,
+      yolo_input_size: YOLO_INPUT_SIZE,
+    },
     action_recognition: {
       enabled: SAFETY_ACTION_RECOGNITION_ENABLED,
       provider: SAFETY_ACTION_RECOGNITION_PROVIDER,
@@ -785,7 +793,79 @@ function normalizeOperatingMode(value) {
   return null;
 }
 
-const YOLO_INPUT_SIZE = 640;
+function parsePositiveIntEnv(value, fallback) {
+  const parsed = Number.parseInt(String(value || ''), 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+  return parsed;
+}
+
+function normalizeOnnxRuntimeProfile(value) {
+  const raw = String(value || '').trim().toLowerCase();
+  if (['latency', 'low-latency', 'low_latency', 'fast'].includes(raw)) return 'latency';
+  if (['throughput', 'high-throughput', 'high_throughput'].includes(raw)) return 'throughput';
+  if (['quality', 'high-quality', 'high_quality', 'accurate'].includes(raw)) return 'quality';
+  return 'balanced';
+}
+
+function normalizeOnnxExecutionMode(value, fallback) {
+  const raw = String(value || '').trim().toLowerCase();
+  if (raw === 'parallel' || raw === 'sequential') return raw;
+  return fallback;
+}
+
+function normalizeGraphOptimizationLevel(value, fallback) {
+  const raw = String(value || '').trim().toLowerCase();
+  if (['disabled', 'basic', 'extended', 'all'].includes(raw)) return raw;
+  return fallback;
+}
+
+const ONNX_CPU_COUNT = Math.max(1, (os.cpus() || []).length || 1);
+const ONNX_RUNTIME_PROFILE = normalizeOnnxRuntimeProfile(process.env.ONNX_RUNTIME_PROFILE || 'balanced');
+const ONNX_PROFILE_DEFAULTS = {
+  latency: {
+    executionMode: 'sequential',
+    graphOptimizationLevel: 'all',
+    intraOpNumThreads: 1,
+    interOpNumThreads: 1,
+  },
+  throughput: {
+    executionMode: 'parallel',
+    graphOptimizationLevel: 'all',
+    intraOpNumThreads: Math.min(8, ONNX_CPU_COUNT),
+    interOpNumThreads: 2,
+  },
+  quality: {
+    executionMode: 'parallel',
+    graphOptimizationLevel: 'extended',
+    intraOpNumThreads: Math.min(4, ONNX_CPU_COUNT),
+    interOpNumThreads: 1,
+  },
+  balanced: {
+    executionMode: 'parallel',
+    graphOptimizationLevel: 'all',
+    intraOpNumThreads: Math.min(4, ONNX_CPU_COUNT),
+    interOpNumThreads: 1,
+  },
+};
+const ONNX_PROFILE_DEFAULT = ONNX_PROFILE_DEFAULTS[ONNX_RUNTIME_PROFILE] || ONNX_PROFILE_DEFAULTS.balanced;
+const ONNX_EXECUTION_MODE = normalizeOnnxExecutionMode(process.env.ONNX_EXECUTION_MODE, ONNX_PROFILE_DEFAULT.executionMode);
+const ONNX_GRAPH_OPT_LEVEL = normalizeGraphOptimizationLevel(process.env.ONNX_GRAPH_OPT_LEVEL, ONNX_PROFILE_DEFAULT.graphOptimizationLevel);
+const ONNX_INTRA_OP_THREADS = parsePositiveIntEnv(process.env.ONNX_INTRA_OP_THREADS, ONNX_PROFILE_DEFAULT.intraOpNumThreads);
+const ONNX_INTER_OP_THREADS = parsePositiveIntEnv(process.env.ONNX_INTER_OP_THREADS, ONNX_PROFILE_DEFAULT.interOpNumThreads);
+const ONNX_ENABLE_CPU_MEM_ARENA = envFlag(process.env.ONNX_ENABLE_CPU_MEM_ARENA, true);
+const YOLO_INPUT_SIZE = parsePositiveIntEnv(process.env.YOLO_INPUT_SIZE, 640);
+
+function getOnnxSessionOptions() {
+  return {
+    executionProviders: ['cpu'],
+    graphOptimizationLevel: ONNX_GRAPH_OPT_LEVEL,
+    executionMode: ONNX_EXECUTION_MODE,
+    intraOpNumThreads: ONNX_INTRA_OP_THREADS,
+    interOpNumThreads: ONNX_INTER_OP_THREADS,
+    enableCpuMemArena: ONNX_ENABLE_CPU_MEM_ARENA,
+  };
+}
+
 const VEHICLE_ATTRS_PROVIDER_RAW = (process.env.VEHICLE_ATTRS_PROVIDER || 'basic').toLowerCase();
 const VEHICLE_ATTRS_PROVIDER = normalizeProvider(VEHICLE_ATTRS_PROVIDER_RAW, 'basic');
 // OpenAI — kept ONLY for the opt-in VEHICLE_ATTRS_PROVIDER=openai feature.
@@ -1144,7 +1224,7 @@ async function getYamnetSession() {
   if (!fs.existsSync(YAMNET_MODEL_PATH)) {
     throw new Error(`YAMNet ONNX model not found at ${YAMNET_MODEL_PATH} — run: node scripts/download-models.js`);
   }
-  _yamnetSession = await ort.InferenceSession.create(YAMNET_MODEL_PATH);
+  _yamnetSession = await ort.InferenceSession.create(YAMNET_MODEL_PATH, getOnnxSessionOptions());
   console.log('[yamnet] ONNX session loaded:', YAMNET_MODEL_PATH);
   return _yamnetSession;
 }
@@ -2284,19 +2364,14 @@ async function loadModels() {
   try {
     const yoloModelPath = resolveModelPath(process.env.YOLO_MODEL_PATH, 'yolov8n.onnx');
     const embeddingModelPath = resolveModelPath(process.env.EMBEDDING_MODEL_PATH, 'mobilenet_v3.onnx');
+    console.log(`[onnx] profile=${ONNX_RUNTIME_PROFILE}, mode=${ONNX_EXECUTION_MODE}, graph=${ONNX_GRAPH_OPT_LEVEL}, threads=${ONNX_INTRA_OP_THREADS}/${ONNX_INTER_OP_THREADS}, yolo_input=${YOLO_INPUT_SIZE}`);
 
     // YOLOv8n for vehicle detection
-    yoloSession = await ort.InferenceSession.create(yoloModelPath, {
-      executionProviders: ['cpu'],
-      graphOptimizationLevel: 'all'
-    });
+    yoloSession = await ort.InferenceSession.create(yoloModelPath, getOnnxSessionOptions());
     console.log(`✅ YOLOv8n loaded (${yoloModelPath})`);
 
     // MobileNetV3 for embeddings
-    embeddingSession = await ort.InferenceSession.create(embeddingModelPath, {
-      executionProviders: ['cpu'],
-      graphOptimizationLevel: 'all'
-    });
+    embeddingSession = await ort.InferenceSession.create(embeddingModelPath, getOnnxSessionOptions());
     console.log(`✅ MobileNetV3 loaded (${embeddingModelPath})`);
 
   } catch (error) {
@@ -2433,16 +2508,18 @@ async function generateBriefingVideoArtifact(payload = {}) {
   }
 }
 
-// Preprocess image for YOLO (640x640)
+// Preprocess image for YOLO (YOLO_INPUT_SIZE x YOLO_INPUT_SIZE)
 async function preprocessForYOLO(imageBuffer) {
+  const inputSize = YOLO_INPUT_SIZE;
+  const pixelCount = inputSize * inputSize;
   const { data, info } = await sharp(imageBuffer)
-    .resize(640, 640, { fit: 'fill' })
+    .resize(inputSize, inputSize, { fit: 'fill' })
     .removeAlpha()
     .raw()
     .toBuffer({ resolveWithObject: true });
 
   // Convert to Float32Array and normalize [0-255] -> [0-1]
-  const float32Data = new Float32Array(3 * 640 * 640);
+  const float32Data = new Float32Array(3 * pixelCount);
   for (let i = 0; i < data.length; i += 3) {
     float32Data[i] = data[i] / 255.0;       // R
     float32Data[i + 1] = data[i + 1] / 255.0; // G
@@ -2450,16 +2527,16 @@ async function preprocessForYOLO(imageBuffer) {
   }
 
   // Convert HWC to CHW format
-  const chw = new Float32Array(3 * 640 * 640);
+  const chw = new Float32Array(3 * pixelCount);
   for (let c = 0; c < 3; c++) {
-    for (let h = 0; h < 640; h++) {
-      for (let w = 0; w < 640; w++) {
-        chw[c * 640 * 640 + h * 640 + w] = float32Data[(h * 640 + w) * 3 + c];
+    for (let h = 0; h < inputSize; h++) {
+      for (let w = 0; w < inputSize; w++) {
+        chw[c * pixelCount + h * inputSize + w] = float32Data[(h * inputSize + w) * 3 + c];
       }
     }
   }
 
-  return new ort.Tensor('float32', chw, [1, 3, 640, 640]);
+  return new ort.Tensor('float32', chw, [1, 3, inputSize, inputSize]);
 }
 
 function clamp(value, min, max) {
@@ -6284,9 +6361,7 @@ async function loadFaceDetectModel() {
   if (faceDetectSession !== null) return faceDetectSession;
   if (!fs.existsSync(FACE_DETECT_MODEL_PATH)) return null;
   try {
-    faceDetectSession = await ort.InferenceSession.create(FACE_DETECT_MODEL_PATH, {
-      executionProviders: ['cpu'],
-    });
+    faceDetectSession = await ort.InferenceSession.create(FACE_DETECT_MODEL_PATH, getOnnxSessionOptions());
     console.log('✅ UltraFace-640 face detection model loaded:', FACE_DETECT_MODEL_PATH);
   } catch (err) {
     console.warn('⚠️  UltraFace model load failed (non-fatal):', err.message);
@@ -6653,9 +6728,7 @@ async function loadPlateDetectModel() {
   if (plateDetectSession !== null) return plateDetectSession;
   if (!fs.existsSync(PLATE_DETECT_MODEL_PATH)) return null;
   try {
-    plateDetectSession = await ort.InferenceSession.create(PLATE_DETECT_MODEL_PATH, {
-      executionProviders: ['cpu'],
-    });
+    plateDetectSession = await ort.InferenceSession.create(PLATE_DETECT_MODEL_PATH, getOnnxSessionOptions());
     console.log('✅ Plate detection model loaded:', PLATE_DETECT_MODEL_PATH);
   } catch (err) {
     console.warn('⚠️  Plate detect model load failed (non-fatal):', err.message);
@@ -8705,6 +8778,13 @@ app.get('/health', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true,
       OLLAMA_PTT_BASE_URL_CONFIGURED,
       OLLAMA_MODEL,
       ORT_RUNTIME_AVAILABLE,
+      ONNX_RUNTIME_PROFILE,
+      ONNX_EXECUTION_MODE,
+      ONNX_GRAPH_OPT_LEVEL,
+      ONNX_INTRA_OP_THREADS,
+      ONNX_INTER_OP_THREADS,
+      ONNX_ENABLE_CPU_MEM_ARENA,
+      YOLO_INPUT_SIZE,
       RUNPOD_ENDPOINT_ID_SET: !!RUNPOD_ENDPOINT_ID,
       RUNPOD_ENDPOINT_URL_SET: !!RUNPOD_ENDPOINT_URL,
       RUNPOD_ENDPOINT_API_KEY_SET: !!RUNPOD_ENDPOINT_API_KEY,

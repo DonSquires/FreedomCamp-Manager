@@ -1,0 +1,61 @@
+name: Ops Route Docs Drift Report
+
+on:
+  schedule:
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+jobs:
+  route-docs-drift-report:
+    name: Route Docs Drift Report
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Run Bob governance drift check
+        id: bob_governance_drift
+        continue-on-error: true
+        env:
+          BOB_GOVERNANCE_DRIFT_STRICT: 'true'
+        run: bun run lint:bob-governance-drift
+
+      - name: Enforce Bob governance drift check
+        if: steps.bob_governance_drift.outcome == 'failure'
+        run: |
+          echo "::error::Bob governance drift check failed; reconcile the manual with the runtime governance surfaces."
+          exit 1
+
+      - name: Generate nightly docs/router drift report
+        run: |
+          bun scripts/nightly-route-docs-drift-report.mjs \
+            --out tools/route-docs-drift/nightly/${{ github.run_id }}/report.md
+
+      - name: Publish report summary
+        if: always()
+        run: |
+          echo "## Nightly Route Docs Drift Report" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Bob governance drift check: ${{ steps.bob_governance_drift.outcome }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Report: tools/route-docs-drift/nightly/${{ github.run_id }}/report.md" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload drift report artifact
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: route-docs-drift-${{ github.run_id }}
+          path: tools/route-docs-drift/nightly/${{ github.run_id }}
+          if-no-files-found: error

@@ -1,0 +1,76 @@
+name: CI Route Contract Gate
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/navigation/routeManifest.ts'
+      - 'docs/route-contract-canonical.json'
+      - 'docs/INSTRUCTION_MANUAL.md'
+      - 'docs/DECISIONS.md'
+      - 'src/App.tsx'
+      - 'scripts/check-route-contract-artifact.mjs'
+      - '.github/workflows/ci-route-contract-gate.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/navigation/routeManifest.ts'
+      - 'docs/route-contract-canonical.json'
+      - 'docs/INSTRUCTION_MANUAL.md'
+      - 'docs/DECISIONS.md'
+      - 'src/App.tsx'
+      - 'scripts/check-route-contract-artifact.mjs'
+      - '.github/workflows/ci-route-contract-gate.yml'
+  workflow_dispatch:
+
+jobs:
+  route-contract-gate:
+    name: Route Contract Gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Verify canonical route contract artifact
+        run: bun scripts/check-route-contract-artifact.mjs
+
+      - name: Enforce manual and decision-log updates for route changes
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+            base_sha="${{ github.event.pull_request.base.sha }}"
+            head_sha="${{ github.event.pull_request.head.sha }}"
+          else
+            base_sha="${{ github.event.before }}"
+            head_sha="${{ github.sha }}"
+          fi
+
+          changed_files=$(git diff --name-only "$base_sha" "$head_sha")
+
+          if echo "$changed_files" | grep -Eq '^(src/navigation/routeManifest.ts|src/App.tsx|docs/route-contract-canonical.json)$'; then
+            if ! echo "$changed_files" | grep -q '^docs/INSTRUCTION_MANUAL.md$'; then
+              echo "::error::Route changes require docs/INSTRUCTION_MANUAL.md updates."
+              exit 1
+            fi
+
+            if ! echo "$changed_files" | grep -q '^docs/DECISIONS.md$'; then
+              echo "::error::Route changes require docs/DECISIONS.md updates."
+              exit 1
+            fi
+          fi

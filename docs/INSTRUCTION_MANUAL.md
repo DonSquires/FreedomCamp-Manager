@@ -230,12 +230,28 @@ The platform must meet **WCAG 2.2 AA** as a minimum. Key requirements:
 | **Focus visibility** (2.4.11) | Keyboard focus indicator is never obscured by other elements in any admin view |
 | **Dragging alternatives** (2.5.7) | Every drag action (e.g. Enforcement Command Centre kanban) has a non-drag alternative (e.g. status dropdown in the card) |
 | **Target size** (2.5.8) | All interactive elements in officer/glove-safe tier are ≥ 44×44 px; minimum 24×24 px in all other contexts |
-| **Consistent help** (3.2.6) | The Bob AI button, feedback button, and support link appear in the same position on every page |
+| **Consistent help** (3.2.6) | The Bob AI button, feedback button, and support link remain docked in the same bottom-right action cluster on every authenticated page |
 | **Redundant entry** (3.3.7) | Data already known to the system (zone, officer name, plate from a scan) is pre-filled in all forms; the user is never asked to re-enter it |
 | **Accessible authentication** (3.3.8) | Login and password reset never rely solely on CAPTCHA; field officers can log in using biometric device unlock |
 | **Reduced motion** | All animated transitions respect `prefers-reduced-motion` — animations fall back to instant transitions |
 | **Colour + text** | Colour meaning is always paired with a text label or icon; nothing is communicated through colour alone |
 | **Screen reader** | All critical officer workflow paths have ARIA labels; all icons have accessible names |
+
+### Command Centre Density
+
+- Dispatch Console and Enforcement Command Centre expose a page-level Dense mode toggle in the header.
+- Dense mode reduces vertical spacing, card padding, and section gaps without changing workflow order or action availability.
+- Dense mode preference is page-specific and persists locally for the current browser profile.
+
+### Governance Status Strip Pattern (Reusable)
+
+Use this status-strip pattern on governance-capable pages (for example Bob Assistant Studio and Intel Approval Queue):
+
+1. Show all four gate states as visible badges: proposal submitted, awaiting approver, approved, blocked by policy.
+2. Keep wording identical across pages to reduce operator ambiguity.
+3. Pair every state with icon plus text (not colour only).
+4. Keep the strip directly under the page header and above queue/content controls.
+5. If emergency-priority mode is active, add a high-visibility state badge that clarifies safety-only behavior.
 
 ---
 
@@ -451,6 +467,28 @@ For any PR that changes routes, role access, or workflow entry paths, all of the
 3. `docs/STAGING.md` includes validation evidence for the change.
 4. If the change is structural (canonical path decision, role-entry contract, or alias policy), append a dated decision in `docs/DECISIONS.md`.
 5. PR is not release-ready unless all four checks above are satisfied.
+
+### Release Notes Template: Governance and Gatekeeper Changes
+
+Use this section in release notes whenever Bob governance, approval flow, or route contract behavior changes:
+
+1. **What changed** — describe the policy, route, or gatekeeper behavior that changed in plain language.
+2. **Who is affected** — list the roles or workflows that see the change first.
+3. **Approval impact** — state whether the change is assistive-only, approval-gated, blocked by policy, or emergency-override only.
+4. **Manual / test linkage** — reference the matching manual section, decision log entry, and test coverage.
+5. **Operator action** — note any required follow-up for admins, masters, or officers.
+
+### Bob Gatekeeper Playbook (One Page)
+
+Operations staff should use the one-page playbook for day-to-day approval posture, escalation, and emergency precedence handling:
+
+- `docs/BOB_GATEKEEPER_PLAYBOOK_2026-05-18.md`
+
+### Bob Retention Policy
+
+Bob decision logs, approval artifacts, and proposal events follow the explicit retention rule set in:
+
+- `docs/BOB_RETENTION_POLICY_2026-05-18.md`
 
 Phase-to-manual update scope:
 

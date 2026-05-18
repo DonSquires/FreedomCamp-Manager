@@ -23,6 +23,10 @@ test.describe('admin – operations, CRM, and Bob modules', () => {
     ['/crm', 'admin-crm'],
     ['/bob-intake-queue', 'admin-bob-intake'],
     ['/bob-assistant', 'admin-bob-assistant'],
+    ['/bob-ui-review', 'admin-bob-ui-review'],
+    ['/bob-proposals-log', 'admin-bob-proposals-log'],
+    ['/bob-proposal-events-log', 'admin-bob-proposal-events-log'],
+    ['/bob-action-proposal-events-log', 'admin-bob-action-proposal-events-log'],
     ['/live-plan-reviews', 'admin-live-plan-reviews'],
   ] as const
 

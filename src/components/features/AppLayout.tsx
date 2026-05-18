@@ -1566,11 +1566,11 @@ export function AppLayout({ children, title, description, showBackButton, immers
 
                 <button
                   onClick={() => navigate('/team-chat')}
-                  title="Open Team Chat"
-                  className="relative flex items-center gap-2 rounded-full bg-primary text-primary-foreground shadow-lg px-3 py-2 text-xs font-medium hover:opacity-95 transition-all hover:shadow-xl"
+                  title="Open support chat"
+                  className="relative flex items-center gap-2 rounded-full bg-sky-600 text-white shadow-lg px-3 py-2 text-xs font-medium hover:bg-sky-700 transition-all hover:shadow-xl"
                 >
-                  <MessageSquare className="h-4 w-4" />
-                  <span className="hidden sm:inline">Team Chat</span>
+                  <PhoneCall className="h-4 w-4" />
+                  <span className="hidden sm:inline">Support</span>
                   {location.pathname !== '/team-chat' && chatSignalCount > 0 && (
                     <span className="absolute -top-2 -right-2 min-w-5 h-5 px-1 flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold leading-none">
                       {chatSignalCount > 99 ? '99+' : chatSignalCount}

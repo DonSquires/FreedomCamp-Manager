@@ -132,7 +132,7 @@ Deno.serve(withCors(async (req: Request) => {
               audio_mime_type: audioMimeType,
               language,
             }),
-          }, { retries: 1, timeoutMs: 30_000, backoffMs: 600 })
+          }, { retries: 1, timeoutMs: 60_000, backoffMs: 800 })
         } else if (isRunpod) {
           const runpodBase = serviceUrl.replace(/\/(runsync|run|status.*)$/i, '')
           inferResp = await fetchWithRetry(`${runpodBase}/runsync`, {
@@ -149,7 +149,7 @@ Deno.serve(withCors(async (req: Request) => {
                 language,
               },
             }),
-          }, { retries: 1, timeoutMs: 35_000, backoffMs: 600 })
+          }, { retries: 1, timeoutMs: 90_000, backoffMs: 900 })
         } else {
           inferResp = await fetchWithRetry(`${serviceUrl}/infer/transcribe`, {
             method: 'POST',
@@ -164,7 +164,7 @@ Deno.serve(withCors(async (req: Request) => {
               audio_mime_type: audioMimeType,
               language,
             }),
-          }, { retries: 1, timeoutMs: 30_000, backoffMs: 600 })
+          }, { retries: 1, timeoutMs: 60_000, backoffMs: 800 })
         }
 
         if (!inferResp.ok) {
