@@ -1,0 +1,49 @@
+@xmldom/xmldom  <0.8.13
+  mammoth › @xmldom/xmldom
+  high: xmldom: Uncontrolled recursion in XML serialization leads to DoS - https://github.com/advisories/GHSA-2v35-w6hq-6mfw
+  high: xmldom has XML injection through unvalidated DocumentType serialization - https://github.com/advisories/GHSA-f6ww-3ggp-fr8h
+  high: xmldom has XML node injection through unvalidated processing instruction serialization - https://github.com/advisories/GHSA-x6wf-f3px-wcqx
+  high: xmldom has XML node injection through unvalidated comment serialization - https://github.com/advisories/GHSA-j759-j44w-7fr8
+
+brace-expansion  >=5.0.0 <5.0.6
+  eslint › @eslint/eslintrc › minimatch › brace-expansion
+  typescript-eslint › @typescript-eslint/utils › @typescript-eslint/typescript-estree › minimatch › brace-expansion
+  moderate: brace-expansion: Large numeric range defeats documented `max` DoS protection - https://github.com/advisories/GHSA-jxxr-4gwj-5jf2
+
+postcss  <8.5.10
+  (direct dependency)
+  autoprefixer › postcss
+  tailwindcss › postcss-nested › postcss
+  vite › postcss
+  moderate: PostCSS has XSS via Unescaped </style> in its CSS Stringify Output - https://github.com/advisories/GHSA-qx2v-qp2m-jg93
+
+vite  <=6.4.1
+  (direct dependency)
+  @vitejs/plugin-react-swc › vite
+  vitest › @vitest/mocker › vite
+  moderate: Vite Vulnerable to Path Traversal in Optimized Deps `.map` Handling - https://github.com/advisories/GHSA-4w7w-66w2-5vf9
+  moderate: Vite Vulnerable to Path Traversal in Optimized Deps `.map` Handling - https://github.com/advisories/GHSA-4w7w-66w2-5vf9
+  high: Vite: `server.fs.deny` bypassed with queries - https://github.com/advisories/GHSA-v2wj-q39q-566r
+  high: Vite Vulnerable to Arbitrary File Read via Vite Dev Server WebSocket - https://github.com/advisories/GHSA-p9ff-h696-f583
+
+xlsx  <0.19.3
+  (direct dependency)
+  high: Prototype Pollution in sheetJS - https://github.com/advisories/GHSA-4r6h-8v6p-xvw6
+  high: SheetJS Regular Expression Denial of Service (ReDoS) - https://github.com/advisories/GHSA-5pgg-2g8v-p4x9
+
+ws  >=8.0.0 <8.20.1
+  @supabase/supabase-js › @supabase/realtime-js › ws
+  moderate: ws: Uninitialized memory disclosure - https://github.com/advisories/GHSA-58qx-3vcg-4xpx
+
+esbuild  <=0.24.2
+  vite › esbuild
+  moderate: esbuild enables any website to send any requests to the development server and read the response - https://github.com/advisories/GHSA-67mh-4wv8-2f99
+
+14 vulnerabilities (8 high, 6 moderate)
+
+To update all dependencies to the latest compatible versions:
+  bun update
+
+To update all dependencies to the latest versions (including breaking changes):
+  bun update --latest
+
