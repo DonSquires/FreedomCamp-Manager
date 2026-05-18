@@ -2,28 +2,32 @@ version: 2
 updates:
   - package-ecosystem: npm
     directory: /
+    target-branch: main
     schedule:
       interval: weekly
       day: monday
-      time: '03:10'
+      time: '03:20'
       timezone: Pacific/Auckland
     open-pull-requests-limit: 10
     labels:
       - dependencies
       - security
       - automation
+      - ops-remediation
     commit-message:
       prefix: chore
       include: scope
 
   - package-ecosystem: github-actions
     directory: /
+    target-branch: main
     schedule:
       interval: weekly
       day: monday
-      time: '03:30'
+      time: '03:50'
       timezone: Pacific/Auckland
     open-pull-requests-limit: 10
     labels:
       - dependencies
       - automation
+      - ops-remediation

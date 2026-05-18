@@ -2,7 +2,8 @@ name: Ops - Automated Code Remediation
 
 on:
   schedule:
-    - cron: '17 2 * * 1'
+    # Monday 03:20 NZST/NZDT window (UTC cron)
+    - cron: '20 15 * * 0'
   workflow_dispatch:
     inputs:
       apply_dependency_fixes:
@@ -42,6 +43,19 @@ jobs:
           APPLY_DEP_FIXES: ${{ inputs.apply_dependency_fixes == true && 'true' || 'false' }}
         run: node scripts/auto-remediation-cycle.mjs
 
+      - name: Run Snyk security scan
+        if: ${{ secrets.SNYK_TOKEN != '' }}
+        continue-on-error: true
+        uses: snyk/actions/node@master
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          args: --all-projects --json-file-output=tools/auto-remediation/snyk-report.json
+
+      - name: Note Snyk token missing
+        if: ${{ secrets.SNYK_TOKEN == '' }}
+        run: echo "SNYK_TOKEN is not configured; skipping Snyk scan." >> tools/auto-remediation/summary.md
+
       - name: Upload remediation artifacts
         if: always()
         uses: actions/upload-artifact@v4
@@ -54,7 +68,8 @@ jobs:
       - name: Create remediation pull request
         uses: peter-evans/create-pull-request@v7
         with:
-          branch: ops/automated-remediation
+          branch: ops/remediation/auto
+          branch-suffix: timestamp
           delete-branch: true
           commit-message: 'chore(remediation): automated lint and maintenance fixes'
           title: 'chore(remediation): automated lint and dependency maintenance'
@@ -63,3 +78,4 @@ jobs:
             automation
             security
             dependencies
+            ops-remediation

@@ -2,7 +2,7 @@ name: Ops - Self-Healing Watchdog
 
 on:
   schedule:
-    - cron: '45 */4 * * *'
+    - cron: '20 */3 * * *'
   workflow_dispatch:
     inputs:
       rerun_failed_workflows:
@@ -79,7 +79,7 @@ jobs:
             }
 
             const title = 'ops: self-healing watchdog escalation'
-            const labels = ['self-healing', 'ops', 'automation']
+            const labels = ['self-healing', 'ops', 'automation', 'ci-failure']
             const owner = context.repo.owner
             const repo = context.repo.repo
 

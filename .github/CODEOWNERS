@@ -42,5 +42,11 @@
 # ── GitHub Actions workflows (includes supabase-db-push.yml) ─────────────────
 /.github/workflows/                    @DonSquires
 
+# ── Automated remediation and self-healing controls ──────────────────────────
+/.github/dependabot.yml                @DonSquires
+/scripts/auto-remediation-cycle.mjs    @DonSquires
+/scripts/run-ci-self-heal-cycle.mjs    @DonSquires
+/docs/INSTRUCTION_MANUAL.md            @DonSquires
+
 # ── This file itself ─────────────────────────────────────────────────────────
 /.github/CODEOWNERS                    @DonSquires
