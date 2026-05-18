@@ -150,8 +150,8 @@ jobs:
           steps.check-secrets.outputs.secrets_present == 'true' &&
           steps.validate-token.outputs.token_valid == 'true'
         env:
-          RAILWAY_TOKEN:            ${{ secrets.RAILWAY_TOKEN }}
-          RAILWAY_PROXY_SERVICE_ID: ${{ secrets.RAILWAY_PROXY_SERVICE_ID }}
+          RAILWAY_TOKEN:            ${{ env.RAILWAY_TOKEN }}
+          RAILWAY_PROXY_SERVICE_ID: ${{ env.RAILWAY_PROXY_SERVICE_ID }}
           RAILWAY_PROXY_PROJECT_ID: ${{ env.RAILWAY_PROXY_PROJECT_ID }}
           RAILWAY_PROXY_ENVIRONMENT_ID: ${{ secrets.RAILWAY_PROXY_ENVIRONMENT_ID }}
           NZSCV_ID_KEY:             ${{ secrets.NZSCV_ID_KEY }}
@@ -216,10 +216,22 @@ jobs:
               }
             }')
 
-          HTTP_STATUS=$(curl -sS -o /tmp/railway-vars-response.json -w "%{http_code}" https://backboard.railway.app/graphql/v2 \
-            -H "Authorization: Bearer $RAILWAY_TOKEN" \
-            -H "Content-Type: application/json" \
-            --data "$MUTATION" || echo "000")
+          railway_graphql_status() {
+            local header_name="$1"
+            local header_value="$2"
+            curl -sS -o /tmp/railway-vars-response.json -w "%{http_code}" https://backboard.railway.app/graphql/v2 \
+              -H "$header_name: $header_value" \
+              -H "Content-Type: application/json" \
+              --data "$MUTATION" || echo "000"
+          }
+
+          HTTP_STATUS=$(railway_graphql_status "Authorization" "Bearer $RAILWAY_TOKEN")
+          RESPONSE=$(cat /tmp/railway-vars-response.json 2>/dev/null || echo '{}')
+
+          if [ "$HTTP_STATUS" = "401" ] || [ "$HTTP_STATUS" = "403" ] || \
+             echo "$RESPONSE" | jq -e '.errors | length > 0 and (.[0].message | test("not authorized|forbidden"; "i"))' >/dev/null 2>&1; then
+            HTTP_STATUS=$(railway_graphql_status "Project-Access-Token" "$RAILWAY_TOKEN")
+          fi
           RESPONSE=$(cat /tmp/railway-vars-response.json 2>/dev/null || echo '{}')
 
           if [ "$HTTP_STATUS" != "200" ]; then
