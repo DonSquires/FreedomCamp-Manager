@@ -13,6 +13,30 @@ When a pattern, platform, or architectural decision changes, append a dated note
 - Consequences: follow-on constraints Bob must persist
 
 ## Current Standing Decisions
+- Date: 2026-05-18
+- Decision: Production ONNX runtime defaults are now pinned to `balanced` profile based on benchmark run `26011565908`.
+- Scope: `inference-service/.env.example`, `inference-service/server.js`, `.github/workflows/ops-onnx-runtime-profile-benchmark.yml`, benchmark artifact `onnx-runtime-benchmark-26011565908`.
+- Reason: The first successful Ubuntu/glibc benchmark run showed `balanced` as best YOLO tradeoff in this environment, with top p95 and throughput among tested profiles.
+- Consequences: (1) Keep `ONNX_RUNTIME_PROFILE=balanced` as production default. (2) Do not force thread overrides unless host-specific benchmark data justifies it; profile defaults already map to CPU count. (3) Re-check defaults when weekly benchmark results drift materially.
+
+- Date: 2026-05-18
+- Decision: ONNX runtime profile benchmark automation is canonical for model-runtime latency/throughput tuning and must produce both JSON metrics and markdown summary artifacts.
+- Scope: `inference-service/scripts/benchmark-onnx-runtime-profiles.mjs`, `scripts/summarize-onnx-runtime-benchmark.mjs`, `.github/workflows/ops-onnx-runtime-profile-benchmark.yml`, `inference-service/README.md`, `docs/BOB_MODEL_QUALITY_BASELINE_2026-05-18.md`.
+- Reason: Alpine/musl environments cannot execute `onnxruntime-node` benchmark runs reliably, so profile tuning must be measured on a reproducible glibc runner and retained as reviewable evidence.
+- Consequences: (1) Runtime profile changes should reference benchmark artifacts from the workflow. (2) Benchmark runs must keep markdown output for commit-ready decision logging. (3) Host-level performance drift should be reviewed in weekly ML/LLM quality cadence.
+
+- Date: 2026-05-18
+- Decision: Bob decision logs and approval artifacts now follow an explicit 7-year retention policy with archive and legal-hold rules.
+- Scope: `docs/BOB_RETENTION_POLICY_2026-05-18.md`, `docs/BOB_SECURITY_GOVERNANCE_AUDIT_2026-05-18.md`, `docs/GOVERNANCE_CHANGELOG.md`, `supabase/migrations/20260710000004_phase_d1_bob_approval_contracts.sql`.
+- Reason: The specialist backlog required retention handling for Bob decision logs and approval artifacts to be explicit rather than implied by surrounding audit tables and general compliance patterns.
+- Consequences: (1) Bob proposal/event records must be retained for 7 years from terminal status unless hold rules apply. (2) Pending proposals require a minimum 90-day retention window after due date. (3) Disposal must preserve a minimal deletion audit marker.
+
+- Date: 2026-05-18
+- Decision: Bob model quality lifecycle is now governed by an explicit baseline scorecard, calibration bands, retraining triggers, and promotion cadence.
+- Scope: `docs/BOB_MODEL_QUALITY_BASELINE_2026-05-18.md`, `scripts/mlops-domain-inference-canary.mjs`, `scripts/mlops-canary-promotion-gate.mjs`, `scripts/bob-llm-regression-suite.mjs`, corresponding ops workflows.
+- Reason: Specialist backlog required explicit ML ownership artifacts for baseline quality, calibration, retraining triggers, promotion gates, and drift cadence instead of implicit script-only behavior.
+- Consequences: (1) Promotion decisions should reference the documented baseline and trigger thresholds. (2) Confidence label semantics should follow the calibration bands unless explicitly revised. (3) Retraining should be initiated from defined drift triggers rather than ad-hoc judgment.
+
 - Date: 2026-05-17
 - Decision: Specialist-list governance tranche is now canonical for Bob gatekeeper policy matrix, emergency precedence semantics, and route-contract alias regression coverage.
 - Scope: `docs/INSTRUCTION_MANUAL.md`, `docs/SPECIALIST_TODO_LIST_2026-05-16.md`, `tests/e2e/route-contract-alias-parity.spec.ts`, existing Bob/Phase 4 gatekeeper specs.
@@ -24,6 +48,12 @@ When a pattern, platform, or architectural decision changes, append a dated note
 - Scope: `src/App.tsx`, `docs/INSTRUCTION_MANUAL.md`, `docs/SPECIALIST_TODO_LIST_2026-05-16.md`.
 - Reason: PM priority list required resolving route contract ambiguity (`/compliance` vs `/admin/compliance`, `center` vs `centre`) and formalizing Bob gatekeeper acceptance outcomes plus release checklist governance.
 - Consequences: (1) Canonical paths are `/compliance`, `/compliance-analytics`, `/enforcement-command-center`. (2) Legacy aliases are compatibility redirects only (`/admin/compliance`, `/admin/compliance-analytics`, `/enforcement-command-centre`). (3) Route/role changes are not release-ready without manual and staging updates in the same PR. (4) Bob governed outcomes must satisfy explicit proposal/approval/rejection/emergency acceptance criteria.
+
+- Date: 2026-05-18
+- Decision: Nightly docs-vs-router drift reporting is canonical for the governance route slice and must be surfaced as a scheduled artifact.
+- Scope: `scripts/nightly-route-docs-drift-report.mjs`, `.github/workflows/ops-route-docs-drift-report.yml`, `docs/route-contract-canonical.json`, `docs/INSTRUCTION_MANUAL.md`, `docs/ROUTE_CONSOLIDATION_MANIFEST.md`, `docs/BOB_SYSTEM_ROUTE_MAP.md`.
+- Reason: The governance route contract is now explicit, so the repo needs a recurring check that the manual and route reference docs keep pace with router reality for the canonical Bob/compliance/enforcement paths.
+- Consequences: (1) Nightly drift reports should fail on missing route references in the checked docs. (2) The curated governance route slice remains the source of truth for the report until the route contract expands. (3) Docs changes for governance routes should be reconciled before the next scheduled run.
 
 - Date: 2026-05-17
 - Decision: CRO Part 4 workflow consolidation is closed for the current cycle; no additional role-specific guided workflows are required beyond the shipped admin-report, admin-breach, and officer-shift guided flows.
