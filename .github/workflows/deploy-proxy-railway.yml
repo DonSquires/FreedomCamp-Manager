@@ -43,6 +43,17 @@ jobs:
         run: |
           source ./scripts/load-railway-secrets-from-github-env.sh --quiet
 
+          # Guard against a common secret wiring mistake where
+          # RAILWAY_PROXY_SERVICE_ID is accidentally set to a token value.
+          if [ -n "${RAILWAY_PROXY_SERVICE_ID:-}" ] && {
+            [ "${RAILWAY_PROXY_SERVICE_ID}" = "${RAILWAY_TOKEN:-}" ] ||
+            [ "${RAILWAY_PROXY_SERVICE_ID}" = "${RAILWAY_CORE_TOKEN:-}" ] ||
+            [ "${RAILWAY_PROXY_SERVICE_ID}" = "${RAILWAY_BOB_TOKEN:-}" ];
+          }; then
+            echo "::warning::RAILWAY_PROXY_SERVICE_ID matches a token value; using deterministic fallback service id."
+            unset RAILWAY_PROXY_SERVICE_ID
+          fi
+
           # Deterministic production fallbacks (user-provided from Railway production settings)
           : "${RAILWAY_PROXY_PROJECT_ID:=c5305775-ecf5-4d67-a59f-b7ae49838561}"
           : "${RAILWAY_PROXY_SERVICE_ID:=902fa49d-6f80-4518-b691-5e9e54f79066}"
@@ -240,6 +251,18 @@ jobs:
           else
             echo "✅ Proxy health check passed"
           fi
+
+          # Route presence check: 401/403 is acceptable (auth), but 404/405 means route missing.
+          INGEST_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 -X POST "${BASE_URL}/intel/ingest-bulletin" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer route-probe" \
+            --data '{"bulletin":{"title":"deploy-route-probe","summary":"route check"},"organization_id":"00000000-0000-0000-0000-000000000000"}' || echo "000")
+
+          if [ "$INGEST_STATUS" = "404" ] || [ "$INGEST_STATUS" = "405" ]; then
+            echo "::error::Proxy deploy is missing /intel/ingest-bulletin (HTTP $INGEST_STATUS)."
+            exit 1
+          fi
+          echo "✅ Ingest route probe completed with HTTP $INGEST_STATUS"
 
           # Write the confirmed live URL back to Supabase so edge functions use the correct value
           echo "PROXY_LIVE_URL=$BASE_URL" >> "$GITHUB_ENV"
