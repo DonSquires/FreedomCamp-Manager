@@ -26,6 +26,18 @@ import runpod
 regex = re
 
 
+def _log_regex_binding_status():
+    try:
+        re_ok = callable(getattr(re, "search", None))
+        regex_ok = callable(getattr(regex, "search", None))
+        print(f"[startup] regex-binding-check re_ok={re_ok} regex_ok={regex_ok}")
+    except Exception as exc:
+        print(f"[startup] regex-binding-check failed: {exc}")
+
+
+_log_regex_binding_status()
+
+
 def normalize_ollama_base(raw_value):
     raw = str(raw_value or "").strip().rstrip("/")
     if not raw:
