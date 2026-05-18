@@ -143,7 +143,7 @@ jobs:
           echo "output_dir=tools/schema-extract/output" >> "$GITHUB_OUTPUT"
 
       - name: Upload extraction artifact
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: schema-extract-${{ github.run_id }}
           path: ${{ steps.dirs.outputs.output_dir }}

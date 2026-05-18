@@ -28,7 +28,7 @@ jobs:
 
       - name: Upload Admin Officer Routes Reports
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: admin-officer-routes-governance-reports
           path: |
