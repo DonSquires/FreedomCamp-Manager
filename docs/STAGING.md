@@ -3773,7 +3773,7 @@ node --test ptt-server/test/radio-health-schema.test.js
 ```
 
 - `docs/DEPLOYMENT_GUIDE.md` Bob governance notes now explicitly list the schema registry, route/entity map, mutation catalog, execution-review output, and coordinated redeploy requirement for `onspace-ai-chat`, `grandmaster-studio`, and `bob-code-change-task`.
-- `supabase/migrations/20260604000006_bob_conversation_memory.sql` and `src/lib/bobLearningMemory.ts` confirm execution review stays inside `public.bob_conversation_memory.context` JSONB, so no additional schema change is required.
+- `supabase/migrations/20260604000006_bob_conversation_memory_v2.sql` and `src/lib/bobLearningMemory.ts` confirm execution review stays inside `public.bob_conversation_memory.context` JSONB, so no additional schema change is required.
 
 ### G. Realignment Phase E — Data Movement Reduction
 

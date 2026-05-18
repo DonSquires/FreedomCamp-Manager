@@ -54,7 +54,7 @@ Before deploying, ensure all requirements are met:
 - [ ] Shared gateway path still flows through `src/lib/edgeFunctions.ts`
 - [ ] Mutation contract enforcement is active on both client wrappers and receiving edge functions
 - [ ] Execution review renders in Bob chat surfaces and persists to Bob conversation memory
-- [ ] No new migration is required for execution review persistence; it uses `public.bob_conversation_memory.context` JSONB from migration `20260604000006_bob_conversation_memory.sql`
+- [ ] No new migration is required for execution review persistence; it uses `public.bob_conversation_memory.context` JSONB from migration `20260604000006_bob_conversation_memory_v2.sql`
 
 ---
 

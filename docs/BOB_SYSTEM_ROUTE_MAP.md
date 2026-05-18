@@ -143,7 +143,7 @@ Migration: `supabase/migrations/20260430000001_bob_conversation_memory.sql`
 
 ### Session continuity memory
 - `public.bob_conversation_memory`
-Migration: `supabase/migrations/20260604000006_bob_conversation_memory.sql`
+Migration: `supabase/migrations/20260604000006_bob_conversation_memory_v2.sql`
 
 ### User memory profile/context
 - `public.bob_user_memory`
