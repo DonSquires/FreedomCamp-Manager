@@ -25,8 +25,8 @@ Checklist:
 
 Validation gate:
 
-- [ ] `bun run lint`
-- [ ] `bun run build`
+- [x] `bun run lint`
+- [x] `bun run build`
 
 Notes:
 
