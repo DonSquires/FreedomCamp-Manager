@@ -156,6 +156,8 @@ jobs:
           NZSCV_API_KEY:            ${{ secrets.NZSCV_API_KEY }}
           NZSCV_ENDPOINT_URL:       ${{ secrets.NZSCV_ENDPOINT_URL }}
           PROXY_SECRET:             ${{ secrets.PROXY_SECRET }}
+          INFERENCE_API_KEY:        ${{ secrets.INFERENCE_API_KEY }}
+          BOB_INFERENCE_API_KEY:    ${{ secrets.BOB_INFERENCE_API_KEY }}
         run: |
           set -euo pipefail
 
@@ -171,6 +173,8 @@ jobs:
           add_var "NZSCV_API_KEY"      "${NZSCV_API_KEY:-}"
           add_var "NZSCV_ENDPOINT_URL" "${NZSCV_ENDPOINT_URL:-}"
           add_var "PROXY_SECRET"       "${PROXY_SECRET:-}"
+          add_var "INFERENCE_API_KEY"  "${INFERENCE_API_KEY:-}"
+          add_var "BOB_INFERENCE_API_KEY" "${BOB_INFERENCE_API_KEY:-}"
 
           COUNT=$(echo "$VARS_JSON" | jq 'length')
           if [ "$COUNT" -eq 0 ]; then
