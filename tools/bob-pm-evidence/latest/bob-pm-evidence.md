@@ -1,6 +1,6 @@
 # Bob PM Evidence Packet
 
-Generated: 2026-05-18T09:36:15.219Z
+Generated: 2026-05-18T09:43:16.419Z
 
 ## Executive Summary
 
@@ -47,14 +47,14 @@ Generated: 2026-05-18T09:36:15.219Z
 
 - Migration anchors: supabase/migrations/20260426000001_poi_face_matching.sql, supabase/migrations/20260426000002_poi_face_matching_v2.sql
 - Human adjudication artifact attached: yes
-- Adjudicated case sample attached: no
+- Adjudicated case sample attached: yes
 - PM posture: human-reviewed-only
 
 ## Blocking Gaps
 
 1. ALPR production observation corpus is still not checked into the repository; the attached inventory covers local reference assets and UI snapshots only.
 2. Smoke reviewer sampling packet is attached, but independent human reviewer sign-off is still pending.
-3. Face-review adjudication packet is attached, but no redacted adjudicated case sample set is stored in-repo yet.
+3. Face redacted sample set is attached, but treat it as a starter corpus until more adjudicated examples are added.
 
 ## Rules For PM Presentation
 

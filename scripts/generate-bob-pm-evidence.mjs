@@ -24,6 +24,12 @@ function readJsonl(relativePath) {
     .filter(Boolean)
 }
 
+function readJsonlIfExists(relativePath) {
+  const absolutePath = resolve(ROOT, relativePath)
+  if (!existsSync(absolutePath)) return []
+  return readJsonl(relativePath)
+}
+
 function writeJson(path, payload) {
   writeFileSync(path, `${JSON.stringify(payload, null, 2)}\n`, 'utf8')
 }
@@ -247,6 +253,46 @@ function buildFaceAdjudicationPacket(alprInventory) {
   }
 }
 
+function loadRedactedSampleSet() {
+  const sampleRoot = 'tools/bob-pm-evidence/redacted-samples'
+  const files = walkFiles(sampleRoot).filter((filePath) => filePath.endsWith('.json'))
+  const parsed = files
+    .map((filePath) => {
+      try {
+        const payload = JSON.parse(readText(filePath))
+        return { path: filePath, payload }
+      } catch {
+        return null
+      }
+    })
+    .filter(Boolean)
+
+  const alprSamples = parsed.filter((entry) => String(entry.payload.sample_id || '').startsWith('alpr_redacted_'))
+  const faceSamples = parsed.filter((entry) => String(entry.payload.sample_id || '').startsWith('face_redacted_'))
+
+  return {
+    root: sampleRoot,
+    total: parsed.length,
+    alprCount: alprSamples.length,
+    faceCount: faceSamples.length,
+    alprSamplePaths: alprSamples.map((entry) => entry.path),
+    faceSamplePaths: faceSamples.map((entry) => entry.path),
+  }
+}
+
+function loadSmokeSignoffLedger() {
+  const ledgerPath = 'tools/bob-pm-evidence/reviewer-signoff/smoke-review-signoffs.jsonl'
+  const entries = readJsonlIfExists(ledgerPath)
+  const approved = entries.filter((entry) => String(entry.review_type) === 'smoke_sampling' && String(entry.status) === 'approved')
+
+  return {
+    path: ledgerPath,
+    totalEntries: entries.length,
+    approvedEntries: approved.length,
+    latestApprovedAt: approved.length ? approved.map((entry) => String(entry.reviewed_at || '')).sort().slice(-1)[0] : null,
+  }
+}
+
 function makeFaceAdjudicationMarkdown(packet) {
   const snapshotLines = packet.evidenceAnchors.faceUiSnapshots.length
     ? packet.evidenceAnchors.faceUiSnapshots.map((path) => `- ${path}`).join('\n')
@@ -308,6 +354,8 @@ function main() {
   const alprInventory = buildAlprInventory()
   const smokeReviewerPacket = buildSmokeReviewerPacket(smokeRecords)
   const faceAdjudicationPacket = buildFaceAdjudicationPacket(alprInventory)
+  const redactedSamples = loadRedactedSampleSet()
+  const smokeSignoffLedger = loadSmokeSignoffLedger()
 
   const report = {
     generatedAt: new Date().toISOString(),
@@ -322,12 +370,17 @@ function main() {
         variantMetrics,
         bestVariant,
         reviewerSamplingPacketAttached: true,
-        independentReviewerSignoffComplete: false,
+        independentReviewerSignoffComplete: smokeSignoffLedger.approvedEntries > 0,
+        signoffLedgerPath: smokeSignoffLedger.path,
+        signoffEntries: smokeSignoffLedger.totalEntries,
+        signoffApprovedEntries: smokeSignoffLedger.approvedEntries,
         reviewerSamplingPacketPath: relative(ROOT, smokePacketMdPath).replace(/\\/g, '/'),
         notes: [
           'Repo contains a labeled evaluation corpus and an existing ablation script.',
           'A deterministic reviewer sampling packet is now attached in-repo.',
-          'Independent human reviewer sign-off is still pending.',
+          smokeSignoffLedger.approvedEntries > 0
+            ? 'Independent reviewer sign-off entry is recorded in the ledger.'
+            : 'Independent human reviewer sign-off is still pending.',
         ],
       },
       alprInference: {
@@ -339,20 +392,29 @@ function main() {
         corpusInventoryAttached: true,
         inventoryScope: alprInventory.inventoryStatus,
         inventoryPath: relative(ROOT, alprInventoryMdPath).replace(/\\/g, '/'),
+        redactedSampleSetAttached: redactedSamples.alprCount > 0,
+        redactedSampleCount: redactedSamples.alprCount,
+        redactedSamplePaths: redactedSamples.alprSamplePaths,
       },
       faceReview: {
         pmPosture: 'human-reviewed-only',
         migrationPaths: facePaths,
         migrationAnchorsPresent: facePaths.every((relativePath) => existsSync(resolve(ROOT, relativePath))),
         adjudicationArtifactAttached: true,
-        adjudicatedCaseSampleAttached: false,
+        adjudicatedCaseSampleAttached: redactedSamples.faceCount > 0,
+        redactedSampleCount: redactedSamples.faceCount,
+        redactedSamplePaths: redactedSamples.faceSamplePaths,
         adjudicationArtifactPath: relative(ROOT, facePacketMdPath).replace(/\\/g, '/'),
       },
     },
     blockingGaps: [
       'ALPR production observation corpus is still not checked into the repository; the attached inventory covers local reference assets and UI snapshots only.',
-      'Smoke reviewer sampling packet is attached, but independent human reviewer sign-off is still pending.',
-      'Face-review adjudication packet is attached, but no redacted adjudicated case sample set is stored in-repo yet.',
+      smokeSignoffLedger.approvedEntries > 0
+        ? 'Smoke sign-off is recorded, but maintain independent periodic re-review cadence for PM evidence freshness.'
+        : 'Smoke reviewer sampling packet is attached, but independent human reviewer sign-off is still pending.',
+      redactedSamples.faceCount > 0
+        ? 'Face redacted sample set is attached, but treat it as a starter corpus until more adjudicated examples are added.'
+        : 'Face-review adjudication packet is attached, but no redacted adjudicated case sample set is stored in-repo yet.',
     ],
   }
 

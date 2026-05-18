@@ -1,0 +1,11 @@
+{
+  "sample_id": "face_redacted_001",
+  "identity_match": "inconclusive",
+  "poi_status": "unknown",
+  "image_quality": "degraded",
+  "duplicate_face_record": false,
+  "manual_escalation_required": true,
+  "adjudication_notes": "Starter redacted sample from local UI evidence anchors; no direct person identifier retained.",
+  "reviewer_role": "adjudicator",
+  "reviewed_at": "2026-05-18T00:00:00.000Z"
+}

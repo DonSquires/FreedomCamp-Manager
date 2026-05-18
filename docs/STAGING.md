@@ -86,6 +86,9 @@ Artifacts created:
 - `tools/bob-pm-evidence/redacted-format/alpr-redacted-sample-template.json`
 - `tools/bob-pm-evidence/redacted-format/face-review-redacted-sample.schema.json`
 - `tools/bob-pm-evidence/redacted-format/face-review-redacted-sample-template.json`
+- `tools/bob-pm-evidence/redacted-samples/alpr/alpr_redacted_001.json`
+- `tools/bob-pm-evidence/redacted-samples/face/face_redacted_001.json`
+- `tools/bob-pm-evidence/reviewer-signoff/smoke-review-signoffs.jsonl`
 
 Open gaps retained intentionally:
 

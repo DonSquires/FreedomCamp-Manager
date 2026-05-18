@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-18T09:36:15.219Z",
+  "generatedAt": "2026-05-18T09:43:16.419Z",
   "pmPosture": "partial-pass",
   "capabilities": {
     "smokeRecommendation": {
@@ -46,6 +46,9 @@
       "bestVariant": "sfa_only",
       "reviewerSamplingPacketAttached": true,
       "independentReviewerSignoffComplete": false,
+      "signoffLedgerPath": "tools/bob-pm-evidence/reviewer-signoff/smoke-review-signoffs.jsonl",
+      "signoffEntries": 1,
+      "signoffApprovedEntries": 0,
       "reviewerSamplingPacketPath": "tools/bob-pm-evidence/latest/smoke-reviewer-sampling-packet.md",
       "notes": [
         "Repo contains a labeled evaluation corpus and an existing ablation script.",
@@ -61,7 +64,12 @@
       "runtimePresent": true,
       "corpusInventoryAttached": true,
       "inventoryScope": "local-reference-attached",
-      "inventoryPath": "tools/bob-pm-evidence/latest/alpr-local-image-inventory.md"
+      "inventoryPath": "tools/bob-pm-evidence/latest/alpr-local-image-inventory.md",
+      "redactedSampleSetAttached": true,
+      "redactedSampleCount": 1,
+      "redactedSamplePaths": [
+        "tools/bob-pm-evidence/redacted-samples/alpr/alpr_redacted_001.json"
+      ]
     },
     "faceReview": {
       "pmPosture": "human-reviewed-only",
@@ -71,13 +79,17 @@
       ],
       "migrationAnchorsPresent": true,
       "adjudicationArtifactAttached": true,
-      "adjudicatedCaseSampleAttached": false,
+      "adjudicatedCaseSampleAttached": true,
+      "redactedSampleCount": 1,
+      "redactedSamplePaths": [
+        "tools/bob-pm-evidence/redacted-samples/face/face_redacted_001.json"
+      ],
       "adjudicationArtifactPath": "tools/bob-pm-evidence/latest/face-review-adjudication-packet.md"
     }
   },
   "blockingGaps": [
     "ALPR production observation corpus is still not checked into the repository; the attached inventory covers local reference assets and UI snapshots only.",
     "Smoke reviewer sampling packet is attached, but independent human reviewer sign-off is still pending.",
-    "Face-review adjudication packet is attached, but no redacted adjudicated case sample set is stored in-repo yet."
+    "Face redacted sample set is attached, but treat it as a starter corpus until more adjudicated examples are added."
   ]
 }

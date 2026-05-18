@@ -71,6 +71,12 @@ Redacted sample-set format for next-step corpus attachment:
 3. `tools/bob-pm-evidence/redacted-format/face-review-redacted-sample.schema.json`
 4. `tools/bob-pm-evidence/redacted-format/face-review-redacted-sample-template.json`
 
+Current starter sample instances:
+
+1. `tools/bob-pm-evidence/redacted-samples/alpr/alpr_redacted_001.json`
+2. `tools/bob-pm-evidence/redacted-samples/face/face_redacted_001.json`
+3. `tools/bob-pm-evidence/reviewer-signoff/smoke-review-signoffs.jsonl`
+
 ## PM Demo Script Guidance
 
 Use this order when presenting Bob:

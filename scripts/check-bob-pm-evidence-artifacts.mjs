@@ -28,6 +28,10 @@ const REQUIRED_FORMAT_FILES = [
   'tools/bob-pm-evidence/redacted-format/face-review-redacted-sample.schema.json',
 ]
 
+const REQUIRED_SUPPORT_FILES = [
+  'tools/bob-pm-evidence/reviewer-signoff/smoke-review-signoffs.jsonl',
+]
+
 async function exists(absPath) {
   try {
     await fs.access(absPath)
@@ -51,6 +55,13 @@ async function main() {
     const absPath = path.resolve(ROOT, relPath)
     if (!(await exists(absPath))) {
       failures.push(`Missing redacted sample-set format file: ${relPath}`)
+    }
+  }
+
+  for (const relPath of REQUIRED_SUPPORT_FILES) {
+    const absPath = path.resolve(ROOT, relPath)
+    if (!(await exists(absPath))) {
+      failures.push(`Missing support evidence file: ${relPath}`)
     }
   }
 
@@ -87,6 +98,15 @@ async function main() {
     }
     if (!report?.capabilities?.faceReview?.adjudicationArtifactAttached) {
       failures.push('Face-review adjudication artifact must be attached.')
+    }
+    if (!report?.capabilities?.alprInference?.redactedSampleSetAttached) {
+      failures.push('ALPR redacted sample set must be attached.')
+    }
+    if ((report?.capabilities?.faceReview?.redactedSampleCount ?? 0) < 1) {
+      failures.push('Face redacted sample set must include at least one sample file.')
+    }
+    if ((report?.capabilities?.smokeRecommendation?.signoffEntries ?? 0) < 1) {
+      failures.push('Smoke reviewer signoff ledger must contain at least one entry (pending or approved).')
     }
   }
 
