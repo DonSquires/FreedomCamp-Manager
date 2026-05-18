@@ -76,6 +76,7 @@ jobs:
       - name: Create remediation pull request
         uses: peter-evans/create-pull-request@v7
         with:
+          token: ${{ secrets.BOB_WORKER_GITHUB_TOKEN }}
           branch: ops/remediation/auto
           branch-suffix: timestamp
           delete-branch: true
