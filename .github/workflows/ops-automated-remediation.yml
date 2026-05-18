@@ -41,7 +41,7 @@ jobs:
 
       - name: Run automated remediation cycle
         env:
-          APPLY_DEP_FIXES: ${{ inputs.apply_dependency_fixes == true && 'true' || 'false' }}
+          APPLY_DEP_FIXES: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.apply_dependency_fixes == 'true' && 'true' || 'false' }}
         run: node scripts/auto-remediation-cycle.mjs
 
       - name: Run Snyk security scan
