@@ -1,0 +1,64 @@
+{
+  "generatedAt": "2026-05-18T22:14:29.523Z",
+  "applyDependencyFixes": false,
+  "tools": {
+    "bun": true,
+    "bunx": true,
+    "npm": true,
+    "npx": true
+  },
+  "steps": [
+    {
+      "name": "install",
+      "command": "bun install --frozen-lockfile",
+      "startedAt": "2026-05-18T22:14:29.523Z",
+      "finishedAt": "2026-05-18T22:14:35.996Z",
+      "ok": true,
+      "error": ""
+    },
+    {
+      "name": "eslint-fix",
+      "command": "bunx eslint . --fix --format json --output-file '/home/runner/work/FreedomCamp-Manager/FreedomCamp-Manager/tools/auto-remediation/eslint-report.json'",
+      "startedAt": "2026-05-18T22:14:35.997Z",
+      "finishedAt": "2026-05-18T22:15:02.049Z",
+      "ok": true,
+      "error": ""
+    },
+    {
+      "name": "bun-audit",
+      "command": "bun audit > '/home/runner/work/FreedomCamp-Manager/FreedomCamp-Manager/tools/auto-remediation/bun-audit.txt'",
+      "startedAt": "2026-05-18T22:15:02.049Z",
+      "finishedAt": "2026-05-18T22:15:02.179Z",
+      "ok": false,
+      "error": "[0.03ms] \".env\"\n\u001b[0m\u001b[1mbun audit \u001b[0m\u001b[2mv1.3.14 (0d9b296a)\u001b[0m\n"
+    },
+    {
+      "name": "bun-outdated",
+      "command": "bun outdated > '/home/runner/work/FreedomCamp-Manager/FreedomCamp-Manager/tools/auto-remediation/bun-outdated.txt'",
+      "startedAt": "2026-05-18T22:15:02.180Z",
+      "finishedAt": "2026-05-18T22:15:02.875Z",
+      "ok": true,
+      "error": ""
+    },
+    {
+      "name": "npm-audit",
+      "command": "npm audit --json > '/home/runner/work/FreedomCamp-Manager/FreedomCamp-Manager/tools/auto-remediation/npm-audit.json'",
+      "startedAt": "2026-05-18T22:15:02.875Z",
+      "finishedAt": "2026-05-18T22:15:04.082Z",
+      "ok": false,
+      "error": "npm error code ENOLOCK\nnpm error audit This command requires an existing lockfile.\nnpm error audit Try creating one first with: npm i --package-lock-only\nnpm error audit Original error: loadVirtual requires existing shrinkwrap file\nnpm error A complete log of this run can be found in: /home/runner/.npm/_logs/2026-05-18T22_15_02_941Z-debug-0.log\n"
+    },
+    {
+      "name": "npm-outdated",
+      "command": "npm outdated --json > '/home/runner/work/FreedomCamp-Manager/FreedomCamp-Manager/tools/auto-remediation/npm-outdated.json'",
+      "startedAt": "2026-05-18T22:15:04.082Z",
+      "finishedAt": "2026-05-18T22:15:06.815Z",
+      "ok": false,
+      "error": "Command failed: npm outdated --json > '/home/runner/work/FreedomCamp-Manager/FreedomCamp-Manager/tools/auto-remediation/npm-outdated.json'"
+    }
+  ],
+  "changedFiles": [
+    "tools/auto-remediation/"
+  ],
+  "notes": []
+}
