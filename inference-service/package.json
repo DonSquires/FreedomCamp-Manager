@@ -7,6 +7,7 @@
     "start": "node server.js",
     "dev": "nodemon server.js",
     "download-models": "node scripts/download-models.js",
+    "benchmark:onnx-profiles": "node scripts/benchmark-onnx-runtime-profiles.mjs",
     "code:internal-executor": "node scripts/internal-code-executor.mjs",
     "pretrain:self-learning": "node scripts/pretrain-self-learning.js",
     "intel:push-bulletin": "node scripts/push-intel-bulletin.mjs",

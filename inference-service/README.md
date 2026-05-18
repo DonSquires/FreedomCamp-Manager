@@ -64,6 +64,17 @@ cp .env.example .env
 # Edit .env with your Supabase URL
 ```
 
+Optional ONNX runtime tuning for latency/throughput/quality tradeoffs:
+
+```env
+ONNX_RUNTIME_PROFILE=balanced   # latency | throughput | quality | balanced
+# ONNX_EXECUTION_MODE=parallel  # override profile default
+# ONNX_GRAPH_OPT_LEVEL=all      # disabled | basic | extended | all
+# ONNX_INTRA_OP_THREADS=4
+# ONNX_INTER_OP_THREADS=1
+# YOLO_INPUT_SIZE=640
+```
+
 ### **4. Run Locally**
 
 ```bash
@@ -71,6 +82,33 @@ npm start
 ```
 
 Service runs on http://localhost:3000
+
+### **5. Benchmark ONNX Runtime Profiles**
+
+Use this to compare latency/throughput across `latency`, `balanced`, and `throughput` profiles on your target host:
+
+```bash
+npm run benchmark:onnx-profiles
+```
+
+Optional custom run:
+
+```bash
+node scripts/benchmark-onnx-runtime-profiles.mjs --profiles latency,balanced,throughput --iterations 20 --warmup 5
+```
+
+The benchmark writes JSON output to `inference-service/data/onnx-runtime-benchmark.json`.
+You can render a commit-ready markdown summary from the JSON report:
+
+```bash
+node ../scripts/summarize-onnx-runtime-benchmark.mjs \
+  --in data/onnx-runtime-benchmark.json \
+  --out data/onnx-runtime-benchmark.md
+```
+
+Note: `onnxruntime-node` requires a glibc-compatible runtime. On musl-based Alpine hosts, run this benchmark in a glibc container/runner (for example Debian/Ubuntu or your RunPod image).
+
+For repeatable CI benchmarking on Ubuntu/glibc, use workflow `.github/workflows/ops-onnx-runtime-profile-benchmark.yml` (manual dispatch or scheduled weekly).
 
 Deployment note: Bob inference deployments are triggered by changes under inference-service/ on main (syncs to DonSquires/Bob, deploys to RunPod).
 
