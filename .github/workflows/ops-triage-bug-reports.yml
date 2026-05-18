@@ -66,7 +66,7 @@ jobs:
 
       - name: Route and create GitHub issues
         if: steps.validate-secrets.outputs.can_run == 'true'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
