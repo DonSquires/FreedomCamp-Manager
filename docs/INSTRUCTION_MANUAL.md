@@ -15,6 +15,24 @@
 2. CI now emphasizes fast type-safety preflight before high-cost integration matrices to fail early on compile regressions.
 3. Bob triage and officer copilot surface updates are treated as architecture-impacting workflow changes and must be mirrored in canonical documentation updates.
 
+### Current Cycle Agentic Action Board (2026-05-18)
+
+Product Oversight To-Do (authoritative execution list):
+
+- [x] Ensure all admin log pages expose global filter ribbon controls where required by page anatomy.
+- [x] Ensure log pages include visible status-strip semantics using normal/watch/action/critical state labels.
+- [x] Ensure page headers include one right-aligned primary action in brand colour.
+- [x] Ensure loading states are skeleton-matched, not spinner-only.
+- [x] Ensure empty states provide an explicit next action.
+- [x] Ensure desktop shell header exposes org/search/profile top-bar affordances.
+- [x] Ensure desktop sidebar uses Iron Eagle dark palette and silver text hierarchy.
+- [x] Ensure all detail-style log views include an explicit audit-trace footer block.
+- [x] Ensure shell navigation rendering is 100% registry-driven (no static duplicate source arrays).
+
+Execution note:
+
+- Items above are tracked in staging execution under the same date and were worked agentically in this change cycle.
+
 ---
 
 ## Table of Contents

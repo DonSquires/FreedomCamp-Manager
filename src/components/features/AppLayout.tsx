@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, useCallback } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useIsFetching, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
-import { isRouteVisibleForRole, resolveRuntimeVisibilityMode } from '@/navigation/routeManifestAdapter'
+import { isRouteVisibleForRole, projectLegacyNavGroups, resolveRuntimeVisibilityMode } from '@/navigation/routeManifestAdapter'
 import { routeManifest, type AppRole } from '@/navigation/routeManifest'
 import { useSessionLockStore } from '@/stores/sessionLockStore'
 import { useAutoErrorReporter } from '@/hooks/useAutoErrorReporter'
@@ -222,334 +222,49 @@ export const pinnedItems: NavItem[] = [
   { path: '/search', icon: Search, label: 'Search', roles: ['admin', 'admin_officer', 'master', 'officer', 'nzscv_monitor', 'grand_master'] },
 ]
 
-// Grouped navigation — collapsed by default, each bucket holds related items
-// eslint-disable-next-line react-refresh/only-export-components
-export const navigationGroups: Array<{ label: string; icon: React.FC<{ className?: string }>; items: NavItem[] }> = [
-  {
-    label: 'Operations',
-    icon: BarChart3,
-    items: [
-      { path: '/compliance', icon: ShieldCheck, label: 'Compliance Hub', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/observation-records', icon: ImageIcon, label: 'Observations', roles: ['admin', 'admin_officer', 'master', 'officer'] },
-      { path: '/observations-report', icon: FileBarChart, label: 'Observations Report', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/breaches', icon: AlertTriangle, label: 'Breaches & Alerts', roles: ['admin', 'admin_officer', 'master', 'officer'] },
-      { path: '/breach-notices', icon: ScrollText, label: 'Breach Notices', roles: ['admin', 'admin_officer', 'master', 'officer'] },
-      { path: '/enforcement-actions', icon: Gavel, label: 'Enforcement Actions', roles: ['admin', 'admin_officer', 'master', 'officer'] },
-      { path: '/enforcement-review', icon: ClipboardCheck, label: 'Enforcement Review', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/enforcement-command-center', icon: MonitorPlay, label: 'Enforcement Console', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/audit/enforcement/enforcement-events', icon: Siren, label: 'Enforcement Event Log', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/audit/enforcement/trespass-notices', icon: Ban, label: 'Trespass Notice Log', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/audit/enforcement/parking-infringements', icon: TicketX, label: 'Parking Infringement Log', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/disputes', icon: AlertTriangle, label: 'Disputes', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/vehicle-discrepancies', icon: AlertTriangle, label: 'Discrepancies', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/infringements', icon: Receipt, label: 'Infringements', roles: ['admin', 'admin_officer', 'master', 'officer'] },
-      { path: '/compliance-analytics', icon: PieChart, label: 'Compliance Analytics', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/audit/compliance/compliance-audit', icon: BadgeCheck, label: 'Compliance Audit Log', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/patrol-checkpoints', icon: ScanLine, label: 'Checkpoints', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/patrol-schedule', icon: CalendarDays, label: 'Patrol Schedule', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/patrol-kpis', icon: TrendingUp, label: 'Patrol KPIs', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/noise-notices', icon: Volume2, label: 'Noise Notices', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/site-incidents', icon: Building2, label: 'Site Incidents', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/person-interactions', icon: Users, label: 'Person Interactions', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/notices-to-vacate', icon: FileWarning, label: 'Notices to Vacate', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/alarm-events-log', icon: Bell, label: 'Alarm Event Log', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/enforcement-events-log', icon: Gavel, label: 'Enforcement Event Log', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/audit/operations/checkpoint-visits', icon: ScanLine, label: 'Checkpoint Visit Log', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/audit/operations/officer-activity', icon: Activity, label: 'Officer Activity Log', roles: ['admin', 'admin_officer', 'master'] },
-      // Sprint 48: B-154
-      { path: '/audit/operations/incidents', icon: AlertTriangle, label: 'Incident Log', roles: ['admin', 'admin_officer', 'master'] },
-      // Sprint 48: B-156
-      { path: '/audit/operations/notifications', icon: Bell, label: 'Notification Log', roles: ['admin', 'admin_officer', 'master'] },
-      // Sprint 49: B-158
-      { path: '/audit/enforcement/infringement-notices', icon: Receipt, label: 'Infringement Notice Log', roles: ['admin', 'admin_officer', 'master'] },
-      // Sprint 50: B-160–B-161
-      { path: '/audit/dispatch/dispatch-jobs', icon: ClipboardList, label: 'Dispatch Job Log', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/audit/enforcement/enforcement-actions', icon: ShieldAlert, label: 'Enforcement Action Log', roles: ['admin', 'admin_officer', 'master'] },
-      // Sprint 51: B-164
-      { path: '/audit/operations/officer-availability', icon: CalendarCheck2, label: 'Officer Availability Log', roles: ['admin', 'admin_officer', 'master'] },
-      // Sprint 52: B-166–B-168
-      { path: '/breach-alerts-log', icon: AlertTriangle, label: 'Breach Alert Log', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/flagged-vehicles-log', icon: Flag, label: 'Flagged Vehicle Log', roles: ['admin', 'admin_officer', 'master'] },
-      // Sprint 53: B-169–B-170
-      { path: '/officer-shifts-log', icon: CalendarClock, label: 'Officer Shift Log', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/open-shifts-log', icon: CalendarDays, label: 'Open Shift Log', roles: ['admin', 'admin_officer', 'master'] },
-      // Sprint 54: B-172
-      { path: '/audit/management/pricing-rules', icon: DollarSign, label: 'Pricing Rule Log', roles: ['admin', 'admin_officer', 'master'] },
-      // Sprint 55: B-175–B-177
-      { path: '/audit/operations/fixed-cameras', icon: Camera, label: 'Fixed Camera Log', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/audit/operations/officer-skills', icon: GraduationCap, label: 'Officer Skills Log', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/audit/operations/patrol-checkpoints', icon: Navigation2, label: 'Patrol Checkpoint Log', roles: ['admin', 'admin_officer', 'master'] },
-    ],
-  },
-  {
-    label: 'Live Ops',
-    icon: MonitorPlay,
-    items: [
-      { path: '/live-tracking', icon: Activity, label: 'Live Tracking', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/live-patrol', icon: MonitorPlay, label: 'Live Patrol Monitor', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/operations-map', icon: Layers, label: 'Operations Map', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/hotspots', icon: FlameKindling, label: 'Hotspots Map', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/dispatch', icon: Radio, label: 'Dispatch Console', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/dispatch-monitor', icon: LayoutList, label: 'Dispatch Monitor', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/dispatch-wizard', icon: Wand2, label: 'Dispatch Wizard', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/dispatched-jobs', icon: ListChecks, label: 'Dispatched Jobs', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/dispatch-events', icon: Radio, label: 'Dispatch Events', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/dispatch-ack-log', icon: Radio, label: 'Dispatch Ack Log', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/alarm-events', icon: Siren, label: 'Alarm Events', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/breach-escalation', icon: ShieldAlert, label: 'Breach Escalation', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/noise-complaints', icon: Volume2, label: 'Noise Complaints Log', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/incident-heatmap', icon: Flame, label: 'Incident Heatmap', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/patrol-route-optimiser', icon: Route, label: 'Route Optimiser', roles: ['admin', 'admin_officer', 'master', 'officer'] },
-      { path: '/patrol-navigation', icon: Navigation2, label: 'Patrol Navigation', roles: ['admin', 'admin_officer', 'master', 'officer'] },
-      { path: '/fixed-cameras', icon: Camera, label: 'Fixed Cameras', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/team-chat', icon: MessageSquare, label: 'Team Chat', roles: ['admin', 'admin_officer', 'master', 'officer'] },
-      { path: '/radio', icon: Radio, label: 'Radio', roles: ['admin', 'admin_officer', 'master', 'officer'] },
-      { path: '/lmr-bridge', icon: Radio, label: 'LMR Bridge', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/radio-transmissions', icon: Mic, label: 'Radio Transmissions', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/voice-profiles', icon: Mic, label: 'Voice Profiles & Consent', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/radio/audit', icon: Radio, label: 'Radio Audit', roles: ['admin', 'admin_officer', 'master'] },
-    ],
-  },
-  {
-    label: 'Management',
-    icon: Car,
-    items: [
-      { path: '/vehicles', icon: Car, label: 'Vehicles', roles: ['admin', 'admin_officer', 'master', 'officer'] },
-      { path: '/vehicle-registry', icon: Car, label: 'Vehicle Registry', roles: ['admin', 'admin_officer', 'master', 'nzscv_monitor'] },
-      { path: '/plate-finder', icon: ScanSearch, label: 'Plate Finder', roles: ['admin', 'admin_officer', 'master', 'officer'] },
-      { path: '/plate-scans-log', icon: ScanSearch, label: 'Plate Scan Log', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/vehicle-discrepancies', icon: GitCompareArrows, label: 'Vehicle Discrepancies', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/drift-events', icon: Waypoints, label: 'Drift Events', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/flagged-vehicles-manager', icon: Flag, label: 'Flagged Vehicles', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/zone-signage-evidence', icon: ImageIcon, label: 'Zone Signage Evidence', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/zone-geofence-snapshots', icon: MapPin, label: 'Zone Geofence Snapshots', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/admin/nzscv', icon: Car, label: 'NZSCV Monitor', roles: ['admin', 'master', 'nzscv_monitor'] },
-      { path: '/admin/canonical-records', icon: Database, label: 'Canonical Records', roles: ['admin', 'master'] },
-      { path: '/zones', icon: MapPin, label: 'Zones', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/zone-amenities', icon: Wrench, label: 'Zone Amenities', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/client-master-list', icon: ListChecks, label: 'Client Master List', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/client-sites', icon: Building2, label: 'Client Sites', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/site-permissions', icon: ShieldCheck, label: 'Site Permissions', roles: ['admin', 'master'] },
-      { path: '/crm', icon: Building2, label: 'CRM / Accounts', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/tender-workspace', icon: Gavel, label: 'Tenders & Contracts', roles: ['admin', 'master', 'grand_master'] },
-      { path: '/tender-reference-library', icon: BookOpen, label: 'Reference Library', roles: ['admin', 'master', 'grand_master'] },
-      { path: '/pricing', icon: DollarSign, label: 'Service Pricing', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/dynamic-pricing', icon: Gauge, label: 'Dynamic Pricing', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/revenue-forecasting', icon: TrendingUp, label: 'Revenue Forecasting', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/invoicing', icon: Receipt, label: 'Invoicing', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/parking-permits', icon: BadgeCheck, label: 'Parking Permits', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/admin/dashboard', icon: MonitorPlay, label: 'Ops Dashboard', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/users', icon: Users, label: 'Users', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/organization-profile', icon: Building2, label: 'Organisation', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/organizations', icon: Building2, label: 'Organisations', roles: ['master'] },
-      // Sprint 22–26 (B-76–B-90) config/manager
-      { path: '/investigation-job-config', icon: Settings, label: 'Investigation Job Config', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/zone-legal-config', icon: FileText, label: 'Zone Legal Config', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/bug-reports-log', icon: Bug, label: 'Bug Report Log', roles: ['admin', 'master'] },
-      { path: '/feature-flags', icon: Settings, label: 'Feature Flags', roles: ['master'] },
-      // Sprint 43: B-141
-      { path: '/import-batches-log', icon: Upload, label: 'Import Batch Log', roles: ['admin', 'master'] },
-      // Sprint 44: B-142, B-144
-      { path: '/admin-recalculation-log', icon: RefreshCw, label: 'Recalculation Run Log', roles: ['admin', 'master'] },
-      { path: '/import-staging-log', icon: LayoutList, label: 'Import Staging Log', roles: ['admin', 'master'] },
-      // Sprint 45: B-145, B-147
-      { path: '/lmr-bridge-config-log', icon: Radio, label: 'LMR Bridge Config Log', roles: ['admin', 'master'] },
-      { path: '/zone-dispatch-rules-log', icon: Waypoints, label: 'Zone Dispatch Rule Log', roles: ['admin', 'master'] },
-      // Sprint 46: B-150
-      { path: '/restrictions-log', icon: Map, label: 'Restriction Log', roles: ['admin', 'master'] },
-      // Sprint 47: B-151
-      { path: '/organizations-log', icon: Building2, label: 'Organization Log', roles: ['master', 'grand_master'] },
-      // Briefing video suite
-      { path: '/admin/video-generation', icon: BrainCircuit, label: 'Video Generation Suite', roles: ['admin', 'admin_officer', 'master'] },
-      // Sprint 53: B-171
-      { path: '/zone-compliance-matrix-log', icon: ShieldCheck, label: 'Zone Compliance Matrix Log', roles: ['admin', 'master'] },
-      // Sprint 54: B-173
-      { path: '/zone-legal-config-log', icon: Scale, label: 'Zone Legal Config Log', roles: ['admin', 'master'] },
-      // Sprint 56: B-179
-      { path: '/parking-zones-log', icon: ParkingSquare, label: 'Parking Zone Log', roles: ['admin', 'master'] },
-    ],
-  },
-  {
-    label: 'Records',
-    icon: FileText,
-    items: [
-      { path: '/incidents', icon: Shield, label: 'Incidents & Evidence', roles: ['admin', 'admin_officer', 'master', 'officer'] },
-      { path: '/evidence-packages', icon: Package, label: 'Evidence Packages', roles: ['admin', 'admin_officer', 'master', 'officer'] },
-      { path: '/cohort-analysis', icon: BarChart2, label: 'Cohort Analysis', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/occupancy-analytics', icon: TrendingUp, label: 'Occupancy Analytics', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/incident-reports', icon: ClipboardList, label: 'Incident Reports', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/investigations', icon: BrainCircuit, label: 'Investigations', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/credential-processing-log', icon: FileCheck, label: 'Credential Processing Log', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/person-records', icon: PersonStanding, label: 'Person Records', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/canonical-persons', icon: Users, label: 'Canonical Persons', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/trespass-notices', icon: Ban, label: 'Trespass Notices', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/access-permissions', icon: KeyRound, label: 'Access Permissions', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/site-risk-assessment', icon: ClipboardCheck, label: 'Site Risk Assessments', roles: ['admin', 'admin_officer', 'master', 'officer'] },
-      { path: '/site-risk-trends', icon: TrendingUp, label: 'Site Risk Trends', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/loi-browser', icon: MapPin, label: 'Dispatch LOI Browser', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/reports', icon: FileText, label: 'Reports', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/reports-hub', icon: FileBarChart, label: 'Reports Hub', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/audit-log', icon: Activity, label: 'Audit Log', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/privacy-curtain', icon: EyeOff, label: 'Privacy Curtain', roles: ['admin', 'admin_officer', 'master'] },
-      // Sprint 19–21 (B-67–B-75) logs
-      { path: '/person-observations-log', icon: Eye, label: 'Person Observation Log', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/plate-scans-log', icon: ScanSearch, label: 'Plate Scans', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/notices-to-vacate', icon: ScrollText, label: 'Notices to Vacate', roles: ['admin', 'admin_officer', 'master'] },
-      // Sprint 22–26 (B-76–B-90) logs
-      { path: '/investigation-jobs-log', icon: BrainCircuit, label: 'Investigation Jobs', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/operational-cases-log', icon: FolderKanban, label: 'Operational Cases', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/patrol-events-log', icon: Route, label: 'Patrol Events Log', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/checkpoint-visits-log', icon: ScanLine, label: 'Checkpoint Visits', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/ems-attendances-log', icon: HeartPulse, label: 'EMS Attendances', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/parking-sessions-log', icon: ParkingSquare, label: 'Parking Sessions', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/parking-payments-log', icon: Receipt, label: 'Parking Payments', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/officer-activity-log', icon: Activity, label: 'Officer Activity Log', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/dispatch-ack-log', icon: Radio, label: 'Dispatch Acknowledgements', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/noise-jobs-log', icon: Volume2, label: 'Noise Job Log', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/noise-assessments-log', icon: Volume2, label: 'Noise Assessment Log', roles: ['admin', 'admin_officer', 'master'] },
-      // Sprint 31: B-103–B-105
-      { path: '/vehicles-of-interest-log', icon: Car, label: 'Vehicles of Interest', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/persons-of-interest-log', icon: UserX, label: 'Persons of Interest', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/photo-metadata-log', icon: ImageIcon, label: 'Photo Metadata Log', roles: ['admin', 'admin_officer', 'master'] },
-      // Sprint 32: B-106–B-108
-      { path: '/radio-comms-events-log', icon: Radio, label: 'Radio Comms Events', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/case-comments-log', icon: MessageSquare, label: 'Case Comment Log', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/lmr-bridge-sessions-log', icon: Radio, label: 'LMR Bridge Sessions', roles: ['admin', 'admin_officer', 'master'] },
-      // Sprint 33: B-109–B-111
-      { path: '/patrol-session-events-log', icon: Route, label: 'Patrol Session Events', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/radio-transcript-log', icon: FileText, label: 'Radio Transcript Log', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/dispute-intake-log', icon: Scale, label: 'Dispute Intake Log', roles: ['admin', 'admin_officer', 'master'] },
-      // Sprint 34: B-112–B-114
-      { path: '/radio-tts-render-log', icon: Volume2, label: 'Radio TTS Render Log', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/health-safety-report-log', icon: HeartPulse, label: 'H&S Report Log', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/noise-seizures-log', icon: PackageX, label: 'Noise Seizure Log', roles: ['admin', 'admin_officer', 'master'] },
-      // Sprint 35: B-115–B-117
-      { path: '/locations-of-interest-log', icon: MapPin, label: 'Locations of Interest', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/vehicle-monthly-stays-log', icon: CalendarRange, label: 'Vehicle Monthly Stays', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/radio-voice-consent-log', icon: ShieldCheck, label: 'Voice Consent Log', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/welfare-events-log', icon: HeartPulse, label: 'Welfare Events Log', roles: ['admin', 'admin_officer', 'master'] },
-      // Sprint 44: B-143
-      { path: '/contractor-documents-log', icon: Briefcase, label: 'Contractor Document Log', roles: ['admin', 'admin_officer', 'master'] },
-      // Sprint 45: B-146
-      { path: '/radio-voice-profiles-log', icon: Mic, label: 'Radio Voice Profile Log', roles: ['admin', 'admin_officer', 'master'] },
-      // Sprint 47: B-152
-      { path: '/client-sites-log', icon: MapPin, label: 'Client Site Log', roles: ['admin', 'admin_officer', 'master'] },
-      // Sprint 46: B-149
-      { path: '/homeless-records-log', icon: Tent, label: 'Homeless Record Log', roles: ['admin', 'admin_officer', 'master'] },
-      // Sprint 48: B-155
-      { path: '/person-records-log', icon: Users, label: 'Person Record Log', roles: ['admin', 'admin_officer', 'master'] },
-      // Sprint 49: B-157
-      { path: '/face-records-log', icon: Camera, label: 'Face Record Log', roles: ['admin', 'admin_officer', 'master'] },
-      // Sprint 49: B-159
-      { path: '/site-risk-assessments-log', icon: ShieldAlert, label: 'Site Risk Assessment Log', roles: ['admin', 'admin_officer', 'master'] },
-      // Sprint 50: B-162
-      { path: '/observations-log', icon: Eye, label: 'Observation Log', roles: ['admin', 'admin_officer', 'master'] },
-      // Sprint 51: B-163–B-165
-      { path: '/canonical-scv-log', icon: ShieldCheck, label: 'Canonical SCV Log', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/canonical-homeless-log', icon: Users, label: 'Canonical Homeless Log', roles: ['admin', 'admin_officer', 'master'] },
-      // Sprint 52: B-167
-      { path: '/canonical-vehicles-log', icon: Car, label: 'Canonical Vehicle Log', roles: ['admin', 'admin_officer', 'master'] },
-      // Sprint 54: B-174
-      { path: '/zone-signage-evidence-log', icon: Camera, label: 'Zone Signage Evidence Log', roles: ['admin', 'admin_officer', 'master'] },
-      // Sprint 56: B-178, B-180
-      { path: '/contractor-profiles-log', icon: Briefcase, label: 'Contractor Profile Log', roles: ['admin', 'master'] },
-      { path: '/canonical-persons-log', icon: PersonStanding, label: 'Canonical Persons Log', roles: ['admin', 'admin_officer', 'master'] },
-    ],
-  },
-  {
-    label: 'Specialist Portals',
-    icon: Layers,
-    items: [
-      { path: '/field-officer?service=freedom_camping', icon: Tent, label: 'Freedom Camping', roles: ['officer', 'admin_officer'], scopeHint: 'Zone-based' },
-      { path: '/parking-officer', icon: ParkingSquare, label: 'Parking Enforcement', roles: ['officer', 'admin_officer', 'admin', 'master'], scopeHint: 'Zone-based' },
-      { path: '/noise-officer', icon: Volume2, label: 'Noise Control', roles: ['officer', 'admin_officer', 'admin', 'master'], scopeHint: 'Jurisdiction-wide' },
-      { path: '/biosecurity-officer', icon: Leaf, label: 'Biosecurity (CNG)', roles: ['officer', 'admin_officer', 'admin', 'master'], scopeHint: 'Jurisdiction-wide' },
-      { path: '/smoke-officer', icon: Wind, label: 'Smoke Complaints (OOH)', roles: ['officer', 'admin_officer', 'admin', 'master'], scopeHint: 'Jurisdiction-wide' },
-      { path: '/identity-verification', icon: ShieldCheck, label: 'ID Verification', roles: ['admin', 'admin_officer', 'master'], scopeHint: 'Client/Site driven' },
-      { path: '/officer-welfare', icon: HeartPulse, label: 'Officer Welfare', roles: ['admin', 'admin_officer', 'master'], scopeHint: 'Officer-based' },
-      { path: '/welfare-checkins', icon: HeartPulse, label: 'Welfare Check-in Log', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/parking-permits', icon: ParkingSquare, label: 'Parking Permits', roles: ['admin', 'admin_officer', 'master'] },
-      // Sprint 47: B-153
-      { path: '/parking-permits-log', icon: ParkingSquare, label: 'Parking Permit Log', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/parking-sessions-log', icon: ParkingSquare, label: 'Parking Session Log', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/parking-payments-log', icon: CreditCard, label: 'Parking Payment Log', roles: ['admin', 'admin_officer', 'master'] },
-    ],
-  },
-  {
-    label: 'Roster & Workforce',
-    icon: CalendarRange,
-    items: [
-      { path: '/roster', icon: CalendarRange, label: 'Roster Planner', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/roster-shifts', icon: ClipboardList, label: 'Roster Shift Log', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/open-shifts', icon: CalendarCheck2, label: 'Open Shifts', roles: ['admin', 'admin_officer', 'master', 'officer'] },
-      { path: '/open-shifts-manager', icon: CalendarClock, label: 'Open Shift Manager', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/availability', icon: CalendarDays, label: 'My Availability', roles: ['admin', 'admin_officer', 'master', 'officer'] },
-      { path: '/officer-skills', icon: GraduationCap, label: 'Skills & Licences', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/timesheets', icon: ClipboardCopy, label: 'Timesheets', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/leave-management', icon: CalendarDays, label: 'Leave Management', roles: ['admin', 'admin_officer', 'master', 'officer'] },
-      { path: '/asset-management', icon: Package2, label: 'Asset Management', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/contractor-manager', icon: Wrench, label: 'Contractor Manager', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/on-call-periods', icon: PhoneCall, label: 'On-Call Periods', roles: ['admin', 'admin_officer', 'master', 'officer'] },
-      { path: '/callout-shifts', icon: Siren, label: 'Callout Shifts', roles: ['admin', 'admin_officer', 'master', 'officer'] },
-      { path: '/officer-allowances', icon: BadgeDollarSign, label: 'Officer Allowances', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/travel-allowances', icon: Car, label: 'Travel Allowances', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/parking-appeals', icon: Gavel, label: 'Parking Appeals', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/camper-registrations', icon: Tent, label: 'Camper Registrations', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/case-bridge', icon: FolderKanban, label: 'Case Bridge', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/service-agreements', icon: FileBadge2, label: 'Service Agreements', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/ems-attendances-log', icon: Ambulance, label: 'EMS Attendance Log', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/poi-voi-dashboard', icon: Users2, label: 'POI/VOI Watch-list', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/access-audit', icon: ScanFaceAudit, label: 'Access Audit Log', roles: ['admin', 'admin_officer', 'master'] },
-    ],
-  },
-  {
-    label: 'Bob',
-    icon: BrainCircuit,
-    items: [
-      { path: '/bob-assistant', icon: BrainCircuit, label: 'Bob Assistant', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/bob-studio', icon: BrainCircuit, label: 'Bob Studio', roles: ['admin', 'admin_officer', 'master', 'grand_master'] },
-      { path: '/admin/video-generation', icon: BrainCircuit, label: 'Video Generation', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/bob-intake-queue', icon: ClipboardList, label: 'Bob Intake Queue', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/ai-analysis', icon: BrainCircuit, label: 'Bob Analysis', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/live-plan-reviews', icon: ShieldCheck, label: 'Live Plan Reviews', roles: ['admin', 'admin_officer', 'master'] },
-      // Sprint 43: B-139–B-140
-      { path: '/bob-proposals-log', icon: ScrollText, label: 'Bob Proposal Log', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/bob-proposal-events-log', icon: ListChecks, label: 'Bob Proposal Events', roles: ['admin', 'admin_officer', 'master'] },
-      // Sprint 46: B-148
-      { path: '/bob-action-proposal-events-log', icon: ListChecks, label: 'Bob Action Prop. Events', roles: ['admin', 'admin_officer', 'master'] },
-    ],
-  },
-  {
-    label: 'Tools',
-    icon: Wrench,
-    items: [
-      { path: '/spatial-compliance', icon: Map, label: 'Spatial Compliance', roles: ['admin', 'master', 'grand_master'] },
-      { path: '/compliance-recalculation', icon: Shield, label: 'Recalculation', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/admin/cleanup-recalculate', icon: RefreshCw, label: 'Cleanup & Recalculate', roles: ['admin', 'master', 'grand_master'] },
-      { path: '/data', icon: Database, label: 'Data Management', roles: ['admin', 'master', 'grand_master'] },
-      { path: '/admin/data-hub', icon: Database, label: 'Data Hub', roles: ['admin', 'master', 'grand_master'] },
-      { path: '/admin/raw-data-browser', icon: Database, label: 'Raw Data Browser', roles: ['grand_master'] },
-      { path: '/intel-approvals', icon: ShieldAlert, label: 'Intel Approvals', roles: ['master', 'grand_master'] },
-      { path: '/import-historical', icon: Upload, label: 'Import Data', roles: ['admin', 'master', 'grand_master'] },
-      { path: '/photo-reingest', icon: Camera, label: 'Photo Reingest', roles: ['admin', 'admin_officer', 'master', 'grand_master'] },
-      { path: '/diagnostics', icon: Settings, label: 'Diagnostics', roles: ['master', 'grand_master'] },
-    ],
-  },
-  {
-    label: 'Settings',
-    icon: Settings,
-    items: [
-      { path: '/admin/service-provider-access', icon: ShieldCheck, label: 'Service Provider Access', roles: ['admin', 'master'] },
-      { path: '/profile', icon: User, label: 'My Profile', roles: ['admin', 'admin_officer', 'master', 'officer'] },
-      { path: '/notifications', icon: Bell, label: 'Notifications', roles: ['admin', 'admin_officer', 'master', 'officer'] },
-      { path: '/settings', icon: Settings, label: 'Settings', roles: ['admin', 'admin_officer', 'master', 'officer', 'nzscv_monitor'] },
-    ],
-  },
-]
+const groupIconByLabel: Record<string, React.FC<{ className?: string }>> = {
+  Core: Home,
+  Officer: MonitorPlay,
+  Operations: BarChart3,
+  Management: Building2,
+  Records: FileText,
+  Tools: Wrench,
+  Settings: Settings,
+  'Live Ops': Activity,
+}
 
-const navigationLabelByPath = new globalThis.Map(
-  [...pinnedItems, ...navigationGroups.flatMap((group) => group.items)].map((item) => [item.path.split('?')[0], item.label])
-)
+function resolveNavItemIcon(path: string, groupLabel: string): React.FC<{ className?: string }> {
+  if (path.includes('/audit/')) return ScrollText
+  if (path.includes('dispatch')) return Radio
+  if (path.includes('enforcement')) return Gavel
+  if (path.includes('breach')) return AlertTriangle
+  if (path.includes('infringement')) return Receipt
+  if (path.includes('patrol')) return Route
+  if (path.includes('vehicle') || path.includes('plate')) return Car
+  if (path.includes('zone')) return MapPin
+  if (path.includes('report')) return FileBarChart
+  if (path.includes('profile') || path.includes('users')) return Users
+  if (path.includes('setting')) return Settings
+  return groupIconByLabel[groupLabel] ?? LayoutList
+}
+
+const manifestNavLabels = routeManifest
+  .filter((entry) => !!entry.navLabel)
+  .map((entry) => [entry.path.split('?')[0], entry.navLabel as string] as const)
+const pinnedNavLabels = pinnedItems.map((item) => [item.path.split('?')[0], item.label] as const)
+const navigationLabelByPath = new globalThis.Map([...manifestNavLabels, ...pinnedNavLabels])
+// eslint-disable-next-line react-refresh/only-export-components
+export const navigationGroups: Array<{ label: string; icon: React.FC<{ className?: string }>; items: NavItem[] }> =
+  projectLegacyNavGroups(routeManifest, { visibilityMode: 'production' }).map((group) => ({
+    label: group.label,
+    icon: groupIconByLabel[group.label] ?? LayoutList,
+    items: group.items.map((item) => ({
+      path: item.path,
+      label: item.label,
+      roles: item.roles,
+      icon: resolveNavItemIcon(item.path, group.label),
+    })),
+  }))
 const runtimeRouteVisibilityMode = resolveRuntimeVisibilityMode(import.meta.env.MODE, import.meta.env.PROD)
 
 function formatBreadcrumbSegment(segment: string) {
@@ -568,10 +283,8 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
   const siteToolPermissions = useSiteToolPermissions(user?.id, activeClientSiteId)
   const [openGroups, setOpenGroups] = useState<Set<string>>(new Set())
 
-  // Keep the effective role aligned with route-manifest authority.
   const effectiveNavRole = user?.role
 
-  // Derive active feature flags from role — master/grand_master can access internal tools.
   const activeFeatureFlags = useMemo<Set<string>>(() => {
     const flags = new Set<string>()
     if (user?.role === 'master' || user?.role === 'grand_master') flags.add('enable_internal_tools')
@@ -584,6 +297,28 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
     return isRouteVisibleForRole(item.path, effectiveNavRole as AppRole, routeManifest, activeFeatureFlags, runtimeRouteVisibilityMode)
   }, [activeFeatureFlags, effectiveNavRole])
 
+  const manifestNavGroups = useMemo(() => {
+    const projected = projectLegacyNavGroups(routeManifest, {
+      role: effectiveNavRole as AppRole | undefined,
+      includeInternal: effectiveNavRole === 'master' || effectiveNavRole === 'grand_master',
+      visibilityMode: runtimeRouteVisibilityMode,
+    })
+
+    return projected
+      .map((group) => ({
+        label: group.label,
+        icon: groupIconByLabel[group.label] ?? LayoutList,
+        items: group.items.map((item) => ({
+          path: item.path,
+          label: item.label,
+          roles: item.roles,
+          scopeHint: undefined,
+          icon: resolveNavItemIcon(item.path, group.label),
+        })),
+      }))
+      .filter((group) => group.items.length > 0)
+  }, [effectiveNavRole])
+
   const toggleGroup = (label: string) => {
     setOpenGroups(prev => {
       const next = new Set(prev)
@@ -593,9 +328,8 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
     })
   }
 
-  // Auto-expand the group containing the active path using manifest authority.
   useEffect(() => {
-    for (const group of navigationGroups) {
+    for (const group of manifestNavGroups) {
       if (
         group.items.some(
           (item) =>
@@ -611,7 +345,7 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
         })
       }
     }
-  }, [isNavItemVisible, location.pathname])
+  }, [isNavItemVisible, location.pathname, manifestNavGroups])
 
   const isDirectorOfficerMode = user?.role === 'officer'
 
@@ -665,7 +399,6 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
 
   return (
     <nav className="space-y-2">
-      {/* Pinned items */}
       {visiblePinned.map((item) => {
         const Icon = item.icon
         const isActive = location.pathname === item.path
@@ -695,8 +428,7 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
 
       {!isDirectorOfficerMode && <div className="my-2 border-t border-gray-200/90 dark:border-[#9E9E9E]/20" />}
 
-      {/* Grouped navigation with accordion */}
-      {!isDirectorOfficerMode && navigationGroups.map((group) => {
+      {!isDirectorOfficerMode && manifestNavGroups.map((group) => {
         const GroupIcon = group.icon
         const visibleItems = group.items.filter((item) => isNavItemVisible(item))
         if (visibleItems.length === 0) return null
@@ -1190,28 +922,28 @@ export function AppLayout({ children, title, description, showBackButton, immers
         )}
       >
         <div className="flex flex-col h-full">
-          <div className="p-5 border-b dark:border-[#9E9E9E]/20 bg-gradient-to-br from-cyan-700 via-cyan-800 to-slate-900 dark:from-cyan-900 dark:via-cyan-950 dark:to-slate-950">
+          <div className="p-5 border-b dark:border-[#9E9E9E]/20 bg-[#121212] dark:bg-[#1E1E1E]">
             <div className="flex items-start justify-between">
               <div className="min-w-0">
                 <h2 className="font-bold text-xl text-white">FieldOps</h2>
-                <p className="text-sm text-cyan-100 mt-0.5 truncate">
+                <p className="text-sm text-[#BDBDBD] mt-0.5 truncate">
                   {user?.full_name}
                 </p>
-                <p className="text-xs text-cyan-200 mt-0.5">
+                <p className="text-xs text-[#9E9E9E] mt-0.5">
                   {user?.role === 'grand_master' ? 'Platform Administrator' :
                    user?.role === 'master' ? 'System Administrator' : 
                    user?.role === 'admin' ? 'Administrator' :
                   user?.role === 'admin_officer' ? 'Admin Officer' :
                   user?.role === 'nzscv_monitor' ? 'NZSCV Monitor' : 'Field Officer'}
                 </p>
-                <p className="mt-2 inline-flex rounded-full border border-cyan-200/30 bg-cyan-500/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-cyan-100">
+                <p className="mt-2 inline-flex rounded-full border border-red-300/30 bg-[#D32F2F]/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-red-100">
                   Operations Console
                 </p>
               </div>
               <button
                 onClick={toggleDesktopNav}
                 title="Collapse sidebar"
-                className="mt-0.5 shrink-0 rounded p-1 text-cyan-200 hover:bg-cyan-600/50 hover:text-white transition-colors"
+                className="mt-0.5 shrink-0 rounded p-1 text-[#BDBDBD] hover:bg-[#2A2A2A] hover:text-white transition-colors"
               >
                 <ChevronLeft className="h-4 w-4" />
               </button>
@@ -1283,7 +1015,29 @@ export function AppLayout({ children, title, description, showBackButton, immers
                 )}
                 </div>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
+                {user && (
+                  <>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => navigate('/organization-profile')}
+                      className="hidden xl:inline-flex"
+                    >
+                      <Building2 className="h-4 w-4 mr-1" />
+                      Org {user.organization_id ? user.organization_id.slice(0, 8) : 'None'}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      aria-label="Search"
+                      title="Search"
+                      onClick={() => navigate('/search')}
+                    >
+                      <Search className="h-4 w-4" />
+                    </Button>
+                  </>
+                )}
                 {user && (
                   <div className="flex items-center gap-2">
                     <HeaderStatusPill
@@ -1300,6 +1054,15 @@ export function AppLayout({ children, title, description, showBackButton, immers
                     />
                   </div>
                 )}
+                <Button
+                  variant="outline"
+                  size="icon"
+                  aria-label="Profile"
+                  title="Profile"
+                  onClick={() => navigate('/profile')}
+                >
+                  <User className="h-4 w-4" />
+                </Button>
                 <button
                   type="button"
                   title="Notifications"

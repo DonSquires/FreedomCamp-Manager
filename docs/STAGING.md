@@ -6,6 +6,35 @@ Status: **ALL GATES GREEN** — Lint 0 errors / 0 warnings; Vite build EXIT:0; A
 
 ---
 
+## Agentic UX Remediation To-Do (2026-05-18)
+
+Owner: GitHub Copilot  
+Mode: Agentic execution against production UI anatomy standards
+
+Checklist:
+
+- [x] Add `GlobalFilterRibbon` to `DispatchJobLog`, `EnforcementActionLog`, and `PricingRuleLog`.
+- [x] Add a visible status strip to each of the three pages using the 4-state language (normal/watch/action/critical).
+- [x] Add one right-aligned primary action per page header (brand-red `Export CSV`) with secondary `Refresh` preserved.
+- [x] Replace spinner-only loading on those pages with table-shaped skeleton rows.
+- [x] Upgrade empty states to actionable recovery with `Clear filters`.
+- [x] Align desktop sidebar header to Iron Eagle palette (`#121212` / `#1E1E1E`, red badge, silver text hierarchy).
+- [x] Add top-bar quick controls for org, search, profile in `AppLayout` desktop header.
+- [x] Add page-level audit trace footer blocks to the three log pages.
+- [x] Convert remaining `navigationGroups` static mapping to full registry-driven nav rendering.
+
+Validation gate:
+
+- [ ] `bun run lint`
+- [ ] `bun run build`
+
+Notes:
+
+- This checklist was created and executed in one pass as requested.
+- Remaining unchecked items are intentionally staged for the next pass because they are larger structural changes.
+
+---
+
 ## Latest Session Snapshot (QA Bug Fix Pass — 2026-05-18)
 
 - Timestamp (NZ): 2026-05-18
