@@ -104,6 +104,10 @@ Strict gate command:
 
 - `npm run bob:evidence:pm:strict`
 
+PM handoff checklist:
+
+- `docs/PM_HANDOFF_TODO_2026-05-18.md`
+
 ---
 
 ## Latest Session Snapshot (QA Bug Fix Pass — 2026-05-18)
