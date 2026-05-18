@@ -45,7 +45,7 @@ jobs:
         run: node scripts/auto-remediation-cycle.mjs
 
       - name: Run Snyk security scan
-        if: ${{ secrets.SNYK_TOKEN != '' }}
+        if: ${{ env.SNYK_TOKEN != '' }}
         continue-on-error: true
         uses: snyk/actions/node@master
         env:
@@ -54,7 +54,9 @@ jobs:
           args: --all-projects --json-file-output=tools/auto-remediation/snyk-report.json
 
       - name: Note Snyk token missing
-        if: ${{ secrets.SNYK_TOKEN == '' }}
+        if: ${{ env.SNYK_TOKEN == '' }}
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         run: echo "SNYK_TOKEN is not configured; skipping Snyk scan." >> tools/auto-remediation/summary.md
 
       - name: Upload remediation artifacts
