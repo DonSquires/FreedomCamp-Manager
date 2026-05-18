@@ -10,6 +10,7 @@ const repoRoot = process.cwd()
 const BOB_URL = String(process.env.BOB_SERVICE_URL || process.env.INFERENCE_SERVICE_URL || '').trim().replace(/\/$/, '')
 const API_KEY = String(process.env.BOB_INFERENCE_API_KEY || process.env.INFERENCE_API_KEY || '').trim()
 const INTEL_INGEST_URL = String(process.env.INTEL_INGEST_URL || process.env.BOB_INTEL_INGEST_URL || '').trim().replace(/\/$/, '')
+const INTEL_ORGANIZATION_ID = String(process.env.INTEL_ORGANIZATION_ID || process.env.BOB_ORG_ID || process.env.ORG_ID || process.env.DEFAULT_ORG_ID || '').trim()
 
 if (!BOB_URL || !API_KEY) {
   console.error('[Error] Missing BOB_SERVICE_URL/INFERENCE_SERVICE_URL or BOB_INFERENCE_API_KEY/INFERENCE_API_KEY')
@@ -48,8 +49,12 @@ async function postBulletinViaIntel(bulletin) {
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${API_KEY}`,
+      ...(INTEL_ORGANIZATION_ID ? { 'x-org-id': INTEL_ORGANIZATION_ID } : {}),
     },
-    body: JSON.stringify({ bulletin }),
+    body: JSON.stringify({
+      bulletin,
+      ...(INTEL_ORGANIZATION_ID ? { organization_id: INTEL_ORGANIZATION_ID } : {}),
+    }),
   })
 
   if (!response.ok) {

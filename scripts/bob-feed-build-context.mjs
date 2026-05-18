@@ -39,6 +39,13 @@ function normalizeRunpodBaseUrl(url) {
 }
 
 const INTEL_INGEST_URL = normalizeBaseUrl(process.env.INTEL_INGEST_URL || process.env.BOB_INTEL_INGEST_URL || '').replace(/\/$/, '');
+const INTEL_ORGANIZATION_ID = String(
+  process.env.INTEL_ORGANIZATION_ID ||
+  process.env.BOB_ORG_ID ||
+  process.env.ORG_ID ||
+  process.env.DEFAULT_ORG_ID ||
+  '',
+).trim();
 const FEED_MODE = INTEL_INGEST_URL
   ? 'intel-ingest-bulletin'
   : isRunpodServerlessUrl(process.env.BOB_SERVICE_URL || process.env.INFERENCE_SERVICE_URL)
@@ -52,8 +59,12 @@ async function postBulletinViaIntel(baseUrl, apiKey, bulletin) {
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${apiKey}`,
+      ...(INTEL_ORGANIZATION_ID ? { 'x-org-id': INTEL_ORGANIZATION_ID } : {}),
     },
-    body: JSON.stringify({ bulletin }),
+    body: JSON.stringify({
+      bulletin,
+      ...(INTEL_ORGANIZATION_ID ? { organization_id: INTEL_ORGANIZATION_ID } : {}),
+    }),
   });
 
   const text = await response.text();
