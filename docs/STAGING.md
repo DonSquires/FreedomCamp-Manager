@@ -322,6 +322,39 @@ Status: **ALL GATES GREEN** — Lint 0 errors / 0 warnings; Vite build EXIT:0 (4
   - `App.tsx` tail structure: `</Routes></Suspense></RouteErrorBoundary><Toaster/></BrowserRouter></QueryClientProvider>` all present and correct
 - Open blockers: **none** — all prior environment blockers resolved
 
+## Latest Session Snapshot (QA Lead / Manager Release Benchmark Review — 2026-05-17)
+
+- Timestamp (NZ): 2026-05-17
+- Session focus: Verify whether the current build is ready for product-team handoff against quality, performance, and stability benchmarks.
+- Verdict: **partially benchmarked, not yet release-qualifying**.
+- Scope reviewed:
+  - Phase 0 contract lanes and scaffold evidence already recorded in staging.
+  - Rollout plan exit gates and production platform dependencies for Phase 0-1 through Phase 0-5.
+  - Current staging evidence versus the original PTT clean-sheet requirements.
+- Assessment summary:
+  - **Quality:** targeted contract lanes are green, but the overall Phase 0 exit gate remains open.
+  - **Performance:** transcript, caption, TTS, and Livekit/STT latency gates are not fully proven end-to-end.
+  - **Stability:** the build is stable enough for partial validation, but not yet for full product-team release.
+- Key blockers still visible in staging:
+  - Livekit Cloud provisioning and Redis floor coordination remain open.
+  - Live media-tap / STT provider wiring remains open.
+  - Real TTS provider wiring remains open.
+  - Phase 0 exit checklist remains unchecked overall.
+- Product-team sign-off posture:
+  - Green for targeted contract validation.
+  - Red for full release handoff.
+
+## Specialist To-Do List
+
+- [ ] Platform Engineering Lead: finish Livekit SFU provisioning, Redis floor coordination, and emergency override stability.
+- [ ] Speech & AI Lead: complete Livekit egress/STT tap, translation pipeline, TTS provider wiring, and latency tuning.
+- [ ] Voice & Governance Lead: deliver voice-twin enrollment, consent capture, revocation, and audit dashboard flows.
+- [ ] Frontend Platform Lead: keep Phase 0 radio surfaces, route guards, and benchmark UX aligned with the current staging contract.
+- [ ] Data Platform Lead: keep radio and service-agreement schema, RLS, and migration alignment in sync with the deployed contract.
+- [ ] QA Engineer: rerun quality, performance, and stability benchmarks after each gate is closed and record the evidence in staging.
+- [ ] Ops/Deployment Lead: restore or deploy any missing Supabase functions, secrets, and environment dependencies for the release path.
+- [ ] Planning/PM: keep the phase gates, exit criteria, and product-team handoff status current in `plan.md` and `docs/STAGING.md`.
+
 ## Latest Session Snapshot (Part 3 Foundation — Audit Namespace Aliases — 2026-05-17)
 
 - Timestamp (NZ): 2026-05-17
