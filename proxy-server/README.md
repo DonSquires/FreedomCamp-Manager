@@ -86,6 +86,7 @@ NZSCV API requires **IP whitelisting**. Supabase Edge Functions use dynamic IPs,
 ### Option 2: Railway ($5/month)
 
 Note: CI now verifies `/intel/ingest-bulletin` exists after Railway deploys.
+If deploy fails with a missing `proxy-server` path in Railway build logs, check for duplicate root-directory scoping.
 
 **Advantages:**
 - ✅ Auto-deployment from Git
