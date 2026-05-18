@@ -51,6 +51,10 @@ if [[ $# -eq 0 ]]; then
   exit 1
 fi
 
+if [[ "${BOB_TOOLS_BOOTSTRAP:-1}" != "0" ]]; then
+  bash scripts/bob-tools-bootstrap.sh --quiet
+fi
+
 export PLAYWRIGHT_ALLOW_SHARED_CREDENTIAL_FALLBACK=0
 
 if [[ -z "${PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH:-}" ]]; then

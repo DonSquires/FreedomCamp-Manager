@@ -187,6 +187,7 @@ export default defineConfig({
       name: 'chromium',
       use: {
         ...devices['Desktop Chrome'],
+        channel: undefined,
         launchOptions: chromiumLaunchOptions,
       },
     },
@@ -195,6 +196,7 @@ export default defineConfig({
       name: 'chromium-bob',
       use: {
         ...devices['Desktop Chrome'],
+        channel: undefined,
         launchOptions: chromiumLaunchOptions,
       },
       testMatch: [
