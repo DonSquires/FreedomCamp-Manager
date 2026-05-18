@@ -202,7 +202,6 @@ Deno.serve(async (req) => {
           email,
           role,
           organization_id: organizationId,
-          full_name: body.payload?.full_name ?? null,
           is_active: true,
         })
         .select('id,email,role,organization_id,is_active')

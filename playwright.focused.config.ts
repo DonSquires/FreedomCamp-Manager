@@ -49,7 +49,11 @@ const baseURL =
 const ignoreHTTPSErrors = process.env.PLAYWRIGHT_IGNORE_HTTPS_ERRORS !== '0'
 const reuseExistingPlaywrightServer =
   process.env.PLAYWRIGHT_REUSE_EXISTING_SERVER === '1' ? true : !process.env.CI
-const webServerRunner = existsSync('/home/vscode/.bun/bin/bun') ? 'bun' : 'npm'
+const webServerRunner = existsSync('/home/vscode/.bun/bin/bun')
+  ? '/home/vscode/.bun/bin/bun'
+  : existsSync('/workspaces/.bun/bin/bun')
+    ? '/workspaces/.bun/bin/bun'
+    : 'npm'
 
 function buildWebServerCommand(targetBaseURL: string): string {
   try {

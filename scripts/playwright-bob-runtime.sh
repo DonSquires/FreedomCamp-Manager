@@ -70,4 +70,10 @@ if [[ -z "${PLAYWRIGHT_BOB_EMAIL:-}" || -z "${PLAYWRIGHT_BOB_PASSWORD:-}" ]]; th
   exit 1
 fi
 
+# Allow Playwright commands authored for bunx to run in environments without Bun.
+if [[ "${1:-}" == "bunx" ]] && ! command -v bun >/dev/null 2>&1; then
+  shift
+  set -- npx "$@"
+fi
+
 exec bash scripts/playwright-codespace-credentials.sh "$@"
