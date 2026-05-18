@@ -17,7 +17,7 @@ Target commit:
 ## Slice 1: Database and Policy Gates
 
 Files:
-- `supabase/migrations/20260517000001_noise_jobs_dispatch_targets.sql`
+- `supabase/migrations/20260517000002_noise_jobs_dispatch_targets.sql`
 - `supabase/migrations/20260517095000_user_radio_preferences.sql`
 - `supabase/migrations/20260517170000_service_agreement_obligations_and_client_access.sql`
 - `supabase/migrations/20260517183000_client_activation_requires_signed_service_agreement.sql`
