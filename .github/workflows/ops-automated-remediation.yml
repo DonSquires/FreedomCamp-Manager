@@ -1,0 +1,65 @@
+name: Ops - Automated Code Remediation
+
+on:
+  schedule:
+    - cron: '17 2 * * 1'
+  workflow_dispatch:
+    inputs:
+      apply_dependency_fixes:
+        description: Apply dependency updates in addition to lint/security scans
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: write
+  pull-requests: write
+  security-events: read
+
+jobs:
+  remediate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Run automated remediation cycle
+        env:
+          APPLY_DEP_FIXES: ${{ inputs.apply_dependency_fixes == true && 'true' || 'false' }}
+        run: node scripts/auto-remediation-cycle.mjs
+
+      - name: Upload remediation artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: auto-remediation-${{ github.run_id }}
+          path: tools/auto-remediation/
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Create remediation pull request
+        uses: peter-evans/create-pull-request@v7
+        with:
+          branch: ops/automated-remediation
+          delete-branch: true
+          commit-message: 'chore(remediation): automated lint and maintenance fixes'
+          title: 'chore(remediation): automated lint and dependency maintenance'
+          body-path: tools/auto-remediation/summary.md
+          labels: |
+            automation
+            security
+            dependencies

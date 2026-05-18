@@ -1,0 +1,133 @@
+name: Ops - Self-Healing Watchdog
+
+on:
+  schedule:
+    - cron: '45 */4 * * *'
+  workflow_dispatch:
+    inputs:
+      rerun_failed_workflows:
+        description: Attempt rerun for detected failed workflow runs
+        type: boolean
+        required: false
+        default: true
+
+permissions:
+  contents: read
+  actions: read
+  issues: write
+
+jobs:
+  self-heal-watchdog:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Run CI self-heal cycle
+        run: node scripts/run-ci-self-heal-cycle.mjs --rerun-failed=${{ inputs.rerun_failed_workflows == false && 'false' || 'true' }}
+
+      - name: Upload self-heal artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: self-heal-watchdog-${{ github.run_id }}
+          path: |
+            data/live-stack-scorecard.json
+            data/ci-self-heal-list.json
+            data/dr-bob-escalation-latest.json
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Open or update escalation issue
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs')
+            const path = require('path')
+
+            const listPath = path.join(process.cwd(), 'data', 'ci-self-heal-list.json')
+            if (!fs.existsSync(listPath)) {
+              core.info('No ci-self-heal-list.json found; skipping issue update.')
+              return
+            }
+
+            const payload = JSON.parse(fs.readFileSync(listPath, 'utf8'))
+            const failedRuns = Array.isArray(payload.failedRuns) ? payload.failedRuns : []
+            const raised = Boolean(payload?.escalation?.raised)
+
+            if (!raised && failedRuns.length === 0) {
+              core.info('No failed runs and no escalation raised.')
+              return
+            }
+
+            const title = 'ops: self-healing watchdog escalation'
+            const labels = ['self-healing', 'ops', 'automation']
+            const owner = context.repo.owner
+            const repo = context.repo.repo
+
+            const body = [
+              '## Self-Healing Watchdog Escalation',
+              '',
+              `- Run: https://github.com/${owner}/${repo}/actions/runs/${context.runId}`,
+              `- Head SHA: ${payload.headSha || 'unknown'}`,
+              `- Failed workflows detected: ${failedRuns.length}`,
+              `- Escalation raised: ${raised}`,
+              '',
+              '### Failed Runs',
+              ...(failedRuns.length
+                ? failedRuns.map((run) => `- ${run.name} [${run.status}/${run.conclusion || 'unknown'}] (${run.url || 'no-url'})`)
+                : ['- none']),
+              '',
+              '### Required Human Follow-up',
+              '1. Review failing workflow logs.',
+              '2. Apply targeted fixes in a branch.',
+              '3. Re-run failed checks and close this issue when green.',
+            ].join('\n')
+
+            const open = await github.rest.issues.listForRepo({
+              owner,
+              repo,
+              state: 'open',
+              labels: labels.join(','),
+              per_page: 50,
+            })
+
+            const existing = open.data.find((issue) => issue.title === title)
+
+            if (existing) {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: existing.number,
+                body,
+              })
+              core.info(`Updated existing escalation issue #${existing.number}.`)
+              return
+            }
+
+            const created = await github.rest.issues.create({
+              owner,
+              repo,
+              title,
+              body,
+              labels,
+            })
+            core.info(`Created escalation issue #${created.data.number}.`)

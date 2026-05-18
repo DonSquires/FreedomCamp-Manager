@@ -56,6 +56,28 @@ Execution note:
 
 - These Bob readiness controls are grounded in the current repository state and must be updated in the same change set as future model-quality or capability-claim changes.
 
+### Current Cycle Automated Remediation and Self-Healing Protocol (2026-05-18)
+
+Operational automation now includes two distinct loops:
+
+1. Automated Code Remediation Loop
+   - Workflow: `.github/workflows/ops-automated-remediation.yml`
+   - Primary script: `scripts/auto-remediation-cycle.mjs`
+   - Runs ESLint autofix, dependency audit/outdated scans, then opens an automated PR when safe file changes are produced.
+   - Dependency update PRs are additionally handled by Dependabot via `.github/dependabot.yml`.
+
+2. Self-Healing Watchdog Loop
+   - Workflow: `.github/workflows/ops-self-healing-watchdog.yml`
+   - Primary script: `scripts/run-ci-self-heal-cycle.mjs`
+   - Detects failed CI workflows, attempts rerun for known-safe cases, and opens/updates escalation issues for human follow-up.
+
+Governance rules for both loops:
+
+- Every automated remediation run must publish machine-readable artifacts under `tools/auto-remediation/`.
+- Every self-healing escalation must produce a durable issue trail for audit and accountability.
+- Any automated change that affects role logic, route behavior, edge function contracts, or schema assumptions must still update this manual in the same change set.
+- If auto-healing does not restore green CI, human review is mandatory before release progression.
+
 ---
 
 ## Table of Contents
