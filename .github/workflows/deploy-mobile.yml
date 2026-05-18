@@ -104,7 +104,7 @@ jobs:
 
       - name: Setup Node.js
         if: steps.check-secrets.outputs.secrets_present == 'true'
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v6
         with:
           node-version: '24'
 
