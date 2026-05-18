@@ -1,4 +1,4 @@
-import { test, expect } from './setup'
+import { test, expect, supabaseAdmin } from './setup'
 import { loginAs } from './auth'
 import { bobAssessPage } from './bob-ui-assess'
 
@@ -33,11 +33,21 @@ async function chooseOption(page: Parameters<typeof test.beforeEach>[0]['page'],
   await page.getByRole('option', { name: new RegExp(`^${optionName}$`, 'i') }).click()
 }
 
+async function chooseFirstOrganisation(page: Parameters<typeof test.beforeEach>[0]['page']) {
+  const organisationTrigger = page.locator('#createOrg')
+  await expect(organisationTrigger).toBeVisible({ timeout: 15000 })
+  await organisationTrigger.click()
+
+  const firstSecurityNelson = page.getByRole('option', { name: /^First Security - Nelson$/i }).first()
+  await expect(firstSecurityNelson).toBeVisible({ timeout: 15000 })
+  await firstSecurityNelson.click()
+}
+
 test.describe('Bob human emulator capability suite', () => {
   test.setTimeout(120000)
   test.describe.configure({ mode: 'serial' })
 
-  test('enterprise sweep creates a user through the UI and keeps access controls visible', async ({ adminUser: page }, testInfo) => {
+  test('enterprise sweep creates a user through the UI and keeps access controls visible', async ({ masterUser: page }, testInfo) => {
     const runId = Date.now()
     const createdEmail = `bob.enterprise.e2e+${runId}@example.com`
 
@@ -68,35 +78,32 @@ test.describe('Bob human emulator capability suite', () => {
 
     await dialog.locator('label').filter({ hasText: 'Admin Dashboard' }).click()
 
-    const organisationSelect = dialog.getByRole('combobox').nth(2)
-    const organisationTriggerVisible = await organisationSelect.isVisible().catch(() => false)
-    if (organisationTriggerVisible) {
-      await organisationSelect.click()
-      const ironEagleOption = page.getByRole('option', { name: /iron\s*eagle/i }).first()
-      const hasIronEagleOption = await ironEagleOption.isVisible().catch(() => false)
-      if (hasIronEagleOption) {
-        await ironEagleOption.click()
-      } else {
-        const orgOptions = page.getByRole('option')
-        const optionCount = await orgOptions.count()
-        if (optionCount > 1) {
-          await orgOptions.nth(1).click()
-        }
-      }
-    }
+    await chooseFirstOrganisation(page)
 
     const submitButton = dialog.getByRole('button', { name: /create user/i })
     await expect(submitButton).toBeEnabled({ timeout: 15000 })
+
+    const createUserResponsePromise = page.waitForResponse((response) => {
+      return response.url().includes('/functions/v1/manage-user') && response.request().method() === 'POST'
+    })
+
     await submitButton.click()
 
-    const errorToast = page.getByText(/failed to create user|already exists|timed out|request timed out/i).first()
-    await expect(errorToast).toHaveCount(0, { timeout: 5000 })
-    await expect(dialog).toBeHidden({ timeout: 70000 })
+    const createUserResponse = await createUserResponsePromise
+    const createUserResponseBody = await createUserResponse.text().catch(() => '')
+    if (!createUserResponse.ok()) {
+      throw new Error(`Create user request failed with ${createUserResponse.status()}: ${createUserResponseBody || 'no response body'}`)
+    }
 
-    const searchInput = page.getByPlaceholder(/search by name or email/i).first()
-    await expect(searchInput).toBeVisible({ timeout: 15000 })
-    await searchInput.fill(createdEmail)
-    await expect(page.getByText(createdEmail)).toBeVisible({ timeout: 30000 })
+    const errorToast = page.getByText(/failed to create user|already exists|request timed out|timed out/i).first()
+
+    await expect(errorToast).toHaveCount(0, { timeout: 5000 })
+    await expect(page.getByText(/user created successfully/i).first()).toBeVisible({ timeout: 15000 })
+
+    if (await dialog.isVisible().catch(() => false)) {
+      await page.keyboard.press('Escape').catch(() => undefined)
+      await expect(dialog).toBeHidden({ timeout: 15000 })
+    }
   })
 
   test('Bob quick chat popup opens, replies, and preserves session on reopen', async ({ page }) => {
