@@ -51,7 +51,7 @@ jobs:
         run: node scripts/summarize-failures.mjs
 
       - name: Commit refreshed artifacts
-        uses: stefanzweifel/git-auto-commit-action@v5
+        uses: stefanzweifel/git-auto-commit-action@v7
         with:
           commit_message: "chore(bob): refresh brain dump and failure summary [skip ci]"
           file_pattern: |
