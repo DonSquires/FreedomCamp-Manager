@@ -37,7 +37,6 @@ jobs:
             Build Plan Crossover Gates
             Playwright Monitoring Pulse (Smoke Label)
             Validate RunPod Image Tags
-            Ops Bob Assess Failed Actions
         run: |
           set -euo pipefail
 
@@ -80,9 +79,9 @@ jobs:
             updated_at=$(printf '%s' "$run" | jq -r '.updated_at')
             html_url=$(printf '%s' "$run" | jq -r '.html_url')
 
-            if ! printf '%s' "$head_branch" | grep -Eq '^(main|copilot/)'; then
+            if ! printf '%s' "$head_branch" | grep -Eq '^copilot/'; then
               skipped=$((skipped + 1))
-              skip_details+="- run=$run_id workflow='$run_name' branch='$head_branch' reason=untrusted-branch\n"
+              skip_details+="- run=$run_id workflow='$run_name' branch='$head_branch' reason=branch-not-copilot-pr\n"
               continue
             fi
 
