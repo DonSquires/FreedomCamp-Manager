@@ -180,6 +180,7 @@ export default function UserManagement({ embedded = false }: UserManagementProps
       if (error) throw error
       return data as Organization[]
     },
+    enabled: isAdmin,
   })
 
   // For non-master users, fetch accessible org IDs (own org + descendants)
@@ -190,7 +191,7 @@ export default function UserManagement({ embedded = false }: UserManagementProps
       if (error) throw error
       return data as string[]
     },
-    enabled: !isMaster,
+    enabled: isAdmin && !isMaster,
   })
 
   // Organizations available for assignment, scoped by role
@@ -230,7 +231,7 @@ export default function UserManagement({ embedded = false }: UserManagementProps
       const row = Array.isArray(data) ? data[0] : null
       return (row || null) as DirectUserPreview | null
     },
-    enabled: showEditDialog && isMaster && directUserIdValid,
+    enabled: isAdmin && showEditDialog && isMaster && directUserIdValid,
     staleTime: 30000,
   })
 
@@ -292,6 +293,7 @@ export default function UserManagement({ embedded = false }: UserManagementProps
 
       return filteredUsers
     },
+    enabled: isAdmin,
   })
 
   // Create user mutation
