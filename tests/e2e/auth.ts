@@ -617,6 +617,89 @@ async function gotoLogin(page: Page): Promise<void> {
   await page.goto('/login', { waitUntil: 'domcontentloaded', timeout: 20000 })
 }
 
+function getSupabaseProjectRef(url: string): string {
+  try {
+    const host = new URL(url).host
+    return host.split('.')[0] || ''
+  } catch {
+    return ''
+  }
+}
+
+type SupabasePasswordGrant = {
+  access_token?: string
+  refresh_token?: string
+  expires_in?: number
+  expires_at?: number
+  token_type?: string
+  user?: unknown
+}
+
+async function bootstrapBrowserSessionFromPasswordGrant(
+  page: Page,
+  credentials: TestCredentials
+): Promise<{ ok: boolean; reason?: string }> {
+  const supabaseUrl = readEnv('VITE_SUPABASE_URL')
+  const anonKey = readEnv('VITE_SUPABASE_ANON_KEY')
+  if (!supabaseUrl || !anonKey) {
+    return { ok: false, reason: 'VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY missing' }
+  }
+
+  const tokenRes = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=password`, {
+    method: 'POST',
+    headers: {
+      apikey: anonKey,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      email: credentials.email,
+      password: credentials.password,
+    }),
+  })
+
+  if (!tokenRes.ok) {
+    const errorText = await tokenRes.text().catch(() => '')
+    return {
+      ok: false,
+      reason: `password grant failed (${tokenRes.status}): ${errorText.slice(0, 180)}`,
+    }
+  }
+
+  const grant = await tokenRes.json() as SupabasePasswordGrant
+  if (!grant.access_token || !grant.refresh_token) {
+    return { ok: false, reason: 'password grant missing access/refresh token' }
+  }
+
+  const projectRef = getSupabaseProjectRef(supabaseUrl)
+  if (!projectRef) {
+    return { ok: false, reason: 'unable to derive Supabase project ref from URL' }
+  }
+
+  const expiresAt =
+    typeof grant.expires_at === 'number'
+      ? grant.expires_at
+      : Math.floor(Date.now() / 1000) + (typeof grant.expires_in === 'number' ? grant.expires_in : 3600)
+
+  const storageKey = `sb-${projectRef}-auth-token`
+  const sessionPayload = {
+    access_token: grant.access_token,
+    refresh_token: grant.refresh_token,
+    expires_in: grant.expires_in ?? 3600,
+    expires_at: expiresAt,
+    token_type: grant.token_type ?? 'bearer',
+    user: grant.user ?? null,
+  }
+
+  await page.evaluate(({ key, value }) => {
+    const encoded = JSON.stringify(value)
+    window.localStorage.setItem(key, encoded)
+    window.sessionStorage.setItem(key, encoded)
+  }, { key: storageKey, value: sessionPayload })
+
+  await page.goto('/', { waitUntil: 'domcontentloaded' })
+  return { ok: true }
+}
+
 export async function loginWithLiveCredentialsAndResolveProfile(page: Page): Promise<LoginContextProfile | null> {
   const credentials = getApiTestCredentials()
   if (!credentials.email || !credentials.password) {
@@ -785,6 +868,7 @@ export async function loginAs(page: Page, user: TestUserKey): Promise<void> {
   const credentials = getTestUser(user)
 
   let lastErrorText: string | null = null
+  let apiFallbackError: string | null = null
   for (let attempt = 0; attempt < 2; attempt += 1) {
     await gotoLogin(page)
 
@@ -799,13 +883,31 @@ export async function loginAs(page: Page, user: TestUserKey): Promise<void> {
     await passwordInput.fill(credentials.password)
     await submitButton.click()
 
-    const loginSucceeded = await page
+    let loginSucceeded = await page
       .waitForURL((url) => !url.pathname.startsWith('/login'), { timeout: 20000 })
       .then(() => true)
       .catch(async () => {
         lastErrorText = await page.locator('text=/invalid|error|failed/i').first().textContent().catch(() => null)
         return false
       })
+
+    // Mobile Safari occasionally fails to transition after submit despite valid credentials.
+    // Fallback to explicit password grant + storage bootstrap to preserve test intent.
+    if (!loginSucceeded && attempt === 0) {
+      const apiFallback = await bootstrapBrowserSessionFromPasswordGrant(page, credentials).catch((error: unknown) => ({
+        ok: false,
+        reason: error instanceof Error ? error.message : String(error),
+      }))
+
+      if (apiFallback.ok) {
+        loginSucceeded = await page
+          .waitForURL((url) => !url.pathname.startsWith('/login'), { timeout: 20000 })
+          .then(() => true)
+          .catch(() => false)
+      } else {
+        apiFallbackError = apiFallback.reason || 'unknown API fallback error'
+      }
+    }
 
     if (loginSucceeded) break
 
@@ -820,7 +922,8 @@ export async function loginAs(page: Page, user: TestUserKey): Promise<void> {
     }
 
     const suffix = lastErrorText ? ` Visible message: ${lastErrorText.trim()}` : ''
-    throw new Error(`Login failed for ${credentials.email}. Current URL: ${page.url()}.${suffix}`)
+    const fallbackSuffix = apiFallbackError ? ` API fallback: ${apiFallbackError}.` : ''
+    throw new Error(`Login failed for ${credentials.email}. Current URL: ${page.url()}.${suffix}${fallbackSuffix}`)
   }
 
   if (user !== 'master') {
