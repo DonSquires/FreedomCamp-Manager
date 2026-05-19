@@ -131,6 +131,7 @@ interface PTTState {
 }
 
 function normalizePresenceList(presence: PTTPresence[]): PTTPresence[] {
+  // Deduplicate by userId with first-wins ordering and drop invalid user IDs.
   const seen = new Set<string>()
   const normalized: PTTPresence[] = []
 
