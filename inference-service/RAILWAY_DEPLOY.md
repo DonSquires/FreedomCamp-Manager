@@ -90,6 +90,17 @@ In Railway dashboard, click the **Variables** tab and add:
 | Whisper/STT runtime | No, unless the exact model is Ollama-native | Dedicated speech/STT worker or provider service |
 | Future custom GPU-only model | No | Separate Dockerfile + separate Railway project/service |
 
+#### Non-model capability placement rules
+
+| Capability | Should it be in Railway Ollama? | Correct placement |
+|---|---|---|
+| Playwright test execution | No | CI runner, dev container, or dedicated browser/test worker |
+| Chromium browser runtime | No | CI runner or dedicated browser-capable host |
+| Sandbox emulator workflows | No | Browser + local/dev environment |
+| TTS synthesis | No | Dedicated TTS service/provider path |
+| Video generation | No | Dedicated media worker or explicit shared inference path |
+| Browser STT fallback | No | Browser runtime |
+
 Then click the **Settings** tab and set **Health Check Path** to `/health`.
 
 ---
@@ -224,3 +235,9 @@ Uses your existing Railway account - no additional service!
 - Do not force it into the Ollama service
 - Create a separate worker Dockerfile for that runtime
 - Deploy it as its own Railway service/project so the core Bob Ollama service stays stable and narrow in scope
+
+**"Need Playwright, Chromium, emulator, TTS, or video tooling"**
+- Treat these as capability dependencies, not Ollama models
+- Keep browser/test dependencies in CI or a dedicated test host
+- Keep TTS and video on dedicated service paths with explicit provider/runtime contracts
+- Keep Ollama limited to the models it actually serves

@@ -205,6 +205,17 @@ bun run bob:auto-ingest
 | Face detection ONNX (`version-RFB-640.onnx`) | ONNX / Python worker | Separate worker image (`runpod-worker/`) | Keep out of Ollama; same worker image can host this alongside ALPR |
 | STT / Whisper paths | Separate service or provider-specific worker | Separate service | Do not force into Ollama unless the chosen model is actually Ollama-native |
 
+### Capability Boundary Matrix
+
+| Capability | What it is | Where it should run | What not to do |
+|---|---|---|---|
+| Playwright | Browser E2E test runner | CI runner, dev container, or dedicated test worker | Do not treat it as an inference model or deploy it inside Railway Ollama |
+| Chromium / browser runtime | Browser executable for Playwright and render checks | CI runner or dedicated browser-capable host | Do not put browser binaries into Ollama just to run tests |
+| Bob sandbox emulator | Training / operator practice workflow | Browser + local app/dev environment | Do not treat the emulator as a production inference dependency |
+| TTS synthesis (`synthesize-translated-audio`) | Audio render service | Dedicated TTS provider path, currently Piper/RunPod-backed | Do not route TTS through Ollama unless a real Ollama-native voice runtime is intentionally adopted |
+| Video generation / briefing video | Media generation pipeline | Dedicated media worker or shared RunPod path with explicit auth | Do not assume video generation belongs in the Ollama service |
+| Browser STT fallback | Client-side speech fallback | Browser Web Speech API | Do not move browser fallback logic into Ollama |
+
 ### Switch Model (Advanced)
 ```bash
 # On RunPod pod:
@@ -227,6 +238,8 @@ curl "${INFERENCE_SERVICE_URL}/runsync" \
 - [ ] RunPod pod is running (check dashboard)
 - [ ] Ollama `/api/tags` responds with `qwen2.5:7b` and `llama3.2-vision:11b`
 - [ ] Non-Ollama workloads remain isolated in worker images (ALPR, face, STT, etc.)
+- [ ] Playwright/Chromium/test tooling remain in test runners or browser-capable hosts, not the Ollama service
+- [ ] TTS/video/emulator flows are assigned to their own service paths and are not counted as Ollama model requirements
 - [ ] Smoke test: `/runsync` returns HTTP 200
 - [ ] Training data loaded: `docs/BOB_BRAIN_DUMP.md` exists
 - [ ] ADRs indexed: `docs/adr/` folder populated
