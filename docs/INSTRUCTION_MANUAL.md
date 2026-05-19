@@ -7,7 +7,7 @@
 > **Canonical product authority** — this manual defines what the application is intended to do and how users are meant to use it. It is not a passive dump of current implementation details.  
 > If code, routes, role behavior, workflows, edge functions, schema-backed user flows, or operational UX change, the corresponding sections in this manual must be updated in the same change set.  
 > If the app currently behaves differently from this manual, that drift is a defect to resolve or an explicit product decision to document here first.  
-> Last reviewed: 2026-05-18
+> Last reviewed: 2026-05-19
 
 ### Current Cycle Amendment (2026-05-17)
 
@@ -1753,21 +1753,21 @@ Clients with an approved **Service Agreement** that has `allows_client_submissio
 
 | Page | Path | Purpose |
 |---|---|---|
-| User Management | `/users` | Create, edit, and deactivate user accounts |
+| User Management | `/users` | Create, edit, and deactivate user accounts; manage credentials, role assignments, and password resets |
+| Organisations | `/organizations` | Manage organisation hierarchy, tenancy type, and cross-org scope |
 | Access Control | `/access-control` | Configure portal area access per user |
-| Client Master List | `/client-master-list` | All client organisations and contacts |
-| Client Sites | `/client-sites` | Manage client site records |
-| Site Permissions Admin | `/site-permissions` | Configure who can access which sites |
+| Site Permissions | `/site-permissions` | Configure who can access which sites |
+| Audit Log | `/audit-log` | Review governance and user-management audit events |
+| Command Centre | `/admin` | Return to the admin command centre dashboard |
 | Asset Management | `/assets` | Manage vehicles, radios, and equipment assigned to officers |
 
 **Creating a user:**
-1. Go to `/users` → **Invite User**.
-2. Enter first name, last name, email, role, and assign to an organisation.
-3. Set required credentials: Certificate of Authority (COA) number/expiry, Warrant number/expiry.
-4. Set driver's licence requirement if needed.
-5. Assign portal area access codes (restricts which modules the user can access).
-6. Optionally configure PTT channel access.
-7. Click **Send Invite** — the user receives an email with a link to set their password.
+1. Go to `/users` → **Create User**.
+2. In **User Setup**, enter first name, last name, email, role, and set password + confirm password.
+3. In **Access**, assign primary organisation, optional additional organisations, and employer organisation.
+4. Set portal area access codes if required (leave empty to use role defaults), and optionally set explicit PTT scopes.
+5. Click **Create User** — the account is created immediately and can sign in using the configured password.
+6. After creation, use **Credentials** on the user card to upload/verify COA and warrant documents as needed.
 
 ---
 
@@ -3162,6 +3162,15 @@ If a tenant purchases the app and uses a dedicated provider model, you may model
    - `contractor` — Sub-contracted service providers
 4. Set `parent_organization_id` to establish the org hierarchy.
 5. Set enforcement workflow and overnight verification mode.
+
+#### User Provisioning (`/users`)
+
+1. Roles with admin governance access (`admin`, `admin_officer`, `master`, `grand_master`) can open `/users`.
+2. New users are created directly (no email invite flow required) with required identity fields and password.
+3. Organisation assignment writes to `user_profiles.organization_id`; optional cross-org assignments are stored in `extra_organization_ids`.
+4. `authorized_work_locations` is derived from the selected primary + additional organisations.
+5. Optional security scoping is persisted through `portal_access` and `ptt_channel_access`.
+6. COA/warrant compliance files and verification status are managed in `user_profiles` credential fields after account creation.
 
 #### User Roles Summary
 
