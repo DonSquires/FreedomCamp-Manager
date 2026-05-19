@@ -180,6 +180,7 @@ export default function UserManagement({ embedded = false }: UserManagementProps
       if (error) throw error
       return data as Organization[]
     },
+    enabled: isAdmin,
   })
 
   // For non-master users, fetch accessible org IDs (own org + descendants)
@@ -190,7 +191,7 @@ export default function UserManagement({ embedded = false }: UserManagementProps
       if (error) throw error
       return data as string[]
     },
-    enabled: !isMaster,
+    enabled: isAdmin && !isMaster,
   })
 
   // Organizations available for assignment, scoped by role
@@ -292,6 +293,7 @@ export default function UserManagement({ embedded = false }: UserManagementProps
 
       return filteredUsers
     },
+    enabled: isAdmin,
   })
 
   // Create user mutation
