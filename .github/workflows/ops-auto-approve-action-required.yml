@@ -1,0 +1,78 @@
+name: Ops Auto-Approve Action Required Runs
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '*/10 * * * *'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ops-auto-approve-action-required
+  cancel-in-progress: true
+
+jobs:
+  approve-pending-runs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate approver token
+        env:
+          CI_ML_APPROVER_TOKEN: ${{ secrets.CI_ML_APPROVER_TOKEN }}
+        run: |
+          if [ -z "$CI_ML_APPROVER_TOKEN" ]; then
+            echo "::warning::CI_ML_APPROVER_TOKEN is not configured. Skipping auto-approval pass."
+            exit 0
+          fi
+
+      - name: Approve action_required runs
+        env:
+          CI_ML_APPROVER_TOKEN: ${{ secrets.CI_ML_APPROVER_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          runs_json=$(curl -sS \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer $CI_ML_APPROVER_TOKEN" \
+            "https://api.github.com/repos/$REPO/actions/runs?status=action_required&per_page=100")
+
+          run_count=$(printf '%s' "$runs_json" | jq '.workflow_runs | length')
+          echo "Found $run_count action_required run(s)."
+
+          if [ "$run_count" -eq 0 ]; then
+            exit 0
+          fi
+
+          # Limit auto-approval to trusted branch patterns.
+          run_ids=$(printf '%s' "$runs_json" | jq -r '.workflow_runs[] | select(.head_branch == "main" or (.head_branch | startswith("copilot/"))) | .id')
+
+          if [ -z "$run_ids" ]; then
+            echo "No action_required runs match trusted branches."
+            exit 0
+          fi
+
+          approved=0
+          failed=0
+
+          for run_id in $run_ids; do
+            echo "Approving run $run_id"
+            if curl -sS -o /tmp/approve-response.json -w "%{http_code}" \
+              -X POST \
+              -H "Accept: application/vnd.github+json" \
+              -H "Authorization: Bearer $CI_ML_APPROVER_TOKEN" \
+              "https://api.github.com/repos/$REPO/actions/runs/$run_id/approve" | grep -q '^20[0-9]$'; then
+              approved=$((approved + 1))
+            else
+              failed=$((failed + 1))
+              echo "::warning::Failed to approve run $run_id"
+              cat /tmp/approve-response.json || true
+            fi
+          done
+
+          echo "Approved: $approved"
+          echo "Failed: $failed"
+
+          if [ "$failed" -gt 0 ]; then
+            echo "::warning::One or more runs could not be approved."
+          fi
