@@ -44,7 +44,10 @@ if (!apiKey) {
   process.exit(1);
 }
 
-const runSyncUrl = `${runpodBase.replace(/\/$/, '').replace(/\/run\/?$/i, '')}/runsync`;
+const normalizedBase = runpodBase
+  .replace(/\/+$/, '')
+  .replace(/\/(?:run|runsync|run-sync)\/?$/i, '');
+const runSyncUrl = `${normalizedBase}/runsync`;
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const runtimeDir = path.join(root, '.runtime');

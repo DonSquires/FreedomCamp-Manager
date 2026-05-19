@@ -34,6 +34,19 @@ function normalizeRunpodInvokeUrl(rawUrl) {
   return value;
 }
 
+function toRunpodBaseUrl(rawUrl) {
+  const value = String(rawUrl || '').trim().replace(/\/+$/, '');
+  if (!value) return '';
+  return value
+    .replace(/\/(?:runsync|run-sync|run|status\/[^/]+)$/i, '')
+    .replace(/\/+$/, '');
+}
+
+function endpointIdFromUrl(rawUrl) {
+  const match = String(rawUrl || '').match(/api\.runpod\.ai\/v2\/([^/]+)/i);
+  return String(match?.[1] || '').trim();
+}
+
 function getArg(name, fallback = '') {
   const key = `--${name}`;
   const args = process.argv.slice(2);
@@ -122,9 +135,14 @@ function deriveStatusUrl({ endpointUrl, endpointId, statusJobId, explicitStatusU
     return `https://api.runpod.ai/v2/${endpointId}/status/${encodeURIComponent(statusJobId)}`;
   }
 
-  // Common pattern: /run or /runs -> /status/<id>
-  if (endpointUrl.includes('/run')) {
-    return endpointUrl.replace(/\/runs?$/i, `/status/${encodeURIComponent(statusJobId)}`);
+  const parsedEndpointId = endpointIdFromUrl(endpointUrl);
+  if (parsedEndpointId) {
+    return `https://api.runpod.ai/v2/${parsedEndpointId}/status/${encodeURIComponent(statusJobId)}`;
+  }
+
+  // Common patterns: /run, /run-sync, /runsync -> /status/<id>
+  if (/(?:\/run|\/run-sync|\/runsync)$/i.test(endpointUrl)) {
+    return `${toRunpodBaseUrl(endpointUrl)}/status/${encodeURIComponent(statusJobId)}`;
   }
 
   throw new Error(
@@ -132,7 +150,9 @@ function deriveStatusUrl({ endpointUrl, endpointId, statusJobId, explicitStatusU
   );
 }
 
-async function httpJson(url, apiKey, body) {
+async function httpJson(url, apiKey, body, requestTimeoutMs) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), requestTimeoutMs);
   const response = await fetch(url, {
     method: body ? 'POST' : 'GET',
     headers: {
@@ -140,21 +160,31 @@ async function httpJson(url, apiKey, body) {
       'Content-Type': 'application/json',
     },
     body: body ? JSON.stringify(body) : undefined,
+    signal: controller.signal,
   });
 
-  const text = await response.text();
-  let json = {};
   try {
-    json = text ? JSON.parse(text) : {};
-  } catch {
-    throw new Error(`Endpoint returned non-JSON response (${response.status}): ${text.slice(0, 300)}`);
-  }
+    const text = await response.text();
+    let json = {};
+    try {
+      json = text ? JSON.parse(text) : {};
+    } catch {
+      throw new Error(`Endpoint returned non-JSON response (${response.status}): ${text.slice(0, 300)}`);
+    }
 
-  if (!response.ok) {
-    throw new Error(`Endpoint HTTP ${response.status}: ${JSON.stringify(json).slice(0, 500)}`);
-  }
+    if (!response.ok) {
+      throw new Error(`Endpoint HTTP ${response.status}: ${JSON.stringify(json).slice(0, 500)}`);
+    }
 
-  return json;
+    return json;
+  } catch (error) {
+    if (error?.name === 'AbortError') {
+      throw new Error(`Endpoint request timed out after ${requestTimeoutMs}ms`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 
 function isTerminalStatus(status) {
@@ -162,7 +192,7 @@ function isTerminalStatus(status) {
   return value === 'COMPLETED' || value === 'FAILED' || value === 'CANCELLED' || value === 'TIMED_OUT';
 }
 
-async function pollStatus({ endpointUrl, endpointId, apiKey, statusJobId, statusUrlTemplate, intervalMs, timeoutMs }) {
+async function pollStatus({ endpointUrl, endpointId, apiKey, statusJobId, statusUrlTemplate, intervalMs, timeoutMs, requestTimeoutMs }) {
   const startedAt = Date.now();
   while (Date.now() - startedAt <= timeoutMs) {
     const statusUrl = deriveStatusUrl({
@@ -172,7 +202,7 @@ async function pollStatus({ endpointUrl, endpointId, apiKey, statusJobId, status
       explicitStatusUrl: statusUrlTemplate,
     });
 
-    const statusData = await httpJson(statusUrl, apiKey, null);
+    const statusData = await httpJson(statusUrl, apiKey, null, requestTimeoutMs);
     console.log(JSON.stringify({ phase: 'status', url: statusUrl, data: statusData }, null, 2));
 
     const status = statusData?.status;
@@ -207,12 +237,16 @@ async function main() {
   const poll = getBooleanArg('poll', true);
   const intervalMs = Number(getArg('intervalMs', '3000'));
   const timeoutMs = Number(getArg('timeoutMs', '120000'));
+  const requestTimeoutMs = Number(getArg('requestTimeoutMs', process.env.RUNPOD_REQUEST_TIMEOUT_MS || '45000'));
 
   if (!Number.isFinite(intervalMs) || intervalMs < 250) {
     throw new Error('intervalMs must be a number >= 250');
   }
   if (!Number.isFinite(timeoutMs) || timeoutMs < 1000) {
     throw new Error('timeoutMs must be a number >= 1000');
+  }
+  if (!Number.isFinite(requestTimeoutMs) || requestTimeoutMs < 1000) {
+    throw new Error('requestTimeoutMs must be a number >= 1000');
   }
 
   if (statusJobId) {
@@ -224,6 +258,7 @@ async function main() {
       statusUrlTemplate,
       intervalMs,
       timeoutMs,
+      requestTimeoutMs,
     });
     const failed = String(finalStatus?.status || '').toUpperCase() === 'FAILED';
     if (!failed) {
@@ -237,7 +272,7 @@ async function main() {
 
   touchActivity('invoke-start');
 
-  const invokeData = await httpJson(endpointUrl, apiKey, payload);
+  const invokeData = await httpJson(endpointUrl, apiKey, payload, requestTimeoutMs);
   console.log(JSON.stringify({ phase: 'invoke', url: endpointUrl, data: invokeData }, null, 2));
 
   const jobId = invokeData?.id || invokeData?.jobId;
@@ -259,6 +294,7 @@ async function main() {
     statusUrlTemplate,
     intervalMs,
     timeoutMs,
+    requestTimeoutMs,
   });
 
   const failed = String(finalStatus?.status || '').toUpperCase() === 'FAILED';

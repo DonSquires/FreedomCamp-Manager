@@ -91,9 +91,9 @@ function getInferenceConfig(): { inferenceUrls: string[]; apiKey: string } {
     .filter(Boolean)
 
   const candidates = [
-    normalizeBaseUrl(Deno.env.get('INFERENCE_SERVICE_URL')),
-    normalizeBaseUrl(Deno.env.get('INFERENCE_SERVICE_FALLBACK_URL')),
-    normalizeBaseUrl(Deno.env.get('INFERENCE_SERVICE_URL_SECONDARY')),
+    normalizeBaseUrl(Deno.env.get('BOB_SERVICE_URL')),
+    normalizeBaseUrl(Deno.env.get('BOB_SERVICE_FALLBACK_URL')),
+    normalizeBaseUrl(Deno.env.get('BOB_SERVICE_URL_SECONDARY')),
     normalizeBaseUrl(Deno.env.get('RUNPOD_ENDPOINT_URL')),
     normalizeBaseUrl(Deno.env.get('INFERENCE_SERVICE_URL_RUNPOD')),
     normalizeBaseUrl(derivedRunpodUrl),
@@ -110,7 +110,7 @@ function getInferenceConfig(): { inferenceUrls: string[]; apiKey: string } {
     ''
 
   if (inferenceUrls.length === 0) {
-    throw new Error('INFERENCE_SERVICE_URL is not configured')
+    throw new Error('BOB_SERVICE_URL is not configured')
   }
 
   for (const url of inferenceUrls) {

@@ -82,6 +82,19 @@ RUN pip3 install --no-cache-dir -r requirements.txt
 
 COPY handler.py training_memory.json package.json entrypoint.sh ./
 
+# Pre-download ONNX models so workers start fast (no per-request download).
+# wget exits non-zero on failure so we use `|| true` for optional models
+# to avoid breaking the build when upstream URLs change.
+RUN mkdir -p /app/models && \
+    wget -q -O /app/models/yolov8n.onnx \
+      "https://raw.githubusercontent.com/Hyuto/yolov8-onnxruntime-web/master/public/model/yolov8n.onnx" || true && \
+    wget -q -O /app/models/version-RFB-640.onnx \
+      "https://github.com/Linzaer/Ultra-Light-Fast-Generic-Face-Detector-1MB/raw/master/models/onnx/version-RFB-640.onnx" || true && \
+    wget -q -O /app/models/lp_detector.onnx \
+      "https://huggingface.co/ankandrew/open-image-models/resolve/main/models/lp_detector-YOLOv9s_640-640.onnx" || true && \
+    echo "ONNX model download complete" && ls -lah /app/models/
+
+
 # Fail fast during image build if handler.py has syntax issues.
 RUN python3 -m py_compile /app/handler.py
 

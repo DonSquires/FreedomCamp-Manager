@@ -961,6 +961,9 @@ const RUNPOD_ENDPOINT_POLL_INTERVAL_MS = Number(process.env.RUNPOD_ENDPOINT_POLL
 const ALPR_RUNPOD_OFFLOAD_ENABLED = envFlag(process.env.ALPR_RUNPOD_OFFLOAD_ENABLED, false);
 const ALPR_RUNPOD_ACTION = String(process.env.ALPR_RUNPOD_ACTION || 'alpr').trim().toLowerCase();
 const ALPR_RUNPOD_TIMEOUT_MS = Number(process.env.ALPR_RUNPOD_TIMEOUT_MS || 35_000);
+const FACE_RUNPOD_OFFLOAD_ENABLED = envFlag(process.env.FACE_RUNPOD_OFFLOAD_ENABLED, false);
+const FACE_RUNPOD_ACTION = String(process.env.FACE_RUNPOD_ACTION || 'face_detect').trim().toLowerCase();
+const FACE_RUNPOD_TIMEOUT_MS = Number(process.env.FACE_RUNPOD_TIMEOUT_MS || 30_000);
 const DEFAULT_RUNPOD_SERVERLESS_ACTION_ALLOWLIST = [
   'ping',
   'chat',
@@ -7739,7 +7742,40 @@ app.post('/infer/face', inferenceRateLimit, upload.single('photo'), requireInfer
     let detectionMethod = 'none';
 
     // ── Step 1a: UltraFace-640 ONNX (preferred — fast, private) ──────────────
-    const onnxDetections = await detectFacesWithONNX(imageBuffer);
+      // Optional offload path: route face detection to RunPod GPU first.
+      if (FACE_RUNPOD_OFFLOAD_ENABLED && deriveRunpodInvokeUrl()) {
+        try {
+          const runpodJob = await invokeRunpodServerless({
+            input: {
+              action: FACE_RUNPOD_ACTION,
+              image_base64: imageBuffer.toString('base64'),
+              image_mime_type: req.file.mimetype || 'image/jpeg',
+            },
+            poll: true,
+            timeoutMs: FACE_RUNPOD_TIMEOUT_MS,
+            intervalMs: RUNPOD_ENDPOINT_POLL_INTERVAL_MS,
+          });
+
+          const runpodOutput = runpodJob?.final?.output || runpodJob?.final || null;
+          const hasFaceShape = !!runpodOutput && (
+            typeof runpodOutput.face_count === 'number' ||
+            Array.isArray(runpodOutput.faces)
+          );
+
+          if (hasFaceShape) {
+            return res.json({
+              success: true,
+              ...runpodOutput,
+              face_detection_provider: 'runpod_serverless',
+              processing_time_ms: Date.now() - startTime,
+            });
+          }
+        } catch (runpodError) {
+          console.warn('⚠️  /infer/face RunPod offload failed, falling back to local:', runpodError.message);
+        }
+      }
+
+      const onnxDetections = await detectFacesWithONNX(imageBuffer);
     const onnxAvailable  = onnxDetections !== null;
 
     if (onnxDetections && onnxDetections.length > 0) {

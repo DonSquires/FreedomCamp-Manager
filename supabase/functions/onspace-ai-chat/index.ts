@@ -9,12 +9,13 @@
  *   distinct backend via OLLAMA_BASE_URL.
  *
  * Required secrets:
- *   INFERENCE_SERVICE_URL   Bob inference-service base URL (RunPod).
+ *   BOB_SERVICE_URL         Bob chat endpoint base URL (RunPod).
+ *   BOB_SERVICE_FALLBACK_URL Optional fallback URL for Bob chat routing.
  *   INFERENCE_API_KEY       Optional shared key for inference auth.
  *   AI_DEFAULT_MODEL        Optional UI hint only (handled by inference-service).
  *
  * Optional secrets for Ollama fallback/support:
- *   OLLAMA_BASE_URL         e.g. http://localhost:11434 or RunPod gateway URL (defaults to INFERENCE_SERVICE_URL)
+ *   OLLAMA_BASE_URL         e.g. http://localhost:11434 or RunPod gateway URL
  *   OLLAMA_MODEL            e.g. qwen2.5:7b
  *   OLLAMA_API_KEY          Optional bearer key for gateway auth (defaults to INFERENCE_API_KEY)
  *   BOB_ATTITUDE_PROFILE    Optional Bob tone profile: operational|supportive|strict|coach
@@ -1042,8 +1043,9 @@ Deno.serve(async (req: Request) => {
     const runpodEndpointId = String(Deno.env.get('RUNPOD_ENDPOINT_ID') ?? '').trim()
     const derivedRunpodUrl = runpodEndpointId ? `https://api.runpod.ai/v2/${runpodEndpointId}` : ''
     const inferenceUrl = normalizeBaseUrl(
-      Deno.env.get('INFERENCE_SERVICE_URL') ??
       Deno.env.get('BOB_SERVICE_URL') ??
+      Deno.env.get('BOB_SERVICE_FALLBACK_URL') ??
+      Deno.env.get('BOB_SERVICE_URL_SECONDARY') ??
       Deno.env.get('RUNPOD_ENDPOINT_URL') ??
       Deno.env.get('INFERENCE_SERVICE_URL_RUNPOD') ??
       derivedRunpodUrl,
@@ -1070,7 +1072,7 @@ Deno.serve(async (req: Request) => {
           model: 'bob-unconfigured',
           provider: 'local-failsafe',
           usage: null,
-          diagnostics: 'INFERENCE_SERVICE_URL and OLLAMA_BASE_URL are both missing from edge function secrets.',
+          diagnostics: 'BOB_SERVICE_URL and OLLAMA_BASE_URL are both missing from edge function secrets.',
         }),
         { status: 200, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       )
@@ -1411,7 +1413,11 @@ Deno.serve(async (req: Request) => {
         Deno.env.get('INFERENCE_SERVICE_URL_RUNPOD') ??
         (runpodEndpointId ? `https://api.runpod.ai/v2/${runpodEndpointId}` : ''),
       )
-      const configuredFallbackUrl = normalizeBaseUrl(Deno.env.get('INFERENCE_SERVICE_FALLBACK_URL'))
+      const configuredFallbackUrl = normalizeBaseUrl(
+        Deno.env.get('BOB_SERVICE_FALLBACK_URL') ??
+        Deno.env.get('BOB_SERVICE_URL_SECONDARY') ??
+        '',
+      )
       const candidates = Array.from(new Set([
         runpodDirectCandidate,
         inferenceUrl,
@@ -1425,7 +1431,7 @@ Deno.serve(async (req: Request) => {
       routingDiagnostics.inference_candidates = [...orderedCandidates]
 
       if (!orderedCandidates.length) {
-        throw new Error('INFERENCE_SERVICE_URL is not configured')
+        throw new Error('BOB_SERVICE_URL is not configured')
       }
 
       let lastError: Error | null = null

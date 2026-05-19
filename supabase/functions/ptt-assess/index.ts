@@ -11,8 +11,8 @@
  *   }
  *
  * Required Supabase secrets:
- *   INFERENCE_SERVICE_URL   — Bob inference-service base URL (RunPod)
- *   BOB_SERVICE_URL         — alias for INFERENCE_SERVICE_URL (either works)
+ *   BOB_SERVICE_URL         — Bob service base URL (RunPod)
+ *   INFERENCE_SERVICE_URL   — optional fallback Bob URL
  *   BOB_INFERENCE_API_KEY   — API key for Bob
  */
 

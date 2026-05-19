@@ -1538,6 +1538,166 @@ def handler(job):
             return {"success": False, "error": f"Vision analysis failed: {str(e)}", "provider": "ollama_vision"}
 
     if action == "run_playwright":
+    # ── ALPR: vehicle licence-plate recognition via ONNX on GPU ────────────────
+    if action == "alpr":
+        import base64 as _b64
+        import io
+        import numpy as np
+        from PIL import Image
+        image_b64 = inp.get("image_base64") or inp.get("image_b64") or ""
+        if not image_b64:
+            return {"success": False, "error": "image_base64 required for alpr action"}
+        try:
+            img_bytes = _b64.b64decode(image_b64)
+            img = Image.open(io.BytesIO(img_bytes)).convert("RGB")
+        except Exception as e:
+            return {"success": False, "error": f"Image decode failed: {e}"}
+
+        # Attempt ONNX inference if model present
+        alpr_model_path = os.environ.get("ALPR_MODEL_PATH", "/app/models/yolov8n.onnx")
+        plate_model_path = os.environ.get("PLATE_DETECT_MODEL_PATH", "/app/models/lp_detector.onnx")
+        results = []
+        detection_method = "none"
+
+        def _run_yolo_onnx(model_path, img_pil, input_size=640, score_threshold=0.25):
+            """Run YOLOv8/YOLOv9 ONNX model and return raw boxes (x1,y1,x2,y2,score,class)."""
+            try:
+                import onnxruntime as ort
+                session = ort.InferenceSession(model_path, providers=["CUDAExecutionProvider", "CPUExecutionProvider"])
+                w, h = img_pil.size
+                resized = img_pil.resize((input_size, input_size), Image.LANCZOS)
+                arr = np.array(resized, dtype=np.float32) / 255.0
+                arr = arr.transpose(2, 0, 1)[np.newaxis]  # BCHW
+                name = session.get_inputs()[0].name
+                output = session.run(None, {name: arr})
+                raw = output[0]  # shape (1, num_classes+4, anchors) or (1, anchors, ...)
+                if raw.ndim == 3 and raw.shape[1] > raw.shape[2]:
+                    raw = raw.transpose(0, 2, 1)  # normalise to (1, anchors, features)
+                raw = raw[0]  # (anchors, features)
+                boxes = []
+                for row in raw:
+                    if row.shape[0] >= 5:
+                        cx, cy, bw, bh = row[0], row[1], row[2], row[3]
+                        scores = row[4:]
+                        score = float(np.max(scores))
+                        cls = int(np.argmax(scores))
+                        if score >= score_threshold:
+                            x1 = max(0.0, (cx - bw / 2) / input_size)
+                            y1 = max(0.0, (cy - bh / 2) / input_size)
+                            x2 = min(1.0, (cx + bw / 2) / input_size)
+                            y2 = min(1.0, (cy + bh / 2) / input_size)
+                            boxes.append({"x1": x1, "y1": y1, "x2": x2, "y2": y2, "score": score, "class": cls})
+                return boxes
+            except Exception as exc:
+                print(f"[worker] YOLO ONNX failed: {exc}")
+                return None
+
+        # Try dedicated plate detector first; fall back to vehicle detector
+        if os.path.exists(plate_model_path):
+            plate_boxes = _run_yolo_onnx(plate_model_path, img, score_threshold=0.30)
+            if plate_boxes is not None and len(plate_boxes) > 0:
+                for b in plate_boxes[:3]:
+                    results.append({
+                        "plate": None,  # OCR not available in Python handler
+                        "confidence": b["score"],
+                        "bbox": {"x": b["x1"], "y": b["y1"], "width": b["x2"] - b["x1"], "height": b["y2"] - b["y1"]},
+                        "detection_method": "plate_model",
+                    })
+                detection_method = "plate_model"
+        elif os.path.exists(alpr_model_path):
+            vehicle_boxes = _run_yolo_onnx(alpr_model_path, img, score_threshold=0.25)
+            if vehicle_boxes is not None and len(vehicle_boxes) > 0:
+                for b in vehicle_boxes[:3]:
+                    results.append({
+                        "plate": None,
+                        "confidence": b["score"],
+                        "bbox": {"x": b["x1"], "y": b["y1"], "width": b["x2"] - b["x1"], "height": b["y2"] - b["y1"]},
+                        "detection_method": "vehicle_crop",
+                    })
+                detection_method = "yolov8n_vehicle_crop"
+
+        if not results:
+            return {
+                "success": False,
+                "error": "No ONNX models available or no detections",
+                "provider": "runpod-alpr",
+                "detection_method": detection_method,
+                "results": [],
+            }
+
+        return {
+            "success": True,
+            "results": results,
+            "detection_method": detection_method,
+            "provider": "runpod-alpr",
+        }
+
+    # ── face_detect: face detection via UltraFace-640 ONNX on GPU ─────────────
+    if action == "face_detect":
+        import base64 as _b64
+        import io
+        import numpy as np
+        from PIL import Image
+        image_b64 = inp.get("image_base64") or inp.get("image_b64") or ""
+        if not image_b64:
+            return {"success": False, "error": "image_base64 required for face_detect action"}
+        try:
+            img_bytes = _b64.b64decode(image_b64)
+            img = Image.open(io.BytesIO(img_bytes)).convert("RGB")
+        except Exception as e:
+            return {"success": False, "error": f"Image decode failed: {e}"}
+
+        face_model_path = os.environ.get("FACE_DETECT_MODEL_PATH", "/app/models/version-RFB-640.onnx")
+        faces = []
+        detection_method = "none"
+
+        if os.path.exists(face_model_path):
+            try:
+                import onnxruntime as ort
+                import numpy as np
+                session = ort.InferenceSession(face_model_path, providers=["CUDAExecutionProvider", "CPUExecutionProvider"])
+                w, h = img.size
+                resized = img.resize((640, 480), Image.LANCZOS)
+                arr = np.array(resized, dtype=np.float32)
+                mean = np.array([127.0, 127.0, 127.0], dtype=np.float32)
+                arr = (arr - mean) / 128.0
+                arr = arr.transpose(2, 0, 1)[np.newaxis]  # BCHW
+                inp_name = session.get_inputs()[0].name
+                scores_raw, boxes_raw = session.run(None, {inp_name: arr})
+                scores = scores_raw[0]  # (num_anchors, 2)
+                boxes = boxes_raw[0]    # (num_anchors, 4) cx,cy,w,h normalised
+                score_threshold = 0.7
+                for i, (s, b) in enumerate(zip(scores, boxes)):
+                    face_score = float(s[1]) if s.shape[0] > 1 else float(s[0])
+                    if face_score >= score_threshold:
+                        cx, cy, bw, bh = float(b[0]), float(b[1]), float(b[2]), float(b[3])
+                        x = max(0.0, cx - bw / 2)
+                        y = max(0.0, cy - bh / 2)
+                        faces.append({
+                            "bbox": {"x": x, "y": y, "width": bw, "height": bh},
+                            "confidence": round(face_score, 4),
+                            "approximate_age": "unknown",
+                            "gender": "unknown",
+                            "description": None,
+                        })
+                detection_method = "onnx_ultraface"
+            except Exception as exc:
+                print(f"[worker] UltraFace ONNX failed: {exc}")
+                detection_method = "onnx_failed"
+        else:
+            detection_method = "model_unavailable"
+
+        return {
+            "success": True,
+            "face_count": len(faces),
+            "faces": faces,
+            "metadata": {
+                "detection_method": detection_method,
+                "provider": "runpod-face",
+            },
+        }
+
+    if action == "run_playwright":
         specs = inp.get("specs") or []
         scope = inp.get("scope", "quick")
         timeout_ms = int(inp.get("timeout_ms", 120000))

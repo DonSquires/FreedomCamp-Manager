@@ -76,12 +76,34 @@ async function resolveGhcrLatestDigest(imageRepo) {
   if (!image) throw new Error('Image repository is required to resolve GHCR latest digest.');
 
   const manifestUrl = `https://ghcr.io/v2/${image}/manifests/latest`;
-  const accept = 'application/vnd.docker.distribution.manifest.v2+json';
+  const accept = [
+    'application/vnd.oci.image.manifest.v1+json',
+    'application/vnd.docker.distribution.manifest.v2+json',
+  ].join(', ');
 
-  const initial = await fetch(manifestUrl, { method: 'GET', headers: { Accept: accept } });
+  const ghUser = String(process.env.GHCR_USERNAME || process.env.GITHUB_ACTOR || '').trim();
+  const ghToken = String(
+    process.env.GHCR_TOKEN ||
+    process.env.GITHUB_TOKEN ||
+    process.env.PAT_TOKEN ||
+    ''
+  ).trim();
+
+  const authHeaders = {};
+  if (ghUser && ghToken) {
+    authHeaders.Authorization = `Basic ${Buffer.from(`${ghUser}:${ghToken}`).toString('base64')}`;
+  }
+
+  const initial = await fetch(manifestUrl, {
+    method: 'GET',
+    headers: {
+      Accept: accept,
+      ...authHeaders,
+    },
+  });
+
   let token = '';
-
-  if (initial.status === 401) {
+  if (initial.status === 401 && !authHeaders.Authorization) {
     const www = initial.headers.get('www-authenticate') || '';
     const realmMatch = www.match(/realm="([^"]+)"/i);
     const serviceMatch = www.match(/service="([^"]+)"/i);
@@ -98,12 +120,20 @@ async function resolveGhcrLatestDigest(imageRepo) {
     method: 'HEAD',
     headers: {
       Accept: accept,
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : authHeaders),
     },
   });
 
   if (!head.ok) {
-    throw new Error(`Unable to resolve GHCR latest digest (${head.status}) for ${image}`);
+    const reason = head.status === 404
+      ? 'manifest unknown (tag may not exist)'
+      : head.status === 401 || head.status === 403
+        ? 'auth denied (GHCR package may be private)'
+        : `HTTP ${head.status}`;
+    throw new Error(
+      `Unable to resolve GHCR latest digest for ${image}: ${reason}. ` +
+      'Set GHCR_USERNAME + GHCR_TOKEN (read:packages) or pass --imageRef ghcr.io/<repo>@sha256:<digest>.'
+    );
   }
 
   const digest = head.headers.get('Docker-Content-Digest') || '';

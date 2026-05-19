@@ -21,7 +21,8 @@
  *                       read access to fetch CI status).
  *   GITHUB_REPO       — Repository slug, e.g. "DonSquires/FreedomCamp-Manager"
  *                       (default: "DonSquires/FreedomCamp-Manager")
- *   INFERENCE_SERVICE_URL   — Bob inference-service URL (RunPod).
+ *   BOB_SERVICE_URL         — Bob service URL (RunPod preferred).
+ *   INFERENCE_SERVICE_URL   — optional fallback Bob URL.
  *   INFERENCE_API_KEY       — Optional shared key for inference auth.
  */
 
