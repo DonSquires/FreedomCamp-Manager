@@ -26,9 +26,11 @@ if ! curl -fsS "http://127.0.0.1:11434/api/tags" >/dev/null 2>&1; then
   exit 1
 fi
 
-if ! ollama list | grep -q "${OLLAMA_MODEL:-qwen2.5:7b}"; then
-  echo "[start] Model ${OLLAMA_MODEL:-qwen2.5:7b} not found locally; pulling at runtime..."
-  ollama pull "${OLLAMA_MODEL:-qwen2.5:7b}"
+MODEL="${OLLAMA_MODEL:-qwen2.5:7b}"
+
+if ! ollama list | awk 'NR>1 {print $1}' | grep -Fxq "$MODEL"; then
+  echo "[start] Model $MODEL not found locally; pulling now..."
+  ollama pull "$MODEL"
 fi
 
 echo "[start] Launching FieldOps worker..."

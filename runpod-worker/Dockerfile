@@ -1,19 +1,8 @@
-FROM ollama/ollama:0.6.6 AS ollama_builder
-
-ARG OLLAMA_BAKE_MODEL=qwen2.5:7b
-ENV OLLAMA_MODELS=/ollama-models
-
-RUN mkdir -p /ollama-models
-
-COPY build_ollama_models.sh /tmp/build_ollama_models.sh
-RUN chmod +x /tmp/build_ollama_models.sh && /tmp/build_ollama_models.sh "$OLLAMA_BAKE_MODEL"
-
 FROM python:3.12-slim-bookworm
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Local-Ollama worker image (models baked at build time).
-# Build trigger note: keep this file change-safe so workflow path triggers can republish GHCR image.
+# Single-stage runtime image: install Ollama directly and run the worker.
 RUN apt-get update && apt-get install -y --no-install-recommends \
   ca-certificates curl git jq unzip zstd \
   build-essential \
@@ -27,14 +16,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   && apt-get clean \
   && rm -rf /var/lib/apt/lists/*
 
+# Install Ollama in this stage (no multi-stage copy).
+RUN curl -fsSL https://ollama.com/install.sh | sh
+
 # Bun is retained because the repo is Bun-first and startup scripts may rely on it.
 RUN curl -fsSL https://bun.sh/install | bash && \
   ln -sf /root/.bun/bin/bun /usr/local/bin/bun
-
-# Copy Ollama runtime binary/libraries and baked models from builder image.
-COPY --from=ollama_builder /bin/ollama /usr/local/bin/ollama
-COPY --from=ollama_builder /usr/lib/ollama /usr/lib/ollama
-COPY --from=ollama_builder /ollama-models /root/.ollama/models
 
 # ---------------------------------------------------------------------------
 # Capability-oriented defaults (non-secret). Secrets are injected at runtime.
@@ -87,6 +74,8 @@ ENV OPENAI_BASE_URL=https://api.openai.com/v1
 ENV OPENAI_API_KEY=
 
 WORKDIR /app
+
+EXPOSE 11434
 
 COPY requirements.txt ./
 RUN pip3 install --no-cache-dir -r requirements.txt
