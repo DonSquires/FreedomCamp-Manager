@@ -177,8 +177,14 @@ async function initBobSystemAuth() {
     return false;
   }
 
-  await signInWithPassword();
-  return true;
+  try {
+    await signInWithPassword();
+    return true;
+  } catch (error) {
+    state.ready = false;
+    state.lastError = String(error?.message || error);
+    throw error;
+  }
 }
 
 function stopBobSystemAuth() {
