@@ -1093,39 +1093,41 @@ export default function TenderWorkspaceDetail() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="mb-4 flex-wrap h-auto">
-          <TabsTrigger value="intake">
-            <Upload className="h-3.5 w-3.5 mr-1.5" />
-            Intake
-          </TabsTrigger>
-          <TabsTrigger value="references">
-            <BookOpen className="h-3.5 w-3.5 mr-1.5" />
-            References
-            {orgRefs.length > 0 && (
-              <span className="ml-1.5 inline-flex items-center justify-center h-4 w-4 rounded-full bg-primary/20 text-[9px] font-medium">{includedRefIds.length}</span>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="assessment">
-            <BrainCircuit className="h-3.5 w-3.5 mr-1.5" />
-            Bob Assessment
-          </TabsTrigger>
-          <TabsTrigger value="draft">
-            <Pencil className="h-3.5 w-3.5 mr-1.5" />
-            Draft Response
-          </TabsTrigger>
-          <TabsTrigger value="collaborators">
-            <Users className="h-3.5 w-3.5 mr-1.5" />
-            Collaborators
-          </TabsTrigger>
-          <TabsTrigger value="approval">
-            <Shield className="h-3.5 w-3.5 mr-1.5" />
-            Approval
-          </TabsTrigger>
-          <TabsTrigger value="export">
-            <FileDown className="h-3.5 w-3.5 mr-1.5" />
-            Export
-          </TabsTrigger>
-        </TabsList>
+        <div className="mb-4 w-full overflow-x-auto pb-1">
+          <TabsList className="h-auto w-max min-w-full justify-start flex-nowrap gap-1">
+            <TabsTrigger value="intake" className="shrink-0">
+              <Upload className="h-3.5 w-3.5 mr-1.5" />
+              Intake
+            </TabsTrigger>
+            <TabsTrigger value="references" className="shrink-0">
+              <BookOpen className="h-3.5 w-3.5 mr-1.5" />
+              References
+              {orgRefs.length > 0 && (
+                <span className="ml-1.5 inline-flex items-center justify-center h-4 w-4 rounded-full bg-primary/20 text-[9px] font-medium">{includedRefIds.length}</span>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="assessment" className="shrink-0">
+              <BrainCircuit className="h-3.5 w-3.5 mr-1.5" />
+              Bob Assessment
+            </TabsTrigger>
+            <TabsTrigger value="draft" className="shrink-0">
+              <Pencil className="h-3.5 w-3.5 mr-1.5" />
+              Draft Response
+            </TabsTrigger>
+            <TabsTrigger value="collaborators" className="shrink-0">
+              <Users className="h-3.5 w-3.5 mr-1.5" />
+              Collaborators
+            </TabsTrigger>
+            <TabsTrigger value="approval" className="shrink-0">
+              <Shield className="h-3.5 w-3.5 mr-1.5" />
+              Approval
+            </TabsTrigger>
+            <TabsTrigger value="export" className="shrink-0">
+              <FileDown className="h-3.5 w-3.5 mr-1.5" />
+              Export
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
         {/* ── INTAKE TAB ──────────────────────────────────────────────────── */}
         <TabsContent value="intake">

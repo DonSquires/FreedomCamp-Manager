@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AppLayout } from '@/components/features/AppLayout'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
@@ -260,7 +260,7 @@ export default function TenderWorkspace() {
 
         <Button onClick={() => setCreateOpen(true)} className="flex items-center gap-2">
           <FilePlus2 className="h-4 w-4" />
-          New Document
+          New Tender / Document
         </Button>
       </div>
 
@@ -335,6 +335,9 @@ export default function TenderWorkspace() {
                       <Clock3 className="h-3 w-3" />
                       <span>{formatDateTime(doc.updated_at)}</span>
                     </div>
+                    <Button asChild size="sm" variant="ghost" className="ml-auto h-6 px-2 text-[11px]">
+                      <Link to={`/tender-workspace/${doc.id}`}>Open Document</Link>
+                    </Button>
                   </div>
                 </CardContent>
               </Card>
