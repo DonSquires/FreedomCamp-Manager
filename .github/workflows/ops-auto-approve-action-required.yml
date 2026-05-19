@@ -29,6 +29,15 @@ jobs:
         env:
           CI_ML_APPROVER_TOKEN: ${{ secrets.CI_ML_APPROVER_TOKEN }}
           REPO: ${{ github.repository }}
+          COOLDOWN_MINUTES: "15"
+          MAX_RERUN_ATTEMPTS: "3"
+          ALLOWED_WORKFLOWS: |
+            Bob Full Service Self-Test
+            policy-bob-openai-research-training
+            Build Plan Crossover Gates
+            Playwright Monitoring Pulse (Smoke Label)
+            Validate RunPod Image Tags
+            Ops Bob Assess Failed Actions
         run: |
           set -euo pipefail
 
@@ -41,38 +50,148 @@ jobs:
           echo "Found $run_count action_required run(s)."
 
           if [ "$run_count" -eq 0 ]; then
+            jq -n '{ total_runs: 0, rerun_requested: 0, skipped: 0, escalated: 0, failed_api_calls: 0, notes: ["No action_required runs found"] }' > /tmp/action-required-self-heal-summary.json
+            {
+              echo "# Action Required Self-Heal Summary"
+              echo
+              echo "No action_required runs found."
+            } > /tmp/action-required-self-heal-summary.md
             exit 0
           fi
 
-          # Limit auto-rerun to trusted branch patterns.
-          run_ids=$(printf '%s' "$runs_json" | jq -r '.workflow_runs[] | select(.head_branch == "main" or (.head_branch | startswith("copilot/"))) | .id')
-
-          if [ -z "$run_ids" ]; then
-            echo "No action_required runs match trusted branches."
-            exit 0
-          fi
+          allowed_json=$(printf '%s\n' "$ALLOWED_WORKFLOWS" | sed '/^[[:space:]]*$/d' | jq -R . | jq -s .)
+          now_epoch=$(date +%s)
 
           rerun=0
-          failed=0
+          skipped=0
+          escalated=0
+          failed_api_calls=0
+          rerun_details=""
+          skip_details=""
+          escalate_details=""
 
-          for run_id in $run_ids; do
-            echo "Rerunning run $run_id"
-            if curl -sS -o /tmp/rerun-response.json -w "%{http_code}" \
+          while IFS= read -r run; do
+            [ -z "$run" ] && continue
+
+            run_id=$(printf '%s' "$run" | jq -r '.id')
+            run_name=$(printf '%s' "$run" | jq -r '.name')
+            head_branch=$(printf '%s' "$run" | jq -r '.head_branch')
+            run_attempt=$(printf '%s' "$run" | jq -r '.run_attempt // 1')
+            updated_at=$(printf '%s' "$run" | jq -r '.updated_at')
+            html_url=$(printf '%s' "$run" | jq -r '.html_url')
+
+            if ! printf '%s' "$head_branch" | grep -Eq '^(main|copilot/)'; then
+              skipped=$((skipped + 1))
+              skip_details+="- run=$run_id workflow='$run_name' branch='$head_branch' reason=untrusted-branch\n"
+              continue
+            fi
+
+            if ! jq -e --arg n "$run_name" 'index($n) != null' >/dev/null <<<"$allowed_json"; then
+              skipped=$((skipped + 1))
+              skip_details+="- run=$run_id workflow='$run_name' branch='$head_branch' reason=workflow-not-allowlisted\n"
+              continue
+            fi
+
+            if [ "$run_attempt" -ge "$MAX_RERUN_ATTEMPTS" ]; then
+              escalated=$((escalated + 1))
+              escalate_details+="- run=$run_id workflow='$run_name' attempt=$run_attempt branch='$head_branch' reason=attempt-cap-reached url=$html_url\n"
+              continue
+            fi
+
+            updated_epoch=$(date -u -d "$updated_at" +%s 2>/dev/null || echo 0)
+            age_minutes=99999
+            if [ "$updated_epoch" -gt 0 ]; then
+              age_minutes=$(( (now_epoch - updated_epoch) / 60 ))
+            fi
+
+            if [ "$age_minutes" -lt "$COOLDOWN_MINUTES" ]; then
+              skipped=$((skipped + 1))
+              skip_details+="- run=$run_id workflow='$run_name' branch='$head_branch' reason=cooldown age_minutes=$age_minutes\n"
+              continue
+            fi
+
+            echo "Rerunning run $run_id ($run_name)"
+            rerun_code=$(curl -sS -o /tmp/rerun-response.json -w "%{http_code}" \
               -X POST \
               -H "Accept: application/vnd.github+json" \
               -H "Authorization: Bearer $CI_ML_APPROVER_TOKEN" \
-              "https://api.github.com/repos/$REPO/actions/runs/$run_id/rerun" | grep -q '^20[0-9]$'; then
+              "https://api.github.com/repos/$REPO/actions/runs/$run_id/rerun")
+
+            if printf '%s' "$rerun_code" | grep -q '^20[0-9]$'; then
               rerun=$((rerun + 1))
+              rerun_details+="- run=$run_id workflow='$run_name' previous_attempt=$run_attempt branch='$head_branch'\n"
             else
-              failed=$((failed + 1))
-              echo "::warning::Failed to rerun run $run_id"
-              cat /tmp/rerun-response.json || true
+              failed_api_calls=$((failed_api_calls + 1))
+              err_msg=$(jq -r '.message // "unknown-error"' /tmp/rerun-response.json)
+              echo "::warning::Failed to rerun run $run_id ($err_msg)"
+              skip_details+="- run=$run_id workflow='$run_name' reason=rerun-api-failed code=$rerun_code message='$err_msg'\n"
             fi
-          done
+          done < <(printf '%s' "$runs_json" | jq -c '.workflow_runs[]')
 
-          echo "Rerun requested: $rerun"
-          echo "Failed: $failed"
-
-          if [ "$failed" -gt 0 ]; then
-            echo "::warning::One or more runs could not be rerun."
+          if [ "$escalated" -gt 0 ]; then
+            echo "Dispatching Ops Bob Assess Failed Actions due to escalation items"
+            dispatch_code=$(curl -sS -o /tmp/dispatch-response.json -w "%{http_code}" \
+              -X POST \
+              -H "Accept: application/vnd.github+json" \
+              -H "Authorization: Bearer $CI_ML_APPROVER_TOKEN" \
+              "https://api.github.com/repos/$REPO/actions/workflows/ops-bob-assess-failed-actions.yml/dispatches" \
+              -d '{"ref":"main"}')
+            if ! printf '%s' "$dispatch_code" | grep -q '^20[0-9]$'; then
+              failed_api_calls=$((failed_api_calls + 1))
+              echo "::warning::Failed to dispatch Ops Bob escalation workflow"
+              cat /tmp/dispatch-response.json || true
+            fi
           fi
+
+          jq -n \
+            --argjson total "$run_count" \
+            --argjson rerun "$rerun" \
+            --argjson skipped "$skipped" \
+            --argjson escalated "$escalated" \
+            --argjson failed "$failed_api_calls" \
+            --arg rerun_details "$rerun_details" \
+            --arg skip_details "$skip_details" \
+            --arg escalate_details "$escalate_details" \
+            '{
+              total_runs: $total,
+              rerun_requested: $rerun,
+              skipped: $skipped,
+              escalated: $escalated,
+              failed_api_calls: $failed,
+              rerun_details: $rerun_details,
+              skip_details: $skip_details,
+              escalate_details: $escalate_details
+            }' > /tmp/action-required-self-heal-summary.json
+
+          {
+            echo "# Action Required Self-Heal Summary"
+            echo
+            echo "- total_runs: $run_count"
+            echo "- rerun_requested: $rerun"
+            echo "- skipped: $skipped"
+            echo "- escalated: $escalated"
+            echo "- failed_api_calls: $failed_api_calls"
+            echo
+            echo "## Rerun Details"
+            if [ -n "$rerun_details" ]; then printf '%b' "$rerun_details"; else echo "- none"; fi
+            echo
+            echo "## Skip / API Failure Details"
+            if [ -n "$skip_details" ]; then printf '%b' "$skip_details"; else echo "- none"; fi
+            echo
+            echo "## Escalation Details"
+            if [ -n "$escalate_details" ]; then printf '%b' "$escalate_details"; else echo "- none"; fi
+          } > /tmp/action-required-self-heal-summary.md
+
+          if [ "$failed_api_calls" -gt 0 ]; then
+            echo "::warning::Self-healing completed with API call failures."
+          fi
+
+      - name: Upload self-heal summary artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: action-required-self-heal-summary-${{ github.run_id }}
+          path: |
+            /tmp/action-required-self-heal-summary.md
+            /tmp/action-required-self-heal-summary.json
+          if-no-files-found: warn
