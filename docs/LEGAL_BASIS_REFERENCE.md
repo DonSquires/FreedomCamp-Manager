@@ -133,7 +133,7 @@ All enforcement actions are logged with the officer's identity, timestamp, and l
 
 ## 6. Bob OpenAI Research and Training Policy (NZ Privacy)
 
-OpenAI may be used for Bob research and training workflows only. Production enforcement workflows must continue to follow approved runtime controls and organisation data boundaries.
+OpenAI may be used for Bob reference checks, research, and training workflows only. Production enforcement workflows must continue to follow approved runtime controls and organisation data boundaries. Bob's default operational path remains inhouse-first; OpenAI is not the default runtime for live enforcement or other data-sensitive production flows.
 
 When any data is sent to OpenAI for research or training, the following NZ Privacy Act 2020 requirements apply:
 
@@ -149,9 +149,10 @@ Mandatory operational controls for Bob OpenAI research/training:
 
 1. Redact direct identifiers by default (full name, exact address, phone, email, DOB, document numbers) unless legal authority is explicitly recorded.
 2. Apply organisation-scoped filtering before export. Never bypass RLS intent for convenience.
-3. Every OpenAI request must carry a declared purpose field (`openai_purpose`) and that value must be constrained to `research` or `training` by policy.
-4. Log the legal basis and purpose in project documentation whenever new OpenAI research/training integrations are introduced.
-5. Keep production inference paths compliant with current deployment mode rules and provider lock controls.
+3. Do not export raw enforcement records or other unredacted operational data. Only send the minimum redacted dataset needed for the approved research or training purpose.
+4. Every OpenAI request must carry a declared purpose field (`openai_purpose`) and that value must be constrained to `research` or `training` by policy.
+5. Log the legal basis and purpose in project documentation whenever new OpenAI research/training integrations are introduced.
+6. Keep production inference paths compliant with current deployment mode rules and provider lock controls.
 
 ---
 

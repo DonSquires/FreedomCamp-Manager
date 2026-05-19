@@ -296,9 +296,9 @@ These are available as `Deno.env.get('SECRET_NAME')` inside all Edge Functions. 
 
 | Secret | Required | Notes |
 |---|---|---|
-| `OPENAI_API_KEY` | Optional | OpenAI API key — blocked by `SELF_CONTAINED_STRICT_EGRESS` on Bob |
-| `OPENAI_BASE_URL` | Optional | Default: `https://api.openai.com/v1` |
-| `OPENAI_MODEL` | Optional | Default: `gpt-4o-mini` |
+| `OPENAI_API_KEY` | Optional | OpenAI API key for redacted research/training only — blocked by `SELF_CONTAINED_STRICT_EGRESS` on Bob |
+| `OPENAI_BASE_URL` | Optional | Default: `https://api.openai.com/v1`; research/training only |
+| `OPENAI_MODEL` | Optional | Default: `gpt-4o-mini`; research/training only |
 | `OLLAMA_BASE_URL` | Optional | Direct Ollama URL for Edge Function fallback path |
 | `OLLAMA_MODEL` | Optional | Model override for Edge Function Ollama path |
 | `OLLAMA_API_KEY` | Optional | API key for remote Ollama instances (if secured) |
