@@ -34,6 +34,8 @@ function isActionableEventType(value: unknown): boolean {
   return /(error|exception|failed|failure|timeout|crash|panic|unhandled|degraded)/i.test(value)
 }
 
+const BARE_FETCH_ERROR_PATTERN = /^(typeerror:\s*)?(failed to fetch|load failed|networkerror when attempting to fetch resource)$/i
+
 function isActionableConsoleError(entry: unknown): boolean {
   if (!entry || typeof entry !== 'object') return false
   const record = entry as Record<string, unknown>
@@ -51,7 +53,7 @@ function isActionableConsoleError(entry: unknown): boolean {
   // Ignore bare browser fetch-cancellation errors with no endpoint/context.
   // Keep URL- or service-specific failures actionable.
   const trimmedMessage = message.trim()
-  if (/^(typeerror:\s*)?(failed to fetch|load failed|networkerror when attempting to fetch resource)$/i.test(trimmedMessage)) {
+  if (BARE_FETCH_ERROR_PATTERN.test(trimmedMessage)) {
     return false
   }
 
