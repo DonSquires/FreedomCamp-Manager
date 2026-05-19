@@ -53,7 +53,7 @@ jobs:
             if ! gh api graphql \
               -f query='mutation($prId:ID!){ enablePullRequestAutoMerge(input:{pullRequestId:$prId, mergeMethod:SQUASH}){ pullRequest{ number autoMergeRequest { enabledAt } } } }' \
               -f prId="$pr_id" >/tmp/backfill-automerge.json 2>/tmp/backfill-automerge.err; then
-              if grep -Eqi 'unstable status|not in the correct state|Resource not accessible by integration' /tmp/backfill-automerge.err; then
+              if grep -Eqi 'unstable status|not in the correct state|Resource not accessible by integration|Protected branch rules not configured for this branch' /tmp/backfill-automerge.err; then
                 echo "::warning::Skipped PR #$pr_number (transient/permission state)."
                 cat /tmp/backfill-automerge.err
                 continue
