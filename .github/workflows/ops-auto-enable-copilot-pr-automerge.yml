@@ -1,55 +1,75 @@
 name: Ops Auto-Enable Copilot PR Auto-Merge
 
 on:
-  pull_request_target:
+  check_suite:
     types:
-      - opened
-      - reopened
-      - synchronize
-      - ready_for_review
+      - completed
 
 permissions:
   contents: write
   pull-requests: write
 
 concurrency:
-  group: ops-auto-enable-copilot-pr-automerge-${{ github.event.pull_request.number }}
+  group: ops-auto-enable-copilot-pr-automerge-${{ github.event.check_suite.id }}
   cancel-in-progress: true
 
 jobs:
   enable-auto-merge:
-    if: >-
-      github.event.pull_request.base.ref == 'main' &&
-      github.event.pull_request.draft == false &&
-      startsWith(github.event.pull_request.head.ref, 'copilot/')
+    if: github.event.check_suite.conclusion == 'success'
     runs-on: ubuntu-latest
     steps:
       - name: Enable auto-merge for eligible Copilot PR
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
           REPO: ${{ github.repository }}
+          HEAD_SHA: ${{ github.event.check_suite.head_sha }}
         run: |
           set -euo pipefail
+
+          pr_number=$(jq -r '.check_suite.pull_requests[0].number // empty' "$GITHUB_EVENT_PATH")
+          if [ -z "$pr_number" ]; then
+            echo "No associated pull request for this check suite; skipping."
+            exit 0
+          fi
+
+          commit_state=$(gh api "repos/$REPO/commits/$HEAD_SHA/status" --jq '.state')
+          if [ "$commit_state" != "success" ]; then
+            echo "Commit status is '$commit_state'; only enabling auto-merge when green."
+            exit 0
+          fi
 
           pr_info=$(gh api graphql \
             -f query='query($owner:String!, $name:String!, $number:Int!){ repository(owner:$owner, name:$name){ pullRequest(number:$number){ id number isDraft mergeStateStatus autoMergeRequest { enabledAt } } } }' \
             -f owner="${REPO%/*}" \
             -f name="${REPO#*/}" \
-            -F number="$PR_NUMBER")
+            -F number="$pr_number")
 
           pr_id=$(printf '%s' "$pr_info" | jq -r '.data.repository.pullRequest.id')
+          pr_number=$(printf '%s' "$pr_info" | jq -r '.data.repository.pullRequest.number')
           is_draft=$(printf '%s' "$pr_info" | jq -r '.data.repository.pullRequest.isDraft')
           merge_state=$(printf '%s' "$pr_info" | jq -r '.data.repository.pullRequest.mergeStateStatus')
           auto_merge_enabled=$(printf '%s' "$pr_info" | jq -r '.data.repository.pullRequest.autoMergeRequest.enabledAt // empty')
 
+          pr_branch=$(gh api "repos/$REPO/pulls/$pr_number" --jq '.head.ref')
+          pr_base=$(gh api "repos/$REPO/pulls/$pr_number" --jq '.base.ref')
+
+          if [ "$pr_base" != "main" ]; then
+            echo "PR base is '$pr_base'; only main is auto-merged."
+            exit 0
+          fi
+
+          if ! printf '%s' "$pr_branch" | grep -Eq '^copilot/'; then
+            echo "PR head '$pr_branch' is not a copilot branch; skipping."
+            exit 0
+          fi
+
           if [ "$is_draft" = "true" ]; then
-            echo "PR is draft; skipping auto-merge enablement."
+            echo "PR #$pr_number is draft; skipping auto-merge enablement."
             exit 0
           fi
 
           if [ -n "$auto_merge_enabled" ]; then
-            echo "Auto-merge already enabled for PR #$PR_NUMBER."
+            echo "Auto-merge already enabled for PR #$pr_number."
             exit 0
           fi
 
@@ -63,4 +83,4 @@ jobs:
             -f query='mutation($prId:ID!){ enablePullRequestAutoMerge(input:{pullRequestId:$prId, mergeMethod:SQUASH}){ pullRequest{ number autoMergeRequest { enabledAt } } } }' \
             -f prId="$pr_id" >/tmp/enable-automerge.json
 
-          echo "Enabled auto-merge (squash) for PR #$PR_NUMBER."
+          echo "Enabled auto-merge (squash) for PR #$pr_number."
