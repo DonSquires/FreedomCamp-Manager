@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: read
+  issues: write
 
 concurrency:
   group: ops-auto-approve-action-required
@@ -65,9 +66,13 @@ jobs:
           skipped=0
           escalated=0
           failed_api_calls=0
+          ml_rejected=0
+          suspicious=0
           rerun_details=""
           skip_details=""
           escalate_details=""
+          ml_rejected_details=""
+          suspicious_details=""
 
           while IFS= read -r run; do
             [ -z "$run" ] && continue
@@ -78,6 +83,14 @@ jobs:
             run_attempt=$(printf '%s' "$run" | jq -r '.run_attempt // 1')
             updated_at=$(printf '%s' "$run" | jq -r '.updated_at')
             html_url=$(printf '%s' "$run" | jq -r '.html_url')
+            run_event=$(printf '%s' "$run" | jq -r '.event // "unknown"')
+            actor_login=$(printf '%s' "$run" | jq -r '.actor.login // "unknown"')
+
+            if ! printf '%s' "$head_branch" | grep -Eq '^copilot/' && printf '%s' "$run_event" | grep -Eq '^(pull_request|pull_request_target)$'; then
+              suspicious=$((suspicious + 1))
+              suspicious_details+="- run=$run_id workflow='$run_name' actor='$actor_login' branch='$head_branch' event='$run_event' reason=suspicious-non-copilot-pr\n"
+              continue
+            fi
 
             if ! printf '%s' "$head_branch" | grep -Eq '^copilot/'; then
               skipped=$((skipped + 1))
@@ -124,10 +137,14 @@ jobs:
               err_msg=$(jq -r '.message // "unknown-error"' /tmp/rerun-response.json)
               echo "::warning::Failed to rerun run $run_id ($err_msg)"
               skip_details+="- run=$run_id workflow='$run_name' reason=rerun-api-failed code=$rerun_code message='$err_msg'\n"
+              if printf '%s' "$rerun_code $err_msg" | grep -Eqi '403|forbidden|approval|rejected|blocked|unauthorized|policy'; then
+                ml_rejected=$((ml_rejected + 1))
+                ml_rejected_details+="- run=$run_id workflow='$run_name' branch='$head_branch' code=$rerun_code message='$err_msg'\n"
+              fi
             fi
           done < <(printf '%s' "$runs_json" | jq -c '.workflow_runs[]')
 
-          if [ "$escalated" -gt 0 ]; then
+          if [ "$escalated" -gt 0 ] || [ "$ml_rejected" -gt 0 ] || [ "$suspicious" -gt 0 ]; then
             echo "Dispatching Ops Bob Assess Failed Actions due to escalation items"
             dispatch_code=$(curl -sS -o /tmp/dispatch-response.json -w "%{http_code}" \
               -X POST \
@@ -142,24 +159,47 @@ jobs:
             fi
           fi
 
+          if [ "$suspicious" -gt 0 ]; then
+            echo "Dispatching Ops - Self-Healing Watchdog for mitigation context"
+            mitigation_code=$(curl -sS -o /tmp/mitigation-response.json -w "%{http_code}" \
+              -X POST \
+              -H "Accept: application/vnd.github+json" \
+              -H "Authorization: Bearer $CI_ML_APPROVER_TOKEN" \
+              "https://api.github.com/repos/$REPO/actions/workflows/ops-self-healing-watchdog.yml/dispatches" \
+              -d '{"ref":"main","inputs":{"rerun_failed_workflows":"false"}}')
+            if ! printf '%s' "$mitigation_code" | grep -q '^20[0-9]$'; then
+              failed_api_calls=$((failed_api_calls + 1))
+              echo "::warning::Failed to dispatch self-healing watchdog mitigation workflow"
+              cat /tmp/mitigation-response.json || true
+            fi
+          fi
+
           jq -n \
             --argjson total "$run_count" \
             --argjson rerun "$rerun" \
             --argjson skipped "$skipped" \
             --argjson escalated "$escalated" \
             --argjson failed "$failed_api_calls" \
+            --argjson ml_rejected "$ml_rejected" \
+            --argjson suspicious "$suspicious" \
             --arg rerun_details "$rerun_details" \
             --arg skip_details "$skip_details" \
             --arg escalate_details "$escalate_details" \
+            --arg ml_rejected_details "$ml_rejected_details" \
+            --arg suspicious_details "$suspicious_details" \
             '{
               total_runs: $total,
               rerun_requested: $rerun,
               skipped: $skipped,
               escalated: $escalated,
               failed_api_calls: $failed,
+              ml_rejected: $ml_rejected,
+              suspicious_blocked: $suspicious,
               rerun_details: $rerun_details,
               skip_details: $skip_details,
-              escalate_details: $escalate_details
+              escalate_details: $escalate_details,
+              ml_rejected_details: $ml_rejected_details,
+              suspicious_details: $suspicious_details
             }' > /tmp/action-required-self-heal-summary.json
 
           {
@@ -170,6 +210,8 @@ jobs:
             echo "- skipped: $skipped"
             echo "- escalated: $escalated"
             echo "- failed_api_calls: $failed_api_calls"
+            echo "- ml_rejected: $ml_rejected"
+            echo "- suspicious_blocked: $suspicious"
             echo
             echo "## Rerun Details"
             if [ -n "$rerun_details" ]; then printf '%b' "$rerun_details"; else echo "- none"; fi
@@ -179,6 +221,12 @@ jobs:
             echo
             echo "## Escalation Details"
             if [ -n "$escalate_details" ]; then printf '%b' "$escalate_details"; else echo "- none"; fi
+            echo
+            echo "## ML Rejection Details"
+            if [ -n "$ml_rejected_details" ]; then printf '%b' "$ml_rejected_details"; else echo "- none"; fi
+            echo
+            echo "## Suspicious Run Mitigation"
+            if [ -n "$suspicious_details" ]; then printf '%b' "$suspicious_details"; else echo "- none"; fi
           } > /tmp/action-required-self-heal-summary.md
 
           if [ "$failed_api_calls" -gt 0 ]; then
