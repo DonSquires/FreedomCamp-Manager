@@ -191,6 +191,7 @@ export default function UserManagement({ embedded = false }: UserManagementProps
       if (error) throw error
       return data as string[]
     },
+    // Masters can access all organizations directly, so this scoped org-id RPC is only needed for non-master admins.
     enabled: isAdmin && !isMaster,
   })
 
@@ -231,7 +232,7 @@ export default function UserManagement({ embedded = false }: UserManagementProps
       const row = Array.isArray(data) ? data[0] : null
       return (row || null) as DirectUserPreview | null
     },
-    enabled: showEditDialog && isMaster && directUserIdValid,
+    enabled: isAdmin && showEditDialog && isMaster && directUserIdValid,
     staleTime: 30000,
   })
 
