@@ -7,7 +7,7 @@
 > **Canonical product authority** — this manual defines what the application is intended to do and how users are meant to use it. It is not a passive dump of current implementation details.  
 > If code, routes, role behavior, workflows, edge functions, schema-backed user flows, or operational UX change, the corresponding sections in this manual must be updated in the same change set.  
 > If the app currently behaves differently from this manual, that drift is a defect to resolve or an explicit product decision to document here first.  
-> Last reviewed: 2026-05-18
+> Last reviewed: 2026-05-19
 
 ### Current Cycle Amendment (2026-05-17)
 
@@ -1348,13 +1348,19 @@ Filters available: date range, organisation, zone, officer, and service type.
 
 ###### Roster Planner (`/roster`)
 
-The Roster Planner provides a **weekly visual roster board** — officers as rows, days as columns, shift cards in cells — inspired by InTime / Deputy workforce management tools.
+The Roster Planner provides a **visual roster board** — officers as rows, days as columns, shift cards in cells — inspired by InTime / Deputy workforce management tools. The board supports both **week** and **fortnight** views.
 
 **Navigating the roster:**
 
 - Use the **← Previous week** / **Next week →** arrows to move between weeks.
+- Use the **Week / Fortnight** toggle to switch roster horizon.
 - Each cell shows the officer's shift card (if rostered) or an empty slot.
 - Shift cards display: start time, end time, zone, service type, and status (draft / published / accepted / declined).
+
+**Workforce tab (embedded user management):**
+
+- Users with roster admin roles (`admin`, `admin_officer`, `master`) can switch between **Planner** and **Workforce** tabs from the roster header.
+- The **Workforce** tab opens an embedded staffing/user-management view for roster operations without leaving `/roster`.
 
 **Creating a shift:**
 
