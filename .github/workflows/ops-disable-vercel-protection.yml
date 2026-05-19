@@ -1,0 +1,71 @@
+name: Ops - Disable Vercel Deployment Protection
+
+on:
+  workflow_dispatch:
+    inputs:
+      project_name:
+        description: 'Vercel project name (defaults to freedom-camp-manager)'
+        required: false
+        default: 'freedom-camp-manager'
+        type: string
+
+jobs:
+  disable-protection:
+    name: Disable Vercel protection flags
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Resolve project name
+        id: resolve
+        run: |
+          project_name="${{ github.event.inputs.project_name || 'freedom-camp-manager' }}"
+          echo "project_name=$project_name" >> "$GITHUB_OUTPUT"
+          echo "Using project: $project_name"
+
+      - name: Validate required secrets
+        run: |
+          missing=""
+          [ -z "$VERCEL_TOKEN" ] && missing="$missing VERCEL_TOKEN/VERCEL_API"
+          [ -z "$VERCEL_ORG_ID" ] && missing="$missing VERCEL_ORG_ID"
+
+          if [ -n "$missing" ]; then
+            echo "::error::Missing required secrets:$missing"
+            exit 1
+          fi
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN || secrets.VERCEL_API }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+
+      - name: Install Vercel CLI
+        run: npm install -g vercel
+
+      - name: Disable password protection
+        run: |
+          vercel project protection disable "${{ steps.resolve.outputs.project_name }}" \
+            --password \
+            --scope "$VERCEL_ORG_ID" \
+            --token "$VERCEL_TOKEN" \
+            --non-interactive
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN || secrets.VERCEL_API }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+
+      - name: Disable SSO protection
+        run: |
+          vercel project protection disable "${{ steps.resolve.outputs.project_name }}" \
+            --sso \
+            --scope "$VERCEL_ORG_ID" \
+            --token "$VERCEL_TOKEN" \
+            --non-interactive
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN || secrets.VERCEL_API }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+
+      - name: Summary
+        run: |
+          echo "## Vercel protection update" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Project: ${{ steps.resolve.outputs.project_name }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Password protection: disabled" >> "$GITHUB_STEP_SUMMARY"
+          echo "- SSO protection: disabled" >> "$GITHUB_STEP_SUMMARY"
