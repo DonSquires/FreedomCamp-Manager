@@ -12,6 +12,7 @@ import {
 import { getGeocodingRuntimeStatus } from '@/lib/geocoding'
 
 const FLUSH_INTERVAL_MS = 15_000
+const RETRY_BACKOFF_MS = 60_000
 
 function getDocumentTitle(): string | null {
   if (typeof document === 'undefined') return null
@@ -24,6 +25,7 @@ export function useLiveSessionDiagnostics() {
   const { user } = useAuthStore()
   const inFlightRef = useRef(false)
   const sessionStartedRef = useRef(false)
+  const nextIntervalRetryAtRef = useRef(0)
   const currentRouteRef = useRef(`${location.pathname}${location.search}`)
   const flushRef = useRef<(reason: string) => Promise<void>>(async () => {})
 
@@ -33,6 +35,7 @@ export function useLiveSessionDiagnostics() {
 
   const flush = useCallback(async (reason: string) => {
     if (!user?.id || inFlightRef.current) return
+    if (reason === 'interval' && Date.now() < nextIntervalRetryAtRef.current) return
 
     const snapshot = getFeedbackSnapshot()
     const events = drainLiveSessionDiagnostics(80)
@@ -65,14 +68,18 @@ export function useLiveSessionDiagnostics() {
       // of the queue so they are not permanently lost. We keep only the first 80
       // to match the drain limit and avoid unbounded growth.
       if (result && (result as any).error) {
+        nextIntervalRetryAtRef.current = Date.now() + RETRY_BACKOFF_MS
         events.slice(0, 80).reverse().forEach((e) => recordLiveSessionDiagnostic(
           e.event_type,
           e.details,
           e.route_path,
           e.title,
         ))
+      } else {
+        nextIntervalRetryAtRef.current = 0
       }
     } catch {
+      nextIntervalRetryAtRef.current = Date.now() + RETRY_BACKOFF_MS
       // Network or unexpected failure — requeue all drained events
       events.slice(0, 80).reverse().forEach((e) => recordLiveSessionDiagnostic(
         e.event_type,

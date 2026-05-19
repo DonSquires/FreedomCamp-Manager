@@ -1,4 +1,4 @@
-import { renderHook } from '@testing-library/react'
+import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useLiveSessionDiagnostics } from './useLiveSessionDiagnostics'
 
@@ -92,5 +92,35 @@ describe('useLiveSessionDiagnostics', () => {
       (call) => call[0] === 'session_observer_unmounted',
     )
     expect(finalUnmountCalls).toHaveLength(1)
+  })
+
+  it('backs off interval flush retries after an ingest failure', async () => {
+    vi.useFakeTimers()
+    drainLiveSessionDiagnosticsMock.mockReturnValue([{
+      event_type: 'route_changed',
+      route_path: '/reports-hub',
+      title: 'Reports Hub',
+      details: {},
+      occurred_at: new Date().toISOString(),
+    }])
+    liveSessionDiagnosticsIngestMock.mockResolvedValue({ error: 'offline' })
+
+    renderHook(() => useLiveSessionDiagnostics())
+    await act(async () => {
+      await Promise.resolve()
+    })
+    liveSessionDiagnosticsIngestMock.mockClear()
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(45_000)
+    })
+    expect(liveSessionDiagnosticsIngestMock).not.toHaveBeenCalled()
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(15_000)
+    })
+    expect(liveSessionDiagnosticsIngestMock).toHaveBeenCalledTimes(1)
+
+    vi.useRealTimers()
   })
 })
