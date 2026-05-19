@@ -1,4 +1,4 @@
-name: Ops Auto-Approve Action Required Runs
+name: Ops Auto-Rerun Action Required Runs
 
 on:
   workflow_dispatch:
@@ -13,7 +13,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  approve-pending-runs:
+  rerun-pending-runs:
     runs-on: ubuntu-latest
     steps:
       - name: Validate approver token
@@ -25,7 +25,7 @@ jobs:
             exit 0
           fi
 
-      - name: Approve action_required runs
+      - name: Rerun action_required runs
         env:
           CI_ML_APPROVER_TOKEN: ${{ secrets.CI_ML_APPROVER_TOKEN }}
           REPO: ${{ github.repository }}
@@ -44,7 +44,7 @@ jobs:
             exit 0
           fi
 
-          # Limit auto-approval to trusted branch patterns.
+          # Limit auto-rerun to trusted branch patterns.
           run_ids=$(printf '%s' "$runs_json" | jq -r '.workflow_runs[] | select(.head_branch == "main" or (.head_branch | startswith("copilot/"))) | .id')
 
           if [ -z "$run_ids" ]; then
@@ -52,27 +52,27 @@ jobs:
             exit 0
           fi
 
-          approved=0
+          rerun=0
           failed=0
 
           for run_id in $run_ids; do
-            echo "Approving run $run_id"
-            if curl -sS -o /tmp/approve-response.json -w "%{http_code}" \
+            echo "Rerunning run $run_id"
+            if curl -sS -o /tmp/rerun-response.json -w "%{http_code}" \
               -X POST \
               -H "Accept: application/vnd.github+json" \
               -H "Authorization: Bearer $CI_ML_APPROVER_TOKEN" \
-              "https://api.github.com/repos/$REPO/actions/runs/$run_id/approve" | grep -q '^20[0-9]$'; then
-              approved=$((approved + 1))
+              "https://api.github.com/repos/$REPO/actions/runs/$run_id/rerun" | grep -q '^20[0-9]$'; then
+              rerun=$((rerun + 1))
             else
               failed=$((failed + 1))
-              echo "::warning::Failed to approve run $run_id"
-              cat /tmp/approve-response.json || true
+              echo "::warning::Failed to rerun run $run_id"
+              cat /tmp/rerun-response.json || true
             fi
           done
 
-          echo "Approved: $approved"
+          echo "Rerun requested: $rerun"
           echo "Failed: $failed"
 
           if [ "$failed" -gt 0 ]; then
-            echo "::warning::One or more runs could not be approved."
+            echo "::warning::One or more runs could not be rerun."
           fi
