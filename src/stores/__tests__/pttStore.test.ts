@@ -178,6 +178,7 @@ describe('presence management', () => {
     usePTTStore.getState().setPresence([alice, duplicateAlice, invalidUser, bob])
 
     expect(usePTTStore.getState().presence).toEqual([alice, bob])
+    expect(usePTTStore.getState().presence[0]?.status).toBe('online')
   })
 
   it('addPresence adds a new user', () => {

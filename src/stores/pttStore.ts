@@ -139,7 +139,7 @@ function normalizePresenceList(presence: PTTPresence[]): PTTPresence[] {
     if (!userId || seen.has(userId)) continue
 
     seen.add(userId)
-    normalized.push(userId === user.userId ? user : { ...user, userId })
+    normalized.push({ ...user, userId })
   }
 
   return normalized
