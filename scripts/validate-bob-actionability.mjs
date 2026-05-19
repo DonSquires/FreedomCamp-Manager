@@ -34,8 +34,24 @@ function getArg(name, fallback = '') {
   return process.argv[idx + 1] || fallback
 }
 
-const SUPABASE_URL = String(getArg('supabase-url', process.env.SUPABASE_URL || '')).trim()
-const SERVICE_ROLE_KEY = String(getArg('service-role-key', process.env.SUPABASE_SERVICE_ROLE_KEY || '')).trim()
+function firstEnv(...keys) {
+  for (const key of keys) {
+    const value = String(process.env[key] || '').trim()
+    if (value) return value
+  }
+
+  return ''
+}
+
+const SUPABASE_URL = String(
+  getArg('supabase-url', firstEnv('SUPABASE_URL', 'VITE_SUPABASE_URL', 'SIM_SUPABASE_URL'))
+).trim()
+const SERVICE_ROLE_KEY = String(
+  getArg(
+    'service-role-key',
+    firstEnv('SUPABASE_SERVICE_ROLE_KEY', 'PLAYWRIGHT_SUPABASE_SERVICE_ROLE_KEY', 'SIM_SUPABASE_SERVICE_ROLE_KEY')
+  )
+).trim()
 const TEST_ORG_ID = String(getArg('test-org-id', process.env.BOB_TEST_ORG_ID || '')).trim()
 const TEST_USER_ID = String(getArg('test-user-id', process.env.BOB_TEST_USER_ID || '')).trim()
 
@@ -54,14 +70,17 @@ function report(checkName, passed, details = '') {
 }
 
 async function main() {
-  if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
-    console.error('Error: SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required')
-    console.error('Provide via --supabase-url / --service-role-key or environment variables')
-    process.exit(2)
-  }
-
   console.log(`[bob-actionability-check] Starting at ${new Date().toISOString()}`)
-  console.log(`[bob-actionability-check] Config: URL=${SUPABASE_URL.slice(0, 30)}... OrgID=${TEST_ORG_ID || 'any'} UserID=${TEST_USER_ID || 'any'}`)
+  const configState = [
+    `URL=${SUPABASE_URL ? `${SUPABASE_URL.slice(0, 30)}...` : 'not-set'}`,
+    `ServiceRole=${SERVICE_ROLE_KEY ? 'set' : 'not-set'}`,
+    `OrgID=${TEST_ORG_ID || 'any'}`,
+    `UserID=${TEST_USER_ID || 'any'}`,
+  ].join(' ')
+  console.log(`[bob-actionability-check] Config: ${configState}`)
+  if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
+    console.warn('[bob-actionability-check] Continuing without Supabase credentials because this validator currently performs static non-regression checks only.')
+  }
 
   try {
     // ─────────────────────────────────────────────────────────────────────
@@ -94,13 +113,20 @@ async function main() {
     }
 
     // ─────────────────────────────────────────────────────────────────────
-    // CHECK 3: PTT signaling imports buildAccessibleOrgIds
+    // CHECK 3: PTT signaling imports current org access helper
     // ─────────────────────────────────────────────────────────────────────
     try {
       const pttPath = path.join(__dirname, '../supabase/functions/ptt-signaling-token/index.ts')
       const content = await fs.readFile(pttPath, 'utf8')
-      const hasImport = content.includes('buildAccessibleOrgIds')
-      report('PTT signaling org access import', hasImport, hasImport ? 'import found' : 'missing')
+      const hasImport = content.includes('collectDirectOrgIds') || content.includes('buildAccessibleOrgIds')
+      const hasUsage =
+        content.includes('collectDirectOrgIds(profile)') ||
+        content.includes('buildAccessibleOrgIds(')
+      report(
+        'PTT signaling org access import',
+        hasImport && hasUsage,
+        hasImport && hasUsage ? 'current helper import + usage found' : 'missing',
+      )
     } catch (err) {
       report('PTT signaling org access import', false, String(err).slice(0, 60))
     }
@@ -135,12 +161,33 @@ async function main() {
     // CHECK 6: Unified org restriction gate migration exists
     // ─────────────────────────────────────────────────────────────────────
     try {
-      const readMigPath = path.join(__dirname, '../supabase/migrations/20260513000001_unified_org_access_restriction_gate.sql')
-      const writeMigPath = path.join(__dirname, '../supabase/migrations/20260513000002_unified_org_access_write_policies.sql')
-      const readExists = fs.stat(readMigPath).then(() => true).catch(() => false)
-      const writeExists = fs.stat(writeMigPath).then(() => true).catch(() => false)
-      const both = (await readExists) && (await writeExists)
-      report('Org access gate migrations', both, both ? 'both read + write migrations present' : 'missing')
+      const candidatePairs = [
+        ['20260513000001_unified_org_access_restriction_gate.sql', '20260513000002_unified_org_access_write_policies.sql'],
+        ['20260515000101_unified_org_access_restriction_gate.sql', '20260515000102_unified_org_access_write_policies.sql'],
+      ]
+
+      let matchedPair = null
+      for (const [readName, writeName] of candidatePairs) {
+        const readExists = await fs
+          .stat(path.join(__dirname, '../supabase/migrations', readName))
+          .then(() => true)
+          .catch(() => false)
+        const writeExists = await fs
+          .stat(path.join(__dirname, '../supabase/migrations', writeName))
+          .then(() => true)
+          .catch(() => false)
+
+        if (readExists && writeExists) {
+          matchedPair = `${readName}, ${writeName}`
+          break
+        }
+      }
+
+      report(
+        'Org access gate migrations',
+        !!matchedPair,
+        matchedPair ? `migration pair present (${matchedPair})` : 'missing',
+      )
     } catch (err) {
       report('Org access gate migrations', false, String(err).slice(0, 60))
     }

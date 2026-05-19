@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-05-14T02:29:49.977Z",
+  "timestamp": "2026-05-19T12:45:33.105Z",
   "version": "2026-05-13.bob-actionability-v1",
   "checks": [
     {
@@ -15,7 +15,7 @@
     {
       "check": "PTT signaling org access import",
       "outcome": "PASS",
-      "details": "import found"
+      "details": "current helper import + usage found"
     },
     {
       "check": "Smoke notice org access integration",
@@ -30,7 +30,7 @@
     {
       "check": "Org access gate migrations",
       "outcome": "PASS",
-      "details": "both read + write migrations present"
+      "details": "migration pair present (20260515000101_unified_org_access_restriction_gate.sql, 20260515000102_unified_org_access_write_policies.sql)"
     },
     {
       "check": "Star Trek non-regression checkpoint",
