@@ -1,5 +1,24 @@
 const { createClient } = require('@supabase/supabase-js');
 
+function ensureWebSocketSupport() {
+  if (typeof globalThis.WebSocket === 'function') return;
+
+  try {
+    const ws = require('ws');
+    if (typeof ws === 'function') {
+      globalThis.WebSocket = ws;
+    } else if (ws && typeof ws.WebSocket === 'function') {
+      globalThis.WebSocket = ws.WebSocket;
+    }
+  } catch (error) {
+    throw new Error('Node.js runtime is missing WebSocket support. Install "ws" package or upgrade Node.js.');
+  }
+
+  if (typeof globalThis.WebSocket !== 'function') {
+    throw new Error('Node.js runtime does not provide a usable WebSocket implementation.');
+  }
+}
+
 const state = {
   configured: false,
   ready: false,
@@ -87,6 +106,8 @@ async function signInWithPassword() {
   if (!cfg.configured) {
     throw new Error('Missing Supabase/Bob system login env variables.');
   }
+
+  ensureWebSocketSupport();
 
   if (!supabase) {
     supabase = createClient(cfg.supabaseUrl, cfg.supabaseKey, {
