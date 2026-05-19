@@ -3,6 +3,9 @@ set -euo pipefail
 
 MODEL="${1:-qwen2.5:7b}"
 export OLLAMA_HOST="${OLLAMA_HOST:-http://127.0.0.1:11434}"
+export OLLAMA_MODELS="${OLLAMA_MODELS:-/ollama-models}"
+
+mkdir -p "$OLLAMA_MODELS"
 
 echo "[build] Starting ollama serve for model bake..."
 ollama serve >/tmp/ollama-build.log 2>&1 &

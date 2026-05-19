@@ -1,6 +1,9 @@
 FROM ollama/ollama:0.6.6 AS ollama_builder
 
 ARG OLLAMA_BAKE_MODEL=qwen2.5:7b
+ENV OLLAMA_MODELS=/ollama-models
+
+RUN mkdir -p /ollama-models
 
 COPY build_ollama_models.sh /tmp/build_ollama_models.sh
 RUN chmod +x /tmp/build_ollama_models.sh && /tmp/build_ollama_models.sh "$OLLAMA_BAKE_MODEL"
@@ -31,7 +34,7 @@ RUN curl -fsSL https://bun.sh/install | bash && \
 # Copy Ollama runtime binary/libraries and baked models from builder image.
 COPY --from=ollama_builder /bin/ollama /usr/local/bin/ollama
 COPY --from=ollama_builder /usr/lib/ollama /usr/lib/ollama
-COPY --from=ollama_builder /root/.ollama /root/.ollama
+COPY --from=ollama_builder /ollama-models /root/.ollama/models
 
 # ---------------------------------------------------------------------------
 # Capability-oriented defaults (non-secret). Secrets are injected at runtime.
