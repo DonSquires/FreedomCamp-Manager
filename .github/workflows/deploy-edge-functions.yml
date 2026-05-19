@@ -106,7 +106,7 @@ jobs:
         if: >-
           steps.check-secrets.outputs.secrets_present == 'true' &&
           github.event.inputs.mode != 'verify-only'
-        uses: supabase/setup-cli@v1
+        uses: supabase/setup-cli@v2
         with:
           version: latest
 

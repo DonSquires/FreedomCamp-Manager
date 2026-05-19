@@ -41,7 +41,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # supabase/setup-cli@v1 still bundles Node.js 20; force the runner to use
+  # supabase/setup-cli@v2 still bundles Node.js 20; force the runner to use
   # Node.js 24 so the action keeps working after the June 2026 cut-over.
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
@@ -209,7 +209,7 @@ jobs:
 
       - name: Setup Supabase CLI
         if: steps.check-secrets.outputs.secrets_present == 'true'
-        uses: supabase/setup-cli@v1
+        uses: supabase/setup-cli@v2
         with:
           version: latest
 
