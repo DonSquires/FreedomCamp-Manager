@@ -7,7 +7,7 @@
 > **Canonical product authority** — this manual defines what the application is intended to do and how users are meant to use it. It is not a passive dump of current implementation details.  
 > If code, routes, role behavior, workflows, edge functions, schema-backed user flows, or operational UX change, the corresponding sections in this manual must be updated in the same change set.  
 > If the app currently behaves differently from this manual, that drift is a defect to resolve or an explicit product decision to document here first.  
-> Last reviewed: 2026-05-18
+> Last reviewed: 2026-05-19
 
 ### Current Cycle Amendment (2026-05-17)
 
@@ -1780,8 +1780,9 @@ Clients with an approved **Service Agreement** that has `allows_client_submissio
 | CRM Module | `/crm` | Sidebar → Business → CRM |
 | Client Account Detail | `/crm/client/:orgId` | Click any client row in CRM |
 | Contractor Account Detail | `/crm/contractor/:orgId` | Click any contractor row in CRM |
-| Tender Workspace | `/tenders` | Sidebar → Business → Tenders |
-| Tender Reference Library | `/tender-library` | Sidebar → Business → Tender Library |
+| Tender Workspace | `/tender-workspace` | Sidebar → Management → Tenders & Contracts |
+| Tender Workspace Detail | `/tender-workspace/:id` | Click any tender document card in Tender Workspace |
+| Tender Reference Library | `/tender-reference-library` | Sidebar → Management → Reference Library |
 
 ---
 
@@ -1885,20 +1886,20 @@ Service Agreements define contract defaults and client policy controls.
 
 ---
 
-###### Tender Workspace (`/tenders`)
+###### Tender Workspace (`/tender-workspace`)
 
 **Navigating to Tenders:**  
-Sidebar → Business → **Tenders** (master role required)
+Sidebar → Management → **Tenders & Contracts** (`admin`, `master`, `grand_master`)
 
-The Tender Workspace manages RFP (Request for Proposal) and tender submissions.
+The Tender Workspace manages tender documents (RFP/RFIP/RFI/RFQ), Bob-assisted assessment, collaborative drafting, approvals, and export.
 
 **Workflow:**
-1. Create a new tender from the **+ New Tender** button.
-2. Fill in: tender title, issuing council/client, due date, service type, estimated contract value.
-3. Use the **Clause Library** (`/tender-library`) to pull pre-approved clauses directly into the document — eliminates copy/paste errors and ensures approved language is used.
-4. Assign a **lead author** and any **co-authors** from the user list.
-5. Track status through: `draft` → `in_review` → `submitted` → `awarded` / `declined`.
-6. Attach supporting documents (certifications, evidence, pricing schedules) to the tender record.
+1. Create a new document from **New Tender / Document**.
+2. Enter title, document type, issuing body, due date, and reference number.
+3. Upload a file or paste text in Intake, then run **Run Bob Analysis**.
+4. Include/exclude organisation references from **Tender Reference Library** (`/tender-reference-library`) before analysis/draft generation.
+5. Build the response in **Draft Response**, manage collaborators, then move through approval and submission states (`draft` → `staged` → `assessed` → `drafting` → `review_pending` → `approved`/`submitted`).
+6. Export final output from the **Export** tab (HTML/PDF/Docx download options).
 
 ---
 
