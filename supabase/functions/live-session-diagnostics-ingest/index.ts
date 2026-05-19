@@ -48,9 +48,10 @@ function isActionableConsoleError(entry: unknown): boolean {
     return false
   }
 
-  // Transient browser/network fetch noise can spike during route transitions
-  // and should not open fallback bug reports on its own.
-  if (/(failed to fetch|load failed|networkerror when attempting to fetch resource)/i.test(message)) {
+  // Ignore bare browser fetch-cancellation errors with no endpoint/context.
+  // Keep URL- or service-specific failures actionable.
+  const trimmedMessage = message.trim()
+  if (/^(typeerror:\s*)?(failed to fetch|load failed|networkerror when attempting to fetch resource)$/i.test(trimmedMessage)) {
     return false
   }
 
