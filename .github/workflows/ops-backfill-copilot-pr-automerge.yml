@@ -1,0 +1,67 @@
+name: Ops Backfill Copilot PR Auto-Merge
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '*/15 * * * *'
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: ops-backfill-copilot-pr-automerge
+  cancel-in-progress: true
+
+jobs:
+  backfill-automerge:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enable auto-merge for already-green eligible PRs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          owner="${REPO%/*}"
+          name="${REPO#*/}"
+
+          pr_json=$(gh api graphql \
+            -f query='query($owner:String!, $name:String!){ repository(owner:$owner, name:$name){ pullRequests(first:100, states:OPEN, orderBy:{field:UPDATED_AT,direction:DESC}){ nodes{ id number baseRefName headRefName isDraft autoMergeRequest { enabledAt } commits(last:1){ nodes{ commit{ statusCheckRollup { state } } } } } } } }' \
+            -f owner="$owner" \
+            -f name="$name")
+
+          eligible_count=$(printf '%s' "$pr_json" | jq '[
+            .data.repository.pullRequests.nodes[]
+            | select(.baseRefName == "main")
+            | select(.isDraft == false)
+            | select((.headRefName | startswith("copilot/")))
+            | select(.autoMergeRequest == null)
+            | select((.commits.nodes[0].commit.statusCheckRollup.state // "") == "SUCCESS")
+          ] | length')
+
+          echo "Eligible PRs for auto-merge backfill: $eligible_count"
+
+          if [ "$eligible_count" -eq 0 ]; then
+            echo "No eligible PRs found."
+            exit 0
+          fi
+
+          while IFS='|' read -r pr_id pr_number; do
+            [ -z "$pr_id" ] && continue
+            gh api graphql \
+              -f query='mutation($prId:ID!){ enablePullRequestAutoMerge(input:{pullRequestId:$prId, mergeMethod:SQUASH}){ pullRequest{ number autoMergeRequest { enabledAt } } } }' \
+              -f prId="$pr_id" >/tmp/backfill-automerge.json
+
+            echo "Enabled auto-merge for PR #$pr_number"
+          done < <(
+            printf '%s' "$pr_json" | jq -r '
+              .data.repository.pullRequests.nodes[]
+              | select(.baseRefName == "main")
+              | select(.isDraft == false)
+              | select((.headRefName | startswith("copilot/")))
+              | select(.autoMergeRequest == null)
+              | select((.commits.nodes[0].commit.statusCheckRollup.state // "") == "SUCCESS")
+              | "\(.id)|\(.number)"'
+          )
