@@ -5,6 +5,10 @@
 **Models**: Qwen2.5 7B (primary) + Llama3.2-Vision 11B (vision)  
 **Training**: Full FieldOps AI suite + NZ domain + autonomy rules
 
+> **Deployment rule:** Only Ollama-native models belong in the Railway Ollama service.
+> If a model requires ONNX, Python GPU inference, or another runtime that Ollama does not support,
+> keep it in a separate worker image and, if needed, a separate Railway project/service.
+
 ---
 
 ## 1. Prerequisites
@@ -191,6 +195,16 @@ bun run bob:auto-ingest
 - **Optional**: `mistral:7b` (faster, lower VRAM)
 - **Optional**: `neural-chat:7b` (instruction-following)
 
+### Model Routing Matrix
+
+| Model / workload | Runtime | Railway placement | Notes |
+|---|---|---|---|
+| `qwen2.5:7b` | Ollama | Railway Ollama service | Primary Bob chat / reasoning model |
+| `llama3.2-vision:11b` | Ollama | Railway Ollama service | Vision model for biosecurity and smoke review |
+| ALPR ONNX models (`yolov8n.onnx`, `lp_detector.onnx`) | ONNX / Python worker | Separate worker image (`runpod-worker/`) | Keep out of Ollama; needs ONNX runtime and model assets |
+| Face detection ONNX (`version-RFB-640.onnx`) | ONNX / Python worker | Separate worker image (`runpod-worker/`) | Keep out of Ollama; same worker image can host this alongside ALPR |
+| STT / Whisper paths | Separate service or provider-specific worker | Separate service | Do not force into Ollama unless the chosen model is actually Ollama-native |
+
 ### Switch Model (Advanced)
 ```bash
 # On RunPod pod:
@@ -211,7 +225,8 @@ curl "${INFERENCE_SERVICE_URL}/runsync" \
 - [ ] Codespace secrets configured
 - [ ] `INFERENCE_SERVICE_URL` and `INFERENCE_API_KEY` in environment
 - [ ] RunPod pod is running (check dashboard)
-- [ ] Ollama `/api/tags` responds with models
+- [ ] Ollama `/api/tags` responds with `qwen2.5:7b` and `llama3.2-vision:11b`
+- [ ] Non-Ollama workloads remain isolated in worker images (ALPR, face, STT, etc.)
 - [ ] Smoke test: `/runsync` returns HTTP 200
 - [ ] Training data loaded: `docs/BOB_BRAIN_DUMP.md` exists
 - [ ] ADRs indexed: `docs/adr/` folder populated

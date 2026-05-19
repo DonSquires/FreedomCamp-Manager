@@ -6,6 +6,10 @@
 
 ## 🎯 **Quick Deploy (Web UI)**
 
+> **Model boundary rule:** this Railway deployment is for the Bob inference service and its Ollama-backed chat/vision models only.
+> Do not add ONNX-only workloads (for example ALPR or face detection) to Ollama.
+> If a model cannot run in Ollama, keep it in a separate worker image and, if necessary, a separate Railway project/service.
+
 ### **Step 1: Create New Project** (1 min)
 
 1. Go to https://railway.app/dashboard
@@ -74,6 +78,17 @@ In Railway dashboard, click the **Variables** tab and add:
 | `TABULAR_RATE_LIMIT_RPM` | `20` | Max tabular NLP requests per minute per IP |
 | `OLLAMA_BASE_URL` | `http://127.0.0.1:11434` | Ollama API endpoint (same pod). Use `http://127.0.0.1:11434` when Bob and Ollama are co-located on the same RunPod pod. |
 | `OLLAMA_MODEL` | `qwen2.5:7b` | Only needed if using `VEHICLE_ATTRS_PROVIDER=ollama` |
+
+#### Model placement rules
+
+| Model / workload | Belongs in Railway Ollama? | Where it should live instead |
+|---|---|---|
+| `qwen2.5:7b` | Yes | Railway Ollama service |
+| `llama3.2-vision:11b` | Yes | Railway Ollama service |
+| ALPR ONNX models | No | `runpod-worker/` or another ONNX worker image |
+| Face detection ONNX models | No | `runpod-worker/` or another ONNX worker image |
+| Whisper/STT runtime | No, unless the exact model is Ollama-native | Dedicated speech/STT worker or provider service |
+| Future custom GPU-only model | No | Separate Dockerfile + separate Railway project/service |
 
 Then click the **Settings** tab and set **Health Check Path** to `/health`.
 
@@ -204,3 +219,8 @@ Uses your existing Railway account - no additional service!
 - Confirm whether the service is intentionally running in `build-training` mode
 - If cloud access is not intended, switch to `SELF_CONTAINED_MODE=true` and `SELF_CONTAINED_STRICT_EGRESS=true`
 - Keep `OPENAI_*` variables unset unless explicitly approved for external-provider experiments
+
+**"Need a model that Ollama does not support"**
+- Do not force it into the Ollama service
+- Create a separate worker Dockerfile for that runtime
+- Deploy it as its own Railway service/project so the core Bob Ollama service stays stable and narrow in scope
