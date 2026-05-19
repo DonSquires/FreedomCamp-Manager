@@ -1,0 +1,25 @@
+# Exclude dev tooling and local artefacts from the Docker build context
+node_modules
+npm-debug.log*
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+
+# Local test data and model cache (models are downloaded at build time)
+test/fixtures
+data/*.json
+!data/.gitkeep
+
+# Dev-only scripts
+test-local.sh
+
+# Git metadata
+.git
+.gitignore
+
+# Documentation (not needed at runtime)
+README.md
+QUICKSTART.md
+RAILWAY_DEPLOY.md
