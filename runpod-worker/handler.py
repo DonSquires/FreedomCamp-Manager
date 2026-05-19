@@ -3,9 +3,10 @@ RunPod Serverless Worker — FieldOps AI Engine (Bob)
 Uses official runpod Python SDK which handles heartbeats, job fetching, and result posting.
 
 OLLAMA_BASE_URL resolution order:
-    1. OLLAMA_EXTERNAL_URL — point at an external Ollama (Railway, VPS, etc.)
-    2. OLLAMA_BASE_URL     — explicit base URL
-    3. OLLAMA_HOST         — host or full URL for Ollama
+    1. OLLAMA_BASE_URL     — explicit base URL
+    2. OLLAMA_HOST         — host or full URL for Ollama
+    3. OLLAMA_EXTERNAL_URL — optional external fallback
+    4. Local default       — http://127.0.0.1:11434
 
 Requires Ollama >= 0.3.x for /api/chat support (pinned in Dockerfile via OLLAMA_VERSION).
 """
@@ -93,13 +94,14 @@ def normalize_service_base(raw_value, default_port=None):
 
     return urllib.parse.urlunparse((parsed.scheme or "http", netloc, parsed.path, "", parsed.query, "")).rstrip("/")
 
-# Resolve external Ollama endpoint. This worker no longer supports local Ollama mode.
+# Resolve Ollama endpoint. Local Ollama is the default for GPU serverless workers.
 _ext = os.environ.get("OLLAMA_EXTERNAL_URL", "").strip().rstrip("/")
 _base = os.environ.get("OLLAMA_BASE_URL", "").strip().rstrip("/")
 _host = os.environ.get("OLLAMA_HOST", "").strip().rstrip("/")
-OLLAMA_BASE = normalize_ollama_base(_ext if _ext else _base if _base else _host)
+_local = normalize_ollama_base(os.environ.get("OLLAMA_LOCAL_URL", "http://127.0.0.1:11434"))
+OLLAMA_BASE = normalize_ollama_base(_base if _base else _host if _host else _ext if _ext else _local)
 if not OLLAMA_BASE:
-    raise RuntimeError("OLLAMA_EXTERNAL_URL, OLLAMA_BASE_URL, or OLLAMA_HOST must be set to an external Ollama endpoint")
+    raise RuntimeError("Unable to resolve Ollama endpoint")
 
 
 def parse_bool_env(name, default=False):
@@ -180,7 +182,7 @@ SUPABASE_URL = os.environ.get("SUPABASE_URL", "").strip().rstrip("/")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "").strip()
 
 print(f"[worker] FieldOps AI Worker (Python/runpod) starting")
-print(f"[worker] OLLAMA_BASE: {OLLAMA_BASE} (external)")
+print(f"[worker] OLLAMA_BASE: {OLLAMA_BASE}")
 print(f"[worker] OLLAMA_BASE_CANDIDATES: {OLLAMA_BASE_CANDIDATES}")
 print(f"[worker] OLLAMA_MODEL: {OLLAMA_MODEL}")
 print(f"[worker] OLLAMA_VISION_MODEL: {OLLAMA_VISION_MODEL}")

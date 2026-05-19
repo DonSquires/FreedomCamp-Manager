@@ -1,13 +1,16 @@
+FROM ollama/ollama:0.6.6 AS ollama_builder
+
+ARG OLLAMA_BAKE_MODEL=qwen2.5:7b
+
+COPY build_ollama_models.sh /tmp/build_ollama_models.sh
+RUN chmod +x /tmp/build_ollama_models.sh && /tmp/build_ollama_models.sh "$OLLAMA_BAKE_MODEL"
+
 FROM python:3.12-slim-bookworm
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Serverless-first worker image. Build: 2026-05-19 - set GHCR package to public for RunPod pull.
+# Local-Ollama worker image (models baked at build time).
 # Build trigger note: keep this file change-safe so workflow path triggers can republish GHCR image.
-# - no CUDA base
-# - no local Ollama install
-# - no baked Ollama models
-# - optimized for RunPod serverless orchestration with external Ollama
 RUN apt-get update && apt-get install -y --no-install-recommends \
   ca-certificates curl git jq unzip zstd \
   build-essential \
@@ -25,17 +28,22 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN curl -fsSL https://bun.sh/install | bash && \
   ln -sf /root/.bun/bin/bun /usr/local/bin/bun
 
+# Copy Ollama runtime binary/libraries and baked models from builder image.
+COPY --from=ollama_builder /bin/ollama /usr/local/bin/ollama
+COPY --from=ollama_builder /usr/lib/ollama /usr/lib/ollama
+COPY --from=ollama_builder /root/.ollama /root/.ollama
+
 # ---------------------------------------------------------------------------
 # Capability-oriented defaults (non-secret). Secrets are injected at runtime.
 # ---------------------------------------------------------------------------
 ENV RUNPOD_WORKER_MODE=serverless
 ENV RUNPOD_RUNTIME_MODE=serverless
 ENV RUNPOD_FAST_BOOT=true
-ENV OLLAMA_EXTERNAL_URL=https://ollama-production-3ab0.up.railway.app
-ENV OLLAMA_BASE_URL=https://ollama-production-3ab0.up.railway.app
+ENV OLLAMA_HOST=http://127.0.0.1:11434
+ENV OLLAMA_BASE_URL=http://127.0.0.1:11434
 ENV OLLAMA_MODEL=qwen2.5:7b
 ENV OLLAMA_VISION_MODEL=llama3.2-vision:11b
-ENV OLLAMA_TIMEOUT_MS=120000
+ENV OLLAMA_TIMEOUT_MS=240000
 ENV BOB_ATTITUDE_PROFILE=operational
 ENV BOB_ATTITUDE_INSTRUCTIONS=
 ENV TRAINING_MEMORY_PATH=/app/training_memory.json
@@ -80,10 +88,12 @@ WORKDIR /app
 COPY requirements.txt ./
 RUN pip3 install --no-cache-dir -r requirements.txt
 
-COPY handler.py training_memory.json package.json ./
+COPY handler.py training_memory.json package.json entrypoint.sh ./
 
 # Fail fast during image build if handler.py has syntax issues.
 RUN python3 -m py_compile /app/handler.py
+
+RUN chmod +x /app/entrypoint.sh
 
 # Install Playwright and browser runtimes for run_playwright jobs.
 RUN npm install --save-dev @playwright/test && \
@@ -92,6 +102,4 @@ RUN npm install --save-dev @playwright/test && \
 # RunPod Serverless requirement:
 # - the container default command must start a long-running handler process
 # - the handler must stay alive and read jobs from RunPod
-# - do not use one-shot local test commands as container default
-# Build trigger note: lowercase GHCR tag fix rollout trigger.
-CMD ["python3", "-u", "handler.py"]
+CMD ["/app/entrypoint.sh"]
