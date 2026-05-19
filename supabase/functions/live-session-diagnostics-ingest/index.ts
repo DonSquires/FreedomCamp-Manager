@@ -48,6 +48,16 @@ function isActionableConsoleError(entry: unknown): boolean {
     return false
   }
 
+  // Transient browser/network fetch noise can spike during route transitions
+  // and should not open fallback bug reports on its own.
+  if (/(failed to fetch|load failed|networkerror when attempting to fetch resource)/i.test(message)) {
+    return false
+  }
+
+  if (/favicon/i.test(message)) {
+    return false
+  }
+
   // React development warnings can be emitted via console.error and should not
   // be treated as actionable platform failures.
   if (/^warning:/i.test(message)) {
