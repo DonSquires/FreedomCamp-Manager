@@ -1537,7 +1537,6 @@ def handler(job):
         except Exception as e:
             return {"success": False, "error": f"Vision analysis failed: {str(e)}", "provider": "ollama_vision"}
 
-    if action == "run_playwright":
     # ── ALPR: vehicle licence-plate recognition via ONNX on GPU ────────────────
     if action == "alpr":
         import base64 as _b64
