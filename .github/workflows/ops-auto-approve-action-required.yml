@@ -18,15 +18,61 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Validate approver token
+        id: validate_token
         env:
           CI_ML_APPROVER_TOKEN: ${{ secrets.CI_ML_APPROVER_TOKEN }}
+          REPO: ${{ github.repository }}
         run: |
+          set -euo pipefail
+
           if [ -z "$CI_ML_APPROVER_TOKEN" ]; then
             echo "::warning::CI_ML_APPROVER_TOKEN is not configured. Skipping auto-approval pass."
+            echo "token_ready=false" >> "$GITHUB_OUTPUT"
+            echo "skip_reason=missing" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
+          auth_probe_code=$(curl -sS -o /tmp/auth-probe.json -w "%{http_code}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer $CI_ML_APPROVER_TOKEN" \
+            "https://api.github.com/repos/$REPO/actions/runs?per_page=1")
+
+          if ! printf '%s' "$auth_probe_code" | grep -q '^20[0-9]$'; then
+            echo "::warning::CI_ML_APPROVER_TOKEN preflight failed (HTTP $auth_probe_code). Skipping run."
+            cat /tmp/auth-probe.json || true
+            echo "token_ready=false" >> "$GITHUB_OUTPUT"
+            echo "skip_reason=invalid" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if ! jq -e '.workflow_runs | type == "array"' /tmp/auth-probe.json >/dev/null; then
+            echo "::warning::Unexpected GitHub API payload during token preflight. Skipping run."
+            cat /tmp/auth-probe.json || true
+            echo "token_ready=false" >> "$GITHUB_OUTPUT"
+            echo "skip_reason=invalid-payload" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "token_ready=true" >> "$GITHUB_OUTPUT"
+          echo "skip_reason=none" >> "$GITHUB_OUTPUT"
+
+      - name: Write skipped summary when token unavailable
+        if: steps.validate_token.outputs.token_ready != 'true'
+        env:
+          SKIP_REASON: ${{ steps.validate_token.outputs.skip_reason }}
+        run: |
+          set -euo pipefail
+          jq -n --arg reason "$SKIP_REASON" '{ total_runs: 0, rerun_requested: 0, skipped: 0, escalated: 0, suppressed_duplicates: 0, failed_api_calls: 0, notes: ["Auto-heal skipped: token-not-ready", ("reason=" + $reason)] }' > /tmp/action-required-self-heal-summary.json
+          {
+            echo "# Action Required Self-Heal Summary"
+            echo
+            echo "Auto-heal skipped because approver token is not ready."
+            echo
+            echo "- reason: $SKIP_REASON"
+          } > /tmp/action-required-self-heal-summary.md
+
       - name: Rerun action_required runs
+        if: steps.validate_token.outputs.token_ready == 'true'
         env:
           CI_ML_APPROVER_TOKEN: ${{ secrets.CI_ML_APPROVER_TOKEN }}
           REPO: ${{ github.repository }}
@@ -46,21 +92,6 @@ jobs:
             CI Admin Officer Endpoints Gate
         run: |
           set -euo pipefail
-
-          auth_probe_code=$(curl -sS -o /tmp/auth-probe.json -w "%{http_code}" \
-            -H "Accept: application/vnd.github+json" \
-            -H "Authorization: Bearer $CI_ML_APPROVER_TOKEN" \
-            "https://api.github.com/repos/$REPO/actions/runs?per_page=1")
-          if ! printf '%s' "$auth_probe_code" | grep -q '^20[0-9]$'; then
-            echo "::error::CI_ML_APPROVER_TOKEN preflight failed (HTTP $auth_probe_code)"
-            cat /tmp/auth-probe.json || true
-            exit 1
-          fi
-          if ! jq -e '.workflow_runs | type == "array"' /tmp/auth-probe.json >/dev/null; then
-            echo "::error::Unexpected GitHub API preflight payload; refusing to continue"
-            cat /tmp/auth-probe.json || true
-            exit 1
-          fi
 
           : > /tmp/action-required-runs.jsonl
           for page in $(seq 1 10); do
