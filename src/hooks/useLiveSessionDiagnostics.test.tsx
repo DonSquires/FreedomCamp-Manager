@@ -20,6 +20,9 @@ const authState = {
   },
 }
 
+const RETRY_BACKOFF_MS = 60_000
+const FLUSH_INTERVAL_MS = 15_000
+
 let locationState = {
   pathname: '/portal-selection',
   search: '',
@@ -69,6 +72,7 @@ describe('useLiveSessionDiagnostics', () => {
     recordLiveSessionDiagnosticMock.mockReset()
     drainLiveSessionDiagnosticsMock.mockClear()
     liveSessionDiagnosticsIngestMock.mockClear()
+    vi.useRealTimers()
   })
 
   it('does not emit session_observer_unmounted on route changes', () => {
@@ -103,7 +107,7 @@ describe('useLiveSessionDiagnostics', () => {
       details: {},
       occurred_at: new Date().toISOString(),
     }])
-    liveSessionDiagnosticsIngestMock.mockResolvedValue({ error: 'offline' })
+    liveSessionDiagnosticsIngestMock.mockResolvedValue({ data: null, error: 'offline' })
 
     renderHook(() => useLiveSessionDiagnostics())
     await act(async () => {
@@ -112,15 +116,41 @@ describe('useLiveSessionDiagnostics', () => {
     liveSessionDiagnosticsIngestMock.mockClear()
 
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(45_000)
+      await vi.advanceTimersByTimeAsync(RETRY_BACKOFF_MS - FLUSH_INTERVAL_MS)
     })
     expect(liveSessionDiagnosticsIngestMock).not.toHaveBeenCalled()
 
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(15_000)
+      await vi.advanceTimersByTimeAsync(FLUSH_INTERVAL_MS)
     })
     expect(liveSessionDiagnosticsIngestMock).toHaveBeenCalledTimes(1)
+  })
 
-    vi.useRealTimers()
+  it('backs off interval flush retries after an ingest exception', async () => {
+    vi.useFakeTimers()
+    drainLiveSessionDiagnosticsMock.mockReturnValue([{
+      event_type: 'route_changed',
+      route_path: '/reports-hub',
+      title: 'Reports Hub',
+      details: {},
+      occurred_at: new Date().toISOString(),
+    }])
+    liveSessionDiagnosticsIngestMock.mockRejectedValue(new Error('network'))
+
+    renderHook(() => useLiveSessionDiagnostics())
+    await act(async () => {
+      await Promise.resolve()
+    })
+    liveSessionDiagnosticsIngestMock.mockClear()
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(RETRY_BACKOFF_MS - FLUSH_INTERVAL_MS)
+    })
+    expect(liveSessionDiagnosticsIngestMock).not.toHaveBeenCalled()
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(FLUSH_INTERVAL_MS)
+    })
+    expect(liveSessionDiagnosticsIngestMock).toHaveBeenCalledTimes(1)
   })
 })

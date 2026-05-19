@@ -13,6 +13,7 @@ import { getGeocodingRuntimeStatus } from '@/lib/geocoding'
 
 const FLUSH_INTERVAL_MS = 15_000
 const RETRY_BACKOFF_MS = 60_000
+const FLUSH_REASON_INTERVAL = 'interval'
 
 function getDocumentTitle(): string | null {
   if (typeof document === 'undefined') return null
@@ -35,14 +36,14 @@ export function useLiveSessionDiagnostics() {
 
   const flush = useCallback(async (reason: string) => {
     if (!user?.id || inFlightRef.current) return
-    if (reason === 'interval' && Date.now() < nextIntervalRetryAtRef.current) return
+    if (reason === FLUSH_REASON_INTERVAL && Date.now() < nextIntervalRetryAtRef.current) return
 
     const snapshot = getFeedbackSnapshot()
     const events = drainLiveSessionDiagnostics(80)
     const includePtt = snapshot.currentPage.startsWith('/radio') || snapshot.currentPage.startsWith('/team-chat')
     const pttDiagnostics = includePtt ? getLiveSessionPttSnapshot() : null
 
-    if (events.length === 0 && !pttDiagnostics && reason === 'interval') {
+    if (events.length === 0 && !pttDiagnostics && reason === FLUSH_REASON_INTERVAL) {
       return
     }
 
@@ -64,10 +65,11 @@ export function useLiveSessionDiagnostics() {
         },
         events,
       })
+      const hasError = Boolean(result && (result as { error?: unknown }).error)
       // If the ingest call fails for any reason, put the events back at the front
       // of the queue so they are not permanently lost. We keep only the first 80
       // to match the drain limit and avoid unbounded growth.
-      if (result && (result as any).error) {
+      if (hasError) {
         nextIntervalRetryAtRef.current = Date.now() + RETRY_BACKOFF_MS
         events.slice(0, 80).reverse().forEach((e) => recordLiveSessionDiagnostic(
           e.event_type,
@@ -75,9 +77,9 @@ export function useLiveSessionDiagnostics() {
           e.route_path,
           e.title,
         ))
-      } else {
-        nextIntervalRetryAtRef.current = 0
+        return
       }
+      nextIntervalRetryAtRef.current = 0
     } catch {
       nextIntervalRetryAtRef.current = Date.now() + RETRY_BACKOFF_MS
       // Network or unexpected failure — requeue all drained events
