@@ -50,9 +50,17 @@ jobs:
 
           while IFS='|' read -r pr_id pr_number; do
             [ -z "$pr_id" ] && continue
-            gh api graphql \
+            if ! gh api graphql \
               -f query='mutation($prId:ID!){ enablePullRequestAutoMerge(input:{pullRequestId:$prId, mergeMethod:SQUASH}){ pullRequest{ number autoMergeRequest { enabledAt } } } }' \
-              -f prId="$pr_id" >/tmp/backfill-automerge.json
+              -f prId="$pr_id" >/tmp/backfill-automerge.json 2>/tmp/backfill-automerge.err; then
+              if grep -Eqi 'unstable status|not in the correct state|Resource not accessible by integration' /tmp/backfill-automerge.err; then
+                echo "::warning::Skipped PR #$pr_number (transient/permission state)."
+                cat /tmp/backfill-automerge.err
+                continue
+              fi
+              cat /tmp/backfill-automerge.err
+              exit 1
+            fi
 
             echo "Enabled auto-merge for PR #$pr_number"
           done < <(

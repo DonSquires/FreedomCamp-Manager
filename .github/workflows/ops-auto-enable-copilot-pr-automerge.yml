@@ -79,8 +79,16 @@ jobs:
             exit 0
           fi
 
-          gh api graphql \
+          if ! gh api graphql \
             -f query='mutation($prId:ID!){ enablePullRequestAutoMerge(input:{pullRequestId:$prId, mergeMethod:SQUASH}){ pullRequest{ number autoMergeRequest { enabledAt } } } }' \
-            -f prId="$pr_id" >/tmp/enable-automerge.json
+            -f prId="$pr_id" >/tmp/enable-automerge.json 2>/tmp/enable-automerge.err; then
+            if grep -Eqi 'unstable status|not in the correct state|Resource not accessible by integration' /tmp/enable-automerge.err; then
+              echo "::warning::Auto-merge enablement skipped for PR #$pr_number due to transient/permission state."
+              cat /tmp/enable-automerge.err
+              exit 0
+            fi
+            cat /tmp/enable-automerge.err
+            exit 1
+          fi
 
           echo "Enabled auto-merge (squash) for PR #$pr_number."
