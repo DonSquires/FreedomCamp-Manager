@@ -172,6 +172,81 @@ jobs:
               echo "::warning::Failed to dispatch self-healing watchdog mitigation workflow"
               cat /tmp/mitigation-response.json || true
             fi
+
+            echo "Opening or updating security incident issue"
+            incident_title="ops: suspicious CI run blocked"
+            details_block="$(printf '%b' "$suspicious_details")"
+
+            open_issues_code=$(curl -sS -o /tmp/open-security-issues.json -w "%{http_code}" \
+              -H "Accept: application/vnd.github+json" \
+              -H "Authorization: Bearer $CI_ML_APPROVER_TOKEN" \
+              "https://api.github.com/repos/$REPO/issues?state=open&labels=security,self-healing,incident-response&per_page=100")
+
+            if ! printf '%s' "$open_issues_code" | grep -q '^20[0-9]$'; then
+              failed_api_calls=$((failed_api_calls + 1))
+              echo "::warning::Failed to query open security incidents"
+              cat /tmp/open-security-issues.json || true
+            else
+              existing_issue_number=$(jq -r --arg t "$incident_title" '.[] | select(.title == $t) | .number' /tmp/open-security-issues.json | head -n1)
+
+              incident_body=$(jq -n \
+                --arg repo "$REPO" \
+                --arg run_url "https://github.com/$REPO/actions/runs/${{ github.run_id }}" \
+                --arg suspicious_count "$suspicious" \
+                --arg details "$details_block" \
+                '{
+                  body: (
+                    "## Security Incident Triggered by Self-Heal\n\n" +
+                    "A suspicious action_required run pattern was detected and blocked.\n\n" +
+                    "- Repository: " + $repo + "\n" +
+                    "- Self-heal run: " + $run_url + "\n" +
+                    "- suspicious_blocked: " + $suspicious_count + "\n\n" +
+                    "### Suspicious Runs\n" +
+                    (if ($details | length) > 0 then $details else "- none" end) +
+                    "\n### Required Mitigation Follow-Up\n" +
+                    "1. Validate actor identity and branch provenance.\n" +
+                    "2. Review workflow and run logs for abuse indicators.\n" +
+                    "3. Confirm containment and close incident when safe.\n"
+                  )
+                }')
+
+              if [ -n "$existing_issue_number" ]; then
+                comment_code=$(curl -sS -o /tmp/security-incident-comment.json -w "%{http_code}" \
+                  -X POST \
+                  -H "Accept: application/vnd.github+json" \
+                  -H "Authorization: Bearer $CI_ML_APPROVER_TOKEN" \
+                  "https://api.github.com/repos/$REPO/issues/$existing_issue_number/comments" \
+                  -d "$incident_body")
+
+                if ! printf '%s' "$comment_code" | grep -q '^20[0-9]$'; then
+                  failed_api_calls=$((failed_api_calls + 1))
+                  echo "::warning::Failed to comment on existing security incident issue #$existing_issue_number"
+                  cat /tmp/security-incident-comment.json || true
+                fi
+              else
+                create_payload=$(jq -n \
+                  --arg title "$incident_title" \
+                  --arg body "$(jq -r '.body' <<<"$incident_body")" \
+                  '{
+                    title: $title,
+                    body: $body,
+                    labels: ["security", "self-healing", "incident-response", "automation"]
+                  }')
+
+                create_code=$(curl -sS -o /tmp/security-incident-create.json -w "%{http_code}" \
+                  -X POST \
+                  -H "Accept: application/vnd.github+json" \
+                  -H "Authorization: Bearer $CI_ML_APPROVER_TOKEN" \
+                  "https://api.github.com/repos/$REPO/issues" \
+                  -d "$create_payload")
+
+                if ! printf '%s' "$create_code" | grep -q '^20[0-9]$'; then
+                  failed_api_calls=$((failed_api_calls + 1))
+                  echo "::warning::Failed to create security incident issue"
+                  cat /tmp/security-incident-create.json || true
+                fi
+              fi
+            fi
           fi
 
           jq -n \
