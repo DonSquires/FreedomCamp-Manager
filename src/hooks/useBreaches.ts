@@ -90,7 +90,7 @@ type BreachAlertQueueRow = BreachAlertLike & {
 }
 
 const OBSERVATION_SELECT_FIELDS = 'observation_id, photo, photo_url, recorded_at, gps_latitude, gps_longitude, vehicle_make, vehicle_model, vehicle_year, vehicle_color, has_homeless_claim, homeless_claim_notes, officer_notes, zones!vehicle_observations_v2_zone_id_fkey(name)'
-const OBSERVATION_EVIDENCE_PHOTO_SELECT_FIELDS = 'observation_id, photo, photo_url, recorded_at, gps_latitude, gps_longitude, zones!vehicle_observations_v2_zone_id_fkey(name)'
+const OBSERVATION_EVIDENCE_PHOTO_SELECT_FIELDS = 'id, observation_id, photo, photo_url, recorded_at, gps_latitude, gps_longitude, zones!vehicle_observations_v2_zone_id_fkey(name)'
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || ''
 
 /** Zone names that represent generic parent zones rather than specific locations. */
@@ -710,12 +710,16 @@ export async function resolveBreachEvidencePhotoUrl(rawUrl: string | null | unde
   return publicData.publicUrl || null
 }
 
+export function getBreachEvidencePhotoRowId(row: any): string | null {
+  return row?.id ?? row?.observation_id ?? null
+}
+
 async function normalizeBreachEvidencePhotos(rows: any[], signal: AbortSignal) {
   if (signal.aborted) return []
 
   const normalizedRows = (rows || []).map((row: any) => ({
     ...row,
-    id: row.observation_id ?? row.id,
+    id: getBreachEvidencePhotoRowId(row),
   }))
 
   const missingPhotoObservationIds = normalizedRows
