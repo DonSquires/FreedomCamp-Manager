@@ -2,7 +2,7 @@ FROM python:3.12-slim-bookworm
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Serverless-first worker image:
+# Serverless-first worker image. Build: 2026-05-19 - set GHCR package to public for RunPod pull.
 # Build trigger note: keep this file change-safe so workflow path triggers can republish GHCR image.
 # - no CUDA base
 # - no local Ollama install
