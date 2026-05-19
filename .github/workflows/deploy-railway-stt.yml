@@ -84,7 +84,7 @@ jobs:
 
       - name: Set up Docker Buildx
         if: steps.check-secrets.outputs.secrets_present == 'true'
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Determine model arg
         id: model
