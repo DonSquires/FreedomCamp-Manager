@@ -1116,7 +1116,7 @@ export default function RosterPlanner() {
   const [searchParams, setSearchParams] = useSearchParams()
   const queryClient = useQueryClient()
   const isAdmin = user?.role === 'admin' || user?.role === 'master' || user?.role === 'admin_officer'
-  const activeTab = searchParams.get('tab') === 'users' ? 'users' : 'planner'
+  const activeTab = isAdmin && searchParams.get('tab') === 'users' ? 'users' : 'planner'
   const { orgIds: clientOrgIds, isLoading: clientOrgIdsLoading } = useClientOrgIds()
 
   // ─── Week navigation ───────────────────────────────────────────────────────
