@@ -1,0 +1,66 @@
+name: Ops Auto-Enable Copilot PR Auto-Merge
+
+on:
+  pull_request_target:
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - ready_for_review
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: ops-auto-enable-copilot-pr-automerge-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  enable-auto-merge:
+    if: >-
+      github.event.pull_request.base.ref == 'main' &&
+      github.event.pull_request.draft == false &&
+      startsWith(github.event.pull_request.head.ref, 'copilot/')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enable auto-merge for eligible Copilot PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          pr_info=$(gh api graphql \
+            -f query='query($owner:String!, $name:String!, $number:Int!){ repository(owner:$owner, name:$name){ pullRequest(number:$number){ id number isDraft mergeStateStatus autoMergeRequest { enabledAt } } } }' \
+            -f owner="${REPO%/*}" \
+            -f name="${REPO#*/}" \
+            -F number="$PR_NUMBER")
+
+          pr_id=$(printf '%s' "$pr_info" | jq -r '.data.repository.pullRequest.id')
+          is_draft=$(printf '%s' "$pr_info" | jq -r '.data.repository.pullRequest.isDraft')
+          merge_state=$(printf '%s' "$pr_info" | jq -r '.data.repository.pullRequest.mergeStateStatus')
+          auto_merge_enabled=$(printf '%s' "$pr_info" | jq -r '.data.repository.pullRequest.autoMergeRequest.enabledAt // empty')
+
+          if [ "$is_draft" = "true" ]; then
+            echo "PR is draft; skipping auto-merge enablement."
+            exit 0
+          fi
+
+          if [ -n "$auto_merge_enabled" ]; then
+            echo "Auto-merge already enabled for PR #$PR_NUMBER."
+            exit 0
+          fi
+
+          # Unknown mergeability is common immediately after synchronize events.
+          if [ "$merge_state" = "UNKNOWN" ]; then
+            echo "Merge state is UNKNOWN; auto-merge enablement deferred for this event."
+            exit 0
+          fi
+
+          gh api graphql \
+            -f query='mutation($prId:ID!){ enablePullRequestAutoMerge(input:{pullRequestId:$prId, mergeMethod:SQUASH}){ pullRequest{ number autoMergeRequest { enabledAt } } } }' \
+            -f prId="$pr_id" >/tmp/enable-automerge.json
+
+          echo "Enabled auto-merge (squash) for PR #$PR_NUMBER."
