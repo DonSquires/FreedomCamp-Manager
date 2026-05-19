@@ -52,7 +52,7 @@ jobs:
           SUPABASEV2_SERVICE_ROLE_KEY: ${{ secrets.SUPABASEV2_SERVICE_ROLE_KEY }}
 
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Setup Node.js
         uses: actions/setup-node@v5

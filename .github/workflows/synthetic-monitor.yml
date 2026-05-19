@@ -133,7 +133,7 @@ jobs:
       # ── Check 3: Playwright page render check ────────────────────────────
       - name: Checkout repository
         if: steps.check-secrets.outputs.secrets_present == 'true'
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Setup Node.js
         if: steps.check-secrets.outputs.secrets_present == 'true'

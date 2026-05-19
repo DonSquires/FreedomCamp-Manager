@@ -68,7 +68,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       # ── Node.js (inference-service + scripts) ──────────────────────────────
       - name: Set up Node.js 22

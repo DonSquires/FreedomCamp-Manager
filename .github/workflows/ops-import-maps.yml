@@ -69,7 +69,7 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           STATSNZ_API_KEY:           ${{ secrets.STATSNZ_API_KEY }}
 
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         if: steps.check-secrets.outputs.secrets_present == 'true'
 
       - name: Setup Node.js

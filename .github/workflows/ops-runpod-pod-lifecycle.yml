@@ -89,7 +89,7 @@ jobs:
 
       - name: Checkout repository
         if: steps.legacy-gate.outputs.skip != 'true' && steps.check-secrets.outputs.skip != 'true'
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Resolve pod ID and action
         if: steps.legacy-gate.outputs.skip != 'true' && steps.check-secrets.outputs.skip != 'true'

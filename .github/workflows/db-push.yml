@@ -60,7 +60,7 @@ jobs:
     environment: production-schema   # requires manual approval from @DonSquires in GitHub UI
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Setup Supabase CLI
         uses: supabase/setup-cli@v2
