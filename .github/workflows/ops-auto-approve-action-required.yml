@@ -47,12 +47,32 @@ jobs:
         run: |
           set -euo pipefail
 
+          auth_probe_code=$(curl -sS -o /tmp/auth-probe.json -w "%{http_code}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer $CI_ML_APPROVER_TOKEN" \
+            "https://api.github.com/repos/$REPO/actions/runs?per_page=1")
+          if ! printf '%s' "$auth_probe_code" | grep -q '^20[0-9]$'; then
+            echo "::error::CI_ML_APPROVER_TOKEN preflight failed (HTTP $auth_probe_code)"
+            cat /tmp/auth-probe.json || true
+            exit 1
+          fi
+          if ! jq -e '.workflow_runs | type == "array"' /tmp/auth-probe.json >/dev/null; then
+            echo "::error::Unexpected GitHub API preflight payload; refusing to continue"
+            cat /tmp/auth-probe.json || true
+            exit 1
+          fi
+
           : > /tmp/action-required-runs.jsonl
           for page in $(seq 1 10); do
             page_json=$(curl -sS \
               -H "Accept: application/vnd.github+json" \
               -H "Authorization: Bearer $CI_ML_APPROVER_TOKEN" \
               "https://api.github.com/repos/$REPO/actions/runs?status=action_required&per_page=100&page=$page")
+            if ! printf '%s' "$page_json" | jq -e '.workflow_runs | type == "array"' >/dev/null; then
+              echo "::error::GitHub API returned non-standard payload for action_required page=$page"
+              printf '%s' "$page_json"
+              exit 1
+            fi
             page_count=$(printf '%s' "$page_json" | jq '.workflow_runs | length')
             if [ "$page_count" -eq 0 ]; then
               break
