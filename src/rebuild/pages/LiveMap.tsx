@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
+import { getObservationListItemKey, getPatrolListItemKey } from './liveMapKeys'
 
 interface PatrolLocation {
   id: string
@@ -177,8 +178,8 @@ export default function CleanLiveMap() {
               <p className="text-xs text-gray-400">No active patrols</p>
             ) : (
               <ul className="space-y-2">
-                {patrols.map(p => (
-                  <li key={p.id} className="flex items-center gap-2 text-xs">
+                {patrols.map((p, index) => (
+                  <li key={getPatrolListItemKey(p, index)} className="flex items-center gap-2 text-xs">
                     <span className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0"></span>
                     <span className="text-gray-700">{p.zone_name ?? 'Unknown zone'}</span>
                   </li>
@@ -191,8 +192,8 @@ export default function CleanLiveMap() {
           <div className="p-4">
             <h2 className="text-sm font-semibold text-gray-700 mb-3">Recent Observations</h2>
             <ul className="space-y-2">
-              {recentObs.slice(0, 20).map(obs => (
-                <li key={obs.observation_id} className="text-xs border-b border-gray-50 pb-2">
+              {recentObs.slice(0, 20).map((obs, index) => (
+                <li key={getObservationListItemKey(obs, index)} className="text-xs border-b border-gray-50 pb-2">
                   <div className="flex items-center justify-between">
                     <span className="font-mono font-semibold text-gray-800">{obs.plate_number ?? '—'}</span>
                     <span className={`px-1.5 py-0.5 rounded-full text-xs ${
