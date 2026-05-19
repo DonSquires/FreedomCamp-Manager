@@ -20,7 +20,7 @@ jobs:
     steps:
       - name: Enable auto-merge for eligible Copilot PR
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.BOB_WORKER_GITHUB_TOKEN || secrets.DEPLOY_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
           HEAD_SHA: ${{ github.event.check_suite.head_sha }}
         run: |
