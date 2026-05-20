@@ -1,4 +1,0 @@
-$ eslint .
-
-✔ 0 problems
-

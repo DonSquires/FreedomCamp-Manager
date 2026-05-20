@@ -150,7 +150,7 @@ function analyzeManualDiscrepancies(failures, diagnostics) {
 }
 
 // Create escalation entry
-function createEscalation(testPattern, stats, failures, discrepancies, diagnostics) {
+function createEscalation(testPattern, resultsFile, stats, failures, discrepancies, diagnostics) {
   const hasFailures = stats.failed > 0
   const successRate = stats.total > 0 ? ((stats.passed / stats.total) * 100).toFixed(1) : '0'
 
@@ -170,7 +170,7 @@ function createEscalation(testPattern, stats, failures, discrepancies, diagnosti
     failures: failures.slice(0, 5), // Top 5 failures
     discrepancies,
     diagnosticSummary: diagnostics.slice(0, 20), // Top 20 diagnostics
-    testReport: `data/e2e-test-results/session-inactivity-${new Date().toISOString().replace(/[:.]/g, '-')}.json`,
+    testReport: resultsFile,
   }
 
   return escalation
@@ -248,8 +248,8 @@ function main() {
   const discrepancies = analyzeManualDiscrepancies(failures, diagnostics)
 
   // Create escalation
-  const testPattern = getArg('test-pattern', '*.spec.ts')
-  const escalation = createEscalation(testPattern, stats, failures, discrepancies, diagnostics)
+  const testPattern = getArg('test-pattern', 'session-inactivity')
+  const escalation = createEscalation(testPattern, resultsFile, stats, failures, discrepancies, diagnostics)
 
   // Save summary
   const summaryMd = generateSummary(escalation)

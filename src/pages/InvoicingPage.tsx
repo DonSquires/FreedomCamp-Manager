@@ -825,10 +825,12 @@ export default function InvoicingPage() {
                 </span>
               )}
             </TabsTrigger>
-            <TabsTrigger value="costing" className="gap-1.5 text-xs">
-              <DollarSign className="h-3.5 w-3.5" />
-              Costing
-            </TabsTrigger>
+            {financeEnabled && (
+              <TabsTrigger value="costing" className="gap-1.5 text-xs">
+                <DollarSign className="h-3.5 w-3.5" />
+                Costing
+              </TabsTrigger>
+            )}
             {!isClientBillingUser && (
               <TabsTrigger value="contracts" className="gap-1.5 text-xs">
                 <FileText className="h-3.5 w-3.5" />

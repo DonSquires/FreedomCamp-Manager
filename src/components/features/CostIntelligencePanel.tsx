@@ -156,15 +156,20 @@ export function CostIntelligencePanel({ isClientBillingUser, financeEnabled }: C
   }, [])
 
   const { data: organizations = [] } = useQuery({
-    queryKey: ['cost-intel-organizations'],
+    queryKey: ['cost-intel-organizations', isClientBillingUser ? (user?.organization_id ?? null) : null],
     enabled: financeEnabled,
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
+      let q = (supabase as any)
         .from('organizations')
         .select('id, name, organization_type, is_active')
         .eq('is_active', true)
         .order('name')
 
+      if (isClientBillingUser && user?.organization_id) {
+        q = q.eq('id', user.organization_id)
+      }
+
+      const { data, error } = await q
       if (error) throw error
       return (data ?? []) as OrganizationRow[]
     },
@@ -250,14 +255,60 @@ export function CostIntelligencePanel({ isClientBillingUser, financeEnabled }: C
     return organizations
   }, [organizations, isClientBillingUser, user?.organization_id])
 
+  // Pre-group records into Maps for O(1) lookups during aggregation.
+  const countableShiftsByOrg = useMemo(() => {
+    const map = new Map<string, ShiftRow[]>()
+    for (const shift of shifts) {
+      if (!isShiftCountable(shift.status)) continue
+      const list = map.get(shift.organization_id) ?? []
+      list.push(shift)
+      map.set(shift.organization_id, list)
+    }
+    return map
+  }, [shifts])
+
+  const invoicesByOrg = useMemo(() => {
+    const map = new Map<string, InvoiceRow[]>()
+    for (const invoice of invoices) {
+      const orgId = invoice.client_organization_id
+      if (!orgId) continue
+      const list = map.get(orgId) ?? []
+      list.push(invoice)
+      map.set(orgId, list)
+    }
+    return map
+  }, [invoices])
+
+  const activeUsersByOrg = useMemo(() => {
+    const map = new Map<string, UserRow[]>()
+    for (const entry of users) {
+      if (entry.is_active === false || !entry.organization_id) continue
+      const list = map.get(entry.organization_id) ?? []
+      list.push(entry)
+      map.set(entry.organization_id, list)
+    }
+    return map
+  }, [users])
+
+  const countableShiftsByOfficer = useMemo(() => {
+    const map = new Map<string, ShiftRow[]>()
+    for (const shift of shifts) {
+      if (!isShiftCountable(shift.status) || !shift.officer_id) continue
+      const list = map.get(shift.officer_id) ?? []
+      list.push(shift)
+      map.set(shift.officer_id, list)
+    }
+    return map
+  }, [shifts])
+
   const organizationRows = useMemo<OrgCostRow[]>(() => {
     const orgCount = Math.max(1, visibleOrganizations.length)
     const externalAllocationPerOrg = providerMonthlyCost / orgCount
 
     return visibleOrganizations.map((org) => {
-      const orgShifts = shifts.filter((shift) => shift.organization_id === org.id && isShiftCountable(shift.status))
-      const orgInvoices = invoices.filter((invoice) => invoice.client_organization_id === org.id)
-      const orgUsers = users.filter((entry) => entry.organization_id === org.id && entry.is_active !== false)
+      const orgShifts = countableShiftsByOrg.get(org.id) ?? []
+      const orgInvoices = invoicesByOrg.get(org.id) ?? []
+      const orgUsers = activeUsersByOrg.get(org.id) ?? []
 
       const shiftHours = orgShifts.reduce((sum, shift) => sum + calcShiftHours(shift), 0)
       const labourCost = orgShifts.reduce((sum, shift) => sum + calcShiftHours(shift) * (shift.guard_cost_rate ?? 0), 0)
@@ -289,7 +340,7 @@ export function CostIntelligencePanel({ isClientBillingUser, financeEnabled }: C
         perUserCost,
       }
     })
-  }, [visibleOrganizations, providerMonthlyCost, shifts, invoices, users])
+  }, [visibleOrganizations, providerMonthlyCost, countableShiftsByOrg, invoicesByOrg, activeUsersByOrg])
 
   useEffect(() => {
     if (isClientBillingUser && user?.organization_id) {
@@ -314,14 +365,13 @@ export function CostIntelligencePanel({ isClientBillingUser, financeEnabled }: C
   const selectedOrgUsers = useMemo(() => {
     if (!selectedOrg) return []
 
-    const orgUsers = users.filter((entry) => entry.organization_id === selectedOrg.organizationId && entry.is_active !== false)
-    const orgShifts = shifts.filter((shift) => shift.organization_id === selectedOrg.organizationId && isShiftCountable(shift.status))
+    const orgUsers = activeUsersByOrg.get(selectedOrg.organizationId) ?? []
     const userCount = Math.max(1, orgUsers.length)
     const allocatedOverheadPerUser = (selectedOrg.platformOverhead + selectedOrg.externalAllocationPerOrg) / userCount
 
     return orgUsers
       .map((entry) => {
-        const workerShifts = orgShifts.filter((shift) => shift.officer_id === entry.id)
+        const workerShifts = countableShiftsByOfficer.get(entry.id) ?? []
         const hours = workerShifts.reduce((sum, shift) => sum + calcShiftHours(shift), 0)
         const directCost = workerShifts.reduce((sum, shift) => sum + calcShiftHours(shift) * (shift.guard_cost_rate ?? 0), 0)
         const directRevenue = workerShifts.reduce((sum, shift) => sum + calcShiftHours(shift) * (shift.client_charge_rate ?? 0), 0)
@@ -342,7 +392,7 @@ export function CostIntelligencePanel({ isClientBillingUser, financeEnabled }: C
         }
       })
       .sort((a, b) => b.totalCost - a.totalCost)
-  }, [selectedOrg, shifts, users])
+  }, [selectedOrg, activeUsersByOrg, countableShiftsByOfficer])
 
   if (!financeEnabled) return null
 

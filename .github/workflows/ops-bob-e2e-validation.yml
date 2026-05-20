@@ -59,21 +59,25 @@ jobs:
           REPORT_FINDINGS: ${{ inputs.report_findings }}
           AUTO_AMEND_MANUAL: ${{ inputs.auto_amend_manual || 'false' }}
         run: |
-          # Run E2E tests and capture results
+          # Ensure output directory exists
+          mkdir -p data/e2e-test-results
+          # Run E2E tests and capture JSON results via env var (--output-file is not valid for the json reporter)
+          PLAYWRIGHT_JSON_OUTPUT_NAME=data/e2e-test-results/playwright-raw.json \
           npx playwright test tests/e2e/$TEST_PATTERN \
             --reporter=json \
             --reporter=html \
-            --reporter=list \
-            --output-file=data/e2e-test-results/playwright-raw.json || true
+            --reporter=list || true
 
       - name: Process E2E results and create escalations
         if: always()
         env:
           REPORT_FINDINGS: ${{ inputs.report_findings }}
           AUTO_AMEND_MANUAL: ${{ inputs.auto_amend_manual || 'false' }}
+          TEST_PATTERN: ${{ inputs.test_pattern || '*.spec.ts' }}
         run: |
           node scripts/e2e-escalation-processor.mjs \
             --results-file=data/e2e-test-results/playwright-raw.json \
+            --test-pattern=$TEST_PATTERN \
             --report-to-bob=$REPORT_FINDINGS \
             --auto-amend-manual=$AUTO_AMEND_MANUAL
 
@@ -90,17 +94,21 @@ jobs:
 
       - name: Create escalation PR if needed
         if: always() && inputs.report_findings == true
+        env:
+          TEST_PATTERN: ${{ inputs.test_pattern || '*.spec.ts' }}
         uses: actions/github-script@v9
         with:
           script: |
             const fs = require('fs')
             const path = require('path')
 
-            // Check if escalation was created
+            // Derive escalation filename the same way the processor does
+            const testPattern = process.env.TEST_PATTERN || '*.spec.ts'
+            const safePattern = testPattern.replace(/[*/?]/g, '')
             const escalationPath = path.join(
               process.cwd(),
               'data',
-              'e2e-test-escalation-session-inactivity.json'
+              `e2e-test-escalation-${safePattern}.json`
             )
 
             if (!fs.existsSync(escalationPath)) {

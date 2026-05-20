@@ -187,8 +187,7 @@ async function rotateSession() {
     applySession(data.session, state.email || getConfig().email || null);
     state.refreshFailures = 0;
   } catch (error) {
-    state.ready = false;
-    state.lastError = String(error?.message || error);
+    recordFailure(error);
     state.refreshFailures += 1;
     throw error;
   } finally {
