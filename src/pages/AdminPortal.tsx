@@ -1650,16 +1650,20 @@ export default function AdminPortal() {
               </CardHeader>
               <CardContent className="pt-0">
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
-                  {todayRosterShifts.map((shift: any) => {
+                  {todayRosterShifts.map((shift: any, idx: number) => {
                     const officer = Array.isArray(shift.officer) ? (shift.officer.length > 0 ? shift.officer[0] : null) : shift.officer
                     const officerName = officer ? `${officer.first_name ?? ''} ${officer.last_name ?? ''}`.trim() || 'Unassigned' : 'Unassigned'
                     const startTime = shift.start_time ? shift.start_time.slice(0, 5) : '—'
                     const endTime = shift.end_time ? shift.end_time.slice(0, 5) : '—'
                     const serviceLabel = SERVICE_TYPE_LABELS[shift.service_type] ?? shift.position_title ?? 'Shift'
                     const isActive = shift.status === 'in_progress'
+                    const shiftFallbackKey = (shift.start_time || shift.end_time || shift.position_title)
+                      ? `${shift.start_time ?? ''}-${shift.end_time ?? ''}-${shift.position_title ?? ''}`
+                      : `shift-${idx}`
+                    const shiftKey = shift.id ?? shiftFallbackKey
                     return (
                       <div
-                        key={shift.id ?? `${shift.start_time ?? ''}-${shift.end_time ?? ''}-${shift.position_title ?? ''}`}
+                        key={shiftKey}
                         className={`min-h-20 rounded-lg border p-3 text-sm ${
                           isActive
                             ? 'border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-950/20'
@@ -2119,8 +2123,13 @@ export default function AdminPortal() {
             <CardContent className="space-y-2 pt-0">
               {recentHistoricalObservations.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No recent observations found.</p>
-              ) : recentHistoricalObservations.map((obs: any) => (
-                <div key={obs.observation_id ?? `${obs.recorded_at ?? ''}-${obs.plate_number ?? ''}`} className={listRowClass}>
+              ) : recentHistoricalObservations.map((obs: any, idx: number) => {
+                const observationFallbackKey = (obs.recorded_at || obs.plate_number)
+                  ? `${obs.recorded_at ?? ''}-${obs.plate_number ?? ''}`
+                  : `observation-${idx}`
+                const observationKey = obs.observation_id ?? observationFallbackKey
+                return (
+                <div key={observationKey} className={listRowClass}>
                   <div className="min-w-0">
                     <p className="font-mono text-sm font-semibold truncate">{obs.plate_number || 'UNKNOWN'}</p>
                     <p className="text-xs text-muted-foreground truncate">
@@ -2132,7 +2141,7 @@ export default function AdminPortal() {
                     Print Ticket
                   </Button>
                 </div>
-              ))}
+              )})}
             </CardContent>
           </Card>
         </section>
