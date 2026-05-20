@@ -29,7 +29,8 @@ const RESULTS_DIR = resolve(ROOT, 'data/e2e-test-results')
 const TEST_PATTERN = getArg('test-pattern', 'session-inactivity')
 const REPORT_TO_BOB = getBoolArg('report-to-bob', true)
 const TIMEOUT_MS = getNumArg('timeout', 600000) // 10 minutes default
-const TEST_FILE = `tests/e2e/${TEST_PATTERN}.spec.ts`
+const TEST_FILE_PATTERN = TEST_PATTERN === 'session-inactivity' ? 'session-inactivity-timeout' : TEST_PATTERN
+const TEST_FILE = `tests/e2e/${TEST_FILE_PATTERN}.spec.ts`
 
 function getArg(name, fallback = '') {
   const key = `--${name}`
