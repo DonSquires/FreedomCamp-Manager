@@ -454,7 +454,7 @@ export default function ObservationRecords() {
             </div>
             {!photoSyncResult.apply && photoSyncResult.candidates > 0 && (
               <p className="text-xs text-muted-foreground mt-2">
-                Click "Sync Photos" to apply — this will download images from ParkPow and link them to observations.
+                Click &quot;Sync Photos&quot; to apply — this will download images from ParkPow and link them to observations.
               </p>
             )}
           </CardContent>
@@ -610,7 +610,7 @@ export default function ObservationRecords() {
                   {selectedRows.map((obs) => {
                     const photoUrl = getObservationPhotoUrl(obs)
                     return (
-                      <Card key={obs.id} className="border">
+                      <Card key={obs.id || observationDedupKey(obs)} className="border">
                         <CardContent className="p-3">
                           <div className="flex items-start gap-3">
                             {/* Photo */}
