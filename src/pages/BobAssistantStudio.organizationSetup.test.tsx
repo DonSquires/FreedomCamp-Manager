@@ -661,6 +661,92 @@ describe('BobAssistantStudio organization setup flow', () => {
     expect(screen.getByText(/Cost profile:/i)).toBeInTheDocument()
   })
 
+  it('avoids duplicate React key warnings when ranked contract sources repeat', async () => {
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    try {
+      storageListMock.mockImplementation(async (prefix: string) => {
+        if (!prefix) {
+          return {
+            data: [{ name: 'Nelson City Council' }],
+            error: null,
+          }
+        }
+
+        if (prefix === 'Nelson City Council') {
+          return {
+            data: [
+              {
+                id: 'file-1',
+                name: 'final-signed-parking-instructions.txt',
+                updated_at: '2026-05-10T00:00:00Z',
+                metadata: { size: 512 },
+              },
+              {
+                id: 'file-1b',
+                name: 'final-signed-parking-instructions.txt',
+                updated_at: '2026-05-09T00:00:00Z',
+                metadata: { size: 510 },
+              },
+              {
+                id: 'file-2',
+                name: 'archive-old-parking-instructions.txt',
+                updated_at: '2025-01-01T00:00:00Z',
+                metadata: { size: 256 },
+              },
+            ],
+            error: null,
+          }
+        }
+
+        return { data: [], error: null }
+      })
+
+      storageDownloadMock.mockImplementation(async (path: string) => {
+        if (path === 'Nelson City Council/final-signed-parking-instructions.txt') {
+          return {
+            data: createTextBlob([
+              'Nelson City Council parking contract final signed current.',
+              'Service scope includes loading zone and mobility bay patrol coverage.',
+              'Officers must inspect the loading zone every 30 minutes and record each visit.',
+              'Monthly fee is NZD 3,000 for this scope.',
+            ].join('\n')),
+            error: null,
+          }
+        }
+
+        if (path === 'Nelson City Council/archive-old-parking-instructions.txt') {
+          return {
+            data: createTextBlob([
+              'Nelson City Council parking archive instructions.',
+              'Service scope is limited to loading zone checks only.',
+              'Officers must inspect the loading zone hourly and notify admin only if there is a breach.',
+              'Monthly fee is NZD 2,200 under the older schedule.',
+            ].join('\n')),
+            error: null,
+          }
+        }
+
+        return { data: null, error: null }
+      })
+
+      renderPage()
+
+      expect(await screen.findByText('Service Contract Intelligence')).toBeInTheDocument()
+
+      await waitFor(() => {
+        expect(screen.getAllByText('Nelson City Council/final-signed-parking-instructions.txt').length).toBeGreaterThan(1)
+      })
+
+      const duplicateKeyWarnings = consoleErrorSpy.mock.calls.filter((call) =>
+        call.some((arg) => String(arg).includes('Encountered two children with the same key')),
+      )
+      expect(duplicateKeyWarnings).toHaveLength(0)
+    } finally {
+      consoleErrorSpy.mockRestore()
+    }
+  })
+
   it('lets approvers adopt the highest-ranked source and stage a conflict review', async () => {
     storageListMock.mockImplementation(async (prefix: string) => {
       if (!prefix) {
