@@ -14,19 +14,11 @@ export function signalSessionActivity(): void {
 
 export function useSessionInactivityLock() {
   const { user } = useAuthStore()
-  const { isLocked, isWarningVisible, lock, showWarning, clearWarning, updateWarningSeconds } = useSessionLockStore()
   const { autoLogoffEnabled, inactivityMinutes } = useSessionPreferencesStore()
 
   const warningTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const lockTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const isLockedRef = useRef(isLocked)
-  const isWarningVisibleRef = useRef(isWarningVisible)
-
-  useEffect(() => {
-    isLockedRef.current = isLocked
-    isWarningVisibleRef.current = isWarningVisible
-  }, [isLocked, isWarningVisible])
 
   useEffect(() => {
     if (!user || !autoLogoffEnabled) {
@@ -47,11 +39,13 @@ export function useSessionInactivityLock() {
 
     const startCountdown = () => {
       let secondsLeft = WARNING_SECONDS
+      const { showWarning } = useSessionLockStore.getState()
       showWarning(secondsLeft)
 
       if (countdownRef.current) clearInterval(countdownRef.current)
       countdownRef.current = setInterval(() => {
         secondsLeft -= 1
+        const { updateWarningSeconds } = useSessionLockStore.getState()
         updateWarningSeconds(secondsLeft)
         if (secondsLeft <= 0 && countdownRef.current) {
           clearInterval(countdownRef.current)
@@ -62,6 +56,7 @@ export function useSessionInactivityLock() {
 
     const resetInactivity = () => {
       clearTimers()
+      const { clearWarning } = useSessionLockStore.getState()
       clearWarning()
 
       warningTimerRef.current = setTimeout(() => {
@@ -69,17 +64,19 @@ export function useSessionInactivityLock() {
       }, warningDelay)
 
       lockTimerRef.current = setTimeout(() => {
+        const { lock } = useSessionLockStore.getState()
         lock('Session Timed Out', 'Your session was locked after inactivity. Log back in to continue or log out completely.')
       }, timeoutMs)
     }
 
     const handleActivity = (event: Event) => {
       const isExplicitStayActive = event.type === STAY_ACTIVE_EVENT
+      const { isWarningVisible, isLocked } = useSessionLockStore.getState()
 
       // When warning/lock overlays are showing, do not auto-clear or auto-reset
       // from incidental activity like mousemove/click/scroll. Only explicit
       // Continue action dispatches `session:stay-active`.
-      if ((isWarningVisibleRef.current || isLockedRef.current) && !isExplicitStayActive) {
+      if ((isWarningVisible || isLocked) && !isExplicitStayActive) {
         return
       }
 
@@ -95,18 +92,11 @@ export function useSessionInactivityLock() {
 
     return () => {
       clearTimers()
+      const { clearWarning } = useSessionLockStore.getState()
       clearWarning()
       activityEvents.forEach((eventName) => {
         window.removeEventListener(eventName, handleActivity)
       })
     }
-  }, [
-    user,
-    autoLogoffEnabled,
-    inactivityMinutes,
-    lock,
-    showWarning,
-    clearWarning,
-    updateWarningSeconds,
-  ])
+  }, [user, autoLogoffEnabled, inactivityMinutes])
 }
