@@ -218,9 +218,9 @@ export function useComplianceBreachObservations({
       if (plainResult.error) throw plainResult.error;
 
       const zoneIds: string[] = Array.from(new Set(
-        (plainResult.data ?? []).flatMap((r: any) =>
-          typeof r.zone_id === 'string' && r.zone_id.length > 0 ? [r.zone_id] : []
-        )
+        (plainResult.data ?? [])
+          .map((r: any): string | null => (typeof r.zone_id === 'string' && r.zone_id.length > 0 ? r.zone_id : null))
+          .filter((value): value is string => value !== null)
       ));
       let zoneNameById = new Map<string, string>();
       if (zoneIds.length > 0) {
