@@ -50,9 +50,23 @@ vi.mock('@/components/features/AsyncStateWrapper', () => ({
 
 describe('DispatchMonitor', () => {
   it('renders without crashing when stats are unavailable after loading', () => {
-    useQueryMock
-      .mockReturnValueOnce({ data: undefined, isLoading: false, refetch: vi.fn() })
-      .mockReturnValueOnce({ data: undefined, isLoading: false })
+    const statsRefetch = vi.fn()
+
+    useQueryMock.mockImplementation((options?: { queryKey?: unknown }) => {
+      const queryKey = Array.isArray(options?.queryKey)
+        ? options.queryKey.join(':')
+        : String(options?.queryKey ?? '')
+
+      if (queryKey.includes('dispatch-monitor-stats')) {
+        return { data: undefined, isLoading: false, refetch: statsRefetch }
+      }
+
+      if (queryKey.includes('dispatch-monitor-parity')) {
+        return { data: undefined, isLoading: false }
+      }
+
+      return { data: undefined, isLoading: false, refetch: vi.fn() }
+    })
 
     render(
       <MemoryRouter>
