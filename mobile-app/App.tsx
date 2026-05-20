@@ -8,9 +8,24 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { StatusBar } from 'expo-status-bar'
-import { ActivityIndicator, View } from 'react-native'
-import { Toaster } from 'sonner-native'
+import { ActivityIndicator, View, Platform } from 'react-native'
 import * as Notifications from 'expo-notifications'
+
+// Platform-aware import: sonner-native is only available on native platforms
+let Toaster: React.ComponentType<any> | null = null
+if (Platform.OS !== 'web') {
+  try {
+    // Only import on mobile/native platforms
+    const { Toaster: SonnerToaster } = require('sonner-native')
+    Toaster = SonnerToaster
+  } catch {
+    // Fallback if sonner-native is not available
+    Toaster = () => null
+  }
+} else {
+  // On web, render nothing (web doesn't support sonner-native)
+  Toaster = () => null
+}
 
 import { useAuthStore } from './src/stores/authStore'
 import LoginScreen from './src/screens/LoginScreen'
