@@ -19,20 +19,20 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
         with:
-          bun-version: latest
+          node-version: '24'
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: npm ci
 
       - name: Run Bob governance drift check
         id: bob_governance_drift
         continue-on-error: true
         env:
           BOB_GOVERNANCE_DRIFT_STRICT: 'true'
-        run: bun run lint:bob-governance-drift
+        run: npm run lint:bob-governance-drift
 
       - name: Enforce Bob governance drift check
         if: steps.bob_governance_drift.outcome == 'failure'
@@ -42,7 +42,7 @@ jobs:
 
       - name: Generate nightly docs/router drift report
         run: |
-          bun scripts/nightly-route-docs-drift-report.mjs \
+          node scripts/nightly-route-docs-drift-report.mjs \
             --out tools/route-docs-drift/nightly/${{ github.run_id }}/report.md
 
       - name: Publish report summary

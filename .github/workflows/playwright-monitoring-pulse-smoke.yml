@@ -32,13 +32,8 @@ jobs:
         with:
           node-version: 24
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
       - name: Install dependencies
-        run: bun install
+        run: npm ci
 
       - name: Validate runtime secrets
         id: env-check
@@ -52,17 +47,17 @@ jobs:
 
       - name: Install Playwright Chromium and OS deps
         if: steps.env-check.outputs.ready == 'true'
-        run: bunx playwright install --with-deps chromium
+        run: npx playwright install --with-deps chromium
 
       - name: Build app
         if: steps.env-check.outputs.ready == 'true'
-        run: bun run build
+        run: npm run build
 
       - name: Start preview server
         if: steps.env-check.outputs.ready == 'true'
         run: |
           set -euo pipefail
-          bun run preview -- --host 127.0.0.1 --port 4173 > /tmp/monitoring-smoke-preview.log 2>&1 &
+          npm run preview -- --host 127.0.0.1 --port 4173 > /tmp/monitoring-smoke-preview.log 2>&1 &
           echo $! > /tmp/monitoring-smoke-preview.pid
 
       - name: Wait for app
@@ -98,7 +93,7 @@ jobs:
       - name: Run monitoring pulse smoke test
         if: steps.env-check.outputs.ready == 'true'
         run: |
-          bunx playwright test monitoring-pulse.spec.ts --config=playwright.config.ts --project=chromium --workers=1 --reporter=line
+          npx playwright test monitoring-pulse.spec.ts --config=playwright.config.ts --project=chromium --workers=1 --reporter=line
 
       - name: Upload Playwright artifacts
         if: always() && steps.env-check.outputs.ready == 'true'

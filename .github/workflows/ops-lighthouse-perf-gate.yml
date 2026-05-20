@@ -14,7 +14,7 @@ on:
       - 'vite.config.*'
       - 'tailwind.config.*'
       - 'package.json'
-      - 'bun.lock'
+      - 'package-lock.json'
   push:
     branches:
       - main
@@ -40,10 +40,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
         with:
-          bun-version: latest
+          node-version: '24'
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -51,13 +51,13 @@ jobs:
           node-version: 20
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: npm ci
 
       - name: Build production bundle
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || 'https://placeholder.supabase.co' }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY || 'placeholder-anon-key' }}
-        run: bun run build
+        run: npm run build
 
       - name: Install Lighthouse CI
         run: npm install -g @lhci/cli@0.14.x
@@ -66,7 +66,7 @@ jobs:
         id: preview
         run: |
           # Start preview in background and wait for it to be ready
-          bun run preview --port 4173 &
+          npm run preview --port 4173 &
           echo "preview_pid=$!" >> "$GITHUB_OUTPUT"
           # Poll until the server responds or 30 s timeout
           for i in $(seq 1 30); do

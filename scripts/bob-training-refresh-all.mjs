@@ -210,7 +210,7 @@ function run(cmd, args, options = {}) {
 async function main() {
   const dryRun = process.argv.includes('--dry-run');
   const skipConnectivity = process.argv.includes('--skip-connectivity-test');
-  const jsRuntime = process.execPath || 'bun';
+  const jsRuntime = process.execPath || 'node';
 
   const startedAt = Date.now();
   console.log('\n=== Bob Training Refresh (Consolidated) ===\n');

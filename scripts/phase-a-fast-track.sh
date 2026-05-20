@@ -45,7 +45,7 @@ echo "[1/6] Build"
 if [[ "$SKIP_BUILD" == "true" ]]; then
   echo "Skipped build by flag (--skip-build)"
 else
-  bun run build
+  npm run build
 fi
 
 echo ""
@@ -53,7 +53,7 @@ echo "[2/6] Lint"
 if [[ "$SKIP_LINT" == "true" ]]; then
   echo "Skipped lint by flag (--skip-lint)"
 else
-  bun run lint
+  npm run lint
 fi
 
 echo ""
@@ -67,7 +67,7 @@ node scripts/validate-route-role-truth.mjs
 echo ""
 echo "[5/6] Org-isolation integration harness"
 set +e
-ORG_OUT="$(bun test tests/integration/org-isolation.test.ts 2>&1)"
+ORG_OUT="$(npx vitest run tests/integration/org-isolation.test.ts 2>&1)"
 ORG_EXIT=$?
 set -e
 

@@ -68,23 +68,18 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: npm ci
 
       - name: Install Playwright Chromium (with system deps)
-        run: bunx playwright install --with-deps chromium
+        run: npx playwright install --with-deps chromium
 
       - name: Build app for local preview
-        run: bun run build
+        run: npm run build
 
       - name: Start preview server
         run: |
-          bunx vite preview --host 127.0.0.1 --port 4173 &
+          npx vite preview --host 127.0.0.1 --port 4173 &
           echo $! > /tmp/preview.pid
           # Wait for server to be ready
           for i in $(seq 1 20); do
@@ -93,13 +88,13 @@ jobs:
           done
 
       - name: Run Phase 4 unit tests first
-        run: bunx vitest run src/lib/__tests__/enforcementPhase4.test.ts src/lib/__tests__/phase4Emergency.test.ts
+        run: npx vitest run src/lib/__tests__/enforcementPhase4.test.ts src/lib/__tests__/phase4Emergency.test.ts
 
       - name: Run Phase 4 Admiral's Bridge E2E
         id: admirals_bridge
         continue-on-error: true
         run: |
-          bunx playwright test \
+          npx playwright test \
             tests/e2e/phase4-admirals-bridge.spec.ts \
             --project=chromium \
             --reporter=list
@@ -108,7 +103,7 @@ jobs:
         id: emergency_banner
         continue-on-error: true
         run: |
-          bunx playwright test \
+          npx playwright test \
             tests/e2e/phase4-operations-map-emergency-banner.spec.ts \
             --project=chromium \
             --reporter=list
@@ -117,7 +112,7 @@ jobs:
         id: signature_gate
         continue-on-error: true
         run: |
-          bunx playwright test \
+          npx playwright test \
             tests/e2e/phase4-notice-print-signature-gate.spec.ts \
             --project=chromium \
             --reporter=list

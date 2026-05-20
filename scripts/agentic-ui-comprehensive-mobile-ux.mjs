@@ -6,9 +6,9 @@
  * Tests every mobile page across all user roles using Vercel emulator.
  *
  * Usage:
- *   bun scripts/agentic-ui-comprehensive-mobile-ux.mjs
- *   bun scripts/agentic-ui-comprehensive-mobile-ux.mjs --role officer
- *   bun scripts/agentic-ui-comprehensive-mobile-ux.mjs --dry-run
+ *   node scripts/agentic-ui-comprehensive-mobile-ux.mjs
+ *   node scripts/agentic-ui-comprehensive-mobile-ux.mjs --role officer
+ *   node scripts/agentic-ui-comprehensive-mobile-ux.mjs --dry-run
  *
  * Output:
  *   tools/agentic-ui-reports/mobile-comprehensive-TIMESTAMP/
@@ -155,7 +155,7 @@ function parseArgs() {
     baseUrl: (process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:5173').replace(/\/$/, ''),
     baseUrlWaitMs: Number(process.env.AGENTIC_BASE_URL_WAIT_MS) || 30000,
     autoStartServer: true,
-    webServerCommand: 'bunx vite --port 5173 --strictPort',
+    webServerCommand: 'npx vite --port 5173 --strictPort',
   }
 
   for (const arg of args) {
@@ -270,7 +270,7 @@ async function main() {
 
     const packReportDir = path.join(reportDir, `pack-${pack.name}`)
     const cmd = [
-      `bun scripts/agentic-ui-shadow-user.mjs`,
+      `node scripts/agentic-ui-shadow-user.mjs`,
       `--pack=${pack.name}`,
       `--no-planner`,
       `--no-video`,
@@ -359,7 +359,7 @@ async function main() {
         const goal = `As ${role} user, navigate to ${page} on mobile and verify page renders without errors, all controls are visible and responsive`
 
         const cmd =
-          `bun scripts/agentic-ui-shadow-user.mjs ` +
+          `node scripts/agentic-ui-shadow-user.mjs ` +
           `--goal="${goal}" ` +
           `--no-video ` +
           `--base-url=${config.baseUrl} ` +
@@ -417,7 +417,7 @@ async function main() {
 
     if (autoPublishEnabled && hasBugReporterEnv) {
       log(`Publishing Vercel emulator reports from ${reportDir} to bug_reports`, 'info')
-      const publishCmd = `bun scripts/publish-test-failures-to-bug-reports.mjs --emulator-root=${reportDir} --emulator-max-age-hours=24`
+      const publishCmd = `node scripts/publish-test-failures-to-bug-reports.mjs --emulator-root=${reportDir} --emulator-max-age-hours=24`
       const publishResult = run(publishCmd, { silent: false })
       if (publishResult.success) {
         log(`✓ bug_reports publish completed`, 'info')

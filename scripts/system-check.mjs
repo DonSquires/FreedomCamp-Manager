@@ -41,14 +41,14 @@ function readModules() {
 }
 
 function readLockfiles() {
-  const candidates = ['bun.lock', 'package-lock.json', 'pnpm-lock.yaml', 'yarn.lock'];
+  const candidates = ['package-lock.json', 'pnpm-lock.yaml', 'yarn.lock'];
   return candidates.filter((name) => fs.existsSync(path.join(root, name)));
 }
 
 const systemState = {
   os: safeReadOsName(),
   node_version: process.version || 'not installed',
-  bun_version: safeVersion('bun -v'),
+  npm_version: safeVersion('npm -v'),
   modules: readModules(),
   lockfiles: readLockfiles(),
   generated_at: new Date().toISOString(),

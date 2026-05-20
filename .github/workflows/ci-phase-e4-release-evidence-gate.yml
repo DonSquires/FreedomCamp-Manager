@@ -16,7 +16,7 @@ on:
       - 'docs/MODULE_ROADMAP.md'
       - 'docs/STAGING.md'
       - 'package.json'
-      - 'bun.lock'
+      - 'package-lock.json'
   push:
     branches: [main]
     paths:
@@ -32,7 +32,7 @@ on:
       - 'docs/MODULE_ROADMAP.md'
       - 'docs/STAGING.md'
       - 'package.json'
-      - 'bun.lock'
+      - 'package-lock.json'
   workflow_dispatch:
 
 env:
@@ -50,19 +50,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: npm ci
 
       - name: Run Phase E4 release evidence gate suite
         id: phase_gate_suite
         continue-on-error: true
         run: |
-          bunx playwright test \
+          npx playwright test \
             tests/e2e/phase-e4-release-evidence.spec.ts \
             --reporter=list
 

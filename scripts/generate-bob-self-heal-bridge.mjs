@@ -51,7 +51,7 @@ function buildReport(evidence) {
     expected_behavior: 'Build succeeds, lint is clean, and Bob can review the state using internal evidence only.',
     actual_behavior: `Build success=${Boolean(evidence?.build?.succeeded)}; lint errors=${evidence?.lint?.totalErrors ?? 0}; lint warnings=${evidence?.lint?.totalWarnings ?? 0}; chunk warning=${hasChunkWarning}.`,
     reproduction_steps: [
-      'Run bun run review:evidence to refresh build and lint evidence.',
+      'Run npm run review:evidence to refresh build and lint evidence.',
       'Inspect generated Bob evidence JSON and identify top lint/build issues.',
       'Feed the summary into Bob collaboration or self-heal planner for remediation guidance.',
     ],

@@ -520,7 +520,7 @@ export default function GrandmasterCodingStudio() {
               </CardTitle>
               <CardDescription>
                 Describe what to build or fix. Bob will draft a plan, then the ops-bob-code-task workflow
-                generates code, runs bun build + lint, and opens a pull request — all automatically.
+                generates code, runs npm run build + npm run lint, and opens a pull request — all automatically.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -598,7 +598,7 @@ export default function GrandmasterCodingStudio() {
             <CardContent className="text-sm text-muted-foreground space-y-2">
               <p>1. You submit a task description here — Bob drafts an implementation plan using Ollama.</p>
               <p>2. The <code className="bg-muted px-1 rounded">ops-bob-code-task</code> GitHub Actions workflow runs hourly, picks up pending tasks, and calls GitHub Models API (gpt-4o) to generate the code.</p>
-              <p>3. Files are written to a new branch <code className="bg-muted px-1 rounded">bob/task-&lt;id&gt;</code>, bun build + lint run, and a pull request is opened labelled <code className="bg-muted px-1 rounded">bob-generated</code>.</p>
+              <p>3. Files are written to a new branch <code className="bg-muted px-1 rounded">bob/task-&lt;id&gt;</code>, npm build + lint run, and a pull request is opened labelled <code className="bg-muted px-1 rounded">bob-generated</code>.</p>
               <p>4. You review and merge the PR. The task status updates to <strong>completed</strong> with the PR link.</p>
               <p className="text-xs">This gives you the same code generation pipeline as GitHub Copilot, running entirely inside your own infrastructure — no dependency on GitHub as the sole code management channel.</p>
             </CardContent>

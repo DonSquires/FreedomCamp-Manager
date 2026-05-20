@@ -18,7 +18,7 @@
  *   - production-readiness-audit.spec.ts → slow meta audit
  *   - asset-management-scan.spec.ts  → scan hardware dependency
  *
- * Run with: bun run test:focused
+ * Run with: npm run test:focused
  */
 
 import { existsSync } from 'node:fs'
@@ -49,11 +49,7 @@ const baseURL =
 const ignoreHTTPSErrors = process.env.PLAYWRIGHT_IGNORE_HTTPS_ERRORS !== '0'
 const reuseExistingPlaywrightServer =
   process.env.PLAYWRIGHT_REUSE_EXISTING_SERVER === '1' ? true : !process.env.CI
-const webServerRunner = existsSync('/home/vscode/.bun/bin/bun')
-  ? '/home/vscode/.bun/bin/bun'
-  : existsSync('/workspaces/.bun/bin/bun')
-    ? '/workspaces/.bun/bin/bun'
-    : 'npm'
+const webServerRunner = 'npm'
 
 function buildWebServerCommand(targetBaseURL: string): string {
   try {

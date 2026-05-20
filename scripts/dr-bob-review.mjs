@@ -414,7 +414,7 @@ async function runCommand(command, args = []) {
 async function attemptBasicCodeFixes() {
   const steps = [];
 
-  const lintFix = await runCommand('bun', ['run', 'lint', '--fix']);
+  const lintFix = await runCommand('npm', ['run', 'lint', '--', '--fix']);
   steps.push({
     step: 'lint-fix',
     code: lintFix.code,
@@ -424,7 +424,7 @@ async function attemptBasicCodeFixes() {
     return { success: false, steps };
   }
 
-  const build = await runCommand('bun', ['run', 'build']);
+  const build = await runCommand('npm', ['run', 'build']);
   steps.push({
     step: 'build-verify',
     code: build.code,

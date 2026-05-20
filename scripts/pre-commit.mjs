@@ -20,12 +20,12 @@ function runCommand(cmd, args, cwd = process.cwd()) {
 async function main() {
   console.log('🔍 Pre-commit: Running spatial intelligence tests...\n');
 
-  const testCode = await runCommand('bun', ['run', 'bob:test:spatial']);
+  const testCode = await runCommand('npm', ['run', 'bob:test:spatial']);
 
   if (testCode !== 0) {
     console.error('\n❌ Tests failed. Commit blocked.\n');
     console.error('   Fix the failing tests and try again.');
-    console.error('   Run: bun run bob:test:spatial:watch\n');
+    console.error('   Run: npm run bob:test:spatial:watch\n');
     process.exit(1);
   }
 

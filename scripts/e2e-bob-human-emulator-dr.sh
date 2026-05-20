@@ -11,7 +11,7 @@ DR_MAX_ATTEMPTS="${DR_BOB_MAX_ATTEMPTS:-5}"
 DR_RETRY_DELAY_SECONDS="${DR_BOB_RETRY_DELAY_SECONDS:-8}"
 
 printf '[bob-dr] Running Bob Playwright suite (%s, project=%s)\n' "$SPEC_PATH" "$PLAYWRIGHT_PROJECT"
-bash scripts/playwright-bob-runtime.sh bunx playwright test "$SPEC_PATH" --project="$PLAYWRIGHT_PROJECT" --reporter=line
+bash scripts/playwright-bob-runtime.sh npx playwright test "$SPEC_PATH" --project="$PLAYWRIGHT_PROJECT" --reporter=line
 
 printf '[bob-dr] Playwright passed; starting Dr Bob review retries (retries=%s, max-attempts=%s)\n' "$DR_RETRY_COUNT" "$DR_MAX_ATTEMPTS"
 

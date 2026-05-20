@@ -15,10 +15,10 @@ echo "[rollout] Logs: $LOG_DIR"
 echo "[rollout] NODE_OPTIONS: $NODE_OPTIONS"
 
 echo "[rollout] Step 1/5: lint"
-bun run lint > "$LOG_DIR/1_lint.log" 2>&1
+npm run lint > "$LOG_DIR/1_lint.log" 2>&1
 
 echo "[rollout] Step 2/5: build"
-bun run build > "$LOG_DIR/2_build.log" 2>&1
+npm run build > "$LOG_DIR/2_build.log" 2>&1
 
 echo "[rollout] Step 3/5: bundle budget"
 node scripts/check-bundle-budget.mjs > "$LOG_DIR/3_budget.log" 2>&1

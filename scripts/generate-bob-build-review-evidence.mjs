@@ -78,15 +78,15 @@ function parseLint(output) {
   };
 }
 
-const buildResult = runCommand('bun run build');
-const lintResult = runCommand('bun run lint');
+const buildResult = runCommand('npm run build');
+const lintResult = runCommand('npm run lint');
 
 const evidence = {
   generatedAt: new Date().toISOString(),
   privacyMode: 'self-contained',
   commands: {
-    build: 'bun run build',
-    lint: 'bun run lint',
+    build: 'npm run build',
+    lint: 'npm run lint',
   },
   build: {
     exitCode: buildResult.exitCode,

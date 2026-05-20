@@ -16,21 +16,16 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: npm ci
 
       - name: Lint
-        run: bun run lint
+        run: npm run lint
 
       - name: Lint warning budget gate
         id: lint_warning_budget
         continue-on-error: true
-        run: bun run lint:warning-budget
+        run: npm run lint:warning-budget
 
       - name: Enforce lint warning budget gate (strict mode)
         if: steps.lint_warning_budget.outcome == 'failure' && vars.LINT_WARNING_BUDGET_STRICT == 'true'
@@ -47,14 +42,14 @@ jobs:
         id: staging_doc
         env:
           STAGING_MAX_AGE_DAYS: '14'
-        run: bun run lint:staging-doc
+        run: npm run lint:staging-doc
 
       - name: Bob governance drift gate
         id: bob_governance_drift
         continue-on-error: true
         env:
           BOB_GOVERNANCE_DRIFT_STRICT: 'true'
-        run: bun run lint:bob-governance-drift
+        run: npm run lint:bob-governance-drift
 
       - name: Enforce Bob governance drift gate
         if: steps.bob_governance_drift.outcome == 'failure'
@@ -69,11 +64,11 @@ jobs:
 
       - name: Build gate
         id: build
-        run: bun run build
+        run: npm run build
 
       - name: Generate route-role matrix artifact
         run: |
-          bun run roadmap:route-matrix -- --out tools/route-role-matrix/monthly/${{ github.run_id }}/route-role-matrix.json
+          npm run roadmap:route-matrix -- --out tools/route-role-matrix/monthly/${{ github.run_id }}/route-role-matrix.json
 
       - name: Roadmap grounding strict gate
         run: |
@@ -85,7 +80,7 @@ jobs:
 
       - name: Generate module grounding artifact
         run: |
-          bun run roadmap:module-grounding -- --out tools/module-grounding/monthly/${{ github.run_id }}/module-grounding-report.json
+          npm run roadmap:module-grounding -- --out tools/module-grounding/monthly/${{ github.run_id }}/module-grounding-report.json
 
       - name: Module grounding strict validation
         run: |
@@ -93,15 +88,15 @@ jobs:
 
       - name: Collect monthly governance evidence
         run: |
-          bun run evidence:workflow --workflow "${{ steps.required-workflows.outputs.ids }}" --status monthly-checkpoint --notes "monthly-governance-checkpoint:${{ github.run_id }}" --out-dir tools/workflow-evidence/monthly/${{ github.run_id }}
+          npm run evidence:workflow --workflow "${{ steps.required-workflows.outputs.ids }}" --status monthly-checkpoint --notes "monthly-governance-checkpoint:${{ github.run_id }}" --out-dir tools/workflow-evidence/monthly/${{ github.run_id }}
 
       - name: Validate monthly governance evidence
         run: |
-          bun run evidence:workflow:validate -- --dir tools/workflow-evidence/monthly/${{ github.run_id }} --required "${{ steps.required-workflows.outputs.ids }}"
+          npm run evidence:workflow:validate -- --dir tools/workflow-evidence/monthly/${{ github.run_id }} --required "${{ steps.required-workflows.outputs.ids }}"
 
       - name: Generate monthly governance run summary JSON
         run: |
-          bun run governance:summary -- --gate monthly-governance --requiredIds "${{ steps.required-workflows.outputs.ids }}" --evidenceDir tools/workflow-evidence/monthly/${{ github.run_id }} --matrixDir tools/route-role-matrix/monthly/${{ github.run_id }} --out tools/governance-run-summaries/monthly/${{ github.run_id }}/run-summary.json --strict-route-roadmap --strict-roadmap-grounding
+          npm run governance:summary -- --gate monthly-governance --requiredIds "${{ steps.required-workflows.outputs.ids }}" --evidenceDir tools/workflow-evidence/monthly/${{ github.run_id }} --matrixDir tools/route-role-matrix/monthly/${{ github.run_id }} --out tools/governance-run-summaries/monthly/${{ github.run_id }}/run-summary.json --strict-route-roadmap --strict-roadmap-grounding
 
       - name: Upload monthly governance artifacts
         if: always()

@@ -78,15 +78,9 @@ jobs:
           cache: "npm"
           cache-dependency-path: inference-service/package.json
 
-      # ── Bun (frontend) ─────────────────────────────────────────────────────
-      - name: Install Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
-      # ── Frontend dependencies (cached via bun.lock) ────────────────────────
+      # ── Frontend dependencies (cached via package-lock.json) ───────────────
       - name: Install frontend dependencies
-        run: bun install --frozen-lockfile
+        run: npm ci
 
       # ── inference-service dependencies ─────────────────────────────────────
       - name: Install inference-service dependencies

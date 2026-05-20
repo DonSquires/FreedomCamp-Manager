@@ -14,7 +14,7 @@ on:
       - 'tests/e2e/setup.ts'
       - 'playwright.api.config.ts'
       - 'package.json'
-      - 'bun.lock'
+      - 'package-lock.json'
       - '.github/workflows/ci-phase-d2-translation-speech-gate.yml'
   push:
     branches: [main]
@@ -27,7 +27,7 @@ on:
       - 'tests/e2e/setup.ts'
       - 'playwright.api.config.ts'
       - 'package.json'
-      - 'bun.lock'
+      - 'package-lock.json'
       - '.github/workflows/ci-phase-d2-translation-speech-gate.yml'
   workflow_dispatch:
 
@@ -51,19 +51,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: npm ci
 
       - name: Run Phase D2 translation/speech gate suite
         id: phase_d2_gate
         continue-on-error: true
         run: |
-          bunx playwright test \
+          npx playwright test \
             tests/e2e/phase-d2-translation-speech-boundaries.spec.ts \
             --config=playwright.api.config.ts \
             --reporter=list

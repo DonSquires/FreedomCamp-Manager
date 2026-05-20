@@ -11,7 +11,7 @@ on:
       - 'playwright.deep-lite.config.ts'
       - 'playwright.api.config.ts'
       - 'package.json'
-      - 'bun.lock'
+      - 'package-lock.json'
       - 'vite.config.ts'
       - '.github/workflows/playwright-deep-functional-cross-browser.yml'
   pull_request:
@@ -24,7 +24,7 @@ on:
       - 'playwright.deep-lite.config.ts'
       - 'playwright.api.config.ts'
       - 'package.json'
-      - 'bun.lock'
+      - 'package-lock.json'
       - 'vite.config.ts'
       - '.github/workflows/playwright-deep-functional-cross-browser.yml'
   workflow_dispatch:
@@ -86,18 +86,13 @@ jobs:
         with:
           node-version: 24
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
       - name: Install dependencies
-        run: bun install
+        run: npm ci
 
       - name: Install Playwright browser and deps
         # On Linux the config falls back from WebKit to Chromium (WebKit runtime
         # deps are unavailable on ubuntu-latest runners), so we must install both.
-        run: bunx playwright install --with-deps webkit chromium
+        run: npx playwright install --with-deps webkit chromium
 
       - name: Check credentials availability
         id: creds-check
@@ -134,12 +129,12 @@ jobs:
       - name: Build local app for CI test target
         if: steps.creds-check.outputs.creds_available == 'true' && steps.preflight-auth.outputs.auth_ok == 'true'
         run: |
-          bun run build
+          npm run build
 
       - name: Start local preview server
         if: steps.creds-check.outputs.creds_available == 'true' && steps.preflight-auth.outputs.auth_ok == 'true'
         run: |
-          bun run preview -- --host 127.0.0.1 --port 4173 > /tmp/deep-functional-preview.log 2>&1 &
+          npm run preview -- --host 127.0.0.1 --port 4173 > /tmp/deep-functional-preview.log 2>&1 &
           echo $! > /tmp/deep-functional-preview.pid
 
       - name: Resolve base URL
@@ -188,7 +183,7 @@ jobs:
       - name: Run deep functional suite
         if: steps.creds-check.outputs.creds_available == 'true' && steps.preflight-auth.outputs.auth_ok == 'true'
         run: |
-          bunx playwright test tests/e2e/deep-functional.spec.ts tests/e2e/tender-workspace.spec.ts \
+          npx playwright test tests/e2e/deep-functional.spec.ts tests/e2e/tender-workspace.spec.ts \
             --config=playwright.deep-lite.config.ts \
             --project="${{ matrix.project }}" \
             --reporter=list \

@@ -45,13 +45,8 @@ jobs:
         with:
           node-version: 24
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: npm ci
 
       - name: Validate required env vars
         run: |
@@ -80,11 +75,11 @@ jobs:
           fi
 
       - name: Install Playwright browser
-        run: bunx playwright install --with-deps chromium
+        run: npx playwright install --with-deps chromium
 
       - name: Run baseline capture spec
         run: |
-          bunx playwright test tests/e2e/phase3-ux-baseline-capture.spec.ts \
+          npx playwright test tests/e2e/phase3-ux-baseline-capture.spec.ts \
             --project=chromium \
             --reporter=list \
             --timeout=60000
@@ -94,7 +89,7 @@ jobs:
 
       - name: Run role-path redirect guard spec
         run: |
-          bunx playwright test tests/e2e/phase3-role-path-redirect.spec.ts \
+          npx playwright test tests/e2e/phase3-role-path-redirect.spec.ts \
             --project=chromium \
             --reporter=list
 

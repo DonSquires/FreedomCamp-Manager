@@ -3,7 +3,7 @@ name: Ops Bob Code Task
 # Bob accepts coding tasks via POST /code/task and plans them with Ollama.
 # This workflow executes the tasks: it generates production-quality code using
 # GitHub Models API with full FieldOps context, applies file operations to the
-# repo, validates with bun run build + bun run lint, commits to a branch, opens
+# repo, validates with npm run build + npm run lint, commits to a branch, opens
 # a PR, and reports the result back to Bob.
 #
 # This gives Bob the same code-writing capability as the Copilot coding agent.
@@ -14,7 +14,7 @@ name: Ops Bob Code Task
 #   3. Generate code with GitHub Models API (gpt-4o) + FieldOps context
 #   4. Parse JSON file operations (create / overwrite) from the LLM response
 #   5. Apply file operations to the checked-out repo
-#   6. Run bun install && bun run build && bun run lint
+#   6. Run npm ci && npm run build && npm run lint
 #   7. git commit -am "..." && gh pr create
 #   8. POST /code/tasks/:id/result or /fail  → report outcome to Bob
 #
@@ -368,13 +368,13 @@ jobs:
           token: ${{ secrets.BOB_GITHUB_TOKEN || github.token }}
 
       # -----------------------------------------------------------------------
-      # 5. Set up bun
+      # 5. Set up Node.js
       # -----------------------------------------------------------------------
-      - name: Set up bun
+      - name: Set up Node.js
         if: steps.validate.outputs.can_run == 'true' && (steps.fetch.outputs.task_count != '0' || steps.fetch_fallback.outputs.task_count != '0')
-        uses: oven-sh/setup-bun@v2
+        uses: actions/setup-node@v6
         with:
-          bun-version: latest
+          node-version: 24
 
       # -----------------------------------------------------------------------
       # 6. Configure git author for commits
@@ -405,7 +405,7 @@ jobs:
           # Keep this on one shell line so GitHub's workflow parser never sees
           # prompt content as YAML.
           # ----------------------------------------------------------------
-          CODE_SYSTEM_PROMPT=$(printf '%b' 'You are an expert FieldOps Manager developer. FieldOps Manager is a TypeScript and React SPA for freedom camping enforcement in New Zealand.\n\nTech stack:\n- React 18, TypeScript, Vite, Tailwind CSS v3, shadcn/ui\n- Zustand stores and TanStack Query v5\n- react-hook-form plus zod\n- react-router-dom v6\n- Supabase PostgreSQL, Edge Functions, RLS, Auth, Storage\n- Bob inference service on RunPod; proxy-server on Railway; PTT server on VPS (72.61.123.97)\n- bun package manager\n\nKey conventions:\n- Supabase client from @/lib/supabase\n- DB row types from Database["public"]["Tables"]["table"]["Row"]\n- Path alias @/* maps to ./src/*\n- Pages live in src/pages and default export a React component\n- Hooks live in src/hooks and follow query and mutation patterns\n- Stores live in src/stores and commonly use persist to sessionStorage\n- Use shadcn/ui components from @/components/ui and do not re-implement them\n- Edge Functions use withCors from ../_shared/withCors.ts and handle OPTIONS\n- Migrations live in supabase/migrations and must include RLS where required\n- Keep TypeScript config lenient: noImplicitAny=false, strictNullChecks=false, skipLibCheck=true\n- User roles include admin, master, officer, and admin_officer; routes are guarded in App.tsx\n- All datetimes use Pacific/Auckland timezone\n- Toasts come from sonner\n- Validate with bun run build and bun run lint\n\nOutput only valid JSON with summary, pr_title, and files. Each file entry must use operation create or overwrite, include the repo-relative path, and include full file contents. Never truncate content and never return markdown or prose outside the JSON object.')
+          CODE_SYSTEM_PROMPT=$(printf '%b' 'You are an expert FieldOps Manager developer. FieldOps Manager is a TypeScript and React SPA for freedom camping enforcement in New Zealand.\n\nTech stack:\n- React 18, TypeScript, Vite, Tailwind CSS v3, shadcn/ui\n- Zustand stores and TanStack Query v5\n- react-hook-form plus zod\n- react-router-dom v6\n- Supabase PostgreSQL, Edge Functions, RLS, Auth, Storage\n- Bob inference service on RunPod; proxy-server on Railway; PTT server on VPS (72.61.123.97)\n- npm package manager\n\nKey conventions:\n- Supabase client from @/lib/supabase\n- DB row types from Database["public"]["Tables"]["table"]["Row"]\n- Path alias @/* maps to ./src/*\n- Pages live in src/pages and default export a React component\n- Hooks live in src/hooks and follow query and mutation patterns\n- Stores live in src/stores and commonly use persist to sessionStorage\n- Use shadcn/ui components from @/components/ui and do not re-implement them\n- Edge Functions use withCors from ../_shared/withCors.ts and handle OPTIONS\n- Migrations live in supabase/migrations and must include RLS where required\n- Keep TypeScript config lenient: noImplicitAny=false, strictNullChecks=false, skipLibCheck=true\n- User roles include admin, master, officer, and admin_officer; routes are guarded in App.tsx\n- All datetimes use Pacific/Auckland timezone\n- Toasts come from sonner\n- Validate with npm run build and npm run lint\n\nOutput only valid JSON with summary, pr_title, and files. Each file entry must use operation create or overwrite, include the repo-relative path, and include full file contents. Never truncate content and never return markdown or prose outside the JSON object.')
 
           # ----------------------------------------------------------------
           # Helper: call GitHub Models API
@@ -622,24 +622,24 @@ jobs:
               git branch -D "$BRANCH" 2>/dev/null || true
               continue
             fi
-
-            # ----------------------------------------------------------------
-            # Install deps and validate the build
-            # ----------------------------------------------------------------
+          
+          # ----------------------------------------------------------------
+          # Install deps and validate the build
+          # ----------------------------------------------------------------
             echo "🔧 Installing dependencies..."
-            bun install --frozen-lockfile 2>&1 | tail -5 || bun install 2>&1 | tail -5
+            npm ci 2>&1 | tail -5 || npm install 2>&1 | tail -5
 
             BUILD_PASSED=true
-            echo "🏗️  Running bun run build..."
-            if ! bun run build 2>&1 | tail -30; then
-              echo "::warning::bun run build failed — PR will be created with build failure noted"
+            echo "🏗️  Running npm run build..."
+            if ! npm run build 2>&1 | tail -30; then
+              echo "::warning::npm run build failed — PR will be created with build failure noted"
               BUILD_PASSED=false
             fi
 
             LINT_PASSED=true
-            echo "🔍 Running bun run lint..."
-            if ! bun run lint 2>&1 | tail -20; then
-              echo "::warning::bun run lint reported issues — will be noted in PR"
+            echo "🔍 Running npm run lint..."
+            if ! npm run lint 2>&1 | tail -20; then
+              echo "::warning::npm run lint reported issues — will be noted in PR"
               LINT_PASSED=false
             fi
 

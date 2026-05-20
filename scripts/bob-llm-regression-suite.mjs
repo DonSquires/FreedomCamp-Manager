@@ -13,7 +13,7 @@ function argValue(name) {
 }
 
 function runVitest(testFile) {
-  const command = process.platform === 'win32' ? 'bunx.cmd' : 'bunx'
+  const command = process.platform === 'win32' ? 'npx.cmd' : 'npx'
   const args = ['vitest', 'run', testFile]
   const result = spawnSync(command, args, {
     cwd: ROOT,

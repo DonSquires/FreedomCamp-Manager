@@ -9,7 +9,7 @@ on:
       - 'tests/monitoring-pulse.spec.ts'
       - 'playwright.config.ts'
       - 'package.json'
-      - 'bun.lock'
+      - 'package-lock.json'
       - '.github/workflows/playwright-monitoring-pulse.yml'
   pull_request:
     branches: [main]
@@ -19,7 +19,7 @@ on:
       - 'tests/monitoring-pulse.spec.ts'
       - 'playwright.config.ts'
       - 'package.json'
-      - 'bun.lock'
+      - 'package-lock.json'
       - '.github/workflows/playwright-monitoring-pulse.yml'
   workflow_dispatch:
 
@@ -42,16 +42,11 @@ jobs:
         with:
           node-version: 24
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: npm ci
 
       - name: Typecheck preflight
-        run: bun run typecheck
+        run: npm run typecheck
 
   monitoring-pulse:
     name: Monitoring Pulse Smoke (Ubuntu Chromium)
@@ -75,24 +70,19 @@ jobs:
         with:
           node-version: 24
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
       - name: Install dependencies
-        run: bun install
+        run: npm ci
 
       - name: Install Playwright Chromium and OS deps
-        run: bunx playwright install --with-deps chromium
+        run: npx playwright install --with-deps chromium
 
       - name: Build app
-        run: bun run build
+        run: npm run build
 
       - name: Start preview server
         run: |
           set -euo pipefail
-          bun run preview -- --host 127.0.0.1 --port 4173 > /tmp/monitoring-preview.log 2>&1 &
+          npm run preview -- --host 127.0.0.1 --port 4173 > /tmp/monitoring-preview.log 2>&1 &
           echo $! > /tmp/monitoring-preview.pid
 
       - name: Wait for app
@@ -126,7 +116,7 @@ jobs:
 
       - name: Run monitoring pulse smoke test
         run: |
-          bunx playwright test monitoring-pulse.spec.ts --config=playwright.config.ts --project=chromium --workers=1 --reporter=line
+          npx playwright test monitoring-pulse.spec.ts --config=playwright.config.ts --project=chromium --workers=1 --reporter=line
 
       - name: Upload Playwright artifacts
         if: always()

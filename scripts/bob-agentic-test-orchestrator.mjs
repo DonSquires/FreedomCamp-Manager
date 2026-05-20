@@ -28,42 +28,42 @@ const STAGE_CATALOG = {
   lint: {
     id: 'lint',
     description: 'Lint codebase',
-    command: 'bun',
+    command: 'npm',
     args: ['run', 'lint'],
     bobAssist: true,
   },
   build: {
     id: 'build',
     description: 'Build app',
-    command: 'bun',
+    command: 'npm',
     args: ['run', 'build'],
     bobAssist: true,
   },
   'nav-parity': {
     id: 'nav-parity',
     description: 'Run navigation parity tests',
-    command: 'bun',
+    command: 'npm',
     args: ['run', 'test:nav-parity'],
     bobAssist: true,
   },
   unit: {
     id: 'unit',
     description: 'Run unit tests',
-    command: 'bun',
+    command: 'npm',
     args: ['run', 'test:unit'],
     bobAssist: true,
   },
   api: {
     id: 'api',
     description: 'Run API supporting-function tests',
-    command: 'bun',
+    command: 'npm',
     args: ['run', 'test:api'],
     bobAssist: true,
   },
   'workflow-e2e-all-projects': {
     id: 'workflow-e2e-all-projects',
     description: 'Run end-to-end workflow tests across desktop/mobile projects',
-    command: 'bunx',
+    command: 'npx',
     args: [
       'playwright',
       'test',
@@ -85,7 +85,7 @@ const STAGE_CATALOG = {
   'visual-e2e-emulation': {
     id: 'visual-e2e-emulation',
     description: 'Run visual regression-style sweeps on desktop and mobile emulation',
-    command: 'bunx',
+    command: 'npx',
     args: [
       'playwright',
       'test',
@@ -277,34 +277,32 @@ function commandExists(command) {
 }
 
 function resolveToolchain() {
-  const hasBun = commandExists('bun')
   const hasNpm = commandExists('npm')
-  const hasBunx = commandExists('bunx')
   const hasNpx = commandExists('npx')
 
-  if (!hasBun && !hasNpm) {
-    throw new Error('Neither bun nor npm is available in PATH. Cannot run orchestrator stages.')
+  if (!hasNpm) {
+    throw new Error('npm is not available in PATH. Cannot run orchestrator stages.')
   }
 
-  if (!hasBunx && !hasNpx) {
-    throw new Error('Neither bunx nor npx is available in PATH. Cannot run Playwright stages.')
+  if (!hasNpx) {
+    throw new Error('npx is not available in PATH. Cannot run Playwright stages.')
   }
 
   return {
-    scriptRunner: hasBun ? 'bun' : 'npm',
-    packageExecutor: hasBunx ? 'bunx' : 'npx',
+    scriptRunner: 'npm',
+    packageExecutor: 'npx',
   }
 }
 
 function resolveStageInvocation(stage, toolchain) {
-  if (stage.command === 'bun') {
+  if (stage.command === 'npm') {
     return {
       command: toolchain.scriptRunner,
       args: stage.args,
     }
   }
 
-  if (stage.command === 'bunx') {
+  if (stage.command === 'npx') {
     return {
       command: toolchain.packageExecutor,
       args: stage.args,

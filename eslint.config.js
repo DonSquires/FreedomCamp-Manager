@@ -9,7 +9,6 @@ export default tseslint.config(
   {
     ignores: [
       'dist',
-      '.bun',
       '.cache',
       '.npm-cache',
       '.home',

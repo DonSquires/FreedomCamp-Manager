@@ -60,7 +60,7 @@ async function main() {
   try {
     rows = await loadAssetRows()
   } catch {
-    throw new Error('dist/assets not found. Run bun run build before budget checks.')
+    throw new Error('dist/assets not found. Run npm run build before budget checks.')
   }
 
   const jsRows = rows.filter((row) => row.ext === '.js' || row.ext === '.mjs')

@@ -19,7 +19,7 @@
 | Routing | react-router-dom v6 |
 | Backend | Supabase (PostgreSQL + Edge Functions + Row Level Security) |
 | Services | `proxy-server/` (NZSCV, Node/Express), `inference-service/` (ONNX AI, Node) |
-| Package manager | **bun** (`bun.lock` at root) |
+| Package manager | **npm** (`package-lock.json` at root) |
 
 ---
 
@@ -48,7 +48,7 @@
 ├── index.html                # Vite HTML entry
 ├── tailwind.config.ts
 ├── tsconfig.json             # References tsconfig.app.json + tsconfig.node.json
-└── bun.lock                  # Bun lockfile (no root package.json is committed)
+└── package-lock.json                  # npm lockfile
 ```
 
 Path alias: **`@/*`** → `./src/*` (defined in `tsconfig.json` and Vite config).
@@ -57,7 +57,7 @@ Path alias: **`@/*`** → `./src/*` (defined in `tsconfig.json` and Vite config)
 
 ## Build & Development
 
-> **Important**: There is **no committed root `package.json`**. If one is missing, create it before running bun commands.
+> **Important**: Ensure the root `package.json` exists before running npm commands.
 
 A standard root `package.json` for this project:
 
@@ -76,19 +76,19 @@ A standard root `package.json` for this project:
 
 ```bash
 # Install dependencies (run first after cloning or after package.json changes)
-bun install
+npm install
 
 # Start dev server (http://localhost:5173 by default)
-bun run dev
+npm run dev
 
 # Type-check + production build (output in dist/)
-bun run build
+npm run build
 
 # Lint (ESLint 9 flat config)
-bun run lint
+npm run lint
 
 # Preview production build
-bun run preview
+npm run preview
 ```
 
 **Environment**: copy `.env` and set `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`.
@@ -147,8 +147,8 @@ All datetimes are NZ timezone (`Pacific/Auckland`). The Supabase client sends `X
 ## Validation
 
 After making changes, always verify:
-1. `bun run build` succeeds (TypeScript + Vite)
-2. `bun run lint` has no new errors
+1. `npm run build` succeeds (TypeScript + Vite)
+2. `npm run lint` has no new errors
 3. Any modified Supabase Edge Function follows the CORS + OPTIONS pattern
 4. New database columns match the types in `src/types/database.ts`
 

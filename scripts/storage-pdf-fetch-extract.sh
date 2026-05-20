@@ -39,7 +39,7 @@ curl -sS -L "$url" \
   -o "$out_pdf"
 
 echo "Extracting text: $out_pdf -> $out_txt"
-bunx pdf-parse text "$out_pdf" -o "$out_txt" >/dev/null
+npx pdf-parse text "$out_pdf" -o "$out_txt" >/dev/null
 
 echo "Done"
 echo "PDF: $out_pdf"

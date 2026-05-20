@@ -1,4 +1,4 @@
-#!/usr/bin/env bun
+#!/usr/bin/env node
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -73,7 +73,6 @@ function buildGrantPackets() {
   const scriptFiles = listScriptFiles(path.join(repoRoot, 'scripts'));
 
   const cliCandidates = [
-    'bun',
     'node',
     'npm',
     'git',

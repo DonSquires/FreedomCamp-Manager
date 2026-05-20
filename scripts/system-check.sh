@@ -17,9 +17,9 @@ else
 fi
 
 NODE_VERSION="$(node -v 2>/dev/null || echo 'not installed')"
-BUN_VERSION="$(bun -v 2>/dev/null || echo 'not installed')"
+NPM_VERSION="$(npm -v 2>/dev/null || echo 'not installed')"
 TOOLCHAIN_READY="false"
-if [[ "$NODE_VERSION" != "not installed" && "$BUN_VERSION" != "not installed" ]]; then
+if [[ "$NODE_VERSION" != "not installed" && "$NPM_VERSION" != "not installed" ]]; then
   TOOLCHAIN_READY="true"
 fi
 
@@ -35,7 +35,6 @@ if [[ -d src/modules ]]; then
 fi
 
 LOCKFILES=()
-[[ -f bun.lock ]] && LOCKFILES+=("\"bun.lock\"")
 [[ -f package-lock.json ]] && LOCKFILES+=("\"package-lock.json\"")
 [[ -f pnpm-lock.yaml ]] && LOCKFILES+=("\"pnpm-lock.yaml\"")
 [[ -f yarn.lock ]] && LOCKFILES+=("\"yarn.lock\"")
@@ -45,7 +44,7 @@ cat > system_state.json <<EOF
 {
   "os": "$OS_DESC",
   "node_version": "$NODE_VERSION",
-  "bun_version": "$BUN_VERSION",
+  "npm_version": "$NPM_VERSION",
   "toolchain_ready": $TOOLCHAIN_READY,
   "modules": $MODULES_JSON,
   "lockfiles": $LOCKFILES_JSON,

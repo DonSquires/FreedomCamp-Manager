@@ -11,7 +11,7 @@ const DEFAULT_MAX_WAIT_MINUTES = 360;
 const DEFAULT_POLL_SECONDS = 60;
 const DEFAULT_REQUIRE_ACTIVITY_SINCE_START = true;
 const DEFAULT_COMMAND =
-  'bash scripts/playwright-bob-runtime.sh bunx playwright test tests/e2e/phase3-sentient-xo.spec.ts tests/e2e/phase4-admirals-bridge.spec.ts --project=chromium --workers=1 --reporter=line';
+  'bash scripts/playwright-bob-runtime.sh npx playwright test tests/e2e/phase3-sentient-xo.spec.ts tests/e2e/phase4-admirals-bridge.spec.ts --project=chromium --workers=1 --reporter=line';
 
 function getArg(name, fallback = '') {
   const key = `--${name}`;

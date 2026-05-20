@@ -226,13 +226,13 @@ bulletins.push({
   summary: clip(`
     Tech stack: React 18, TypeScript, Vite, Tailwind CSS v3, shadcn/ui (Radix UI).
     State: Zustand (src/stores/) + TanStack Query v5. Forms: react-hook-form + zod.
-    Charts: recharts. Routing: react-router-dom v6. Package manager: bun (bun.lock at root).
+    Charts: recharts. Routing: react-router-dom v6. Package manager: npm (package-lock.json at root).
     Backend: Supabase (PostgreSQL 17 + Edge Functions + Row Level Security).
     Services: inference-service/ (Node/Express + ONNX AI, Bob — on RunPod), proxy-server/ (NZSCV, Node/Express — on Railway),
     ptt-server/ (WebSocket voice — on hPanel VPS 72.61.123.97), ollama/ (LLM, same RunPod pod as Bob).
     Hosting: Vercel (fcmanager.co.nz frontend), RunPod (Bob + Ollama), Railway (Proxy only), VPS 72.61.123.97 (PTT + TURN), Expo EAS (mobile).
     Path alias: @/* → ./src/* (defined in tsconfig.json and vite.config.ts).
-    Build commands: bun run dev | bun run build | bun run lint.
+    Build commands: npm run dev | npm run build | npm run lint.
     TypeScript config: noImplicitAny=false, strictNullChecks=false, skipLibCheck=true — do NOT tighten these.
     Timezone: ALL datetimes NZ (Pacific/Auckland). Supabase client sends X-Client-Timezone header.
     Supabase client import: always from @/lib/supabase. DB types: src/types/database.ts.
@@ -353,7 +353,7 @@ bulletins.push({
     least privilege. Prefer deterministic local processing for sensitive imagery.
     Knowledge pack: fieldops-codebase-coding-knowledge — same as Copilot coding agent context.
     Tech stack: React 18 + TypeScript + Vite + Tailwind CSS v3 + shadcn/ui.
-    Zustand + TanStack Query. react-hook-form + zod. bun as package manager.
+    Zustand + TanStack Query. react-hook-form + zod. npm as package manager.
     Supabase edge functions in Deno TypeScript. 70+ SQL migrations.
     Pages in src/pages/, hooks in src/hooks/, stores in src/stores/, types in src/types/.
     shadcn UI in src/components/ui/ — never re-implement. Feature components in src/components/features/.
@@ -462,7 +462,7 @@ if (buildEvidenceRaw) {
       Large chunks: ${(evidence.build?.largeChunks || []).slice(0, 6).map(c => `${c.file} ${c.sizeKb}kB`).join(', ')}.
       Chunk warning: ${evidence.build?.hasChunkWarning ?? false}.
       Lint errors: ${evidence.lint?.errorCount ?? 0}. Lint warnings: ${evidence.lint?.warningCount ?? 0}.
-      Commands: build=${evidence.commands?.build || 'bun run build'}, lint=${evidence.commands?.lint || 'bun run lint'}.
+      Commands: build=${evidence.commands?.build || 'npm run build'}, lint=${evidence.commands?.lint || 'npm run lint'}.
       Privacy mode: ${evidence.privacyMode || 'self-contained'}.
       Bob should use this as baseline when assessing build health and proposing fixes.
     `),
@@ -526,7 +526,7 @@ bulletins.push({
     Bob role: emulate the document-through-response flow end-to-end.
     CRITICAL DRIFT PREVENTION: Bob MUST only modify files listed in target_files.
     If a file does not exist, report back to Copilot via ask-copilot — do not create new files.
-    Build must pass: bun run build. Lint must pass: bun run lint.
+    Build must pass: npm run build. Lint must pass: npm run lint.
     After each change batch: run build + lint, report results to ask-copilot endpoint.
     Copilot (outside man) handles git commits, pushes, and PR review.
     Bob (inside man) handles analysis, planning, code modifications within target_files.

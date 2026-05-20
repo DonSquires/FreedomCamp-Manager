@@ -34,7 +34,7 @@ on:
       - '.github/workflows/governance-release-gate.yml'
       - '.github/workflows/monthly-governance-checkpoint.yml'
       - 'package.json'
-      - 'bun.lock'
+      - 'package-lock.json'
   push:
     branches: [main]
     paths:
@@ -68,7 +68,7 @@ on:
       - '.github/workflows/governance-release-gate.yml'
       - '.github/workflows/monthly-governance-checkpoint.yml'
       - 'package.json'
-      - 'bun.lock'
+      - 'package-lock.json'
   workflow_dispatch:
 
 env:
@@ -94,21 +94,16 @@ jobs:
         if: github.event_name == 'pull_request'
         run: git fetch --no-tags --prune --depth=1 origin "${{ github.base_ref }}"
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: npm ci
 
       - name: Lint
-        run: bun run lint
+        run: npm run lint
 
       - name: Lint warning budget gate
         id: lint_warning_budget
         continue-on-error: true
-        run: bun run lint:warning-budget
+        run: npm run lint:warning-budget
 
       - name: Enforce lint warning budget gate (strict mode)
         if: steps.lint_warning_budget.outcome == 'failure' && vars.LINT_WARNING_BUDGET_STRICT == 'true'
@@ -127,7 +122,7 @@ jobs:
         env:
           DOC_AUTHORITY_STRICT: 'true'
           DOC_AUTHORITY_DIFF_RANGE: ${{ github.event_name == 'pull_request' && format('origin/{0}...{1}', github.base_ref, github.sha) || format('{0}..{1}', github.event.before, github.sha) }}
-        run: bun run lint:doc-authority
+        run: npm run lint:doc-authority
 
       - name: Enforce doc authority gate (strict contexts)
         if: steps.doc_authority.outcome == 'failure' && (github.event_name != 'pull_request' || vars.GOVERNANCE_STRICT_ON_PR == 'true')
@@ -145,7 +140,7 @@ jobs:
         continue-on-error: true
         env:
           BOB_GOVERNANCE_DRIFT_STRICT: 'true'
-        run: bun run lint:bob-governance-drift
+        run: npm run lint:bob-governance-drift
 
       - name: Enforce Bob governance drift gate
         if: steps.bob_governance_drift.outcome == 'failure' && (github.event_name != 'pull_request' || vars.GOVERNANCE_STRICT_ON_PR == 'true')
@@ -163,7 +158,7 @@ jobs:
         continue-on-error: ${{ github.event_name == 'pull_request' && vars.GOVERNANCE_STRICT_ON_PR != 'true' }}
         env:
           STAGING_MAX_AGE_DAYS: '14'
-        run: bun run lint:staging-doc
+        run: npm run lint:staging-doc
 
       - name: Enforce staging doc gate (strict contexts)
         if: steps.staging_doc.outcome == 'failure' && (github.event_name != 'pull_request' || vars.GOVERNANCE_STRICT_ON_PR == 'true')
@@ -182,7 +177,7 @@ jobs:
         env:
           ROUTE_ROADMAP_STRICT: 'true'
           ROUTE_ROADMAP_DIFF_RANGE: ${{ github.event_name == 'pull_request' && format('origin/{0}...{1}', github.base_ref, github.sha) || format('{0}..{1}', github.event.before, github.sha) }}
-        run: bun run lint:route-roadmap
+        run: npm run lint:route-roadmap
 
       - name: Enforce route roadmap gate (strict contexts)
         if: steps.route_roadmap.outcome == 'failure' && (github.event_name != 'pull_request' || vars.GOVERNANCE_STRICT_ON_PR == 'true')
@@ -197,7 +192,7 @@ jobs:
 
       - name: Generate route-role matrix artifact
         run: |
-          bun run roadmap:route-matrix -- --out tools/route-role-matrix/governance/${{ github.run_id }}/route-role-matrix.json
+          npm run roadmap:route-matrix -- --out tools/route-role-matrix/governance/${{ github.run_id }}/route-role-matrix.json
 
       - name: Roadmap grounding strict gate
         run: |
@@ -209,7 +204,7 @@ jobs:
 
       - name: Generate module grounding artifact
         run: |
-          bun run roadmap:module-grounding -- --out tools/module-grounding/governance/${{ github.run_id }}/module-grounding-report.json
+          npm run roadmap:module-grounding -- --out tools/module-grounding/governance/${{ github.run_id }}/module-grounding-report.json
 
       - name: Module grounding strict validation
         run: |
@@ -228,15 +223,15 @@ jobs:
 
       - name: Collect governance evidence snapshot
         run: |
-          bun run evidence:workflow --workflow "${{ steps.required-workflows.outputs.ids }}" --status governance-gate --notes "governance-release-gate:${{ github.run_id }}" --out-dir tools/workflow-evidence/governance/${{ github.run_id }}
+          npm run evidence:workflow -- --workflow "${{ steps.required-workflows.outputs.ids }}" --status governance-gate --notes "governance-release-gate:${{ github.run_id }}" --out-dir tools/workflow-evidence/governance/${{ github.run_id }}
 
       - name: Validate governance evidence snapshot
         run: |
-          bun run evidence:workflow:validate -- --dir tools/workflow-evidence/governance/${{ github.run_id }} --required "${{ steps.required-workflows.outputs.ids }}"
+          npm run evidence:workflow:validate -- --dir tools/workflow-evidence/governance/${{ github.run_id }} --required "${{ steps.required-workflows.outputs.ids }}"
 
       - name: Generate governance run summary JSON
         run: |
-          bun run governance:summary -- --gate governance-release --requiredIds "${{ steps.required-workflows.outputs.ids }}" --evidenceDir tools/workflow-evidence/governance/${{ github.run_id }} --matrixDir tools/route-role-matrix/governance/${{ github.run_id }} --out tools/governance-run-summaries/governance-release/${{ github.run_id }}/run-summary.json --strict-doc-authority --strict-route-roadmap --strict-roadmap-grounding
+          npm run governance:summary -- --gate governance-release --requiredIds "${{ steps.required-workflows.outputs.ids }}" --evidenceDir tools/workflow-evidence/governance/${{ github.run_id }} --matrixDir tools/route-role-matrix/governance/${{ github.run_id }} --out tools/governance-run-summaries/governance-release/${{ github.run_id }}/run-summary.json --strict-doc-authority --strict-route-roadmap --strict-roadmap-grounding
 
       - name: Ensure governance artifact directories exist
         if: always()

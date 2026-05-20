@@ -62,7 +62,7 @@ let files
 try {
   files = readdirSync(distAssets)
 } catch {
-  console.error('dist/assets not found — run `bun run build` first.')
+  console.error('dist/assets not found — run `npm run build` first.')
   process.exit(2)
 }
 

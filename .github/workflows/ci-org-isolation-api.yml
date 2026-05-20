@@ -14,7 +14,7 @@ on:
       - 'supabase/migrations/20260506000010_phase_b4_enforcement_case_bridge.sql'
       - 'supabase/migrations/20260506000004_phase_b3_radio_comms_case_bridge.sql'
       - 'package.json'
-      - 'bun.lock'
+      - 'package-lock.json'
       - '.github/workflows/ci-org-isolation-api.yml'
   push:
     branches: [main]
@@ -29,7 +29,7 @@ on:
       - 'supabase/migrations/20260506000010_phase_b4_enforcement_case_bridge.sql'
       - 'supabase/migrations/20260506000004_phase_b3_radio_comms_case_bridge.sql'
       - 'package.json'
-      - 'bun.lock'
+      - 'package-lock.json'
       - '.github/workflows/ci-org-isolation-api.yml'
   workflow_dispatch:
 
@@ -56,23 +56,18 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: npm ci
 
       - name: Run five-scenario org isolation gate suite
         id: org_isolation_suite
         continue-on-error: true
-        run: bunx vitest run tests/integration/org-isolation.test.ts
+        run: npx vitest run tests/integration/org-isolation.test.ts
 
       - name: Run API org isolation suite
         id: api_isolation_suite
         continue-on-error: true
-        run: bunx playwright test -c playwright.api.config.ts
+        run: npx playwright test -c playwright.api.config.ts
 
       - name: Enforce org isolation gates (strict mode)
         if: (steps.org_isolation_suite.outcome == 'failure' || steps.api_isolation_suite.outcome == 'failure') && vars.ORG_ISOLATION_STRICT == 'true'

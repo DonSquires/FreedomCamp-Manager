@@ -42,21 +42,21 @@ API_KEY="${BOB_INFERENCE_API_KEY:-${INFERENCE_API_KEY:-}}"
 if [[ -z "$MODE" || -z "$INPUT" ]]; then
   cat <<'USAGE'
 Usage:
-  bun run bob:collab -- ask "question"
-  bun run bob:collab -- plan "task or problem statement"
-  bun run bob:collab -- research "topic or task statement"
-  bun run bob:collab -- queue "build task" "file1,file2" [priority]
-  bun run bob:collab -- hybrid "task" "file1,file2" [priority]
-  bun run bob:collab -- queue-run "build task" "file1,file2" [priority]
-  bun run bob:collab -- hybrid-run "task" "file1,file2" [priority]
+  npm run bob:collab -- ask "question"
+  npm run bob:collab -- plan "task or problem statement"
+  npm run bob:collab -- research "topic or task statement"
+  npm run bob:collab -- queue "build task" "file1,file2" [priority]
+  npm run bob:collab -- hybrid "task" "file1,file2" [priority]
+  npm run bob:collab -- queue-run "build task" "file1,file2" [priority]
+  npm run bob:collab -- hybrid-run "task" "file1,file2" [priority]
 
 Examples:
-  bun run bob:collab -- ask "What are top risks in AdminPortal state flow?"
-  bun run bob:collab -- plan "Design a staged fix plan for PTT auth drift"
-  bun run bob:collab -- research "Find current NZ procurement guidance for council tenders and map to tender response sections"
-  bun run bob:collab -- queue "Fix accessibility issues in AdminHub" "src/pages/AdminHub.tsx" high
-  bun run bob:collab -- hybrid "Review and improve officer assignment UX" "src/pages/AdminPortal.tsx,src/pages/AdminHub.tsx" high
-  bun run bob:collab -- queue-run "Fix tender e2e validation flow" "src/pages/TenderWorkspaceDetail.tsx" high
+  npm run bob:collab -- ask "What are top risks in AdminPortal state flow?"
+  npm run bob:collab -- plan "Design a staged fix plan for PTT auth drift"
+  npm run bob:collab -- research "Find current NZ procurement guidance for council tenders and map to tender response sections"
+  npm run bob:collab -- queue "Fix accessibility issues in AdminHub" "src/pages/AdminHub.tsx" high
+  npm run bob:collab -- hybrid "Review and improve officer assignment UX" "src/pages/AdminPortal.tsx,src/pages/AdminHub.tsx" high
+  npm run bob:collab -- queue-run "Fix tender e2e validation flow" "src/pages/TenderWorkspaceDetail.tsx" high
 USAGE
   exit 1
 fi

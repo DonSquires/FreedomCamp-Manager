@@ -19,7 +19,7 @@ function parseArgs(argv) {
   const args = {
     hours: 24,
     artifacts: ['spec.md'],
-    functionalCmd: 'bun run -s test:bob:governance',
+    functionalCmd: 'npm run -s test:bob:governance',
     outputRoot: 'tools/bob-operational-testing',
     maxLowScoreCount: 0,
     maxRepeatedHallucinations: 0,
@@ -89,7 +89,7 @@ function printHelp() {
       'Key options:',
       '  --hours <n>                             Window for log-driven checks (default: 24)',
       '  --artifacts spec.md,plan.md             Files for Dr Bob red-team review',
-      '  --functional-cmd "bun run -s test:bob:governance"',
+      '  --functional-cmd "npm run -s test:bob:governance"',
       '  --ragas-cmd "python scripts/run_ragas_eval.py"',
       '  --trulens-cmd "python scripts/run_trulens_eval.py"',
       '  --max-low-score-count <n>               RAG quality threshold (default: 0)',
@@ -169,13 +169,7 @@ async function runCommand(command, options = {}) {
 
 async function resolveFunctionalCommand(command) {
   const normalized = String(command || '').trim();
-  if (!normalized.startsWith('bun ')) return normalized;
-
-  const bunCheck = await runCommand('command -v bun');
-  if (bunCheck.exitCode === 0) return normalized;
-
-  const fallback = normalized.replace(/^bun\s+run\s+-s\s+/, 'npm run -s ').replace(/^bun\s+run\s+/, 'npm run ');
-  return fallback;
+  return normalized;
 }
 
 async function readScoreEntries(hours) {

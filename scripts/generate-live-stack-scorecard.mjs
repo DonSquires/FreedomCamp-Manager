@@ -229,7 +229,7 @@ async function main() {
             expected_behavior: 'All required CI workflows complete successfully for the head commit.',
             actual_behavior: `${payload.ci.byConclusion.failure || 0} workflow(s) failed; ${payload.ci.active.length} still active.`,
             reproduction_steps: [
-              'Run bun run research:stack:scorecard to refresh CI + self-heal telemetry.',
+              'Run npm run research:stack:scorecard to refresh CI + self-heal telemetry.',
               'Review ci.failed list and linked workflow URLs.',
               'Submit report to /self-heal/bug-report or Bob collaboration queue for remediation planning.',
             ],

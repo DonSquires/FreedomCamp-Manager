@@ -52,8 +52,6 @@ function main() {
   mkdirSync(OUT_DIR, { recursive: true })
 
   const tools = {
-    bun: commandExists('bun'),
-    bunx: commandExists('bunx'),
     npm: commandExists('npm'),
     npx: commandExists('npx'),
   }
@@ -83,28 +81,16 @@ function main() {
     return rec
   }
 
-  if (tools.bun) {
-    step('install', 'bun install --frozen-lockfile', { allowFailure: true })
-  } else if (tools.npm) {
+  if (tools.npm) {
     step('install', 'npm ci', { allowFailure: true })
   } else {
     summary.notes.push('No package manager detected for dependency install.')
   }
 
-  if (tools.bunx) {
-    step('eslint-fix', `bunx eslint . --fix --format json --output-file ${quoteShell(resolve(OUT_DIR, 'eslint-report.json'))}`, { allowFailure: true })
-  } else if (tools.npx) {
+  if (tools.npx) {
     step('eslint-fix', `npx eslint . --fix --format json --output-file ${quoteShell(resolve(OUT_DIR, 'eslint-report.json'))}`, { allowFailure: true })
   } else {
-    summary.notes.push('No eslint runner available (bunx/npx missing).')
-  }
-
-  if (tools.bun) {
-    step('bun-audit', `bun audit > ${quoteShell(resolve(OUT_DIR, 'bun-audit.txt'))}`, { allowFailure: true })
-    step('bun-outdated', `bun outdated > ${quoteShell(resolve(OUT_DIR, 'bun-outdated.txt'))}`, { allowFailure: true })
-    if (APPLY_DEP_FIXES) {
-      step('bun-update', 'bun update', { allowFailure: true })
-    }
+    summary.notes.push('No eslint runner available (npx missing).')
   }
 
   if (tools.npm) {
@@ -126,8 +112,7 @@ function main() {
   // --- Build validation gate (emulation check before PR is created) ---
   // Run tsc + vite build to confirm the autofix didn't introduce type errors or build failures.
   // Failures are recorded but do NOT abort the script — the PR body will flag the regression.
-  const buildCmd = tools.bun ? 'bun run build' : 'npm run build'
-  const buildResult = step('build-validate', buildCmd, { allowFailure: true })
+  const buildResult = step('build-validate', 'npm run build', { allowFailure: true })
   if (!buildResult.ok) {
     summary.notes.push('BUILD VALIDATION FAILED after autofix. Review build-validate step before merging the remediation PR.')
   } else {
@@ -164,7 +149,7 @@ function main() {
     '',
     '- tools/auto-remediation/summary.json',
     '- tools/auto-remediation/eslint-report.json (if produced)',
-    '- tools/auto-remediation/bun-audit.txt (if produced)',
+    '- tools/auto-remediation/npm-audit.json (if produced)',
     '- tools/auto-remediation/npm-audit.json (if produced)',
   ]
 

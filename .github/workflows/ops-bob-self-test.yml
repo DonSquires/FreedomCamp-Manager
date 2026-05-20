@@ -38,21 +38,16 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: npm ci
 
       - name: Typecheck preflight
-        run: bun run typecheck
+        run: npm run typecheck
 
   bob-service-matrix:
     needs: [typecheck-preflight]
@@ -71,27 +66,22 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: npm ci
 
       - name: Install Playwright browsers
-        run: bunx playwright install --with-deps
+        run: npx playwright install --with-deps
 
       - name: Build app
-        run: bun run build
+        run: npm run build
 
       - name: Lint app
-        run: bun run lint
+        run: npm run lint
 
       - name: Resolve Tier 1 web test readiness
         id: web_env
@@ -106,19 +96,19 @@ jobs:
       - name: Tier 1 - Bob web service tests
         id: tier1
         if: steps.web_env.outputs.enabled == 'true'
-        run: bun run test:bob:web
+        run: npm run test:bob:web
 
       - name: Tier 2 - Bob mobile simulation
         id: tier2
-        run: bun run test:bob:mobile
+        run: npm run test:bob:mobile
 
       - name: Tier 2.5 - Bob voice escalation mock
         id: tier25
-        run: bun run test:bob:voice
+        run: npm run test:bob:voice
 
       - name: Tier 3 - Bob chaos checks
         id: tier3
-        run: bun run test:bob:chaos
+        run: npm run test:bob:chaos
 
       - name: Upload Playwright report artifact
         if: always()

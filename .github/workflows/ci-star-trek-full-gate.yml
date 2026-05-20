@@ -78,22 +78,18 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: npm ci
 
       - name: Install Playwright Chromium
-        run: bunx playwright install --with-deps chromium
+        run: npx playwright install --with-deps chromium
 
       - name: Build app
-        run: bun run build
+        run: npm run build
 
       - name: Start preview server
         run: |
-          bunx vite preview --host 127.0.0.1 --port 4173 > /tmp/preview-phase1.log 2>&1 &
+          npx vite preview --host 127.0.0.1 --port 4173 > /tmp/preview-phase1.log 2>&1 &
           for i in $(seq 1 30); do
             curl -sf http://127.0.0.1:4173 > /dev/null && echo "Server ready" && break
             [ "$i" -eq 30 ] && { echo "::error::Server did not start"; tail -40 /tmp/preview-phase1.log; exit 1; }
@@ -102,7 +98,7 @@ jobs:
 
       - name: Phase 1 E2E — Director Roster Gate
         run: |
-          bunx playwright test tests/e2e/phase1-director-roster-gate.spec.ts \
+          npx playwright test tests/e2e/phase1-director-roster-gate.spec.ts \
             --project=chromium \
             --workers=1 \
             --reporter=list \
@@ -143,22 +139,18 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: npm ci
 
       - name: Install Playwright Chromium
-        run: bunx playwright install --with-deps chromium
+        run: npx playwright install --with-deps chromium
 
       - name: Build app
-        run: bun run build
+        run: npm run build
 
       - name: Start preview server
         run: |
-          bunx vite preview --host 127.0.0.1 --port 4173 > /tmp/preview-phase2.log 2>&1 &
+          npx vite preview --host 127.0.0.1 --port 4173 > /tmp/preview-phase2.log 2>&1 &
           for i in $(seq 1 30); do
             curl -sf http://127.0.0.1:4173 > /dev/null && echo "Server ready" && break
             [ "$i" -eq 30 ] && { echo "::error::Server did not start"; tail -40 /tmp/preview-phase2.log; exit 1; }
@@ -167,7 +159,7 @@ jobs:
 
       - name: Phase 2 E2E — Universal Translator
         run: |
-          bunx playwright test tests/e2e/phase2-universal-translator.spec.ts \
+          npx playwright test tests/e2e/phase2-universal-translator.spec.ts \
             --project=chromium \
             --workers=1 \
             --reporter=list \
@@ -208,22 +200,18 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: npm ci
 
       - name: Install Playwright Chromium
-        run: bunx playwright install --with-deps chromium
+        run: npx playwright install --with-deps chromium
 
       - name: Build app
-        run: bun run build
+        run: npm run build
 
       - name: Start preview server
         run: |
-          bunx vite preview --host 127.0.0.1 --port 4173 > /tmp/preview-phase3.log 2>&1 &
+          npx vite preview --host 127.0.0.1 --port 4173 > /tmp/preview-phase3.log 2>&1 &
           for i in $(seq 1 30); do
             curl -sf http://127.0.0.1:4173 > /dev/null && echo "Server ready" && break
             [ "$i" -eq 30 ] && { echo "::error::Server did not start"; tail -40 /tmp/preview-phase3.log; exit 1; }
@@ -232,7 +220,7 @@ jobs:
 
       - name: Phase 3 E2E — Sentient XO
         run: |
-          bunx playwright test tests/e2e/phase3-sentient-xo.spec.ts \
+          npx playwright test tests/e2e/phase3-sentient-xo.spec.ts \
             --project=chromium \
             --workers=1 \
             --reporter=list \
@@ -276,22 +264,18 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: npm ci
 
       - name: Install Playwright Chromium
-        run: bunx playwright install --with-deps chromium
+        run: npx playwright install --with-deps chromium
 
       - name: Build app
-        run: bun run build
+        run: npm run build
 
       - name: Start preview server
         run: |
-          bunx vite preview --host 127.0.0.1 --port 4173 > /tmp/preview-phase4.log 2>&1 &
+          npx vite preview --host 127.0.0.1 --port 4173 > /tmp/preview-phase4.log 2>&1 &
           for i in $(seq 1 30); do
             curl -sf http://127.0.0.1:4173 > /dev/null && echo "Server ready" && break
             [ "$i" -eq 30 ] && { echo "::error::Server did not start"; tail -40 /tmp/preview-phase4.log; exit 1; }
@@ -300,13 +284,13 @@ jobs:
 
       - name: Phase 4 unit tests (fast pre-check)
         run: |
-          bunx vitest run \
+          npx vitest run \
             src/lib/__tests__/enforcementPhase4.test.ts \
             src/lib/__tests__/phase4Emergency.test.ts
 
       - name: Phase 4 E2E — Admiral's Bridge
         run: |
-          bunx playwright test tests/e2e/phase4-admirals-bridge.spec.ts \
+          npx playwright test tests/e2e/phase4-admirals-bridge.spec.ts \
             --project=chromium \
             --workers=1 \
             --reporter=list \

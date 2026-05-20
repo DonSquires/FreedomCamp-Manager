@@ -5,7 +5,7 @@ set -euo pipefail
 #
 # Usage:
 #   bash scripts/playwright-codespace-credentials.sh
-#   bash scripts/playwright-codespace-credentials.sh bunx playwright test tests/e2e/phase1-radio-*.spec.ts --project=chromium
+#   bash scripts/playwright-codespace-credentials.sh npx playwright test tests/e2e/phase1-radio-*.spec.ts --project=chromium
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
