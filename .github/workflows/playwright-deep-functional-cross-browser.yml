@@ -109,6 +109,25 @@ jobs:
             echo "creds_available=false" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Preflight auth check
+        if: steps.creds-check.outputs.creds_available == 'true'
+        run: |
+          auth_response=$(curl -sS -w "\n%{http_code}" \
+            -X POST "${VITE_SUPABASE_URL}/auth/v1/token?grant_type=password" \
+            -H "apikey: ${VITE_SUPABASE_ANON_KEY}" \
+            -H "Content-Type: application/json" \
+            -d "{\"email\":\"${PLAYWRIGHT_ADMIN_ORG1_EMAIL}\",\"password\":\"${PLAYWRIGHT_ADMIN_ORG1_PASSWORD}\"}")
+
+          auth_status=$(printf '%s\n' "$auth_response" | tail -n 1)
+          auth_body=$(printf '%s\n' "$auth_response" | sed '$d')
+
+          if [ "$auth_status" != "200" ] || ! printf '%s' "$auth_body" | grep -q '"access_token"'; then
+            echo "::error::Preflight auth check failed for PLAYWRIGHT_ADMIN_ORG1_EMAIL. Confirm Playwright/Supabase credentials in GitHub secrets."
+            exit 1
+          fi
+
+          echo "Preflight auth check passed."
+
       - name: Build local app for CI test target
         if: steps.creds-check.outputs.creds_available == 'true'
         run: |
@@ -165,25 +184,12 @@ jobs:
 
       - name: Run deep functional suite
         if: steps.creds-check.outputs.creds_available == 'true'
-        id: deep_functional_suite
-        continue-on-error: true
         run: |
           bunx playwright test tests/e2e/deep-functional.spec.ts tests/e2e/tender-workspace.spec.ts \
             --config=playwright.deep-lite.config.ts \
             --project="${{ matrix.project }}" \
             --reporter=list \
             --timeout=90000
-
-      - name: Enforce deep functional suite (strict mode)
-        if: steps.creds-check.outputs.creds_available == 'true' && steps.deep_functional_suite.outcome == 'failure' && vars.PLAYWRIGHT_DEEP_FUNCTIONAL_STRICT == 'true'
-        run: |
-          echo "::error::Deep functional suite failed and strict mode is enabled (PLAYWRIGHT_DEEP_FUNCTIONAL_STRICT=true)."
-          exit 1
-
-      - name: Report deep functional suite (non-strict)
-        if: steps.creds-check.outputs.creds_available == 'true' && steps.deep_functional_suite.outcome == 'failure' && vars.PLAYWRIGHT_DEEP_FUNCTIONAL_STRICT != 'true'
-        run: |
-          echo "::warning::Deep functional suite failed but strict mode is disabled; continuing."
 
       - name: Upload Playwright artifacts
         if: always()
