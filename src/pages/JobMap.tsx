@@ -209,6 +209,8 @@ export default function JobMap() {
   const { data: jobs = [], isLoading, refetch } = useQuery({
     queryKey: ['job-map-jobs', orgId, statusFilters, showMyJobsOnly],
     queryFn: async () => {
+      if (statusFilters.length === 0) return []
+
       let query = (supabase as any)
         .from('dispatch_jobs')
         .select(`
