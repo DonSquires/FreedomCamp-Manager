@@ -53,15 +53,15 @@ describe('DispatchMonitor', () => {
     const statsRefetch = vi.fn()
 
     useQueryMock.mockImplementation((options?: { queryKey?: unknown }) => {
-      const queryKey = Array.isArray(options?.queryKey)
-        ? options.queryKey.join(':')
-        : String(options?.queryKey ?? '')
+      const querySegments = Array.isArray(options?.queryKey)
+        ? options.queryKey.map(segment => String(segment))
+        : [String(options?.queryKey ?? '')]
 
-      if (queryKey.includes('dispatch-monitor-stats')) {
+      if (querySegments.includes('dispatch-monitor-stats')) {
         return { data: undefined, isLoading: false, refetch: statsRefetch }
       }
 
-      if (queryKey.includes('dispatch-monitor-parity')) {
+      if (querySegments.includes('dispatch-monitor-parity')) {
         return { data: undefined, isLoading: false }
       }
 
