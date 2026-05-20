@@ -1,5 +1,9 @@
--- Bob per-user conversation continuity memory
--- Stores conversational turns so Bob can continue context across sessions/devices.
+-- Migration: Bob per-user conversation continuity memory (v2)
+-- Purpose: Stores conversational turns so Bob can continue context across sessions/devices.
+-- Rationale for reusing stem: Refactors bob_conversation_memory table to streamlined schema
+--   with better indexing and org isolation. v1 (20260430000001) created bob_conversations
+--   and message storage; v2 simplifies to single-table per-user memory cache with jsonb context.
+-- Date: 2026-06-04
 
 CREATE TABLE IF NOT EXISTS public.bob_conversation_memory (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),

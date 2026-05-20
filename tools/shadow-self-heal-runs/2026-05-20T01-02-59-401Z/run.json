@@ -1,0 +1,58 @@
+{
+  "generatedAt": "2026-05-20T01:02:59.391Z",
+  "profile": "production",
+  "orgId": null,
+  "minutes": 30,
+  "baseline": {
+    "generatedAt": "2026-05-20T01:02:59.340Z",
+    "sinceIso": "2026-05-20T00:32:58.915Z",
+    "mode": "near-live-shadow-telemetry",
+    "privacy": {
+      "capturesSessionReplay": false,
+      "storesRawPII": false,
+      "source": "audit_log aggregate events only"
+    },
+    "summary": {
+      "windowMinutes": 30,
+      "orgScope": "all",
+      "totalEvents": 0,
+      "distinctActions": 0,
+      "errorEvents": 0,
+      "successEvents": 0,
+      "croEvents": 0,
+      "slowCtaEvents": 0,
+      "errorRate": 0,
+      "topActions": [],
+      "topEntities": [],
+      "thresholds": {
+        "watchRate": 0.1,
+        "actionRate": 0.2,
+        "criticalRate": 0.35,
+        "watchCount": 5,
+        "actionCount": 10,
+        "criticalCount": 20,
+        "slowCtaThresholdMs": 120000
+      },
+      "level": "normal",
+      "recommendations": [
+        "No immediate action required.",
+        "Continue periodic monitoring and weekly trend review."
+      ]
+    }
+  },
+  "strategyApplied": null,
+  "dryRun": true,
+  "commandRuns": [],
+  "postHeal": null,
+  "theoryResult": {
+    "ok": true,
+    "reason": "no-heal-needed"
+  },
+  "upgrade": {
+    "enabled": true,
+    "attempted": false,
+    "success": false,
+    "command": "node scripts/auto-remediation-cycle.mjs --apply-dependency-fixes",
+    "reason": ""
+  }
+}

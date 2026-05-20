@@ -1,0 +1,104 @@
+name: Ops Scheduled Control Plane
+
+on:
+  schedule:
+    # Central scheduler runs twice per hour and dispatches selected workflows.
+    - cron: '7,37 * * * *'
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: read
+
+concurrency:
+  group: ops-scheduled-control-plane
+  cancel-in-progress: true
+
+jobs:
+  dispatch-schedules:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch consolidated scheduled workflows
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const now = new Date()
+            const dayOfWeek = now.getUTCDay() // 0=Sunday
+            const dayOfMonth = now.getUTCDate()
+            const minute = now.getUTCMinutes()
+            const hour = now.getUTCHours()
+            const evenHour = hour % 2 === 0
+
+            const always = [
+              'ops-auto-approve-action-required.yml',
+              'bug-report-escalator.yml',
+            ]
+
+            const evenHourSet = [
+              'ops-triage-bug-reports.yml',
+              'ops-strict-uptime-gate.yml',
+              'synthetic-monitor.yml',
+              'ops-auto-ready-copilot-drafts.yml',
+            ]
+
+            const oddHourSet = [
+              'ops-runpod-serverless-smoke.yml',
+              'ops-bob-capability-watchdog.yml',
+              'ops-backfill-copilot-pr-automerge.yml',
+              'ops-bob-code-task.yml',
+            ]
+
+            const every3Hours = [
+              'ops-self-healing-watchdog.yml',
+            ]
+
+            // Daily targets keyed by UTC hour; dispatched in minute 07 window.
+            const dailyByHour = {
+              0: ['ops-railway-wiring-audit.yml'],
+              1: ['ops-bob-brain-dump-refresh.yml'],
+              2: ['ops-route-docs-drift-report.yml'],
+              6: ['phase3-ux-baseline-capture.yml', 'ops-mlops-domain-canary.yml'],
+              7: ['ops-mlops-domain-promotion-gate.yml'],
+            }
+
+            // Weekly targets keyed by day-of-week and UTC hour.
+            const weekly = []
+            if (dayOfWeek === 0 && hour === 15) {
+              weekly.push('ops-automated-remediation.yml')
+            }
+            if (dayOfWeek === 1 && hour === 8) {
+              weekly.push('ops-onnx-runtime-profile-benchmark.yml')
+            }
+
+            // Monthly targets on day 1.
+            const monthly = []
+            if (dayOfMonth === 1 && hour === 0) {
+              monthly.push('ops-geofence-review.yml')
+            }
+            if (dayOfMonth === 1 && hour === 6) {
+              monthly.push('monthly-governance-checkpoint.yml')
+            }
+
+            // Hourly dispatch window when cron minute is 7.
+            const hourly = minute === 7 ? (evenHour ? evenHourSet : oddHourSet) : []
+            const threeHourly = minute === 7 && hour % 3 === 0 ? every3Hours : []
+            const daily = minute === 7 ? (dailyByHour[hour] || []) : []
+
+            const targets = [...always, ...hourly, ...threeHourly, ...daily, ...weekly, ...monthly]
+
+            core.summary
+              .addHeading('Central Schedule Dispatch')
+              .addRaw(`UTC minute=${minute}, hour=${hour}, dow=${dayOfWeek}, dom=${dayOfMonth}, evenHour=${evenHour}\n`)
+              .addRaw(`Dispatch targets (${targets.length}): ${targets.join(', ')}\n`)
+
+            for (const workflow_id of targets) {
+              await github.rest.actions.createWorkflowDispatch({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                workflow_id,
+                ref: context.ref.replace('refs/heads/', ''),
+              })
+              core.info(`Dispatched ${workflow_id}`)
+            }
+
+            await core.summary.write()

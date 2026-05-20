@@ -4,8 +4,6 @@ name: Ops - Bob Capability Watchdog
 # No fallback routing is performed here: checks either pass or fail.
 
 on:
-  schedule:
-    - cron: '*/30 * * * *'
   workflow_dispatch:
     inputs:
       target:

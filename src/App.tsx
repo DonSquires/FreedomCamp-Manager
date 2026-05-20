@@ -147,6 +147,7 @@ const PatrolChainAudits = lazy(() => import('@/pages/PatrolChainAudits'))
 const ClientOrganisationPortal = lazy(() => import('@/pages/ClientOrganisationPortal'))
 const InvoicingPage = lazy(() => import('@/pages/InvoicingPage'))
 const PricingPage = lazy(() => import('@/pages/PricingPage'))
+const CostIntelligencePage = lazy(() => import('@/pages/CostIntelligencePage'))
 const OperationsMap = lazy(() => import('@/pages/OperationsMap'))
 const CRMModule = lazy(() => import('@/pages/CRMModule'))
 const ContractorAccountPage = lazy(() => import('@/pages/ContractorAccountPage'))
@@ -682,6 +683,9 @@ function RoleRoute({
       return <AccessDenied requiredRoles={['client_reporting_enabled']} currentRole={user.role} />
     }
     if (currentPath === '/invoicing' && !financeEnabled) {
+      return <AccessDenied requiredRoles={['client_finance_enabled']} currentRole={user.role} />
+    }
+    if (currentPath.startsWith('/organization-costs') && !financeEnabled) {
       return <AccessDenied requiredRoles={['client_finance_enabled']} currentRole={user.role} />
     }
   }
@@ -2507,6 +2511,38 @@ export default function App() {
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'grand_master']}>
                   <PricingPage />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Costing intelligence - platform, organization, and per-user bill-back */}
+          <Route
+            path="/costing-system"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['master', 'grand_master']}>
+                  <CostIntelligencePage />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/organization-costs"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['client_admin', 'client_officer', 'client_viewer', 'admin', 'admin_officer', 'master', 'grand_master']}>
+                  <CostIntelligencePage />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/organization-costs/:organizationId"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['client_admin', 'client_officer', 'client_viewer', 'admin', 'admin_officer', 'master', 'grand_master']}>
+                  <CostIntelligencePage />
                 </RoleRoute>
               </ProtectedRoute>
             }

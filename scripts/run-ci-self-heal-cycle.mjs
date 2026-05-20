@@ -12,9 +12,12 @@ const ESCALATION_LATEST_PATH = resolve(ROOT, 'data/dr-bob-escalation-latest.json
 
 function run(command) {
   try {
-    return execSync(command, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim()
-  } catch {
-    return ''
+    const output = execSync(command, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim()
+    return { ok: true, output, error: '' }
+  } catch (error) {
+    const stderr = String(error?.stderr || '').trim()
+    const stdout = String(error?.stdout || '').trim()
+    return { ok: false, output: stdout, error: stderr || stdout || 'command failed' }
   }
 }
 
@@ -79,13 +82,14 @@ function maybeRerunFailedRuns(failedRuns, enableRerun) {
   for (const failed of failedRuns) {
     const runId = String(failed.id || '').trim()
     if (!runId) continue
-    const output = run(`gh run rerun ${runId}`)
+
+    const rerunCommand = run(`gh run rerun ${runId}`)
     rerunResults.push({
       runId,
       name: failed.name,
       attempted: true,
-      success: output.length > 0 || output === '',
-      message: output || 'rerun invoked',
+      success: rerunCommand.ok,
+      message: rerunCommand.ok ? (rerunCommand.output || 'rerun invoked') : rerunCommand.error,
     })
   }
 
@@ -111,10 +115,14 @@ function main() {
   const recordOnly = parseBool(getArg('record-only', process.env.CI_SELF_HEAL_RECORD_ONLY || 'false'))
   const rerunCooldownMinutes = Math.max(1, parseNumber(getArg('rerun-cooldown-minutes', process.env.CI_SELF_HEAL_RERUN_COOLDOWN_MINUTES || '20'), 20))
 
-  run('node scripts/generate-live-stack-scorecard.mjs --out=data/live-stack-scorecard.json')
+  const scorecardResult = run('node scripts/generate-live-stack-scorecard.mjs --out=data/live-stack-scorecard.json')
+  if (!scorecardResult.ok) {
+    console.warn(`scorecard_generation_failed=${scorecardResult.error}`)
+  }
 
   const scorecard = readJson(SCORECARD_PATH, {})
-  const headSha = String(scorecard?.repository?.headSha || run('git rev-parse HEAD'))
+  const gitHead = run('git rev-parse HEAD')
+  const headSha = String(scorecard?.repository?.headSha || (gitHead.ok ? gitHead.output : 'unknown'))
   const ci = scorecard?.ci || {}
   const failedRuns = Array.isArray(ci.failed) ? ci.failed.map(normalizeRun) : []
   const activeRuns = Array.isArray(ci.active) ? ci.active.map(normalizeRun) : []

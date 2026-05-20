@@ -1,9 +1,6 @@
 name: Ops - Automated Code Remediation
 
 on:
-  schedule:
-    # Monday 03:20 NZST/NZDT window (UTC cron)
-    - cron: '20 15 * * 0'
   workflow_dispatch:
     inputs:
       apply_dependency_fixes:

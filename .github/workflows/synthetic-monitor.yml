@@ -21,8 +21,6 @@ name: Synthetic UI Monitor
 #                               used as the reporter for auto-generated reports
 
 on:
-  schedule:
-    - cron: '0 * * * *'   # every hour — includes Bob AI health check
   workflow_run:
     # Also run after a successful frontend deployment
     workflows: ['Deploy Admin Portal to Vercel']

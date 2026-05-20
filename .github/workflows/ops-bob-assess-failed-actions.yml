@@ -16,8 +16,6 @@ on:
       - "Database - Migration Check"
       - "Database — Migration Check"
     types: [completed]
-  schedule:
-    - cron: '*/30 * * * *'
   workflow_dispatch:
 
 permissions:

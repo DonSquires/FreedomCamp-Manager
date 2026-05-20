@@ -1,0 +1,68 @@
+{
+  "defaultProfile": "production",
+  "profiles": {
+    "production": {
+      "minutes": 30,
+      "strategyByLevel": {
+        "watch": {
+          "name": "watch-stabilize",
+          "commands": [
+            "node scripts/run-ci-self-heal-cycle.mjs --rerun-failed=true"
+          ]
+        },
+        "action": {
+          "name": "action-stabilize",
+          "commands": [
+            "node scripts/run-ci-self-heal-cycle.mjs --rerun-failed=true",
+            "node scripts/auto-remediation-cycle.mjs"
+          ]
+        },
+        "critical": {
+          "name": "critical-stabilize",
+          "commands": [
+            "node scripts/run-ci-self-heal-cycle.mjs --rerun-failed=true",
+            "node scripts/auto-remediation-cycle.mjs",
+            "node scripts/research-self-heal-safety-scorecard.mjs"
+          ]
+        }
+      },
+      "upgrade": {
+        "enabled": true,
+        "command": "node scripts/auto-remediation-cycle.mjs --apply-dependency-fixes"
+      },
+      "minImprovementRate": 0.05,
+      "dryRun": false
+    },
+    "staging": {
+      "minutes": 15,
+      "strategyByLevel": {
+        "watch": {
+          "name": "watch-stabilize",
+          "commands": [
+            "node scripts/run-ci-self-heal-cycle.mjs --rerun-failed=true"
+          ]
+        },
+        "action": {
+          "name": "action-stabilize",
+          "commands": [
+            "node scripts/run-ci-self-heal-cycle.mjs --rerun-failed=true",
+            "node scripts/auto-remediation-cycle.mjs"
+          ]
+        },
+        "critical": {
+          "name": "critical-stabilize",
+          "commands": [
+            "node scripts/run-ci-self-heal-cycle.mjs --rerun-failed=true",
+            "node scripts/auto-remediation-cycle.mjs"
+          ]
+        }
+      },
+      "upgrade": {
+        "enabled": false,
+        "command": ""
+      },
+      "minImprovementRate": 0.03,
+      "dryRun": false
+    }
+  }
+}

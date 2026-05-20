@@ -11,9 +11,6 @@ name: Ops — Monthly Geofence Review
 #   SUPABASE_SERVICE_ROLE_KEY — Supabase service role key
 
 on:
-  schedule:
-    # 02:00 UTC on day 1 of every month
-    - cron: '0 0 * * *'   # once a day at midnight UTC
   workflow_dispatch:
     inputs:
       dry_run:

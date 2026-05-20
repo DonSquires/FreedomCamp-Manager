@@ -2,8 +2,6 @@ name: Ops Auto-Rerun Action Required Runs
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '*/10 * * * *'
 
 permissions:
   contents: read
@@ -90,6 +88,10 @@ jobs:
             CI Phase E1 Data Access Consolidation Gate
             Governance Release Gate
             CI Admin Officer Endpoints Gate
+          TRUSTED_PR_ACTORS: |
+            copilot[bot]
+            copilot-swe-agent[bot]
+            github-actions[bot]
         run: |
           set -euo pipefail
 
@@ -128,6 +130,7 @@ jobs:
           fi
 
           allowed_json=$(printf '%s\n' "$ALLOWED_WORKFLOWS" | sed '/^[[:space:]]*$/d' | jq -R . | jq -s .)
+          trusted_actors_json=$(printf '%s\n' "$TRUSTED_PR_ACTORS" | sed '/^[[:space:]]*$/d' | jq -R . | jq -s .)
           now_epoch=$(date +%s)
 
           rerun=0
@@ -156,6 +159,7 @@ jobs:
             html_url=$(printf '%s' "$run" | jq -r '.html_url')
             run_event=$(printf '%s' "$run" | jq -r '.event // "unknown"')
             actor_login=$(printf '%s' "$run" | jq -r '.actor.login // "unknown"')
+            head_repo_full_name=$(printf '%s' "$run" | jq -r '.head_repository.full_name // ""')
             workflow_branch_key="${run_name}@@${head_branch}"
 
             if [ -n "${seen_workflow_branch[$workflow_branch_key]:-}" ]; then
@@ -165,10 +169,24 @@ jobs:
             fi
             seen_workflow_branch[$workflow_branch_key]="$run_id"
 
-            if ! printf '%s' "$head_branch" | grep -Eq '^copilot/' && printf '%s' "$run_event" | grep -Eq '^(pull_request|pull_request_target)$'; then
-              suspicious=$((suspicious + 1))
-              suspicious_details+="- run=$run_id workflow='$run_name' actor='$actor_login' branch='$head_branch' event='$run_event' reason=suspicious-non-copilot-pr\n"
-              continue
+            if printf '%s' "$run_event" | grep -Eq '^(pull_request|pull_request_target)$'; then
+              if [ "$head_repo_full_name" != "$REPO" ]; then
+                suspicious=$((suspicious + 1))
+                suspicious_details+="- run=$run_id workflow='$run_name' actor='$actor_login' branch='$head_branch' event='$run_event' reason=untrusted-head-repository head_repo='$head_repo_full_name'\n"
+                continue
+              fi
+
+              if ! jq -e --arg actor "$actor_login" 'index($actor) != null' >/dev/null <<<"$trusted_actors_json"; then
+                suspicious=$((suspicious + 1))
+                suspicious_details+="- run=$run_id workflow='$run_name' actor='$actor_login' branch='$head_branch' event='$run_event' reason=untrusted-pr-actor\n"
+                continue
+              fi
+
+              if ! printf '%s' "$head_branch" | grep -Eq '^copilot/'; then
+                suspicious=$((suspicious + 1))
+                suspicious_details+="- run=$run_id workflow='$run_name' actor='$actor_login' branch='$head_branch' event='$run_event' reason=suspicious-non-copilot-pr\n"
+                continue
+              fi
             fi
 
             if ! printf '%s' "$head_branch" | grep -Eq '^copilot/'; then

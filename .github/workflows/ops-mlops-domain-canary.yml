@@ -9,8 +9,6 @@ on:
       - 'scripts/mlops-domain-inference-canary.mjs'
       - 'scripts/mlops-canary-promotion-gate.mjs'
       - 'package.json'
-  schedule:
-    - cron: '30 6 * * *'
   workflow_dispatch:
     inputs:
       strict_mode:

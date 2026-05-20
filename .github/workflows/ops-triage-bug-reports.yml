@@ -18,9 +18,6 @@ name: Triage Bug Reports – Auto-fix or Human Review
 # already set is skipped.
 
 on:
-  schedule:
-    # Every 30 minutes
-    - cron: '*/30 * * * *'
   workflow_dispatch:
     inputs:
       max_reports:

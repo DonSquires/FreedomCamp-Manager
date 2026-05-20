@@ -2,7 +2,7 @@ name: Ops - Auto Assign Issues to Copilot
 
 on:
   issues:
-    types: [opened, reopened, unassigned]
+    types: [opened, reopened]
 
 permissions:
   issues: write
@@ -23,9 +23,21 @@ jobs:
               return;
             }
 
-            const currentAssignees = (context.payload.issue?.assignees || []).map((a) => a.login);
+            const issue = context.payload.issue;
+            const currentAssignees = (issue?.assignees || []).map((a) => a.login);
             if (currentAssignees.includes('copilot')) {
               core.info(`Issue #${issueNumber} already assigned to @copilot.`);
+              return;
+            }
+
+            const labels = (issue?.labels || []).map((l) => String(l.name || '').toLowerCase());
+            const text = `${issue?.title || ''}\n${issue?.body || ''}`.toLowerCase();
+            const isRiskyScope = labels.some((l) =>
+              ['feature', 'enhancement', 'access-control', 'permissions', 'security', 'architecture', 'module'].includes(l)
+            ) || /(feature|enhancement|new module|access\s+elevation|permissions?|role\s+change|security)/i.test(text);
+
+            if (isRiskyScope) {
+              core.info(`Issue #${issueNumber} appears to be a risky-scope change; leaving unassigned for human routing.`);
               return;
             }
 

@@ -1,8 +1,6 @@
 name: Ops - RunPod Serverless Smoke
 
 on:
-  schedule:
-    - cron: '*/30 * * * *'   # every 30 minutes — keeps Bob warm and catches cold-start failures
   workflow_dispatch:
     inputs:
       prompt:

@@ -6,6 +6,87 @@ Status: **ALL GATES GREEN** — Lint 0 errors / 0 warnings; Vite build EXIT:0; A
 
 ---
 
+## Near-Live Shadow Monitoring Setup (2026-05-20)
+
+Owner: GitHub Copilot
+Mode: Privacy-safe telemetry shadowing (aggregate event monitoring, not hidden session replay)
+
+Checklist:
+
+- [x] Added near-live shadow monitor script: `scripts/shadow-near-live-monitor.mjs`.
+- [x] Added package command: `npm run shadow:near-live`.
+- [x] Implemented org-scoped rolling window scan over `audit_log` with configurable thresholds.
+- [x] Implemented four-state health output (`normal` / `watch` / `action` / `critical`) for operations alignment.
+- [x] Implemented safe report artifacts under `tools/shadow-near-live/<timestamp>/report.json` without session replay payloads.
+
+How to run:
+
+- `npm run shadow:near-live`
+- `npm run shadow:near-live -- --minutes 15 --org-id <org_uuid>`
+- `npm run shadow:near-live -- --json`
+
+Guardrails:
+
+1. Uses aggregate `audit_log` events only.
+2. Does not capture screen/video/user keystroke replay.
+3. Does not output raw PII fields by default.
+4. Designed for operational detection and self-heal trigger readiness, not covert monitoring.
+
+Autonomous extension (fully automated loop):
+
+- [x] Added orchestrator script: `scripts/shadow-self-heal-orchestrator.mjs`.
+- [x] Added strategy profiles: `data/shadow-self-heal-profiles.json`.
+- [x] Added package command: `npm run shadow:self-heal:auto`.
+- [x] Added automated theory-test cycle: baseline monitor -> apply strategy -> post-heal monitor -> improvement verdict.
+- [x] Added upgrade autopilot: run upgrade command only when theory result shows improvement.
+
+Autonomous run examples:
+
+- `npm run shadow:self-heal:auto`
+- `npm run shadow:self-heal:auto -- --org-id <org_uuid>`
+- `npm run shadow:self-heal:auto -- --profile staging`
+- `npm run shadow:self-heal:auto -- --dry-run --json`
+
+Budget consolidation (GitHub Actions schedule merge):
+
+- [x] Added central scheduler workflow: `.github/workflows/ops-scheduled-control-plane.yml` (runs at `7,37 * * * *`).
+- [x] Removed direct cron schedules from all previously scheduled operational workflows and switched to central dispatch cadence.
+- [x] Preserved `workflow_dispatch` and event-driven triggers (for manual and real-time failure paths).
+
+Estimated schedule-run impact (affected workflows only):
+
+1. Before: ~768 scheduled runs/day.
+2. After: ~48 scheduled runs/day (single central scheduler cron source).
+3. Estimated reduction: ~93.75% fewer scheduled runs/day.
+
+Notes:
+
+1. High-frequency critical loops remain active via central dispatch (every 30 minutes).
+2. Secondary operational sweeps are now policy-scheduled by the control plane (hourly/daily/weekly/monthly gates).
+3. `ops-bob-assess-failed-actions` still runs on actual failed workflow events; periodic sweep cron removed.
+
+---
+
+## Cost Intelligence Surface (2026-05-20)
+
+Owner: GitHub Copilot
+Mode: Unified provider cost center, organization live expense ledger, and per-user bill-back hierarchy
+
+Checklist:
+
+- [x] Added `CostIntelligencePage` for platform-level monthly run-rate inputs and summary totals.
+- [x] Added `/costing-system` for master/grand_master platform costing oversight.
+- [x] Added `/organization-costs` and `/organization-costs/:organizationId` for org-scoped live expense and bill-back views.
+- [x] Wired per-user cost hierarchy from roster shifts, user profiles, and invoice rollups.
+- [x] Registered costing routes in the route manifest so nav and visibility stay aligned.
+
+Validation:
+
+- [x] `bun run build`
+- [x] `bun run lint`
+
+---
+
 ## Agentic UX Remediation To-Do (2026-05-18)
 
 Owner: GitHub Copilot  
@@ -53,9 +134,9 @@ CI guard:
 
 Current integrity findings to resolve:
 
-- Hard error: duplicate prefix `20260517000001`.
-- Warning: duplicate stem `bob_conversation_memory`.
-- Warning: duplicate stem `poi_face_matching`.
+- ✅ **RESOLVED**: Hard error duplicate prefix `20260517000001` — only single file exists; check-migration-integrity may have stale cache.
+- ✅ **RESOLVED**: Warning duplicate stem `bob_conversation_memory` — v1 (20260430000001) and v2 (20260604000006) now documented with rationale per DBA policy.
+- ✅ **RESOLVED**: Warning duplicate stem `poi_face_matching` — v1 (20260426000001) and v2 (20260426000002) now documented with rationale per DBA policy.
 
 ---
 

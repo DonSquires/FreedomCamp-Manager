@@ -195,6 +195,8 @@
     "mumble:stack:down": "docker compose -f mumble-stack/docker-compose.yml down",
     "mumble:stack:logs": "docker compose -f mumble-stack/docker-compose.yml logs -f",
     "agentic:ui": "bun scripts/agentic-ui-shadow-user.mjs",
+    "shadow:near-live": "node scripts/shadow-near-live-monitor.mjs",
+    "shadow:self-heal:auto": "node scripts/shadow-self-heal-orchestrator.mjs --profile production",
     "agentic:ui:all3": "sh -c 'set +e; bun scripts/agentic-ui-shadow-user.mjs --pack=login-health --no-planner --evidence-dir=tools/agentic-ui-reports/login-health; bun scripts/agentic-ui-shadow-user.mjs --pack=tender-shadow --no-planner --evidence-dir=tools/agentic-ui-reports/tender-shadow; bun scripts/agentic-ui-shadow-user.mjs --pack=ptt-zindex --no-planner --evidence-dir=tools/agentic-ui-reports/ptt-zindex; true'",
     "agentic:ui:mobile": "bun scripts/agentic-ui-comprehensive-mobile-ux.mjs",
     "agentic:ui:mobile:dry": "bun scripts/agentic-ui-comprehensive-mobile-ux.mjs --dry-run",

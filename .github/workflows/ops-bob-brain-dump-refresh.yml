@@ -1,9 +1,6 @@
 name: Bob Brain Dump Refresh
 
 on:
-  schedule:
-    # Daily at 01:00 UTC — keeps brain dump current before work sessions
-    - cron: '0 1 * * *'
   workflow_dispatch:
     inputs:
       max_bytes:

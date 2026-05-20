@@ -2,8 +2,6 @@ name: Ops Strict Uptime Gate
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '*/30 * * * *'
 
 concurrency:
   group: ops-strict-uptime-gate-${{ github.ref }}

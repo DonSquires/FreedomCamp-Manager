@@ -1,107 +1,31 @@
 {
-  "updatedAt": "2026-05-17T06:12:40.220Z",
-  "headSha": "977c1d381c7dfac3e70abe65dc9da1dc9dcdcefe",
+  "updatedAt": "2026-05-20T00:04:26.449Z",
+  "headSha": "2610709c8691e777248bffa248c0fe5990e19fe6",
   "ciTotals": {
-    "total": 33,
-    "failed": 2,
-    "active": 7,
+    "total": 29,
+    "failed": 0,
+    "active": 0,
     "byStatus": {
-      "completed": 26,
-      "in_progress": 6,
-      "queued": 1
+      "completed": 29
     },
     "byConclusion": {
-      "success": 24,
-      "null": 7,
-      "failure": 2
+      "action_required": 4,
+      "success": 22,
+      "skipped": 3
     }
   },
-  "failedRuns": [
-    {
-      "id": 25983119179,
-      "name": "Ops - MLOps Domain Canary",
-      "status": "completed",
-      "conclusion": "failure",
-      "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25983119179",
-      "updated_at": null
-    },
-    {
-      "id": 25983119129,
-      "name": "Ops - MLOps Domain Promotion Gate",
-      "status": "completed",
-      "conclusion": "failure",
-      "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25983119129",
-      "updated_at": null
-    }
-  ],
-  "activeRuns": [
-    {
-      "id": 25983119132,
-      "name": "Ops Bob Operational Testing Gate",
-      "status": "in_progress",
-      "conclusion": null,
-      "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25983119132",
-      "updated_at": null
-    },
-    {
-      "id": 25983119112,
-      "name": "Deploy Admin Portal to Vercel",
-      "status": "in_progress",
-      "conclusion": null,
-      "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25983119112",
-      "updated_at": null
-    },
-    {
-      "id": 25983119137,
-      "name": "Playwright Deep Functional Cross-Browser",
-      "status": "queued",
-      "conclusion": null,
-      "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25983119137",
-      "updated_at": null
-    },
-    {
-      "id": 25983119187,
-      "name": "Playwright Bob Agent Conversation",
-      "status": "in_progress",
-      "conclusion": null,
-      "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25983119187",
-      "updated_at": null
-    },
-    {
-      "id": 25983119149,
-      "name": "CI Build High Memory",
-      "status": "in_progress",
-      "conclusion": null,
-      "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25983119149",
-      "updated_at": null
-    },
-    {
-      "id": 25983119144,
-      "name": "Playwright Monitoring Pulse",
-      "status": "in_progress",
-      "conclusion": null,
-      "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25983119144",
-      "updated_at": null
-    },
-    {
-      "id": 25983119121,
-      "name": "Bob Full Service Self-Test",
-      "status": "in_progress",
-      "conclusion": null,
-      "url": "https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25983119121",
-      "updated_at": null
-    }
-  ],
+  "failedRuns": [],
+  "activeRuns": [],
   "selfHealing": {
     "requiresAction": true,
-    "ciFailuresPresent": true,
+    "ciFailuresPresent": false,
     "monitorHealthy": true,
     "liveDiagnosticsHealthy": false
   },
-  "failureFingerprint": "977c1d381c7dfac3e70abe65dc9da1dc9dcdcefe::25983119129,25983119179",
+  "failureFingerprint": "2610709c8691e777248bffa248c0fe5990e19fe6::",
   "escalation": {
     "raised": false,
-    "deduped": true,
+    "deduped": false,
     "rerunAttempted": false,
     "rerunResults": [],
     "lastRerunAt": "2026-05-17T06:12:20.066Z"

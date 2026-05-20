@@ -1,5 +1,9 @@
 -- ============================================================================
--- POI face matching — server-side cosine similarity for face embeddings
+-- POI face matching — server-side cosine similarity for face embeddings (v2)
+--
+-- Rationale for reusing stem: Refactors v1 (20260426000001) RPC implementation
+--   to use manual cosine similarity computation (pgvector not required) and
+--   adds enhanced person_record field selection. Extends match_face() contract.
 --
 -- Adds:
 --   1. Foreign key from face_records.person_record_id → person_records.id

@@ -5,11 +5,9 @@ on:
     types:
       - completed
   workflow_dispatch:
-  schedule:
-    - cron: '*/15 * * * *'
 
 permissions:
-  contents: write
+  contents: read
   pull-requests: write
 
 concurrency:

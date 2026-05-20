@@ -40,8 +40,6 @@ name: Ops Bob Code Task
 #   BOB_CODE_TASK_MODEL  — GitHub Models model (default: gpt-4o)
 
 on:
-  schedule:
-    - cron: '0 * * * *'   # every hour
   workflow_dispatch:
     inputs:
       task:
