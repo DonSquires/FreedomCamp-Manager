@@ -35,7 +35,7 @@ create table if not exists public.self_heal_events (
   recurrence_window_minutes integer not null default 10,
 
   -- Org context
-  org_id              uuid references public.organisations(id) on delete set null
+  org_id              uuid references public.organizations(id) on delete set null
 );
 
 -- Index for fast recurrence lookups
@@ -55,9 +55,9 @@ create policy "service_role_full_access" on public.self_heal_events
 create policy "admin_read" on public.self_heal_events
   for select using (
     exists (
-      select 1 from public.profiles
+      select 1 from public.user_profiles
       where id = auth.uid()
-      and role in ('admin', 'master')
+      and role in ('admin', 'master', 'grand_master')
     )
   );
 
