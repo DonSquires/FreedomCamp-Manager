@@ -144,6 +144,7 @@ All datetimes are NZ timezone (`Pacific/Auckland`). The Supabase client sends `X
 
 ---
 
+
 ## Validation
 
 After making changes, always verify:
@@ -151,6 +152,14 @@ After making changes, always verify:
 2. `npm run lint` has no new errors
 3. Any modified Supabase Edge Function follows the CORS + OPTIONS pattern
 4. New database columns match the types in `src/types/database.ts`
+
+## Testing Guidelines
+
+### Cloud Simulator Verification (Bob)
+
+- Enforce the use of the new comment-triggered verification workflow (`ops-bob-e2e-validation.yml`).
+- If local browser environments crash due to system linker/Chromium errors, the AI must pivot to fetch-native endpoint tests or trigger the cloud simulator instead of trying to force local browser executions.
+- Code must only be merged after Bob delivers a green behavioral report directly inside the PR thread.
 
 ## Bob Truth Protocol
 
