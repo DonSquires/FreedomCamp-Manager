@@ -48,8 +48,8 @@ jobs:
       VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
       VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
       API_TEST_BEARER_TOKEN: ${{ secrets.API_TEST_BEARER_TOKEN }}
-      API_TEST_EMAIL: ${{ secrets.API_TEST_EMAIL != '' && secrets.API_TEST_EMAIL || secrets.TEST_OWNER_EMAIL != '' && secrets.TEST_OWNER_EMAIL || secrets.TEST_ADMIN_EMAIL }}
-      API_TEST_PASSWORD: ${{ secrets.API_TEST_PASSWORD != '' && secrets.API_TEST_PASSWORD || secrets.TEST_OWNER_PASSWORD != '' && secrets.TEST_OWNER_PASSWORD || secrets.TEST_ADMIN_PASSWORD != '' && secrets.TEST_ADMIN_PASSWORD || secrets.TEST_ADMIN_PASWORD }}
+      API_TEST_EMAIL: ${{ secrets.API_TEST_EMAIL }}
+      API_TEST_PASSWORD: ${{ secrets.API_TEST_PASSWORD }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
     steps:

@@ -21,7 +21,7 @@ jobs:
       - name: Validate approver token
         id: validate_token
         env:
-          CI_ML_APPROVER_TOKEN: ${{ secrets.CI_ML_APPROVER_TOKEN || secrets.BOB_WORKER_GITHUB_TOKEN || secrets.DEPLOY_GITHUB_TOKEN || secrets.GH_API }}
+          CI_ML_APPROVER_TOKEN: ${{ secrets.CI_ML_APPROVER_TOKEN || secrets.BOB_WORKER_GITHUB_TOKEN || secrets.DEPLOY_GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
@@ -75,7 +75,7 @@ jobs:
       - name: Rerun action_required runs
         if: steps.validate_token.outputs.token_ready == 'true'
         env:
-          CI_ML_APPROVER_TOKEN: ${{ secrets.CI_ML_APPROVER_TOKEN || secrets.BOB_WORKER_GITHUB_TOKEN || secrets.DEPLOY_GITHUB_TOKEN || secrets.GH_API }}
+          CI_ML_APPROVER_TOKEN: ${{ secrets.CI_ML_APPROVER_TOKEN || secrets.BOB_WORKER_GITHUB_TOKEN || secrets.DEPLOY_GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
           COOLDOWN_MINUTES: "15"
           MAX_RERUN_ATTEMPTS: "3"
