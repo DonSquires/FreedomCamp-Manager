@@ -2,6 +2,7 @@
   "name": "field-compliance-manager",
   "private": true,
   "type": "module",
+  "packageManager": "npm@10",
   "scripts": {
     "dev": "vite",
     "docs:ocr:pictures": "node scripts/ocr-and-picture-extract.mjs",

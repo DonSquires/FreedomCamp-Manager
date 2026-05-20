@@ -197,15 +197,15 @@ jobs:
         if: steps.check-secrets.outputs.secrets_present == 'true'
         uses: actions/checkout@v5
 
-      - name: Setup Bun
+      - name: Setup Node.js
         if: steps.check-secrets.outputs.secrets_present == 'true'
-        uses: oven-sh/setup-bun@v2
+        uses: actions/setup-node@v5
         with:
-          bun-version: latest
+          node-version: '24'
 
       - name: Install dependencies
         if: steps.check-secrets.outputs.secrets_present == 'true'
-        run: bun install
+        run: npm ci
 
       - name: Setup Supabase CLI
         if: steps.check-secrets.outputs.secrets_present == 'true'
@@ -244,11 +244,11 @@ jobs:
       # TypeScript must pass before the Vite build (BUILD_PLAN_V3.md §10.1)
       - name: Type-check (tsc -b)
         if: steps.check-secrets.outputs.secrets_present == 'true'
-        run: bun run typecheck
+        run: npm run typecheck
 
       - name: Build admin portal
         if: steps.check-secrets.outputs.secrets_present == 'true'
-        run: bun run build
+        run: npm run build
         env:
           VITE_SUPABASE_URL:      ${{ steps.resolve-runtime.outputs.supabase_url }}
           VITE_SUPABASE_ANON_KEY: ${{ steps.resolve-runtime.outputs.supabase_anon }}
