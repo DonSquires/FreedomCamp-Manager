@@ -7,7 +7,7 @@
 > **Canonical product authority** — this manual defines what the application is intended to do and how users are meant to use it. It is not a passive dump of current implementation details.  
 > If code, routes, role behavior, workflows, edge functions, schema-backed user flows, or operational UX change, the corresponding sections in this manual must be updated in the same change set.  
 > If the app currently behaves differently from this manual, that drift is a defect to resolve or an explicit product decision to document here first.  
-> Last reviewed: 2026-05-18
+> Last reviewed: 2026-05-19
 
 ### Current Cycle Amendment (2026-05-17)
 
@@ -2898,6 +2898,15 @@ The platform relies on a substantial Edge Function estate. The list below names 
 | `check-railway-health` | Legacy alias → delegates to `check-services-health` |
 | `radio-token` | Mints scoped PTT JWT + creates `radio_transmissions` audit row |
 | `radio-audit` | Org-scoped radio audit metrics (coverage, low-confidence, per-transmission confidence rollups, synthetic-tagging) |
+| `auto-analyse-report` | Auto-triages bug reports and writes Bob-generated remediation plans with optional GitHub Actions context |
+| `onspace-ai-chat` | Org-scoped Bob assistant endpoint for guided analysis, policy-aware responses, and controlled execution planning |
+| `ptt-assess` | PTT symptom diagnostics via Bob assess pipeline with authenticated org/user context |
+| `translate-message` | Team chat translation through Bob inference with resilient fallback path |
+
+Shared helper contract (used by multiple Edge Functions):
+
+- `supabase/functions/_shared/bobInfer.ts` is the canonical Bob inference client for chat, assess, translate, and vision calls.
+- It enforces provider-lock and allowed-host controls so Edge Functions route inference through approved Bob endpoints.
 
 **Conventions (mandatory for new Edge Functions):**
 

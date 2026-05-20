@@ -1,0 +1,11 @@
+{
+  "total_runs": 0,
+  "rerun_requested": 0,
+  "skipped": 0,
+  "escalated": 0,
+  "suppressed_duplicates": 0,
+  "failed_api_calls": 0,
+  "notes": [
+    "No action_required runs found"
+  ]
+}
