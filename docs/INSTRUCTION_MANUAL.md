@@ -7,7 +7,7 @@
 > **Canonical product authority** — this manual defines what the application is intended to do and how users are meant to use it. It is not a passive dump of current implementation details.  
 > If code, routes, role behavior, workflows, edge functions, schema-backed user flows, or operational UX change, the corresponding sections in this manual must be updated in the same change set.  
 > If the app currently behaves differently from this manual, that drift is a defect to resolve or an explicit product decision to document here first.  
-> Last reviewed: 2026-05-19
+> Last reviewed: 2026-05-20
 
 ### Current Cycle Amendment (2026-05-17)
 
@@ -2899,7 +2899,7 @@ The platform relies on a substantial Edge Function estate. The list below names 
 | `enrich-from-motorweb` | Vehicle metadata enrichment from MotorWeb |
 | `analyze-vehicle-photo` | AI photo analysis for vehicle identification |
 | `sync-spatial-layers` | Sync GeoJSON zone layers to PostGIS |
-| `live-session-diagnostics-ingest` | Ingest live session diagnostics to `bug_reports` |
+| `live-session-diagnostics-ingest` | Ingest live session diagnostics into `live_session_diagnostic_events` with fallback `bug_reports` upsert when diagnostics event table write is unavailable |
 | `live-session-diagnostics-summary` | AI summary of session diagnostics |
 | `check-railway-health` | Legacy alias → delegates to `check-services-health` |
 | `radio-token` | Mints scoped PTT JWT + creates `radio_transmissions` audit row |
@@ -3141,7 +3141,7 @@ Results show: records processed, duplicates removed, invalid plates flagged, and
 
 #### Live Session Diagnostics
 
-The `useLiveSessionDiagnostics` hook (mounted globally in `App.tsx`) captures JavaScript errors, performance metrics, and network failures during active sessions. Data is written to the `bug_reports` table — one row per session (`Live session diagnostics <sessionId>`), updated continuously.
+The `useLiveSessionDiagnostics` hook (mounted globally in `App.tsx`) captures JavaScript errors, performance metrics, and network failures during active sessions. Diagnostics events are written to `live_session_diagnostic_events` (batched per flush, including session snapshots). If that table is unavailable, ingest falls back to a single `bug_reports` row per session (`Live session diagnostics <sessionId>`), updated continuously.
 
 The `bug_reports.auto_reported` column distinguishes machine-generated incidents from user-submitted reports. It is set to `true` for browser auto-error submissions and GitHub Actions synthetic-monitor reports, allowing grand-master triage views to badge and prioritise these separately.
 
