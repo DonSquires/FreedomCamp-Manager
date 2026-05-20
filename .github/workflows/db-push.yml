@@ -21,10 +21,9 @@ name: Database — Apply Migrations (db push)
 #   SUPABASE_ACCESS_TOKEN   — Supabase personal access token (sbp_…)
 #                             Used for linked mode (supabase link + migration repair/list).
 #                             If omitted/invalid, workflow falls back to direct DB URL mode.
-#   SUPABASE_DB_URL         — Full Postgres connection string from Supabase Dashboard.
+#   DATABASE_URL            — Full Postgres connection string from Supabase Dashboard.
 #                             Recommended for direct mode to avoid host/user guesswork.
-#   SUPABASE_DB_POOLER_HOST — Optional pooler host override (if SUPABASE_DB_URL is not set).
-#   SUPABASE_DB_USER        — Optional DB username override (if SUPABASE_DB_URL is not set).
+#   Note: pooler host/user fallbacks are auto-derived from SUPABASE_PROJECT_REF when DATABASE_URL is not set.
 
 on:
   workflow_dispatch:
@@ -104,7 +103,7 @@ jobs:
           fi
 
           if [ -z "${SUPABASE_ACCESS_TOKEN:-}" ] && [ -z "${SUPABASE_DB_URL:-}" ]; then
-            echo "::warning::SUPABASE_DB_URL is not set; workflow will build a fallback pooler URL from other secrets."
+            echo "::warning::DATABASE_URL is not set; workflow will build a fallback pooler URL from other secrets."
           fi
 
       - name: Link project
@@ -320,14 +319,14 @@ jobs:
 
             if grep -Eaq 'prepared statement ".*" already exists|SQLSTATE 42P05' "$LOG_FILE"; then
               echo "::error::Supabase direct DB connection hit prepared-statement pooler conflicts for all candidates."
-              echo "Set SUPABASE_DB_URL to the exact Session pooler URI from Supabase Dashboard, or include default_query_exec_mode=simple_protocol in the URI."
+              echo "Set DATABASE_URL to the exact Session pooler URI from Supabase Dashboard, or include default_query_exec_mode=simple_protocol in the URI."
             elif grep -q "Remote migration versions not found in local migrations directory" "$LOG_FILE"; then
               echo "::error::Remote migration history drift detected in direct mode."
               echo "Set SUPABASE_ACCESS_TOKEN so linked-mode repair can run automatically, or repair manually as suggested in logs."
             elif grep -q "Tenant or user not found" "$LOG_FILE"; then
               echo "::error::Supabase direct DB connection rejected for all generated candidates."
-              echo "Set SUPABASE_DB_URL to the exact connection string from Supabase Dashboard -> Connect -> Transaction pooler."
-              echo "Alternatively set SUPABASE_DB_POOLER_HOST and SUPABASE_DB_USER to the exact values for this project."
+              echo "Set DATABASE_URL to the exact connection string from Supabase Dashboard -> Connect -> Transaction pooler."
+              echo "Alternatively verify SUPABASE_PROJECT_REF and let the workflow derive pooler host/user defaults."
             fi
 
             echo "supabase db push failed in direct DB URL mode after retries"

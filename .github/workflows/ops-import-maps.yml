@@ -12,8 +12,9 @@ name: Ops — Import NZ Maps / Boundaries
 #   SUPABASE_URL              — https://YOUR_REF.supabase.co
 #   SUPABASE_SERVICE_ROLE_KEY — Supabase service role key
 #
-# Optional secrets:
+# Optional runtime env:
 #   STATSNZ_API_KEY           — Stats NZ API key (some import sources require this)
+#                               Not required for territorial imports; defaults to empty in this workflow.
 
 on:
   workflow_dispatch:

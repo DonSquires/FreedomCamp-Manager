@@ -100,7 +100,7 @@ jobs:
           if [ -n "$PLAYWRIGHT_ADMIN_ORG1_EMAIL" ] && [ -n "$PLAYWRIGHT_ADMIN_ORG1_PASSWORD" ]; then
             echo "creds_available=true" >> "$GITHUB_OUTPUT"
           else
-            echo "::warning::Playwright credentials (PLAYWRIGHT_ADMIN_ORG1_EMAIL / PLAYWRIGHT_ADMIN_ORG1_PASSWORD) are not set; skipping deep-functional tests for this run."
+            echo "::warning::Playwright credentials (PLAYWRIGHT_ADMIN_EMAIL / PLAYWRIGHT_ADMIN_PASSWORD) are not set; skipping deep-functional tests for this run."
             echo "creds_available=false" >> "$GITHUB_OUTPUT"
           fi
 

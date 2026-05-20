@@ -32,12 +32,12 @@ jobs:
     # Supabase (needed for DB-backed test scripts):
     #   SUPABASE_ACCESS_TOKEN
     #   SUPABASE_SERVICE_ROLE_KEY
-    #   SUPABASE_SERVICE_ROLE_KEY — for Playwright API teardown (cleanup after E2E)
+    #   SUPABASE_SERVICE_ROLE_KEY — also used for Playwright API teardown (cleanup after E2E)
     #
     # Playwright E2E test credentials (needed to run authenticated browser tests):
-    #   PLAYWRIGHT_ADMIN_ORG1_EMAIL / PLAYWRIGHT_ADMIN_ORG1_PASSWORD — admin user (org 1)
+    #   PLAYWRIGHT_ADMIN_EMAIL / PLAYWRIGHT_ADMIN_PASSWORD — admin user
     #   PLAYWRIGHT_MASTER_EMAIL / PLAYWRIGHT_MASTER_PASSWORD — master / platform user
-    #   PLAYWRIGHT_OFFICER_ORG1_EMAIL / PLAYWRIGHT_OFFICER_ORG1_PASSWORD — field officer (org 1)
+    #   PLAYWRIGHT_OFFICER_EMAIL / PLAYWRIGHT_OFFICER_PASSWORD — field officer
     #   VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY — Supabase project URL and anon key
     #   FRONTEND_URL — deployed frontend URL (e.g. https://freedomcampmanager.onspace.build)
     env:

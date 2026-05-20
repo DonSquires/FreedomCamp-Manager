@@ -4,10 +4,10 @@ name: Deploy Railway STT Service
 # This replaces the RunPod serverless STT endpoint which suffered persistent
 # GPU supply constraints.
 #
-# Required secrets (supports aliases):
-#   Token (preferred first): RAILWAY_STT_TOKEN or RAILWAY_SST_TOKEN, then RAILWAY_TOKEN, RAILWAY_TOKEN2, RAILWAY_BOB_TOKEN, RAILWAY_PTT_TOKEN
-#   Target: Service ID (RAILWAY_STT_SERVICE_ID or RAILWAY_SST_SERVICE_ID or RAILWAY_SERVICE_ID)
-#           or Project ID (RAILWAY_STT_PROJECT_ID or RAILWAY_SST_PROJECT_ID or RAILWAY_BOB_PROJECT_ID or RAILWAY_PTT_PROJECT_ID) + service name
+# Required secrets:
+#   Token: RAILWAY_STT_TOKEN (preferred), or RAILWAY_TOKEN / RAILWAY_BOB_TOKEN / RAILWAY_PTT_TOKEN
+#   Target: RAILWAY_STT_SERVICE_ID (preferred) or RAILWAY_SERVICE_ID
+#           or RAILWAY_STT_PROJECT_ID (preferred) or RAILWAY_BOB_PROJECT_ID / RAILWAY_PTT_PROJECT_ID + service name
 #
 # Optional secrets:
 #   RAILWAY_STT_URL        — deployed Railway URL used for post-deploy health check
@@ -55,10 +55,10 @@ jobs:
           PROJECT_ID="${{ secrets.RAILWAY_STT_PROJECT_ID || secrets.RAILWAY_STT_PROJECT_ID || secrets.RAILWAY_BOB_PROJECT_ID || secrets.RAILWAY_PTT_PROJECT_ID }}"
 
           if [ -z "$TOKEN_STT" ] && [ -z "$TOKEN_PRIMARY" ] && [ -z "$TOKEN_SECONDARY" ] && [ -z "$TOKEN_BOB" ] && [ -z "$TOKEN_PTT" ] && [ -z "$TOKEN_SST" ]; then
-            missing="$missing RAILWAY_STT_TOKEN|RAILWAY_SST_TOKEN|RAILWAY_TOKEN|RAILWAY_TOKEN2|RAILWAY_BOB_TOKEN|RAILWAY_PTT_TOKEN"
+            missing="$missing RAILWAY_STT_TOKEN|RAILWAY_TOKEN|RAILWAY_BOB_TOKEN|RAILWAY_PTT_TOKEN"
           fi
           if [ -z "$SERVICE_ID" ] && [ -z "$PROJECT_ID" ]; then
-            missing="$missing (RAILWAY_SST_SERVICE_ID|RAILWAY_STT_SERVICE_ID|RAILWAY_SERVICE_ID) or (RAILWAY_SST_PROJECT_ID|RAILWAY_STT_PROJECT_ID|RAILWAY_BOB_PROJECT_ID|RAILWAY_PTT_PROJECT_ID)"
+            missing="$missing (RAILWAY_STT_SERVICE_ID|RAILWAY_SERVICE_ID) or (RAILWAY_STT_PROJECT_ID|RAILWAY_BOB_PROJECT_ID|RAILWAY_PTT_PROJECT_ID)"
           fi
 
           if [ -n "$missing" ]; then
