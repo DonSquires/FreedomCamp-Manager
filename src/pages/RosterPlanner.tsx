@@ -1124,6 +1124,7 @@ export default function RosterPlanner() {
   const hasOrganizationId = !!user?.organization_id
   const plannerQueriesEnabled = shouldEnableRosterPlannerQueries(activeTab, hasOrganizationId)
   const { orgIds: clientOrgIds, isLoading: clientOrgIdsLoading } = useClientOrgIds()
+  const clientScopedQueriesEnabled = shouldEnableRosterPlannerClientScopedQueries(activeTab, hasOrganizationId, clientOrgIdsLoading)
 
   // ─── Week navigation ───────────────────────────────────────────────────────
   const [viewStart, setViewStart] = useState<Date>(() =>
@@ -1218,7 +1219,7 @@ export default function RosterPlanner() {
       if (error) throw error
       return (data || []) as ClientSite[]
     },
-    enabled: shouldEnableRosterPlannerClientScopedQueries(activeTab, hasOrganizationId, clientOrgIdsLoading),
+    enabled: clientScopedQueriesEnabled,
   })
 
   const { data: zones = [] } = useQuery<Zone[]>({
@@ -1237,7 +1238,7 @@ export default function RosterPlanner() {
       if (error) throw error
       return (data || []) as Zone[]
     },
-    enabled: shouldEnableRosterPlannerClientScopedQueries(activeTab, hasOrganizationId, clientOrgIdsLoading),
+    enabled: clientScopedQueriesEnabled,
   })
 
   const { data: patrolRoutes = [] } = useQuery<PatrolRoute[]>({
