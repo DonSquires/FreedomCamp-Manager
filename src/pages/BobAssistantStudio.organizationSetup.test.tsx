@@ -485,6 +485,40 @@ describe('BobAssistantStudio organization setup flow', () => {
     })
   })
 
+  it('logs outage responses as warnings instead of console errors', async () => {
+    aiChatMock.mockRejectedValueOnce(new Error('Failed to fetch'))
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    renderPage()
+
+    const input = await screen.findByPlaceholderText('Ask Bob anything operational…')
+    const message = 'Status check'
+
+    fireEvent.change(input, {
+      target: { value: message },
+    })
+
+    await waitFor(() => {
+      expect((input as HTMLTextAreaElement).value).toBe(message)
+    })
+
+    fireEvent.keyDown(input, {
+      key: 'Enter',
+      code: 'Enter',
+      charCode: 13,
+      keyCode: 13,
+    })
+
+    await screen.findByText('Bob/Ollama is temporarily unavailable right now. Please retry in a moment.')
+
+    expect(errorSpy.mock.calls.some(([firstArg]) => firstArg === 'Bob assistant invoke failed:')).toBe(false)
+    expect(warnSpy.mock.calls.some(([firstArg]) => firstArg === 'Bob assistant temporary outage detected:')).toBe(true)
+
+    errorSpy.mockRestore()
+    warnSpy.mockRestore()
+  })
+
   it('routes a Deputy-style patrol brief into the patrol setup approval flow', async () => {
     aiChatMock.mockResolvedValueOnce({
       data: {
