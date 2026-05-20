@@ -1,8 +1,39 @@
 # STAGING — Unified Execution To-Do and Crash Recovery Plan
 
-Date: 2026-05-18
+Date: 2026-05-20 (npm/Actions cleanup pass)
 Owner: GitHub Copilot
-Status: **ALL GATES GREEN** — Lint 0 errors / 0 warnings; Vite build EXIT:0; All 7 QA bugs fixed ✓
+Status: **ALL GATES GREEN** — npm standardized; Vercel/mobile deployment updated; GH Actions deduplication in place
+
+---
+
+## npm Standardization & Deployment Alignment (2026-05-20)
+
+Owner: GitHub Copilot  
+Mode: Package manager consolidation + GitHub Actions noise reduction
+
+Checklist:
+
+- [x] Enforce npm as exclusive package manager across all CI/CD paths.
+  - [x] `package.json` — added `packageManager: npm@10` field.
+  - [x] `.vscode/settings.json` — added `npm.packageManager: npm` setting.
+  - [x] Removed `bun.lock` lockfile from tracking.
+- [x] Switch Vercel (frontend) deployment from Bun to npm.
+  - [x] Updated `vercel.json`: `installCommand` = `npm ci`, `buildCommand` = `npm run build`.
+  - [x] Updated `.github/workflows/deploy-frontend.yml`: switched from `setup-bun` to `setup-node` (Node 24), npm commands only.
+- [x] Standardise Expo mobile output to APK for all environments.
+  - [x] Updated `eas.json` (root): production `buildType` = `apk`.
+  - [x] Updated `mobile-app/eas.json`: production `buildType` = `apk` (was `app-bundle`).
+- [x] Reduce GitHub Actions issue spam.
+  - [x] Updated `docs-update-instruction-manual.yml`: added concurrency/serialization + auto-deduplication of manual-drift issues.
+  - [x] Updated `ops-triage-bug-reports.yml`: suppress low-severity live-session diagnostics from GitHub issue creation (kept in Supabase telemetry).
+
+Validation:
+
+- [x] `npm run build` (Vite + TypeScript, EXIT:0)
+- [x] `npm run lint` (ESLint, 0 errors/warnings)
+- [x] Deployment workflows syntactically valid (no YAML errors)
+
+Git commit: 63e4779c — "npm standardization + GitHub Actions cleanup"
 
 ---
 

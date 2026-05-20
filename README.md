@@ -6,7 +6,7 @@ reporting, vehicle scanning (ALPR), officer welfare tracking, and
 multi-organisation support.
 
 **Tech stack:** React 18 · TypeScript · Vite · Tailwind CSS · shadcn/ui ·
-Supabase (PostgreSQL + Edge Functions) · Bun
+Supabase (PostgreSQL + Edge Functions) · npm
 
 ## New Session Start Here
 
@@ -19,8 +19,8 @@ It is the current handoff, crash-recovery, active phase checklist, and next-comm
 
 ```bash
 cp .env.example .env          # fill in VITE_SUPABASE_URL + VITE_SUPABASE_ANON_KEY
-bun install
-bun run dev                   # http://localhost:5173
+npm install
+npm run dev                   # http://localhost:5173
 ```
 
 For the original full from-zero baseline, use [docs/NEW_PROJECT_SETUP.md](docs/NEW_PROJECT_SETUP.md).
@@ -33,12 +33,12 @@ This project uses fail-closed governance gates to enforce role-based authorizati
 
 **Pre-flight checkers** (run before committing):
 ```bash
-bun run data:check:admin-modules              # Admin module policy
-bun run data:check:admin-officer-routes       # Admin+officer portal routes
-bun run data:check:admin-officer-endpoints    # Admin_officer edge functions
-bun run data:check:officer-routes             # Field officer routes
-bun run data:check:officer-endpoints          # Officer-facing endpoints
-bun run data:check:transportation-endpoints   # Vehicle/ALPR endpoints
+npm run data:check:admin-modules              # Admin module policy
+npm run data:check:admin-officer-routes       # Admin+officer portal routes
+npm run data:check:admin-officer-endpoints    # Admin_officer edge functions
+npm run data:check:officer-routes             # Field officer routes
+npm run data:check:officer-endpoints          # Officer-facing endpoints
+npm run data:check:transportation-endpoints   # Vehicle/ALPR endpoints
 ```
 
 **Key principle**: Once a baseline is captured, any role mutation, component rewiring, route addition/removal, or endpoint signature change triggers CI failure until explicitly approved via baseline update.
