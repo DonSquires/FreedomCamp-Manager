@@ -927,10 +927,24 @@ export default function InvoicingPage() {
 
           {/* Costing tab */}
           <TabsContent value="costing" className="mt-4">
-            <CostIntelligencePanel
-              isClientBillingUser={isClientBillingUser}
-              financeEnabled={financeEnabled}
-            />
+            {financeEnabled ? (
+              <CostIntelligencePanel
+                isClientBillingUser={isClientBillingUser}
+                financeEnabled={financeEnabled}
+              />
+            ) : (
+              <Card className="bg-white dark:bg-[#1A1A1A] shadow-sm">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <DollarSign className="h-4 w-4 text-blue-600" />
+                    Costing
+                  </CardTitle>
+                  <CardDescription className="text-xs">
+                    Cost intelligence is not available for your current access or organization settings.
+                  </CardDescription>
+                </CardHeader>
+              </Card>
+            )}
           </TabsContent>
 
           {/* Contracts tab */}
