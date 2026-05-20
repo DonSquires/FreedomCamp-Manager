@@ -13,7 +13,7 @@
  * Route: /compliance-audit-log — admin/admin_officer/master
  */
 
-import { useState } from 'react'
+import { Fragment, useState } from 'react'
 import { format, parseISO } from 'date-fns'
 import {
   BadgeCheck, RefreshCw, AlertCircle, Loader2,
@@ -191,9 +191,8 @@ export default function ComplianceAuditLog() {
                 {rows.map(row => {
                   const expanded = expandedId === row.id
                   return (
-                    <>
+                    <Fragment key={row.id}>
                       <TableRow
-                        key={row.id}
                         className="cursor-pointer hover:bg-muted/50"
                         onClick={() => setExpandedId(expanded ? null : row.id)}
                       >
@@ -218,7 +217,7 @@ export default function ComplianceAuditLog() {
                         <TableCell className="text-sm">{fmtDate(row.timestamp)}</TableCell>
                       </TableRow>
                       {expanded && (
-                        <TableRow key={`${row.id}-exp`} className="bg-muted/30">
+                        <TableRow className="bg-muted/30">
                           <TableCell colSpan={7} className="p-4">
                             <p className="font-medium text-sm mb-1">Blocked Reason</p>
                             <p className="text-sm text-muted-foreground">
@@ -227,7 +226,7 @@ export default function ComplianceAuditLog() {
                           </TableCell>
                         </TableRow>
                       )}
-                    </>
+                    </Fragment>
                   )
                 })}
               </TableBody>

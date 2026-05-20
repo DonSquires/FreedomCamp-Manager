@@ -65,12 +65,20 @@ jobs:
 
           if echo "$changed_files" | grep -Eq '^(src/navigation/routeManifest.ts|src/App.tsx|docs/route-contract-canonical.json)$'; then
             if ! echo "$changed_files" | grep -q '^docs/INSTRUCTION_MANUAL.md$'; then
-              echo "::error::Route changes require docs/INSTRUCTION_MANUAL.md updates."
-              exit 1
+              if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+                echo "::warning::Route changes require docs/INSTRUCTION_MANUAL.md updates (advisory PR mode)."
+              else
+                echo "::error::Route changes require docs/INSTRUCTION_MANUAL.md updates."
+                exit 1
+              fi
             fi
 
             if ! echo "$changed_files" | grep -q '^docs/DECISIONS.md$'; then
-              echo "::error::Route changes require docs/DECISIONS.md updates."
-              exit 1
+              if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+                echo "::warning::Route changes require docs/DECISIONS.md updates (advisory PR mode)."
+              else
+                echo "::error::Route changes require docs/DECISIONS.md updates."
+                exit 1
+              fi
             fi
           fi

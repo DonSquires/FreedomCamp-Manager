@@ -3,6 +3,18 @@ name: Ops - Self-Healing Watchdog
 on:
   schedule:
     - cron: '20 */3 * * *'
+  # React immediately when any CI workflow on main fails rather than waiting for cron
+  workflow_run:
+    workflows:
+      - CI - Build, Type-Check & Lint (High Memory)
+      - CI - Route Contract Gate
+      - Governance Release Gate
+      - Build Plan Crossover Gates
+      - Ops - Bob Self-Test
+    types:
+      - completed
+    branches:
+      - main
   workflow_dispatch:
     inputs:
       rerun_failed_workflows:
@@ -13,11 +25,15 @@ on:
 
 permissions:
   contents: read
-  actions: read
+  actions: write
   issues: write
 
 jobs:
   self-heal-watchdog:
+    # On workflow_run events only run when the triggering workflow actually failed
+    if: >-
+      github.event_name != 'workflow_run' ||
+      github.event.workflow_run.conclusion == 'failure'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
@@ -41,7 +57,12 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Run CI self-heal cycle
-        run: node scripts/run-ci-self-heal-cycle.mjs --rerun-failed=${{ inputs.rerun_failed_workflows == false && 'false' || 'true' }}
+        env:
+          # workflow_run events always attempt reruns; workflow_dispatch respects the input
+          CI_SELF_HEAL_RERUN_FAILED: >-
+            ${{ github.event_name == 'workflow_run' && 'true' ||
+                (github.event_name == 'workflow_dispatch' && inputs.rerun_failed_workflows == false && 'false' || 'true') }}
+        run: node scripts/run-ci-self-heal-cycle.mjs --rerun-failed=$CI_SELF_HEAL_RERUN_FAILED
 
       - name: Upload self-heal artifacts
         if: always()
@@ -52,6 +73,8 @@ jobs:
             data/live-stack-scorecard.json
             data/ci-self-heal-list.json
             data/dr-bob-escalation-latest.json
+            data/self-heal-circuit-breaker.json
+            data/self-heal-action-ledger.jsonl
           if-no-files-found: warn
           retention-days: 14
 
@@ -83,20 +106,35 @@ jobs:
             const owner = context.repo.owner
             const repo = context.repo.repo
 
+            const cbPath = path.join(process.cwd(), 'data', 'self-heal-circuit-breaker.json')
+            const cb = fs.existsSync(cbPath) ? JSON.parse(fs.readFileSync(cbPath, 'utf8')) : {}
+            const tier = payload?.escalation?.tier ?? 'unknown'
+            const circuitState = cb.state || 'unknown'
+            const attemptCount = cb.attemptCount || 0
+
+            const tierLabel = { 1: 'Tier 1 – Rerun', 2: 'Tier 2 – Rerun + Remediation dispatch', 3: 'Tier 3 – Rerun + Rollback recommendation', 4: 'Tier 4 – Circuit tripped, human required' }[tier] || `Tier ${tier}`
+
             const body = [
               '## Self-Healing Watchdog Escalation',
               '',
               `- Run: https://github.com/${owner}/${repo}/actions/runs/${context.runId}`,
               `- Head SHA: ${payload.headSha || 'unknown'}`,
               `- Failed workflows detected: ${failedRuns.length}`,
-              `- Escalation raised: ${raised}`,
+              `- Escalation tier: **${tierLabel}**`,
+              `- Circuit breaker: **${circuitState}** (attempt ${attemptCount})`,
               '',
               '### Failed Runs',
               ...(failedRuns.length
                 ? failedRuns.map((run) => `- ${run.name} [${run.status}/${run.conclusion || 'unknown'}] (${run.url || 'no-url'})`)
                 : ['- none']),
               '',
+              '### Automated Actions Taken',
+              tierLabel,
+              '',
               '### Required Human Follow-up',
+              circuitState === 'open'
+                ? '> ⛔ Circuit breaker is OPEN. All automated healing is suppressed. Fix the root cause and push a green commit to reset the circuit.'
+                : '> Self-heal is still active — fix the root cause or the next watchdog run will escalate to Tier 4.',
               '1. Review failing workflow logs.',
               '2. Apply targeted fixes in a branch.',
               '3. Re-run failed checks and close this issue when green.',
