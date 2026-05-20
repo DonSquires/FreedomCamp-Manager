@@ -97,11 +97,5 @@ export function useSessionInactivityLock() {
     user,
     autoLogoffEnabled,
     inactivityMinutes,
-    isWarningVisible,
-    isLocked,
-    lock,
-    showWarning,
-    clearWarning,
-    updateWarningSeconds,
   ])
 }
