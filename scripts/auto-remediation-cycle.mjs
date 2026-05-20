@@ -123,13 +123,28 @@ function main() {
     .map((line) => line.slice(3))
   summary.changedFiles = changedFiles
 
+  // --- Build validation gate (emulation check before PR is created) ---
+  // Run tsc + vite build to confirm the autofix didn't introduce type errors or build failures.
+  // Failures are recorded but do NOT abort the script — the PR body will flag the regression.
+  const buildCmd = tools.bun ? 'bun run build' : 'npm run build'
+  const buildResult = step('build-validate', buildCmd, { allowFailure: true })
+  if (!buildResult.ok) {
+    summary.notes.push('BUILD VALIDATION FAILED after autofix. Review build-validate step before merging the remediation PR.')
+  } else {
+    summary.notes.push('Build validation passed — remediation changes do not break the production bundle.')
+  }
+
   writeTextFile(resolve(OUT_DIR, 'summary.json'), JSON.stringify(summary, null, 2))
+
+  const buildOk = summary.steps.find((s) => s.name === 'build-validate')?.ok ?? null
+  const buildBadge = buildOk === true ? '✅ passed' : buildOk === false ? '❌ FAILED — do not merge without review' : '⚠️ not run'
 
   const markdown = [
     '# Automated Remediation Report',
     '',
     `Generated: ${summary.generatedAt}`,
     `Dependency auto-fix enabled: ${summary.applyDependencyFixes}`,
+    `Build validation: ${buildBadge}`,
     '',
     '## Steps',
     '',

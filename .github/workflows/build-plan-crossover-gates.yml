@@ -82,7 +82,6 @@ jobs:
 
   mobile-expo-gate:
     name: 3) Mobile Expo Gate
-    if: ${{ github.event_name != 'pull_request' || !startsWith(github.head_ref, 'ops/remediation/auto-') }}
     runs-on: ubuntu-latest
     needs: inference-self-contained-gate
     defaults:

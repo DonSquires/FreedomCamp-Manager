@@ -2,7 +2,12 @@ name: Bob Full Service Self-Test
 
 on:
   push:
-    branches: [main, production]
+    branches:
+      - main
+      - production
+      - feat/**
+      - copilot/**
+      - ops/**
   pull_request:
     branches: [main]
   workflow_dispatch:
