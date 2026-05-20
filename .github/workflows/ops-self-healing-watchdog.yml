@@ -3,6 +3,18 @@ name: Ops - Self-Healing Watchdog
 on:
   schedule:
     - cron: '20 */3 * * *'
+  # React immediately when any CI workflow on main fails rather than waiting for cron
+  workflow_run:
+    workflows:
+      - CI - Build, Type-Check & Lint (High Memory)
+      - CI - Route Contract Gate
+      - Governance Release Gate
+      - Build Plan Crossover Gates
+      - Ops - Bob Self-Test
+    types:
+      - completed
+    branches:
+      - main
   workflow_dispatch:
     inputs:
       rerun_failed_workflows:
@@ -18,6 +30,10 @@ permissions:
 
 jobs:
   self-heal-watchdog:
+    # On workflow_run events only run when the triggering workflow actually failed
+    if: >-
+      github.event_name != 'workflow_run' ||
+      github.event.workflow_run.conclusion == 'failure'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
@@ -41,7 +57,12 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Run CI self-heal cycle
-        run: node scripts/run-ci-self-heal-cycle.mjs --rerun-failed=${{ inputs.rerun_failed_workflows == false && 'false' || 'true' }}
+        env:
+          # workflow_run events always attempt reruns; workflow_dispatch respects the input
+          CI_SELF_HEAL_RERUN_FAILED: >-
+            ${{ github.event_name == 'workflow_run' && 'true' ||
+                (github.event_name == 'workflow_dispatch' && inputs.rerun_failed_workflows == false && 'false' || 'true') }}
+        run: node scripts/run-ci-self-heal-cycle.mjs --rerun-failed=$CI_SELF_HEAL_RERUN_FAILED
 
       - name: Upload self-heal artifacts
         if: always()
