@@ -76,15 +76,16 @@ The session lock fix modifies only [src/hooks/useSessionInactivityLock.ts](src/h
 
 **Identified Gaps:**
 
-1. **No E2E Test for Session Lock** ❌
-   - File: `/tests/e2e/session-inactivity-timeout.spec.ts` (missing)
-   - Should verify: Warning appears → Countdown works → Lock screen shown → Re-auth works
-   - Impact on self-heal: None directly, but important for smoke tests
+1. **E2E Coverage Added; Smoke/Workflow Integration Still Needs Verification** ⚠️
+   - File: `/tests/e2e/session-inactivity-timeout.spec.ts` is now present in this PR
+   - Covers/should cover: Warning appears → Countdown works → Lock screen shown → Re-auth works
+   - Remaining gap: Confirm the test is wired into the smoke suite and relevant CI workflows
+   - Impact on self-heal: None directly, but important for monitored Playwright coverage
 
-2. **No Smoke Test Coverage** ❌
-   - Current Playwright tests don't include session timeout scenarios
+2. **No Confirmed Smoke Test Coverage Yet** ❌
+   - Dedicated Playwright coverage exists, but session timeout scenarios may not yet run in the smoke path
    - Self-heal system monitors via `Playwright Monitoring Pulse (Smoke Label)` workflow
-   - Recommendation: Add session lock test to smoke suite
+   - Recommendation: Add/verify session lock coverage in the smoke suite and workflow selection
 
 3. **No Performance Monitoring** ⚠️
    - Session lock hook uses timers/refs
