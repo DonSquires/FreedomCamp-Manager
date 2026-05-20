@@ -717,6 +717,11 @@ export default function AdminPortal() {
     'flex w-full items-center justify-between rounded-lg border border-white/60 dark:border-white/10 bg-white/70 dark:bg-slate-800/50 px-3 py-2.5 text-left hover:bg-white dark:hover:bg-slate-800 transition-colors group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2'
   const listRowClass =
     'flex items-center justify-between gap-3 rounded-lg border border-white/60 dark:border-white/10 bg-white/70 dark:bg-slate-800/50 px-3 py-2.5'
+  const getShiftCardKey = (shift: any, index: number, officerName: string, startTime: string, endTime: string) =>
+    String(shift.id ?? '').trim() ||
+    `${startTime}-${endTime}-${officerName}-${shift.service_type ?? shift.position_title ?? 'shift'}-${index}`
+  const getObservationCardKey = (obs: any, index: number) =>
+    String(obs.observation_id ?? '').trim() || `${obs.recorded_at ?? 'unknown'}-${obs.plate_number ?? 'unknown'}-${index}`
 
   const openDisputesCount = Number(data?.openDisputeIntake ?? 0)
   const pendingApprovalsCount = Number((data as any)?.pendingIntelApprovals ?? 0)
@@ -1657,7 +1662,7 @@ export default function AdminPortal() {
                     const endTime = shift.end_time ? shift.end_time.slice(0, 5) : '—'
                     const serviceLabel = SERVICE_TYPE_LABELS[shift.service_type] ?? shift.position_title ?? 'Shift'
                     const isActive = shift.status === 'in_progress'
-                    const shiftKey = String(shift.id ?? '').trim() || `${startTime}-${endTime}-${officerName}-${index}`
+                    const shiftKey = getShiftCardKey(shift, index, officerName, startTime, endTime)
                     return (
                       <div
                         key={shiftKey}
@@ -2121,7 +2126,7 @@ export default function AdminPortal() {
               {recentHistoricalObservations.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No recent observations found.</p>
               ) : recentHistoricalObservations.map((obs: any, index: number) => (
-                <div key={String(obs.observation_id ?? '').trim() || `${obs.recorded_at ?? 'unknown'}-${obs.plate_number ?? 'unknown'}-${index}`} className={listRowClass}>
+                <div key={getObservationCardKey(obs, index)} className={listRowClass}>
                   <div className="min-w-0">
                     <p className="font-mono text-sm font-semibold truncate">{obs.plate_number || 'UNKNOWN'}</p>
                     <p className="text-xs text-muted-foreground truncate">
