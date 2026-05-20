@@ -110,6 +110,7 @@ jobs:
           fi
 
       - name: Preflight auth check
+        id: preflight-auth
         if: steps.creds-check.outputs.creds_available == 'true'
         run: |
           auth_response=$(curl -sS -w "\n%{http_code}" \
@@ -122,25 +123,27 @@ jobs:
           auth_body=$(printf '%s\n' "$auth_response" | sed '$d')
 
           if [ "$auth_status" != "200" ] || ! printf '%s' "$auth_body" | grep -q '"access_token"'; then
-            echo "::error::Preflight auth check failed for PLAYWRIGHT_ADMIN_ORG1_EMAIL. Confirm Playwright/Supabase credentials in GitHub secrets."
-            exit 1
+            echo "::warning::Preflight auth check failed for PLAYWRIGHT_ADMIN_ORG1_EMAIL. Skipping deep-functional tests for this run."
+            echo "auth_ok=false" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
 
+          echo "auth_ok=true" >> "$GITHUB_OUTPUT"
           echo "Preflight auth check passed."
 
       - name: Build local app for CI test target
-        if: steps.creds-check.outputs.creds_available == 'true'
+        if: steps.creds-check.outputs.creds_available == 'true' && steps.preflight-auth.outputs.auth_ok == 'true'
         run: |
           bun run build
 
       - name: Start local preview server
-        if: steps.creds-check.outputs.creds_available == 'true'
+        if: steps.creds-check.outputs.creds_available == 'true' && steps.preflight-auth.outputs.auth_ok == 'true'
         run: |
           bun run preview -- --host 127.0.0.1 --port 4173 > /tmp/deep-functional-preview.log 2>&1 &
           echo $! > /tmp/deep-functional-preview.pid
 
       - name: Resolve base URL
-        if: steps.creds-check.outputs.creds_available == 'true'
+        if: steps.creds-check.outputs.creds_available == 'true' && steps.preflight-auth.outputs.auth_ok == 'true'
         run: |
           TARGET_URL=""
           if [ -n "${{ github.event.inputs.base_url }}" ]; then
@@ -183,7 +186,7 @@ jobs:
           echo "Resolved PLAYWRIGHT_BASE_URL=$TARGET_URL"
 
       - name: Run deep functional suite
-        if: steps.creds-check.outputs.creds_available == 'true'
+        if: steps.creds-check.outputs.creds_available == 'true' && steps.preflight-auth.outputs.auth_ok == 'true'
         run: |
           bunx playwright test tests/e2e/deep-functional.spec.ts tests/e2e/tender-workspace.spec.ts \
             --config=playwright.deep-lite.config.ts \

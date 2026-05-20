@@ -20,6 +20,13 @@ export function useSessionInactivityLock() {
   const warningTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const lockTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const isLockedRef = useRef(isLocked)
+  const isWarningVisibleRef = useRef(isWarningVisible)
+
+  useEffect(() => {
+    isLockedRef.current = isLocked
+    isWarningVisibleRef.current = isWarningVisible
+  }, [isLocked, isWarningVisible])
 
   useEffect(() => {
     if (!user || !autoLogoffEnabled) {
@@ -72,7 +79,7 @@ export function useSessionInactivityLock() {
       // When warning/lock overlays are showing, do not auto-clear or auto-reset
       // from incidental activity like mousemove/click/scroll. Only explicit
       // Continue action dispatches `session:stay-active`.
-      if ((isWarningVisible || isLocked) && !isExplicitStayActive) {
+      if ((isWarningVisibleRef.current || isLockedRef.current) && !isExplicitStayActive) {
         return
       }
 
@@ -97,5 +104,9 @@ export function useSessionInactivityLock() {
     user,
     autoLogoffEnabled,
     inactivityMinutes,
+    lock,
+    showWarning,
+    clearWarning,
+    updateWarningSeconds,
   ])
 }
