@@ -6,6 +6,25 @@ Status: **ALL GATES GREEN** — Lint 0 errors / 0 warnings; Vite build EXIT:0; A
 
 ---
 
+## Cost Intelligence Surface (2026-05-20)
+
+Owner: GitHub Copilot
+Mode: Unified provider cost center and org-scoped bill-back inside the existing billing workspace
+
+Checklist:
+
+- [x] Added a Costing tab inside `/invoicing` for platform-level monthly run-rate inputs and summary totals.
+- [x] Added org-scoped live expense and bill-back views without introducing new routes.
+- [x] Wired per-user cost hierarchy from roster shifts, user profiles, and invoice rollups.
+- [x] Kept route signatures unchanged so governance gates remain aligned.
+
+Validation:
+
+- [x] `bun run build`
+- [x] `bun run lint`
+
+---
+
 ## Agentic UX Remediation To-Do (2026-05-18)
 
 Owner: GitHub Copilot  

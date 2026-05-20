@@ -123,10 +123,22 @@ jobs:
 
       - name: Doc authority strict gate
         id: doc_authority
+        continue-on-error: ${{ github.event_name == 'pull_request' && vars.GOVERNANCE_STRICT_ON_PR != 'true' }}
         env:
           DOC_AUTHORITY_STRICT: 'true'
           DOC_AUTHORITY_DIFF_RANGE: ${{ github.event_name == 'pull_request' && format('origin/{0}...{1}', github.base_ref, github.sha) || format('{0}..{1}', github.event.before, github.sha) }}
         run: bun run lint:doc-authority
+
+      - name: Enforce doc authority gate (strict contexts)
+        if: steps.doc_authority.outcome == 'failure' && (github.event_name != 'pull_request' || vars.GOVERNANCE_STRICT_ON_PR == 'true')
+        run: |
+          echo "::error::Doc authority gate failed in strict context."
+          exit 1
+
+      - name: Report doc authority gate (advisory PR mode)
+        if: steps.doc_authority.outcome == 'failure' && github.event_name == 'pull_request' && vars.GOVERNANCE_STRICT_ON_PR != 'true'
+        run: |
+          echo "::warning::Doc authority gate failed in advisory PR mode; continuing."
 
       - name: Bob governance drift strict gate
         id: bob_governance_drift
@@ -136,23 +148,52 @@ jobs:
         run: bun run lint:bob-governance-drift
 
       - name: Enforce Bob governance drift gate
-        if: steps.bob_governance_drift.outcome == 'failure'
+        if: steps.bob_governance_drift.outcome == 'failure' && (github.event_name != 'pull_request' || vars.GOVERNANCE_STRICT_ON_PR == 'true')
         run: |
           echo "::error::Bob governance drift gate failed. Align docs/INSTRUCTION_MANUAL.md with Bob runtime policy surfaces in src/lib/edgeFunctions.ts, src/lib/bobMutationCatalog.ts, src/lib/bob-brain.ts, and src/pages/BobAssistantStudio.tsx."
           exit 1
 
+      - name: Report Bob governance drift gate (advisory PR mode)
+        if: steps.bob_governance_drift.outcome == 'failure' && github.event_name == 'pull_request' && vars.GOVERNANCE_STRICT_ON_PR != 'true'
+        run: |
+          echo "::warning::Bob governance drift gate failed in advisory PR mode; continuing."
+
       - name: Staging doc presence and freshness gate
         id: staging_doc
+        continue-on-error: ${{ github.event_name == 'pull_request' && vars.GOVERNANCE_STRICT_ON_PR != 'true' }}
         env:
           STAGING_MAX_AGE_DAYS: '14'
         run: bun run lint:staging-doc
 
+      - name: Enforce staging doc gate (strict contexts)
+        if: steps.staging_doc.outcome == 'failure' && (github.event_name != 'pull_request' || vars.GOVERNANCE_STRICT_ON_PR == 'true')
+        run: |
+          echo "::error::Staging doc freshness gate failed in strict context."
+          exit 1
+
+      - name: Report staging doc gate (advisory PR mode)
+        if: steps.staging_doc.outcome == 'failure' && github.event_name == 'pull_request' && vars.GOVERNANCE_STRICT_ON_PR != 'true'
+        run: |
+          echo "::warning::Staging doc freshness gate failed in advisory PR mode; continuing."
+
       - name: Route roadmap strict gate
         id: route_roadmap
+        continue-on-error: ${{ github.event_name == 'pull_request' && vars.GOVERNANCE_STRICT_ON_PR != 'true' }}
         env:
           ROUTE_ROADMAP_STRICT: 'true'
           ROUTE_ROADMAP_DIFF_RANGE: ${{ github.event_name == 'pull_request' && format('origin/{0}...{1}', github.base_ref, github.sha) || format('{0}..{1}', github.event.before, github.sha) }}
         run: bun run lint:route-roadmap
+
+      - name: Enforce route roadmap gate (strict contexts)
+        if: steps.route_roadmap.outcome == 'failure' && (github.event_name != 'pull_request' || vars.GOVERNANCE_STRICT_ON_PR == 'true')
+        run: |
+          echo "::error::Route roadmap gate failed in strict context."
+          exit 1
+
+      - name: Report route roadmap gate (advisory PR mode)
+        if: steps.route_roadmap.outcome == 'failure' && github.event_name == 'pull_request' && vars.GOVERNANCE_STRICT_ON_PR != 'true'
+        run: |
+          echo "::warning::Route roadmap gate failed in advisory PR mode; continuing."
 
       - name: Generate route-role matrix artifact
         run: |

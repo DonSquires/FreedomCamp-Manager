@@ -130,6 +130,22 @@ interface PTTState {
   reset: () => void
 }
 
+function normalizePresenceList(presence: PTTPresence[]): PTTPresence[] {
+  // Deduplicate by userId with first-wins ordering and drop invalid user IDs.
+  const seen = new Set<string>()
+  const normalized: PTTPresence[] = []
+
+  for (const user of presence) {
+    const userId = typeof user?.userId === 'string' ? user.userId.trim() : ''
+    if (!userId || seen.has(userId)) continue
+
+    seen.add(userId)
+    normalized.push({ ...user, userId })
+  }
+
+  return normalized
+}
+
 const initialState = {
   connectionStatus: 'disconnected' as PTTConnectionStatus,
   wsUrl: null,
@@ -194,7 +210,7 @@ export const usePTTStore = create<PTTState>()(
       setSpeaker: (speakerId, speakerName) =>
         set({ speakerId, speakerName: speakerName ?? null }),
 
-      setPresence: (presence) => set({ presence }),
+      setPresence: (presence) => set({ presence: normalizePresenceList(presence) }),
 
       addPresence: (user) =>
         set((state) => {

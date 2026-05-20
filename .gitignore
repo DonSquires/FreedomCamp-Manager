@@ -48,6 +48,7 @@ supabase/.env*.local
 *.keystore
 base64.txt
 grep_requested_output.txt
+lint_output.txt
 .bin/
 .bun/
 .tools/

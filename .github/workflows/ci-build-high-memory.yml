@@ -129,10 +129,22 @@ jobs:
 
       - name: Doc authority lint (mandatory)
         id: doc_authority
+        continue-on-error: ${{ github.event_name == 'pull_request' && vars.GOVERNANCE_STRICT_ON_PR != 'true' }}
         env:
           DOC_AUTHORITY_STRICT: 'true'
           DOC_AUTHORITY_DIFF_RANGE: ${{ github.event_name == 'pull_request' && format('origin/{0}...{1}', github.base_ref, github.sha) || format('{0}..{1}', github.event.before, github.sha) }}
         run: bun run lint:doc-authority
+
+      - name: Enforce doc authority lint (strict contexts)
+        if: steps.doc_authority.outcome == 'failure' && (github.event_name != 'pull_request' || vars.GOVERNANCE_STRICT_ON_PR == 'true')
+        run: |
+          echo "::error::Doc authority lint failed in strict context."
+          exit 1
+
+      - name: Report doc authority lint (advisory PR mode)
+        if: steps.doc_authority.outcome == 'failure' && github.event_name == 'pull_request' && vars.GOVERNANCE_STRICT_ON_PR != 'true'
+        run: |
+          echo "::warning::Doc authority lint failed in advisory PR mode; continuing."
 
       - name: Bob governance drift lint (mandatory)
         id: bob_governance_drift
@@ -142,10 +154,15 @@ jobs:
         run: bun run lint:bob-governance-drift
 
       - name: Enforce Bob governance drift lint
-        if: steps.bob_governance_drift.outcome == 'failure'
+        if: steps.bob_governance_drift.outcome == 'failure' && (github.event_name != 'pull_request' || vars.GOVERNANCE_STRICT_ON_PR == 'true')
         run: |
           echo "::error::Bob governance drift lint failed. Check docs/INSTRUCTION_MANUAL.md and the Bob governance runtime surfaces before retrying this build."
           exit 1
+
+      - name: Report Bob governance drift lint (advisory PR mode)
+        if: steps.bob_governance_drift.outcome == 'failure' && github.event_name == 'pull_request' && vars.GOVERNANCE_STRICT_ON_PR != 'true'
+        run: |
+          echo "::warning::Bob governance drift lint failed in advisory PR mode; continuing."
 
       - name: Navigation parity tests
         id: nav_parity

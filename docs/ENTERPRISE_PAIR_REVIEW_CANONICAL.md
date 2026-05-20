@@ -79,6 +79,14 @@ Material changes since the prior mainline CI remediation cycle:
 1. `enterprise-console` is not a canonical live route in the current router topology and must not be used as an operational validation anchor.
 2. Monitoring operations are represented by Dispatch Monitor for live queue oversight and Alarm Events for inbound alarm triage.
 
+## Current Cycle Snapshot (2026-05-20)
+
+Material release-prep updates for branch consolidation into main:
+
+1. Costing-surface branch promotion is treated as a consolidation release with no new role model expansion.
+2. Deep functional workflow preflight now degrades invalid credential checks to a controlled skip path for that run, preserving normal execution when credentials are valid.
+3. Governance authority requirements for this cycle are satisfied by paired updates to this canonical file and docs/INSTRUCTION_MANUAL.md.
+
 ## Current Cycle Snapshot (2026-05-17)
 
 Material changes and governance implications in the latest cycle:

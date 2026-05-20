@@ -217,7 +217,11 @@ export function useComplianceBreachObservations({
 
       if (plainResult.error) throw plainResult.error;
 
-      const zoneIds: string[] = Array.from(new Set((plainResult.data ?? []).map((r: any) => r.zone_id).filter(Boolean) as string[]));
+      const zoneIds: string[] = Array.from(new Set(
+        (plainResult.data ?? [])
+          .map((r: any): string | null => (typeof r.zone_id === 'string' && r.zone_id.length > 0 ? r.zone_id : null))
+          .filter((value): value is string => value !== null)
+      ));
       let zoneNameById = new Map<string, string>();
       if (zoneIds.length > 0) {
         const zoneRes = await supabase.from('zones').select('id, name').in('id', zoneIds);

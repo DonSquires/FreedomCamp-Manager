@@ -1,6 +1,7 @@
 import js from '@eslint/js'
 import globals from 'globals'
 import reactHooks from 'eslint-plugin-react-hooks'
+import reactPlugin from 'eslint-plugin-react'
 import reactRefresh from 'eslint-plugin-react-refresh'
 import tseslint from 'typescript-eslint'
 
@@ -30,6 +31,10 @@ export default tseslint.config(
     plugins: {
       'react-hooks': reactHooks,
       'react-refresh': reactRefresh,
+      'react': reactPlugin,
+    },
+    settings: {
+      react: { version: '18' },
     },
     rules: {
       ...reactHooks.configs.recommended.rules,
@@ -39,6 +44,10 @@ export default tseslint.config(
       ],
       '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/no-unused-vars': 'off',
+      // Enforce unique keys in JSX lists to prevent React duplicate-key warnings.
+      'react/jsx-key': 'error',
+      // Warn on unescaped HTML entities in JSX text to prevent rendering bugs.
+      'react/no-unescaped-entities': 'warn',
       // Phase II-CI: Block calls to retired archive edge functions.
       // Add new archive names here whenever a function is moved to _archive.
       'no-restricted-syntax': [

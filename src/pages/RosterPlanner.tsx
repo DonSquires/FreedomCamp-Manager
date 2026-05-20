@@ -10,6 +10,10 @@ import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { useClientOrgIds } from '@/hooks/useClientOrgIds'
 import { parseDeputyImportText, type DeputyImportParseResult, type DeputyParsedRow } from '@/lib/deputyImport'
+import {
+  shouldEnableRosterPlannerClientScopedQueries,
+  shouldEnableRosterPlannerQueries,
+} from '@/pages/rosterPlannerQueryGuards'
 import { AppLayout } from '@/components/features/AppLayout'
 import UserManagement from '@/pages/UserManagement'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
@@ -1117,7 +1121,10 @@ export default function RosterPlanner() {
   const queryClient = useQueryClient()
   const isAdmin = user?.role === 'admin' || user?.role === 'master' || user?.role === 'admin_officer'
   const activeTab = isAdmin && searchParams.get('tab') === 'users' ? 'users' : 'planner'
-  const { orgIds: clientOrgIds, isLoading: clientOrgIdsLoading } = useClientOrgIds()
+  const hasOrganizationId = !!user?.organization_id
+  const plannerQueriesEnabled = shouldEnableRosterPlannerQueries(activeTab, hasOrganizationId)
+  const { orgIds: clientOrgIds, isLoading: clientOrgIdsLoading } = useClientOrgIds({ enabled: plannerQueriesEnabled })
+  const clientScopedQueriesEnabled = shouldEnableRosterPlannerClientScopedQueries(activeTab, hasOrganizationId, clientOrgIdsLoading)
 
   // ─── Week navigation ───────────────────────────────────────────────────────
   const [viewStart, setViewStart] = useState<Date>(() =>
@@ -1173,7 +1180,7 @@ export default function RosterPlanner() {
       if (error) throw error
       return (data || []) as RosterShift[]
     },
-    enabled: !!user?.organization_id,
+    enabled: plannerQueriesEnabled,
   })
 
   const { data: officers = [], isLoading: officersLoading } = useQuery<Officer[]>({
@@ -1197,7 +1204,7 @@ export default function RosterPlanner() {
         contractor_org: Array.isArray(o.contractor_org) ? o.contractor_org[0] ?? null : o.contractor_org,
       })) as Officer[]
     },
-    enabled: !!user?.organization_id,
+    enabled: plannerQueriesEnabled,
   })
 
   const { data: sites = [] } = useQuery<ClientSite[]>({
@@ -1212,7 +1219,7 @@ export default function RosterPlanner() {
       if (error) throw error
       return (data || []) as ClientSite[]
     },
-    enabled: !!user?.organization_id && !clientOrgIdsLoading,
+    enabled: clientScopedQueriesEnabled,
   })
 
   const { data: zones = [] } = useQuery<Zone[]>({
@@ -1231,7 +1238,7 @@ export default function RosterPlanner() {
       if (error) throw error
       return (data || []) as Zone[]
     },
-    enabled: !!user?.organization_id && !clientOrgIdsLoading,
+    enabled: clientScopedQueriesEnabled,
   })
 
   const { data: patrolRoutes = [] } = useQuery<PatrolRoute[]>({
@@ -1246,7 +1253,7 @@ export default function RosterPlanner() {
       if (error) throw error
       return (data || []) as PatrolRoute[]
     },
-    enabled: !!user?.organization_id,
+    enabled: plannerQueriesEnabled,
   })
 
   const { data: availability = [] } = useQuery<OfficerAvailability[]>({
@@ -1258,7 +1265,7 @@ export default function RosterPlanner() {
       if (error) throw error
       return (data || []) as OfficerAvailability[]
     },
-    enabled: !!user?.organization_id,
+    enabled: plannerQueriesEnabled,
   })
 
   const { data: leaveRequests = [] } = useQuery<LeaveRequest[]>({
@@ -1273,7 +1280,7 @@ export default function RosterPlanner() {
       if (error) throw error
       return (data || []) as LeaveRequest[]
     },
-    enabled: !!user?.organization_id,
+    enabled: plannerQueriesEnabled,
   })
 
   // ─── Mutations ─────────────────────────────────────────────────────────────

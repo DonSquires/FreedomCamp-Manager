@@ -16,7 +16,7 @@
  * Route: /radio-transcript-log — admin/admin_officer/master
  */
 
-import { useState } from 'react'
+import { Fragment, useState } from 'react'
 import { format, parseISO } from 'date-fns'
 import {
   FileText, RefreshCw, AlertCircle, Loader2,
@@ -210,9 +210,8 @@ export default function RadioTranscriptLog() {
                 {rows.map(row => {
                   const expanded = expandedId === row.id
                   return (
-                    <>
+                    <Fragment key={row.id}>
                       <TableRow
-                        key={row.id}
                         className="cursor-pointer hover:bg-muted/50"
                         onClick={() => setExpandedId(expanded ? null : row.id)}
                       >
@@ -232,7 +231,7 @@ export default function RadioTranscriptLog() {
                         <TableCell className="text-sm">{fmtDate(row.created_at)}</TableCell>
                       </TableRow>
                       {expanded && (
-                        <TableRow key={`${row.id}-exp`} className="bg-muted/30">
+                        <TableRow className="bg-muted/30">
                           <TableCell colSpan={8} className="p-4 space-y-3">
                             <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-xs text-muted-foreground">
                               <span>Transmission: {row.transmission_id}</span>
@@ -246,7 +245,7 @@ export default function RadioTranscriptLog() {
                           </TableCell>
                         </TableRow>
                       )}
-                    </>
+                    </Fragment>
                   )
                 })}
               </TableBody>

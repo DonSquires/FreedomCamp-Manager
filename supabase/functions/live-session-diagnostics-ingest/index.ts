@@ -34,27 +34,41 @@ function isActionableEventType(value: unknown): boolean {
   return /(error|exception|failed|failure|timeout|crash|panic|unhandled|degraded)/i.test(value)
 }
 
+// "Bare" fetch noise lacks endpoint/service context and is commonly emitted by browsers during route transitions.
+const BARE_FETCH_ERROR_PATTERN = /^(typeerror:\s*)?(failed to fetch|load failed|networkerror when attempting to fetch resource)[.!?]?$/i
+
 function isActionableConsoleError(entry: unknown): boolean {
   if (!entry || typeof entry !== 'object') return false
   const record = entry as Record<string, unknown>
   const level = String(record.level || '').toLowerCase()
   const message = String(record.message || '')
+  const trimmedMessage = message.trim()
 
   if (level !== 'error' && level !== 'unhandled') {
     return false
   }
 
-  if (/nominatim geocoding failed: typeerror: failed to fetch/i.test(message)) {
+  if (/nominatim geocoding failed: typeerror: failed to fetch/i.test(trimmedMessage)) {
+    return false
+  }
+
+  // Ignore bare browser fetch-cancellation errors with no endpoint/context.
+  // Keep URL- or service-specific failures actionable.
+  if (BARE_FETCH_ERROR_PATTERN.test(trimmedMessage)) {
+    return false
+  }
+
+  if (/favicon/i.test(trimmedMessage)) {
     return false
   }
 
   // React development warnings can be emitted via console.error and should not
   // be treated as actionable platform failures.
-  if (/^warning:/i.test(message)) {
+  if (/^warning:/i.test(trimmedMessage)) {
     return false
   }
 
-  if (/encountered two children with the same key/i.test(message)) {
+  if (/encountered two children with the same key/i.test(trimmedMessage)) {
     return false
   }
 

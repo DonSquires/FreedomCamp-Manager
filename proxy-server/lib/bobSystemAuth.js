@@ -30,6 +30,8 @@ const state = {
   email: null,
   timer: null,
   lastError: null,
+  lastFailureKind: null,
+  lastFailureAt: null,
   lastRefreshAt: null,
   refreshFailures: 0,
 };
@@ -97,8 +99,35 @@ function applySession(session, email) {
   state.email = email;
   state.ready = true;
   state.lastError = null;
+  state.lastFailureKind = null;
+  state.lastFailureAt = null;
   state.lastRefreshAt = new Date().toISOString();
   scheduleRefresh();
+}
+
+function classifyFailure(error) {
+  const message = String(error?.message || error || '').toLowerCase();
+
+  if (message.includes('invalid login credentials')) {
+    return 'credentials';
+  }
+
+  if (message.includes('missing supabase/bob system login env variables')) {
+    return 'configuration';
+  }
+
+  if (message.includes('websocket support') || message.includes('node.js runtime')) {
+    return 'runtime';
+  }
+
+  return 'unknown';
+}
+
+function recordFailure(error) {
+  state.ready = false;
+  state.lastError = String(error?.message || error || 'Unknown Bob auth failure');
+  state.lastFailureKind = classifyFailure(error);
+  state.lastFailureAt = new Date().toISOString();
 }
 
 async function signInWithPassword() {
@@ -158,8 +187,7 @@ async function rotateSession() {
     applySession(data.session, state.email || getConfig().email || null);
     state.refreshFailures = 0;
   } catch (error) {
-    state.ready = false;
-    state.lastError = String(error?.message || error);
+    recordFailure(error);
     state.refreshFailures += 1;
     throw error;
   } finally {
@@ -181,8 +209,7 @@ async function initBobSystemAuth() {
     await signInWithPassword();
     return true;
   } catch (error) {
-    state.ready = false;
-    state.lastError = String(error?.message || error);
+    recordFailure(error);
     throw error;
   }
 }
@@ -208,6 +235,13 @@ function getBobSystemAuthStatus() {
     last_refresh_at: state.lastRefreshAt,
     refresh_failures: state.refreshFailures,
     last_error: state.lastError,
+    last_failure_kind: state.lastFailureKind,
+    last_failure_at: state.lastFailureAt,
+    self_heal_hint: state.lastFailureKind === 'credentials'
+      ? 'Rotate or correct BOB_SYSTEM_EMAIL / BOB_SYSTEM_PASSWORD, then restart the proxy so Bob can re-authenticate.'
+      : state.lastFailureKind === 'configuration'
+        ? 'Set BOB_SYSTEM_EMAIL and BOB_SYSTEM_PASSWORD before restarting the proxy.'
+        : null,
   };
 }
 
