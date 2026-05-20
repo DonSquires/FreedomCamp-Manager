@@ -581,84 +581,98 @@ describe('BobAssistantStudio organization setup flow', () => {
   })
 
   it('shows ranked Nelson City Council contract sources and visible conflict warnings', async () => {
-    storageListMock.mockImplementation(async (prefix: string) => {
-      if (!prefix) {
-        return {
-          data: [
-            { name: 'Nelson City Council' },
-          ],
-          error: null,
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      storageListMock.mockImplementation(async (prefix: string) => {
+        if (!prefix) {
+          return {
+            data: [
+              { name: 'Nelson City Council' },
+            ],
+            error: null,
+          }
         }
-      }
 
-      if (prefix === 'Nelson City Council') {
-        return {
-          data: [
-            {
-              id: 'file-1',
-              name: 'final-signed-parking-instructions.txt',
-              updated_at: '2026-05-10T00:00:00Z',
-              metadata: { size: 512 },
-            },
-            {
-              id: 'file-2',
-              name: 'archive-old-parking-instructions.txt',
-              updated_at: '2025-01-01T00:00:00Z',
-              metadata: { size: 256 },
-            },
-          ],
-          error: null,
+        if (prefix === 'Nelson City Council') {
+          return {
+            data: [
+              {
+                id: 'file-1',
+                name: 'final-signed-parking-instructions.txt',
+                updated_at: '2026-05-10T00:00:00Z',
+                metadata: { size: 512 },
+              },
+              {
+                id: 'file-2',
+                name: 'archive-old-parking-instructions.txt',
+                updated_at: '2025-01-01T00:00:00Z',
+                metadata: { size: 256 },
+              },
+              {
+                id: 'file-3',
+                name: 'archive-old-parking-instructions.txt',
+                updated_at: '2024-01-01T00:00:00Z',
+                metadata: { size: 256 },
+              },
+            ],
+            error: null,
+          }
         }
-      }
 
-      return { data: [], error: null }
-    })
+        return { data: [], error: null }
+      })
 
-    storageDownloadMock.mockImplementation(async (path: string) => {
-      if (path === 'Nelson City Council/final-signed-parking-instructions.txt') {
-        return {
-          data: createTextBlob([
-            'Nelson City Council parking contract final signed current.',
-            'Service scope includes loading zone and mobility bay patrol coverage.',
-            'Officers must inspect the loading zone every 30 minutes and record each visit.',
-            'Monthly fee is NZD 3,000 for this scope.',
-            'This increases current service coverage for after-hours checks.',
-            'Mobility permit bays must be checked during every patrol.',
-          ].join('\n')),
-          error: null,
+      storageDownloadMock.mockImplementation(async (path: string) => {
+        if (path === 'Nelson City Council/final-signed-parking-instructions.txt') {
+          return {
+            data: createTextBlob([
+              'Nelson City Council parking contract final signed current.',
+              'Service scope includes loading zone and mobility bay patrol coverage.',
+              'Officers must inspect the loading zone every 30 minutes and record each visit.',
+              'Monthly fee is NZD 3,000 for this scope.',
+              'This increases current service coverage for after-hours checks.',
+              'Mobility permit bays must be checked during every patrol.',
+            ].join('\n')),
+            error: null,
+          }
         }
-      }
 
-      if (path === 'Nelson City Council/archive-old-parking-instructions.txt') {
-        return {
-          data: createTextBlob([
-            'Nelson City Council parking archive instructions.',
-            'Service scope is limited to loading zone checks only.',
-            'Officers must inspect the loading zone hourly and notify admin only if there is a breach.',
-            'Monthly fee is NZD 2,200 under the older schedule.',
-            'Current service remains unchanged in this older contract.',
-            'Mobility permit bays are checked once daily.',
-          ].join('\n')),
-          error: null,
+        if (path === 'Nelson City Council/archive-old-parking-instructions.txt') {
+          return {
+            data: createTextBlob([
+              'Nelson City Council parking archive instructions.',
+              'Service scope is limited to loading zone checks only.',
+              'Officers must inspect the loading zone hourly and notify admin only if there is a breach.',
+              'Monthly fee is NZD 2,200 under the older schedule.',
+              'Current service remains unchanged in this older contract.',
+              'Mobility permit bays are checked once daily.',
+            ].join('\n')),
+            error: null,
+          }
         }
-      }
 
-      return { data: null, error: null }
-    })
+        return { data: null, error: null }
+      })
 
-    renderPage()
+      renderPage()
 
-    expect(await screen.findByText('Service Contract Intelligence')).toBeInTheDocument()
+      expect(await screen.findByText('Service Contract Intelligence')).toBeInTheDocument()
 
-    await waitFor(() => {
-      expect(screen.getAllByText('Nelson City Council/final-signed-parking-instructions.txt').length).toBeGreaterThan(0)
-      expect(screen.getByText(/Potential conflict in loading zone rules/i)).toBeInTheDocument()
-    })
+      await waitFor(() => {
+        expect(screen.getAllByText('Nelson City Council/final-signed-parking-instructions.txt').length).toBeGreaterThan(0)
+        expect(screen.getByText(/Potential conflict in loading zone rules/i)).toBeInTheDocument()
+      })
 
-    expect(screen.getByText(/Bob should prefer the higher-ranked signed\/current source/i)).toBeInTheDocument()
-    expect(screen.getAllByText(/Nelson City Council\/archive-old-parking-instructions.txt/).length).toBeGreaterThan(0)
-    expect(screen.getByText(/Comparison snapshot \(service, times, cost, impact\)/i)).toBeInTheDocument()
-    expect(screen.getByText(/Cost profile:/i)).toBeInTheDocument()
+      expect(screen.getByText(/Bob should prefer the higher-ranked signed\/current source/i)).toBeInTheDocument()
+      expect(screen.getAllByText(/Nelson City Council\/archive-old-parking-instructions.txt/).length).toBeGreaterThan(0)
+      expect(screen.getByText(/Comparison snapshot \(service, times, cost, impact\)/i)).toBeInTheDocument()
+      expect(screen.getByText(/Cost profile:/i)).toBeInTheDocument()
+      expect(
+        consoleErrorSpy.mock.calls.some((args) => String(args[0]).includes('Encountered two children with the same key')),
+      ).toBe(false)
+    } finally {
+      consoleErrorSpy.mockRestore()
+    }
   })
 
   it('lets approvers adopt the highest-ranked source and stage a conflict review', async () => {

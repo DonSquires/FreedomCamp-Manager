@@ -5546,8 +5546,8 @@ export default function BobAssistantStudio() {
                   {serviceContractMatchContext.topRankedPaths.length > 0 && (
                     <div className="rounded border p-3 space-y-2">
                       <div className="font-medium text-muted-foreground">Priority-ranked contract sources</div>
-                      {serviceContractMatchContext.topRankedPaths.map((path) => (
-                        <div key={path} className="break-all">{path}</div>
+                      {serviceContractMatchContext.topRankedPaths.map((path, index) => (
+                        <div key={`${path}-${index}`} className="break-all">{path}</div>
                       ))}
                     </div>
                   )}
@@ -5555,8 +5555,8 @@ export default function BobAssistantStudio() {
                   {serviceContractMatchContext.topContentRankedPaths.length > 0 && (
                     <div className="rounded border p-3 space-y-2">
                       <div className="font-medium text-muted-foreground">Priority-ranked content files</div>
-                      {serviceContractMatchContext.topContentRankedPaths.map((path) => (
-                        <div key={path} className="break-all">{path}</div>
+                      {serviceContractMatchContext.topContentRankedPaths.map((path, index) => (
+                        <div key={`${path}-${index}`} className="break-all">{path}</div>
                       ))}
                     </div>
                   )}
@@ -5564,8 +5564,8 @@ export default function BobAssistantStudio() {
                   {serviceContractMatchContext.conflictWarnings.length > 0 && (
                     <div className="rounded border border-red-200 bg-red-50 p-3 space-y-2 text-red-900 dark:border-red-900/40 dark:bg-red-950/20 dark:text-red-200">
                       <div className="flex items-center gap-2 font-medium"><XCircle className="h-4 w-4" /> Contract conflicts to resolve</div>
-                      {serviceContractMatchContext.conflictWarnings.map((warning) => (
-                        <div key={warning}>{warning}</div>
+                      {serviceContractMatchContext.conflictWarnings.map((warning, index) => (
+                        <div key={`${warning}-${index}`}>{warning}</div>
                       ))}
                       <div className="text-[11px] text-red-800/80 dark:text-red-300/80">
                         Bob should prefer the higher-ranked signed/current source, explain the differences in plain language, and call out the mismatch before finalizing patrol or parking setup.
@@ -5576,8 +5576,8 @@ export default function BobAssistantStudio() {
                   {serviceContractMatchContext.comparisonSummary.length > 0 && (
                     <div className="rounded border p-3 space-y-2">
                       <div className="font-medium text-muted-foreground">Comparison snapshot (service, times, cost, impact)</div>
-                      {serviceContractMatchContext.comparisonSummary.map((item) => (
-                        <div key={`${item.category}-${item.summary}`} className="rounded border bg-muted/20 p-2 space-y-1">
+                      {serviceContractMatchContext.comparisonSummary.map((item, index) => (
+                        <div key={`${item.category}-${item.summary}-${index}`} className="rounded border bg-muted/20 p-2 space-y-1">
                           <div className="font-medium">{item.summary}</div>
                           <div className="text-[11px]">Decision: {getComparisonResolutionLabel(contractComparisonResolutions[getComparisonResolutionKey(item)])}</div>
                           <div className="text-[11px] text-muted-foreground">Primary: {item.primaryEvidence}</div>
@@ -5613,8 +5613,8 @@ export default function BobAssistantStudio() {
                   {serviceContractMatchContext.instructionLines.length > 0 && (
                     <div className="rounded border p-3 space-y-2">
                       <div className="font-medium text-muted-foreground">Extracted operational instructions</div>
-                      {serviceContractMatchContext.instructionLines.slice(0, 4).map((line) => (
-                        <div key={line}>{line}</div>
+                      {serviceContractMatchContext.instructionLines.slice(0, 4).map((line, index) => (
+                        <div key={`${line}-${index}`}>{line}</div>
                       ))}
                     </div>
                   )}
