@@ -3052,10 +3052,10 @@ export default function BobAssistantStudio() {
         registerEmergencySignal('transcript', `TRANSCRIPT RISK: ${message}`)
       }
     } catch (err: any) {
-      const errorText = String(err?.message ?? err ?? '')
+      const errorText = String(err?.message ?? err ?? '').trim()
       const likelyOutage = isLikelyBobServiceOutageError(errorText)
       if (likelyOutage) {
-        console.warn('Bob assistant temporary outage detected:', errorText || err)
+        console.warn('Bob assistant temporary outage detected:', errorText || 'unknown outage error')
       } else {
         console.error('Bob assistant invoke failed:', err)
       }

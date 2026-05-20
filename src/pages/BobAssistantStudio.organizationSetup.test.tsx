@@ -512,8 +512,8 @@ describe('BobAssistantStudio organization setup flow', () => {
 
     await screen.findByText('Bob/Ollama is temporarily unavailable right now. Please retry in a moment.')
 
-    expect(errorSpy.mock.calls.some(([firstArg]) => firstArg === 'Bob assistant invoke failed:')).toBe(false)
-    expect(warnSpy.mock.calls.some(([firstArg]) => firstArg === 'Bob assistant temporary outage detected:')).toBe(true)
+    expect(errorSpy).not.toHaveBeenCalledWith('Bob assistant invoke failed:', expect.anything())
+    expect(warnSpy).toHaveBeenCalledWith('Bob assistant temporary outage detected:', expect.anything())
 
     errorSpy.mockRestore()
     warnSpy.mockRestore()
