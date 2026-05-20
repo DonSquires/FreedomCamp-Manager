@@ -8,9 +8,9 @@
  * - Google Maps directions link
  */
 
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { MapContainer, TileLayer, CircleMarker, Marker, Popup, useMap } from 'react-leaflet'
+import { MapContainer, TileLayer, CircleMarker, Popup, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import MarkerClusterGroup from 'react-leaflet-cluster'
 import { supabase } from '@/lib/supabase'
@@ -119,7 +119,7 @@ function MapViewportController({ jobs, selectedJob }: { jobs: MapJob[]; selected
   const map = useMap()
   
   // Fit bounds to show all jobs when loaded
-  useMemo(() => {
+  useEffect(() => {
     const jobsWithGPS = jobs.filter(j => j.gps_lat && j.gps_lng)
     if (jobsWithGPS.length === 0) return
     
@@ -233,7 +233,7 @@ export default function JobMap() {
       if (error) throw error
       return (data ?? []) as MapJob[]
     },
-    enabled: !!orgId,
+    enabled: !!orgId && statusFilters.length > 0,
     refetchInterval: 30_000,
   })
   
