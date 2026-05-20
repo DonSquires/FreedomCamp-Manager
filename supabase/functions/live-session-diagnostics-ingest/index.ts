@@ -34,7 +34,7 @@ function isActionableEventType(value: unknown): boolean {
   return /(error|exception|failed|failure|timeout|crash|panic|unhandled|degraded)/i.test(value)
 }
 
-const BARE_FETCH_ERROR_PATTERN = /^(typeerror:\s*)?(failed to fetch|load failed|networkerror when attempting to fetch resource)$/i
+const BARE_FETCH_ERROR_PATTERN = /^(typeerror:\s*)?(failed to fetch|load failed|networkerror when attempting to fetch resource)[.!?]?$/i
 
 function isActionableConsoleError(entry: unknown): boolean {
   if (!entry || typeof entry !== 'object') return false
