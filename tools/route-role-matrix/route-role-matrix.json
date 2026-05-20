@@ -1,7 +1,7 @@
 {
   "generatedAt": "2026-05-03T13:01:38.094Z",
   "source": "src/App.tsx",
-  "routeCount": 121,
+  "routeCount": 123,
   "duplicatePathCount": 0,
   "duplicates": [],
   "routes": [
@@ -277,7 +277,8 @@
       "roles": [
         "admin",
         "admin_officer",
-        "master"
+        "master",
+        "grand_master"
       ],
       "area": null,
       "protected": true,
@@ -816,6 +817,18 @@
       "sourceIndex": 74
     },
     {
+      "path": "/parking-appeals",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 122
+    },
+    {
       "path": "/noise-control",
       "accessType": "protected-area",
       "roles": [
@@ -922,6 +935,18 @@
       "area": null,
       "protected": true,
       "sourceIndex": 83
+    },
+    {
+      "path": "/zone-amenities",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 123
     },
     {
       "path": "/site-risk-assessment",
