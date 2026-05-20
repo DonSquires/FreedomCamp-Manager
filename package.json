@@ -73,7 +73,7 @@
     "bob:autonomous:daemon:status": "bash scripts/manage-autonomous-daemon.sh status",
     "bob:tutor:mastery": "node scripts/bob-tutor-mastery-cycle.mjs",
     "bob:tutor:mastery:apply": "node scripts/bob-tutor-mastery-cycle.mjs --apply",
-    "bob:e2e:session": "node scripts/bob-run-e2e-tests.mjs --test-pattern session-inactivity --report-to-bob",
+    "bob:e2e:session": "node scripts/bob-run-e2e-tests.mjs --test-pattern session-inactivity-timeout --report-to-bob",
     "bob:e2e:manual-validation": "node scripts/bob-run-e2e-tests.mjs --test-pattern '*.spec.ts' --report-to-bob --timeout 900000",
     "bob:monitor": "bash scripts/monitor-bob.sh",
     "bob:summarize-failures": "node scripts/summarize-failures.mjs",
