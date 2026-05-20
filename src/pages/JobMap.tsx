@@ -120,7 +120,7 @@ function MapViewportController({ jobs, selectedJob }: { jobs: MapJob[]; selected
   
   // Fit bounds to show all jobs when loaded
   useEffect(() => {
-    const jobsWithGPS = jobs.filter(j => j.gps_lat && j.gps_lng)
+    const jobsWithGPS = jobs.filter(j => j.gps_lat != null && j.gps_lng != null)
     if (jobsWithGPS.length === 0) return
     
     if (selectedJob) {
