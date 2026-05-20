@@ -96,6 +96,8 @@ interface OrgCostRow {
 }
 
 const PROVIDER_COSTS_STORAGE_KEY = 'cost-intel-provider-costs-v1'
+const PLATFORM_OVERHEAD_RATE = 0.08
+const USER_BILL_BACK_MARKUP_MULTIPLIER = 1.15
 const DEFAULT_PROVIDER_COSTS: ProviderCosts = {
   github: 420,
   railway: 680,
@@ -126,6 +128,21 @@ function calcShiftHours(shift: ShiftRow): number {
 function isShiftCountable(status: string): boolean {
   const normalized = status.toLowerCase()
   return !normalized.includes('cancel') && normalized !== 'draft'
+}
+
+function getRecommendedOrganizationBillBack(params: {
+  estimatedMonthlyCost: number
+  billed: number
+  shiftRevenue: number
+}): number {
+  return Math.max(params.estimatedMonthlyCost, params.billed, params.shiftRevenue)
+}
+
+function getRecommendedUserBillBack(params: {
+  totalCost: number
+  directRevenue: number
+}): number {
+  return Math.max(params.totalCost * USER_BILL_BACK_MARKUP_MULTIPLIER, params.directRevenue)
 }
 
 export function CostIntelligencePanel({ isClientBillingUser, financeEnabled }: CostIntelligencePanelProps) {
@@ -261,9 +278,13 @@ export function CostIntelligencePanel({ isClientBillingUser, financeEnabled }: C
       const billed = orgInvoices.reduce((sum, invoice) => sum + ((invoice.total_cents ?? 0) / 100), 0)
       const collected = orgInvoices.reduce((sum, invoice) => sum + ((invoice.amount_paid_cents ?? 0) / 100), 0)
       const outstanding = orgInvoices.reduce((sum, invoice) => sum + ((invoice.balance_cents ?? 0) / 100), 0)
-      const platformOverhead = Math.max(0, labourCost * 0.08)
+      const platformOverhead = Math.max(0, labourCost * PLATFORM_OVERHEAD_RATE)
       const estimatedMonthlyCost = labourCost + platformOverhead + externalAllocationPerOrg
-      const recommendedBillBack = Math.max(estimatedMonthlyCost, billed, shiftRevenue)
+      const recommendedBillBack = getRecommendedOrganizationBillBack({
+        estimatedMonthlyCost,
+        billed,
+        shiftRevenue,
+      })
       const activeUsers = orgUsers.length
       const perUserCost = activeUsers > 0 ? estimatedMonthlyCost / activeUsers : 0
       const liveDailyExpense = estimatedMonthlyCost / 30
@@ -322,7 +343,7 @@ export function CostIntelligencePanel({ isClientBillingUser, financeEnabled }: C
         const directCost = workerShifts.reduce((sum, shift) => sum + calcShiftHours(shift) * (shift.guard_cost_rate ?? 0), 0)
         const directRevenue = workerShifts.reduce((sum, shift) => sum + calcShiftHours(shift) * (shift.client_charge_rate ?? 0), 0)
         const totalCost = directCost + allocatedOverheadPerUser
-        const billBackTarget = Math.max(totalCost * 1.15, directRevenue)
+        const billBackTarget = getRecommendedUserBillBack({ totalCost, directRevenue })
         const displayName = [entry.first_name, entry.last_name].filter(Boolean).join(' ').trim() || entry.email
 
         return {
