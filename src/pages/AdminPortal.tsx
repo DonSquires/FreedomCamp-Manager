@@ -1501,9 +1501,9 @@ export default function AdminPortal() {
             { label: 'Active Patrols', value: activePatrolCount, Icon: Navigation, colorClass: 'text-green-700 dark:text-green-400', bgClass: 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800', path: '/live-patrol' },
             { label: 'Infringements Today', value: (data as any)?.infringementsIssued ?? 0, Icon: Gavel, colorClass: 'text-red-700 dark:text-red-400', bgClass: 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800', path: '/infringements' },
             { label: 'Disputes Pending', value: (data as any)?.disputesPending ?? 0, Icon: FileWarning, colorClass: 'text-amber-700 dark:text-amber-400', bgClass: 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800', path: '/disputes' },
-          ].map(({ label, value, Icon, colorClass, bgClass, path }, idx) => (
+          ].map(({ label, value, Icon, colorClass, bgClass, path }) => (
             <button
-              key={`${label}-${idx}`}
+              key={label}
               onClick={() => path && navigate(path)}
               disabled={!path}
               aria-label={`${label}: ${isLoading ? 'loading' : value}`}
@@ -1564,11 +1564,11 @@ export default function AdminPortal() {
 
         {/* ── PRIMARY KPIs — Big Three ──────────────────────────────────────────────── */}
         <section aria-label="Primary operational KPIs" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {primaryKPIs.map((kpi, idx) => {
+          {primaryKPIs.map((kpi) => {
             const Icon = kpi.icon
             return (
               <Card
-                key={`${kpi.title}-${idx}`}
+                key={kpi.title}
                 role="button"
                 tabIndex={0}
                 aria-label={`${kpi.title}: ${kpi.value}`}
@@ -1608,11 +1608,11 @@ export default function AdminPortal() {
 
         {/* ── SECONDARY KPIs — attention items ─────────────────────────────────────── */}
         <section aria-label="Secondary operational KPIs" className="grid gap-2.5 grid-cols-2 sm:grid-cols-4 xl:grid-cols-9">
-          {secondaryKPIs.map((kpi, idx) => {
+          {secondaryKPIs.map((kpi) => {
             const Icon = kpi.icon
             return (
               <button
-                key={`${kpi.title}-${idx}`}
+                key={kpi.title}
                 onClick={() => openDrilldown(kpi.config)}
                 aria-label={`${kpi.title}: ${kpi.value}`}
                 className="min-h-[3.75rem] flex items-center gap-2.5 rounded-lg border border-white/60 dark:border-white/10 bg-white/85 dark:bg-slate-900/70 px-3.5 py-2.5 text-left hover:bg-white dark:hover:bg-slate-900 transition-colors shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
@@ -1650,7 +1650,7 @@ export default function AdminPortal() {
               </CardHeader>
               <CardContent className="pt-0">
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
-                  {todayRosterShifts.map((shift: any, idx: number) => {
+                  {todayRosterShifts.map((shift: any) => {
                     const officer = Array.isArray(shift.officer) ? (shift.officer.length > 0 ? shift.officer[0] : null) : shift.officer
                     const officerName = officer ? `${officer.first_name ?? ''} ${officer.last_name ?? ''}`.trim() || 'Unassigned' : 'Unassigned'
                     const startTime = shift.start_time ? shift.start_time.slice(0, 5) : '—'
@@ -1659,7 +1659,7 @@ export default function AdminPortal() {
                     const isActive = shift.status === 'in_progress'
                     return (
                       <div
-                        key={`${shift.id ?? 'roster-shift'}-${idx}`}
+                        key={shift.id ?? `${shift.start_time ?? ''}-${shift.end_time ?? ''}-${shift.position_title ?? ''}`}
                         className={`min-h-20 rounded-lg border p-3 text-sm ${
                           isActive
                             ? 'border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-950/20'
@@ -2082,9 +2082,9 @@ export default function AdminPortal() {
               <CardDescription className="text-xs">Jump into key operational workflows.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-1.5 pt-0">
-              {drilldowns.map(({ title, to, icon: Icon, metric, config }, idx) => (
+              {drilldowns.map(({ title, to, icon: Icon, metric, config }) => (
                 <button
-                  key={`${to}-${idx}`}
+                  key={to}
                   className={quickActionRowClass}
                   onClick={() => openDrilldown(config)}
                   aria-label={`Open quick action: ${title}`}
@@ -2119,8 +2119,8 @@ export default function AdminPortal() {
             <CardContent className="space-y-2 pt-0">
               {recentHistoricalObservations.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No recent observations found.</p>
-              ) : recentHistoricalObservations.map((obs: any, idx: number) => (
-                <div key={`${obs.observation_id ?? 'observation'}-${idx}`} className={listRowClass}>
+              ) : recentHistoricalObservations.map((obs: any) => (
+                <div key={obs.observation_id ?? `${obs.recorded_at ?? ''}-${obs.plate_number ?? ''}`} className={listRowClass}>
                   <div className="min-w-0">
                     <p className="font-mono text-sm font-semibold truncate">{obs.plate_number || 'UNKNOWN'}</p>
                     <p className="text-xs text-muted-foreground truncate">
