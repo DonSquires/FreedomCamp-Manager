@@ -58,8 +58,8 @@ test.describe('Phase E4 — Release evidence and rollout sign-off gate', () => {
     expect(staging).toContain('tenant isolation, degraded communications outcomes, data-access drift, and rollback-ready docs')
     expect(staging).toContain('Treat any `UNRESOLVED PHASE E BLOCKER` staging entry as a merge blocker until resolved.')
     expect(staging).toContain('Phase E Final Closeout Validation')
-    expect(staging).toContain('`bun run lint` → PASS')
-    expect(staging).toContain('`bun run build` → PASS')
+    expect(staging).toContain('`npm run lint` → PASS')
+    expect(staging).toContain('`npm run build` → PASS')
     expect(staging).toContain('E1/E2/E3/E4 focused gates → PASS (`110 passed`)')
   })
 
@@ -96,6 +96,6 @@ test.describe('Phase E4 — Release evidence and rollout sign-off gate', () => {
     expect(workflow).toContain('docs/BUILD_REALIGNMENT_PLAN_2026-05-04.md')
     expect(workflow).toContain('docs/MODULE_ROADMAP.md')
     expect(workflow).toContain('docs/STAGING.md')
-    expect(workflow).toContain('bunx playwright test')
+    expect(workflow).toContain('npx playwright test')
   })
 })

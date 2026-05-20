@@ -12,7 +12,7 @@
  * Covers:
  *   Tech Stack        - React 18, TypeScript, Vite, Tailwind, shadcn/ui, Supabase, Railway
  *   Project Layout    - Directory structure, file placement, naming conventions
- *   Build / Dev       - bun run dev/build/lint, supabase CLI, EAS, env vars
+ *   Build / Dev       - npm run dev/build/lint, supabase CLI, EAS, env vars
  *   Code Patterns     - Pages, hooks, mutations, Edge Functions, SQL migrations, stores
  *   Conventions       - TypeScript config, timezone, roles, path alias, CORS
  */
@@ -32,7 +32,7 @@ const TECH_STACK = {
     forms: 'react-hook-form + zod',
     charts: 'recharts',
     routing: 'react-router-dom v6',
-    package_manager: 'bun (bun.lock at root)',
+    package_manager: 'npm (package-lock.json at root)',
   },
   backend: {
     platform: 'Supabase',
@@ -86,7 +86,7 @@ const PROJECT_LAYOUT = {
     'index.html': 'Vite HTML entry',
     'tailwind.config.ts': 'Tailwind configuration',
     'tsconfig.json': 'References tsconfig.app.json + tsconfig.node.json',
-    'bun.lock': 'Bun lockfile — must be committed (Railway uses --frozen-lockfile)',
+    'package-lock.json': 'npm lockfile — must be committed (CI and deploys use npm ci)',
     'vercel.json': 'Vercel config — SPA rewrites, security headers',
   },
 };
@@ -96,11 +96,11 @@ const PROJECT_LAYOUT = {
 // ---------------------------------------------------------------------------
 
 const BUILD_COMMANDS = {
-  install: 'bun install',
-  dev: 'bun run dev                   # http://localhost:5173',
-  build: 'bun run build               # TypeScript check + Vite build → dist/',
-  lint: 'bun run lint                 # ESLint 9 flat config',
-  preview: 'bun run preview           # Preview production build',
+  install: 'npm ci',
+  dev: 'npm run dev                   # http://localhost:5173',
+  build: 'npm run build               # TypeScript check + Vite build → dist/',
+  lint: 'npm run lint                 # ESLint 9 flat config',
+  preview: 'npm run preview           # Preview production build',
   supabase_types: 'supabase gen types typescript --project-ref kxwjcupuxnnbnzcgmkoi > src/types/database.ts',
   supabase_db_push: 'supabase db push --project-ref kxwjcupuxnnbnzcgmkoi',
   supabase_deploy_fn: 'supabase functions deploy <name> --project-ref kxwjcupuxnnbnzcgmkoi',
@@ -112,7 +112,7 @@ const BUILD_COMMANDS = {
     required: ['VITE_SUPABASE_URL', 'VITE_SUPABASE_ANON_KEY'],
     note: 'Copy .env and set both vars. All client env vars must be prefixed VITE_.',
   },
-  lockfile_note: 'bun.lock must be regenerated (bun install) and committed whenever package.json changes. Railway runs bun install --frozen-lockfile and fails if out of sync.',
+  lockfile_note: 'package-lock.json must be regenerated (npm install) and committed whenever package.json changes. CI runs npm ci and fails if out of sync.',
 };
 
 // ---------------------------------------------------------------------------
@@ -595,7 +595,7 @@ const COMMON_TASKS = {
     '2. Import shadcn/ui components from @/components/ui/.',
     '3. Create src/hooks/useMyData.ts with TanStack Query for data.',
     '4. Add route in src/App.tsx wrapped in RoleRoute with appropriate roles.',
-    '5. Run bun run build to check TypeScript.',
+    '5. Run npm run build to check TypeScript.',
   ],
   add_edge_function: [
     '1. Create supabase/functions/my-function/index.ts using Edge Function template.',
@@ -627,11 +627,11 @@ const COMMON_TASKS = {
     '1. Run supabase db push if there are unapplied migrations.',
     '2. Run supabase gen types typescript > src/types/database.ts',
     '3. Fix TypeScript errors from the updated types.',
-    '4. Run bun run build to validate.',
+    '4. Run npm run build to validate.',
   ],
   fix_lockfile: [
-    '1. Run bun install (no --frozen-lockfile flag).',
-    '2. Commit the updated bun.lock.',
+    '1. Run npm install (or npm ci if package-lock.json is already present).',
+    '2. Commit the updated package-lock.json.',
     '3. Railway will now accept the deploy.',
   ],
 };
@@ -760,7 +760,7 @@ function answerCodingQuestion(question) {
   }
 
   // Fixes
-  if (q.includes('lockfile') || q.includes('bun.lock') || q.includes('frozen')) {
+  if (q.includes('lockfile') || q.includes('package-lock.json') || q.includes('frozen')) {
     return { task: COMMON_TASKS.fix_lockfile };
   }
   if (q.includes('type') && (q.includes('drift') || q.includes('mismatch') || q.includes('regenerate') || q.includes('out of sync'))) {

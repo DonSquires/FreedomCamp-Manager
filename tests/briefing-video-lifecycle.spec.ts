@@ -20,7 +20,7 @@ import { Database } from '@/types/database'
  * - STORAGE: briefing-videos bucket must be created and public
  * - INFERENCE: /infer/video/generate endpoint must be accessible (or RunPod /runsync)
  *
- * Run: bun run test briefing-video-lifecycle
+ * Run: npm run test briefing-video-lifecycle
  */
 
 describe('Briefing Video Lifecycle', () => {

@@ -1813,18 +1813,8 @@ def handler(job):
                 node_mod = os.path.join(repo_dir, "node_modules")
                 if os.path.exists(pkg_json) and not os.path.isdir(node_mod):
                     print("[worker] Installing repo Node deps...")
-                    has_bun_lock = os.path.exists(os.path.join(repo_dir, "bun.lock")) or os.path.exists(os.path.join(repo_dir, "bun.lockb"))
                     has_pkg_lock = os.path.exists(os.path.join(repo_dir, "package-lock.json"))
-                    if has_bun_lock and shutil.which("bun"):
-                        # Respect Bun-first repos to avoid npm peer resolution drift.
-                        subprocess.run(
-                            ["bun", "install", "--frozen-lockfile"],
-                            cwd=repo_dir,
-                            check=False,
-                            capture_output=True,
-                            timeout=420,
-                        )
-                    elif has_pkg_lock:
+                    if has_pkg_lock:
                         subprocess.run(
                             ["npm", "ci", "--legacy-peer-deps", "--silent"],
                             cwd=repo_dir,

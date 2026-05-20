@@ -6,14 +6,10 @@ WORKDIR /app
 
 # Copy package and lock files if present
 COPY package.json ./
-COPY bun.lock ./
+COPY package-lock.json ./
 
-# Install dependencies (prefer Bun if present, fallback to npm)
-RUN if [ -f bun.lock ]; then \
-    npm install -g bun && bun install; \
-  else \
-    npm install; \
-  fi
+# Install dependencies with npm
+RUN npm ci
 
 # Copy the rest of the app
 COPY . .
@@ -22,4 +18,4 @@ COPY . .
 EXPOSE 3000
 
 # Default command (change as needed)
-CMD ["bun", "run", "start"]
+CMD ["npm", "run", "start"]

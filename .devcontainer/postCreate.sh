@@ -136,11 +136,7 @@ ensure_shell_path
 install_browser_test_runtime
 
 log "Installing JavaScript dependencies"
-if command -v bun >/dev/null 2>&1; then
-  bun install
-else
-  npm install
-fi
+npm ci
 
 if [[ -n "${OLLAMA_BASE_URL:-}" && "${OLLAMA_BASE_URL}" != http://127.0.0.1:11434 && "${OLLAMA_BASE_URL}" != http://localhost:11434 ]]; then
   log "Using external Ollama at ${OLLAMA_BASE_URL}; skipping local Ollama install"
