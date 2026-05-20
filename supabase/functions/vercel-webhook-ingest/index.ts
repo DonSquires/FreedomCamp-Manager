@@ -84,8 +84,9 @@ serve(async (req) => {
     // the GitHub Actions AI triage workflow can generate a fix PR.
     // Guardrail: only production environment, only hard deployment.failed events.
     if (payload.type === 'deployment.failed' && payload.environment === 'production') {
-      const githubToken = Deno.env.get('GITHUB_REPO_DISPATCH_TOKEN') || ''
-      const githubRepo = Deno.env.get('GITHUB_REPOSITORY') || 'DonSquires/FreedomCamp-Manager'
+      // Uses existing GITHUB_TOKEN secret (falls back to GITHUB_REPO_DISPATCH_TOKEN for backwards compat)
+      const githubToken = Deno.env.get('GITHUB_TOKEN') || Deno.env.get('GITHUB_REPO_DISPATCH_TOKEN') || ''
+      const githubRepo = Deno.env.get('GITHUB_REPO') || Deno.env.get('GITHUB_REPOSITORY') || 'DonSquires/FreedomCamp-Manager'
 
       if (githubToken) {
         const dispatchPayload = {
