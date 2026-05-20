@@ -188,6 +188,19 @@ After making changes, always verify:
 | Safety | Adversarial Review | `scripts/dr-bob-review.mjs` |
 | Growth | Score the responses | `data/bob-response-scores.jsonl` |
 
+## Self-Healing Execution Contract
+
+For autonomous bug handling, follow this exact sequence end-to-end:
+
+1. Bob runs tests and behavioral verification (`ops-bob-self-test.yml` / Bob E2E as applicable).
+2. Any discovered issues are persisted/updated in bug reports.
+3. Dr Bob triage routes each item for automated fix or human review (`ops-triage-bug-reports.yml`).
+4. Code-repair automation executes root-cause fixes, commits, and pushes PR updates (`ops-bob-code-task.yml`).
+5. Bug reports are synchronized to final status with links/evidence (`ops-close-resolved-bugs.yml`).
+6. Documentation and Bob memory context are refreshed (`ops-bob-brain-dump-refresh.yml`) when changes materially alter architecture or behavior.
+
+Use the orchestrator workflow `ops-bob-self-heal-pipeline.yml` to run this sequence automatically in order.
+
 ## Self-Ingesting Architecture
 
 - `scripts/auto-ingest.mjs` builds `docs/BOB_BRAIN_DUMP.md` from the repo's living architecture sources. Prefer refreshing that file over manually pasting the same context repeatedly.
