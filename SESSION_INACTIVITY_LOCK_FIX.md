@@ -73,14 +73,15 @@ To verify the fix works:
 4. After ~4 minutes: Yellow warning overlay should appear with 60-second countdown
 5. After ~5 minutes: Blue lock screen should appear requiring password re-entry
 
-### Browser Console Test (Immediate)
-```javascript
-// Trigger activity timeout immediately for testing
-sessionStorage.setItem('test-inactivity-lock', 'true')
-// Dispatch inactivity event
-const event = new CustomEvent('session:lock-test')
-window.dispatchEvent(event)
-```
+### Verified Test Procedure
+Use the supported inactivity flow instead of a browser-console shortcut:
+1. Log into the portal
+2. Set the inactivity timeout to the lowest available value in settings/preferences
+3. Stop interacting with the page completely
+4. Confirm the warning overlay appears about 60 seconds before timeout
+5. Confirm the countdown updates each second
+6. Confirm the lock screen appears when the countdown reaches zero
+7. Verify password re-entry unlocks the session, or use logout to end it
 
 ### Expected Lock Screen Appearance
 - Fixed overlay with `z-50` layer
