@@ -1,0 +1,180 @@
+# Action Required Self-Heal Summary
+
+- total_runs: 157
+- rerun_requested: 42
+- skipped: 1
+- escalated: 0
+- suppressed_duplicates: 114
+- failed_api_calls: 0
+- ml_rejected: 0
+- suspicious_blocked: 0
+
+## Rerun Details
+- run=26127422893 workflow='Bob Full Service Self-Test' previous_attempt=1 branch='copilot/d6d92c82-fix-performance-issue'
+- run=26127422952 workflow='Validate RunPod Image Tags' previous_attempt=1 branch='copilot/d6d92c82-fix-performance-issue'
+- run=26127422955 workflow='Playwright Monitoring Pulse (Smoke Label)' previous_attempt=1 branch='copilot/d6d92c82-fix-performance-issue'
+- run=26127422951 workflow='policy-bob-openai-research-training' previous_attempt=1 branch='copilot/d6d92c82-fix-performance-issue'
+- run=26127422950 workflow='Build Plan Crossover Gates' previous_attempt=1 branch='copilot/d6d92c82-fix-performance-issue'
+- run=26127423562 workflow='Validate RunPod Image Tags' previous_attempt=1 branch='copilot/fix-live-session-diagnostics-yet-again'
+- run=26127423561 workflow='policy-bob-openai-research-training' previous_attempt=1 branch='copilot/fix-live-session-diagnostics-yet-again'
+- run=26127423559 workflow='Playwright Monitoring Pulse (Smoke Label)' previous_attempt=1 branch='copilot/fix-live-session-diagnostics-yet-again'
+- run=26127423619 workflow='Bob Full Service Self-Test' previous_attempt=1 branch='copilot/fix-live-session-diagnostics-yet-again'
+- run=26127423667 workflow='Build Plan Crossover Gates' previous_attempt=1 branch='copilot/fix-live-session-diagnostics-yet-again'
+- run=26127423824 workflow='Playwright Monitoring Pulse (Smoke Label)' previous_attempt=1 branch='copilot/d6106e74-fix-live-session-diagnostics'
+- run=26127423826 workflow='Build Plan Crossover Gates' previous_attempt=1 branch='copilot/d6106e74-fix-live-session-diagnostics'
+- run=26127423836 workflow='Validate RunPod Image Tags' previous_attempt=1 branch='copilot/d6106e74-fix-live-session-diagnostics'
+- run=26127423837 workflow='Bob Full Service Self-Test' previous_attempt=1 branch='copilot/d6106e74-fix-live-session-diagnostics'
+- run=26127423846 workflow='policy-bob-openai-research-training' previous_attempt=1 branch='copilot/d6106e74-fix-live-session-diagnostics'
+- run=26127423940 workflow='Playwright Monitoring Pulse (Smoke Label)' previous_attempt=1 branch='copilot/44e4d444-fix-live-session-diagnostics'
+- run=26127423943 workflow='Build Plan Crossover Gates' previous_attempt=1 branch='copilot/44e4d444-fix-live-session-diagnostics'
+- run=26127423941 workflow='Bob Full Service Self-Test' previous_attempt=1 branch='copilot/44e4d444-fix-live-session-diagnostics'
+- run=26127423938 workflow='Validate RunPod Image Tags' previous_attempt=1 branch='copilot/44e4d444-fix-live-session-diagnostics'
+- run=26127423937 workflow='policy-bob-openai-research-training' previous_attempt=1 branch='copilot/44e4d444-fix-live-session-diagnostics'
+- run=26127424661 workflow='Playwright Monitoring Pulse (Smoke Label)' previous_attempt=1 branch='copilot/ebde03ee-fix-live-session-diagnostics'
+- run=26127424663 workflow='policy-bob-openai-research-training' previous_attempt=1 branch='copilot/ebde03ee-fix-live-session-diagnostics'
+- run=26127424659 workflow='Validate RunPod Image Tags' previous_attempt=1 branch='copilot/ebde03ee-fix-live-session-diagnostics'
+- run=26127424657 workflow='Build Plan Crossover Gates' previous_attempt=1 branch='copilot/ebde03ee-fix-live-session-diagnostics'
+- run=26127424705 workflow='Bob Full Service Self-Test' previous_attempt=1 branch='copilot/ebde03ee-fix-live-session-diagnostics'
+- run=26127846520 workflow='CI Phase E1 Data Access Consolidation Gate' previous_attempt=1 branch='copilot/d6106e74-fix-live-session-diagnostics'
+- run=26127846564 workflow='Playwright Deep Functional Cross-Browser' previous_attempt=1 branch='copilot/d6106e74-fix-live-session-diagnostics'
+- run=26127846546 workflow='CI Build High Memory' previous_attempt=1 branch='copilot/d6106e74-fix-live-session-diagnostics'
+- run=26127846555 workflow='Playwright Monitoring Pulse' previous_attempt=1 branch='copilot/d6106e74-fix-live-session-diagnostics'
+- run=26127862525 workflow='Governance Release Gate' previous_attempt=1 branch='copilot/fix-live-session-diagnostics-yet-again'
+- run=26127862529 workflow='CI Admin Officer Endpoints Gate' previous_attempt=1 branch='copilot/fix-live-session-diagnostics-yet-again'
+- run=26127862527 workflow='CI Build High Memory' previous_attempt=1 branch='copilot/fix-live-session-diagnostics-yet-again'
+- run=26127890521 workflow='CI Build High Memory' previous_attempt=1 branch='copilot/44e4d444-fix-live-session-diagnostics'
+- run=26127890517 workflow='Playwright Monitoring Pulse' previous_attempt=1 branch='copilot/44e4d444-fix-live-session-diagnostics'
+- run=26127890544 workflow='Playwright Deep Functional Cross-Browser' previous_attempt=1 branch='copilot/44e4d444-fix-live-session-diagnostics'
+- run=26127936040 workflow='CI Build High Memory' previous_attempt=1 branch='copilot/ebde03ee-fix-live-session-diagnostics'
+- run=26127936032 workflow='Playwright Deep Functional Cross-Browser' previous_attempt=1 branch='copilot/ebde03ee-fix-live-session-diagnostics'
+- run=26127936051 workflow='Playwright Monitoring Pulse' previous_attempt=1 branch='copilot/ebde03ee-fix-live-session-diagnostics'
+- run=26128042897 workflow='CI Build High Memory' previous_attempt=1 branch='copilot/d6d92c82-fix-performance-issue'
+- run=26128042902 workflow='Playwright Monitoring Pulse' previous_attempt=1 branch='copilot/d6d92c82-fix-performance-issue'
+- run=26128042898 workflow='Playwright Deep Functional Cross-Browser' previous_attempt=1 branch='copilot/d6d92c82-fix-performance-issue'
+- run=26128042896 workflow='CI Phase E1 Data Access Consolidation Gate' previous_attempt=1 branch='copilot/d6d92c82-fix-performance-issue'
+
+## Skip / API Failure Details
+- run=26127461438 workflow='Ops Bob Assess Failed Actions' branch='main' reason=branch-not-copilot-pr
+- run=26127518109 workflow='Bob Full Service Self-Test' branch='copilot/d6106e74-fix-live-session-diagnostics' reason=duplicate-pending-fix canonical_run=26127423837
+- run=26127518092 workflow='Playwright Monitoring Pulse (Smoke Label)' branch='copilot/d6106e74-fix-live-session-diagnostics' reason=duplicate-pending-fix canonical_run=26127423824
+- run=26127518133 workflow='Build Plan Crossover Gates' branch='copilot/d6106e74-fix-live-session-diagnostics' reason=duplicate-pending-fix canonical_run=26127423826
+- run=26127518212 workflow='Validate RunPod Image Tags' branch='copilot/d6106e74-fix-live-session-diagnostics' reason=duplicate-pending-fix canonical_run=26127423836
+- run=26127518257 workflow='policy-bob-openai-research-training' branch='copilot/d6106e74-fix-live-session-diagnostics' reason=duplicate-pending-fix canonical_run=26127423846
+- run=26127522087 workflow='Build Plan Crossover Gates' branch='copilot/d6d92c82-fix-performance-issue' reason=duplicate-pending-fix canonical_run=26127422950
+- run=26127522086 workflow='Playwright Monitoring Pulse (Smoke Label)' branch='copilot/d6d92c82-fix-performance-issue' reason=duplicate-pending-fix canonical_run=26127422955
+- run=26127522189 workflow='Bob Full Service Self-Test' branch='copilot/d6d92c82-fix-performance-issue' reason=duplicate-pending-fix canonical_run=26127422893
+- run=26127522198 workflow='policy-bob-openai-research-training' branch='copilot/d6d92c82-fix-performance-issue' reason=duplicate-pending-fix canonical_run=26127422951
+- run=26127522085 workflow='Validate RunPod Image Tags' branch='copilot/d6d92c82-fix-performance-issue' reason=duplicate-pending-fix canonical_run=26127422952
+- run=26127527520 workflow='Validate RunPod Image Tags' branch='copilot/d6106e74-fix-live-session-diagnostics' reason=duplicate-pending-fix canonical_run=26127423836
+- run=26127527583 workflow='Playwright Monitoring Pulse (Smoke Label)' branch='copilot/d6106e74-fix-live-session-diagnostics' reason=duplicate-pending-fix canonical_run=26127423824
+- run=26127527586 workflow='Bob Full Service Self-Test' branch='copilot/d6106e74-fix-live-session-diagnostics' reason=duplicate-pending-fix canonical_run=26127423837
+- run=26127527588 workflow='policy-bob-openai-research-training' branch='copilot/d6106e74-fix-live-session-diagnostics' reason=duplicate-pending-fix canonical_run=26127423846
+- run=26127527589 workflow='Build Plan Crossover Gates' branch='copilot/d6106e74-fix-live-session-diagnostics' reason=duplicate-pending-fix canonical_run=26127423826
+- run=26127559579 workflow='Ops Bob Assess Failed Actions' branch='main' reason=duplicate-pending-fix canonical_run=26127461438
+- run=26127667310 workflow='Bob Full Service Self-Test' branch='copilot/ebde03ee-fix-live-session-diagnostics' reason=duplicate-pending-fix canonical_run=26127424705
+- run=26127667314 workflow='Playwright Monitoring Pulse (Smoke Label)' branch='copilot/ebde03ee-fix-live-session-diagnostics' reason=duplicate-pending-fix canonical_run=26127424661
+- run=26127667376 workflow='Build Plan Crossover Gates' branch='copilot/ebde03ee-fix-live-session-diagnostics' reason=duplicate-pending-fix canonical_run=26127424657
+- run=26127667374 workflow='policy-bob-openai-research-training' branch='copilot/ebde03ee-fix-live-session-diagnostics' reason=duplicate-pending-fix canonical_run=26127424663
+- run=26127667375 workflow='Validate RunPod Image Tags' branch='copilot/ebde03ee-fix-live-session-diagnostics' reason=duplicate-pending-fix canonical_run=26127424659
+- run=26127670832 workflow='Bob Full Service Self-Test' branch='copilot/fix-live-session-diagnostics-yet-again' reason=duplicate-pending-fix canonical_run=26127423619
+- run=26127670833 workflow='Validate RunPod Image Tags' branch='copilot/fix-live-session-diagnostics-yet-again' reason=duplicate-pending-fix canonical_run=26127423562
+- run=26127670830 workflow='Playwright Monitoring Pulse (Smoke Label)' branch='copilot/fix-live-session-diagnostics-yet-again' reason=duplicate-pending-fix canonical_run=26127423559
+- run=26127670840 workflow='policy-bob-openai-research-training' branch='copilot/fix-live-session-diagnostics-yet-again' reason=duplicate-pending-fix canonical_run=26127423561
+- run=26127670973 workflow='Build Plan Crossover Gates' branch='copilot/fix-live-session-diagnostics-yet-again' reason=duplicate-pending-fix canonical_run=26127423667
+- run=26127695342 workflow='Validate RunPod Image Tags' branch='copilot/44e4d444-fix-live-session-diagnostics' reason=duplicate-pending-fix canonical_run=26127423938
+- run=26127695318 workflow='Build Plan Crossover Gates' branch='copilot/44e4d444-fix-live-session-diagnostics' reason=duplicate-pending-fix canonical_run=26127423943
+- run=26127695321 workflow='Bob Full Service Self-Test' branch='copilot/44e4d444-fix-live-session-diagnostics' reason=duplicate-pending-fix canonical_run=26127423941
+- run=26127695408 workflow='Playwright Monitoring Pulse (Smoke Label)' branch='copilot/44e4d444-fix-live-session-diagnostics' reason=duplicate-pending-fix canonical_run=26127423940
+- run=26127695407 workflow='policy-bob-openai-research-training' branch='copilot/44e4d444-fix-live-session-diagnostics' reason=duplicate-pending-fix canonical_run=26127423937
+- run=26127846497 workflow='Playwright Monitoring Pulse (Smoke Label)' branch='copilot/d6106e74-fix-live-session-diagnostics' reason=duplicate-pending-fix canonical_run=26127423824
+- run=26127846524 workflow='policy-bob-openai-research-training' branch='copilot/d6106e74-fix-live-session-diagnostics' reason=duplicate-pending-fix canonical_run=26127423846
+- run=26127846521 workflow='Validate RunPod Image Tags' branch='copilot/d6106e74-fix-live-session-diagnostics' reason=duplicate-pending-fix canonical_run=26127423836
+- run=26127846540 workflow='Bob Full Service Self-Test' branch='copilot/d6106e74-fix-live-session-diagnostics' reason=duplicate-pending-fix canonical_run=26127423837
+- run=26127846539 workflow='Build Plan Crossover Gates' branch='copilot/d6106e74-fix-live-session-diagnostics' reason=duplicate-pending-fix canonical_run=26127423826
+- run=26127862523 workflow='Validate RunPod Image Tags' branch='copilot/fix-live-session-diagnostics-yet-again' reason=duplicate-pending-fix canonical_run=26127423562
+- run=26127862540 workflow='Bob Full Service Self-Test' branch='copilot/fix-live-session-diagnostics-yet-again' reason=duplicate-pending-fix canonical_run=26127423619
+- run=26127862526 workflow='policy-bob-openai-research-training' branch='copilot/fix-live-session-diagnostics-yet-again' reason=duplicate-pending-fix canonical_run=26127423561
+- run=26127862531 workflow='Build Plan Crossover Gates' branch='copilot/fix-live-session-diagnostics-yet-again' reason=duplicate-pending-fix canonical_run=26127423667
+- run=26127862549 workflow='Playwright Monitoring Pulse (Smoke Label)' branch='copilot/fix-live-session-diagnostics-yet-again' reason=duplicate-pending-fix canonical_run=26127423559
+- run=26127890516 workflow='Playwright Monitoring Pulse (Smoke Label)' branch='copilot/44e4d444-fix-live-session-diagnostics' reason=duplicate-pending-fix canonical_run=26127423940
+- run=26127890519 workflow='policy-bob-openai-research-training' branch='copilot/44e4d444-fix-live-session-diagnostics' reason=duplicate-pending-fix canonical_run=26127423937
+- run=26127890520 workflow='Bob Full Service Self-Test' branch='copilot/44e4d444-fix-live-session-diagnostics' reason=duplicate-pending-fix canonical_run=26127423941
+- run=26127890515 workflow='Build Plan Crossover Gates' branch='copilot/44e4d444-fix-live-session-diagnostics' reason=duplicate-pending-fix canonical_run=26127423943
+- run=26127890518 workflow='Validate RunPod Image Tags' branch='copilot/44e4d444-fix-live-session-diagnostics' reason=duplicate-pending-fix canonical_run=26127423938
+- run=26127936009 workflow='policy-bob-openai-research-training' branch='copilot/ebde03ee-fix-live-session-diagnostics' reason=duplicate-pending-fix canonical_run=26127424663
+- run=26127936039 workflow='Playwright Monitoring Pulse (Smoke Label)' branch='copilot/ebde03ee-fix-live-session-diagnostics' reason=duplicate-pending-fix canonical_run=26127424661
+- run=26127936087 workflow='Validate RunPod Image Tags' branch='copilot/ebde03ee-fix-live-session-diagnostics' reason=duplicate-pending-fix canonical_run=26127424659
+- run=26127936085 workflow='Bob Full Service Self-Test' branch='copilot/ebde03ee-fix-live-session-diagnostics' reason=duplicate-pending-fix canonical_run=26127424705
+- run=26127936089 workflow='Build Plan Crossover Gates' branch='copilot/ebde03ee-fix-live-session-diagnostics' reason=duplicate-pending-fix canonical_run=26127424657
+- run=26128015453 workflow='Validate RunPod Image Tags' branch='copilot/fix-live-session-diagnostics-yet-again' reason=duplicate-pending-fix canonical_run=26127423562
+- run=26128015450 workflow='Playwright Monitoring Pulse (Smoke Label)' branch='copilot/fix-live-session-diagnostics-yet-again' reason=duplicate-pending-fix canonical_run=26127423559
+- run=26128015458 workflow='Bob Full Service Self-Test' branch='copilot/fix-live-session-diagnostics-yet-again' reason=duplicate-pending-fix canonical_run=26127423619
+- run=26128015448 workflow='Governance Release Gate' branch='copilot/fix-live-session-diagnostics-yet-again' reason=duplicate-pending-fix canonical_run=26127862525
+- run=26128015455 workflow='CI Build High Memory' branch='copilot/fix-live-session-diagnostics-yet-again' reason=duplicate-pending-fix canonical_run=26127862527
+- run=26128015451 workflow='CI Admin Officer Endpoints Gate' branch='copilot/fix-live-session-diagnostics-yet-again' reason=duplicate-pending-fix canonical_run=26127862529
+- run=26128015452 workflow='Build Plan Crossover Gates' branch='copilot/fix-live-session-diagnostics-yet-again' reason=duplicate-pending-fix canonical_run=26127423667
+- run=26128015710 workflow='policy-bob-openai-research-training' branch='copilot/fix-live-session-diagnostics-yet-again' reason=duplicate-pending-fix canonical_run=26127423561
+- run=26128040998 workflow='Playwright Monitoring Pulse (Smoke Label)' branch='copilot/44e4d444-fix-live-session-diagnostics' reason=duplicate-pending-fix canonical_run=26127423940
+- run=26128041031 workflow='CI Build High Memory' branch='copilot/44e4d444-fix-live-session-diagnostics' reason=duplicate-pending-fix canonical_run=26127890521
+- run=26128041032 workflow='policy-bob-openai-research-training' branch='copilot/44e4d444-fix-live-session-diagnostics' reason=duplicate-pending-fix canonical_run=26127423937
+- run=26128040994 workflow='Playwright Monitoring Pulse' branch='copilot/44e4d444-fix-live-session-diagnostics' reason=duplicate-pending-fix canonical_run=26127890517
+- run=26128041039 workflow='Playwright Deep Functional Cross-Browser' branch='copilot/44e4d444-fix-live-session-diagnostics' reason=duplicate-pending-fix canonical_run=26127890544
+- run=26128041034 workflow='Bob Full Service Self-Test' branch='copilot/44e4d444-fix-live-session-diagnostics' reason=duplicate-pending-fix canonical_run=26127423941
+- run=26128041033 workflow='Build Plan Crossover Gates' branch='copilot/44e4d444-fix-live-session-diagnostics' reason=duplicate-pending-fix canonical_run=26127423943
+- run=26128041035 workflow='Validate RunPod Image Tags' branch='copilot/44e4d444-fix-live-session-diagnostics' reason=duplicate-pending-fix canonical_run=26127423938
+- run=26128042858 workflow='Playwright Monitoring Pulse (Smoke Label)' branch='copilot/d6d92c82-fix-performance-issue' reason=duplicate-pending-fix canonical_run=26127422955
+- run=26128042900 workflow='Bob Full Service Self-Test' branch='copilot/d6d92c82-fix-performance-issue' reason=duplicate-pending-fix canonical_run=26127422893
+- run=26128042857 workflow='policy-bob-openai-research-training' branch='copilot/d6d92c82-fix-performance-issue' reason=duplicate-pending-fix canonical_run=26127422951
+- run=26128042901 workflow='Validate RunPod Image Tags' branch='copilot/d6d92c82-fix-performance-issue' reason=duplicate-pending-fix canonical_run=26127422952
+- run=26128042856 workflow='Build Plan Crossover Gates' branch='copilot/d6d92c82-fix-performance-issue' reason=duplicate-pending-fix canonical_run=26127422950
+- run=26128091347 workflow='Playwright Monitoring Pulse (Smoke Label)' branch='copilot/44e4d444-fix-live-session-diagnostics' reason=duplicate-pending-fix canonical_run=26127423940
+- run=26128091348 workflow='Build Plan Crossover Gates' branch='copilot/44e4d444-fix-live-session-diagnostics' reason=duplicate-pending-fix canonical_run=26127423943
+- run=26128091349 workflow='CI Build High Memory' branch='copilot/44e4d444-fix-live-session-diagnostics' reason=duplicate-pending-fix canonical_run=26127890521
+- run=26128091352 workflow='Bob Full Service Self-Test' branch='copilot/44e4d444-fix-live-session-diagnostics' reason=duplicate-pending-fix canonical_run=26127423941
+- run=26128091351 workflow='Validate RunPod Image Tags' branch='copilot/44e4d444-fix-live-session-diagnostics' reason=duplicate-pending-fix canonical_run=26127423938
+- run=26128091364 workflow='Playwright Deep Functional Cross-Browser' branch='copilot/44e4d444-fix-live-session-diagnostics' reason=duplicate-pending-fix canonical_run=26127890544
+- run=26128091365 workflow='Playwright Monitoring Pulse' branch='copilot/44e4d444-fix-live-session-diagnostics' reason=duplicate-pending-fix canonical_run=26127890517
+- run=26128091382 workflow='policy-bob-openai-research-training' branch='copilot/44e4d444-fix-live-session-diagnostics' reason=duplicate-pending-fix canonical_run=26127423937
+- run=26128147680 workflow='policy-bob-openai-research-training' branch='copilot/fix-live-session-diagnostics-yet-again' reason=duplicate-pending-fix canonical_run=26127423561
+- run=26128147687 workflow='CI Build High Memory' branch='copilot/fix-live-session-diagnostics-yet-again' reason=duplicate-pending-fix canonical_run=26127862527
+- run=26128147771 workflow='Playwright Monitoring Pulse (Smoke Label)' branch='copilot/fix-live-session-diagnostics-yet-again' reason=duplicate-pending-fix canonical_run=26127423559
+- run=26128147685 workflow='Governance Release Gate' branch='copilot/fix-live-session-diagnostics-yet-again' reason=duplicate-pending-fix canonical_run=26127862525
+- run=26128147684 workflow='Validate RunPod Image Tags' branch='copilot/fix-live-session-diagnostics-yet-again' reason=duplicate-pending-fix canonical_run=26127423562
+- run=26128147683 workflow='CI Admin Officer Endpoints Gate' branch='copilot/fix-live-session-diagnostics-yet-again' reason=duplicate-pending-fix canonical_run=26127862529
+- run=26128147686 workflow='Build Plan Crossover Gates' branch='copilot/fix-live-session-diagnostics-yet-again' reason=duplicate-pending-fix canonical_run=26127423667
+- run=26128147779 workflow='Bob Full Service Self-Test' branch='copilot/fix-live-session-diagnostics-yet-again' reason=duplicate-pending-fix canonical_run=26127423619
+- run=26128239680 workflow='Playwright Deep Functional Cross-Browser' branch='copilot/ebde03ee-fix-live-session-diagnostics' reason=duplicate-pending-fix canonical_run=26127936032
+- run=26128239677 workflow='Build Plan Crossover Gates' branch='copilot/ebde03ee-fix-live-session-diagnostics' reason=duplicate-pending-fix canonical_run=26127424657
+- run=26128239751 workflow='Validate RunPod Image Tags' branch='copilot/ebde03ee-fix-live-session-diagnostics' reason=duplicate-pending-fix canonical_run=26127424659
+- run=26128239750 workflow='policy-bob-openai-research-training' branch='copilot/ebde03ee-fix-live-session-diagnostics' reason=duplicate-pending-fix canonical_run=26127424663
+- run=26128239748 workflow='Playwright Monitoring Pulse (Smoke Label)' branch='copilot/ebde03ee-fix-live-session-diagnostics' reason=duplicate-pending-fix canonical_run=26127424661
+- run=26128239791 workflow='Bob Full Service Self-Test' branch='copilot/ebde03ee-fix-live-session-diagnostics' reason=duplicate-pending-fix canonical_run=26127424705
+- run=26128239749 workflow='CI Build High Memory' branch='copilot/ebde03ee-fix-live-session-diagnostics' reason=duplicate-pending-fix canonical_run=26127936040
+- run=26128239876 workflow='Playwright Monitoring Pulse' branch='copilot/ebde03ee-fix-live-session-diagnostics' reason=duplicate-pending-fix canonical_run=26127936051
+- run=26128288796 workflow='policy-bob-openai-research-training' branch='copilot/fix-live-session-diagnostics-yet-again' reason=duplicate-pending-fix canonical_run=26127423561
+- run=26128288797 workflow='CI Build High Memory' branch='copilot/fix-live-session-diagnostics-yet-again' reason=duplicate-pending-fix canonical_run=26127862527
+- run=26128288828 workflow='Bob Full Service Self-Test' branch='copilot/fix-live-session-diagnostics-yet-again' reason=duplicate-pending-fix canonical_run=26127423619
+- run=26128288836 workflow='Playwright Monitoring Pulse (Smoke Label)' branch='copilot/fix-live-session-diagnostics-yet-again' reason=duplicate-pending-fix canonical_run=26127423559
+- run=26128288798 workflow='Governance Release Gate' branch='copilot/fix-live-session-diagnostics-yet-again' reason=duplicate-pending-fix canonical_run=26127862525
+- run=26128288825 workflow='Build Plan Crossover Gates' branch='copilot/fix-live-session-diagnostics-yet-again' reason=duplicate-pending-fix canonical_run=26127423667
+- run=26128288800 workflow='Validate RunPod Image Tags' branch='copilot/fix-live-session-diagnostics-yet-again' reason=duplicate-pending-fix canonical_run=26127423562
+- run=26128288829 workflow='CI Admin Officer Endpoints Gate' branch='copilot/fix-live-session-diagnostics-yet-again' reason=duplicate-pending-fix canonical_run=26127862529
+- run=26128297486 workflow='Build Plan Crossover Gates' branch='copilot/d6106e74-fix-live-session-diagnostics' reason=duplicate-pending-fix canonical_run=26127423826
+- run=26128297531 workflow='Playwright Monitoring Pulse (Smoke Label)' branch='copilot/d6106e74-fix-live-session-diagnostics' reason=duplicate-pending-fix canonical_run=26127423824
+- run=26128297534 workflow='Validate RunPod Image Tags' branch='copilot/d6106e74-fix-live-session-diagnostics' reason=duplicate-pending-fix canonical_run=26127423836
+- run=26128297528 workflow='policy-bob-openai-research-training' branch='copilot/d6106e74-fix-live-session-diagnostics' reason=duplicate-pending-fix canonical_run=26127423846
+- run=26128297529 workflow='Playwright Deep Functional Cross-Browser' branch='copilot/d6106e74-fix-live-session-diagnostics' reason=duplicate-pending-fix canonical_run=26127846564
+- run=26128297530 workflow='CI Build High Memory' branch='copilot/d6106e74-fix-live-session-diagnostics' reason=duplicate-pending-fix canonical_run=26127846546
+- run=26128297563 workflow='Playwright Monitoring Pulse' branch='copilot/d6106e74-fix-live-session-diagnostics' reason=duplicate-pending-fix canonical_run=26127846555
+- run=26128297559 workflow='CI Phase E1 Data Access Consolidation Gate' branch='copilot/d6106e74-fix-live-session-diagnostics' reason=duplicate-pending-fix canonical_run=26127846520
+- run=26128297591 workflow='Bob Full Service Self-Test' branch='copilot/d6106e74-fix-live-session-diagnostics' reason=duplicate-pending-fix canonical_run=26127423837
+- run=26129428560 workflow='Ops Bob Assess Failed Actions' branch='main' reason=duplicate-pending-fix canonical_run=26127461438
+
+## Escalation Details
+- none
+
+## ML Rejection Details
+- none
+
+## Suspicious Run Mitigation
+- none
