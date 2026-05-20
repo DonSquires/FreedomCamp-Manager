@@ -180,49 +180,44 @@ export function useComplianceBreachObservations({
         return query;
       };
 
-      const joinSelects = [
-        'id, plate_number, recorded_at, breach_type, breach_reason, zone_id, zones!vehicle_observations_v2_zone_id_fkey(name), organizations!vehicle_observations_v2_organization_id_fkey(name)',
-        'id:observation_id, plate_number, recorded_at, breach_type, breach_reason, zone_id, zones!vehicle_observations_v2_zone_id_fkey(name), organizations!vehicle_observations_v2_organization_id_fkey(name)',
-        'id, plate_number, recorded_at, breach_type, zone_id, zones!vehicle_observations_v2_zone_id_fkey(name), organizations!vehicle_observations_v2_organization_id_fkey(name)',
-        'id:observation_id, plate_number, recorded_at, breach_type, zone_id, zones!vehicle_observations_v2_zone_id_fkey(name), organizations!vehicle_observations_v2_organization_id_fkey(name)',
-      ];
+      // Use observation_id (the non-null PK) for the key so React key props are
+      // always unique. The nullable `id` column must not be used as a list key.
+      // Use generic relationship names (no FK hint) so queries work after the
+      // observations table was rebuilt and the old vehicle_observations_v2 FK
+      // constraints were removed.
+      const joinQuery = applyObsFilters(
+        supabase.from('observations').select(
+          'observation_id, plate_number, recorded_at, breach_type, breach_reason, zone_id, zones(name), organizations(name)',
+          { count: 'exact' }
+        )
+      );
+      const joinResult = await joinQuery;
 
-      for (const selectClause of joinSelects) {
-        let q = supabase.from('observations').select(selectClause, { count: 'exact' });
-        q = applyObsFilters(q);
-        const joined = await q;
-        if (!joined.error) {
-          return { rows: (joined.data ?? []) as unknown as BreachObservation[], total: joined.count ?? 0 };
-        }
+      if (!joinResult.error) {
+        const rows: BreachObservation[] = (joinResult.data ?? []).map((row: any) => ({
+          id: row.observation_id,
+          plate_number: row.plate_number,
+          recorded_at: row.recorded_at,
+          breach_type: row.breach_type ?? null,
+          breach_reason: row.breach_reason ?? null,
+          zones: row.zones ?? null,
+          organizations: row.organizations ?? null,
+        }));
+        return { rows, total: joinResult.count ?? 0 };
       }
 
-      const plainSelects = [
-        'id, plate_number, recorded_at, breach_type, breach_reason, zone_id',
-        'id:observation_id, plate_number, recorded_at, breach_type, breach_reason, zone_id',
-        'id, plate_number, recorded_at, breach_type, zone_id',
-        'id:observation_id, plate_number, recorded_at, breach_type, zone_id',
-      ];
+      // Fallback: plain select without joins, then resolve zone names separately.
+      const plainQuery = applyObsFilters(
+        supabase.from('observations').select(
+          'observation_id, plate_number, recorded_at, breach_type, breach_reason, zone_id',
+          { count: 'exact' }
+        )
+      );
+      const plainResult = await plainQuery;
 
-      let fallbackData: any[] = [];
-      let fallbackCount = 0;
-      let fallbackError: any = null;
+      if (plainResult.error) throw plainResult.error;
 
-      for (const selectClause of plainSelects) {
-        let q = supabase.from('observations').select(selectClause, { count: 'exact' });
-        q = applyObsFilters(q);
-        const plain = await q;
-        if (!plain.error) {
-          fallbackData = plain.data ?? [];
-          fallbackCount = plain.count ?? 0;
-          fallbackError = null;
-          break;
-        }
-        fallbackError = plain.error;
-      }
-
-      if (fallbackError) throw fallbackError;
-
-      const zoneIds = Array.from(new Set((fallbackData || []).map((r: any) => r.zone_id).filter(Boolean)));
+      const zoneIds: string[] = Array.from(new Set((plainResult.data ?? []).map((r: any) => r.zone_id).filter(Boolean) as string[]));
       let zoneNameById = new Map<string, string>();
       if (zoneIds.length > 0) {
         const zoneRes = await supabase.from('zones').select('id, name').in('id', zoneIds);
@@ -231,8 +226,8 @@ export function useComplianceBreachObservations({
         }
       }
 
-      const mappedRows: BreachObservation[] = (fallbackData || []).map((row: any) => ({
-        id: row.id,
+      const mappedRows: BreachObservation[] = (plainResult.data ?? []).map((row: any) => ({
+        id: row.observation_id,
         plate_number: row.plate_number,
         recorded_at: row.recorded_at,
         breach_type: row.breach_type ?? null,
@@ -241,7 +236,7 @@ export function useComplianceBreachObservations({
         organizations: null,
       }));
 
-      return { rows: mappedRows, total: fallbackCount };
+      return { rows: mappedRows, total: plainResult.count ?? 0 };
     },
     placeholderData: (p) => p,
   });
