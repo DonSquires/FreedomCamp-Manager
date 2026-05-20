@@ -457,8 +457,8 @@ jobs:
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
-          API_TEST_EMAIL: ${{ secrets.API_TEST_EMAIL }}
-          API_TEST_PASSWORD: ${{ secrets.API_TEST_PASSWORD }}
+          API_TEST_EMAIL: ${{ secrets.API_TEST_EMAIL != '' && secrets.API_TEST_EMAIL || secrets.TEST_OWNER_EMAIL != '' && secrets.TEST_OWNER_EMAIL || secrets.TEST_ADMIN_EMAIL }}
+          API_TEST_PASSWORD: ${{ secrets.API_TEST_PASSWORD != '' && secrets.API_TEST_PASSWORD || secrets.TEST_OWNER_PASSWORD != '' && secrets.TEST_OWNER_PASSWORD || secrets.TEST_ADMIN_PASSWORD != '' && secrets.TEST_ADMIN_PASSWORD || secrets.TEST_ADMIN_PASWORD }}
         run: |
           set -euo pipefail
           npm install --no-audit --no-fund dotenv
