@@ -802,6 +802,9 @@ export function AppLayout({ children, title, description, showBackButton, immers
       // lock state internally; no separate unlock() call is needed here.
       await unlockSession(user.email, reLoginPassword)
       setReLoginPassword('')
+      // Explicitly reset the inactivity timers so the new session window starts
+      // from this moment, regardless of when onAuthStateChange fires.
+      signalSessionActivity()
       toast.success('Session unlocked')
     } catch (error: any) {
       toast.error(error?.message || 'Unable to unlock session')

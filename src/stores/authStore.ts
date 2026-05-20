@@ -216,7 +216,14 @@ export const useAuthStore = create<AuthState>()(
       // listener (registered in initializeAuth) which fires automatically on
       // successful sign-in and refreshes the user profile in the store.
       unlockSession: async (email: string, password: string) => {
-        const { error } = await supabase.auth.signInWithPassword({ email, password })
+        const signInPromise = supabase.auth.signInWithPassword({ email, password })
+        const timeoutPromise = new Promise<never>((_, reject) =>
+          setTimeout(
+            () => reject(new Error('Sign-in request timed out. Please check your connection and try again.')),
+            15_000,
+          )
+        )
+        const { error } = await Promise.race([signInPromise, timeoutPromise])
         if (error) throw error
         // Clear the session lock; the auth listener will keep user state current.
         useSessionLockStore.getState().unlock()

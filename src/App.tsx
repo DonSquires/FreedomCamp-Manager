@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/reac
 import { Toaster } from 'sonner'
 import { useAuthStore } from '@/stores/authStore'
 import { useSessionInactivityLock } from '@/hooks/useSessionInactivityLock'
+import { useSessionLockStore } from '@/stores/sessionLockStore'
 import { useThemeMode } from '@/hooks/useThemeMode'
 import { usePTTAutoConnect } from '@/hooks/usePTTAutoConnect'
 import { useSessionGpsLogging } from '@/hooks/useSessionGpsLogging'
@@ -852,6 +853,11 @@ export default function App() {
     const refreshActiveState = async () => {
       if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
       if (inFlight) return
+      // Do not run checkSession while the lock screen is visible — the JWT may
+      // have expired during inactivity, and checkSession would null the user,
+      // causing ProtectedRoute to redirect to /login and unmount the lock screen
+      // before the user has a chance to re-authenticate from it.
+      if (useSessionLockStore.getState().isLocked) return
 
       inFlight = true
       try {
