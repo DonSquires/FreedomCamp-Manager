@@ -197,7 +197,7 @@ jobs:
               per_page: 5,
             });
             const existing = issues.data.find(i =>
-              i.title.startsWith('docs: INSTRUCTION_MANUAL.md may need updating')
+              i.title.startsWith('docs: INSTRUCTION_MANUAL.md contract drift detected')
             );
             return existing ? existing.number : null;
           result-encoding: string

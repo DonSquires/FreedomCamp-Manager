@@ -315,6 +315,73 @@ jobs:
               const patchTask = escl.patch_task || null
               const shortId   = report.id.slice(0, 8)
 
+              const renderAiSuggestedFix = (value) => {
+                if (value == null) return ''
+                if (typeof value === 'string') return value
+
+                if (Array.isArray(value)) {
+                  const items = value
+                    .map((entry) => {
+                      if (typeof entry === 'string') return entry
+                      try {
+                        return JSON.stringify(entry)
+                      } catch {
+                        return String(entry)
+                      }
+                    })
+                    .filter(Boolean)
+
+                  return items.length > 0
+                    ? items.map((entry) => `- ${entry}`).join('\n')
+                    : ''
+                }
+
+                if (typeof value === 'object') {
+                  const obj = value
+                  const lines = []
+
+                  if (obj.severity) lines.push(`Severity: ${obj.severity}`)
+                  if (obj.bugType) lines.push(`Bug Type: ${obj.bugType}`)
+                  if (obj.recommendedOwner) lines.push(`Recommended Owner: ${obj.recommendedOwner}`)
+                  if (obj.summary) lines.push('', obj.summary)
+
+                  const appendSection = (title, entries) => {
+                    if (!entries) return
+                    const list = Array.isArray(entries) ? entries : [entries]
+                    const normalized = list
+                      .map((entry) => {
+                        if (typeof entry === 'string') return entry
+                        if (entry && typeof entry === 'object') {
+                          return entry.text || entry.title || entry.description || entry.requiredAction || JSON.stringify(entry)
+                        }
+                        return String(entry)
+                      })
+                      .filter(Boolean)
+                    if (normalized.length === 0) return
+                    lines.push('', `### ${title}`)
+                    normalized.forEach((entry) => lines.push(`- ${entry}`))
+                  }
+
+                  appendSection('Reproduction', obj.reproduction)
+                  appendSection('Remediation', obj.remediation)
+                  appendSection('Safeguards', obj.safeguards)
+                  appendSection('Automation', obj.automation)
+                  appendSection('Notes', obj.notes)
+
+                  if (lines.length > 0) {
+                    return lines.join('\n')
+                  }
+
+                  try {
+                    return `\`\`\`json\n${JSON.stringify(obj, null, 2)}\n\`\`\``
+                  } catch {
+                    return String(value)
+                  }
+                }
+
+                return String(value)
+              }
+
               const nzDate = (iso) => {
                 try { return new Date(iso).toLocaleString('en-NZ', { timeZone: 'Pacific/Auckland' }) }
                 catch { return iso }
@@ -356,7 +423,7 @@ jobs:
               }
 
               if (report.ai_suggested_fix) {
-                lines.push("## 🤖 Bob's Self-Healing Analysis", '', report.ai_suggested_fix, '')
+                lines.push("## 🤖 Bob's Self-Healing Analysis", '', renderAiSuggestedFix(report.ai_suggested_fix), '')
               }
 
               if (patchTask && !isDesign) {

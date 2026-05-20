@@ -1,4 +1,4 @@
-name: Ops Auto-Enable Copilot PR Auto-Merge
+name: Ops Auto-Enable PR Auto-Merge
 
 on:
   check_suite:
@@ -58,8 +58,8 @@ jobs:
             exit 0
           fi
 
-          if ! printf '%s' "$pr_branch" | grep -Eq '^copilot/'; then
-            echo "PR head '$pr_branch' is not a copilot branch; skipping."
+          if ! printf '%s' "$pr_branch" | grep -Eq '^(copilot|feat|fix|ops|chore)/'; then
+            echo "PR head '$pr_branch' is not an eligible automated branch; skipping."
             exit 0
           fi
 
