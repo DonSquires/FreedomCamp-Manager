@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import InvoicingPage from './InvoicingPage'
+import { CostIntelligencePanel } from '@/components/features/CostIntelligencePanel'
 
 const authState = {
   user: {
@@ -20,6 +21,7 @@ const invoicesFixture = [
   {
     id: 'inv-1',
     invoice_number: 'INV-1001',
+    client_organization_id: 'client-1',
     invoice_date: '2026-04-10',
     due_date: '2020-04-20',
     total_cents: 10000,
@@ -39,6 +41,31 @@ const invoicesFixture = [
 ]
 
 const contractsFixture: any[] = []
+const shiftsFixture = [
+  {
+    id: 'shift-1',
+    organization_id: 'client-1',
+    officer_id: 'user-1',
+    shift_date: '2026-04-10',
+    start_time: '08:00:00',
+    end_time: '12:00:00',
+    break_minutes: 30,
+    status: 'completed',
+    guard_cost_rate: 35,
+    client_charge_rate: 55,
+  },
+]
+const usersFixture = [
+  {
+    id: 'user-1',
+    organization_id: 'client-1',
+    role: 'officer',
+    is_active: true,
+    first_name: 'Alex',
+    last_name: 'Taylor',
+    email: 'alex@example.com',
+  },
+]
 const insertedPayments: any[] = []
 const updatedInvoices: any[] = []
 const existingPaymentsFixture: any[] = []
@@ -69,6 +96,7 @@ const fromMock = vi.fn((table: string) => {
         const builder: any = {
           order: () => builder,
           eq: () => builder,
+          gte: () => builder,
           limit: async () => ({ data: invoicesFixture, error: null }),
         }
         return builder
@@ -102,6 +130,31 @@ const fromMock = vi.fn((table: string) => {
           order: () => builder,
           eq: () => builder,
           limit: async () => ({ data: contractsFixture, error: null }),
+        }
+        return builder
+      },
+    }
+  }
+
+  if (table === 'roster_shifts') {
+    return {
+      select: () => {
+        const builder: any = {
+          eq: () => builder,
+          gte: () => builder,
+          limit: async () => ({ data: shiftsFixture, error: null }),
+        }
+        return builder
+      },
+    }
+  }
+
+  if (table === 'user_profiles') {
+    return {
+      select: () => {
+        const builder: any = {
+          eq: () => builder,
+          limit: async () => ({ data: usersFixture, error: null }),
         }
         return builder
       },
@@ -153,6 +206,14 @@ vi.mock('@/components/features/AppLayout', () => ({
   AppLayout: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }))
 
+vi.mock('@/hooks/useClientAccessPolicy', () => ({
+  useClientAccessPolicy: () => ({
+    isClientRole: false,
+    isLoading: false,
+    financeEnabled: true,
+  }),
+}))
+
 vi.mock('sonner', () => ({
   toast: {
     success: (...args: any[]) => toastSuccess(...args),
@@ -178,6 +239,27 @@ function renderPage() {
   )
 }
 
+function renderCostingPanel() {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: {
+        retry: false,
+      },
+    },
+  })
+
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter>
+        <CostIntelligencePanel
+          isClientBillingUser={false}
+          financeEnabled
+        />
+      </MemoryRouter>
+    </QueryClientProvider>
+  )
+}
+
 describe('InvoicingPage payment dialog', () => {
   beforeEach(() => {
     if (!HTMLElement.prototype.scrollIntoView) {
@@ -195,6 +277,7 @@ describe('InvoicingPage payment dialog', () => {
     mockFailures.crmInvoiceEqError = null
     mockFailures.crmInvoiceInError = null
     mockFailures.crmPaymentsInsertError = null
+    window.localStorage.clear()
     fromMock.mockClear()
   })
 
@@ -596,5 +679,20 @@ describe('InvoicingPage payment dialog', () => {
 
     expect(updatedInvoices).toHaveLength(0)
     expect(toastSuccess).not.toHaveBeenCalled()
+  })
+
+  it('shows the costing tab in invoicing navigation', async () => {
+    renderPage()
+
+    expect(await screen.findByRole('tab', { name: /costing/i })).toBeInTheDocument()
+  })
+
+  it('renders cost intelligence metrics for the selected client organization', async () => {
+    renderCostingPanel()
+
+    expect(await screen.findByText('Cost Intelligence')).toBeInTheDocument()
+    expect(screen.getByText(/Monthly provider run-rate:/i)).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Nelson City Council' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: /open service pricing/i })).toBeInTheDocument()
   })
 })
