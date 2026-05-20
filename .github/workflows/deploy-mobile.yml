@@ -29,7 +29,7 @@ on:
         required: false
         default: 'production_ci'
         type: choice
-        options: [production_ci, production, preview, development]
+        options: [production_ci, production, staging, development]
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -179,7 +179,12 @@ jobs:
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "platform=${{ github.event.inputs.mobile_platform }}" >> "$GITHUB_OUTPUT"
-            echo "profile=${{ github.event.inputs.mobile_profile }}"   >> "$GITHUB_OUTPUT"
+            PROFILE="${{ github.event.inputs.mobile_profile }}"
+            # Backward compatibility: legacy "preview" maps to "staging" in eas.json.
+            if [ "$PROFILE" = "preview" ]; then
+              PROFILE="staging"
+            fi
+            echo "profile=$PROFILE"   >> "$GITHUB_OUTPUT"
           else
             echo "platform=android"   >> "$GITHUB_OUTPUT"
             echo "profile=production_ci" >> "$GITHUB_OUTPUT"
