@@ -1,0 +1,7 @@
+$ eslint .
+
+/workspaces/FreedomCamp-Manager/src/hooks/useSessionInactivityLock.ts
+  96:6  warning  React Hook useEffect has missing dependencies: 'clearWarning', 'isLocked', 'isWarningVisible', 'lock', 'showWarning', and 'updateWarningSeconds'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+
+✖ 1 problem (0 errors, 1 warning)
+
