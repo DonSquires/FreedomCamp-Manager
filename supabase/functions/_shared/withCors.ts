@@ -106,7 +106,7 @@ export function getCorsHeaders(req: Request): Record<string, string> {
       ...securityHeaders,
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-      'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-request-id, x-client-timezone',
+      'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-request-id, x-client-timezone, x-org-id, x-actor-role, x-bob-policy-mode, x-bob-scopes, idempotency-key',
       'Access-Control-Max-Age': '3600',
     };
   }
@@ -116,7 +116,7 @@ export function getCorsHeaders(req: Request): Record<string, string> {
   const base: Record<string, string> = {
     ...securityHeaders,
     'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-request-id, x-client-timezone',
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-request-id, x-client-timezone, x-org-id, x-actor-role, x-bob-policy-mode, x-bob-scopes, idempotency-key',
     'Access-Control-Max-Age': '3600',
   };
   

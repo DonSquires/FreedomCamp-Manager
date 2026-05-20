@@ -245,10 +245,17 @@ export function BobQuickChatWidget({ open, onOpenChange, onOpenStudio, currentRo
       }
       setMessages((prev) => [...prev, assistantMessage])
     } catch (err) {
+      const rawMessage = err instanceof Error ? err.message : String(err)
+      const friendlyMessage =
+        rawMessage === 'Failed to fetch' || rawMessage.includes('NetworkError') || rawMessage.includes('network')
+          ? "I can't reach the Bob service right now. Please check your connection or try again shortly."
+          : rawMessage.toLowerCase().includes('timed out')
+          ? "The request timed out. Bob may be busy — please try again."
+          : `I hit an error while responding: ${rawMessage}`
       const assistantMessage: ChatMessage = {
         id: `a-${Date.now()}`,
         role: 'assistant',
-        content: `I hit an error while responding: ${err instanceof Error ? err.message : String(err)}`,
+        content: friendlyMessage,
       }
       setMessages((prev) => [...prev, assistantMessage])
     } finally {

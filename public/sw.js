@@ -104,12 +104,14 @@ self.addEventListener('fetch', function(event) {
     event.request.url.indexOf('supabase.co') !== -1 ||
     event.request.url.indexOf('functions/v1') !== -1;
 
+  var isBobChatRequest = event.request.url.indexOf('/api/bob/chat') !== -1;
+
   // Navigation requests (HTML pages) - always Network first so index.html
   // is never served stale after a new deployment changes asset hashes.
   var isNavigationRequest = event.request.mode === 'navigate';
 
   // API requests - Network first with offline fallback
-  if (isApiRequest) {
+  if (isApiRequest && !isBobChatRequest) {
     event.respondWith(
       fetch(event.request)
         .then(function(response) {
