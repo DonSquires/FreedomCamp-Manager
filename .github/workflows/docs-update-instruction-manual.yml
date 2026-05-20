@@ -260,6 +260,16 @@ jobs:
                   sections,
                 ].join('\n'),
               });
+              try {
+                await github.rest.issues.addAssignees({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: existingNumber,
+                  assignees: ['copilot'],
+                });
+              } catch (err) {
+                core.warning(`Could not assign existing issue #${existingNumber} to @copilot: ${err.message}`);
+              }
               console.log(`Commented on existing issue #${existingNumber}`);
             } else {
               const issue = await github.rest.issues.create({
@@ -269,5 +279,15 @@ jobs:
                 body,
                 labels: ['docs', 'manual-update-needed'],
               });
+              try {
+                await github.rest.issues.addAssignees({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issue.data.number,
+                  assignees: ['copilot'],
+                });
+              } catch (err) {
+                core.warning(`Could not assign new issue #${issue.data.number} to @copilot: ${err.message}`);
+              }
               console.log(`Created issue #${issue.data.number}: ${issue.data.html_url}`);
             }
