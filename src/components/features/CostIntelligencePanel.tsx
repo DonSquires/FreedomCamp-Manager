@@ -157,6 +157,7 @@ export function CostIntelligencePanel({ isClientBillingUser, financeEnabled }: C
 
   const { data: organizations = [] } = useQuery({
     queryKey: ['cost-intel-organizations'],
+    enabled: financeEnabled,
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from('organizations')
@@ -171,6 +172,7 @@ export function CostIntelligencePanel({ isClientBillingUser, financeEnabled }: C
 
   const { data: invoices = [] } = useQuery({
     queryKey: ['cost-intel-invoices', windowStart, user?.organization_id ?? null],
+    enabled: financeEnabled,
     queryFn: async () => {
       let q = (supabase as any)
         .from('crm_invoices')
@@ -193,6 +195,7 @@ export function CostIntelligencePanel({ isClientBillingUser, financeEnabled }: C
 
   const { data: shifts = [] } = useQuery({
     queryKey: ['cost-intel-shifts', windowStart, user?.organization_id ?? null],
+    enabled: financeEnabled,
     queryFn: async () => {
       let q = (supabase as any)
         .from('roster_shifts')
@@ -215,6 +218,7 @@ export function CostIntelligencePanel({ isClientBillingUser, financeEnabled }: C
 
   const { data: users = [] } = useQuery({
     queryKey: ['cost-intel-users', user?.organization_id ?? null],
+    enabled: financeEnabled,
     queryFn: async () => {
       let q = (supabase as any)
         .from('user_profiles')
