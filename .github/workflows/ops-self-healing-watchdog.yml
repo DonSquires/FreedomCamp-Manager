@@ -73,6 +73,8 @@ jobs:
             data/live-stack-scorecard.json
             data/ci-self-heal-list.json
             data/dr-bob-escalation-latest.json
+            data/self-heal-circuit-breaker.json
+            data/self-heal-action-ledger.jsonl
           if-no-files-found: warn
           retention-days: 14
 
@@ -104,20 +106,35 @@ jobs:
             const owner = context.repo.owner
             const repo = context.repo.repo
 
+            const cbPath = path.join(process.cwd(), 'data', 'self-heal-circuit-breaker.json')
+            const cb = fs.existsSync(cbPath) ? JSON.parse(fs.readFileSync(cbPath, 'utf8')) : {}
+            const tier = payload?.escalation?.tier ?? 'unknown'
+            const circuitState = cb.state || 'unknown'
+            const attemptCount = cb.attemptCount || 0
+
+            const tierLabel = { 1: 'Tier 1 – Rerun', 2: 'Tier 2 – Rerun + Remediation dispatch', 3: 'Tier 3 – Rerun + Rollback recommendation', 4: 'Tier 4 – Circuit tripped, human required' }[tier] || `Tier ${tier}`
+
             const body = [
               '## Self-Healing Watchdog Escalation',
               '',
               `- Run: https://github.com/${owner}/${repo}/actions/runs/${context.runId}`,
               `- Head SHA: ${payload.headSha || 'unknown'}`,
               `- Failed workflows detected: ${failedRuns.length}`,
-              `- Escalation raised: ${raised}`,
+              `- Escalation tier: **${tierLabel}**`,
+              `- Circuit breaker: **${circuitState}** (attempt ${attemptCount})`,
               '',
               '### Failed Runs',
               ...(failedRuns.length
                 ? failedRuns.map((run) => `- ${run.name} [${run.status}/${run.conclusion || 'unknown'}] (${run.url || 'no-url'})`)
                 : ['- none']),
               '',
+              '### Automated Actions Taken',
+              tierLabel,
+              '',
               '### Required Human Follow-up',
+              circuitState === 'open'
+                ? '> ⛔ Circuit breaker is OPEN. All automated healing is suppressed. Fix the root cause and push a green commit to reset the circuit.'
+                : '> Self-heal is still active — fix the root cause or the next watchdog run will escalate to Tier 4.',
               '1. Review failing workflow logs.',
               '2. Apply targeted fixes in a branch.',
               '3. Re-run failed checks and close this issue when green.',
