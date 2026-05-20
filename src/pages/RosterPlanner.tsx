@@ -1123,7 +1123,7 @@ export default function RosterPlanner() {
   const activeTab = isAdmin && searchParams.get('tab') === 'users' ? 'users' : 'planner'
   const hasOrganizationId = !!user?.organization_id
   const plannerQueriesEnabled = shouldEnableRosterPlannerQueries(activeTab, hasOrganizationId)
-  const { orgIds: clientOrgIds, isLoading: clientOrgIdsLoading } = useClientOrgIds()
+  const { orgIds: clientOrgIds, isLoading: clientOrgIdsLoading } = useClientOrgIds({ enabled: plannerQueriesEnabled })
   const clientScopedQueriesEnabled = shouldEnableRosterPlannerClientScopedQueries(activeTab, hasOrganizationId, clientOrgIdsLoading)
 
   // ─── Week navigation ───────────────────────────────────────────────────────
