@@ -1,4 +1,4 @@
-name: Ops Auto-Ready Copilot Draft PRs
+name: Ops Auto-Ready Draft PRs
 
 on:
   check_suite:
@@ -56,8 +56,12 @@ jobs:
               exit 0
             fi
 
-            if [ "$pr_base" != "main" ] || ! printf '%s' "$pr_branch" | grep -Eq '^copilot/'; then
-              echo "PR #$pr_number is not eligible for auto-ready."
+            if [ "$pr_base" != "main" ]; then
+              echo "PR #$pr_number targets '$pr_base'; only main is eligible."
+              exit 0
+            fi
+            if ! printf '%s' "$pr_branch" | grep -Eq '^(copilot|feat|fix|ops|chore)/'; then
+              echo "PR #$pr_number branch '$pr_branch' is not an eligible automated branch pattern."
               exit 0
             fi
 
@@ -85,13 +89,13 @@ jobs:
             .data.repository.pullRequests.nodes[]
             | select(.baseRefName == "main")
             | select(.isDraft == true)
-            | select((.headRefName | startswith("copilot/")))
+            | select((.headRefName | test("^(copilot|feat|fix|ops|chore)/")))
             | select((.commits.nodes[0].commit.statusCheckRollup.state // "") == "SUCCESS")
           ] | length')
 
           echo "Green draft candidates: $candidate_count"
           if [ "$candidate_count" -eq 0 ]; then
-            echo "No green draft Copilot PRs to promote."
+            echo "No green draft PRs to promote."
             exit 0
           fi
 
@@ -106,7 +110,7 @@ jobs:
               .data.repository.pullRequests.nodes[]
               | select(.baseRefName == "main")
               | select(.isDraft == true)
-              | select((.headRefName | startswith("copilot/")))
+              | select((.headRefName | test("^(copilot|feat|fix|ops|chore)/")))
               | select((.commits.nodes[0].commit.statusCheckRollup.state // "") == "SUCCESS")
               | "\(.id)|\(.number)"'
           )

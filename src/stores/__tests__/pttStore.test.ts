@@ -171,6 +171,17 @@ describe('presence management', () => {
     expect(usePTTStore.getState().presence).toEqual([bob])
   })
 
+  it('setPresence removes duplicate and invalid user ids', () => {
+    const duplicateAlice: PTTPresence = { ...alice, status: 'busy' }
+    const invalidUser = { userId: '   ', name: 'Ghost', role: 'officer', status: 'online' } as PTTPresence
+
+    usePTTStore.getState().setPresence([alice, duplicateAlice, invalidUser, bob])
+
+    expect(usePTTStore.getState().presence).toEqual([alice, bob])
+    expect(usePTTStore.getState().presence[0]?.status).toBe('online')
+    expect(usePTTStore.getState().presence[1]?.userId).toBe('u-2')
+  })
+
   it('addPresence adds a new user', () => {
     usePTTStore.getState().addPresence(alice)
     expect(usePTTStore.getState().presence).toHaveLength(1)

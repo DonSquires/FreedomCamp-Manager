@@ -23,13 +23,19 @@ import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 
+interface UseClientOrgIdsOptions {
+  /** When false, the underlying RPC will not be fetched. Defaults to true. */
+  enabled?: boolean
+}
+
 interface UseClientOrgIdsResult {
   /** null = unrestricted (grand_master role). Otherwise the list of org IDs to filter by. */
   orgIds: string[] | null
   isLoading: boolean
 }
 
-export function useClientOrgIds(): UseClientOrgIdsResult {
+export function useClientOrgIds(options: UseClientOrgIdsOptions = {}): UseClientOrgIdsResult {
+  const { enabled = true } = options
   const { user } = useAuthStore()
   const role  = user?.role
   const orgId = user?.organization_id
@@ -45,7 +51,7 @@ export function useClientOrgIds(): UseClientOrgIdsResult {
       if (error) throw error
       return (data ?? []) as string[]
     },
-    enabled: !!orgId && !isGrandMaster,
+    enabled: enabled && !!orgId && !isGrandMaster,
     staleTime: 5 * 60 * 1000, // org tree rarely changes
   })
 

@@ -96,8 +96,6 @@ interface OrgCostRow {
 }
 
 const PROVIDER_COSTS_STORAGE_KEY = 'cost-intel-provider-costs-v1'
-const PLATFORM_OVERHEAD_RATE = 0.08
-const USER_BILL_BACK_MARKUP_MULTIPLIER = 1.15
 const DEFAULT_PROVIDER_COSTS: ProviderCosts = {
   github: 420,
   railway: 680,
@@ -130,21 +128,6 @@ function isShiftCountable(status: string): boolean {
   return !normalized.includes('cancel') && normalized !== 'draft'
 }
 
-function getRecommendedOrganizationBillBack(params: {
-  estimatedMonthlyCost: number
-  billed: number
-  shiftRevenue: number
-}): number {
-  return Math.max(params.estimatedMonthlyCost, params.billed, params.shiftRevenue)
-}
-
-function getRecommendedUserBillBack(params: {
-  totalCost: number
-  directRevenue: number
-}): number {
-  return Math.max(params.totalCost * USER_BILL_BACK_MARKUP_MULTIPLIER, params.directRevenue)
-}
-
 export function CostIntelligencePanel({ isClientBillingUser, financeEnabled }: CostIntelligencePanelProps) {
   const { user } = useAuthStore()
   const navigate = useNavigate()
@@ -173,14 +156,20 @@ export function CostIntelligencePanel({ isClientBillingUser, financeEnabled }: C
   }, [])
 
   const { data: organizations = [] } = useQuery({
-    queryKey: ['cost-intel-organizations'],
+    queryKey: ['cost-intel-organizations', isClientBillingUser ? (user?.organization_id ?? null) : null],
+    enabled: financeEnabled,
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
+      let q = (supabase as any)
         .from('organizations')
         .select('id, name, organization_type, is_active')
         .eq('is_active', true)
         .order('name')
 
+      if (isClientBillingUser && user?.organization_id) {
+        q = q.eq('id', user.organization_id)
+      }
+
+      const { data, error } = await q
       if (error) throw error
       return (data ?? []) as OrganizationRow[]
     },
@@ -188,6 +177,7 @@ export function CostIntelligencePanel({ isClientBillingUser, financeEnabled }: C
 
   const { data: invoices = [] } = useQuery({
     queryKey: ['cost-intel-invoices', windowStart, user?.organization_id ?? null],
+    enabled: financeEnabled,
     queryFn: async () => {
       let q = (supabase as any)
         .from('crm_invoices')
@@ -210,6 +200,7 @@ export function CostIntelligencePanel({ isClientBillingUser, financeEnabled }: C
 
   const { data: shifts = [] } = useQuery({
     queryKey: ['cost-intel-shifts', windowStart, user?.organization_id ?? null],
+    enabled: financeEnabled,
     queryFn: async () => {
       let q = (supabase as any)
         .from('roster_shifts')
@@ -232,6 +223,7 @@ export function CostIntelligencePanel({ isClientBillingUser, financeEnabled }: C
 
   const { data: users = [] } = useQuery({
     queryKey: ['cost-intel-users', user?.organization_id ?? null],
+    enabled: financeEnabled,
     queryFn: async () => {
       let q = (supabase as any)
         .from('user_profiles')
@@ -263,14 +255,60 @@ export function CostIntelligencePanel({ isClientBillingUser, financeEnabled }: C
     return organizations
   }, [organizations, isClientBillingUser, user?.organization_id])
 
+  // Pre-group records into Maps for O(1) lookups during aggregation.
+  const countableShiftsByOrg = useMemo(() => {
+    const map = new Map<string, ShiftRow[]>()
+    for (const shift of shifts) {
+      if (!isShiftCountable(shift.status)) continue
+      const list = map.get(shift.organization_id) ?? []
+      list.push(shift)
+      map.set(shift.organization_id, list)
+    }
+    return map
+  }, [shifts])
+
+  const invoicesByOrg = useMemo(() => {
+    const map = new Map<string, InvoiceRow[]>()
+    for (const invoice of invoices) {
+      const orgId = invoice.client_organization_id
+      if (!orgId) continue
+      const list = map.get(orgId) ?? []
+      list.push(invoice)
+      map.set(orgId, list)
+    }
+    return map
+  }, [invoices])
+
+  const activeUsersByOrg = useMemo(() => {
+    const map = new Map<string, UserRow[]>()
+    for (const entry of users) {
+      if (entry.is_active === false || !entry.organization_id) continue
+      const list = map.get(entry.organization_id) ?? []
+      list.push(entry)
+      map.set(entry.organization_id, list)
+    }
+    return map
+  }, [users])
+
+  const countableShiftsByOfficer = useMemo(() => {
+    const map = new Map<string, ShiftRow[]>()
+    for (const shift of shifts) {
+      if (!isShiftCountable(shift.status) || !shift.officer_id) continue
+      const list = map.get(shift.officer_id) ?? []
+      list.push(shift)
+      map.set(shift.officer_id, list)
+    }
+    return map
+  }, [shifts])
+
   const organizationRows = useMemo<OrgCostRow[]>(() => {
     const orgCount = Math.max(1, visibleOrganizations.length)
     const externalAllocationPerOrg = providerMonthlyCost / orgCount
 
     return visibleOrganizations.map((org) => {
-      const orgShifts = shifts.filter((shift) => shift.organization_id === org.id && isShiftCountable(shift.status))
-      const orgInvoices = invoices.filter((invoice) => invoice.client_organization_id === org.id)
-      const orgUsers = users.filter((entry) => entry.organization_id === org.id && entry.is_active !== false)
+      const orgShifts = countableShiftsByOrg.get(org.id) ?? []
+      const orgInvoices = invoicesByOrg.get(org.id) ?? []
+      const orgUsers = activeUsersByOrg.get(org.id) ?? []
 
       const shiftHours = orgShifts.reduce((sum, shift) => sum + calcShiftHours(shift), 0)
       const labourCost = orgShifts.reduce((sum, shift) => sum + calcShiftHours(shift) * (shift.guard_cost_rate ?? 0), 0)
@@ -278,13 +316,9 @@ export function CostIntelligencePanel({ isClientBillingUser, financeEnabled }: C
       const billed = orgInvoices.reduce((sum, invoice) => sum + ((invoice.total_cents ?? 0) / 100), 0)
       const collected = orgInvoices.reduce((sum, invoice) => sum + ((invoice.amount_paid_cents ?? 0) / 100), 0)
       const outstanding = orgInvoices.reduce((sum, invoice) => sum + ((invoice.balance_cents ?? 0) / 100), 0)
-      const platformOverhead = Math.max(0, labourCost * PLATFORM_OVERHEAD_RATE)
+      const platformOverhead = Math.max(0, labourCost * 0.08)
       const estimatedMonthlyCost = labourCost + platformOverhead + externalAllocationPerOrg
-      const recommendedBillBack = getRecommendedOrganizationBillBack({
-        estimatedMonthlyCost,
-        billed,
-        shiftRevenue,
-      })
+      const recommendedBillBack = Math.max(estimatedMonthlyCost, billed, shiftRevenue)
       const activeUsers = orgUsers.length
       const perUserCost = activeUsers > 0 ? estimatedMonthlyCost / activeUsers : 0
       const liveDailyExpense = estimatedMonthlyCost / 30
@@ -306,7 +340,7 @@ export function CostIntelligencePanel({ isClientBillingUser, financeEnabled }: C
         perUserCost,
       }
     })
-  }, [visibleOrganizations, providerMonthlyCost, shifts, invoices, users])
+  }, [visibleOrganizations, providerMonthlyCost, countableShiftsByOrg, invoicesByOrg, activeUsersByOrg])
 
   useEffect(() => {
     if (isClientBillingUser && user?.organization_id) {
@@ -331,19 +365,18 @@ export function CostIntelligencePanel({ isClientBillingUser, financeEnabled }: C
   const selectedOrgUsers = useMemo(() => {
     if (!selectedOrg) return []
 
-    const orgUsers = users.filter((entry) => entry.organization_id === selectedOrg.organizationId && entry.is_active !== false)
-    const orgShifts = shifts.filter((shift) => shift.organization_id === selectedOrg.organizationId && isShiftCountable(shift.status))
+    const orgUsers = activeUsersByOrg.get(selectedOrg.organizationId) ?? []
     const userCount = Math.max(1, orgUsers.length)
     const allocatedOverheadPerUser = (selectedOrg.platformOverhead + selectedOrg.externalAllocationPerOrg) / userCount
 
     return orgUsers
       .map((entry) => {
-        const workerShifts = orgShifts.filter((shift) => shift.officer_id === entry.id)
+        const workerShifts = countableShiftsByOfficer.get(entry.id) ?? []
         const hours = workerShifts.reduce((sum, shift) => sum + calcShiftHours(shift), 0)
         const directCost = workerShifts.reduce((sum, shift) => sum + calcShiftHours(shift) * (shift.guard_cost_rate ?? 0), 0)
         const directRevenue = workerShifts.reduce((sum, shift) => sum + calcShiftHours(shift) * (shift.client_charge_rate ?? 0), 0)
         const totalCost = directCost + allocatedOverheadPerUser
-        const billBackTarget = getRecommendedUserBillBack({ totalCost, directRevenue })
+        const billBackTarget = Math.max(totalCost * 1.15, directRevenue)
         const displayName = [entry.first_name, entry.last_name].filter(Boolean).join(' ').trim() || entry.email
 
         return {
@@ -359,7 +392,7 @@ export function CostIntelligencePanel({ isClientBillingUser, financeEnabled }: C
         }
       })
       .sort((a, b) => b.totalCost - a.totalCost)
-  }, [selectedOrg, shifts, users])
+  }, [selectedOrg, activeUsersByOrg, countableShiftsByOfficer])
 
   if (!financeEnabled) return null
 

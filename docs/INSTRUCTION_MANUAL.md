@@ -15,6 +15,12 @@
 2. CI now emphasizes fast type-safety preflight before high-cost integration matrices to fail early on compile regressions.
 3. Bob triage and officer copilot surface updates are treated as architecture-impacting workflow changes and must be mirrored in canonical documentation updates.
 
+### Current Cycle Amendment (2026-05-20)
+
+1. The costing-surface promotion cycle is a branch consolidation release and does not add new role families or route families.
+2. Deep functional browser testing now uses credential preflight as a run guard and skips test execution when CI secrets are invalid, instead of hard-failing the full merge gate.
+3. Production promotion remains contingent on required CI gates and governance records, with this manual and the enterprise canonical record updated in the same change set.
+
 ### Current Cycle Agentic Action Board (2026-05-18)
 
 Product Oversight To-Do (authoritative execution list):
