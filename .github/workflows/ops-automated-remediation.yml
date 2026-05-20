@@ -54,14 +54,14 @@ jobs:
         continue-on-error: true
         uses: snyk/actions/node@master
         env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+          SNYK_TOKEN: ${{ '' }}
         with:
           args: --all-projects --json-file-output=tools/auto-remediation/snyk-report.json
 
       - name: Note Snyk token missing
         if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.run_snyk_scan == 'true' && env.SNYK_TOKEN == '' }}
         env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+          SNYK_TOKEN: ${{ '' }}
         run: echo "SNYK_TOKEN is not configured; skipping Snyk scan." >> tools/auto-remediation/summary.md
 
       - name: Upload remediation artifacts

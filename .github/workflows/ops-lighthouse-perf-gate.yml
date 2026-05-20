@@ -81,7 +81,7 @@ jobs:
         id: lhci
         continue-on-error: true
         env:
-          LHCI_GITHUB_APP_TOKEN: ${{ secrets.LHCI_GITHUB_APP_TOKEN || '' }}
+          LHCI_GITHUB_APP_TOKEN: ${{ secrets.BOB_WORKER_GITHUB_TOKEN || secrets.DEPLOY_GITHUB_TOKEN || github.token }}
         run: |
           lhci autorun \
             --upload.target=temporary-public-storage \

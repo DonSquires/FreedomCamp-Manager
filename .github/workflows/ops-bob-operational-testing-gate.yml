@@ -64,7 +64,7 @@ jobs:
           TRULENS_CMD: . .venv-trulens/bin/activate && python scripts/run_trulens_eval.py
           RUNPOD_API_KEY: ${{ secrets.RUNPOD_API_KEY }}
           RUNPOD_ENDPOINT_ID: ${{ secrets.RUNPOD_ENDPOINT_ID }}
-          RUNPOD_RUNSYNC_URL: ${{ secrets.RUNPOD_RUNSYNC_URL }}
+          RUNPOD_RUNSYNC_URL: ${{ secrets.RUNPOD_ENDPOINT_URL }}
           OLLAMA_BASE_URL: ${{ vars.OLLAMA_BASE_URL }}
           OLLAMA_MODEL: ${{ vars.OLLAMA_MODEL }}
         run: |

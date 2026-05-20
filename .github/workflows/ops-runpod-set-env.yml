@@ -60,7 +60,7 @@ jobs:
         id: resolve
         env:
           INPUT_URL: ${{ inputs.ollama_url }}
-          SECRET_URL: ${{ secrets.OLLAMA_EXTERNAL_URL }}
+          SECRET_URL: ${{ secrets.OLLAMA_EXTERNAL_URL || secrets.OLLAMA_SERVICE_URL }}
         run: |
           OLLAMA_URL="${INPUT_URL:-$SECRET_URL}"
           if [ -z "${OLLAMA_URL:-}" ]; then

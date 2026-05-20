@@ -67,7 +67,7 @@ jobs:
         env:
           SUPABASE_URL:              ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          STATSNZ_API_KEY:           ${{ secrets.STATSNZ_API_KEY }}
+          STATSNZ_API_KEY:           ${{ '' }}
 
       - uses: actions/checkout@v5
         if: steps.check-secrets.outputs.secrets_present == 'true'
@@ -87,7 +87,7 @@ jobs:
         env:
           SUPABASE_URL:              ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          STATSNZ_API_KEY:           ${{ secrets.STATSNZ_API_KEY }}
+          STATSNZ_API_KEY:           ${{ '' }}
           IMPORT_MODE:               ${{ github.event.inputs.import_mode }}
           IMPORT_SOURCES:            ${{ github.event.inputs.import_sources }}
           ORGANIZATION_ID:           ${{ github.event.inputs.organization_id }}
