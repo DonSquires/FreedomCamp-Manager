@@ -180,14 +180,19 @@ Deno.serve(async (req: Request): Promise<Response> => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
-    const webhookSecret = Deno.env.get('PLATE_RECOGNIZER_WEBHOOK_SECRET') ?? '';
+    const webhookSecrets = [
+      Deno.env.get('PLATE_RECOGNIZER_WEBHOOK_SECRET') || '',
+      Deno.env.get('PLATERECOGNIZER_TOKEN') || '',
+      Deno.env.get('PARKPOW_API_TOKEN') || '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '',
+    ].filter((v) => v.length > 0);
 
     if (!supabaseUrl || !serviceRoleKey) return json(req, 500, { error: 'Supabase env vars missing' });
 
-    if (webhookSecret) {
+    if (webhookSecrets.length > 0) {
       const authHeader = req.headers.get('authorization') ?? '';
       const provided = authHeader.replace(/^Bearer\s+/i, '').trim() || (req.headers.get('x-webhook-secret') ?? '').trim();
-      if (provided !== webhookSecret) return json(req, 401, { error: 'Unauthorized' });
+      if (!webhookSecrets.includes(provided)) return json(req, 401, { error: 'Unauthorized' });
     }
 
     const { payload, preloadedImage } = await parsePayload(req);
