@@ -2,6 +2,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3';
 import { getCorsHeaders } from '../_shared/withCors.ts';
 
 type AnyObj = Record<string, unknown>;
+type ResolvedImage = { bytes: Uint8Array; contentType: string; source: string };
 
 function json(req: Request, status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), {
@@ -91,8 +92,8 @@ async function sha256Hex(bytes: Uint8Array): Promise<string> {
   return Array.from(new Uint8Array(hashBuffer)).map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
-async function resolveImage(payload: AnyObj): Promise<{ bytes: Uint8Array; contentType: string; source: string } | null> {
-  const imageField = firstString(payload, ['image', 'image_url', 'snapshot_url', 'photo_url']);
+async function resolveImage(payload: AnyObj): Promise<ResolvedImage | null> {
+  const imageField = firstString(payload, ['upload', 'image', 'upload_url', 'image_url', 'snapshot_url', 'photo_url']);
   if (!imageField) return null;
 
   const asDataUri = parseDataUri(imageField);
@@ -121,6 +122,57 @@ async function resolveImage(payload: AnyObj): Promise<{ bytes: Uint8Array; conte
   return null;
 }
 
+async function parsePayload(req: Request): Promise<{ payload: AnyObj; preloadedImage: ResolvedImage | null }> {
+  const contentType = req.headers.get('content-type') || '';
+
+  if (contentType.includes('multipart/form-data')) {
+    const form = await req.formData();
+    const payload: AnyObj = {};
+    let preloadedImage: ResolvedImage | null = null;
+
+    for (const [key, value] of form.entries()) {
+      if (value instanceof File) {
+        if ((key === 'upload' || key === 'image') && value.size > 0) {
+          preloadedImage = {
+            bytes: new Uint8Array(await value.arrayBuffer()),
+            contentType: value.type || 'image/jpeg',
+            source: 'multipart-file',
+          };
+        }
+        payload[key] = value.name;
+      } else {
+        payload[key] = String(value);
+      }
+    }
+
+    const config = payload['config'];
+    if (typeof config === 'string') {
+      try {
+        payload['config'] = JSON.parse(config);
+      } catch {
+        // Keep original string if not valid JSON.
+      }
+    }
+
+    return { payload, preloadedImage };
+  }
+
+  if (contentType.includes('application/x-www-form-urlencoded')) {
+    const body = await req.text();
+    const params = new URLSearchParams(body);
+    const payload: AnyObj = {};
+    for (const [k, v] of params.entries()) payload[k] = v;
+    return { payload, preloadedImage: null };
+  }
+
+  const jsonBody = await req.json().catch(() => null);
+  if (jsonBody && typeof jsonBody === 'object') {
+    return { payload: jsonBody as AnyObj, preloadedImage: null };
+  }
+
+  return { payload: {}, preloadedImage: null };
+}
+
 Deno.serve(async (req: Request): Promise<Response> => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: getCorsHeaders(req) });
   if (req.method !== 'POST') return json(req, 405, { error: 'Method not allowed' });
@@ -138,8 +190,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
       if (provided !== webhookSecret) return json(req, 401, { error: 'Unauthorized' });
     }
 
-    const payload = (await req.json().catch(() => null)) as AnyObj | null;
-    if (!payload || typeof payload !== 'object') return json(req, 400, { error: 'Invalid JSON body' });
+    const { payload, preloadedImage } = await parsePayload(req);
+    if (!payload || typeof payload !== 'object' || Object.keys(payload).length === 0) {
+      return json(req, 400, { error: 'Invalid or empty payload' });
+    }
 
     const organizationId =
       (req.headers.get('x-org-id') ?? '').trim() ||
@@ -151,7 +205,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       return json(req, 400, { error: 'organization_id missing (send x-org-id header, payload.organization_id, or set DEFAULT_ORG_ID)' });
     }
 
-    const image = await resolveImage(payload);
+    const image = preloadedImage || (await resolveImage(payload));
     if (!image) return json(req, 400, { error: 'No usable image found in payload' });
 
     const supabase = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false } });
