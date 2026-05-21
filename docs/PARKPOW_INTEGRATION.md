@@ -76,6 +76,34 @@ before retrying. This repo already includes a single-function deploy workflow in
 [.github/workflows/deploy-edge-functions.yml](../.github/workflows/deploy-edge-functions.yml)
 using `function_name=parkpow-photo-sync`.
 
+## Full ParkPow Photo Archival To Storage (Metadata-Preserving)
+
+To archive all ParkPow photos into Supabase Storage first, then ingest from the
+bucket pipeline, use:
+
+```bash
+POST /functions/v1/parkpow-photo-archive
+{
+  "organization_id": "<org-uuid>",
+  "source": "sessions",
+  "bucket": "evidence",
+  "since": "2025-11-01T00:00:00Z",
+  "max_pages": 200,
+  "page_size": 100,
+  "apply": true,
+  "upsert": false
+}
+```
+
+What this does:
+- Downloads ParkPow photos with `PARKPOW_API_TOKEN` from Supabase secrets.
+- Uploads them to `evidence` bucket under `parkpow-archive/<source>/<YYYY-MM>/...`.
+- Inserts one `evidence_index` row per archived photo.
+- Preserves upstream metadata in `evidence_index.source_metadata` with
+  `source_system='parkpow'` and `source_record_id=<parkpow record id>`.
+
+Use `apply: false` for a non-writing dry run first.
+
 ---
 
 ## Secrets Already Configured ✅
