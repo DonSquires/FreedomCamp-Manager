@@ -17,3 +17,14 @@ Use this file to record governance wording, approval-flow, and route-contract up
   - [docs/BOB_RETENTION_POLICY_2026-05-18.md](docs/BOB_RETENTION_POLICY_2026-05-18.md)
   - [docs/DECISIONS.md](docs/DECISIONS.md)
   - [supabase/migrations/20260710000004_phase_d1_bob_approval_contracts.sql](supabase/migrations/20260710000004_phase_d1_bob_approval_contracts.sql)
+
+## 2026-05-21
+
+- Cleaned working-tree noise before PR #736 merge prep by removing generated local artifacts and reverting unrelated JSX text-escape churn.
+- Hardened CI/E2E auth bootstrap to reduce false negatives when Playwright credentials exist but account state drifts.
+- Added explicit Node-side WebSocket transport dependency for Supabase realtime usage in CI runners without global `WebSocket` support.
+- Source files updated in this changeset:
+  - [tests/e2e/auth.ts](tests/e2e/auth.ts)
+  - [src/pages/RosterPlanner.tsx](src/pages/RosterPlanner.tsx)
+  - [package.json](package.json)
+  - [package-lock.json](package-lock.json)

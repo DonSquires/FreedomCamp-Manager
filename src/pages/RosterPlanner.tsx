@@ -1267,7 +1267,27 @@ export default function RosterPlanner() {
     enabled: plannerQueriesEnabled,
   })
 
-  const leaveRequests: LeaveRequest[] = []
+  const { data: leaveRequests = [] } = useQuery<LeaveRequest[]>({
+    queryKey: ['leave_requests', user?.organization_id, dateFrom, dateTo, isAdmin],
+    queryFn: async () => {
+      let query = (supabase as any)
+        .from('leave_requests')
+        .select('id, officer_id, leave_type_name, status, date_start, date_end, total_hours')
+        .eq('organization_id', user!.organization_id!)
+        .lte('date_start', dateTo)
+        .gte('date_end', dateFrom)
+        .order('date_start', { ascending: false })
+
+      if (!isAdmin) {
+        query = query.eq('officer_id', user!.id)
+      }
+
+      const { data, error } = await query
+      if (error) throw error
+      return (data || []) as LeaveRequest[]
+    },
+    enabled: plannerQueriesEnabled,
+  })
 
   // ─── Mutations ─────────────────────────────────────────────────────────────
 

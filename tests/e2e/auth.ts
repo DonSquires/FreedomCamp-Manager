@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import type { Page } from '@playwright/test'
+import WebSocket from 'ws'
 
 export type TestUserKey =
   | 'master'
@@ -95,6 +96,10 @@ const serviceRoleSupabase = canInitServiceRoleSupabase
       auth: {
         persistSession: false,
         autoRefreshToken: false,
+      },
+      // Node 20 runners do not expose a global WebSocket implementation.
+      realtime: {
+        transport: WebSocket,
       },
     })
   : null
@@ -398,8 +403,13 @@ async function resolveOrganizationIdByName(expectedOrgName?: string): Promise<st
   return null
 }
 
-async function ensureBootstrapTestAccount(user: TestUserKey, credentials: TestCredentials): Promise<void> {
-  if (!serviceRoleSupabase || isCredentialConfigured(user)) return
+async function ensureBootstrapTestAccount(
+  user: TestUserKey,
+  credentials: TestCredentials,
+  options: { force?: boolean } = {}
+): Promise<void> {
+  if (!serviceRoleSupabase) return
+  if (!options.force && isCredentialConfigured(user)) return
 
   const desiredRole = desiredRoleByTestUser[user]
   const expectedProfile = expectedProfileConfig[user]
@@ -946,15 +956,26 @@ export async function loginAs(page: Page, user: TestUserKey): Promise<void> {
       reason: error instanceof Error ? error.message : String(error),
     }))
 
-    const loginSucceeded = apiFallback.ok
+    if (!apiFallback.ok && /invalid_credentials/i.test(apiFallback.reason || '')) {
+      await ensureBootstrapTestAccount(user, credentials, { force: true })
+    }
+
+    const retryFallback = !apiFallback.ok && /invalid_credentials/i.test(apiFallback.reason || '')
+      ? await bootstrapBrowserSessionFromPasswordGrant(page, credentials).catch((error: unknown) => ({
+          ok: false,
+          reason: error instanceof Error ? error.message : String(error),
+        }))
+      : apiFallback
+
+    const loginSucceeded = retryFallback.ok
       ? await page
         .waitForURL((url) => !url.pathname.startsWith('/login'), { timeout: 20000 })
         .then(() => true)
         .catch(() => false)
       : false
 
-    if (!apiFallback.ok) {
-      apiFallbackError = apiFallback.reason || 'unknown API fallback error'
+    if (!retryFallback.ok) {
+      apiFallbackError = retryFallback.reason || 'unknown API fallback error'
     }
 
     if (loginSucceeded) break
