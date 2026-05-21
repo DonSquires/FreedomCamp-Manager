@@ -86,7 +86,7 @@ const SOURCE = {
 }
 
 // Organization target
-const TARGET_ORG_NAME = 'Nelson City Council'
+const TARGET_ORG_NAME = 'First Security - Nelson'
 
 // Zone codes → canonical zone names
 const ZONE_BY_CODE = {
@@ -196,6 +196,12 @@ function pickSiteType(serviceType) {
   return SITE_TYPE_BY_SERVICE[serviceType] || 'general'
 }
 
+function normalizeRosterServiceType(serviceType) {
+  if (serviceType === 'static_guard') return 'guarding'
+  if (serviceType === 'biosecurity') return 'guarding'
+  return serviceType
+}
+
 function buildLocationLabel(location) {
   return location.code ? `${location.name} [${location.code}]` : location.name
 }
@@ -230,18 +236,54 @@ function buildZoneLoiPayload(nccOrgId, zoneName) {
 }
 
 function buildClientSitePayload(nccOrgId, location, loiId, zoneId) {
+  const hasGps = location.gpsLat != null && location.gpsLng != null
+  const hasSpecificAddress = Boolean(location.address) && normalizeKey(location.address) !== normalizeKey(location.name)
+  const isActive = Boolean(zoneId || hasGps || hasSpecificAddress)
+  const siteNotes = [
+    'Imported from Deputy roster',
+    location.areaName ? `[DEPUTY_AREA:${location.areaName}]` : null,
+    location.areaExportCode ? `[DEPUTY_AREA_EXPORT:${location.areaExportCode}]` : null,
+    location.code ? `[DEPUTY_LOCATION_CODE:${location.code}]` : null,
+    location.showOnRoster != null ? `[SHOW_ON_ROSTER:${location.showOnRoster}]` : null,
+    location.isWorkplace != null ? `[IS_WORKPLACE:${location.isWorkplace}]` : null,
+    location.isPayCenter != null ? `[IS_PAY_CENTER:${location.isPayCenter}]` : null,
+  ].filter(Boolean).join(' ')
   return {
     organization_id: nccOrgId,
-    name: location.name,
+    name: location.name || location.address || location.code || 'Deputy Imported Site',
     site_code: location.code || null,
     site_type: pickSiteType(location.serviceType),
-    address: location.name,
+    address: location.address || location.name || location.code || null,
     zone_id: zoneId || null,
     loi_id: loiId || null,
     gps_lat: location.gpsLat ?? null,
     gps_lng: location.gpsLng ?? null,
-    is_active: true,
+    notes: isActive ? siteNotes : `${siteNotes} [LOCATION_STATUS:unverified]`,
+    is_active: isActive,
   }
+}
+
+function buildUserBio(staff) {
+  return [
+    'Imported from Deputy roster',
+    staff.displayName ? `Display: ${staff.displayName}` : null,
+    staff.employeeExportCode ? `Employee export code: ${staff.employeeExportCode}` : null,
+    staff.payCenter ? `Pay center: ${staff.payCenter}` : null,
+  ].filter(Boolean).join(' | ')
+}
+
+function buildRosterNote(row, rosterKey, location) {
+  return [
+    `[DEPUTY_IMPORT:${rosterKey}]`,
+    row['Display Name'] ? `[STAFF:${toTrimmedString(row['Display Name'])}]` : null,
+    location.name ? `[LOCATION:${location.name}]` : null,
+    location.code ? `[LOC_CODE:${location.code}]` : null,
+    location.areaName ? `[AREA:${location.areaName}]` : null,
+    row['Pay Period'] || row['Pay Period Name'] ? `[PAY_PERIOD:${toTrimmedString(row['Pay Period'] || row['Pay Period Name'])}]` : null,
+    row['Approved'] != null || row['Time Approved'] != null ? `[APPROVED:${String(row['Approved'] ?? row['Time Approved'])}]` : null,
+    row['Schedule Warning'] ? `[SCHEDULE_WARNING:${toTrimmedString(row['Schedule Warning'])}]` : null,
+    row['Position'] ? `[POSITION:${toTrimmedString(row['Position'])}]` : null,
+  ].filter(Boolean).join(' ')
 }
 
 async function loadExistingLoiMaps(nccOrgId) {
@@ -463,6 +505,9 @@ function collectStaffUnique(rows) {
         displayName,
         email,
         code,
+        firstName: toTrimmedString(row['First Name']),
+        lastName: toTrimmedString(row['Last Name']),
+        employeeExportCode: toTrimmedString(row['Employee Export Code']),
         phone: row['Phone'] || '',
         position: row['Position'] || '',
         payCenter: row['Pay Center'] || '',
@@ -484,24 +529,37 @@ function collectLocationsUnique(rows) {
 
   for (const row of rows) {
     const locCode = toTrimmedString(row['Location Code'] || row['Code'])
-    const locName = toTrimmedString(row['Location Name'] || row['Area Name'] || row['Location'])
-    const locAddress = toTrimmedString(row['Location Address'] || row['Address'])
+    const locName = toTrimmedString(
+      row['Location Name'] ||
+      row['Location Name_1'] ||
+      row['Area Name'] ||
+      row['Location'] ||
+      row['Pay Center Name'] ||
+      row['Company Name']
+    )
+    const locAddress = toTrimmedString(row['Location Address'] || row['Address'] || locName || locCode)
     const serviceType = pickServiceType(row)
+    const resolvedName = locName || locCode || 'Deputy Imported Site'
 
     if (locCode && !locationsByCode.has(locCode)) {
       locationsByCode.set(locCode, {
         code: locCode,
-        name: locName,
+        name: resolvedName,
         address: locAddress,
         gpsLat: row['Latitude'] ? Number(row['Latitude']) : null,
         gpsLng: row['Longitude'] ? Number(row['Longitude']) : null,
+        areaName: toTrimmedString(row['Area Name'] || row['Area']),
+        areaExportCode: toTrimmedString(row['Area Export Code'] || row['Area Export']),
+        showOnRoster: row['Show On Roster'] === '' ? null : row['Show On Roster'],
+        isWorkplace: row['Is Workplace'] === '' ? null : row['Is Workplace'],
+        isPayCenter: row['Is Pay Center'] === '' ? null : row['Is Pay Center'],
         serviceType,
         serviceDomains: pickServiceDomains(serviceType),
       })
     }
 
-    if (locName && !locationsByName.has(locName)) {
-      locationsByName.set(locName, locationsByCode.get(locCode))
+    if (resolvedName && !locationsByName.has(resolvedName)) {
+      locationsByName.set(resolvedName, locationsByCode.get(locCode))
     }
   }
 
@@ -530,7 +588,7 @@ function buildRosterShifts(nccOrgId, rows, staffByEmail, locationsByCode) {
     }
 
     const rosterKey = makeRosterKey(row, i)
-    const serviceType = location.serviceType
+    const serviceType = normalizeRosterServiceType(location.serviceType)
     const shiftDate = parseShiftDate(schedDate)
     const startDateTime = parseShiftDateTime(schedDate, startTime)
     const endDateTime = parseShiftDateTime(schedDate, endTime)
@@ -549,17 +607,7 @@ function buildRosterShifts(nccOrgId, rows, staffByEmail, locationsByCode) {
         shift_type: 'custom',
         service_type: serviceType,
         officer_response: null,
-        deputy_schedule_id: rosterKey,
-        deputy_area_name: toTrimmedString(row['Area'] || row['Area Name'] || ''),
-        deputy_location_name: location.name,
-        location_code: locCode,
-        area_export_code: toTrimmedString(row['Area Export Code'] || row['Area Export'] || ''),
-        schedule_warning: toTrimmedString(row['Schedule Warning'] || ''),
-        schedule_cost: row['Schedule Cost'] ? Number(row['Schedule Cost']) : null,
-        pay_period_name: toTrimmedString(row['Pay Period'] || ''),
-        deputy_approved: String(row['Approved'] || '').toLowerCase() === 'true',
-        deputy_imported_at: new Date().toISOString(),
-        notes: `[DEPUTY_IMPORT:${rosterKey}] ${location.name}`,
+        notes: buildRosterNote(row, rosterKey, location),
       },
       staff,
       location,
@@ -578,6 +626,12 @@ function parseShiftDate(dateStr) {
   }
 
   if (typeof dateStr === 'string') {
+    const nzMatch = dateStr.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
+    if (nzMatch) {
+      const day = nzMatch[1].padStart(2, '0')
+      const month = nzMatch[2].padStart(2, '0')
+      return `${nzMatch[3]}-${month}-${day}`
+    }
     // Try parsing YYYY-MM-DD or common date formats
     const match = dateStr.match(/(\d{4})-?(\d{2})-?(\d{2})/)
     if (match) return `${match[1]}-${match[2]}-${match[3]}`
@@ -601,6 +655,13 @@ function toTrimmedString(value) {
   return String(value).trim()
 }
 
+async function resolveAuthUserIdByEmail(email) {
+  const { data, error } = await supabaseDb.auth.admin.listUsers()
+  if (error) throw new Error(`Failed listing auth users for ${email}: ${error.message}`)
+  const found = data?.users?.find((user) => normalizeKey(user.email) === normalizeKey(email)) || null
+  return found?.id || null
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Supabase Lookups & Inserts
 // ─────────────────────────────────────────────────────────────────────────────
@@ -614,17 +675,40 @@ async function ensureUserProfiles(nccOrgId, staffList) {
   }
 
   for (const staff of staffList.values()) {
-    const { displayName, email, code, phone, position } = staff
+    const { displayName, email, code, phone, position, firstName, lastName } = staff
+    const normalizedDisplay = toTrimmedString(displayName)
+      .replace(/^\([^\)]*\)\s*/g, '')
+      .replace(/\[[^\]]*\]/g, '')
+      .trim()
+    const derivedFirstName = firstName || normalizedDisplay.split(/\s+/).filter(Boolean)[0] || 'Unknown'
+    const derivedLastName = lastName || normalizedDisplay.split(/\s+/).filter(Boolean).slice(1).join(' ') || 'Officer'
 
-    // Lookup by email
+    // Lookup by email across existing profiles first.
     const { data: existing } = await supabaseDb
       .from('user_profiles')
       .select('id')
-      .eq('organization_id', nccOrgId)
       .eq('email', email)
       .single()
 
     if (existing?.id) {
+      if (APPLY) {
+        const { error: updateError } = await supabaseDb
+          .from('user_profiles')
+          .update({
+            organization_id: nccOrgId,
+            first_name: derivedFirstName,
+            last_name: derivedLastName,
+            phone: phone || null,
+            job_title: position || 'Officer',
+            bio: buildUserBio(staff),
+            is_active: true,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', existing.id)
+        if (updateError) {
+          console.error(`❌ Failed updating user profile for ${email}: ${updateError.message}`)
+        }
+      }
       result.existing += 1
       result.byEmail.set(email, existing.id)
       result.byCode.set(code, existing.id)
@@ -637,29 +721,62 @@ async function ensureUserProfiles(nccOrgId, staffList) {
       continue
     }
 
-    // Create user profile
-    const { data: created, error: insertError } = await supabaseDb
+    let userId = await resolveAuthUserIdByEmail(email)
+    if (!userId) {
+      const tempPassword = `Deputy-${crypto.randomUUID()}!aA1`
+      const { data: authData, error: authError } = await supabaseDb.auth.admin.createUser({
+        email,
+        password: tempPassword,
+        email_confirm: true,
+        user_metadata: {
+          first_name: derivedFirstName,
+          last_name: derivedLastName,
+          source: 'import-deputy-nelson-roster',
+        },
+      })
+
+      if (authError) {
+        const msg = String(authError.message || '').toLowerCase()
+        const alreadyExists = msg.includes('already') || String(authError.code || '').toLowerCase() === 'email_exists'
+        if (!alreadyExists) {
+          console.error(`❌ Failed creating auth user for ${email}: ${authError.message}`)
+          continue
+        }
+        userId = await resolveAuthUserIdByEmail(email)
+      } else {
+        userId = authData?.user?.id || null
+      }
+    }
+
+    if (!userId) {
+      console.error(`❌ Failed resolving auth user id for ${email}`)
+      continue
+    }
+
+    const { error: profileError } = await supabaseDb
       .from('user_profiles')
-      .insert({
+      .upsert({
+        id: userId,
         organization_id: nccOrgId,
-        display_name: displayName,
+        first_name: derivedFirstName,
+        last_name: derivedLastName,
         email,
         phone: phone || null,
-        role: 'officer', // Default role
+        role: 'officer',
         is_active: true,
-        created_at: new Date().toISOString(),
-      })
-      .select('id')
-      .single()
+        job_title: position || 'Officer',
+        bio: buildUserBio(staff),
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'id' })
 
-    if (insertError || !created?.id) {
-      console.error(`❌ Failed creating user profile for ${email}: ${insertError?.message}`)
+    if (profileError) {
+      console.error(`❌ Failed creating user profile for ${email}: ${profileError.message}`)
       continue
     }
 
     result.created += 1
-    result.byEmail.set(email, created.id)
-    result.byCode.set(code, created.id)
+    result.byEmail.set(email, userId)
+    result.byCode.set(code, userId)
   }
 
   return result
@@ -772,9 +889,32 @@ async function insertRosterShifts(shifts, userProfileIds, clientSiteIds, zoneIds
       continue
     }
 
-    const { error: insertError } = await supabaseDb
+    const existingShift = await supabaseDb
       .from('roster_shifts')
-      .upsert(payload, { onConflict: 'organization_id,deputy_schedule_id' })
+      .select('id')
+      .eq('organization_id', shift.row.organization_id)
+      .like('notes', `%[DEPUTY_IMPORT:${shift.key}]%`)
+      .limit(1)
+
+    if (existingShift.error) {
+      console.error(`❌ Failed loading roster shift match for ${shift.key}: ${existingShift.error.message}`)
+      result.failed += 1
+      continue
+    }
+
+    let insertError = null
+    if (existingShift.data?.[0]?.id) {
+      const { error } = await supabaseDb
+        .from('roster_shifts')
+        .update(payload)
+        .eq('id', existingShift.data[0].id)
+      insertError = error
+    } else {
+      const { error } = await supabaseDb
+        .from('roster_shifts')
+        .insert(payload)
+      insertError = error
+    }
 
     if (insertError) {
       if (insertError.code === '23505') {
@@ -828,18 +968,36 @@ async function main() {
   for (const [locCode, location] of locationsByCode) {
     const loiId = await ensureLocationLoi(nccOrgId, location, loiMaps, APPLY)
     const zoneId = zoneMaps.get(normalizeKey(location.name))?.id || null
-    const existingSite = await supabaseDb
+    let siteRow = null
+
+    const existingByCode = await supabaseDb
       .from('client_sites')
-      .select('id, loi_id, zone_id')
+      .select('id, loi_id, zone_id, site_code, name')
       .eq('organization_id', nccOrgId)
-      .or(`site_code.eq.${locCode},name.eq.${location.name}`)
+      .eq('site_code', locCode)
       .limit(1)
 
-    if (existingSite.error) {
-      throw new Error(`Failed loading client site for ${location.name}: ${existingSite.error.message}`)
+    if (existingByCode.error) {
+      throw new Error(`Failed loading client site by code for ${location.name}: ${existingByCode.error.message}`)
     }
 
-    const siteRow = existingSite.data?.[0] || null
+    siteRow = existingByCode.data?.[0] || null
+
+    if (!siteRow) {
+      const existingByName = await supabaseDb
+        .from('client_sites')
+        .select('id, loi_id, zone_id, site_code, name')
+        .eq('organization_id', nccOrgId)
+        .eq('name', location.name)
+        .limit(1)
+
+      if (existingByName.error) {
+        throw new Error(`Failed loading client site by name for ${location.name}: ${existingByName.error.message}`)
+      }
+
+      siteRow = existingByName.data?.[0] || null
+    }
+
     const sitePayload = buildClientSitePayload(nccOrgId, location, loiId, zoneId || siteRow?.zone_id || null)
 
     if (siteRow?.id) {
