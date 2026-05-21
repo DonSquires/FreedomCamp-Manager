@@ -646,6 +646,10 @@ function asStringArray(value: unknown): string[] {
   return value.map((item) => String(item || '').trim()).filter(Boolean)
 }
 
+function buildDuplicateSafeKey(prefix: string, index: number): string {
+  return `${prefix}-${index}`
+}
+
 function canAuthorTraining(user: { role?: string | null; job_title?: string | null } | null | undefined): boolean {
   const role = String(user?.role || '').trim().toLowerCase()
   const title = String(user?.job_title || '').trim().toLowerCase()
@@ -3052,9 +3056,13 @@ export default function BobAssistantStudio() {
         registerEmergencySignal('transcript', `TRANSCRIPT RISK: ${message}`)
       }
     } catch (err: any) {
-      console.error('Bob assistant invoke failed:', err)
-      const errorText = String(err?.message ?? err ?? '')
+      const errorText = String(err?.message ?? err ?? '').trim()
       const likelyOutage = isLikelyBobServiceOutageError(errorText)
+      if (likelyOutage) {
+        console.warn('Bob assistant temporary outage detected:', errorText || 'unknown outage error')
+      } else {
+        console.error('Bob assistant invoke failed:', err)
+      }
 
       if (likelyOutage) {
         markBobServiceOutage()
@@ -5546,8 +5554,8 @@ export default function BobAssistantStudio() {
                   {serviceContractMatchContext.topRankedPaths.length > 0 && (
                     <div className="rounded border p-3 space-y-2">
                       <div className="font-medium text-muted-foreground">Priority-ranked contract sources</div>
-                      {serviceContractMatchContext.topRankedPaths.map((path) => (
-                        <div key={path} className="break-all">{path}</div>
+                      {serviceContractMatchContext.topRankedPaths.map((path, index) => (
+                        <div key={buildDuplicateSafeKey('contract-path', index)} className="break-all">{path}</div>
                       ))}
                     </div>
                   )}
@@ -5555,8 +5563,8 @@ export default function BobAssistantStudio() {
                   {serviceContractMatchContext.topContentRankedPaths.length > 0 && (
                     <div className="rounded border p-3 space-y-2">
                       <div className="font-medium text-muted-foreground">Priority-ranked content files</div>
-                      {serviceContractMatchContext.topContentRankedPaths.map((path) => (
-                        <div key={path} className="break-all">{path}</div>
+                      {serviceContractMatchContext.topContentRankedPaths.map((path, index) => (
+                        <div key={buildDuplicateSafeKey('contract-content-path', index)} className="break-all">{path}</div>
                       ))}
                     </div>
                   )}
@@ -5564,8 +5572,8 @@ export default function BobAssistantStudio() {
                   {serviceContractMatchContext.conflictWarnings.length > 0 && (
                     <div className="rounded border border-red-200 bg-red-50 p-3 space-y-2 text-red-900 dark:border-red-900/40 dark:bg-red-950/20 dark:text-red-200">
                       <div className="flex items-center gap-2 font-medium"><XCircle className="h-4 w-4" /> Contract conflicts to resolve</div>
-                      {serviceContractMatchContext.conflictWarnings.map((warning) => (
-                        <div key={warning}>{warning}</div>
+                      {serviceContractMatchContext.conflictWarnings.map((warning, index) => (
+                        <div key={buildDuplicateSafeKey('contract-warning', index)}>{warning}</div>
                       ))}
                       <div className="text-[11px] text-red-800/80 dark:text-red-300/80">
                         Bob should prefer the higher-ranked signed/current source, explain the differences in plain language, and call out the mismatch before finalizing patrol or parking setup.
@@ -5576,8 +5584,8 @@ export default function BobAssistantStudio() {
                   {serviceContractMatchContext.comparisonSummary.length > 0 && (
                     <div className="rounded border p-3 space-y-2">
                       <div className="font-medium text-muted-foreground">Comparison snapshot (service, times, cost, impact)</div>
-                      {serviceContractMatchContext.comparisonSummary.map((item) => (
-                        <div key={`${item.category}-${item.summary}`} className="rounded border bg-muted/20 p-2 space-y-1">
+                      {serviceContractMatchContext.comparisonSummary.map((item, index) => (
+                        <div key={buildDuplicateSafeKey('contract-comparison', index)} className="rounded border bg-muted/20 p-2 space-y-1">
                           <div className="font-medium">{item.summary}</div>
                           <div className="text-[11px]">Decision: {getComparisonResolutionLabel(contractComparisonResolutions[getComparisonResolutionKey(item)])}</div>
                           <div className="text-[11px] text-muted-foreground">Primary: {item.primaryEvidence}</div>
@@ -5613,8 +5621,8 @@ export default function BobAssistantStudio() {
                   {serviceContractMatchContext.instructionLines.length > 0 && (
                     <div className="rounded border p-3 space-y-2">
                       <div className="font-medium text-muted-foreground">Extracted operational instructions</div>
-                      {serviceContractMatchContext.instructionLines.slice(0, 4).map((line) => (
-                        <div key={line}>{line}</div>
+                      {serviceContractMatchContext.instructionLines.slice(0, 4).map((line, index) => (
+                        <div key={buildDuplicateSafeKey('contract-instruction', index)}>{line}</div>
                       ))}
                     </div>
                   )}
@@ -5651,10 +5659,10 @@ export default function BobAssistantStudio() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-3 text-xs">
-                {pendingHistoricalPatrolImportDraft.siteCoverage.slice(0, 8).map((site) => {
+                {pendingHistoricalPatrolImportDraft.siteCoverage.slice(0, 8).map((site, index) => {
                   const selected = historicalAssortmentOverrides[site.siteName] || site.modules[0]?.module || 'patrol_response'
                   return (
-                    <div key={site.siteName} className="rounded border p-3 space-y-2">
+                    <div key={buildDuplicateSafeKey('historical-site', index)} className="rounded border p-3 space-y-2">
                       <div className="font-medium">{site.siteName}</div>
                       <div className="text-muted-foreground">Rows: {site.rowCount} · Module mix: {site.modules.map((entry) => `${formatHistoricalRoutingLabel(entry.module)} (${entry.count})`).join(', ')}</div>
                       <div>Selected route: {formatHistoricalRoutingLabel(selected)}</div>
@@ -6568,8 +6576,8 @@ export default function BobAssistantStudio() {
               <div className="rounded-lg border p-3 bg-muted/20">
                 <div className="text-xs font-medium text-muted-foreground mb-2">Bob Recommendations</div>
                 <ul className="space-y-1 text-sm">
-                  {planRecommendations.map((item) => (
-                    <li key={item}>- {item}</li>
+                  {planRecommendations.map((item, index) => (
+                    <li key={buildDuplicateSafeKey('plan-recommendation', index)}>- {item}</li>
                   ))}
                 </ul>
               </div>
