@@ -89,65 +89,94 @@ export default function IncidentReports() {
   const { data: incidents, isLoading, isFetching, isError } = useQuery({
     queryKey: ['incidents', organizationId, zoneId, severityFilter, statusFilter, searchQuery, dateFrom, dateTo],
     queryFn: async () => {
-      let query = supabase
-        .from('incidents')
-        .select(`
-          id,
-          plate_number,
-          incident_type,
-          severity,
-          status,
-          description,
-          evidence_count,
-          primary_evidence_url,
-          location_lat,
-          location_lng,
-          location_address,
-          notes,
-          metadata,
-          created_at,
-          person_record_id,
-          zone:zones(name),
-          user_profile:user_profiles!incidents_user_id_fkey(first_name, last_name),
-          person_record:person_records(id, first_name, last_name)
-        `)
-        
-        .order('created_at', { ascending: false })
+      const applyFilters = (baseQuery: any) => {
+        let query = baseQuery.order('created_at', { ascending: false })
 
-      // Organization scoping
-      if (user?.role !== 'master' && user?.organization_id) {
-        query = query.eq('organization_id', user.organization_id)
-      } else if (organizationId) {
-        query = query.eq('organization_id', organizationId)
+        if (user?.role !== 'master' && user?.organization_id) {
+          query = query.eq('organization_id', user.organization_id)
+        } else if (organizationId) {
+          query = query.eq('organization_id', organizationId)
+        }
+
+        if (dateFrom) {
+          query = query.gte('created_at', dateFrom)
+        }
+        if (dateTo) {
+          query = query.lte('created_at', dateTo)
+        }
+
+        if (zoneId) {
+          query = query.eq('zone_id', zoneId)
+        }
+
+        query = query.eq('deleted_at', null)
+
+        if (severityFilter !== 'all') {
+          query = query.eq('severity', severityFilter)
+        }
+
+        if (statusFilter !== 'all') {
+          query = query.eq('status', statusFilter)
+        }
+
+        return query
       }
 
-      // Date filters
-      if (dateFrom) {
-        query = query.gte('created_at', dateFrom)
-      }
-      if (dateTo) {
-        query = query.lte('created_at', dateTo)
-      }
+      const richSelect = `
+        id,
+        plate_number,
+        incident_type,
+        severity,
+        status,
+        description,
+        evidence_count,
+        primary_evidence_url,
+        location_lat,
+        location_lng,
+        location_address,
+        notes,
+        metadata,
+        created_at,
+        person_record_id,
+        zone:zones(name),
+        user_profile:user_profiles!incidents_user_id_fkey(first_name, last_name),
+        person_record:person_records(id, first_name, last_name)
+      `
 
-      // Zone filter
-      if (zoneId) {
-        query = query.eq('zone_id', zoneId)
+      const baseSelect = `
+        id,
+        plate_number,
+        incident_type,
+        severity,
+        status,
+        description,
+        evidence_count,
+        primary_evidence_url,
+        location_lat,
+        location_lng,
+        location_address,
+        notes,
+        metadata,
+        created_at,
+        person_record_id
+      `
+
+      let { data, error } = await applyFilters(
+        supabase.from('incidents').select(richSelect),
+      ).limit(100)
+
+      if (error) {
+        const fallback = await applyFilters(
+          supabase.from('incidents').select(baseSelect),
+        ).limit(100)
+        data = (fallback.data || []).map((row: any) => ({
+          ...row,
+          zone: null,
+          user_profile: null,
+          person_record: null,
+        }))
+        error = fallback.error
       }
-
-      // Exclude soft-deleted incidents
-      query = query.eq('deleted_at', null)
-
-      // Severity filter
-      if (severityFilter !== 'all') {
-        query = query.eq('severity', severityFilter)
-      }
-
-      // Status filter
-      if (statusFilter !== 'all') {
-        query = query.eq('status', statusFilter)
-      }
-
-      const { data, error } = await query.limit(100)
 
       if (error) throw error
 

@@ -3,7 +3,8 @@
   "notes": [
     "Noise control historical data for Nelson must map to Nelson City Council by default.",
     "Use explicit per-row overrides only when source evidence proves a different client owner.",
-    "Double-ups are handled with deterministic dedupe keys before write and idempotent upsert keys at write time."
+    "Double-ups are handled with deterministic dedupe keys before write and idempotent upsert keys at write time.",
+    "Downer/LINZ historical vehicle logs are a dedicated historical source and must use explicit tenant ownership rules (no inferred branch routing from filename)."
   ],
   "dedupe_policy": {
     "ingest_mode": "idempotent_upsert",
@@ -81,6 +82,28 @@
       "enforcement": "strict_default",
       "target_table_hint": "alarm_events",
       "target_domain": "noise_control"
+    },
+    {
+      "id": "downer-linz-vehicle-log-10-3-26-default-owner",
+      "source_bucket": "Historical records Downer LINZ",
+      "source_path": "Vehicle Log 10-3-26.xlsx",
+      "dataset_kind": "downer_linz_vehicle_log_historical",
+      "default_provider_branch_name": "First Security - Queenstown",
+      "default_target_organization_name": "Downer LINZ",
+      "enforcement": "strict_default",
+      "target_table_hint": "observations",
+      "target_domain": "freedom_camping_vehicle_history"
+    },
+    {
+      "id": "downer-linz-vehicle-log-19-3-26-default-owner",
+      "source_bucket": "Historical records Downer LINZ",
+      "source_path": "Vehicle Log 19-3-26.csv",
+      "dataset_kind": "downer_linz_vehicle_log_historical",
+      "default_provider_branch_name": "First Security - Queenstown",
+      "default_target_organization_name": "Downer LINZ",
+      "enforcement": "strict_default",
+      "target_table_hint": "observations",
+      "target_domain": "freedom_camping_vehicle_history"
     }
   ]
 }

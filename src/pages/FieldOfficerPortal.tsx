@@ -1261,7 +1261,10 @@ export default function FieldOfficerPortal() {
     },
   })
 
-  const keyAuditEnabled = useKeyAuditEnabled(rosteredShift?.client_org_id ?? employerOrganizationId ?? null).data !== false
+  const keyAuditOrgId = rosteredShift?.patrol_route_id
+    ? (rosteredShift.client_org_id ?? employerOrganizationId ?? null)
+    : null
+  const keyAuditEnabled = useKeyAuditEnabled(keyAuditOrgId).data !== false
 
   const handleStartShift = useCallback(async () => {
     // Service-provider members can choose a client jurisdiction to work in.

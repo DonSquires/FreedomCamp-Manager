@@ -61,6 +61,12 @@ export default function Login() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    if (!email.trim() || !password.trim()) {
+      toast.error('Enter both email and password')
+      return
+    }
+
     setLoading(true)
 
     try {
@@ -147,6 +153,7 @@ export default function Login() {
               <div>
                 <p className="text-[11px] uppercase tracking-[0.22em] text-ie-silver">Operations Platform</p>
                 <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-white">Field Compliance Manager</h1>
+                <p className="text-xs text-ie-silver">Field Operations Management Platform</p>
               </div>
             </div>
 

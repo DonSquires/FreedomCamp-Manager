@@ -565,10 +565,10 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   useSessionGpsLogging()
 
   // Safety net: if auth loading never resolves (e.g. Supabase network timeout),
-  // force-resolve after 2 s so the route guard can still redirect to /login.
+  // force-resolve after 5 s so the route guard can still redirect to /login.
   useEffect(() => {
     if (!loading) return
-    const t = setTimeout(ensureLoadingResolved, 2_000)
+    const t = setTimeout(ensureLoadingResolved, 5_000)
     return () => clearTimeout(t)
   }, [loading, ensureLoadingResolved])
 
@@ -835,9 +835,11 @@ export default function App() {
     checkSession()
 
     // Safety net: never block routing indefinitely on auth init.
+    // Give slower pages extra time before forcing a fallback so long walkthroughs
+    // do not get bounced to /login mid-session.
     const loadingFallback = window.setTimeout(() => {
       ensureLoadingResolved()
-    }, 3000)
+    }, 5000)
 
     return () => {
       window.clearTimeout(loadingFallback)
@@ -1124,7 +1126,7 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <AreaRoute allowedRoles={['admin', 'admin_officer', 'master']} area="users">
-                  <Navigate to="/roster?tab=users" replace />
+                  <UserManagement />
                 </AreaRoute>
               </ProtectedRoute>
             }

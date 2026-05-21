@@ -230,15 +230,34 @@ export default function OperationsMap() {
   const { data: officers = [] } = useQuery({
     queryKey: ['ops-map-officers', effectiveOrgId, tick],
     queryFn: async () => {
-      let profileQ = (supabase as any)
-        .from('user_profiles')
-        .select('id, first_name, last_name, role, last_gps_latitude, last_gps_longitude, last_gps_update, welfare_status, recent_scans, last_scan_zone')
-        .in('role', ['officer', 'admin_officer'])
-        .eq('is_active', true)
+      const applyOfficerScope = (baseQuery: any) => {
+        let scoped = baseQuery
+          .in('role', ['officer', 'admin_officer'])
+          .eq('is_active', true)
 
-      if (effectiveOrgId) profileQ = profileQ.eq('organization_id', effectiveOrgId)
+        if (effectiveOrgId) scoped = scoped.eq('organization_id', effectiveOrgId)
+        return scoped
+      }
 
-      const { data: profileData } = await profileQ.order('first_name', { ascending: true })
+      let { data: profileData } = await applyOfficerScope(
+        (supabase as any)
+          .from('user_profiles')
+          .select('id, first_name, last_name, role, last_gps_latitude, last_gps_longitude, last_gps_update, welfare_status, recent_scans, last_scan_zone'),
+      ).order('first_name', { ascending: true })
+
+      if (!profileData) {
+        const fallback = await applyOfficerScope(
+          (supabase as any)
+            .from('user_profiles')
+            .select('id, first_name, last_name, role, last_gps_latitude, last_gps_longitude, last_gps_update, welfare_status'),
+        ).order('first_name', { ascending: true })
+
+        profileData = (fallback.data || []).map((row: any) => ({
+          ...row,
+          recent_scans: 0,
+          last_scan_zone: null,
+        }))
+      }
 
       // Phase 4 spec calls out user_locations as the tactical map source. Where
       // present, merge those coordinates as a higher-priority location feed.

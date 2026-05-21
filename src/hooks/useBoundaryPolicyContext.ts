@@ -21,6 +21,7 @@ export function useBoundaryPolicyContext({
   const isReady =
     enabled &&
     !!organizationId &&
+    !!zoneId &&
     typeof latitude === 'number' &&
     typeof longitude === 'number'
 
@@ -41,7 +42,7 @@ export function useBoundaryPolicyContext({
         p_service_type: serviceType ?? null,
         p_lat: latitude,
         p_lng: longitude,
-        p_zone_id: zoneId ?? null,
+        p_zone_id: zoneId,
       })
 
       if (error) {

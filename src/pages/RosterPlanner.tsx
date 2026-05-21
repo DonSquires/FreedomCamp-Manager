@@ -1190,7 +1190,6 @@ export default function RosterPlanner() {
         .from('user_profiles')
         .select(`
           id, first_name, last_name, email, role, is_active,
-          deputy_employee_id, deputy_display_name,
           employer_organization_id,
           contractor_org:organizations!employer_organization_id(id, name, organization_type)
         `)
@@ -1268,20 +1267,7 @@ export default function RosterPlanner() {
     enabled: plannerQueriesEnabled,
   })
 
-  const { data: leaveRequests = [] } = useQuery<LeaveRequest[]>({
-    queryKey: ['leave_requests', user?.organization_id, dateFrom, dateTo],
-    queryFn: async () => {
-      const { data, error } = await ((supabase as any).from('leave_requests') as any)
-        .select('id, officer_id, leave_type_name, status, date_start, date_end, total_hours')
-        .eq('organization_id', user!.organization_id!)
-        .lte('date_start', dateTo)
-        .gte('date_end', dateFrom)
-        .order('date_start')
-      if (error) throw error
-      return (data || []) as LeaveRequest[]
-    },
-    enabled: plannerQueriesEnabled,
-  })
+  const leaveRequests: LeaveRequest[] = []
 
   // ─── Mutations ─────────────────────────────────────────────────────────────
 

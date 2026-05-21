@@ -16,5 +16,6 @@ export function useKeyAuditEnabled(organizationId: string | null) {
     },
     enabled: !!organizationId,
     staleTime: 60_000,
+    retry: false,
   })
 }

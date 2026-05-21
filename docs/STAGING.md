@@ -6,6 +6,52 @@ Status: **ALL GATES GREEN** — npm standardized; Vercel/mobile deployment updat
 
 ---
 
+## Critical Engineering Rule — Must Follow
+
+This application is an enterprise-grade field compliance management system. It supports health and safety operations, infringement handling, and court-documentation workflows.
+
+Mandatory rule for all staging work:
+
+1. Fix defects at the root cause.
+2. Do not use graceful fallback, masking, test-only bypasses, or other cheap repairs as substitutes for correct system behavior on contract-critical flows.
+3. Treat runtime correctness, auditability, and evidentiary integrity as release-gating requirements.
+4. If a defect is caused by missing schema, missing secrets, missing services, or invalid environment wiring, the staging outcome must record that as a real blocker to be corrected, not hidden.
+5. Live testing must be used to confirm a system that is already engineered correctly, not to discover issues that should have been eliminated in staging.
+
+This rule is critical and overrides convenience-oriented remediation for field safety, enforcement, legal, or evidence-producing paths.
+
+---
+
+## Historical Event Ingestion Checklist (No Assumptions)
+
+Date: 2026-05-21  
+Owner: GitHub Copilot  
+Scope: First Security branch historical imports that persist site events to observations/canonical entities.
+
+Checklist:
+
+- [x] Consult docs/INSTRUCTION_MANUAL.md before implementation changes.
+- [x] Ground branch/client tenancy rules from explicit mapped sources (no filename guess routing).
+- [x] Ensure historical event rows persist into observations with deterministic idempotency keys.
+- [x] Ensure zone and LOI linkage is attached where mapping exists; bootstrap missing zones only with valid schema fields.
+- [x] Ensure canonical vehicle records are upserted for imported event vehicles.
+- [x] Record optional-table absence (for example alarm_events not available) as deployment variance, not as invented fallback schema.
+- [x] Verify timestamp quality and remove malformed imported rows with scoped cleanup if detected.
+
+Validation:
+
+1. Observation count by import idempotency prefix matches expected dataset scale.
+2. Latest imported observations contain valid organization, zone, and timestamp values.
+3. Imported observation rows with mapped zones carry LOI linkage where zone LOI exists.
+4. No out-of-range future dates remain after ingestion cleanup.
+5. Re-running importer is replay-safe and does not duplicate rows.
+
+Reference:
+
+- docs/FIRST_SECURITY_HISTORICAL_EVENT_OBSERVATION_RUNBOOK.md
+
+---
+
 ## npm Standardization & Deployment Alignment (2026-05-20)
 
 Owner: GitHub Copilot  
