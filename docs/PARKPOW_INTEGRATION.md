@@ -85,9 +85,12 @@ bucket pipeline, use:
 POST /functions/v1/parkpow-photo-archive
 {
   "organization_id": "<org-uuid>",
-  "source": "sessions",
+  "source": "snapshot",
   "bucket": "evidence",
+  "base_url": "https://api.platerecognizer.com/v1",
   "since": "2025-11-01T00:00:00Z",
+  "since_param": "timestamp__gt",
+  "until_param": "timestamp__lte",
   "max_pages": 200,
   "page_size": 100,
   "apply": true,
@@ -103,6 +106,9 @@ What this does:
   `source_system='parkpow'` and `source_record_id=<parkpow record id>`.
 
 Use `apply: false` for a non-writing dry run first.
+
+If you receive `Invalid token` from Snapshot Cloud, generate a fresh API token in
+Plate Recognizer Snapshot Cloud and update `PARKPOW_API_TOKEN` secret before retrying.
 
 ---
 

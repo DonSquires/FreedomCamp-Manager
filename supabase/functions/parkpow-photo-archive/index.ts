@@ -3,10 +3,13 @@ import { getCorsHeaders } from '../_shared/withCors.ts';
 
 type ArchiveRequest = {
   organization_id: string;
-  source?: 'sessions' | 'visits' | 'vehicles';
+  source?: 'sessions' | 'visits' | 'vehicles' | 'snapshot';
   bucket?: string;
   since?: string;
   until?: string;
+  since_param?: string;
+  until_param?: string;
+  base_url?: string;
   max_pages?: number;
   page_size?: number;
   apply?: boolean;
@@ -30,7 +33,7 @@ type ArchiveSummary = {
 
 const DEFAULT_PARKPOW_BASE_URL = 'https://app.parkpow.com/api/v1';
 const DEFAULT_BUCKET = 'evidence';
-const DEFAULT_SOURCE = 'sessions';
+const DEFAULT_SOURCE = 'snapshot';
 const DEFAULT_PAGE_SIZE = 100;
 const DEFAULT_MAX_PAGES = 25;
 
@@ -110,6 +113,14 @@ function normalizePhotoUrl(rawUrl: string): string {
   const baseUrl = (Deno.env.get('PARKPOW_BASE_URL') || DEFAULT_PARKPOW_BASE_URL).replace(/\/$/, '');
   if (rawUrl.startsWith('http://') || rawUrl.startsWith('https://')) return rawUrl;
   return new URL(rawUrl, `${baseUrl}/`).toString();
+}
+
+function resolveSourcePath(source: string): string {
+  if (source === 'snapshot') return 'plate-reader/';
+  if (source === 'sessions') return 'sessions/';
+  if (source === 'visits') return 'visits/';
+  if (source === 'vehicles') return 'vehicles/';
+  return `${source.replace(/^\/+|\/+$/g, '')}/`;
 }
 
 async function sha256Hex(bytes: Uint8Array): Promise<string> {
@@ -201,11 +212,15 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const pageSize = Math.max(1, Math.min(200, body.page_size ?? DEFAULT_PAGE_SIZE));
     const maxPages = Math.max(1, Math.min(200, body.max_pages ?? DEFAULT_MAX_PAGES));
 
+    const sinceParam = body.since_param || (source === 'snapshot' ? 'timestamp__gt' : 'created__gt');
+    const untilParam = body.until_param || (source === 'snapshot' ? 'timestamp__lte' : 'created__lte');
+
     const params = new URLSearchParams({ limit: String(pageSize) });
-    if (body.since) params.set('created__gt', body.since);
-    if (body.until) params.set('created__lte', body.until);
-    const baseUrl = (Deno.env.get('PARKPOW_BASE_URL') || DEFAULT_PARKPOW_BASE_URL).replace(/\/$/, '');
-    let pageUrl = `${baseUrl}/${source}/?${params.toString()}`;
+    if (body.since) params.set(sinceParam, body.since);
+    if (body.until) params.set(untilParam, body.until);
+    const baseUrl = (body.base_url || Deno.env.get('PARKPOW_BASE_URL') || DEFAULT_PARKPOW_BASE_URL).replace(/\/$/, '');
+    const sourcePath = resolveSourcePath(source);
+    let pageUrl = `${baseUrl}/${sourcePath}?${params.toString()}`;
 
     const supabase = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false } });
 
