@@ -60,12 +60,8 @@ function sharedPassword(...names: string[]): string {
   return readEnv(...names) || 'Test123!'
 }
 
-const universalTestEmail =
-  readEnv('PLAYWRIGHT_OWNER_EMAIL', 'PLAYWRIGHT_OFFICER_EMAIL', 'PLAYWRIGHT_TEST_EMAIL') ||
-  'squires.don@gmail.com'
-const universalTestPassword =
-  readEnv('PLAYWRIGHT_OWNER_PASSWORD', 'PLAYWRIGHT_OFFICER_PASSWORD', 'PLAYWRIGHT_TEST_PASSWORD') ||
-  'Run2thesun??'
+const universalTestEmail = readEnv('PLAYWRIGHT_OWNER_EMAIL', 'PLAYWRIGHT_OFFICER_EMAIL', 'PLAYWRIGHT_TEST_EMAIL')
+const universalTestPassword = readEnv('PLAYWRIGHT_OWNER_PASSWORD', 'PLAYWRIGHT_OFFICER_PASSWORD', 'PLAYWRIGHT_TEST_PASSWORD')
 
 const defaultLiveEmail = readEnv(
   'PLAYWRIGHT_TEST_EMAIL',
@@ -87,16 +83,13 @@ const defaultLivePassword = sharedPassword(
 )
 
 const hasUniversalTestAccount = !!(universalTestEmail && universalTestPassword)
-const allowSharedFallback = readEnv('PLAYWRIGHT_ALLOW_SHARED_CREDENTIAL_FALLBACK') === '1' || hasUniversalTestAccount
-const skipRoleAssertions = readEnv('PLAYWRIGHT_SKIP_ROLE_ASSERTIONS') === '1' || hasUniversalTestAccount
-const roleAssertionMode = readEnv('PLAYWRIGHT_ROLE_ASSERTION_MODE') || 'strict'
 const adminSupabaseUrl = readEnv('VITE_SUPABASE_URL')
 const serviceRoleKey = readEnv('PLAYWRIGHT_SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_SERVICE_ROLE_KEY')
-const hasRuntimeWebSocket = typeof WebSocket !== 'undefined'
-const canInitServiceRoleSupabase = !!(adminSupabaseUrl && serviceRoleKey && hasRuntimeWebSocket)
-if (adminSupabaseUrl && serviceRoleKey && !hasRuntimeWebSocket) {
-  console.warn('[e2e/auth] Skipping service-role Supabase client init: WebSocket unavailable in runtime.')
-}
+const canBootstrapSharedFallbackAccounts = !!(adminSupabaseUrl && serviceRoleKey)
+const allowSharedFallback = readEnv('PLAYWRIGHT_ALLOW_SHARED_CREDENTIAL_FALLBACK') === '1' || hasUniversalTestAccount || canBootstrapSharedFallbackAccounts
+const skipRoleAssertions = readEnv('PLAYWRIGHT_SKIP_ROLE_ASSERTIONS') === '1' || hasUniversalTestAccount
+const roleAssertionMode = readEnv('PLAYWRIGHT_ROLE_ASSERTION_MODE') || 'strict'
+const canInitServiceRoleSupabase = !!(adminSupabaseUrl && serviceRoleKey)
 const serviceRoleSupabase = canInitServiceRoleSupabase
   ? createClient(adminSupabaseUrl, serviceRoleKey, {
       auth: {
@@ -371,7 +364,6 @@ export function getTestUser(user: TestUserKey): TestCredentials {
 
 export function isCredentialConfigured(user: TestUserKey): boolean {
   if (hasUniversalTestAccount) return true
-  if (allowSharedFallback) return true
   const config = roleCredentialConfig[user]
   const roleEmail = readEnv(...config.emailVars)
   const rolePassword = readEnv(...config.passwordVars)
@@ -380,6 +372,82 @@ export function isCredentialConfigured(user: TestUserKey): boolean {
 
 function normalize(value: string | null | undefined): string {
   return (value || '').trim().toLowerCase()
+}
+
+async function resolveOrganizationIdByName(expectedOrgName?: string): Promise<string | null> {
+  if (!serviceRoleSupabase || !expectedOrgName) return null
+
+  const candidateNames = expectedOrgName
+    .split('|')
+    .map((value) => value.trim())
+    .filter(Boolean)
+
+  for (const candidateName of candidateNames) {
+    const { data, error } = await serviceRoleSupabase
+      .from('organizations')
+      .select('id')
+      .ilike('name', candidateName)
+      .limit(1)
+
+    if (error) continue
+
+    const organizationId = data?.[0]?.id
+    if (organizationId) return organizationId
+  }
+
+  return null
+}
+
+async function ensureBootstrapTestAccount(user: TestUserKey, credentials: TestCredentials): Promise<void> {
+  if (!serviceRoleSupabase || isCredentialConfigured(user)) return
+
+  const desiredRole = desiredRoleByTestUser[user]
+  const expectedProfile = expectedProfileConfig[user]
+  const organizationId = await resolveOrganizationIdByName(expectedProfile.expectedOrgName)
+  const adminAuth = (serviceRoleSupabase.auth as any)?.admin
+
+  if (!adminAuth) return
+
+  const { data: createdUser, error: createError } = await adminAuth.createUser({
+    email: credentials.email,
+    password: credentials.password,
+    email_confirm: true,
+    user_metadata: { role: desiredRole },
+  })
+
+  let userId = createdUser?.user?.id ?? null
+
+  if (!userId && createError) {
+    const { data: usersData } = await adminAuth.listUsers({ page: 1, perPage: 200 }).catch(() => ({ data: null }))
+    const existingUser = usersData?.users?.find((entry: any) => normalize(entry.email) === normalize(credentials.email))
+    if (existingUser?.id) {
+      userId = existingUser.id
+
+      await adminAuth.updateUserById(existingUser.id, {
+        password: credentials.password,
+        email_confirm: true,
+        user_metadata: { role: desiredRole },
+      }).catch(() => undefined)
+    }
+  }
+
+  if (!userId) return
+
+  await serviceRoleSupabase
+    .from('user_profiles')
+    .upsert(
+      {
+        id: userId,
+        email: credentials.email,
+        role: desiredRole,
+        organization_id: organizationId,
+        employer_organization_id: organizationId,
+        first_name: user,
+        last_name: 'Test',
+        job_title: 'Playwright Test User',
+      },
+      { onConflict: 'id' },
+    )
 }
 
 function mapResolvedProfile(profile: {
@@ -690,6 +758,8 @@ async function bootstrapBrowserSessionFromPasswordGrant(
     user: grant.user ?? null,
   }
 
+  await page.goto('/login', { waitUntil: 'domcontentloaded' })
+
   await page.evaluate(({ key, value }) => {
     const encoded = JSON.stringify(value)
     window.localStorage.setItem(key, encoded)
@@ -866,50 +936,30 @@ async function resolvePortalSelectionIfNeeded(page: Page, user: TestUserKey): Pr
 
 export async function loginAs(page: Page, user: TestUserKey): Promise<void> {
   const credentials = getTestUser(user)
+  await ensureBootstrapTestAccount(user, credentials)
 
   let lastErrorText: string | null = null
   let apiFallbackError: string | null = null
   for (let attempt = 0; attempt < 2; attempt += 1) {
-    await gotoLogin(page)
+    const apiFallback = await bootstrapBrowserSessionFromPasswordGrant(page, credentials).catch((error: unknown) => ({
+      ok: false,
+      reason: error instanceof Error ? error.message : String(error),
+    }))
 
-    const emailInput = page.getByLabel(/^email$/i)
-    const passwordInput = page.getByLabel(/^password$/i)
-    const submitButton = page.locator('button[type="submit"], button:has-text("Sign In")').first()
+    const loginSucceeded = apiFallback.ok
+      ? await page
+        .waitForURL((url) => !url.pathname.startsWith('/login'), { timeout: 20000 })
+        .then(() => true)
+        .catch(() => false)
+      : false
 
-    await emailInput.waitFor({ state: 'visible', timeout: 30000 })
-    await passwordInput.waitFor({ state: 'visible', timeout: 30000 })
-
-    await emailInput.fill(credentials.email)
-    await passwordInput.fill(credentials.password)
-    await submitButton.click()
-
-    let loginSucceeded = await page
-      .waitForURL((url) => !url.pathname.startsWith('/login'), { timeout: 20000 })
-      .then(() => true)
-      .catch(async () => {
-        lastErrorText = await page.locator('text=/invalid|error|failed/i').first().textContent().catch(() => null)
-        return false
-      })
-
-    // Mobile Safari occasionally fails to transition after submit despite valid credentials.
-    // Fallback to explicit password grant + storage bootstrap to preserve test intent.
-    if (!loginSucceeded && attempt === 0) {
-      const apiFallback = await bootstrapBrowserSessionFromPasswordGrant(page, credentials).catch((error: unknown) => ({
-        ok: false,
-        reason: error instanceof Error ? error.message : String(error),
-      }))
-
-      if (apiFallback.ok) {
-        loginSucceeded = await page
-          .waitForURL((url) => !url.pathname.startsWith('/login'), { timeout: 20000 })
-          .then(() => true)
-          .catch(() => false)
-      } else {
-        apiFallbackError = apiFallback.reason || 'unknown API fallback error'
-      }
+    if (!apiFallback.ok) {
+      apiFallbackError = apiFallback.reason || 'unknown API fallback error'
     }
 
     if (loginSucceeded) break
+
+    lastErrorText = await page.locator('text=/invalid|error|failed/i').first().textContent().catch(() => null)
 
     // Retry once for transient auth/network races observed on remote browsers.
     if (attempt === 0) {

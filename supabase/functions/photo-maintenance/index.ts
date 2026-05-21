@@ -10,6 +10,9 @@ interface PhotoMaintenanceRequest {
   date_from?: string
   date_to?: string
   before_recorded_at?: string
+  inferred_loi_id?: string
+  priority_band?: 'P0' | 'P1' | 'P2' | 'P3'
+  use_evidence_index?: boolean
   batch_size?: number
   limit?: number
   dryRun?: boolean
@@ -216,8 +219,57 @@ Deno.serve(async (req: Request) => {
     const targetOrgId = body.organizationId ?? body.organization_id ?? profile.organization_id
     const limit = Math.max(1, Math.min(body.batch_size ?? body.limit ?? 200, 2000))
     const dryRun = body.dryRun ?? body.dry_run ?? true
+    const useEvidenceIndex = body.use_evidence_index ?? Boolean(body.inferred_loi_id || body.priority_band)
 
     if (resolvedMode === 'reingest') {
+      let evidenceObservationIds: string[] | null = null
+
+      if (useEvidenceIndex) {
+        let evidenceQuery = adminClient
+          .from('evidence_index')
+          .select('linked_observation_id')
+          .not('linked_observation_id', 'is', null)
+          .order('exif_capture_timestamp', { ascending: false })
+          .limit(Math.min(10000, Math.max(limit * 10, 1000)))
+
+        if (targetOrgId && profile.role !== 'grand_master') {
+          evidenceQuery = evidenceQuery.eq('organization_id', targetOrgId)
+        } else if (targetOrgId) {
+          evidenceQuery = evidenceQuery.eq('organization_id', targetOrgId)
+        }
+
+        if (body.inferred_loi_id) {
+          evidenceQuery = evidenceQuery.eq('inferred_loi_id', body.inferred_loi_id)
+        }
+
+        if (body.priority_band) {
+          evidenceQuery = evidenceQuery.eq('priority_band', body.priority_band)
+        }
+
+        const { data: evidenceRows, error: evidenceError } = await evidenceQuery
+        if (evidenceError) {
+          throw new Error(evidenceError.message)
+        }
+
+        evidenceObservationIds = [...new Set((evidenceRows ?? []).map((row: any) => row.linked_observation_id).filter(Boolean))]
+
+        if (evidenceObservationIds.length <= 0) {
+          return new Response(
+            JSON.stringify({
+              ok: true,
+              mode: resolvedMode,
+              organization_id: targetOrgId,
+              scanned_rows: 0,
+              processed: 0,
+              next_before_recorded_at: null,
+              observations: [],
+              note: 'No evidence_index rows matched the provided filters',
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+          )
+        }
+      }
+
       let reingestQuery = adminClient
         .from('observations')
         .select('observation_id, photo_url, photo_hash, recorded_at, zone_id, loi_id, organization_id, gps_latitude, gps_longitude, gps_accuracy, plate_number, officer_notes')
@@ -234,6 +286,14 @@ Deno.serve(async (req: Request) => {
       }
       if (body.date_to) {
         reingestQuery = reingestQuery.lte('recorded_at', body.date_to)
+      }
+
+      if (evidenceObservationIds && evidenceObservationIds.length > 0) {
+        reingestQuery = reingestQuery.in('observation_id', evidenceObservationIds)
+      }
+
+      if (body.inferred_loi_id && !useEvidenceIndex) {
+        reingestQuery = reingestQuery.eq('loi_id', body.inferred_loi_id)
       }
 
       if (targetOrgId && profile.role !== 'grand_master') {

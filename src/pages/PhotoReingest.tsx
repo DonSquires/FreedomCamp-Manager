@@ -30,6 +30,7 @@ interface ReingestResult {
   status: 'completed' | 'failed'
   error_message?: string
 }
+type PriorityBand = 'P0' | 'P1' | 'P2' | 'P3'
 
 interface ReingestBatchResponse {
   processed?: number
@@ -70,7 +71,7 @@ export default function PhotoReingest() {
   const [dateTo, setDateTo] = useState<string>('')
   const [selectedLoiId, setSelectedLoiId] = useState<string>('')  // LOI (freedom_camp, patrol_zone, etc.)
   const [selectedLoiKind, setSelectedLoiKind] = useState<string>('freedom_camp')  // Filter LOI type
-  const [selectedPriorityBand, setSelectedPriorityBand] = useState<string>('P0')  // Evidence priority
+  const [selectedPriorityBand, setSelectedPriorityBand] = useState<PriorityBand | ''>('P0')  // Evidence priority
   const [useEvidenceIndex, setUseEvidenceIndex] = useState<boolean>(true)  // Link from evidence_index table
   const [result, setResult] = useState<ReingestResult | null>(null)
   const [progress, setProgress] = useState(0)
@@ -505,7 +506,7 @@ export default function PhotoReingest() {
               <select
                 id="priority-band"
                 value={selectedPriorityBand}
-                onChange={(e) => setSelectedPriorityBand(e.target.value)}
+                onChange={(e) => setSelectedPriorityBand(e.target.value as PriorityBand | '')}
                 disabled={isRunning}
                 className="w-full mt-2 px-3 py-2 border rounded-md"
               >
