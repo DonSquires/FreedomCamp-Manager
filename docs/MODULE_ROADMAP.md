@@ -135,13 +135,13 @@ Source of truth for routes: route manifest file src/navigation/routeManifest.ts 
    - Primary: /platform
    - Role gate: grand_master
    - Related: /admin, /admin/dashboard, /reports, /custom-reports, /audit-log
-   - Related route gates: /admin, /admin/dashboard, /reports, /custom-reports, /audit-log = admin, admin_officer, master
+   - Related route gates: /admin, /admin/dashboard, /custom-reports, /audit-log = admin, admin_officer, master; /reports = client_viewer, client_officer, client_admin, admin, admin_officer, master
 
 2. Client-facing visibility
    - Primary: /client-portal
    - Role gate: client_viewer, client_officer, client_admin, admin, admin_officer, master, grand_master
    - Related: /organization-profile, /reports-hub, /disputes
-   - Related route gates: /organization-profile and /disputes = admin, admin_officer, master; /reports-hub redirects to /reports (admin, admin_officer, master)
+   - Related route gates: /organization-profile = admin, admin_officer, master; /disputes = client_admin, admin, admin_officer, master; /reports-hub redirects to /reports (client_viewer, client_officer, client_admin, admin, admin_officer, master)
 
 ## Maintenance Rule
 
