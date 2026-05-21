@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { parse } from 'csv-parse/sync'
+import * as XLSX from 'xlsx'
 
 // Ensure you set these environment variables before running!
 const supabaseUrl = process.env.SUPABASE_URL!
@@ -23,31 +24,68 @@ function parseFloatSafe(val?: string) {
   return isNaN(parsed) ? null : parsed
 }
 
+function normalizeHeader(header: string) {
+  return String(header || '')
+    .trim()
+    .replace(/\uFEFF/g, '')
+    .replace(/[^a-zA-Z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .toLowerCase()
+}
+
+function normalizeRow(row: Record<string, unknown>) {
+  const out: Record<string, string> = {}
+  for (const [key, value] of Object.entries(row || {})) {
+    out[normalizeHeader(key)] = String(value ?? '').trim()
+  }
+  return out
+}
+
+async function downloadZonesFile() {
+  const candidates = ['zones_rows.xlsx', 'zones_rows.csv']
+  for (const path of candidates) {
+    const { data, error } = await supabase.storage
+      .from('imports_canonical_vehicles')
+      .download(path)
+    if (!error && data) {
+      return { fileData: data, filePath: path }
+    }
+  }
+  return { fileData: null, filePath: candidates[0] }
+}
+
 async function runImport() {
   console.log('📥 Fetching file from storage bucket "imports_canonical_vehicles"...')
-  
-  const { data: fileData, error: downloadError } = await supabase.storage
-    .from('imports_canonical_vehicles')
-    .download('zones_rows.csv')
-    
-  if (downloadError) {
-    console.error('❌ Failed to download file:', downloadError.message)
+
+  const { fileData, filePath } = await downloadZonesFile()
+
+  if (!fileData) {
+    console.error('❌ Failed to download file: zones_rows.xlsx or zones_rows.csv not found')
     return
   }
 
-  const csvText = await fileData.text()
-  
-  // Auto-detect if it's tab-separated (TSV) or comma-separated (CSV)
-  const firstLine = csvText.split('\n')[0]
-  const delimiter = firstLine.includes('\t') ? '\t' : ','
-  console.log(`🔍 Detected delimiter: ${delimiter === '\t' ? 'Tab' : 'Comma'}`)
-
-  const records = parse(csvText, {
-    columns: true,
-    skip_empty_lines: true,
-    delimiter: delimiter,
-    relax_quotes: true
-  })
+  let records: Record<string, string>[] = []
+  if (filePath.endsWith('.xlsx')) {
+    const workbook = XLSX.read(Buffer.from(await fileData.arrayBuffer()), { type: 'buffer', raw: false })
+    const firstSheet = workbook.SheetNames[0]
+    if (!firstSheet) {
+      console.error('❌ No worksheets found in zones_rows.xlsx')
+      return
+    }
+    records = XLSX.utils.sheet_to_json(workbook.Sheets[firstSheet], { defval: '' }).map((r: any) => normalizeRow(r))
+    console.log('🔍 Parsed XLSX source')
+  } else {
+    const csvText = await fileData.text()
+    const firstLine = csvText.split('\n')[0]
+    const delimiter = firstLine.includes('\t') ? '\t' : ','
+    console.log(`🔍 Detected delimiter: ${delimiter === '\t' ? 'Tab' : 'Comma'}`)
+    records = parse(csvText, {
+      columns: true,
+      skip_empty_lines: true,
+      delimiter,
+      relax_quotes: true,
+    }).map((r: any) => normalizeRow(r))
+  }
 
   console.log(`📊 Found ${records.length} records. Mapping to zones schema...`)
 

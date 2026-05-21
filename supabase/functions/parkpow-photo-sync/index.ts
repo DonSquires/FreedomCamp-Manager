@@ -70,7 +70,7 @@ const MAX_WINDOW_SECONDS = 365 * 24 * 3600; // 1 year in seconds
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function json(status: number, body: unknown): Response {
+function json(req: Request, status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), {
     status,
     headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' },
@@ -237,7 +237,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     return new Response('ok', { headers: getCorsHeaders(req) });
   }
   if (req.method !== 'POST') {
-    return json(405, { error: 'Method not allowed' });
+    return json(req, 405, { error: 'Method not allowed' });
   }
 
   try {
@@ -247,11 +247,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const parkpowToken = Deno.env.get('PARKPOW_API_TOKEN') ?? '';
 
     if (!supabaseUrl || !serviceRoleKey || !anonKey) {
-      return json(500, { error: 'Supabase env vars missing' });
+      return json(req, 500, { error: 'Supabase env vars missing' });
     }
 
     if (!parkpowToken) {
-      return json(503, { error: 'PARKPOW_API_TOKEN not configured in Supabase secrets' });
+      return json(req, 503, { error: 'PARKPOW_API_TOKEN not configured in Supabase secrets' });
     }
 
     // ── Auth ──────────────────────────────────────────────────────────────
@@ -267,7 +267,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
       const { data: authData, error: authError } = await supabaseUser.auth.getUser(token);
       if (authError || !authData?.user) {
-        return json(401, { error: 'Unauthorized' });
+        return json(req, 401, { error: 'Unauthorized' });
       }
 
       const { data: loadedProfile, error: profileError } = await supabaseAdmin
@@ -277,11 +277,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
         .single();
 
       if (profileError || !loadedProfile) {
-        return json(403, { error: 'User profile not found' });
+        return json(req, 403, { error: 'User profile not found' });
       }
 
       if (!['admin', 'master', 'admin_officer'].includes(loadedProfile.role)) {
-        return json(403, { error: 'Only admin/master/admin_officer users can run photo sync' });
+        return json(req, 403, { error: 'Only admin/master/admin_officer users can run photo sync' });
       }
 
       profile = loadedProfile;
@@ -329,7 +329,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
     const { data: observations, error: obsError } = await obsQuery;
     if (obsError) {
-      return json(500, { error: `Failed to load observations: ${obsError.message}` });
+      return json(req, 500, { error: `Failed to load observations: ${obsError.message}` });
     }
 
     const rows = (observations ?? []) as ObsRow[];
@@ -345,7 +345,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     });
 
     if (candidates.length === 0) {
-      return json(200, {
+      return json(req, 200, {
         success: true,
         message: 'No candidate observations found for photo sync',
         schema,
@@ -530,7 +530,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       results.push(result);
     }
 
-    return json(200, {
+    return json(req, 200, {
       success: true,
       schema,
       scanned: rows.length,
@@ -546,6 +546,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
     });
   } catch (err: any) {
     console.error('❌ parkpow-photo-sync error:', err);
-    return json(500, { success: false, error: err?.message || 'Internal error' });
+    return json(req, 500, { success: false, error: err?.message || 'Internal error' });
   }
 });

@@ -51,6 +51,31 @@ POST /functions/v1/parkpow-sync
 { "action": "push-violations" }
 ```
 
+Historical observations that already exist without photos can be backfilled from
+ParkPow session images via:
+```bash
+POST /functions/v1/parkpow-photo-sync
+{
+  "date_from": "2025-01-01",
+  "date_to": "2026-12-31",
+  "window_minutes": 180,
+  "limit": 200,
+  "apply": false,
+  "require_empty_photo": true
+}
+```
+
+- Run with `apply: false` first to confirm candidate matches.
+- Then rerun with `apply: true` to store the matched image in Supabase Storage and
+  update `observations.photo_url`.
+- The function uses the Supabase-hosted `PARKPOW_API_TOKEN`, so local shell access
+  to that token is not required once the function is deployed.
+
+If `parkpow-photo-sync` returns a plain HTTP 500, deploy the latest function code
+before retrying. This repo already includes a single-function deploy workflow in
+[.github/workflows/deploy-edge-functions.yml](../.github/workflows/deploy-edge-functions.yml)
+using `function_name=parkpow-photo-sync`.
+
 ---
 
 ## Secrets Already Configured ✅
