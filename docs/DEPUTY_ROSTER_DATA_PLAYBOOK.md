@@ -12,6 +12,9 @@ Use this playbook when files are Deputy-origin or Deputy-like roster exports (CS
 - Do not auto-assign org ownership when source naming is ambiguous.
 - Stage first, review in queue, and only then action.
 - Placeholders (for example `.emptyFolderPlaceholder`) are not operational evidence.
+- Current import flow is LOI-first: canonical LOI rows are created or reused before client sites and roster shifts.
+- Use the service-role Supabase client for admin-side import runs so org and LOI reads are not blocked by RLS.
+- If the live LOI schema does not yet include optional enrichment columns, continue the import with the base canonical LOI fields rather than failing the run.
 
 ## Current Known Sources (May 2026)
 
@@ -75,3 +78,4 @@ Stop and ask before actioning when any of the following are true:
 ## Expected Outcome
 
 After successful execution, Deputy files are visible in intake queue as staged records with clear ownership and are ready for controlled enrichment, not blind auto-action.
+For direct roster imports, the expected order is: LOI anchor, client site link, zone link where available, then roster shift rows.

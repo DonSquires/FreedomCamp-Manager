@@ -53,6 +53,8 @@ or place.
   Use `canonical_loi_id` to point duplicates to the preferred record.
 - Jobs should populate `loi_id` even when no `client_site_id` exists (e.g.
   noise/community jobs against a street address not in the client database).
+- Deputy and roster imports should anchor on LOI first, then link `client_sites`
+  and `zones` back to that canonical LOI before writing roster rows.
 
 ---
 
