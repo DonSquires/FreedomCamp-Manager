@@ -7,7 +7,7 @@
 > **Canonical product authority** — this manual defines what the application is intended to do and how users are meant to use it. It is not a passive dump of current implementation details.  
 > If code, routes, role behavior, workflows, edge functions, schema-backed user flows, or operational UX change, the corresponding sections in this manual must be updated in the same change set.  
 > If the app currently behaves differently from this manual, that drift is a defect to resolve or an explicit product decision to document here first.  
-> Last reviewed: 2026-05-19
+> Last reviewed: 2026-05-20
 
 ### Current Cycle Amendment (2026-05-17)
 
@@ -2021,26 +2021,6 @@ Sidebar → **Data** group.
 10. Click **Commit** to write approved records to the live tables.
 
 **After importing:** Navigate to `/cleanup-recalculate` and run a compliance recalculation for the imported date range to ensure breach records are correctly generated from the imported observations.
-
-###### Historical Event Ingestion (Canonical Rule)
-
-For historical operational datasets (for example patrol/dispatch/alarm exports), the canonical persistence model is event-to-observation:
-
-1. Every valid historical event row is written as an observation record so downstream compliance, evidence, and reporting flows remain consistent.
-2. Observation records must be tenant-scoped to the target client organisation and linked to zone and LOI where mapping exists.
-3. Vehicle identity must resolve through canonical vehicle records (upsert before or during observation persistence).
-4. Imports must be deterministic and replay-safe using stable idempotency keys; re-running the same source must not duplicate observation rows.
-5. If optional specialist tables are unavailable in a deployment, the observation path remains mandatory and is not replaced with undocumented fallback schema.
-
-Manual-first execution requirements:
-
-1. Do not assume source schema shape. Validate headers and date formats before apply.
-2. Do not assume zone/site linkage is already present. Validate or bootstrap explicitly.
-3. Do not assume cross-tenant routing from filename fragments. Use explicit branch/client mapping rules.
-
-Operational reference:
-
-- Follow the branch importer process in [First Security Historical Event Observation Runbook](./FIRST_SECURITY_HISTORICAL_EVENT_OBSERVATION_RUNBOOK.md).
 
 ---
 
