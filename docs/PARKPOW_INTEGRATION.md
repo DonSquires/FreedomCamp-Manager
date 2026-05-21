@@ -110,6 +110,25 @@ Use `apply: false` for a non-writing dry run first.
 If you receive `Invalid token` from Snapshot Cloud, generate a fresh API token in
 Plate Recognizer Snapshot Cloud and update `PARKPOW_API_TOKEN` secret before retrying.
 
+## Snapshot Cloud Push Webhook (Recommended)
+
+Instead of polling APIs, push every recognition event directly into Supabase:
+
+Target URL:
+- `https://<project-ref>.supabase.co/functions/v1/plate-recognizer-webhook`
+
+Suggested headers in Snapshot Cloud webhook settings:
+- `x-org-id: <organization-uuid>`
+- `x-webhook-secret: <shared-secret>` (if `PLATE_RECOGNIZER_WEBHOOK_SECRET` is set)
+
+Behavior:
+- Stores incoming image in `evidence` bucket under `snapshot-webhook/YYYY-MM/...`.
+- Preserves full payload metadata:
+  - Preferred: `evidence_index` row (`source_system=plate_recognizer_webhook`).
+  - Fallback (if `evidence_index` not available): sidecar metadata JSON file in storage.
+
+This path avoids API list endpoint drift and keeps metadata attached to each image.
+
 ---
 
 ## Secrets Already Configured ✅
