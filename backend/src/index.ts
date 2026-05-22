@@ -2,6 +2,7 @@ import 'dotenv/config';
 import express, { Request, Response } from 'express';
 import axios from 'axios';
 import { createClient } from '@supabase/supabase-js';
+import ws from 'ws';
 import { once } from 'node:events';
 import { spawn } from 'node:child_process';
 import { applyAgentPatch } from './agentTools.js';
@@ -150,7 +151,12 @@ app.get('/health', (_req: Request, res: Response) => {
 // ── Supabase (service role — backend only, never expose to client) ──────────
 const supabase = createClient(
   SUPABASE_URL,
-  SUPABASE_SERVICE_ROLE_KEY
+  SUPABASE_SERVICE_ROLE_KEY,
+  {
+    realtime: {
+      transport: ws,
+    },
+  }
 );
 
 // ── Ollama helpers ───────────────────────────────────────────────────────────
