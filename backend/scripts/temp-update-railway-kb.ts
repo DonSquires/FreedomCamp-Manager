@@ -7,6 +7,15 @@ type JsonValue = string | number | boolean | null | JsonObject | JsonArray
 type JsonObject = { [key: string]: JsonValue }
 type JsonArray = JsonValue[]
 
+const roleDefaults = {
+  ui_ux_agent:
+    'Visual and Interaction Architect. Specializes in Tailwind CSS, React components, and user experience flow. Evaluate frontend patches for accessibility, responsiveness, and visual cleanliness.',
+  writer_agent:
+    'Technical Documentation Specialist. Monitor repository modifications and update matching Tier B documentation files (STAGING.md, INSTRUCTION_MANUAL.md) with precise implementation deltas.',
+  research_agent:
+    'Deep Web Search and Retrieval Core. Research live external API changes, breaking library updates, and developer forum guidance when local context is insufficient.',
+} as const
+
 function requireEnv(name: string): string {
   const value = process.env[name]
   if (!value) {
@@ -70,7 +79,7 @@ async function main(): Promise<void> {
 
   const { data: existingRow, error: fetchError } = await supabase
     .from('system_knowledge_base')
-    .select('service_name, schema_payload, system_rules')
+    .select('service_name, schema_payload, system_rules, agent_roles')
     .eq('service_name', 'railway-backend')
     .maybeSingle()
 
@@ -81,10 +90,20 @@ async function main(): Promise<void> {
   const currentRules = coerceRules((existingRow?.system_rules as JsonValue | undefined) ?? undefined)
 
   const mergedRules = Array.from(new Set([...currentRules, ...strictProtocols]))
+  const existingRoles =
+    existingRow?.agent_roles && typeof existingRow.agent_roles === 'object' && !Array.isArray(existingRow.agent_roles)
+      ? (existingRow.agent_roles as Record<string, unknown>)
+      : {}
+
+  const mergedRoles: Record<string, unknown> = {
+    ...existingRoles,
+    ...roleDefaults,
+  }
 
   const payload: Record<string, unknown> = {
     service_name: 'railway-backend',
     system_rules: mergedRules,
+    agent_roles: mergedRoles,
     updated_at: new Date().toISOString(),
   }
 
@@ -102,8 +121,12 @@ async function main(): Promise<void> {
 
   console.log('Updated system_knowledge_base.service_name=railway-backend')
   console.log(`system_rules count: ${mergedRules.length}`)
+  console.log(`agent_roles count: ${Object.keys(mergedRoles).length}`)
   for (const rule of strictProtocols) {
     console.log(`- ensured: ${rule}`)
+  }
+  for (const [roleName] of Object.entries(roleDefaults)) {
+    console.log(`- ensured role: ${roleName}`)
   }
 }
 

@@ -7,6 +7,7 @@ import { once } from 'node:events';
 import { spawn } from 'node:child_process';
 import { applyAgentPatch } from './agentTools.js';
 import { runInSandboxEmulator } from './validator.js';
+import { executeWebSearch, fetchWebpageContent } from './researchTool.js';
 
 type DocumentationLibraryRow = {
   file_path: string;
@@ -31,6 +32,27 @@ type RoutedBobResponse = {
   conversationalReply?: string;
   targetVariable?: string;
   patchValue?: string;
+};
+
+type TierAContext = {
+  schemaPayload: string;
+  systemRules: string;
+  agentRoles: Record<string, string>;
+};
+
+const DEFAULT_AGENT_ROLES: Record<string, string> = {
+  dr_bob:
+    'Chief Medical Officer of Code. Diagnose root cause, identify risk, and constrain remediation to verified repo and schema facts.',
+  bob:
+    'Realignment Architect. Convert diagnosis into safe, minimal, parseable operational fixes aligned to platform constraints.',
+  emulator:
+    'Guardrail Sandbox. Validate safety and reject insecure or non-deterministic changes before approval.',
+  ui_ux_agent:
+    'Visual and Interaction Architect. Specialize in React, Tailwind, accessibility, responsiveness, and visual coherence.',
+  writer_agent:
+    'Technical Documentation Specialist. Generate concise, accurate updates for STAGING.md and INSTRUCTION_MANUAL.md grounded in live code changes.',
+  research_agent:
+    'Deep Web Search and Retrieval Core. Gather external release notes and docs updates, then synthesize actionable guidance for this stack.',
 };
 
 type GiteaFileChange = {
@@ -135,7 +157,7 @@ app.use((req, res, next) => {
 app.use(express.json());
 
 function triggerTrainingSync(source: string): void {
-  const child = spawn('npx', ['ts-node', '--esm', 'scripts/sync-training.ts'], {
+  const child = spawn('node', ['--loader', 'ts-node/esm', 'scripts/sync-training.ts'], {
     cwd: process.cwd(),
     detached: true,
     stdio: 'ignore',
@@ -879,12 +901,51 @@ async function getConsultativeReferenceRunbook(errorMessage: string, agent: stri
     .join('\n\n');
 }
 
-async function getTierAKnowledgeContext(): Promise<{ schemaPayload: string; systemRules: string }> {
+function normalizeAgentRoles(input: unknown): Record<string, string> {
+  if (!input) {
+    return { ...DEFAULT_AGENT_ROLES };
+  }
+
+  if (typeof input === 'string') {
+    try {
+      const parsed = JSON.parse(input) as unknown;
+      return normalizeAgentRoles(parsed);
+    } catch {
+      return { ...DEFAULT_AGENT_ROLES };
+    }
+  }
+
+  if (typeof input === 'object' && !Array.isArray(input)) {
+    const record = input as Record<string, unknown>;
+    const merged = { ...DEFAULT_AGENT_ROLES };
+
+    for (const [key, value] of Object.entries(record)) {
+      if (typeof value === 'string' && value.trim()) {
+        merged[key] = value.trim();
+      }
+    }
+
+    return merged;
+  }
+
+  return { ...DEFAULT_AGENT_ROLES };
+}
+
+function extractFirstUrl(rawText: string): string | null {
+  const match = rawText.match(/https?:\/\/[^\s)]+/i);
+  if (!match) {
+    return null;
+  }
+
+  return match[0];
+}
+
+async function getTierAKnowledgeContext(): Promise<TierAContext> {
   const { data, error } = await withTimeout(
     Promise.resolve(
       supabase
         .from('system_knowledge_base')
-        .select('schema_payload, system_rules')
+        .select('schema_payload, system_rules, agent_roles')
         .eq('service_name', 'railway-backend')
         .maybeSingle(),
     ),
@@ -893,9 +954,16 @@ async function getTierAKnowledgeContext(): Promise<{ schemaPayload: string; syst
   ).catch((timeout) => {
     console.warn('[/api/heal] system_knowledge_base timed out/failed', timeout);
     return {
-      data: { schema_payload: 'Unavailable', system_rules: 'Unavailable' },
+      data: {
+        schema_payload: 'Unavailable',
+        system_rules: 'Unavailable',
+        agent_roles: DEFAULT_AGENT_ROLES,
+      },
       error: null,
-    } as { data: { schema_payload: string; system_rules: string }; error: unknown };
+    } as {
+      data: { schema_payload: string; system_rules: string; agent_roles: Record<string, string> };
+      error: unknown;
+    };
   });
 
   if (error) {
@@ -903,6 +971,7 @@ async function getTierAKnowledgeContext(): Promise<{ schemaPayload: string; syst
     return {
       schemaPayload: 'Unavailable',
       systemRules: 'Unavailable',
+      agentRoles: { ...DEFAULT_AGENT_ROLES },
     };
   }
 
@@ -918,6 +987,7 @@ async function getTierAKnowledgeContext(): Promise<{ schemaPayload: string; syst
   return {
     schemaPayload: truncateRunbookContent(schemaPayload, 12000),
     systemRules: truncateRunbookContent(systemRules, 3000),
+    agentRoles: normalizeAgentRoles(data?.agent_roles),
   };
 }
 
@@ -952,6 +1022,7 @@ app.post('/api/heal', async (req: Request, res: Response) => {
 
   if (errorMessage === 'MANUAL_USER_INSTRUCTION') {
     const inboundText = (stackTrace ?? userPrompt ?? '').trim();
+    const inboundTextLower = inboundText.toLowerCase();
     const requestMessageHistory: HealChatMessage[] = Array.isArray((req.body as { messages?: HealChatMessage[] }).messages)
       ? ((req.body as { messages?: HealChatMessage[] }).messages ?? [])
           .filter((message) => message && typeof message.content === 'string')
@@ -984,10 +1055,126 @@ app.post('/api/heal', async (req: Request, res: Response) => {
       return;
     }
 
+    const kb = await getTierAKnowledgeContext();
+
+    const isResearchIntent = /(\bsearch\b|\blookup\b|\bresearch\b|\bbreaking\s+changes\b|\brelease\s+notes\b)/i.test(inboundTextLower);
+    if (isResearchIntent) {
+      const query = inboundText.replace(/\b(search|lookup|research)\b/gi, '').trim() || inboundText;
+      const requestedUrl = extractFirstUrl(inboundText);
+
+      try {
+        const [searchSnippets, pageContent] = await Promise.all([
+          executeWebSearch(query),
+          requestedUrl ? fetchWebpageContent(requestedUrl) : Promise.resolve(''),
+        ]);
+
+        const researchPrompt = [
+          `Role: ${kb.agentRoles.research_agent}`,
+          `User request: ${query}`,
+          `Tier A system rules: ${kb.systemRules}`,
+          `Search snippets:\n${searchSnippets || 'No search snippets returned.'}`,
+          requestedUrl
+            ? `Fetched URL: ${requestedUrl}\n${truncateRunbookContent(pageContent || 'No page content returned.', 5000)}`
+            : 'No URL fetch requested.',
+          'Synthesize practical, actionable recommendations for this repository. Include concrete migration risk, exact next steps, and confidence caveats.',
+        ].join('\n\n');
+
+        const researchResult = await generateWithModelFallback('', researchPrompt);
+        const bobResponse = String(researchResult.responseText ?? '').trim() || 'Research complete, but no model response text was returned.';
+
+        await appendChatSessionMessage(sessionId, 'assistant', bobResponse);
+
+        res.status(200).json({
+          bobResponse,
+          status: 'RESEARCH_COMPLETE',
+          sessionId,
+          routeAgent: 'research_agent',
+          modelUsed: researchResult.modelUsed,
+        });
+        return;
+      } catch (error) {
+        console.error('[/api/heal] Research agent route failed', error);
+        const degradedText = 'Research agent could not complete the request. Check search provider/network settings and retry.';
+        await appendChatSessionMessage(sessionId, 'assistant', degradedText);
+        res.status(200).json({
+          bobResponse: degradedText,
+          status: 'DEGRADED',
+          sessionId,
+          routeAgent: 'research_agent',
+        });
+        return;
+      }
+    }
+
+    const isUiIntent = /(\bdesign\b|\bstyle\b|\bcss\b|\bux\b|\bui\b|\btailwind\b|\blayout\b)/i.test(inboundTextLower);
+    if (isUiIntent) {
+      const uiRunbook = await getConsultativeReferenceRunbook(inboundText, 'ui_ux_agent');
+      const uiPrompt = [
+        `Role: ${kb.agentRoles.ui_ux_agent}`,
+        `Task request: ${inboundText}`,
+        `Tier A system rules:\n${kb.systemRules}`,
+        `Tier B UI runbook context:\n${uiRunbook}`,
+        'Return implementation-ready UI guidance for React/Tailwind with accessibility, responsive behavior, and specific component-level recommendations.',
+      ].join('\n\n');
+
+      try {
+        const uiResult = await generateWithModelFallback('', uiPrompt);
+        const bobResponse = String(uiResult.responseText ?? '').trim() || 'UI/UX analysis completed with no textual response.';
+        await appendChatSessionMessage(sessionId, 'assistant', bobResponse);
+
+        res.status(200).json({
+          bobResponse,
+          status: 'UI_REVIEW_PENDING',
+          sessionId,
+          routeAgent: 'ui_ux_agent',
+          modelUsed: uiResult.modelUsed,
+        });
+        return;
+      } catch (error) {
+        console.error('[/api/heal] UI/UX agent route failed', error);
+        const degradedText = 'UI/UX agent is temporarily unavailable. Retry in a moment.';
+        await appendChatSessionMessage(sessionId, 'assistant', degradedText);
+        res.status(200).json({ bobResponse: degradedText, status: 'DEGRADED', sessionId, routeAgent: 'ui_ux_agent' });
+        return;
+      }
+    }
+
+    const isWriterIntent = /(\bdocument\b|\bdocs\b|\bmanual\b|\bstaging\.md\b|\binstruction_manual\.md\b|\brunbook\b)/i.test(inboundTextLower);
+    if (isWriterIntent) {
+      const writerRunbook = await getConsultativeReferenceRunbook(inboundText, 'writer_agent');
+      const writerPrompt = [
+        `Role: ${kb.agentRoles.writer_agent}`,
+        `Task request: ${inboundText}`,
+        `Tier A system rules:\n${kb.systemRules}`,
+        `Tier B documentation runbook context:\n${writerRunbook}`,
+        'Return a concise documentation delta with headings, exact target files, and proposed text blocks. Keep it production-ready and auditable.',
+      ].join('\n\n');
+
+      try {
+        const writerResult = await generateWithModelFallback('', writerPrompt);
+        const bobResponse = String(writerResult.responseText ?? '').trim() || 'Writer agent completed with no textual output.';
+        await appendChatSessionMessage(sessionId, 'assistant', bobResponse);
+
+        res.status(200).json({
+          bobResponse,
+          status: 'DOC_DRAFT_READY',
+          sessionId,
+          routeAgent: 'writer_agent',
+          modelUsed: writerResult.modelUsed,
+        });
+        return;
+      } catch (error) {
+        console.error('[/api/heal] Writer agent route failed', error);
+        const degradedText = 'Writer agent is temporarily unavailable. Retry in a moment.';
+        await appendChatSessionMessage(sessionId, 'assistant', degradedText);
+        res.status(200).json({ bobResponse: degradedText, status: 'DEGRADED', sessionId, routeAgent: 'writer_agent' });
+        return;
+      }
+    }
+
     console.log(`[CHAT INBOUND] Human user sent direct instruction to Bob: "${inboundText}"`);
 
-    const [kb, consultativeRunbook, persistedHistory] = await Promise.all([
-      getTierAKnowledgeContext(),
+    const [consultativeRunbook, persistedHistory] = await Promise.all([
       getConsultativeReferenceRunbook(inboundText, 'dr_bob'),
       loadRecentChatSessionMessages(sessionId, 10),
     ]);
