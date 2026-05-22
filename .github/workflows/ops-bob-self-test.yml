@@ -54,11 +54,11 @@ jobs:
     runs-on: ubuntu-latest
     env:
       CI: true
-      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-      VITE_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_URL: ${{ secrets.SIM_SUPABASE_URL || secrets.SUPABASE_URL }}
+      VITE_SUPABASE_URL: ${{ secrets.SIM_SUPABASE_URL || secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-      SUPABASE_ANON_KEY: ${{ secrets.SIM_SUPABASE_ANON_KEY }}
-      VITE_SUPABASE_ANON_KEY: ${{ secrets.SIM_SUPABASE_ANON_KEY }}
+      SUPABASE_ANON_KEY: ${{ secrets.SIM_SUPABASE_ANON_KEY || secrets.SUPABASE_ANON_KEY }}
+      VITE_SUPABASE_ANON_KEY: ${{ secrets.SIM_SUPABASE_ANON_KEY || secrets.SUPABASE_ANON_KEY }}
       RAILWAY_BOB_API_URL: ${{ secrets.SIM_RAILWAY_BOB_API_URL }}
       SUPABASE_EDGE_FUNCTIONS_URL: ${{ secrets.SIM_SUPABASE_EDGE_FUNCTIONS_URL }}
       PLAYWRIGHT_ADMIN_ORG1_EMAIL: ${{ secrets.PLAYWRIGHT_ADMIN_EMAIL }}
