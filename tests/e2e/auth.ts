@@ -605,7 +605,10 @@ async function autoSetRoleForTestUser(page: Page, user: TestUserKey): Promise<bo
   if (!allowProfileMutations || !autoSetTestRole) return false
 
   const targetRole = desiredRoleByTestUser[user]
-  const profile = await fetchResolvedProfile(page) || await fetchResolvedProfileByEmail(getTestUser(user).email)
+  const profile =
+    await fetchResolvedProfile(page) ||
+    await resolveProfileByBrowserTokenSub(page) ||
+    await fetchResolvedProfileByEmail(getTestUser(user).email)
   if (!profile?.id) {
     console.warn(`[auth] Cannot auto-set role for ${user}; profile could not be resolved – continuing with current role.`)
     return false
@@ -696,7 +699,10 @@ async function assertExpectedLoginProfile(page: Page, user: TestUserKey): Promis
   if (skipRoleAssertions) return
 
   const expected = expectedProfileConfig[user]
-  const profile = await fetchResolvedProfile(page) || await fetchResolvedProfileByEmail(getTestUser(user).email)
+  const profile =
+    await fetchResolvedProfile(page) ||
+    await resolveProfileByBrowserTokenSub(page) ||
+    await fetchResolvedProfileByEmail(getTestUser(user).email)
   if (!profile) {
     console.warn(`[auth] Unable to resolve authenticated profile for ${user}; skipping role assertion for this login.`)
     return
@@ -914,6 +920,34 @@ async function getAccessTokenFromBrowser(page: Page): Promise<string | null> {
 
     return null
   })
+}
+
+function decodeJwtPayload(token: string): Record<string, unknown> | null {
+  const parts = token.split('.')
+  if (parts.length < 2) return null
+
+  const payload = parts[1]
+  const normalized = payload.replace(/-/g, '+').replace(/_/g, '/')
+  const padding = normalized.length % 4 === 0 ? '' : '='.repeat(4 - (normalized.length % 4))
+
+  try {
+    const json = Buffer.from(`${normalized}${padding}`, 'base64').toString('utf8')
+    const parsed = JSON.parse(json) as Record<string, unknown>
+    return parsed && typeof parsed === 'object' ? parsed : null
+  } catch {
+    return null
+  }
+}
+
+async function resolveProfileByBrowserTokenSub(page: Page): Promise<ResolvedProfile | null> {
+  const accessToken = await getAccessTokenFromBrowser(page)
+  if (!accessToken) return null
+
+  const payload = decodeJwtPayload(accessToken)
+  const tokenSub = typeof payload?.sub === 'string' ? payload.sub : ''
+  if (!tokenSub) return null
+
+  return fetchResolvedProfileById(tokenSub)
 }
 
 async function ensureWorkAreaPermission(page: Page): Promise<void> {
