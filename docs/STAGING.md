@@ -63,6 +63,38 @@ Next required action (root-cause only):
 3. If runtime differs from branch head, deploy current branch backend revision and re-run the same contract probes.
 4. If runtime matches, add bounded upstream timeout + explicit error serialization in manual instruction path so non-stream cannot hang into edge fallback.
 
+---
+
+## Live Bob Chat Recovery Resolution (2026-05-22)
+
+Owner: GitHub Copilot  
+Scope: Complete runtime/build remediation for `fieldops-backend` so `/api/heal` no longer hard-fails with edge 502.
+
+Executed remediation:
+
+- [x] Aligned backend runtime contract to Node 20 + npm 10 for Supabase compatibility.
+- [x] Ensured Docker build context includes `backend/scripts/` for toolchain guards.
+- [x] Added explicit WebSocket transport dependency (`ws`) for Supabase realtime under Node 20.
+- [x] Added TypeScript declarations (`@types/ws`) and transport type-compatibility cast so container build passes strict compile.
+- [x] Triggered fresh production deployment and re-validated contract probes.
+
+Validation evidence:
+
+1. Deployment:
+  - `fieldops-backend` deployment `1d223fb3-91b5-4c26-b862-616dccb20346` -> `SUCCESS`.
+  - Commit: `eda72b4a59651d4cbd716ad965e0a5e6d5b3d257`.
+2. Health endpoint:
+  - `GET /health` -> HTTP 200 with `{ "ok": true, "service": "fieldops-backend" }`.
+3. Non-stream chat contract:
+  - `POST /api/heal` (`stream=false`) -> HTTP 200 with `status: "DEGRADED"` and explicit fallback body.
+4. Stream chat contract:
+  - `POST /api/heal` (`stream=true`) -> HTTP 200 SSE with `final` and `done` events emitted.
+
+Current blocker status:
+
+- Hard runtime outage is resolved (no edge 502).
+- Residual risk is upstream model availability (`DEGRADED` content), not backend boot/route failure.
+
 
 ---
 

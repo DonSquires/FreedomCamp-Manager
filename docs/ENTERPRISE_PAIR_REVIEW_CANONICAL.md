@@ -118,6 +118,28 @@ Governance implication:
 
 1. This cycle is recorded as unresolved production runtime behavior after valid env correction and successful redeploy; further action must be runtime-log/root-cause driven and not masked by UI-only fallback behavior.
 
+## Current Cycle Snapshot (2026-05-22 — Bob Chat Recovery Resolution)
+
+Material outcomes after runtime-log-driven remediation:
+
+1. Backend runtime/build contract aligned for Node 20 + npm 10, with backend-local Docker build context preserved.
+2. Supabase realtime dependency chain corrected for Node 20 by adding explicit `ws` transport and required TypeScript declarations.
+3. Type compatibility mismatch for realtime transport was resolved in backend compile path.
+4. Production deployment completed successfully for `fieldops-backend`:
+   - Deployment: `1d223fb3-91b5-4c26-b862-616dccb20346`
+   - Commit: `eda72b4a59651d4cbd716ad965e0a5e6d5b3d257`
+
+Validation state:
+
+1. `GET /health` -> HTTP 200 (`ok: true`).
+2. `POST /api/heal` non-stream -> HTTP 200 with explicit degraded payload (no edge fallback).
+3. `POST /api/heal` stream -> HTTP 200 with SSE `final` and `done` events.
+
+Governance implication:
+
+1. The prior hard-failure blocker (edge 502 on `/api/heal`) is resolved.
+2. Remaining risk is upstream model availability only, surfaced explicitly as degraded content rather than transport/runtime failure.
+
 ### Governance / Validation Implications
 
 1. Documentation authority remains paired: instruction manual and canonical file updated in the same change set as CI/governance-impacting updates.
