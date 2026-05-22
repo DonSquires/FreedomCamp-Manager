@@ -1,0 +1,106 @@
+name: Backend Training Sync
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - backend/src/**
+      - backend/scripts/sync-training.ts
+      - backend/package.json
+      - backend/package-lock.json
+      - supabase/migrations/**
+      - .github/workflows/backend-train-sync.yml
+  pull_request:
+    branches:
+      - main
+    paths:
+      - backend/src/**
+      - backend/scripts/sync-training.ts
+      - backend/package.json
+      - backend/package-lock.json
+      - supabase/migrations/**
+      - .github/workflows/backend-train-sync.yml
+
+permissions:
+  contents: read
+
+jobs:
+  train-sync:
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Validate required secrets
+        run: |
+          set -euo pipefail
+          missing=""
+          [ -z "${SUPABASE_ACCESS_TOKEN:-}" ] && missing="$missing SUPABASE_ACCESS_TOKEN"
+          [ -z "${SUPABASE_PROJECT_REF:-}" ] && missing="$missing SUPABASE_PROJECT_REF"
+          [ -z "${SUPABASE_SERVICE_ROLE_KEY:-}" ] && missing="$missing SUPABASE_SERVICE_ROLE_KEY"
+
+          if [ -n "$missing" ]; then
+            echo "::error::Missing required secrets:$missing"
+            exit 1
+          fi
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v2
+        with:
+          version: latest
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Refresh tiered agent training context
+        working-directory: backend
+        run: npm run train:all
+
+  train-validate:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v2
+        with:
+          version: latest
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Validate training pipeline (read-only)
+        working-directory: backend
+        run: npm run train:validate
