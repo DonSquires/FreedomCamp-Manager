@@ -222,7 +222,7 @@ const expectedProfileConfig: Record<TestUserKey, ExpectedProfileConfig> = {
     expectedOrgName: readEnv('PLAYWRIGHT_ADMIN_ORG2_NAME') || 'Nelson City Council',
   },
   officerOrg1: {
-    allowedRoles: ['officer', 'admin_officer', 'grand_master'],
+    allowedRoles: ['officer', 'admin_officer'],
     requiredCapability: 'field_ops',
     expectedOrgName: readEnv('PLAYWRIGHT_OFFICER_ORG1_NAME') || 'First Security - Nelson',
   },
@@ -1121,6 +1121,34 @@ export async function loginAs(page: Page, user: TestUserKey): Promise<void> {
   await autoSetRoleForTestUser(page, user)
   // Role auto-set reload can return the user to portal-selection.
   await resolvePortalSelectionIfNeeded(page, user)
+
+  // Shared fallback can authenticate an owner profile first; for officer persona,
+  // re-bootstrap once if we still land on the platform owner route.
+  if (user === 'officerOrg1' && page.url().includes('/platform')) {
+    await ensureBootstrapTestAccount(user, credentials, { force: true })
+    await page.context().clearCookies().catch(() => undefined)
+    await page.evaluate(() => {
+      window.localStorage.clear()
+      window.sessionStorage.clear()
+    }).catch(() => undefined)
+
+    const retryFallback = await bootstrapBrowserSessionFromPasswordGrant(page, credentials).catch((error: unknown) => ({
+      ok: false,
+      reason: error instanceof Error ? error.message : String(error),
+    }))
+
+    if (retryFallback.ok) {
+      await page.waitForURL((url) => !url.pathname.startsWith('/login'), { timeout: 20000 }).catch(() => undefined)
+      await page.evaluate(() => {
+        window.sessionStorage.setItem('adminOfficerPortalChoice', 'selected')
+      })
+      await resolvePortalSelectionIfNeeded(page, user)
+      await ensureWorkAreaPermission(page)
+      await autoSetRoleForTestUser(page, user)
+      await resolvePortalSelectionIfNeeded(page, user)
+    }
+  }
+
   await assertExpectedLoginProfile(page, user)
 
   await page.waitForLoadState('networkidle').catch(() => undefined)
