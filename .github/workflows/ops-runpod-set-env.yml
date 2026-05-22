@@ -79,7 +79,8 @@ jobs:
             --arg ollama_url "$OLLAMA_URL" \
             '{
               "env": [
-                {"key": "OLLAMA_EXTERNAL_URL", "value": $ollama_url}
+                {"key": "OLLAMA_EXTERNAL_URL", "value": $ollama_url},
+                {"key": "OLLAMA_TLS_VERIFY", "value": "true"}
               ]
             }')
           echo "payload<<EOF" >> "$GITHUB_OUTPUT"
