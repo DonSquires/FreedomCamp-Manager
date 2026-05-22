@@ -117,6 +117,7 @@ const OLLAMA_STREAM_TIMEOUT_MS = Number(process.env.OLLAMA_STREAM_TIMEOUT_MS ?? 
 const OLLAMA_MAX_CANDIDATES = Math.max(1, Number(process.env.OLLAMA_MAX_CANDIDATES ?? 3));
 const DOC_INTEL_DEFAULT_LIMIT = Math.max(1, Number(process.env.DOC_INTEL_DEFAULT_LIMIT ?? 20));
 const DOC_INTEL_MAX_LIMIT = Math.max(1, Number(process.env.DOC_INTEL_MAX_LIMIT ?? 100));
+const PRIVACY_REDACTION_ENABLED = parseBool(process.env.PRIVACY_REDACTION_ENABLED ?? 'true');
 
 const CURRENT_FILE = fileURLToPath(import.meta.url);
 const BACKEND_DIR = path.dirname(CURRENT_FILE);
@@ -129,6 +130,59 @@ let docIntelCache: {
   mtimeMs: number;
   payload: DocumentIntelPayload;
 } | null = null;
+
+type RedactionResult = {
+  text: string;
+  hasSensitiveData: boolean;
+  redactedFields: string[];
+};
+
+const SENSITIVE_PATTERNS: Array<{ label: string; regex: RegExp; replacement: string }> = [
+  {
+    label: 'email',
+    regex: /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi,
+    replacement: '[REDACTED_EMAIL]',
+  },
+  {
+    label: 'phone',
+    regex: /\b(?:\+?64|0)(?:[\s-]?\d){8,10}\b/g,
+    replacement: '[REDACTED_PHONE]',
+  },
+  {
+    label: 'address_number',
+    regex: /\b\d{1,5}\s+[A-Za-z][A-Za-z0-9\s.-]{2,40}\s(?:street|st|road|rd|avenue|ave|drive|dr|lane|ln|way|close|crescent|place|pl|court|ct)\b/gi,
+    replacement: '[REDACTED_ADDRESS]',
+  },
+  {
+    label: 'plate',
+    regex: /\b[A-Z]{2,3}[0-9]{2,4}\b/g,
+    replacement: '[REDACTED_PLATE]',
+  },
+  {
+    label: 'person_name',
+    regex: /\b(?:Mr|Mrs|Ms|Miss|Dr)\.?\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2}\b/g,
+    replacement: '[REDACTED_NAME]',
+  },
+];
+
+function redactSensitivePersonalData(input: string): RedactionResult {
+  let output = String(input ?? '');
+  const labels = new Set<string>();
+
+  for (const pattern of SENSITIVE_PATTERNS) {
+    if (pattern.regex.test(output)) {
+      labels.add(pattern.label);
+      output = output.replace(pattern.regex, pattern.replacement);
+    }
+    pattern.regex.lastIndex = 0;
+  }
+
+  return {
+    text: output,
+    hasSensitiveData: labels.size > 0,
+    redactedFields: Array.from(labels),
+  };
+}
 
 function parsePositiveInt(value: string | undefined, fallback: number): number {
   const parsed = Number(value ?? '');
@@ -257,6 +311,7 @@ app.get('/api/research/document-intelligence', async (req: Request, res: Respons
   const pathPrefix = String(req.query.pathPrefix ?? '').trim().toLowerCase();
   const includeText = parseBool(String(req.query.includeText ?? ''));
   const includeKeywords = parseBool(String(req.query.includeKeywords ?? ''));
+  const redact = parseBool(String(req.query.redact ?? 'true'));
   const limit = Math.min(
     DOC_INTEL_MAX_LIMIT,
     parsePositiveInt(String(req.query.limit ?? ''), DOC_INTEL_DEFAULT_LIMIT),
@@ -301,19 +356,24 @@ app.get('/api/research/document-intelligence', async (req: Request, res: Respons
         return haystack.includes(q);
       })
       .slice(0, limit)
-      .map((row) => ({
-        path: row.path,
-        ext: row.ext,
-        category: row.category,
-        bytes: row.bytes,
-        textSource: row.textSource,
-        textPreview: row.textPreview,
-        textChars: row.textChars,
-        topicTags: row.topicTags,
-        indexedAt: row.indexedAt ?? null,
-        ...(includeKeywords ? { keywords: row.keywords } : {}),
-        ...(includeText ? { text: row.text } : {}),
-      }));
+      .map((row) => {
+        const redactedPreview = redact ? redactSensitivePersonalData(row.textPreview).text : row.textPreview;
+        const redactedText = redact && includeText ? redactSensitivePersonalData(row.text).text : row.text;
+
+        return {
+          path: row.path,
+          ext: row.ext,
+          category: row.category,
+          bytes: row.bytes,
+          textSource: row.textSource,
+          textPreview: redactedPreview,
+          textChars: row.textChars,
+          topicTags: row.topicTags,
+          indexedAt: row.indexedAt ?? null,
+          ...(includeKeywords ? { keywords: row.keywords } : {}),
+          ...(includeText ? { text: redactedText } : {}),
+        };
+      });
 
     res.status(200).json({
       status: 'OK',
@@ -327,6 +387,7 @@ app.get('/api/research/document-intelligence', async (req: Request, res: Respons
         pathPrefix: pathPrefix || null,
         includeText,
         includeKeywords,
+        redact,
         limit,
       },
       results: filtered,
@@ -1232,22 +1293,61 @@ app.post('/api/heal', async (req: Request, res: Response) => {
     if (isResearchIntent) {
       const query = inboundText.replace(/\b(search|lookup|research)\b/gi, '').trim() || inboundText;
       const requestedUrl = extractFirstUrl(inboundText);
+      const queryRedaction = redactSensitivePersonalData(query);
+      const sanitizedQuery = PRIVACY_REDACTION_ENABLED ? queryRedaction.text : query;
+      const allowExternalResearch = !PRIVACY_REDACTION_ENABLED || !queryRedaction.hasSensitiveData;
 
       try {
-        const [searchSnippets, pageContent] = await Promise.all([
-          executeWebSearch(query),
-          requestedUrl ? fetchWebpageContent(requestedUrl) : Promise.resolve(''),
-        ]);
+        const docIntel = await loadDocumentIntelIndex();
+        const internalMatches = docIntel.documents
+          .filter((row) => {
+            const haystack = [
+              row.path,
+              row.ext,
+              row.category,
+              row.textPreview,
+              (row.topicTags ?? []).join(' '),
+              (row.keywords ?? []).map((kw) => kw.keyword).join(' '),
+            ]
+              .join(' ')
+              .toLowerCase();
+            return haystack.includes(sanitizedQuery.toLowerCase());
+          })
+          .slice(0, 8)
+          .map((row) => ({
+            path: row.path,
+            category: row.category,
+            topicTags: row.topicTags,
+            textPreview: PRIVACY_REDACTION_ENABLED ? redactSensitivePersonalData(row.textPreview).text : row.textPreview,
+          }));
+
+        const [searchSnippets, pageContent] = allowExternalResearch
+          ? await Promise.all([
+              executeWebSearch(sanitizedQuery),
+              requestedUrl ? fetchWebpageContent(requestedUrl) : Promise.resolve(''),
+            ])
+          : ['External web research skipped due to detected sensitive personal data.', ''];
+
+        const redactedPageContent = PRIVACY_REDACTION_ENABLED
+          ? redactSensitivePersonalData(pageContent).text
+          : pageContent;
 
         const researchPrompt = [
           `Role: ${kb.agentRoles.research_agent}`,
-          `User request: ${query}`,
+          `User request: ${sanitizedQuery}`,
+          `Privacy mode: NZ Privacy Act redaction ${PRIVACY_REDACTION_ENABLED ? 'ENABLED' : 'DISABLED'}`,
+          `Sensitive data detected in request: ${queryRedaction.hasSensitiveData ? 'yes' : 'no'}`,
+          queryRedaction.redactedFields.length > 0
+            ? `Redacted fields: ${queryRedaction.redactedFields.join(', ')}`
+            : 'Redacted fields: none',
           `Tier A system rules: ${kb.systemRules}`,
+          `Internal document intelligence matches:\n${JSON.stringify(internalMatches, null, 2)}`,
           `Search snippets:\n${searchSnippets || 'No search snippets returned.'}`,
           requestedUrl
-            ? `Fetched URL: ${requestedUrl}\n${truncateRunbookContent(pageContent || 'No page content returned.', 5000)}`
+            ? `Fetched URL: ${requestedUrl}\n${truncateRunbookContent(redactedPageContent || 'No page content returned.', 5000)}`
             : 'No URL fetch requested.',
           'Synthesize practical, actionable recommendations for this repository. Include concrete migration risk, exact next steps, and confidence caveats.',
+          'Never output personal data. If uncertain, keep identifying details redacted.',
         ].join('\n\n');
 
         const researchResult = await generateWithModelFallback('', researchPrompt);
@@ -1261,6 +1361,12 @@ app.post('/api/heal', async (req: Request, res: Response) => {
           sessionId,
           routeAgent: 'research_agent',
           modelUsed: researchResult.modelUsed,
+          privacy: {
+            redactionEnabled: PRIVACY_REDACTION_ENABLED,
+            sensitiveDataDetected: queryRedaction.hasSensitiveData,
+            redactedFields: queryRedaction.redactedFields,
+            externalResearchUsed: allowExternalResearch,
+          },
         });
         return;
       } catch (error) {
