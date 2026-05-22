@@ -1,9 +1,8 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { X, Send, Loader2, BrainCircuit, ExternalLink } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Textarea } from '@/components/ui/textarea'
-import { edgeFunctions } from '@/lib/edgeFunctions'
 import { cn } from '@/lib/utils'
 
 type ChatMessage = {
@@ -31,22 +30,105 @@ const GREETING: ChatMessage = {
   content: 'Hi, I am Bob. Ask a quick operational question and I will help right here.',
 }
 
-function toAssistantText(payload: any): string {
-  const direct = [
-    payload?.response,
-    payload?.answer,
-    payload?.message,
-    payload?.content,
-    payload?.output?.response,
-    payload?.output?.message,
-    payload?.output?.content,
-  ]
-
-  for (const item of direct) {
-    if (typeof item === 'string' && item.trim().length > 0) return item.trim()
+function getBobManagerUrl(): string {
+  const envUrl = String(import.meta.env.VITE_BOB_MANAGER_URL ?? '').trim()
+  if (envUrl.length > 0) {
+    return envUrl.replace(/\/$/, '')
   }
 
-  return 'I am online, but I could not parse a response. Please try again.'
+  return 'http://localhost:3000'
+}
+
+async function streamBobResponse(
+  payload: Record<string, unknown>,
+  onToken: (text: string) => void,
+): Promise<string> {
+  const controller = new AbortController()
+  const timeoutId = window.setTimeout(() => controller.abort(), 30000)
+
+  const response = await fetch(`${getBobManagerUrl()}/api/heal`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'text/event-stream',
+    },
+    signal: controller.signal,
+    body: JSON.stringify({ ...payload, stream: true }),
+  })
+  window.clearTimeout(timeoutId)
+
+  if (!response.ok) {
+    const errorText = await response.text()
+    throw new Error(`Bob manager request failed (${response.status}): ${errorText}`)
+  }
+
+  if (!response.body) {
+    const text = await response.text()
+    try {
+      const parsed = JSON.parse(text)
+      return String(parsed?.bobResponse ?? parsed?.response ?? parsed?.message ?? parsed?.text ?? '')
+    } catch {
+      return text
+    }
+  }
+
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  let collected = ''
+
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+
+    buffer += decoder.decode(value, { stream: true })
+    const packets = buffer.split('\n\n')
+    buffer = packets.pop() ?? ''
+
+    for (const packet of packets) {
+      const lines = packet.split('\n')
+      for (const line of lines) {
+        const trimmed = line.trim()
+        if (!trimmed.startsWith('data:')) continue
+
+        const raw = trimmed.slice(5).trim()
+        if (!raw) continue
+
+        try {
+          const event = JSON.parse(raw) as { type?: string; token?: string; text?: string }
+          if (event.type === 'token' && typeof event.token === 'string') {
+            collected += event.token
+            onToken(collected)
+          }
+          if (event.type === 'final' && typeof event.text === 'string') {
+            collected = event.text
+            onToken(collected)
+          }
+          if (event.type === 'done' && typeof event.text === 'string') {
+            collected = event.text
+            onToken(collected)
+          }
+        } catch {
+          // Ignore malformed event frames and keep reading.
+        }
+      }
+    }
+  }
+
+  if (buffer.trim().length > 0) {
+    try {
+      const raw = buffer.trim().replace(/^data:\s*/, '')
+      const event = JSON.parse(raw) as { type?: string; token?: string; text?: string }
+      if (typeof event.text === 'string' && event.text.length > 0) {
+        collected = event.text
+        onToken(collected)
+      }
+    } catch {
+      // ignore trailing noise
+    }
+  }
+
+  return collected
 }
 
 function getRouteDomain(route: string): 'biosecurity' | 'noise' | 'parking' | 'freedom_camping' | 'patrol' | 'general' {
@@ -195,8 +277,38 @@ export function BobQuickChatWidget({ open, onOpenChange, onOpenStudio, currentRo
   const [messages, setMessages] = useState<ChatMessage[]>([GREETING])
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
+  const quickSessionIdRef = useRef(`quick-chat-${Date.now()}`)
   const routeDomain = useMemo(() => getRouteDomain(currentRoute), [currentRoute])
   const quickPrompts = useMemo(() => getQuickPrompts(currentRoute), [currentRoute])
+
+  const replaceAssistantMessage = (assistantMessageId: string, content: string) => {
+    setMessages((prev) => {
+      let found = false
+      const updated = prev.map((message) => {
+        if (message.id !== assistantMessageId) {
+          return message
+        }
+        found = true
+        return {
+          ...message,
+          content,
+        }
+      })
+
+      if (found) {
+        return updated
+      }
+
+      return [
+        ...updated,
+        {
+          id: assistantMessageId,
+          role: 'assistant',
+          content,
+        },
+      ]
+    })
+  }
 
   const hasConversation = useMemo(
     () => messages.some((msg) => msg.role === 'user' && msg.content.trim().length > 0),
@@ -222,28 +334,37 @@ export function BobQuickChatWidget({ open, onOpenChange, onOpenStudio, currentRo
     setInput('')
     setSending(true)
 
-    try {
-      const { data, error } = await edgeFunctions.bobGateway({
-        provider: 'inference',
-        model: 'qwen2.5:7b',
-        temperature: 0.2,
-        messages: [...history, { role: 'user', content: prompt }],
-        context: {
-          source: 'bob-quick-chat-widget',
-          app_route: currentRoute,
-          app_domain: routeDomain,
-          compact_chat: true,
-        },
-      })
-
-      if (error) throw new Error(error)
-
-      const assistantMessage: ChatMessage = {
-        id: `a-${Date.now()}`,
+    const assistantMessageId = `a-${Date.now()}`
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: assistantMessageId,
         role: 'assistant',
-        content: toAssistantText(data),
-      }
-      setMessages((prev) => [...prev, assistantMessage])
+        content: 'Bob is thinking…',
+      },
+    ])
+
+    try {
+      const bobResponse = await streamBobResponse(
+        {
+          errorMessage: 'MANUAL_USER_INSTRUCTION',
+          userPrompt: prompt,
+          stackTrace: prompt,
+          sessionId: quickSessionIdRef.current,
+          messages: [...history, { role: 'user', content: prompt }],
+          errorPayload: {
+            tag: 'MANUAL_USER_INSTRUCTION',
+            route: currentRoute,
+            domain: routeDomain,
+            text: prompt,
+          },
+        },
+        (text) => {
+          replaceAssistantMessage(assistantMessageId, text)
+        },
+      )
+
+      replaceAssistantMessage(assistantMessageId, bobResponse.trim() || 'Command acknowledged.')
     } catch (err) {
       const rawMessage = err instanceof Error ? err.message : String(err)
       const friendlyMessage =
@@ -252,12 +373,7 @@ export function BobQuickChatWidget({ open, onOpenChange, onOpenStudio, currentRo
           : rawMessage.toLowerCase().includes('timed out')
           ? "The request timed out. Bob may be busy — please try again."
           : `I hit an error while responding: ${rawMessage}`
-      const assistantMessage: ChatMessage = {
-        id: `a-${Date.now()}`,
-        role: 'assistant',
-        content: friendlyMessage,
-      }
-      setMessages((prev) => [...prev, assistantMessage])
+      replaceAssistantMessage(assistantMessageId, friendlyMessage)
     } finally {
       setSending(false)
     }
