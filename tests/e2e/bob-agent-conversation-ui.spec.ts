@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
+import { loginAs } from './auth'
 import { installSupabaseTransactionMocks } from './helpers/supabase-transaction-mocks'
 
 const CHAT_ENDPOINT_GLOB = '**/api/bob/chat*'
@@ -165,6 +166,7 @@ test.describe('Bob autonomous conversation UI', () => {
 
   test.beforeEach(async ({ page }) => {
     await page.context().clearCookies()
+    await loginAs(page, 'bob')
     await page.goto('/dashboard', { waitUntil: 'domcontentloaded' })
     await page.evaluate(() => {
       try {

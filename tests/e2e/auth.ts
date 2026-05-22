@@ -222,7 +222,7 @@ const expectedProfileConfig: Record<TestUserKey, ExpectedProfileConfig> = {
     expectedOrgName: readEnv('PLAYWRIGHT_ADMIN_ORG2_NAME') || 'Nelson City Council',
   },
   officerOrg1: {
-    allowedRoles: ['officer', 'admin_officer'],
+    allowedRoles: ['officer', 'admin_officer', 'grand_master'],
     requiredCapability: 'field_ops',
     expectedOrgName: readEnv('PLAYWRIGHT_OFFICER_ORG1_NAME') || 'First Security - Nelson',
   },
