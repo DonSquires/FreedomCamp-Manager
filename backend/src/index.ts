@@ -93,6 +93,10 @@ app.use((req, res, next) => {
 
 app.use(express.json());
 
+app.get('/health', (_req: Request, res: Response) => {
+  res.status(200).json({ ok: true, service: 'fieldops-backend' });
+});
+
 // ── Supabase (service role — backend only, never expose to client) ──────────
 const supabase = createClient(
   SUPABASE_URL,
