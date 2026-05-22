@@ -21,6 +21,12 @@
 2. Deep functional browser testing now uses credential preflight as a run guard and skips test execution when CI secrets are invalid, instead of hard-failing the full merge gate.
 3. Production promotion remains contingent on required CI gates and governance records, with this manual and the enterprise canonical record updated in the same change set.
 
+### Current Cycle Amendment (2026-05-22)
+
+1. CI dependency resolution for the PR merge ref now pins an explicit `esbuild@0.28.0` dev dependency so `npm ci` remains deterministic with the Vitest/Vite dependency graph.
+2. Roster planning behavior remains data-backed: leave-request visibility in planning surfaces is sourced from `leave_requests` queries rather than static placeholders.
+3. Governance and enterprise canonical docs are updated in this same change set as required for architecture-impacting and workflow-impacting updates.
+
 ### Current Cycle Agentic Action Board (2026-05-18)
 
 Product Oversight To-Do (authoritative execution list):
