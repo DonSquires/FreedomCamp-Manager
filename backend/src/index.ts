@@ -154,7 +154,7 @@ const supabase = createClient(
   SUPABASE_SERVICE_ROLE_KEY,
   {
     realtime: {
-      transport: ws,
+      transport: ws as unknown as never,
     },
   }
 );
