@@ -20,6 +20,18 @@ type HealChatMessage = {
   content: string;
 };
 
+type ChatSessionMessage = {
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+};
+
+type RoutedBobResponse = {
+  intentType?: 'conversation' | 'patch';
+  conversationalReply?: string;
+  targetVariable?: string;
+  patchValue?: string;
+};
+
 type GiteaFileChange = {
   path: string;
   content: string;
@@ -41,6 +53,33 @@ type GiteaProposeResult = {
   statusCode: number;
   body: Record<string, unknown>;
 };
+
+const CHAT_DB_TIMEOUT_MS = Number(process.env.CHAT_DB_TIMEOUT_MS ?? 2500);
+const CHAT_CONTEXT_TIMEOUT_MS = Number(process.env.CHAT_CONTEXT_TIMEOUT_MS ?? 3500);
+const OLLAMA_MODEL_TIMEOUT_MS = Number(process.env.OLLAMA_MODEL_TIMEOUT_MS ?? 7000);
+const OLLAMA_TOTAL_TIMEOUT_MS = Number(process.env.OLLAMA_TOTAL_TIMEOUT_MS ?? 18000);
+const OLLAMA_STREAM_TIMEOUT_MS = Number(process.env.OLLAMA_STREAM_TIMEOUT_MS ?? 25000);
+const OLLAMA_MAX_CANDIDATES = Math.max(1, Number(process.env.OLLAMA_MAX_CANDIDATES ?? 3));
+
+function timeoutError(label: string, ms: number): Error {
+  return new Error(`${label} timed out after ${ms}ms`);
+}
+
+async function withTimeout<T>(task: Promise<T>, ms: number, label: string): Promise<T> {
+  let timer: NodeJS.Timeout | null = null;
+  try {
+    return await Promise.race([
+      task,
+      new Promise<T>((_resolve, reject) => {
+        timer = setTimeout(() => reject(timeoutError(label, ms)), ms);
+      }),
+    ]);
+  } finally {
+    if (timer) {
+      clearTimeout(timer);
+    }
+  }
+}
 
 function requireAnyEnv(names: string[]): string {
   const value = names.map((name) => process.env[name]).find(Boolean);
@@ -115,15 +154,83 @@ const supabase = createClient(
 );
 
 // ── Ollama helpers ───────────────────────────────────────────────────────────
-async function promptOllama(role: string, systemPrompt: string, userMessage: string): Promise<string> {
+function getOllamaModelCandidates(): string[] {
+  const configured = [
+    process.env.BOB_CHAT_MODELS,
+    process.env.BOB_CHAT_MODEL,
+    process.env.OLLAMA_CHAT_MODEL,
+  ]
+    .filter(Boolean)
+    .join(',')
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean);
+
+  // Keep robust defaults so chat still works when one model is missing.
+  const defaults = ['llama3.2-vision:11b', 'llama3.2:3b', 'llama3:70b', 'llama3'];
+  return [...new Set([...configured, ...defaults])];
+}
+
+function isMissingModelError(error: unknown): boolean {
+  if (!axios.isAxiosError(error)) {
+    return false;
+  }
+
+  const status = error.response?.status;
+  const body = error.response?.data;
+  const message = typeof body === 'string' ? body : JSON.stringify(body ?? '');
+  return status === 404 && /model\s+'.+'\s+not\s+found/i.test(message);
+}
+
+async function generateWithModelFallback(systemPrompt: string, userMessage: string): Promise<{ responseText: string; modelUsed: string }> {
   const baseUrl = process.env.OLLAMA_PROXY_URL ?? 'http://ollama:11434';
-  const response = await axios.post(`${baseUrl}/api/generate`, {
-    model: 'llama3',
-    system: systemPrompt,
-    prompt: userMessage,
-    stream: false,
-  });
-  return (response.data as { response: string }).response ?? '';
+  const models = getOllamaModelCandidates().slice(0, OLLAMA_MAX_CANDIDATES);
+  let lastError: unknown = null;
+  const startedAt = Date.now();
+
+  for (const model of models) {
+    const elapsed = Date.now() - startedAt;
+    const remainingBudget = OLLAMA_TOTAL_TIMEOUT_MS - elapsed;
+    if (remainingBudget <= 500) {
+      break;
+    }
+
+    const requestTimeoutMs = Math.max(1000, Math.min(OLLAMA_MODEL_TIMEOUT_MS, remainingBudget));
+    try {
+      const response = await axios.post(
+        `${baseUrl}/api/generate`,
+        {
+          model,
+          system: systemPrompt,
+          prompt: userMessage,
+          stream: false,
+        },
+        {
+          timeout: requestTimeoutMs,
+        },
+      );
+
+      return {
+        responseText: String((response.data as { response?: string }).response ?? ''),
+        modelUsed: model,
+      };
+    } catch (error) {
+      lastError = error;
+      if (isMissingModelError(error)) {
+        console.warn(`[ollama] Model not available, falling back to next candidate: ${model}`);
+        continue;
+      }
+      throw error;
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error('No Ollama model candidates succeeded');
+}
+
+async function promptOllama(role: string, systemPrompt: string, userMessage: string): Promise<string> {
+  const { responseText, modelUsed } = await generateWithModelFallback(systemPrompt, userMessage);
+  console.log(`[ollama] ${role} generated response via model ${modelUsed}`);
+  return responseText;
 }
 
 function extractIntentTokens(input: string): Set<string> {
@@ -154,6 +261,137 @@ function buildConversationTranscript(messages: HealChatMessage[] = []): string {
       return `${index + 1}. ${role}: ${String(message.content ?? '').trim()}`
     })
     .join('\n')
+}
+
+function normalizeChatSessionId(raw: unknown): string {
+  const value = String(raw ?? '').trim();
+  if (!value) {
+    return `session-${Date.now()}`;
+  }
+
+  return value.slice(0, 120);
+}
+
+function parseJsonObjectFromText(raw: string): Record<string, unknown> | null {
+  const trimmed = raw.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const fencedMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  const candidates = [trimmed, fencedMatch?.[1]?.trim()].filter((value): value is string => Boolean(value));
+
+  for (const candidate of candidates) {
+    try {
+      const parsed = JSON.parse(candidate) as unknown;
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        return parsed as Record<string, unknown>;
+      }
+    } catch {
+      // Try next candidate.
+    }
+  }
+
+  return null;
+}
+
+function normalizeRoutedBobResponse(rawModelText: string): RoutedBobResponse {
+  const parsed = parseJsonObjectFromText(rawModelText);
+
+  if (!parsed) {
+    return {
+      intentType: 'conversation',
+      conversationalReply: rawModelText.trim(),
+    };
+  }
+
+  const intentType = String(parsed.intentType ?? '').toLowerCase();
+  const conversationalReply = typeof parsed.conversationalReply === 'string'
+    ? parsed.conversationalReply.trim()
+    : '';
+  const targetVariable = typeof parsed.targetVariable === 'string'
+    ? parsed.targetVariable.trim()
+    : '';
+  const patchValue = typeof parsed.patchValue === 'string'
+    ? parsed.patchValue.trim()
+    : '';
+
+  if ((intentType === 'patch' || (targetVariable && patchValue)) && targetVariable && patchValue) {
+    return {
+      intentType: 'patch',
+      targetVariable,
+      patchValue,
+      conversationalReply,
+    };
+  }
+
+  return {
+    intentType: 'conversation',
+    conversationalReply: conversationalReply || rawModelText.trim(),
+  };
+}
+
+async function appendChatSessionMessage(
+  sessionId: string,
+  role: ChatSessionMessage['role'],
+  content: string,
+): Promise<void> {
+  const trimmedContent = content.trim();
+  if (!trimmedContent) {
+    return;
+  }
+
+  const result = await withTimeout(
+    supabase
+      .from('chat_sessions')
+      .insert({
+        session_id: sessionId,
+        role,
+        content: trimmedContent,
+        created_at: new Date().toISOString(),
+      }),
+    CHAT_DB_TIMEOUT_MS,
+    'chat_sessions insert',
+  ).catch((error) => {
+    console.warn('[/api/heal] chat_sessions insert timed out/failed', error);
+    return { error: null } as { error: unknown };
+  });
+
+  const { error } = result;
+
+  if (error) {
+    console.warn('[/api/heal] Failed to append chat_sessions message', error);
+  }
+}
+
+async function loadRecentChatSessionMessages(sessionId: string, limit = 10): Promise<HealChatMessage[]> {
+  const { data, error } = await withTimeout(
+    supabase
+      .from('chat_sessions')
+      .select('role,content,created_at')
+      .eq('session_id', sessionId)
+      .order('created_at', { ascending: false })
+      .limit(limit),
+    CHAT_DB_TIMEOUT_MS,
+    'chat_sessions select',
+  ).catch((timeout) => {
+    console.warn('[/api/heal] chat_sessions select timed out/failed', timeout);
+    return { data: [], error: null } as { data: Array<{ role: string; content: string }>; error: unknown };
+  });
+
+  if (error) {
+    console.warn('[/api/heal] Failed to load chat_sessions history', error);
+    return [];
+  }
+
+  return (data ?? [])
+    .slice()
+    .reverse()
+    .filter((message) => message && typeof message.content === 'string')
+    .map((message): HealChatMessage => ({
+      role: message.role === 'assistant' ? 'assistant' : message.role === 'system' ? 'system' : 'user',
+      content: String(message.content),
+    }));
 }
 
 function normalizeBranchName(input: string, prefix: string): string {
@@ -506,6 +744,7 @@ async function streamOllamaResponseToClient(
       headers: {
         'Content-Type': 'application/json',
       },
+      timeout: OLLAMA_MODEL_TIMEOUT_MS,
     },
   )
 
@@ -565,14 +804,25 @@ async function streamOllamaResponseToClient(
     return collected
   }
 
-  await once(stream, 'end')
+  await withTimeout(
+    once(stream, 'end') as Promise<[unknown]>,
+    OLLAMA_STREAM_TIMEOUT_MS,
+    'Ollama stream completion',
+  )
   return finish()
 }
 
 async function getConsultativeReferenceRunbook(errorMessage: string, agent: string): Promise<string> {
-  const { data, error } = await supabase
-    .from('system_documentation_library')
-    .select('file_path,content,intent_keywords,priority,allowed_agents');
+  const { data, error } = await withTimeout(
+    supabase
+      .from('system_documentation_library')
+      .select('file_path,content,intent_keywords,priority,allowed_agents'),
+    CHAT_CONTEXT_TIMEOUT_MS,
+    'system_documentation_library select',
+  ).catch((timeout) => {
+    console.warn('[/api/heal] system_documentation_library timed out/failed', timeout);
+    return { data: [], error: null } as { data: DocumentationLibraryRow[]; error: unknown };
+  });
 
   if (error) {
     console.warn('[/api/heal] Failed to load system_documentation_library', error);
@@ -618,11 +868,21 @@ async function getConsultativeReferenceRunbook(errorMessage: string, agent: stri
 }
 
 async function getTierAKnowledgeContext(): Promise<{ schemaPayload: string; systemRules: string }> {
-  const { data, error } = await supabase
-    .from('system_knowledge_base')
-    .select('schema_payload, system_rules')
-    .eq('service_name', 'railway-backend')
-    .maybeSingle();
+  const { data, error } = await withTimeout(
+    supabase
+      .from('system_knowledge_base')
+      .select('schema_payload, system_rules')
+      .eq('service_name', 'railway-backend')
+      .maybeSingle(),
+    CHAT_CONTEXT_TIMEOUT_MS,
+    'system_knowledge_base select',
+  ).catch((timeout) => {
+    console.warn('[/api/heal] system_knowledge_base timed out/failed', timeout);
+    return {
+      data: { schema_payload: 'Unavailable', system_rules: 'Unavailable' },
+      error: null,
+    } as { data: { schema_payload: string; system_rules: string }; error: unknown };
+  });
 
   if (error) {
     console.warn('[/api/heal] Failed to load system_knowledge_base', error);
@@ -671,10 +931,14 @@ app.post('/api/heal', async (req: Request, res: Response) => {
 
   const stackTrace = (req.body as { stackTrace?: string }).stackTrace;
   const userPrompt = (req.body as { userPrompt?: string }).userPrompt;
+  const sessionId = normalizeChatSessionId(
+    (req.body as { sessionId?: string; session_id?: string }).sessionId ??
+      (req.body as { sessionId?: string; session_id?: string }).session_id,
+  );
 
   if (errorMessage === 'MANUAL_USER_INSTRUCTION') {
     const inboundText = (stackTrace ?? userPrompt ?? '').trim();
-    const messageHistory: HealChatMessage[] = Array.isArray((req.body as { messages?: HealChatMessage[] }).messages)
+    const requestMessageHistory: HealChatMessage[] = Array.isArray((req.body as { messages?: HealChatMessage[] }).messages)
       ? ((req.body as { messages?: HealChatMessage[] }).messages ?? [])
           .filter((message) => message && typeof message.content === 'string')
           .map((message): HealChatMessage => ({
@@ -688,24 +952,38 @@ app.post('/api/heal', async (req: Request, res: Response) => {
       return;
     }
 
+    await appendChatSessionMessage(sessionId, 'user', inboundText);
+
     const giteaCommand = tryParseGiteaPrCommand(inboundText);
     if (giteaCommand) {
       const result = await executeGiteaProposePr(giteaCommand);
       const bobResponse = formatGiteaProposeResultForBob(result);
 
+      await appendChatSessionMessage(sessionId, 'assistant', bobResponse);
+
       res.status(result.statusCode).json({
         bobResponse,
         status: String(result.body.status ?? (result.statusCode < 400 ? 'COMPLETED' : 'FAILED')),
         gitea: result.body,
+        sessionId,
       });
       return;
     }
 
     console.log(`[CHAT INBOUND] Human user sent direct instruction to Bob: "${inboundText}"`);
 
-    const kb = await getTierAKnowledgeContext();
-    const consultativeRunbook = await getConsultativeReferenceRunbook(inboundText, 'dr_bob');
-    const conversationTranscript = buildConversationTranscript(messageHistory);
+    const [kb, consultativeRunbook, persistedHistory] = await Promise.all([
+      getTierAKnowledgeContext(),
+      getConsultativeReferenceRunbook(inboundText, 'dr_bob'),
+      loadRecentChatSessionMessages(sessionId, 10),
+    ]);
+    const historySource = persistedHistory.length > 0 ? persistedHistory : requestMessageHistory;
+    const conversationTranscript = buildConversationTranscript(historySource);
+    const promptHistoryJson = JSON.stringify(
+      historySource.map((message) => ({ role: message.role, content: message.content })),
+      null,
+      2,
+    );
 
     const chatPrompt = `
 You are interacting live with a human engineer through a command center UI.
@@ -714,32 +992,84 @@ The user states: "${inboundText}"
   Conversation history:
   ${conversationTranscript}
 
+Structured recent history array:
+${promptHistoryJson}
+
 Reference Blueprints (Tier A): ${kb.schemaPayload}
 System Operational Rules: ${kb.systemRules}
 
 Consultative Reference Runbook (Tier B):
 ${consultativeRunbook}
 
-Execute the request precisely. If asked to generate a configuration patch, return parseable JSON.
-If asked a question or status breakdown, return a concise markdown summary.
+Return ONLY one JSON object with this routing contract:
+- If the user is chatting, asking a question, or requesting a status update, respond with:
+  {"intentType":"conversation","conversationalReply":"<markdown response>"}
+- If the user is explicitly asking for a system patch or config mutation, respond with:
+  {"intentType":"patch","targetVariable":"<name>","patchValue":"<value>","conversationalReply":"<optional markdown summary>"}
+
+Do not return plain text outside the JSON object.
 `;
 
     if (req.body.stream === true) {
-      await streamOllamaResponseToClient(res, chatPrompt, 'llama3:70b')
+      const primaryModel = getOllamaModelCandidates()[0] ?? 'llama3.2:3b';
+      let streamedModelOutput = '';
+      try {
+        streamedModelOutput = await streamOllamaResponseToClient(res, chatPrompt, primaryModel)
+      } catch (error) {
+        console.error('[/api/heal] Stream generation failed', error);
+        const degradedText = 'Bob is temporarily unavailable (model upstream). Please retry in a moment.';
+        res.write(`data: ${JSON.stringify({ type: 'final', text: degradedText })}\n\n`)
+        res.write(`data: ${JSON.stringify({ type: 'done', text: degradedText })}\n\n`)
+        res.end()
+        await appendChatSessionMessage(sessionId, 'assistant', degradedText);
+        return
+      }
+
+      const routed = normalizeRoutedBobResponse(streamedModelOutput);
+      const assistantText = routed.intentType === 'patch'
+        ? JSON.stringify({ targetVariable: routed.targetVariable, patchValue: routed.patchValue })
+        : String(routed.conversationalReply ?? streamedModelOutput ?? '').trim();
+      await appendChatSessionMessage(sessionId, 'assistant', assistantText);
       return
     }
 
-    const aiResult = await axios.post(`${process.env.OLLAMA_PROXY_URL ?? 'http://ollama:11434'}/api/generate`, {
-      model: 'llama3:70b',
-      prompt: chatPrompt,
-      stream: false,
-    });
+    let modelText = '';
+    let modelUsed = '';
+    try {
+      const result = await generateWithModelFallback('', chatPrompt);
+      modelText = result.responseText.trim();
+      modelUsed = result.modelUsed;
+    } catch (error) {
+      console.error('[/api/heal] Non-stream generation failed', error);
+      const degradedText = 'Bob is temporarily unavailable (model upstream). Please retry in a moment.';
+      await appendChatSessionMessage(sessionId, 'assistant', degradedText);
 
-    const bobResponse = String((aiResult.data as { response?: string }).response ?? '').trim();
+      res.status(200).json({
+        bobResponse: degradedText,
+        status: 'DEGRADED',
+        sessionId,
+        intentType: 'conversation',
+        conversationalReply: degradedText,
+      });
+      return;
+    }
+
+    console.log(`[/api/heal] Manual instruction generated via model ${modelUsed}`);
+    const routed = normalizeRoutedBobResponse(modelText);
+    const bobResponse = routed.intentType === 'patch'
+      ? JSON.stringify({ targetVariable: routed.targetVariable, patchValue: routed.patchValue })
+      : String(routed.conversationalReply ?? modelText).trim();
+
+    await appendChatSessionMessage(sessionId, 'assistant', bobResponse);
 
     res.status(200).json({
       bobResponse,
       status: 'COMPLETED',
+      sessionId,
+      conversationalReply: routed.conversationalReply,
+      targetVariable: routed.targetVariable,
+      patchValue: routed.patchValue,
+      intentType: routed.intentType,
     });
     return;
   }

@@ -95,6 +95,29 @@ Material updates in the current CI remediation slice:
 2. Build budget baseline was recalibrated for current bundle reality (total non-exempt JS budget 8,950 kB) to prevent false-negative release gating while preserving per-chunk and CSS limits.
 3. Workforce roster planning remains architecture-consistent with live leave-request data sourcing and no route-topology expansion in this slice.
 
+## Current Cycle Snapshot (2026-05-22 — Bob Chat Recovery Execution)
+
+Material operational actions executed against live production routing:
+
+1. Production backend service identity was resolved through Railway GraphQL and targeted explicitly (`fieldops-backend`, production environment).
+2. Live model configuration was corrected to known-available Ollama models:
+   - `BOB_CHAT_MODEL=qwen2.5:7b`
+   - `BOB_CHAT_MODELS=qwen2.5:7b,llama3.2-vision:11b`
+   - `OLLAMA_PROXY_URL=https://ollama-production-3ab0.up.railway.app`
+3. Backend production redeploy was triggered and completed with `SUCCESS` status.
+4. Post-redeploy contract probes were re-run for both chat interfaces (non-stream and stream payload shapes).
+
+Validation and risk state:
+
+1. `GET /health` remains healthy.
+2. Non-stream `POST /api/heal` still returns edge fallback HTTP 502 (`Application failed to respond`).
+3. Stream `POST /api/heal` returns SSE headers (HTTP 200) but no response content completion in verification window.
+4. Result: operational blocker remains active for Bob conversational response path across Chat Studio and Quick Chat.
+
+Governance implication:
+
+1. This cycle is recorded as unresolved production runtime behavior after valid env correction and successful redeploy; further action must be runtime-log/root-cause driven and not masked by UI-only fallback behavior.
+
 ### Governance / Validation Implications
 
 1. Documentation authority remains paired: instruction manual and canonical file updated in the same change set as CI/governance-impacting updates.
