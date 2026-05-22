@@ -58,8 +58,6 @@ jobs:
         uses: actions/setup-node@v5
         with:
           node-version: 20
-          cache: npm
-          cache-dependency-path: backend/package-lock.json
 
       - name: Setup Supabase CLI
         uses: supabase/setup-cli@v2
@@ -68,7 +66,7 @@ jobs:
 
       - name: Install backend dependencies
         working-directory: backend
-        run: npm ci
+        run: npm install
 
       - name: Refresh tiered agent training context
         working-directory: backend
@@ -89,8 +87,6 @@ jobs:
         uses: actions/setup-node@v5
         with:
           node-version: 20
-          cache: npm
-          cache-dependency-path: backend/package-lock.json
 
       - name: Setup Supabase CLI
         uses: supabase/setup-cli@v2
@@ -99,7 +95,7 @@ jobs:
 
       - name: Install backend dependencies
         working-directory: backend
-        run: npm ci
+        run: npm install
 
       - name: Validate training pipeline (read-only)
         working-directory: backend
