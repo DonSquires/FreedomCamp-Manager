@@ -1,7 +1,8 @@
 import 'dotenv/config';
-import express, { Request, Response } from 'express';
+import express, { NextFunction, Request, Response } from 'express';
 import axios from 'axios';
 import { createClient } from '@supabase/supabase-js';
+import jwt, { JwtPayload } from 'jsonwebtoken';
 import ws from 'ws';
 import { readFile, stat } from 'node:fs/promises';
 import { once } from 'node:events';
@@ -260,6 +261,7 @@ const SUPABASE_URL =
   process.env.VITE_SUPABASE_URL ??
   (process.env.SUPABASE_PROJECT_REF ? `https://${process.env.SUPABASE_PROJECT_REF}.supabase.co` : undefined);
 const SUPABASE_SERVICE_ROLE_KEY = requireAnyEnv(['SUPABASE_SERVICE_ROLE_KEY']);
+const SUPABASE_JWT_SECRET = requireAnyEnv(['SUPABASE_JWT_SECRET']);
 
 if (!SUPABASE_URL) {
   throw new Error('Missing SUPABASE_URL. Set SUPABASE_URL, VITE_SUPABASE_URL, or SUPABASE_PROJECT_REF');
@@ -295,6 +297,100 @@ app.use((req, res, next) => {
 
 app.use(express.json());
 
+// ── Supabase (service role — backend only, never expose to client) ──────────
+const supabase = createClient(
+  SUPABASE_URL,
+  SUPABASE_SERVICE_ROLE_KEY,
+  {
+    realtime: {
+      transport: ws as unknown as never,
+    },
+  }
+);
+
+const ADMIN_ROLES = new Set(['admin', 'admin_officer', 'master', 'grand_master', 'developer']);
+
+type AdminAuthContext = {
+  userId: string;
+  role: string | null;
+  isAdmin: boolean;
+};
+
+function getBearerToken(req: Request): string | null {
+  const header = req.headers.authorization;
+  if (!header) {
+    return null;
+  }
+
+  const match = header.match(/^Bearer\s+(.+)$/i);
+  return match?.[1]?.trim() || null;
+}
+
+function verifySupabaseToken(token: string): JwtPayload | null {
+  try {
+    const decoded = jwt.verify(token, SUPABASE_JWT_SECRET, {
+      algorithms: ['HS256'],
+    });
+
+    if (!decoded || typeof decoded === 'string') {
+      return null;
+    }
+
+    return decoded;
+  } catch {
+    return null;
+  }
+}
+
+async function resolveAdminAuth(req: Request): Promise<AdminAuthContext | null> {
+  const token = getBearerToken(req);
+  if (!token) {
+    return null;
+  }
+
+  const claims = verifySupabaseToken(token);
+  const subject = String(claims?.sub ?? '').trim();
+  if (!subject) {
+    return null;
+  }
+
+  const { data, error } = await supabase
+    .from('user_profiles')
+    .select('id, role, is_active')
+    .eq('id', subject)
+    .maybeSingle();
+
+  if (error || !data) {
+    return null;
+  }
+
+  const role = typeof data.role === 'string' ? data.role : null;
+  const normalizedRole = String(role ?? '').trim().toLowerCase();
+  const isActive = data.is_active !== false;
+
+  return {
+    userId: data.id,
+    role,
+    isAdmin: isActive && ADMIN_ROLES.has(normalizedRole),
+  };
+}
+
+async function requireAdminAuth(req: Request, res: Response, next: NextFunction): Promise<void> {
+  const auth = await resolveAdminAuth(req);
+
+  if (!auth) {
+    res.status(401).json({ error: 'Unauthorized. Valid bearer token required.' });
+    return;
+  }
+
+  if (!auth.isAdmin) {
+    res.status(403).json({ error: 'Forbidden. Admin privileges required.' });
+    return;
+  }
+
+  next();
+}
+
 function triggerTrainingSync(source: string): void {
   const child = spawn('node', ['--loader', 'ts-node/esm', 'scripts/sync-training.ts'], {
     cwd: process.cwd(),
@@ -310,13 +406,17 @@ app.get('/health', (_req: Request, res: Response) => {
 });
 
 app.get('/api/research/document-intelligence', async (req: Request, res: Response) => {
+  const adminAuth = await resolveAdminAuth(req);
+  const hasAdminAccess = Boolean(adminAuth?.isAdmin);
   const q = String(req.query.q ?? '').trim().toLowerCase();
   const category = String(req.query.category ?? '').trim().toLowerCase();
   const tag = String(req.query.tag ?? '').trim().toLowerCase();
   const pathPrefix = String(req.query.pathPrefix ?? '').trim().toLowerCase();
-  const includeText = parseBool(String(req.query.includeText ?? ''));
+  const includeTextRequested = parseBool(String(req.query.includeText ?? ''));
   const includeKeywords = parseBool(String(req.query.includeKeywords ?? ''));
-  const redact = parseBool(String(req.query.redact ?? 'true'));
+  const redactRequested = parseBool(String(req.query.redact ?? 'true'));
+  const includeText = hasAdminAccess ? includeTextRequested : false;
+  const redact = hasAdminAccess ? redactRequested : true;
   const limit = Math.min(
     DOC_INTEL_MAX_LIMIT,
     parsePositiveInt(String(req.query.limit ?? ''), DOC_INTEL_DEFAULT_LIMIT),
@@ -393,6 +493,7 @@ app.get('/api/research/document-intelligence', async (req: Request, res: Respons
         includeText,
         includeKeywords,
         redact,
+        authLevel: hasAdminAccess ? 'admin' : 'public',
         limit,
       },
       results: filtered,
@@ -406,17 +507,6 @@ app.get('/api/research/document-intelligence', async (req: Request, res: Respons
     });
   }
 });
-
-// ── Supabase (service role — backend only, never expose to client) ──────────
-const supabase = createClient(
-  SUPABASE_URL,
-  SUPABASE_SERVICE_ROLE_KEY,
-  {
-    realtime: {
-      transport: ws as unknown as never,
-    },
-  }
-);
 
 // ── Ollama helpers ───────────────────────────────────────────────────────────
 function getOllamaModelCandidates(): string[] {
@@ -1680,7 +1770,7 @@ Do not return plain text outside the JSON object.
 
 // ── POST /api/approve-patch ──────────────────────────────────────────────────
 //    Human tester override — applies the approved patch to Railway
-app.post('/api/approve-patch', async (req: Request, res: Response) => {
+app.post('/api/approve-patch', requireAdminAuth, async (req: Request, res: Response) => {
   const { patchId, projectId, environmentId, serviceId } = req.body as {
     patchId: string;
     projectId: string;
@@ -1739,7 +1829,7 @@ app.post('/api/approve-patch', async (req: Request, res: Response) => {
 //    1. Create a branch from base branch
 //    2. Write one or more files via Gitea Contents API
 //    3. Open a pull request
-app.post('/api/gitea/propose-pr', async (req: Request, res: Response) => {
+app.post('/api/gitea/propose-pr', requireAdminAuth, async (req: Request, res: Response) => {
   const payload = (req.body ?? {}) as GiteaCreatePrRequest;
   const result = await executeGiteaProposePr(payload);
   res.status(result.statusCode).json(result.body);
