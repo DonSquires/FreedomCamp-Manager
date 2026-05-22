@@ -364,13 +364,37 @@ async function executeGiteaProposePr(payload: GiteaCreatePrRequest): Promise<Git
         sha: baseSha,
       });
     } catch (error) {
-      if (axios.isAxiosError(error) && error.response?.status === 422) {
-        return {
-          statusCode: 409,
-          body: { error: `Branch already exists: ${branchName}` },
-        };
+      if (axios.isAxiosError(error)) {
+        const status = error.response?.status;
+        if (status === 422) {
+          return {
+            statusCode: 409,
+            body: { error: `Branch already exists: ${branchName}` },
+          };
+        }
+
+        // Some Gitea instances disable git/refs writes and only support /branches creation.
+        if (status === 404 || status === 405 || status === 501) {
+          try {
+            await gitea.post(`/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/branches`, {
+              new_branch_name: branchName,
+              old_ref_name: baseBranch,
+            });
+          } catch (fallbackError) {
+            if (axios.isAxiosError(fallbackError) && fallbackError.response?.status === 409) {
+              return {
+                statusCode: 409,
+                body: { error: `Branch already exists: ${branchName}` },
+              };
+            }
+            throw fallbackError;
+          }
+        } else {
+          throw error;
+        }
+      } else {
+        throw error;
       }
-      throw error;
     }
 
     for (const fileChange of files) {
