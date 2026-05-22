@@ -1,0 +1,26 @@
+{
+  "name": "fieldops-backend",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "train:sync": "npx --yes supabase gen types typescript --project-id \"$SUPABASE_PROJECT_REF\" > src/types.ts && npx ts-node --esm scripts/sync-training.ts",
+    "train:validate": "if [ -n \"$SUPABASE_PROJECT_REF\" ]; then npx --yes supabase gen types typescript --project-id \"$SUPABASE_PROJECT_REF\" > src/types.ts; else echo \"SUPABASE_PROJECT_REF not set; skipping live type generation\"; fi && npm run build",
+    "docs:sync": "npx ts-node --esm scripts/sync-docs.ts",
+    "train:all": "npm run train:sync && npm run docs:sync"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.0",
+    "axios": "^1.7.2",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.14.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.5.2"
+  }
+}
