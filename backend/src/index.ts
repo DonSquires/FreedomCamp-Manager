@@ -10,7 +10,12 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { applyAgentPatch } from './agentTools.js';
 import { runInSandboxEmulator } from './validator.js';
-import { executeWebSearch, fetchWebpageContent } from './researchTool.js';
+import {
+  buildPrioritizedResearchQueries,
+  executeWebSearch,
+  fetchWebpageContent,
+  isTrustedResearchDomain,
+} from './researchTool.js';
 
 type DocumentationLibraryRow = {
   file_path: string;
@@ -1321,12 +1326,53 @@ app.post('/api/heal', async (req: Request, res: Response) => {
             textPreview: PRIVACY_REDACTION_ENABLED ? redactSensitivePersonalData(row.textPreview).text : row.textPreview,
           }));
 
-        const [searchSnippets, pageContent] = allowExternalResearch
-          ? await Promise.all([
-              executeWebSearch(sanitizedQuery),
-              requestedUrl ? fetchWebpageContent(requestedUrl) : Promise.resolve(''),
-            ])
-          : ['External web research skipped due to detected sensitive personal data.', ''];
+        const stagedQueries = buildPrioritizedResearchQueries(sanitizedQuery);
+
+        let stagedSearchOutput = 'External web research skipped due to detected sensitive personal data.';
+        if (allowExternalResearch) {
+          const stageResponses: string[] = [];
+          for (let index = 0; index < stagedQueries.length; index += 1) {
+            const stageQuery = stagedQueries[index];
+            const stageLabel = index === 0 ? 'Stage 1 (NZ/official local)' : 'Stage 2 (trusted official global docs)';
+
+            try {
+              const stageResult = await executeWebSearch(stageQuery);
+              stageResponses.push(`${stageLabel}:\n${stageResult || 'No snippets returned.'}`);
+
+              if (stageResult && stageResult.length >= 400) {
+                break;
+              }
+            } catch (error) {
+              stageResponses.push(`${stageLabel}: search failed (${error instanceof Error ? error.message : 'unknown error'})`);
+            }
+          }
+
+          stagedSearchOutput = stageResponses.join('\n\n');
+        }
+
+        let pageContent = '';
+        let pageFetchPolicyNote = 'No URL fetch requested.';
+        if (requestedUrl && allowExternalResearch) {
+          let hostname = '';
+          try {
+            hostname = new URL(requestedUrl).hostname;
+          } catch {
+            hostname = '';
+          }
+
+          if (hostname && !isTrustedResearchDomain(hostname)) {
+            pageFetchPolicyNote = `URL fetch skipped: ${hostname} is not in trusted official research domains.`;
+          } else {
+            try {
+              pageContent = await fetchWebpageContent(requestedUrl);
+              pageFetchPolicyNote = `Fetched URL: ${requestedUrl}`;
+            } catch (error) {
+              pageFetchPolicyNote = `URL fetch skipped: ${error instanceof Error ? error.message : 'unknown error'}`;
+            }
+          }
+        } else if (requestedUrl && !allowExternalResearch) {
+          pageFetchPolicyNote = 'URL fetch skipped due to detected sensitive personal data in request.';
+        }
 
         const redactedPageContent = PRIVACY_REDACTION_ENABLED
           ? redactSensitivePersonalData(pageContent).text
@@ -1340,12 +1386,12 @@ app.post('/api/heal', async (req: Request, res: Response) => {
           queryRedaction.redactedFields.length > 0
             ? `Redacted fields: ${queryRedaction.redactedFields.join(', ')}`
             : 'Redacted fields: none',
+          `Research strategy: NZ-focused trusted sources first, then trusted official global sources if needed.`,
           `Tier A system rules: ${kb.systemRules}`,
           `Internal document intelligence matches:\n${JSON.stringify(internalMatches, null, 2)}`,
-          `Search snippets:\n${searchSnippets || 'No search snippets returned.'}`,
-          requestedUrl
-            ? `Fetched URL: ${requestedUrl}\n${truncateRunbookContent(redactedPageContent || 'No page content returned.', 5000)}`
-            : 'No URL fetch requested.',
+          `Search snippets:\n${stagedSearchOutput || 'No search snippets returned.'}`,
+          `${pageFetchPolicyNote}`,
+          redactedPageContent ? `Fetched page content:\n${truncateRunbookContent(redactedPageContent, 5000)}` : 'No fetched page content included.',
           'Synthesize practical, actionable recommendations for this repository. Include concrete migration risk, exact next steps, and confidence caveats.',
           'Never output personal data. If uncertain, keep identifying details redacted.',
         ].join('\n\n');

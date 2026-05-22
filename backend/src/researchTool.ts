@@ -2,6 +2,82 @@ import axios from 'axios';
 
 const REQUEST_TIMEOUT_MS = Number(process.env.RESEARCH_HTTP_TIMEOUT_MS ?? 15000);
 const MAX_TEXT_CHARS = Number(process.env.RESEARCH_MAX_TEXT_CHARS ?? 12000);
+const RESEARCH_ALLOW_BROAD_FETCH = String(process.env.RESEARCH_ALLOW_BROAD_FETCH ?? '').trim().toLowerCase() === 'true';
+
+const BLOCKED_DOMAIN_PATTERNS = [
+  /(?:^|\.)porn/i,
+  /(?:^|\.)xxx/i,
+  /(?:^|\.)adult/i,
+  /(?:^|\.)sex/i,
+  /(?:^|\.)escort/i,
+  /(?:^|\.)bet/i,
+  /(?:^|\.)casino/i,
+  /(?:^|\.)gambl/i,
+  /(?:^|\.)malware/i,
+  /(?:^|\.)phish/i,
+  /(?:^|\.)torrent/i,
+  /(?:^|\.)pirate/i,
+];
+
+const NZ_FOCUSED_DOMAINS = [
+  'govt.nz',
+  'gov.nz',
+  'org.nz',
+  'ac.nz',
+  'co.nz',
+  'nz',
+];
+
+const TRUSTED_OFFICIAL_DOMAINS = [
+  'supabase.com',
+  'railway.app',
+  'nodejs.org',
+  'developer.mozilla.org',
+  'typescriptlang.org',
+  'vite.dev',
+  'react.dev',
+  'deno.com',
+  'docs.github.com',
+  'github.com',
+  'npmjs.com',
+];
+
+function hostnameMatchesDomain(hostname: string, domain: string): boolean {
+  const loweredHost = hostname.toLowerCase();
+  const loweredDomain = domain.toLowerCase();
+  return loweredHost === loweredDomain || loweredHost.endsWith(`.${loweredDomain}`);
+}
+
+function isPrivateOrLocalHost(hostname: string): boolean {
+  const lowered = hostname.toLowerCase();
+  if (lowered === 'localhost' || lowered === '127.0.0.1' || lowered === '::1') {
+    return true;
+  }
+
+  if (/^10\./.test(lowered) || /^192\.168\./.test(lowered) || /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(lowered)) {
+    return true;
+  }
+
+  return false;
+}
+
+export function isBlockedResearchDomain(hostname: string): boolean {
+  return BLOCKED_DOMAIN_PATTERNS.some((pattern) => pattern.test(hostname));
+}
+
+export function isTrustedResearchDomain(hostname: string): boolean {
+  return [...NZ_FOCUSED_DOMAINS, ...TRUSTED_OFFICIAL_DOMAINS].some((domain) => hostnameMatchesDomain(hostname, domain));
+}
+
+export function buildPrioritizedResearchQueries(query: string): string[] {
+  const normalizedQuery = query.trim();
+  const riskyTermsExclusion = '-porn -xxx -adult -escort -casino -betting -gambling -torrent';
+
+  const nzStage = `${normalizedQuery} (${NZ_FOCUSED_DOMAINS.map((domain) => `site:${domain}`).join(' OR ')}) ${riskyTermsExclusion}`;
+  const officialStage = `${normalizedQuery} (${TRUSTED_OFFICIAL_DOMAINS.map((domain) => `site:${domain}`).join(' OR ')}) ${riskyTermsExclusion}`;
+
+  return [nzStage, officialStage];
+}
 
 function truncate(value: string, max = MAX_TEXT_CHARS): string {
   if (value.length <= max) {
@@ -91,6 +167,18 @@ function validateHttpUrl(url: string): string {
 
   if (!['http:', 'https:'].includes(parsed.protocol)) {
     throw new Error('Only http/https URLs are supported');
+  }
+
+  if (isPrivateOrLocalHost(parsed.hostname)) {
+    throw new Error('Private/local hosts are not allowed for research fetch');
+  }
+
+  if (isBlockedResearchDomain(parsed.hostname)) {
+    throw new Error('Blocked domain category for research fetch');
+  }
+
+  if (!RESEARCH_ALLOW_BROAD_FETCH && !isTrustedResearchDomain(parsed.hostname)) {
+    throw new Error('Domain is not in trusted official research allowlist');
   }
 
   return parsed.toString();
