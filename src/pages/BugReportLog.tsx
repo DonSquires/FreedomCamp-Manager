@@ -27,6 +27,7 @@ import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { AppLayout } from '@/components/features/AppLayout'
+import { BobApprovalPanel } from '@/components/features/BobApprovalPanel'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -216,6 +217,9 @@ export default function BugReportLog() {
           </Select>
           <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="w-40" />
         </div>
+
+        {/* Pending AI patches */}
+        <BobApprovalPanel />
 
         {/* Table */}
         {isLoading ? (

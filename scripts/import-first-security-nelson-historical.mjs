@@ -10,13 +10,17 @@ const HELP_TEXT = `
 Import First Security Nelson historical Wilsar files into patrols and alarm_events.
 
 Usage:
-  node scripts/import-first-security-nelson-historical.mjs [--apply] [--ai-review] [--ai-review-limit <n>] [--ai-auto-promote-threshold <0-1>]
+  node scripts/import-first-security-nelson-historical.mjs [--apply] [--ai-review] [--ai-review-limit <n>] [--ai-auto-promote-threshold <0-1>] [--qa-noise-threshold <0-1>] [--qa-complainant-threshold <0-1>] [--qa-person-threshold <0-1>] [--qa-export-path <path>]
 
 Options:
   --apply                       Write to database. Omit for dry-run.
   --ai-review                   Run Bob-assisted review on low-confidence noise note rows.
   --ai-review-limit <n>         Max low-confidence rows to send to Bob. Default: 100.
   --ai-auto-promote-threshold   Promote Bob suggestions into parsed fields at or above this confidence. Default: 0.96.
+  --qa-noise-threshold          Minimum confidence before noise address is treated as QA-pass. Default: 0.85.
+  --qa-complainant-threshold    Minimum confidence before complainant address is treated as QA-pass. Default: 0.85.
+  --qa-person-threshold         Minimum confidence before person name is treated as QA-pass. Default: 0.80.
+  --qa-export-path              Output path for narrative QA CSV export. Default: /tmp/wilsar-noise-note-review.csv.
 `
 
 const SOURCE = {
@@ -48,6 +52,11 @@ const TARGET_PROVIDER_ORG_BY_ZONE = {
   '582': 'First Security - Blenheim',
 }
 const TARGET_CLIENT_ORG = 'Nelson City Council'
+const DEFAULT_NARRATIVE_QA_THRESHOLDS = {
+  noiseAddress: 0.85,
+  complainantAddress: 0.85,
+  personName: 0.8,
+}
 
 function getProviderOrgNameForZone(zoneCode) {
   return TARGET_PROVIDER_ORG_BY_ZONE[zoneCode] || TARGET_PROVIDER_ORG_DEFAULT
@@ -67,7 +76,21 @@ function parseArgs(argv) {
     aiReview: argv.includes('--ai-review'),
     aiReviewLimit: Number.parseInt(String(readOptionValue('--ai-review-limit') || ''), 10),
     aiAutoPromoteThreshold: Number.parseFloat(String(readOptionValue('--ai-auto-promote-threshold') || '')),
+    qaNoiseThreshold: Number.parseFloat(String(readOptionValue('--qa-noise-threshold') || '')),
+    qaComplainantThreshold: Number.parseFloat(String(readOptionValue('--qa-complainant-threshold') || '')),
+    qaPersonThreshold: Number.parseFloat(String(readOptionValue('--qa-person-threshold') || '')),
+    qaExportPath: normalizeText(readOptionValue('--qa-export-path') || ''),
   }
+}
+
+function resolveThreshold(candidate, fallbackRaw, defaultValue) {
+  const fallback = Number.parseFloat(String(fallbackRaw || ''))
+  const value = Number.isFinite(candidate)
+    ? candidate
+    : Number.isFinite(fallback)
+      ? fallback
+      : defaultValue
+  return Math.max(0, Math.min(1, value))
 }
 
 function loadEnv() {
@@ -675,7 +698,7 @@ function classifyAlarmType(row) {
   return 'dispatch_event'
 }
 
-function buildAlarmRows(rows, routeByZoneCode, sourcePath) {
+function buildAlarmRows(rows, routeByZoneCode, sourcePath, narrativeQaThresholds = DEFAULT_NARRATIVE_QA_THRESHOLDS) {
   const out = []
   for (let i = 0; i < rows.length; i += 1) {
     const r = rows[i]
@@ -735,7 +758,7 @@ function buildAlarmRows(rows, routeByZoneCode, sourcePath) {
     const notes = [dispatchComments, followUpInfo].filter(Boolean).join(' | ')
     const visitResult = extractVisitResult(dispatchComments, followUpInfo)
     const rawClientAddress = normalizeText(r['Client Address'])
-    const narrative = parseNoiseNarrative(notes, rawClientAddress)
+    const narrative = parseNoiseNarrative(notes, rawClientAddress, narrativeQaThresholds)
     const complainantAddressFromNotes = narrative.complainantAddress
     const effectiveNoiseAddress = narrative.noiseAddress
     const personFromNotes = narrative.personName
@@ -759,6 +782,7 @@ function buildAlarmRows(rows, routeByZoneCode, sourcePath) {
         parsed_person_name: personFromNotes || null,
         parsed_narrative_confidence: narrative.confidence,
         parsed_narrative_qa_reasons: narrative.qaReasons,
+        parsed_narrative_slots: narrative.slots,
         matrix_refs: matrixRefs,
         noise_end_issued: noiseEndIssued,
         visit_result: visitResult || null,
@@ -795,6 +819,7 @@ function buildAlarmRows(rows, routeByZoneCode, sourcePath) {
           parsed_person_name: personFromNotes || null,
           parsed_narrative_confidence: narrative.confidence,
           parsed_narrative_qa_reasons: narrative.qaReasons,
+          parsed_narrative_slots: narrative.slots,
           matrix_refs: matrixRefs,
           noise_end_issued: noiseEndIssued,
           visit_result: visitResult || null,
@@ -1261,15 +1286,35 @@ function buildFieldConfidence(source, value) {
   }
 }
 
-function deriveNoiseNarrativeQaReasons({ notes, noiseAddress, complainantAddress, personName, confidence }) {
+function buildNoiseNarrativeSlots({ notes, noiseAddress, complainantAddress, personName, matrixRefs, noiseEndIssued, completionInNotes }) {
+  const text = normalizeText(notes)
+  return {
+    dual_address_case: Boolean(
+      noiseAddress
+      && complainantAddress
+      && normalizeAddressKey(noiseAddress)
+      && normalizeAddressKey(complainantAddress)
+      && normalizeAddressKey(noiseAddress) !== normalizeAddressKey(complainantAddress)
+    ),
+    complainant_anonymous_hint: /\b(anonymous|anon|withheld|refused)\b/i.test(text),
+    noise_address_named_place: /\b(park|car park|centre|center|museum|bar|hotel|lodge|cafe|quay|port|market|boathouse|society|grounds)\b/i.test(String(noiseAddress || '')),
+    has_person_name: Boolean(personName),
+    has_matrix_refs: Array.isArray(matrixRefs) && matrixRefs.length > 0,
+    matrix_ref_count: Array.isArray(matrixRefs) ? matrixRefs.length : 0,
+    noise_end_issued: noiseEndIssued === true,
+    completion_in_notes: completionInNotes === true,
+  }
+}
+
+function deriveNoiseNarrativeQaReasons({ notes, noiseAddress, complainantAddress, personName, confidence, thresholds = DEFAULT_NARRATIVE_QA_THRESHOLDS }) {
   const qaReasons = []
 
   if (!noiseAddress) qaReasons.push('missing_noise_address')
-  else if ((confidence?.noiseAddress?.score || 0) < 0.85) qaReasons.push(`low_noise_address_confidence:${confidence?.noiseAddress?.source || 'derived'}`)
+  else if ((confidence?.noiseAddress?.score || 0) < Number(thresholds?.noiseAddress || DEFAULT_NARRATIVE_QA_THRESHOLDS.noiseAddress)) qaReasons.push(`low_noise_address_confidence:${confidence?.noiseAddress?.source || 'derived'}`)
 
-  if (complainantAddress && (confidence?.complainantAddress?.score || 0) < 0.85) qaReasons.push(`low_complainant_address_confidence:${confidence?.complainantAddress?.source || 'derived'}`)
+  if (complainantAddress && (confidence?.complainantAddress?.score || 0) < Number(thresholds?.complainantAddress || DEFAULT_NARRATIVE_QA_THRESHOLDS.complainantAddress)) qaReasons.push(`low_complainant_address_confidence:${confidence?.complainantAddress?.source || 'derived'}`)
 
-  if (personName && (confidence?.personName?.score || 0) < 0.8) qaReasons.push(`low_person_confidence:${confidence?.personName?.source || 'derived'}`)
+  if (personName && (confidence?.personName?.score || 0) < Number(thresholds?.personName || DEFAULT_NARRATIVE_QA_THRESHOLDS.personName)) qaReasons.push(`low_person_confidence:${confidence?.personName?.source || 'derived'}`)
 
   return qaReasons
 }
@@ -1338,7 +1383,7 @@ function normalizeBobReviewField(value) {
   return text
 }
 
-function applyBobNarrativePromotion(candidate, aiReview, autoPromoteThreshold) {
+function applyBobNarrativePromotion(candidate, aiReview, autoPromoteThreshold, options = {}) {
   if (!aiReview) return false
 
   let changed = false
@@ -1392,7 +1437,30 @@ function applyBobNarrativePromotion(candidate, aiReview, autoPromoteThreshold) {
     complainantAddress: meta.parsed_complainant_address,
     personName: meta.parsed_person_name,
     confidence,
+    thresholds: options.qaThresholds,
   })
+  meta.parsed_narrative_slots = buildNoiseNarrativeSlots({
+    notes: row.notes,
+    noiseAddress: meta.parsed_noise_address,
+    complainantAddress: meta.parsed_complainant_address,
+    personName: meta.parsed_person_name,
+    matrixRefs: meta.matrix_refs,
+    noiseEndIssued: meta.noise_end_issued,
+    completionInNotes: meta.completion_in_notes,
+  })
+
+  row.raw_payload = {
+    ...(row.raw_payload || {}),
+    parsed_dispatch_address: meta.parsed_dispatch_address || null,
+    parsed_noise_address: meta.parsed_noise_address || null,
+    parsed_complainant_address: meta.parsed_complainant_address || null,
+    parsed_person_name: meta.parsed_person_name || null,
+    parsed_narrative_confidence: confidence,
+    parsed_narrative_qa_reasons: meta.parsed_narrative_qa_reasons || [],
+    parsed_narrative_slots: meta.parsed_narrative_slots || {},
+    matrix_refs: meta.matrix_refs || [],
+    noise_end_issued: meta.noise_end_issued === true,
+  }
 
   return changed
 }
@@ -1415,6 +1483,7 @@ async function reviewNoiseNarrativesWithBob(alarmCandidates, options = {}) {
 
   const limit = Math.max(0, Number(options.limit || 0) || 0)
   const autoPromoteThreshold = Number(options.autoPromoteThreshold || 0.96) || 0.96
+  const qaThresholds = options.qaThresholds || DEFAULT_NARRATIVE_QA_THRESHOLDS
   const reviewCandidates = alarmCandidates
     .filter((candidate) => candidate?.meta?.event_type === 'noise')
     .filter((candidate) => Array.isArray(candidate?.meta?.parsed_narrative_qa_reasons) && candidate.meta.parsed_narrative_qa_reasons.length > 0)
@@ -1473,7 +1542,7 @@ async function reviewNoiseNarrativesWithBob(alarmCandidates, options = {}) {
         complainant: candidate?.meta?.parsed_complainant_address || null,
         person: candidate?.meta?.parsed_person_name || null,
       }
-      const promoted = applyBobNarrativePromotion(candidate, parsed, autoPromoteThreshold)
+      const promoted = applyBobNarrativePromotion(candidate, parsed, autoPromoteThreshold, { qaThresholds })
       if (promoted) {
         summary.promoted_rows += 1
         if ((candidate?.meta?.parsed_noise_address || null) !== before.noise) summary.promoted_noise_address += 1
@@ -1490,7 +1559,7 @@ async function reviewNoiseNarrativesWithBob(alarmCandidates, options = {}) {
   return summary
 }
 
-function parseNoiseNarrative(notes, rawClientAddress) {
+function parseNoiseNarrative(notes, rawClientAddress, qaThresholds = DEFAULT_NARRATIVE_QA_THRESHOLDS) {
   const text = normalizeText(notes)
   const normalizedClientAddress = !isPlaceholderAddress(rawClientAddress)
     ? normalizeHistoricalAddressText(rawClientAddress)
@@ -1662,6 +1731,16 @@ function parseNoiseNarrative(notes, rawClientAddress) {
     complainantAddress,
     personName,
     confidence,
+    thresholds: qaThresholds,
+  })
+  const slots = buildNoiseNarrativeSlots({
+    notes: text,
+    noiseAddress,
+    complainantAddress,
+    personName,
+    matrixRefs,
+    noiseEndIssued,
+    completionInNotes,
   })
 
   return {
@@ -1673,6 +1752,7 @@ function parseNoiseNarrative(notes, rawClientAddress) {
     completionInNotes,
     confidence,
     qaReasons,
+    slots,
   }
 }
 
@@ -2216,19 +2296,28 @@ function escapeCsvValue(value) {
   return text
 }
 
-function writeNoiseNarrativeQaExport(alarmCandidates) {
+function writeNoiseNarrativeQaExport(alarmCandidates, options = {}) {
+  const outPath = normalizeText(options.outPath) || '/tmp/wilsar-noise-note-review.csv'
+  const includeAll = Boolean(options.includeAll)
+  const thresholds = options.qaThresholds || DEFAULT_NARRATIVE_QA_THRESHOLDS
   const rows = []
   for (const candidate of alarmCandidates) {
     if (candidate?.meta?.event_type !== 'noise') continue
     const confidence = candidate?.meta?.parsed_narrative_confidence || {}
     const qaReasons = candidate?.meta?.parsed_narrative_qa_reasons || []
-    if (!qaReasons.length) continue
+    if (!includeAll && !qaReasons.length) continue
     const aiReview = candidate?.meta?.ai_review || {}
+    const slots = candidate?.meta?.parsed_narrative_slots || {}
 
     rows.push({
       import_key: candidate.key,
       dispatch_no: candidate?.meta?.dispatch_no || '',
       organization_id: candidate?.row?.organization_id || '',
+      qa_status: qaReasons.length ? 'needs_review' : 'pass',
+      qa_reason_count: qaReasons.length,
+      qa_noise_threshold: thresholds.noiseAddress,
+      qa_complainant_threshold: thresholds.complainantAddress,
+      qa_person_threshold: thresholds.personName,
       noise_address: candidate?.meta?.parsed_noise_address || '',
       noise_address_confidence: confidence?.noiseAddress?.score || 0,
       noise_address_source: confidence?.noiseAddress?.source || '',
@@ -2244,16 +2333,27 @@ function writeNoiseNarrativeQaExport(alarmCandidates) {
       ai_complainant_address_confidence: aiReview?.confidence?.complainant_address || 0,
       ai_person_name: aiReview?.person_name || '',
       ai_person_confidence: aiReview?.confidence?.person_name || 0,
+      slot_dual_address_case: slots?.dual_address_case === true ? 'true' : 'false',
+      slot_complainant_anonymous_hint: slots?.complainant_anonymous_hint === true ? 'true' : 'false',
+      slot_noise_address_named_place: slots?.noise_address_named_place === true ? 'true' : 'false',
+      slot_has_person_name: slots?.has_person_name === true ? 'true' : 'false',
+      slot_has_matrix_refs: slots?.has_matrix_refs === true ? 'true' : 'false',
+      slot_matrix_ref_count: Number(slots?.matrix_ref_count || 0),
+      slot_noise_end_issued: slots?.noise_end_issued === true ? 'true' : 'false',
+      slot_completion_in_notes: slots?.completion_in_notes === true ? 'true' : 'false',
       qa_reasons: qaReasons.join('|'),
       notes: candidate?.row?.notes || '',
     })
   }
-
-  const outPath = '/tmp/wilsar-noise-note-review.csv'
   const headers = [
     'import_key',
     'dispatch_no',
     'organization_id',
+    'qa_status',
+    'qa_reason_count',
+    'qa_noise_threshold',
+    'qa_complainant_threshold',
+    'qa_person_threshold',
     'noise_address',
     'noise_address_confidence',
     'noise_address_source',
@@ -2269,6 +2369,14 @@ function writeNoiseNarrativeQaExport(alarmCandidates) {
     'ai_complainant_address_confidence',
     'ai_person_name',
     'ai_person_confidence',
+    'slot_dual_address_case',
+    'slot_complainant_anonymous_hint',
+    'slot_noise_address_named_place',
+    'slot_has_person_name',
+    'slot_has_matrix_refs',
+    'slot_matrix_ref_count',
+    'slot_noise_end_issued',
+    'slot_completion_in_notes',
     'qa_reasons',
     'notes',
   ]
@@ -2492,8 +2600,25 @@ async function main() {
   })
 
   const patrolCandidates = buildPatrolRows(patrolRowsRaw, routeByZoneCode)
+  const narrativeQaThresholds = {
+    noiseAddress: resolveThreshold(
+      args.qaNoiseThreshold,
+      process.env.WILSAR_NOISE_QA_NOISE_THRESHOLD,
+      DEFAULT_NARRATIVE_QA_THRESHOLDS.noiseAddress,
+    ),
+    complainantAddress: resolveThreshold(
+      args.qaComplainantThreshold,
+      process.env.WILSAR_NOISE_QA_COMPLAINANT_THRESHOLD,
+      DEFAULT_NARRATIVE_QA_THRESHOLDS.complainantAddress,
+    ),
+    personName: resolveThreshold(
+      args.qaPersonThreshold,
+      process.env.WILSAR_NOISE_QA_PERSON_THRESHOLD,
+      DEFAULT_NARRATIVE_QA_THRESHOLDS.personName,
+    ),
+  }
   const alarmCandidates = alarmRowsByFile.flatMap((entry) =>
-    buildAlarmRows(entry.rows, routeByZoneCode, entry.path),
+    buildAlarmRows(entry.rows, routeByZoneCode, entry.path, narrativeQaThresholds),
   )
 
   const siteSeeds = collectClientSiteSeeds(patrolCandidates, alarmCandidates)
@@ -2594,10 +2719,15 @@ async function main() {
     enabled: aiReviewEnabled,
     limit: aiReviewLimit,
     autoPromoteThreshold: aiAutoPromoteThreshold,
+    qaThresholds: narrativeQaThresholds,
   })
   noiseJobsResult = await insertNoiseJobsFromHistoricalAlarms(supabase, providerOrgs, alarmCandidates, args.apply)
   noiseLoiPoiResult = await syncNoiseLoiPoiFromNotes(supabase, alarmCandidates, args.apply)
-  noiseQaExportResult = writeNoiseNarrativeQaExport(alarmCandidates)
+  noiseQaExportResult = writeNoiseNarrativeQaExport(alarmCandidates, {
+    outPath: args.qaExportPath || process.env.WILSAR_NOISE_QA_EXPORT_PATH,
+    includeAll: true,
+    qaThresholds: narrativeQaThresholds,
+  })
 
   const summary = {
     mode: dryRun ? 'dry-run' : 'apply',
@@ -2663,6 +2793,7 @@ async function main() {
     noise_jobs: noiseJobsResult,
     noise_notes_enrichment: noiseLoiPoiResult,
     noise_ai_review: noiseAiReviewResult,
+    noise_narrative_thresholds: narrativeQaThresholds,
     noise_notes_review: noiseQaExportResult,
     observations: {
       source_event_candidates: observationCandidates.length,

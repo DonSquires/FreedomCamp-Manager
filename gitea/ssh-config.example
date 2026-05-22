@@ -1,0 +1,9 @@
+# Example SSH host entry for the private Gitea instance.
+# The setup script writes the same block into ~/.ssh/config.
+
+Host gitea
+  HostName gitea.example.com
+  User git
+  Port 22
+  IdentityFile ~/.ssh/id_ed25519_gitea
+  IdentitiesOnly yes

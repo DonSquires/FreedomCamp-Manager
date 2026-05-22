@@ -22,7 +22,10 @@ import {
   BrainCircuit,
   Building2,
   Clock3,
+  Loader2,
   MessageSquare,
+  Mic,
+  MicOff,
   PanelLeft,
   Plus,
   Radio,
@@ -68,10 +71,12 @@ function createId() {
     : `${Date.now()}-${Math.random().toString(16).slice(2)}`
 }
 
-function makeMessage(params: Omit<ChatThreadMessage, 'id' | 'createdAt'> & { createdAt?: string }): ChatThreadMessage {
+function makeMessage(
+  params: Omit<ChatThreadMessage, 'id' | 'createdAt'> & { id?: string; createdAt?: string },
+): ChatThreadMessage {
   return {
     ...params,
-    id: createId(),
+    id: params.id ?? createId(),
     createdAt: params.createdAt ?? new Date().toISOString(),
   }
 }
@@ -83,6 +88,36 @@ function buildBobHistory(messages: ChatThreadMessage[]) {
   }))
 }
 
+function getBobManagerUrl(): string {
+  const envUrl = String(import.meta.env.VITE_BOB_MANAGER_URL ?? '').trim()
+  if (envUrl.length > 0) {
+    return envUrl.replace(/\/$/, '')
+  }
+  return 'http://localhost:3000'
+}
+
+function getWhisperProxyUrl(): string {
+  const envUrl = String(
+    import.meta.env.VITE_WHISPER_PROXY_URL ?? import.meta.env.VITE_RAILWAY_STT_URL ?? '',
+  ).trim()
+  if (envUrl.length > 0) {
+    return envUrl.replace(/\/$/, '')
+  }
+
+  // Production fallback from modular speech runbook.
+  return 'https://fieldops-railway-stt-production.up.railway.app'
+}
+
+async function blobToBase64(blob: Blob): Promise<string> {
+  const arrayBuffer = await blob.arrayBuffer()
+  const bytes = new Uint8Array(arrayBuffer)
+  let binary = ''
+  for (let i = 0; i < bytes.length; i += 1) {
+    binary += String.fromCharCode(bytes[i])
+  }
+  return btoa(binary)
+}
+
 export default function ChatStudio() {
   const { user } = useAuthStore()
   const navigate = useNavigate()
@@ -91,6 +126,8 @@ export default function ChatStudio() {
   const [teamTarget, setTeamTarget] = useState<TeamTarget>({ type: 'admin' })
   const [inputText, setInputText] = useState('')
   const [cameraOpen, setCameraOpen] = useState(false)
+  const [voiceRecording, setVoiceRecording] = useState(false)
+  const [voiceTranscribing, setVoiceTranscribing] = useState(false)
   const [bobThread, setBobThread] = useState<ChatThreadMessage[]>([
     makeMessage({
       channel: 'bob',
@@ -106,6 +143,9 @@ export default function ChatStudio() {
   const [teamMessages, setTeamMessages] = useState<ChatThreadMessage[]>([])
   const [channel, setChannel] = useState<RealtimeChannel | null>(null)
   const threadEndRef = useRef<HTMLDivElement>(null)
+  const voiceRecorderRef = useRef<MediaRecorder | null>(null)
+  const voiceChunksRef = useRef<Blob[]>([])
+  const bobSessionIdRef = useRef(`chat-studio-${createId()}`)
 
   const effectiveOrgId = useMemo(
     () => user?.organization_id || organizationId || null,
@@ -195,8 +235,46 @@ export default function ChatStudio() {
     })])
   }, [effectiveOrgId, user?.id])
 
-  const sendBobCommand = useCallback(async () => {
-    const trimmed = inputText.trim()
+  const replaceBobMessage = useCallback((messageId: string, body: string) => {
+    setBobThread((prev) => {
+      let found = false
+      const updated = prev.map((message) => {
+        if (message.id !== messageId) {
+          return message
+        }
+
+        found = true
+        return {
+          ...message,
+          body,
+        }
+      })
+
+      if (found) {
+        return updated
+      }
+
+      // Race-safe fallback: if the pending placeholder has not been committed yet,
+      // append the assistant response so users never lose Bob output.
+      return [
+        ...updated,
+        makeMessage({
+          id: messageId,
+          channel: 'bob',
+          senderId: 'bob-agent',
+          senderName: 'Bob',
+          senderRole: 'assistant',
+          recipientId: user?.id ?? null,
+          recipientRole: 'bob',
+          orgId: effectiveOrgId,
+          body,
+        }),
+      ]
+    })
+  }, [effectiveOrgId, user?.id])
+
+  const sendBobCommand = useCallback(async (overrideText?: string) => {
+    const trimmed = String(overrideText ?? inputText).trim()
     if (!trimmed) return
 
     const userMsg = makeMessage({
@@ -211,8 +289,23 @@ export default function ChatStudio() {
     })
 
     const nextThread = [...bobThread, userMsg]
-    setBobThread(nextThread)
-    setInputText('')
+    const pendingReplyId = createId()
+    const pendingReply = makeMessage({
+      id: pendingReplyId,
+      channel: 'bob',
+      senderId: 'bob-agent',
+      senderName: 'Bob',
+      senderRole: 'assistant',
+      recipientId: user?.id ?? null,
+      recipientRole: 'bob',
+      orgId: effectiveOrgId,
+      body: 'Bob is thinking…',
+    })
+
+    setBobThread([...nextThread, pendingReply])
+    if (!overrideText) {
+      setInputText('')
+    }
 
     try {
       // Route through intent parser first for roster, site, and compliance intents
@@ -224,33 +317,132 @@ export default function ChatStudio() {
 
       // If parser found a structured action, use that reply
       if (parseResult.success && parseResult.actionType !== 'general_note') {
-        addLocalBobReply(parseResult.reply)
+        replaceBobMessage(pendingReplyId, parseResult.reply)
         return
       }
 
       // Otherwise, escalate to Bob's full conversation engine
-      const { data, error } = await edgeFunctions.bobGateway({
-        messages: buildBobHistory(nextThread),
-        provider: 'auto',
-        context: {
-          currentRoute: '/team-chat',
-          interfaceMode: 'unified_chat_hub',
-          orgId: effectiveOrgId,
+      const bobManagerUrl = getBobManagerUrl()
+      const controller = new AbortController()
+      const timeoutId = window.setTimeout(() => controller.abort(), 30000)
+      const response = await fetch(`${bobManagerUrl}/api/heal`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
         },
+        signal: controller.signal,
+        body: JSON.stringify({
+          errorMessage: 'MANUAL_USER_INSTRUCTION',
+          stackTrace: trimmed,
+          userPrompt: trimmed,
+          sessionId: bobSessionIdRef.current,
+          messages: buildBobHistory(nextThread).slice(-10),
+          errorPayload: {
+            tag: 'MANUAL_USER_INSTRUCTION',
+            route: '/chat-studio',
+            text: trimmed,
+          },
+        }),
       })
+      window.clearTimeout(timeoutId)
 
-      if (error) throw new Error(error)
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(`Bob manager request failed (${response.status}): ${errorText}`)
+      }
+
+      const data = await response.json() as {
+        bobResponse?: string
+        response?: string
+        message?: string
+        text?: string
+      }
 
       const replyText = String(
-        data?.response || data?.raw_response || data?.message || data?.text || 'Command acknowledged.',
+        data?.bobResponse || data?.response || data?.message || data?.text || 'Command acknowledged.',
       ).trim()
 
-      addLocalBobReply(replyText || 'Command acknowledged.')
+      replaceBobMessage(pendingReplyId, replyText || 'Command acknowledged.')
     } catch (err: any) {
       toast.error('Bob could not process that command right now.', { description: err?.message || 'Please retry.' })
-      addLocalBobReply('Bob is temporarily unavailable, but the command has been captured for retry.')
+      replaceBobMessage(pendingReplyId, 'Bob is temporarily unavailable, but the command has been captured for retry.')
     }
-  }, [addLocalBobReply, bobThread, effectiveOrgId, inputText, user?.first_name, user?.id, user?.last_name, user?.role])
+  }, [bobThread, effectiveOrgId, inputText, replaceBobMessage, user?.first_name, user?.id, user?.last_name, user?.role])
+
+  const handleVoiceToBob = useCallback(async () => {
+    if (mode !== 'bob' || voiceTranscribing) return
+
+    if (voiceRecording) {
+      voiceRecorderRef.current?.stop()
+      return
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const recorder = new MediaRecorder(stream)
+      voiceRecorderRef.current = recorder
+      voiceChunksRef.current = []
+      setVoiceRecording(true)
+
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          voiceChunksRef.current.push(event.data)
+        }
+      }
+
+      recorder.onstop = async () => {
+        stream.getTracks().forEach((track) => track.stop())
+        setVoiceRecording(false)
+        setVoiceTranscribing(true)
+
+        try {
+          const blob = new Blob(voiceChunksRef.current, { type: recorder.mimeType || 'audio/webm' })
+          const audioBase64 = await blobToBase64(blob)
+
+          const response = await fetch(`${getWhisperProxyUrl()}/transcribe`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              audio_base64: audioBase64,
+              language: 'en',
+            }),
+          })
+
+          if (!response.ok) {
+            const errorText = await response.text()
+            throw new Error(`Whisper proxy failed (${response.status}): ${errorText}`)
+          }
+
+          const payload = await response.json() as { transcript?: string; text?: string; response?: string }
+          const transcript = String(payload.transcript || payload.text || payload.response || '').trim()
+          if (!transcript) {
+            throw new Error('Whisper returned an empty transcript')
+          }
+
+          setInputText(transcript)
+          await sendBobCommand(transcript)
+          toast.success('Voice command transcribed and sent to Bob')
+        } catch (error: any) {
+          toast.error('Voice transcription failed', {
+            description: error?.message || 'Could not transcribe microphone input.',
+          })
+        } finally {
+          setVoiceTranscribing(false)
+          voiceRecorderRef.current = null
+          voiceChunksRef.current = []
+        }
+      }
+
+      recorder.start()
+    } catch (error: any) {
+      setVoiceRecording(false)
+      toast.error('Microphone unavailable', {
+        description: error?.message || 'Grant microphone permission and try again.',
+      })
+    }
+  }, [mode, sendBobCommand, voiceRecording, voiceTranscribing])
 
   const handleImageCapture = useCallback(async (base64Data: string, fileBlob: Blob) => {
     setCameraOpen(false)
@@ -536,6 +728,24 @@ export default function ChatStudio() {
                   title="Capture photo for evidence"
                 >
                   <Camera className="h-4 w-4" />
+                </button>
+              )}
+              {mode === 'bob' && (
+                <button
+                  type="button"
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-100 disabled:opacity-50"
+                  onClick={() => void handleVoiceToBob()}
+                  disabled={voiceTranscribing}
+                  aria-label={voiceRecording ? 'Stop voice command recording' : 'Record voice command'}
+                  title={voiceRecording ? 'Stop recording' : voiceTranscribing ? 'Transcribing...' : 'Talk to Bob'}
+                >
+                  {voiceTranscribing ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : voiceRecording ? (
+                    <MicOff className="h-4 w-4 text-rose-500" />
+                  ) : (
+                    <Mic className="h-4 w-4" />
+                  )}
                 </button>
               )}
               <button

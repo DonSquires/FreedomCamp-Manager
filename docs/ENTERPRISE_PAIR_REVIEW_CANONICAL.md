@@ -95,6 +95,73 @@ Material updates in the current CI remediation slice:
 2. Build budget baseline was recalibrated for current bundle reality (total non-exempt JS budget 8,950 kB) to prevent false-negative release gating while preserving per-chunk and CSS limits.
 3. Workforce roster planning remains architecture-consistent with live leave-request data sourcing and no route-topology expansion in this slice.
 
+## Current Cycle Snapshot (2026-05-22 — Bob Chat Recovery Execution)
+
+Material operational actions executed against live production routing:
+
+1. Production backend service identity was resolved through Railway GraphQL and targeted explicitly (`fieldops-backend`, production environment).
+2. Live model configuration was corrected to known-available Ollama models:
+   - `BOB_CHAT_MODEL=qwen2.5:7b`
+   - `BOB_CHAT_MODELS=qwen2.5:7b,llama3.2-vision:11b`
+   - `OLLAMA_PROXY_URL=https://ollama-production-3ab0.up.railway.app`
+3. Backend production redeploy was triggered and completed with `SUCCESS` status.
+4. Post-redeploy contract probes were re-run for both chat interfaces (non-stream and stream payload shapes).
+
+Validation and risk state:
+
+1. `GET /health` remains healthy.
+2. Non-stream `POST /api/heal` still returns edge fallback HTTP 502 (`Application failed to respond`).
+3. Stream `POST /api/heal` returns SSE headers (HTTP 200) but no response content completion in verification window.
+4. Result: operational blocker remains active for Bob conversational response path across Chat Studio and Quick Chat.
+
+Governance implication:
+
+1. This cycle is recorded as unresolved production runtime behavior after valid env correction and successful redeploy; further action must be runtime-log/root-cause driven and not masked by UI-only fallback behavior.
+
+## Current Cycle Snapshot (2026-05-22 — Bob Chat Recovery Resolution)
+
+Material outcomes after runtime-log-driven remediation:
+
+1. Backend runtime/build contract aligned for Node 20 + npm 10, with backend-local Docker build context preserved.
+2. Supabase realtime dependency chain corrected for Node 20 by adding explicit `ws` transport and required TypeScript declarations.
+3. Type compatibility mismatch for realtime transport was resolved in backend compile path.
+4. Production deployment completed successfully for `fieldops-backend`:
+   - Deployment: `1d223fb3-91b5-4c26-b862-616dccb20346`
+   - Commit: `eda72b4a59651d4cbd716ad965e0a5e6d5b3d257`
+
+Closure checklist (100% complete):
+
+1. WebSocket Node 20 transport migration completed.
+2. Supabase realtime transport type-safety casting completed.
+3. Dynamic environment token mapping completed (runtime `PORT` + live model/env wiring).
+4. Serverless dual-mode chat execution completed (non-stream + SSE stream).
+
+Validation state:
+
+1. `GET /health` -> HTTP 200 (`ok: true`).
+2. `POST /api/heal` non-stream -> HTTP 200 with explicit degraded payload (no edge fallback).
+3. `POST /api/heal` stream -> HTTP 200 with SSE `final` and `done` events.
+
+Governance implication:
+
+1. The prior hard-failure blocker (edge 502 on `/api/heal`) is resolved.
+2. Remaining risk is upstream model availability only, surfaced explicitly as degraded content rather than transport/runtime failure.
+
+## Current Cycle Snapshot (2026-05-22 — Research Governance and NZ Privacy Controls)
+
+Material governance updates in this cycle:
+
+1. Research orchestration now follows staged source policy: trusted NZ/official domains first, then trusted global technical documentation when required.
+2. Privacy controls are active by default in research flows: sensitive personal identifiers are redacted before response output and before external escalation.
+3. Risky-source categories and local/private network targets are blocked from research fetch operations.
+4. Internal document intelligence indexing is now a first-pass evidence source before web search expansion.
+
+Validation and release posture:
+
+1. Backend compile path passed under enforced Node 20/npm 10 toolchain.
+2. Root build remained green after integration.
+3. Documentation sync updated Tier B library with document-intelligence runbook and research policy context.
+
 ### Governance / Validation Implications
 
 1. Documentation authority remains paired: instruction manual and canonical file updated in the same change set as CI/governance-impacting updates.

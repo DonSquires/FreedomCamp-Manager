@@ -22,6 +22,143 @@ This rule is critical and overrides convenience-oriented remediation for field s
 
 ---
 
+## Production Release Snapshot (2026-05-22 — Research/Privacy/Docs Intelligence)
+
+Owner: GitHub Copilot  
+Scope: Production hardening for Bob research orchestration, NZ Privacy Act-aligned redaction, and internal document intelligence indexing.
+
+Completed:
+
+- [x] Added document intelligence compiler (`scripts/compile-document-intelligence.mjs`) and indexed internal research outputs.
+- [x] Added backend research endpoint for filtered document-intelligence queries (`GET /api/research/document-intelligence`).
+- [x] Added privacy redaction controls for research requests and indexed document responses.
+- [x] Added trusted-source policy: NZ/official domains first, trusted global docs second when needed.
+- [x] Added risky-domain restrictions and local/private host denial for research fetches.
+
+Validation:
+
+1. Backend build (Node 20 + npm 10 contract) -> PASS.
+2. Root build (TypeScript + Vite) -> PASS.
+3. Docs sync into `system_documentation_library` -> PASS (includes document-intelligence runbook).
+
+Operational status:
+
+- Production path is privacy-aware, source-governed, and repository-grounded before external escalation.
+
+---
+## Live Bob Chat Recovery Attempt (2026-05-22)
+
+Owner: GitHub Copilot  
+Scope: Restore Bob text and voice response path for both Chat Studio and Quick Chat by fixing live model configuration and redeploying backend.
+
+Executed checklist:
+
+- [x] Resolve production Railway service identity for Bob backend.
+  - Project: `Proxy` (`c5305775-ecf5-4d67-a59f-b7ae49838561`)
+  - Service: `fieldops-backend` (`72ae811c-cae0-4fee-9023-89c1df4290fa`)
+  - Environment: `production` (`dd4cf850-e604-458c-869d-da4ad54279db`)
+- [x] Apply model and upstream variables via Railway GraphQL API (non-CLI path).
+  - `BOB_CHAT_MODEL=qwen2.5:7b`
+  - `BOB_CHAT_MODELS=qwen2.5:7b,llama3.2-vision:11b`
+  - `OLLAMA_PROXY_URL=https://ollama-production-3ab0.up.railway.app`
+- [x] Trigger `fieldops-backend` production redeploy after variable update.
+- [x] Re-run live endpoint verification for both chat modes.
+
+Validation evidence:
+
+1. Redeploy status:
+  - Latest deployment for `fieldops-backend` moved to `SUCCESS` (`4e8050fe-266a-471a-bfbb-cf4e20f3c787`).
+2. Health endpoint:
+  - `GET /health` -> HTTP 200.
+3. Chat Studio equivalent (non-stream):
+  - `POST /api/heal` with `MANUAL_USER_INSTRUCTION` payload -> HTTP 502 (`Application failed to respond`).
+4. Quick Chat equivalent (stream):
+  - `POST /api/heal` with `stream=true` -> HTTP 200 headers (`text/event-stream`) but no emitted SSE content within verification window.
+
+Current blocker (real, not masked):
+
+- Shared production `fieldops-backend` `/api/heal` path remains non-functional for end-user response completion even after valid model env update and successful redeploy.
+- This is a release blocker for Bob conversational flows (text and voice), because both clients depend on this route.
+
+Next required action (root-cause only):
+
+1. Inspect production `fieldops-backend` runtime logs for `/api/heal` execution path immediately after request receipt.
+2. Confirm deployed code revision includes the latest fallback/degraded-response logic in `backend/src/index.ts`.
+3. If runtime differs from branch head, deploy current branch backend revision and re-run the same contract probes.
+4. If runtime matches, add bounded upstream timeout + explicit error serialization in manual instruction path so non-stream cannot hang into edge fallback.
+
+---
+
+## Live Bob Chat Recovery Resolution (2026-05-22)
+
+Owner: GitHub Copilot  
+Scope: Complete runtime/build remediation for `fieldops-backend` so `/api/heal` no longer hard-fails with edge 502.
+
+Executed remediation:
+
+- [x] Aligned backend runtime contract to Node 20 + npm 10 for Supabase compatibility.
+- [x] Ensured Docker build context includes `backend/scripts/` for toolchain guards.
+- [x] Added explicit WebSocket transport dependency (`ws`) for Supabase realtime under Node 20.
+- [x] Added TypeScript declarations (`@types/ws`) and transport type-compatibility cast so container build passes strict compile.
+- [x] Triggered fresh production deployment and re-validated contract probes.
+
+Completion register (Phase closure: 100%):
+
+- [x] WebSocket Node 20 transport migration complete.
+- [x] Type-safety casting for Supabase realtime transport complete.
+- [x] Dynamic environment token mapping complete (`PORT` runtime mapping + production model/env variable wiring).
+- [x] Serverless dual-mode streaming features complete (non-stream and SSE stream contracts).
+
+Validation evidence:
+
+1. Deployment:
+  - `fieldops-backend` deployment `1d223fb3-91b5-4c26-b862-616dccb20346` -> `SUCCESS`.
+  - Commit: `eda72b4a59651d4cbd716ad965e0a5e6d5b3d257`.
+  - Backend compiled and deployed cleanly via `backend/Dockerfile` target.
+2. Health endpoint:
+  - `GET /health` -> HTTP 200 with `{ "ok": true, "service": "fieldops-backend" }`.
+3. Non-stream chat contract:
+  - `POST /api/heal` (`stream=false`) -> HTTP 200 with `status: "DEGRADED"` and explicit fallback body.
+4. Stream chat contract:
+  - `POST /api/heal` (`stream=true`) -> HTTP 200 SSE with `final` and `done` events emitted.
+
+Current blocker status:
+
+- Hard runtime outage is resolved (no edge 502).
+- Residual risk is upstream model availability (`DEGRADED` content), not backend boot/route failure.
+
+
+---
+
+## Backend Training Sync Automation (2026-05-22)
+
+Owner: GitHub Copilot  
+Mode: Hybrid training updates (non-critical CI refresh + code-first runtime self-heal)
+
+Checklist:
+
+- [x] Add single-command backend training refresh: `backend/package.json` -> `npm run train:sync`.
+- [x] Ensure training refresh includes both steps in order:
+  1. Regenerate live Supabase types into `backend/src/types.ts`.
+  2. Execute `backend/scripts/sync-training.ts` to upsert `system_knowledge_base`.
+- [x] Add GitHub workflow `.github/workflows/backend-train-sync.yml` for pushes to `main` and manual dispatch.
+- [x] Add PR integration guardrail:
+  1. On `pull_request` to `main`, run `npm run train:validate` only.
+  2. PR path performs compile/type-generation validation and intentionally skips live DB write sync.
+- [x] Keep full live training sync writes restricted to merge/main path (`push` to `main` + manual dispatch), not PR checks.
+
+Validation:
+
+1. `cd backend && npm run train:sync` -> PASS (types regenerated, training payload upserted).
+2. `cd backend && npm run train:validate` -> PASS (dry-run generation + TypeScript build).
+3. Workflow check confirms `pull_request` trigger and `train-validate` job are present.
+
+Staging note:
+
+- This hybrid mode is intentional: runtime healing remains code-first on Railway, while schema/context freshness is maintained by low-risk CI training refresh on `main`.
+
+---
+
 ## Historical Event Ingestion Checklist (No Assumptions)
 
 Date: 2026-05-21  
