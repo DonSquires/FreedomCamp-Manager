@@ -166,8 +166,7 @@ test.describe('Bob autonomous conversation UI', () => {
 
   test.beforeEach(async ({ page }) => {
     await page.context().clearCookies()
-    await loginAs(page, 'bob')
-    await page.goto('/dashboard', { waitUntil: 'domcontentloaded' })
+    await page.goto('/login', { waitUntil: 'domcontentloaded' })
     await page.evaluate(() => {
       try {
         localStorage.clear()
@@ -180,6 +179,8 @@ test.describe('Bob autonomous conversation UI', () => {
         // Ignore browser security restrictions in non-origin contexts.
       }
     })
+    await loginAs(page, 'bob')
+    await page.goto('/dashboard', { waitUntil: 'domcontentloaded' })
   })
 
   test('processes mocked voice input, validates chat tool payload, and confirms navigation state', async ({ page }) => {
