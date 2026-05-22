@@ -203,7 +203,7 @@ test.describe('Bob autonomous conversation UI', () => {
           tool_call: {
             name: 'navigateApp',
             arguments: {
-              targetRoute: '/analytics',
+              targetRoute: '/compliance-analytics',
               source: 'voice',
             },
           },
@@ -252,11 +252,11 @@ test.describe('Bob autonomous conversation UI', () => {
     }
 
     expect(toolCall.name).toBe('navigateApp')
-    expect(toolCall.arguments?.targetRoute).toBe('/analytics')
+    expect(toolCall.arguments?.targetRoute).toBe('/compliance-analytics')
 
     // Simulate frontend route mutation after successful tool execution.
     await page.evaluate(() => {
-      window.history.pushState({}, '', '/analytics')
+      window.history.pushState({}, '', '/compliance-analytics')
       window.dispatchEvent(new PopStateEvent('popstate'))
     })
 
