@@ -167,7 +167,7 @@ jobs:
 
       - name: Collect workflow evidence snapshot
         run: |
-          npm run evidence:workflow --workflow WF-01,WF-07,WF-11 --status ci-snapshot --notes "ci-build-high-memory:${{ github.run_id }}" --out-dir tools/workflow-evidence/ci/${{ github.run_id }}
+          npm run evidence:workflow -- --workflow WF-01,WF-07,WF-11 --status ci-snapshot --notes "ci-build-high-memory:${{ github.run_id }}" --out-dir tools/workflow-evidence/ci/${{ github.run_id }}
 
       - name: Upload workflow evidence artifacts
         if: always()
