@@ -31,7 +31,7 @@ tools/schema-extract/output/*
 tools/onspace-analysis/output/
 tools/system-health.json
 
-# Both bun.lock (Bun) and package-lock.json (npm) are committed for reproducible installs.
+# package-lock.json is committed for reproducible npm installs.
 *.tsbuildinfo
 
 # Environment files - NEVER commit credentials
@@ -50,7 +50,6 @@ base64.txt
 grep_requested_output.txt
 lint_output.txt
 .bin/
-.bun/
 .tools/
 .vercel
 .env*.local

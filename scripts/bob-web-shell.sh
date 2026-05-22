@@ -15,16 +15,8 @@ set +a
 export PLAYWRIGHT_IGNORE_HTTPS_ERRORS="${PLAYWRIGHT_IGNORE_HTTPS_ERRORS:-1}"
 export PLAYWRIGHT_SKIP_ROLE_ASSERTIONS="${PLAYWRIGHT_SKIP_ROLE_ASSERTIONS:-1}"
 
-BUN_BIN="${BOB_BUN_BIN:-/workspaces/.bun/bin/bun}"
-BUNX_BIN="${BOB_BUNX_BIN:-/workspaces/.bun/bin/bunx}"
-
-if [[ ! -x "${BUN_BIN}" ]]; then
-  BUN_BIN=""
-fi
-
-if [[ ! -x "${BUNX_BIN}" ]]; then
-  BUNX_BIN=""
-fi
+NPM_BIN="${BOB_NPM_BIN:-$(command -v npm || true)}"
+NPX_BIN="${BOB_NPX_BIN:-$(command -v npx || true)}"
 
 vercel_cmd() {
   if command -v vercel >/dev/null 2>&1; then
@@ -32,32 +24,32 @@ vercel_cmd() {
     return 0
   fi
 
-  if [[ -n "${BUNX_BIN}" ]]; then
-    "${BUNX_BIN}" vercel "$@"
+  if [[ -n "${NPX_BIN}" ]]; then
+    "${NPX_BIN}" vercel "$@"
     return 0
   fi
 
-  if [[ -n "${BUN_BIN}" ]]; then
-    "${BUN_BIN}" x vercel "$@"
+  if [[ -n "${NPM_BIN}" ]]; then
+    "${NPM_BIN}" exec vercel "$@"
     return 0
   fi
 
-  echo "Unable to find vercel, bunx, or bun. Set BOB_BUN_BIN/BOB_BUNX_BIN if your install lives elsewhere."
+  echo "Unable to find vercel, npx, or npm. Set BOB_NPM_BIN/BOB_NPX_BIN if your install lives elsewhere."
   exit 127
 }
 
 playwright_cmd() {
-  if [[ -n "${BUNX_BIN}" ]]; then
-    "${BUNX_BIN}" playwright "$@"
+  if [[ -n "${NPX_BIN}" ]]; then
+    "${NPX_BIN}" playwright "$@"
     return 0
   fi
 
-  if [[ -n "${BUN_BIN}" ]]; then
-    "${BUN_BIN}" x playwright "$@"
+  if [[ -n "${NPM_BIN}" ]]; then
+    "${NPM_BIN}" exec playwright "$@"
     return 0
   fi
 
-  echo "Unable to find playwright via bunx or bun. Set BOB_BUN_BIN/BOB_BUNX_BIN if your install lives elsewhere."
+  echo "Unable to find playwright via npx or npm. Set BOB_NPM_BIN/BOB_NPX_BIN if your install lives elsewhere."
   exit 127
 }
 
@@ -75,13 +67,13 @@ EOF
 }
 
 run_setup() {
-  if [[ -z "${BUN_BIN}" ]]; then
-    echo "Unable to find Bun at /workspaces/.bun/bin/bun. Set BOB_BUN_BIN to the correct path."
+  if [[ -z "${NPM_BIN}" ]]; then
+    echo "Unable to find npm in PATH. Set BOB_NPM_BIN to the correct path."
     exit 127
   fi
 
-  "${BUN_BIN}" install
-  "${BUN_BIN}" run install:playwright
+  "${NPM_BIN}" install
+  "${NPM_BIN}" run install:playwright
 }
 
 run_dev() {
@@ -97,12 +89,12 @@ run_chat() {
     exit 2
   fi
 
-  if [[ -z "${BUN_BIN}" ]]; then
-    echo "Unable to find Bun at /workspaces/.bun/bin/bun. Set BOB_BUN_BIN to the correct path."
+  if [[ -z "${NPM_BIN}" ]]; then
+    echo "Unable to find npm in PATH. Set BOB_NPM_BIN to the correct path."
     exit 127
   fi
 
-  "${BUN_BIN}" run bob:collab -- ask "$*"
+  "${NPM_BIN}" run bob:collab -- ask "$*"
 }
 
 run_test() {

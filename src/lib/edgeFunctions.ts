@@ -2583,6 +2583,9 @@ export const edgeFunctions = {
     organization_id?: string
     date_from?: string
     date_to?: string
+    inferred_loi_id?: string
+    priority_band?: 'P0' | 'P1' | 'P2' | 'P3'
+    use_evidence_index?: boolean
     batch_size?: number
     before_recorded_at?: string
   }) => {

@@ -372,7 +372,7 @@ export default function SystemDiagnostics() {
           <CardHeader>
             <CardTitle>Access Denied</CardTitle>
             <CardDescription>
-              You don't have permission to access this page. Master role required.
+              You&apos;re not allowed to access this page. Master role required.
             </CardDescription>
           </CardHeader>
         </Card>
@@ -673,7 +673,7 @@ export default function SystemDiagnostics() {
             <IntegrityResultsDisplay results={testResults} />
           ) : (
             <div className="text-center py-8 text-gray-600">
-              Click "Run Check" to verify data integrity
+              Click &quot;Run Check&quot; to verify data integrity
             </div>
           )}
         </CardContent>

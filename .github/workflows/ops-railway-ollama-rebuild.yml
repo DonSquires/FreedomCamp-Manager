@@ -42,7 +42,7 @@ jobs:
       - name: Resolve Railway credentials
         shell: bash
         env:
-          RAILWAY_OLLAMA_TOKEN: ${{ secrets.RAILWAY_OLLAMA_TOKEN }}
+            RAILWAY_OLLAMA_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
           RAILWAY_BOB_TOKEN: ${{ secrets.RAILWAY_BOB_TOKEN }}
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
           RAILWAY_OLLAMA_SERVICE_ID: ${{ secrets.RAILWAY_OLLAMA_SERVICE_ID }}

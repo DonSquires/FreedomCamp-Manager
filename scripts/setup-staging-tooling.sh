@@ -7,24 +7,6 @@ cd "$ROOT_DIR"
 log() { echo "[staging-tooling] $*"; }
 warn() { echo "[staging-tooling][warn] $*"; }
 
-ensure_bun() {
-  if command -v bun >/dev/null 2>&1; then
-    log "bun already available: $(bun --version)"
-    return
-  fi
-
-  if [[ -x "/workspaces/.bun/bin/bun" ]]; then
-    export PATH="/workspaces/.bun/bin:$PATH"
-    log "bun found at /workspaces/.bun/bin/bun: $(bun --version)"
-    return
-  fi
-
-  log "installing bun to /workspaces/.bun"
-  curl -fsSL https://bun.sh/install | BUN_INSTALL=/workspaces/.bun bash
-  export PATH="/workspaces/.bun/bin:$PATH"
-  log "bun installed: $(bun --version)"
-}
-
 ensure_node_musl() {
   local node_bin="/workspaces/.local/node/bin/node"
   if [[ -x "$node_bin" ]]; then
@@ -46,7 +28,7 @@ ensure_node_musl() {
 
 ensure_playwright_chromium_bundle() {
   log "installing Playwright chromium bundle"
-  bash scripts/use-bun.sh bunx playwright install chromium
+  npx playwright install chromium
 }
 
 check_chromium_runtime() {
@@ -87,11 +69,10 @@ check_chromium_runtime() {
 
 run_bob_doctor() {
   log "running Bob container doctor"
-  bash scripts/use-bun.sh bun run bob:doctor:any-container
+  npm run bob:doctor:any-container
 }
 
 main() {
-  ensure_bun
   ensure_node_musl
   ensure_playwright_chromium_bundle
   check_chromium_runtime

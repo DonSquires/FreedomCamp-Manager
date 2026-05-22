@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
+import { loginAs } from './auth'
 import { installSupabaseTransactionMocks } from './helpers/supabase-transaction-mocks'
 
 const CHAT_ENDPOINT_GLOB = '**/api/bob/chat*'
@@ -165,7 +166,7 @@ test.describe('Bob autonomous conversation UI', () => {
 
   test.beforeEach(async ({ page }) => {
     await page.context().clearCookies()
-    await page.goto('/dashboard', { waitUntil: 'domcontentloaded' })
+    await page.goto('/login', { waitUntil: 'domcontentloaded' })
     await page.evaluate(() => {
       try {
         localStorage.clear()
@@ -178,6 +179,8 @@ test.describe('Bob autonomous conversation UI', () => {
         // Ignore browser security restrictions in non-origin contexts.
       }
     })
+    await loginAs(page, 'bob')
+    await page.goto('/dashboard', { waitUntil: 'domcontentloaded' })
   })
 
   test('processes mocked voice input, validates chat tool payload, and confirms navigation state', async ({ page }) => {
@@ -200,7 +203,7 @@ test.describe('Bob autonomous conversation UI', () => {
           tool_call: {
             name: 'navigateApp',
             arguments: {
-              targetRoute: '/analytics',
+              targetRoute: '/compliance-analytics',
               source: 'voice',
             },
           },
@@ -249,15 +252,15 @@ test.describe('Bob autonomous conversation UI', () => {
     }
 
     expect(toolCall.name).toBe('navigateApp')
-    expect(toolCall.arguments?.targetRoute).toBe('/analytics')
+    expect(toolCall.arguments?.targetRoute).toBe('/compliance-analytics')
 
     // Simulate frontend route mutation after successful tool execution.
     await page.evaluate(() => {
-      window.history.pushState({}, '', '/analytics')
+      window.history.pushState({}, '', '/compliance-analytics')
       window.dispatchEvent(new PopStateEvent('popstate'))
     })
 
-    await expect(page).toHaveURL(/\/analytics/, { timeout: 10000 })
+    await expect(page).toHaveURL(/\/compliance-analytics$/, { timeout: 10000 })
 
     const targetView = page
       .locator('[data-testid="dashboard-root"], [data-testid="analytics-root"], main, h1')

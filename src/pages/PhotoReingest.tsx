@@ -30,6 +30,7 @@ interface ReingestResult {
   status: 'completed' | 'failed'
   error_message?: string
 }
+type PriorityBand = 'P0' | 'P1' | 'P2' | 'P3'
 
 interface ReingestBatchResponse {
   processed?: number
@@ -68,6 +69,10 @@ export default function PhotoReingest() {
   const [selectedOrgId, setSelectedOrgId] = useState<string>('')
   const [dateFrom, setDateFrom] = useState<string>('')
   const [dateTo, setDateTo] = useState<string>('')
+  const [selectedLoiId, setSelectedLoiId] = useState<string>('')  // LOI (freedom_camp, patrol_zone, etc.)
+  const [selectedLoiKind, setSelectedLoiKind] = useState<string>('freedom_camp')  // Filter LOI type
+  const [selectedPriorityBand, setSelectedPriorityBand] = useState<PriorityBand | ''>('P0')  // Evidence priority
+  const [useEvidenceIndex, setUseEvidenceIndex] = useState<boolean>(true)  // Link from evidence_index table
   const [result, setResult] = useState<ReingestResult | null>(null)
   const [progress, setProgress] = useState(0)
   const [liveRun, setLiveRun] = useState<LiveRunState | null>(null)
@@ -225,6 +230,9 @@ export default function PhotoReingest() {
           organization_id: effectiveOrgId || undefined,
           date_from: dateFrom || undefined,
           date_to: dateTo || undefined,
+          inferred_loi_id: selectedLoiId || undefined,  // Link to LOI (not zone_id)
+          priority_band: selectedPriorityBand || undefined,
+          use_evidence_index: useEvidenceIndex,
           batch_size: batchSize,
           before_recorded_at: beforeRecordedAt || undefined,
         }),
@@ -451,6 +459,63 @@ export default function PhotoReingest() {
                   className="mt-2"
                 />
               </div>
+            </div>
+
+            {/* Location of Interest (Zone) Type Selection */}
+            <div>
+              <Label htmlFor="loi-kind">Zone Type (optional)</Label>
+              <select
+                id="loi-kind"
+                value={selectedLoiKind}
+                onChange={(e) => {
+                  setSelectedLoiKind(e.target.value)
+                  setSelectedLoiId('')  // Reset LOI when type changes
+                }}
+                disabled={isRunning}
+                className="w-full mt-2 px-3 py-2 border rounded-md"
+              >
+                <option value="">All zone types</option>
+                <option value="freedom_camp">Freedom Camping</option>
+                <option value="patrol_zone">Patrol Zone</option>
+                <option value="static_site">Static Site</option>
+                <option value="poi">Point of Interest</option>
+              </select>
+            </div>
+
+            {/* Specific LOI Selection */}
+            <div>
+              <Label htmlFor="loi-select">Specific Location (optional)</Label>
+              <select
+                id="loi-select"
+                value={selectedLoiId}
+                onChange={(e) => setSelectedLoiId(e.target.value)}
+                disabled={isRunning}
+                className="w-full mt-2 px-3 py-2 border rounded-md"
+              >
+                <option value="">All locations</option>
+                {/* LOIs will be loaded via query hook (TODO: implement query) */}
+              </select>
+              <p className="text-xs text-muted-foreground mt-1">
+                Locations of Interest (sites/zones) will be filtered based on selected type and org
+              </p>
+            </div>
+
+            {/* Priority Band Selection */}
+            <div>
+              <Label htmlFor="priority-band">Evidence Priority Band</Label>
+              <select
+                id="priority-band"
+                value={selectedPriorityBand}
+                onChange={(e) => setSelectedPriorityBand(e.target.value as PriorityBand | '')}
+                disabled={isRunning}
+                className="w-full mt-2 px-3 py-2 border rounded-md"
+              >
+                <option value="P0">P0 (Ready - GPS + region match)</option>
+                <option value="P1">P1 (GPS but no region)</option>
+                <option value="P2">P2 (Needs OCR enrichment)</option>
+                <option value="P3">P3 (Manual review)</option>
+                <option value="">All priorities</option>
+              </select>
             </div>
 
             {/* Action Button */}

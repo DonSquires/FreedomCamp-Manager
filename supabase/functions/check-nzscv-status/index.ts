@@ -88,59 +88,71 @@ Deno.serve(async (req) => {
     const getCanonicalFallbackResponse = async (reason: string): Promise<Response | null> => {
       if (!supabaseAdmin) return null;
       try {
+        // Primary fallback: canonical_scv (seeded from storage or from prior API calls)
         const { data: scvRow } = await (supabaseAdmin.from('canonical_scv') as any)
           .select('is_self_contained, certificate_expiry, certificate_issue_date, certificate_status, vin, max_occupants, logo_url, verified_at')
           .eq('plate_number', normalizedPlate)
           .maybeSingle();
 
-        if (!scvRow) return null;
-
-        let vehicleMake: string | null = null;
-        let vehicleModel: string | null = null;
-        let vehicleYear: number | null = null;
-        let vehicleColor: string | null = null;
-
+        // Secondary fallback: canonical_vehicles (populated by import-canonical-vehicles
+        // script from storage bucket — contains self_contained + expiry fields)
+        let cvRow: any = null;
         try {
           const { data: cv } = await supabaseAdmin
             .from('canonical_vehicles')
-            .select('vehicle_make, vehicle_model, vehicle_year, vehicle_color')
+            .select('vehicle_make, vehicle_model, vehicle_year, vehicle_color, self_contained, self_contained_expiry, nzscv_last_checked')
             .eq('plate_number', normalizedPlate)
             .maybeSingle();
-          if (cv) {
-            vehicleMake = cv.vehicle_make ?? null;
-            vehicleModel = cv.vehicle_model ?? null;
-            vehicleYear = cv.vehicle_year != null ? Number(cv.vehicle_year) : null;
-            vehicleColor = cv.vehicle_color ?? null;
-          }
+          cvRow = cv ?? null;
         } catch {
-          // optional vehicle attributes
+          // optional
         }
+
+        // Derive SC data from canonical_vehicles when canonical_scv has no record
+        const effectiveScv = scvRow ?? (cvRow?.self_contained != null ? {
+          is_self_contained: cvRow.self_contained === true,
+          certificate_expiry: cvRow.self_contained_expiry ?? null,
+          certificate_issue_date: cvRow.nzscv_last_checked ?? null,
+          certificate_status: (() => {
+            if (!cvRow.self_contained) return 'Expired';
+            if (!cvRow.self_contained_expiry) return 'Issued';
+            return new Date(cvRow.self_contained_expiry) > new Date() ? 'Current' : 'Expired';
+          })(),
+          vin: null,
+          max_occupants: null,
+          logo_url: null,
+        } : null);
+
+        if (!effectiveScv) return null;
+
+        const source = scvRow ? 'canonical_scv' : 'canonical_vehicles_seed';
+        console.log(`ℹ️ NZSCV fallback via ${source} for ${normalizedPlate}`);
 
         return new Response(
           JSON.stringify({
             found: true,
-            source: 'canonical_scv',
+            source,
             fallback_reason: reason,
             plate_number: normalizedPlate,
             result: {
-              is_self_contained: scvRow.is_self_contained === true,
-              expiry_date: scvRow.certificate_expiry ?? null,
-              issue_date: scvRow.certificate_issue_date ?? null,
-              certificate_status: scvRow.certificate_status ?? null,
-              make: vehicleMake,
-              model: vehicleModel,
-              year: vehicleYear,
-              vin: scvRow.vin ?? null,
-              colour: vehicleColor,
-              max_occupants: scvRow.max_occupants ?? null,
+              is_self_contained: effectiveScv.is_self_contained === true,
+              expiry_date: effectiveScv.certificate_expiry ?? null,
+              issue_date: effectiveScv.certificate_issue_date ?? null,
+              certificate_status: effectiveScv.certificate_status ?? null,
+              make: cvRow?.vehicle_make ?? null,
+              model: cvRow?.vehicle_model ?? null,
+              year: cvRow?.vehicle_year != null ? Number(cvRow.vehicle_year) : null,
+              vin: effectiveScv.vin ?? null,
+              colour: cvRow?.vehicle_color ?? null,
+              max_occupants: effectiveScv.max_occupants ?? null,
             },
-            logo_url: scvRow.logo_url ?? null,
+            logo_url: effectiveScv.logo_url ?? null,
             checked_at: new Date().toISOString(),
           }),
           { status: 200, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
         );
       } catch (fallbackErr: any) {
-        console.warn('⚠️ canonical_scv fallback failed:', fallbackErr?.message || fallbackErr);
+        console.warn('⚠️ canonical fallback failed:', fallbackErr?.message || fallbackErr);
         return null;
       }
     };

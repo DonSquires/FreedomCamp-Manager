@@ -135,13 +135,13 @@ Source of truth for routes: route manifest file src/navigation/routeManifest.ts 
    - Primary: /platform
    - Role gate: grand_master
    - Related: /admin, /admin/dashboard, /reports, /custom-reports, /audit-log
-   - Related route gates: /admin, /admin/dashboard, /reports, /custom-reports, /audit-log = admin, admin_officer, master
+   - Related route gates: /admin, /admin/dashboard, /custom-reports, /audit-log = admin, admin_officer, master; /reports = client_viewer, client_officer, client_admin, admin, admin_officer, master
 
 2. Client-facing visibility
    - Primary: /client-portal
    - Role gate: client_viewer, client_officer, client_admin, admin, admin_officer, master, grand_master
    - Related: /organization-profile, /reports-hub, /disputes
-   - Related route gates: /organization-profile and /disputes = admin, admin_officer, master; /reports-hub redirects to /reports (admin, admin_officer, master)
+   - Related route gates: /organization-profile = admin, admin_officer, master; /disputes = client_admin, admin, admin_officer, master; /reports-hub redirects to /reports (client_viewer, client_officer, client_admin, admin, admin_officer, master)
 
 ## Maintenance Rule
 
@@ -248,7 +248,7 @@ New routes added:
 
 - `/alarm-events-log` — Alarm Event Log (B-79); role gate: admin, admin_officer, master; nav group: Operations; table: alarm_events; severity/status/alarm_type filters; Acknowledge action; expandable metadata
 - `/enforcement-events-log` — Enforcement Event Log (B-80); role gate: admin, admin_officer, master; nav group: Operations; table: enforcement_events; event_type/status/outcome filters; photo count; expandable evidence notes
-- `/open-shifts-manager` — Open Shift Manager (B-81); role gate: admin, admin_officer, master; nav group: Roster & Workforce; table: open_shifts; priority/type/claimed filters; Mark Claimed action; KPIs
+- `/open-shifts` — Open Shift Manager (B-81); role gate: admin, admin_officer, master; nav group: Roster & Workforce; table: open_shifts; priority/type/claimed filters; Mark Claimed action; KPIs
 
 ## Sprint 24 Addendum (2026-05-06) — B-82/B-83/B-84
 
@@ -273,12 +273,12 @@ New routes added:
 New admin routes added in Sprint 21 (B-73, B-74, B-75):
 
 1. Notice to Vacate Log (B-73)
-   - Route: /notices-to-vacate
+   - Route: /notice-to-vacate
    - Role gate: admin, admin_officer, master
    - Admin log for notices_to_vacate; status workflow (pending → issued → delivered → complied / escalated); overdue row highlighting; reads notices_to_vacate (fully typed)
 
 2. Contractor Manager (B-74)
-   - Route: /contractor-manager
+   - Route: /crm/contractor/:orgId
    - Role gate: admin, admin_officer, master
    - Tabbed admin view of contractor_profiles (rates + compliance) and contractor_documents (mark-current action); reads both tables (fully typed)
 
@@ -1024,7 +1024,7 @@ New manifest entries added in Sprint 60 (B-190, B-191, B-192):
    - navGroup: Operations
 
 3. Plate Scan Log (B-192)
-   - Route: /plate-scans-log
+   - Route: /plate-finder
    - Role gate: admin, admin_officer, master
    - navGroup: Operations
 
@@ -1178,7 +1178,7 @@ New manifest entries added in Sprint 64 (B-210 through B-222):
    - navGroup: Records
 
 9. Open Shift Manager (B-218)
-   - Route: /open-shifts-manager
+   - Route: /open-shifts
    - Role gate: admin, admin_officer, master
    - navGroup: Roster & Workforce
 

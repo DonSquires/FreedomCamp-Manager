@@ -8,11 +8,17 @@ loadEnv({ path: '.env.local' })
 // Load local Playwright-only secrets from an ignored file, if present.
 loadEnv({ path: '.env.playwright.local' })
 
+const isAlpineLinux = process.platform === 'linux' && existsSync('/etc/alpine-release')
+
 const nativeChromiumExecutablePath = [
   process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH,
   '/usr/bin/chromium',
   '/usr/bin/chromium-browser',
 ].find((candidate) => !!candidate && existsSync(candidate))
+
+const alpineChromiumExecutablePath = isAlpineLinux
+  ? ['/usr/bin/chromium-browser', '/usr/bin/chromium'].find((candidate) => existsSync(candidate))
+  : undefined
 
 const nativeFirefoxExecutablePath = [
   process.env.PLAYWRIGHT_FIREFOX_EXECUTABLE_PATH,
@@ -91,28 +97,33 @@ const mobileSafariProject = canUseWebkitOnHost
       },
     }
 
-const playwrightBaseURL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:5173'
+const playwrightBaseURL =
+  process.env.PLAYWRIGHT_BASE_URL ||
+  process.env.DEFAULT_PLAYWRIGHT_BASE_URL ||
+  'http://localhost:3000'
+if (!process.env.PLAYWRIGHT_BASE_URL) {
+  process.env.PLAYWRIGHT_BASE_URL = playwrightBaseURL
+}
 const reuseExistingPlaywrightServer =
   process.env.PLAYWRIGHT_REUSE_EXISTING_SERVER === '1' ? true : !process.env.CI
-const webServerRunner = existsSync('/home/vscode/.bun/bin/bun')
-  ? '/home/vscode/.bun/bin/bun'
-  : existsSync('/workspaces/.bun/bin/bun')
-    ? '/workspaces/.bun/bin/bun'
-    : 'npm'
+const nodeBinary = process.execPath
+const viteCli = './node_modules/vite/bin/vite.js'
+const playwrightVideoMode = process.env.PLAYWRIGHT_DISABLE_VIDEO === '1' ? 'off' : 'retain-on-failure'
 
 function buildWebServerCommand(baseURL: string): string {
   try {
     const parsed = new URL(baseURL)
     const isLocalHost = parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1'
     const port = parsed.port || '5173'
+    const viteCommand = `${nodeBinary} ${viteCli}`
 
     if (!isLocalHost || parsed.protocol !== 'http:') {
-      return `sh -c 'set -a; [ -f .env ] && . ./.env; [ -f .env.local ] && . ./.env.local; [ -f .env.playwright.local ] && . ./.env.playwright.local; set +a; ${webServerRunner} run dev'`
+      return `sh -c 'set -a; [ -f .env ] && . ./.env; [ -f .env.local ] && . ./.env.local; [ -f .env.playwright.local ] && . ./.env.playwright.local; set +a; ${viteCommand} --host 127.0.0.1'`
     }
 
-    return `sh -c 'set -a; [ -f .env ] && . ./.env; [ -f .env.local ] && . ./.env.local; [ -f .env.playwright.local ] && . ./.env.playwright.local; set +a; ${webServerRunner} run dev -- --port ${port} --strictPort'`
+    return `sh -c 'set -a; [ -f .env ] && . ./.env; [ -f .env.local ] && . ./.env.local; [ -f .env.playwright.local ] && . ./.env.playwright.local; set +a; ${viteCommand} --host 127.0.0.1 --port ${port} --strictPort'`
   } catch {
-    return `sh -c 'set -a; [ -f .env ] && . ./.env; [ -f .env.local ] && . ./.env.local; [ -f .env.playwright.local ] && . ./.env.playwright.local; set +a; ${webServerRunner} run dev -- --port 5173 --strictPort'`
+    return `sh -c 'set -a; [ -f .env ] && . ./.env; [ -f .env.local ] && . ./.env.local; [ -f .env.playwright.local ] && . ./.env.playwright.local; set +a; ${viteCommand} --host 127.0.0.1 --port 5173 --strictPort'`
   }
 }
 
@@ -167,7 +178,7 @@ export default defineConfig({
     screenshot: 'only-on-failure',
     
     // Video on failure
-    video: 'retain-on-failure',
+    video: playwrightVideoMode,
     
     // Maximum time each action can take
     actionTimeout: 10000,
@@ -188,7 +199,12 @@ export default defineConfig({
       use: {
         ...devices['Desktop Chrome'],
         channel: undefined,
-        launchOptions: chromiumLaunchOptions,
+        launchOptions: {
+          ...chromiumLaunchOptions,
+          ...(isAlpineLinux && alpineChromiumExecutablePath
+            ? { executablePath: alpineChromiumExecutablePath }
+            : {}),
+        },
       },
     },
 

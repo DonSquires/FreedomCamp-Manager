@@ -4,12 +4,21 @@ on:
   schedule:
     # Run daily at 2 AM NZ time (14:00 UTC previous day)
     - cron: '0 14 * * *'
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+  issue_comment:
+    types: [created]
   workflow_dispatch:
     inputs:
       test_pattern:
         description: 'E2E test pattern (e.g., session-inactivity, *.spec.ts)'
         required: false
         default: '*.spec.ts'
+      pr_number:
+        description: 'Optional PR number to post results into'
+        required: false
+        default: ''
       report_findings:
         description: 'Report findings to escalation queue'
         type: boolean
@@ -24,23 +33,68 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  issues: write
   actions: read
 
 jobs:
   e2e-validation:
+    if: >
+      github.event_name == 'schedule' ||
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' && github.event.pull_request.draft == false) ||
+      (github.event_name == 'issue_comment' &&
+       github.event.issue.pull_request != null &&
+       contains(github.event.comment.body, 'run simulation sweep against manuals'))
     runs-on: ubuntu-latest
     timeout-minutes: 45
 
     steps:
+      - name: Resolve execution context
+        id: context
+        uses: actions/github-script@v9
+        with:
+          script: |
+            let checkoutRef = context.sha
+            let prNumber = ''
+
+            if (context.eventName === 'pull_request') {
+              checkoutRef = context.payload.pull_request.head.sha
+              prNumber = String(context.payload.pull_request.number)
+            } else if (context.eventName === 'issue_comment') {
+              const issue = context.payload.issue
+              if (!issue || !issue.pull_request) {
+                core.setFailed('Comment trigger was not on a pull request.')
+                return
+              }
+
+              const { data: pr } = await github.rest.pulls.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: issue.number,
+              })
+
+              checkoutRef = pr.head.sha
+              prNumber = String(pr.number)
+            } else if (context.eventName === 'workflow_dispatch') {
+              const manualPr = context.payload.inputs?.pr_number || ''
+              if (manualPr) {
+                prNumber = String(manualPr)
+              }
+            }
+
+            core.setOutput('checkout_ref', checkoutRef)
+            core.setOutput('pr_number', prNumber)
+
       - name: Checkout
         uses: actions/checkout@v5
         with:
+          ref: ${{ steps.context.outputs.checkout_ref }}
           fetch-depth: 0
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
         with:
-          bun-version: latest
+          node-version: '24'
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -48,10 +102,10 @@ jobs:
           node-version: 20
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: npm ci
 
       - name: Install Playwright browsers
-        run: npx playwright install chromium
+        run: npx playwright install --with-deps chromium
 
       - name: Run E2E tests with reporting
         env:
@@ -167,3 +221,43 @@ jobs:
           else
             echo "See uploaded artifacts for test results." >> $GITHUB_STEP_SUMMARY
           fi
+
+      - name: Post PR alignment summary
+        if: always() && steps.context.outputs.pr_number != ''
+        env:
+          PR_NUMBER: ${{ steps.context.outputs.pr_number }}
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const fs = require('fs')
+            const prNumber = Number(process.env.PR_NUMBER)
+
+            if (!Number.isFinite(prNumber) || prNumber <= 0) {
+              core.info('No valid PR number found; skipping PR comment.')
+              return
+            }
+
+            let summary = 'See workflow summary and uploaded artifacts for details.'
+            const summaryPath = 'data/e2e-test-results/summary.md'
+            if (fs.existsSync(summaryPath)) {
+              summary = fs.readFileSync(summaryPath, 'utf8').trim()
+              if (!summary) {
+                summary = 'Summary file was empty. See workflow artifacts for details.'
+              }
+            }
+
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`
+            const body = [
+              '## Bob Simulation Sweep Report',
+              '',
+              summary,
+              '',
+              `Run: ${runUrl}`,
+            ].join('\n')
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              body,
+            })

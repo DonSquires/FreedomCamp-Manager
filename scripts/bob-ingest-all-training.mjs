@@ -31,7 +31,7 @@ const DRY_RUN = process.argv.includes('--dry-run')
 const SKIP_TESTS = process.argv.includes('--skip-connectivity-test')
 const SKIP_VERIFY = process.argv.includes('--skip-verify')
 const SKIP_POST_PROBE = process.argv.includes('--skip-post-probe')
-const JS_RUNTIME = process.execPath || 'bun'
+const JS_RUNTIME = process.execPath || 'node'
 
 function readFlagValue(flag) {
   const direct = process.argv.find((arg) => arg.startsWith(`${flag}=`))

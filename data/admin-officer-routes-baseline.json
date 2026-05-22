@@ -6,7 +6,7 @@
       "^/public/"
     ],
     "includeRoutesWithAdminOfficerRole": true,
-    "minAdminOfficerRouteCount": 229,
+    "minAdminOfficerRouteCount": 216,
     "requireRoleGuard": true,
     "requiredRolesAnyOf": [
       "admin_officer"

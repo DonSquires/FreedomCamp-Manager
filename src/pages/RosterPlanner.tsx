@@ -8,6 +8,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
+import { useOperationalOrganization } from '@/hooks/useOperationalOrganization'
 import { useClientOrgIds } from '@/hooks/useClientOrgIds'
 import { parseDeputyImportText, type DeputyImportParseResult, type DeputyParsedRow } from '@/lib/deputyImport'
 import {
@@ -1117,14 +1118,22 @@ function ShiftDialog({
 
 export default function RosterPlanner() {
   const { user } = useAuthStore()
+  const { operationalOrganizationId } = useOperationalOrganization()
   const [searchParams, setSearchParams] = useSearchParams()
   const queryClient = useQueryClient()
-  const isAdmin = user?.role === 'admin' || user?.role === 'master' || user?.role === 'admin_officer'
+  const isAdmin = user?.role === 'admin' || user?.role === 'master' || user?.role === 'grand_master' || user?.role === 'admin_officer'
+  const isGrandMaster = user?.role === 'grand_master'
   const activeTab = isAdmin && searchParams.get('tab') === 'users' ? 'users' : 'planner'
-  const hasOrganizationId = !!user?.organization_id
+  const hasOrganizationId = isGrandMaster || !!user?.organization_id
   const plannerQueriesEnabled = shouldEnableRosterPlannerQueries(activeTab, hasOrganizationId)
   const { orgIds: clientOrgIds, isLoading: clientOrgIdsLoading } = useClientOrgIds({ enabled: plannerQueriesEnabled })
   const clientScopedQueriesEnabled = shouldEnableRosterPlannerClientScopedQueries(activeTab, hasOrganizationId, clientOrgIdsLoading)
+
+  const applyClientOrgScope = (query: any) => {
+    // null means unrestricted scope (grand_master role)
+    if (clientOrgIds !== null) return query.in('organization_id', clientOrgIds)
+    return query
+  }
 
   // ─── Week navigation ───────────────────────────────────────────────────────
   const [viewStart, setViewStart] = useState<Date>(() =>
@@ -1168,11 +1177,13 @@ export default function RosterPlanner() {
   const dateTo = format(viewEnd, 'yyyy-MM-dd')
 
   const { data: shifts = [], isLoading: shiftsLoading } = useQuery<RosterShift[]>({
-    queryKey: ['roster_shifts', user?.organization_id, dateFrom, dateTo],
+    queryKey: ['roster_shifts', user?.organization_id, clientOrgIds, dateFrom, dateTo],
     queryFn: async () => {
-      const { data, error } = await ((supabase as any).from('roster_shifts') as any)
-        .select('*')
-        .eq('organization_id', user!.organization_id!)
+      const q = applyClientOrgScope(
+        ((supabase as any).from('roster_shifts') as any)
+          .select('*')
+      )
+      const { data, error } = await q
         .gte('shift_date', dateFrom)
         .lte('shift_date', dateTo)
         .order('shift_date')
@@ -1180,21 +1191,22 @@ export default function RosterPlanner() {
       if (error) throw error
       return (data || []) as RosterShift[]
     },
-    enabled: plannerQueriesEnabled,
+    enabled: clientScopedQueriesEnabled,
   })
 
   const { data: officers = [], isLoading: officersLoading } = useQuery<Officer[]>({
-    queryKey: ['roster_officers', user?.organization_id],
+    queryKey: ['roster_officers', user?.organization_id, clientOrgIds],
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
-        .from('user_profiles')
-        .select(`
-          id, first_name, last_name, email, role, is_active,
-          deputy_employee_id, deputy_display_name,
-          employer_organization_id,
-          contractor_org:organizations!employer_organization_id(id, name, organization_type)
-        `)
-        .eq('organization_id', user!.organization_id!)
+      const q = applyClientOrgScope(
+        (supabase as any)
+          .from('user_profiles')
+          .select(`
+            id, first_name, last_name, email, role, is_active,
+            employer_organization_id,
+            contractor_org:organizations!employer_organization_id(id, name, organization_type)
+          `)
+      )
+      const { data, error } = await q
         .eq('is_active', true)
         .in('role', ['officer', 'admin_officer'])
         .order('first_name')
@@ -1204,7 +1216,7 @@ export default function RosterPlanner() {
         contractor_org: Array.isArray(o.contractor_org) ? o.contractor_org[0] ?? null : o.contractor_org,
       })) as Officer[]
     },
-    enabled: plannerQueriesEnabled,
+    enabled: clientScopedQueriesEnabled,
   })
 
   const { data: sites = [] } = useQuery<ClientSite[]>({
@@ -1213,7 +1225,7 @@ export default function RosterPlanner() {
         let q = (supabase as any).from('client_sites')
           .select('id, name, site_code, default_pay_rate, default_charge_rate')
           .order('name')
-      // clientOrgIds === null means master (unrestricted)
+      // clientOrgIds === null means grand_master (unrestricted)
       if (clientOrgIds !== null) q = q.in('organization_id', clientOrgIds)
       const { data, error } = await q
       if (error) throw error
@@ -1231,7 +1243,7 @@ export default function RosterPlanner() {
         .eq('is_active', true)
         .order('name')
 
-      // clientOrgIds === null means master (unrestricted)
+      // clientOrgIds === null means grand_master (unrestricted)
       if (clientOrgIds !== null) q = q.in('organization_id', clientOrgIds)
 
       const { data, error } = await q
@@ -1242,45 +1254,57 @@ export default function RosterPlanner() {
   })
 
   const { data: patrolRoutes = [] } = useQuery<PatrolRoute[]>({
-    queryKey: ['roster_patrol_routes', user?.organization_id],
+    queryKey: ['roster_patrol_routes', user?.organization_id, clientOrgIds],
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
-        .from('patrol_routes')
-        .select('id, route_name, default_shift, randomization_enabled, jitter_window_minutes, mandatory_first_stop')
-        .eq('organization_id', user!.organization_id!)
+      const q = applyClientOrgScope(
+        (supabase as any)
+          .from('patrol_routes')
+          .select('id, route_name, default_shift, randomization_enabled, jitter_window_minutes, mandatory_first_stop')
+      )
+      const { data, error } = await q
         .eq('is_active', true)
         .order('route_name')
       if (error) throw error
       return (data || []) as PatrolRoute[]
     },
-    enabled: plannerQueriesEnabled,
+    enabled: clientScopedQueriesEnabled,
   })
 
   const { data: availability = [] } = useQuery<OfficerAvailability[]>({
-    queryKey: ['officer_availability', user?.organization_id],
+    queryKey: ['officer_availability', user?.organization_id, clientOrgIds],
     queryFn: async () => {
-      const { data, error } = await ((supabase as any).from('officer_availability') as any)
-        .select('id, officer_id, day_of_week, specific_date, is_available, unavailability_reason')
-        .eq('organization_id', user!.organization_id!)
+      const q = applyClientOrgScope(
+        ((supabase as any).from('officer_availability') as any)
+          .select('id, officer_id, day_of_week, specific_date, is_available, unavailability_reason')
+      )
+      const { data, error } = await q
       if (error) throw error
       return (data || []) as OfficerAvailability[]
     },
-    enabled: plannerQueriesEnabled,
+    enabled: clientScopedQueriesEnabled,
   })
 
   const { data: leaveRequests = [] } = useQuery<LeaveRequest[]>({
-    queryKey: ['leave_requests', user?.organization_id, dateFrom, dateTo],
+    queryKey: ['leave_requests', user?.organization_id, clientOrgIds, dateFrom, dateTo, isAdmin],
     queryFn: async () => {
-      const { data, error } = await ((supabase as any).from('leave_requests') as any)
-        .select('id, officer_id, leave_type_name, status, date_start, date_end, total_hours')
-        .eq('organization_id', user!.organization_id!)
+      let query = applyClientOrgScope(
+        (supabase as any)
+          .from('leave_requests')
+          .select('id, officer_id, leave_type_name, status, date_start, date_end, total_hours')
+      )
         .lte('date_start', dateTo)
         .gte('date_end', dateFrom)
-        .order('date_start')
+        .order('date_start', { ascending: false })
+
+      if (!isAdmin) {
+        query = query.eq('officer_id', user!.id)
+      }
+
+      const { data, error } = await query
       if (error) throw error
       return (data || []) as LeaveRequest[]
     },
-    enabled: plannerQueriesEnabled,
+    enabled: clientScopedQueriesEnabled,
   })
 
   // ─── Mutations ─────────────────────────────────────────────────────────────
@@ -1292,7 +1316,7 @@ export default function RosterPlanner() {
   const createMutation = useMutation({
     mutationFn: async (data: ShiftFormData) => {
       const payload = {
-        organization_id: user!.organization_id,
+        organization_id: operationalOrganizationId,
         officer_id: data.officer_id || null,
         shift_date: data.shift_date,
         shift_type: data.shift_type,
@@ -1316,6 +1340,7 @@ export default function RosterPlanner() {
         client_charge_rate: data.client_charge_rate ? parseFloat(data.client_charge_rate) : null,
         rate_type:          data.rate_type || 'standard',
       }
+      if (!payload.organization_id) throw new Error('No organization selected')
       const { error } = await ((supabase as any).from('roster_shifts') as any).insert(payload)
       if (error) throw error
     },
@@ -1398,7 +1423,7 @@ export default function RosterPlanner() {
 
   const deputyImportMutation = useMutation({
     mutationFn: async (parsed: DeputyImportParseResult) => {
-      if (!user?.organization_id) throw new Error('No organization selected')
+      if (!operationalOrganizationId) throw new Error('No organization selected')
 
       const normalizeOfficerName = (value: string) =>
         value
@@ -1467,7 +1492,7 @@ export default function RosterPlanner() {
 
         if (row.isLeave && matchedOfficer && row.scheduleStart) {
           leavePayload.push({
-            organization_id: user.organization_id,
+            organization_id: operationalOrganizationId,
             officer_id: matchedOfficer.id,
             leave_type_name: row.leaveTypeName || 'Leave',
             leave_export_code: row.leaveExportCode,
@@ -1483,7 +1508,7 @@ export default function RosterPlanner() {
 
         if (!row.isLeave && row.scheduleStart) {
           rosterPayload.push({
-            organization_id: user.organization_id,
+            organization_id: operationalOrganizationId,
             officer_id: matchedOfficer?.id ?? null,
             client_site_id: matchedSite?.id ?? null,
             shift_date: row.scheduleStart.slice(0, 10),
@@ -1507,7 +1532,7 @@ export default function RosterPlanner() {
 
         if (row.timesheetStart && matchedOfficer) {
           timesheetPayload.push({
-            organization_id: user.organization_id,
+            organization_id: operationalOrganizationId,
             officer_id: matchedOfficer.id,
             started_at: row.timesheetStart,
             ended_at: row.timesheetEnd,

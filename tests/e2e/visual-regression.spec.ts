@@ -16,7 +16,7 @@
  *
  * Baseline generation (run once, commit the snapshots):
  *   PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium \
- *   bunx playwright test tests/e2e/visual-regression.spec.ts \
+ *   npx playwright test tests/e2e/visual-regression.spec.ts \
  *     --project=chromium --update-snapshots --workers=1
  *
  * Routine runs MUST NOT pass --update-snapshots. Any diff = fail.

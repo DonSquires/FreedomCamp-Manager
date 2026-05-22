@@ -203,7 +203,7 @@ export default function PublicCamperRegistration() {
                     <CheckCircle2 className="h-12 w-12 text-green-600" />
                     <h2 className="text-lg font-semibold">Registration Confirmed</h2>
                     <p className="text-sm max-w-md">
-                      You're registered for <strong>{confirmed.zoneName}</strong> — {confirmed.nights} night{confirmed.nights !== 1 ? 's' : ''}.
+                      You&apos;re registered for <strong>{confirmed.zoneName}</strong> — {confirmed.nights} night{confirmed.nights !== 1 ? 's' : ''}.
                     </p>
                     <div className="mt-2 rounded-lg border-2 border-green-400 bg-white px-6 py-3 text-center">
                       <p className="text-xs text-green-700 mb-1 font-medium uppercase tracking-wide">Your confirmation code</p>
@@ -242,7 +242,7 @@ export default function PublicCamperRegistration() {
                       <MapPin className="h-4 w-4 text-green-700" />
                       Select Zone
                     </CardTitle>
-                    <CardDescription>Choose the freedom camping zone you'll be staying at.</CardDescription>
+                    <CardDescription>Choose the freedom camping zone you&apos;ll be staying at.</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-3">
                     <div className="relative">

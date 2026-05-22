@@ -50,8 +50,8 @@ jobs:
       VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
 
       # Admin credential for first-wave routes
-      PLAYWRIGHT_ADMIN_ORG1_EMAIL: ${{ secrets.PLAYWRIGHT_ADMIN_ORG1_EMAIL != '' && secrets.PLAYWRIGHT_ADMIN_ORG1_EMAIL || secrets.PLAYWRIGHT_ADMIN_EMAIL }}
-      PLAYWRIGHT_ADMIN_ORG1_PASSWORD: ${{ secrets.PLAYWRIGHT_ADMIN_ORG1_PASSWORD != '' && secrets.PLAYWRIGHT_ADMIN_ORG1_PASSWORD || secrets.PLAYWRIGHT_ADMIN_PASSWORD }}
+      PLAYWRIGHT_ADMIN_ORG1_EMAIL: ${{ secrets.PLAYWRIGHT_ADMIN_EMAIL }}
+      PLAYWRIGHT_ADMIN_ORG1_PASSWORD: ${{ secrets.PLAYWRIGHT_ADMIN_PASSWORD }}
 
     steps:
       - name: Checkout
@@ -62,13 +62,8 @@ jobs:
         with:
           node-version: 24
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: npm ci
 
       - name: Validate required env vars
         run: |
@@ -95,11 +90,11 @@ jobs:
           fi
 
       - name: Install Playwright browser
-        run: bunx playwright install --with-deps chromium
+        run: npx playwright install --with-deps chromium
 
       - name: Run first-wave async-state suite
         run: |
-          bunx playwright test tests/e2e/async-state-first-wave.spec.ts \
+          npx playwright test tests/e2e/async-state-first-wave.spec.ts \
             --project=chromium \
             --project="Mobile Chrome" \
             --reporter=list \

@@ -56,7 +56,7 @@ function run(command, args) {
 }
 
 async function main() {
-  const command = process.platform === 'win32' ? 'bunx.cmd' : 'bunx'
+  const command = process.platform === 'win32' ? 'npx.cmd' : 'npx'
   const passthroughArgs = normalizeGrepArgs(process.argv.slice(2))
   const specs = [
     'tests/e2e/human-module-interaction.spec.ts',

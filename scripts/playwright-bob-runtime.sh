@@ -47,7 +47,7 @@ fi
 
 if [[ $# -eq 0 ]]; then
   echo "Usage: bash scripts/playwright-bob-runtime.sh <command ...>"
-  echo "Example: bash scripts/playwright-bob-runtime.sh bunx playwright test tests/e2e/phase3-sentient-xo.spec.ts --project=chromium"
+  echo "Example: bash scripts/playwright-bob-runtime.sh npx playwright test tests/e2e/phase3-sentient-xo.spec.ts --project=chromium"
   exit 1
 fi
 
@@ -72,12 +72,6 @@ fi
 if [[ -z "${PLAYWRIGHT_BOB_EMAIL:-}" || -z "${PLAYWRIGHT_BOB_PASSWORD:-}" ]]; then
   echo "[playwright-bob-runtime] Missing Bob credentials. Set BOB_LOGIN_EMAIL/BOB_LOGIN_PASSWORD (or PLAYWRIGHT_BOB_EMAIL/PLAYWRIGHT_BOB_PASSWORD)." >&2
   exit 1
-fi
-
-# Allow Playwright commands authored for bunx to run in environments without Bun.
-if [[ "${1:-}" == "bunx" ]] && ! command -v bun >/dev/null 2>&1; then
-  shift
-  set -- npx "$@"
 fi
 
 exec bash scripts/playwright-codespace-credentials.sh "$@"

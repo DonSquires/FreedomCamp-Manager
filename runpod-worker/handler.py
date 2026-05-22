@@ -165,6 +165,8 @@ TIMEOUT_S           = int(os.environ.get("OLLAMA_TIMEOUT_MS", "120000")) // 1000
 OLLAMA_RETRY_ATTEMPTS = max(1, int(os.environ.get("OLLAMA_RETRY_ATTEMPTS", "3")))
 OLLAMA_RETRY_BACKOFF_MS = max(0, int(os.environ.get("OLLAMA_RETRY_BACKOFF_MS", "500")))
 OLLAMA_TLS_VERIFY = parse_bool_env("OLLAMA_TLS_VERIFY", True)
+if any(urllib.parse.urlparse(candidate).scheme == "https" for candidate in OLLAMA_BASE_CANDIDATES):
+    OLLAMA_TLS_VERIFY = True
 TRAINING_MEMORY_PATH = os.environ.get("TRAINING_MEMORY_PATH", os.path.join(os.path.dirname(__file__), "training_memory.json"))
 MAX_RUNTIME_NOTES = 8
 OPENAI_REFERENCE_GATE_ENABLED = os.environ.get("OPENAI_REFERENCE_GATE_ENABLED", "true").strip().lower() in {"1", "true", "yes", "on"}
@@ -1813,18 +1815,8 @@ def handler(job):
                 node_mod = os.path.join(repo_dir, "node_modules")
                 if os.path.exists(pkg_json) and not os.path.isdir(node_mod):
                     print("[worker] Installing repo Node deps...")
-                    has_bun_lock = os.path.exists(os.path.join(repo_dir, "bun.lock")) or os.path.exists(os.path.join(repo_dir, "bun.lockb"))
                     has_pkg_lock = os.path.exists(os.path.join(repo_dir, "package-lock.json"))
-                    if has_bun_lock and shutil.which("bun"):
-                        # Respect Bun-first repos to avoid npm peer resolution drift.
-                        subprocess.run(
-                            ["bun", "install", "--frozen-lockfile"],
-                            cwd=repo_dir,
-                            check=False,
-                            capture_output=True,
-                            timeout=420,
-                        )
-                    elif has_pkg_lock:
+                    if has_pkg_lock:
                         subprocess.run(
                             ["npm", "ci", "--legacy-peer-deps", "--silent"],
                             cwd=repo_dir,

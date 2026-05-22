@@ -528,8 +528,8 @@ const DEBUGGING_PLAYBOOK = {
     steps: [
       '1. Go to Actions tab in GitHub — find the failed workflow run',
       '2. Click into the failed job — read the error output (usually near the bottom)',
-      '3. Common: bun install --frozen-lockfile fails → bun.lock is out of date, regenerate it',
-      '4. Common: TypeScript build fails → type error in changed file, run bun run build locally',
+      '3. Common: npm ci fails → package-lock.json is out of date, regenerate it',
+      '4. Common: TypeScript build fails → type error in changed file, run npm run build locally',
       '5. Common: Railway deploy fails → RAILWAY_TOKEN expired or service ID wrong',
       '6. Common: Edge Function deploy fails → Supabase CLI auth token expired',
       '7. For DB migrations: check if the migration SQL has syntax errors or conflicts',

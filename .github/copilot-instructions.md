@@ -19,7 +19,7 @@
 | Routing | react-router-dom v6 |
 | Backend | Supabase (PostgreSQL + Edge Functions + Row Level Security) |
 | Services | `proxy-server/` (NZSCV, Node/Express), `inference-service/` (ONNX AI, Node) |
-| Package manager | **bun** (`bun.lock` at root) |
+| Package manager | **npm** (`package-lock.json` at root) |
 
 ---
 
@@ -48,7 +48,7 @@
 ├── index.html                # Vite HTML entry
 ├── tailwind.config.ts
 ├── tsconfig.json             # References tsconfig.app.json + tsconfig.node.json
-└── bun.lock                  # Bun lockfile (no root package.json is committed)
+└── package-lock.json                  # npm lockfile
 ```
 
 Path alias: **`@/*`** → `./src/*` (defined in `tsconfig.json` and Vite config).
@@ -57,7 +57,7 @@ Path alias: **`@/*`** → `./src/*` (defined in `tsconfig.json` and Vite config)
 
 ## Build & Development
 
-> **Important**: There is **no committed root `package.json`**. If one is missing, create it before running bun commands.
+> **Important**: Ensure the root `package.json` exists before running npm commands.
 
 A standard root `package.json` for this project:
 
@@ -76,19 +76,19 @@ A standard root `package.json` for this project:
 
 ```bash
 # Install dependencies (run first after cloning or after package.json changes)
-bun install
+npm install
 
 # Start dev server (http://localhost:5173 by default)
-bun run dev
+npm run dev
 
 # Type-check + production build (output in dist/)
-bun run build
+npm run build
 
 # Lint (ESLint 9 flat config)
-bun run lint
+npm run lint
 
 # Preview production build
-bun run preview
+npm run preview
 ```
 
 **Environment**: copy `.env` and set `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`.
@@ -144,13 +144,22 @@ All datetimes are NZ timezone (`Pacific/Auckland`). The Supabase client sends `X
 
 ---
 
+
 ## Validation
 
 After making changes, always verify:
-1. `bun run build` succeeds (TypeScript + Vite)
-2. `bun run lint` has no new errors
+1. `npm run build` succeeds (TypeScript + Vite)
+2. `npm run lint` has no new errors
 3. Any modified Supabase Edge Function follows the CORS + OPTIONS pattern
 4. New database columns match the types in `src/types/database.ts`
+
+## Testing Guidelines
+
+### Cloud Simulator Verification (Bob)
+
+- Enforce the use of the new comment-triggered verification workflow (`ops-bob-e2e-validation.yml`).
+- If local browser environments crash due to system linker/Chromium errors, the AI must pivot to fetch-native endpoint tests or trigger the cloud simulator instead of trying to force local browser executions.
+- Code must only be merged after Bob delivers a green behavioral report directly inside the PR thread.
 
 ## Bob Truth Protocol
 
@@ -178,6 +187,19 @@ After making changes, always verify:
 | Memory | Automate ingestion | `scripts/auto-ingest.mjs` |
 | Safety | Adversarial Review | `scripts/dr-bob-review.mjs` |
 | Growth | Score the responses | `data/bob-response-scores.jsonl` |
+
+## Self-Healing Execution Contract
+
+For autonomous bug handling, follow this exact sequence end-to-end:
+
+1. Bob runs tests and behavioral verification (`ops-bob-self-test.yml` / Bob E2E as applicable).
+2. Any discovered issues are persisted/updated in bug reports.
+3. Dr Bob triage routes each item for automated fix or human review (`ops-triage-bug-reports.yml`).
+4. Code-repair automation executes root-cause fixes, commits, and pushes PR updates (`ops-bob-code-task.yml`).
+5. Bug reports are synchronized to final status with links/evidence (`ops-close-resolved-bugs.yml`).
+6. Documentation and Bob memory context are refreshed (`ops-bob-brain-dump-refresh.yml`) when changes materially alter architecture or behavior.
+
+Use the orchestrator workflow `ops-bob-self-heal-pipeline.yml` to run this sequence automatically in order.
 
 ## Self-Ingesting Architecture
 

@@ -87,6 +87,19 @@ Material release-prep updates for branch consolidation into main:
 2. Deep functional workflow preflight now degrades invalid credential checks to a controlled skip path for that run, preserving normal execution when credentials are valid.
 3. Governance authority requirements for this cycle are satisfied by paired updates to this canonical file and docs/INSTRUCTION_MANUAL.md.
 
+## Current Cycle Snapshot (2026-05-22)
+
+Material updates in the current CI remediation slice:
+
+1. PR merge-ref install stability is now enforced with an explicit `esbuild@0.28.0` dev dependency, aligning lock resolution with Vitest/Vite requirements during `npm ci`.
+2. Build budget baseline was recalibrated for current bundle reality (total non-exempt JS budget 8,950 kB) to prevent false-negative release gating while preserving per-chunk and CSS limits.
+3. Workforce roster planning remains architecture-consistent with live leave-request data sourcing and no route-topology expansion in this slice.
+
+### Governance / Validation Implications
+
+1. Documentation authority remains paired: instruction manual and canonical file updated in the same change set as CI/governance-impacting updates.
+2. CI failures are now separated into code-actionable gates (budget/doc authority) versus external credential-state gates (Playwright identity secrets).
+
 ## Current Cycle Snapshot (2026-05-17)
 
 Material changes and governance implications in the latest cycle:

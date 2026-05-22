@@ -20,7 +20,7 @@ if [[ -f "$SCRIPTS_DIR/pre-commit.mjs" ]]; then
   cp "$SCRIPTS_DIR/pre-commit.mjs" "$HOOKS_DIR/pre-commit"
   chmod +x "$HOOKS_DIR/pre-commit"
   echo "✅ Installed pre-commit hook"
-  echo "   • Runs: bun run bob:test:spatial"
+  echo "   • Runs: npm run bob:test:spatial"
   echo "   • Blocks commits if tests fail"
 else
   echo "⚠️  pre-commit.mjs not found"

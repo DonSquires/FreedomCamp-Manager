@@ -51,6 +51,84 @@ POST /functions/v1/parkpow-sync
 { "action": "push-violations" }
 ```
 
+Historical observations that already exist without photos can be backfilled from
+ParkPow session images via:
+```bash
+POST /functions/v1/parkpow-photo-sync
+{
+  "date_from": "2025-01-01",
+  "date_to": "2026-12-31",
+  "window_minutes": 180,
+  "limit": 200,
+  "apply": false,
+  "require_empty_photo": true
+}
+```
+
+- Run with `apply: false` first to confirm candidate matches.
+- Then rerun with `apply: true` to store the matched image in Supabase Storage and
+  update `observations.photo_url`.
+- The function uses the Supabase-hosted `PARKPOW_API_TOKEN`, so local shell access
+  to that token is not required once the function is deployed.
+
+If `parkpow-photo-sync` returns a plain HTTP 500, deploy the latest function code
+before retrying. This repo already includes a single-function deploy workflow in
+[.github/workflows/deploy-edge-functions.yml](../.github/workflows/deploy-edge-functions.yml)
+using `function_name=parkpow-photo-sync`.
+
+## Full ParkPow Photo Archival To Storage (Metadata-Preserving)
+
+To archive all ParkPow photos into Supabase Storage first, then ingest from the
+bucket pipeline, use:
+
+```bash
+POST /functions/v1/parkpow-photo-archive
+{
+  "organization_id": "<org-uuid>",
+  "source": "snapshot",
+  "bucket": "evidence",
+  "base_url": "https://api.platerecognizer.com/v1",
+  "since": "2025-11-01T00:00:00Z",
+  "since_param": "timestamp__gt",
+  "until_param": "timestamp__lte",
+  "max_pages": 200,
+  "page_size": 100,
+  "apply": true,
+  "upsert": false
+}
+```
+
+What this does:
+- Downloads ParkPow photos with `PARKPOW_API_TOKEN` from Supabase secrets.
+- Uploads them to `evidence` bucket under `parkpow-archive/<source>/<YYYY-MM>/...`.
+- Inserts one `evidence_index` row per archived photo.
+- Preserves upstream metadata in `evidence_index.source_metadata` with
+  `source_system='parkpow'` and `source_record_id=<parkpow record id>`.
+
+Use `apply: false` for a non-writing dry run first.
+
+If you receive `Invalid token` from Snapshot Cloud, generate a fresh API token in
+Plate Recognizer Snapshot Cloud and update `PARKPOW_API_TOKEN` secret before retrying.
+
+## Snapshot Cloud Push Webhook (Recommended)
+
+Instead of polling APIs, push every recognition event directly into Supabase:
+
+Target URL:
+- `https://<project-ref>.supabase.co/functions/v1/plate-recognizer-webhook`
+
+Suggested headers in Snapshot Cloud webhook settings:
+- `x-org-id: <organization-uuid>`
+- `x-webhook-secret: <shared-secret>` (if `PLATE_RECOGNIZER_WEBHOOK_SECRET` is set)
+
+Behavior:
+- Stores incoming image in `evidence` bucket under `snapshot-webhook/YYYY-MM/...`.
+- Preserves full payload metadata:
+  - Preferred: `evidence_index` row (`source_system=plate_recognizer_webhook`).
+  - Fallback (if `evidence_index` not available): sidecar metadata JSON file in storage.
+
+This path avoids API list endpoint drift and keeps metadata attached to each image.
+
 ---
 
 ## Secrets Already Configured ✅

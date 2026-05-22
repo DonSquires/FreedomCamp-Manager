@@ -74,7 +74,7 @@ const ARCHITECTURAL_CONTEXT_INJECTION = {
     state_file: 'system_state.json',
     no_assumptions_rule: true,
     package_manager_rules: {
-      bun_lock: 'use bun',
+      package-lock.json: 'use npm',
       package_lock_json: 'use npm',
     },
   },

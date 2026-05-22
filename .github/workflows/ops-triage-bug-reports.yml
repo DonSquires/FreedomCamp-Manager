@@ -163,10 +163,57 @@ jobs:
               const sev        = (report.severity || 'medium').toLowerCase()
               const issueType  = (report.issue_type || 'bug').toLowerCase()
               const isDesign   = DESIGN_TYPES.has(issueType) || Boolean(report.ai_analysis?.design_change)
+              const isLowLiveSession = sev === 'low' && /^Live session diagnostics\b/i.test(String(report.title || ''))
               const shortId    = report.id.slice(0, 8)
               const issueTitle = `[Bug Report #${shortId}] ${report.title || 'Untitled'} [${sev}]`
 
               core.info(`Processing ${report.id} | type=${issueType} | design=${isDesign} | sev=${sev}`)
+
+              // Low-severity live-session diagnostics are high-volume telemetry.
+              // Keep them in Supabase but suppress GitHub issue fan-out.
+              if (isLowLiveSession) {
+                core.info(`  📉 Suppressing low-severity live-session issue fan-out for ${report.id}`)
+
+                if (dryRun) {
+                  linked++
+                  continue
+                }
+
+                const suppressedAnalysis = {
+                  ...(report.ai_analysis || {}),
+                  triage_suppressed: true,
+                  triage_suppressed_reason: 'low-severity live session diagnostics',
+                  triage_suppressed_at: new Date().toISOString(),
+                  github_issue_url: 'suppressed://low-severity-live-session-diagnostics',
+                }
+
+                const suppressResp = await fetch(
+                  `${supabaseUrl}/rest/v1/bug_reports?id=eq.${report.id}`,
+                  {
+                    method: 'PATCH',
+                    headers: {
+                      apikey: serviceKey,
+                      Authorization: `Bearer ${serviceKey}`,
+                      'Content-Type': 'application/json',
+                      Prefer: 'return=minimal',
+                    },
+                    body: JSON.stringify({
+                      status: 'in_progress',
+                      requires_human_review: false,
+                      ai_analysis: suppressedAnalysis,
+                    }),
+                  }
+                )
+
+                if (!suppressResp.ok) {
+                  core.warning(`  ⚠️ Failed to suppress report ${report.id} in DB (HTTP ${suppressResp.status})`)
+                  failed++
+                } else {
+                  linked++
+                }
+
+                continue
+              }
 
               // ── Idempotency: search for an existing open issue ────────────────
               let existingIssue = null

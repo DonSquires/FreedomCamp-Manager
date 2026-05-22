@@ -1297,7 +1297,7 @@ export default function TenderWorkspaceDetail() {
                 {orgRefs.length === 0 ? (
                   <div className="py-6 text-center text-sm text-muted-foreground space-y-2">
                     <BookOpen className="h-8 w-8 mx-auto text-muted-foreground/30" />
-                    <p>No reference materials in your org's library yet.</p>
+                    <p>No reference materials in your org&apos;s library yet.</p>
                     {isAdminOrAbove && (
                       <Button size="sm" variant="outline" onClick={() => navigate('/tender-reference-library')}>
                         Go to Reference Library
@@ -1408,7 +1408,7 @@ export default function TenderWorkspaceDetail() {
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm flex items-center gap-2">
                     <BrainCircuit className="h-4 w-4 text-primary" />
-                    Bob's Summary
+                    Bob&apos;s Summary
                   </CardTitle>
                 </CardHeader>
                 <CardContent>

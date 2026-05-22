@@ -409,7 +409,7 @@ export default function TenderWorkspace() {
                   onChange={(e) => setForm((f) => ({ ...f, issuing_body: e.target.value }))}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Bob will auto-create a CRM client if this organisation isn't found.
+                  Bob will auto-create a CRM client if this organisation isn&apos;t found.
                 </p>
               </div>
 

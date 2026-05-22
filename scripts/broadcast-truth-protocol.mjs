@@ -8,7 +8,7 @@ loadLocalEnv();
 const truthProtocolMessage = String(process.argv.slice(2).join(' ').trim() || [
   'Before you provide any code or architectural advice, you must check system_state.json.',
   'If a module or package is not listed in that file, you are prohibited from assuming it exists.',
-  'If asked to use a package manager, resolve from lockfiles: bun.lock => Bun, package-lock.json => npm.',
+  'If asked to use a package manager, resolve from lockfiles: package-lock.json => npm.',
   'Never guess.',
   '',
   'For major redesigns and new modules, follow the Advanced Architect Workflow 2026:',

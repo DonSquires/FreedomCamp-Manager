@@ -43,6 +43,10 @@ on:
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
+concurrency:
+  group: docs-manual-drift-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
   issues: write
@@ -194,12 +198,39 @@ jobs:
               repo: context.repo.repo,
               state: 'open',
               labels: 'docs,manual-update-needed',
-              per_page: 5,
+              per_page: 100,
             });
-            const existing = issues.data.find(i =>
+
+            const matches = issues.data.filter(i =>
               i.title.startsWith('docs: INSTRUCTION_MANUAL.md contract drift detected')
             );
-            return existing ? existing.number : null;
+
+            if (matches.length === 0) return null;
+
+            matches.sort((a, b) =>
+              new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+            );
+
+            const keeper = matches[0];
+            const duplicates = matches.slice(1);
+
+            for (const dup of duplicates) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: dup.number,
+                body: `Closing as duplicate of #${keeper.number} to keep manual-drift tracking consolidated.`,
+              });
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: dup.number,
+                state: 'closed',
+              });
+              core.info(`Closed duplicate manual-drift issue #${dup.number} (keeper: #${keeper.number})`);
+            }
+
+            return keeper.number;
           result-encoding: string
 
       # ── Open (or update) the tracking issue ────────────────────────────────

@@ -1,6 +1,6 @@
 {
-  "checkedAt": "2026-05-17T03:36:19.976Z",
-  "adminOfficerRouteCount": 229,
+  "checkedAt": "2026-05-21T22:33:35.211Z",
+  "adminOfficerRouteCount": 216,
   "routeSignatures": [
     {
       "path": "/portal-selection",
@@ -23,15 +23,6 @@
     },
     {
       "path": "/officer-home",
-      "roles": [
-        "officer",
-        "admin_officer"
-      ],
-      "components": [],
-      "hasRoleGuard": true
-    },
-    {
-      "path": "/my-roster",
       "roles": [
         "officer",
         "admin_officer"
@@ -181,7 +172,9 @@
         "admin_officer",
         "master"
       ],
-      "components": [],
+      "components": [
+        "UserManagement"
+      ],
       "hasRoleGuard": true
     },
     {
@@ -189,9 +182,11 @@
       "roles": [
         "admin",
         "admin_officer",
-        "master"
+        "master",
+        "grand_master"
       ],
       "components": [
+        "GovernanceMutationGate",
         "AccessControlPage"
       ],
       "hasRoleGuard": true
@@ -204,7 +199,8 @@
         "client_admin",
         "admin",
         "admin_officer",
-        "master"
+        "master",
+        "grand_master"
       ],
       "components": [
         "ClientOrganisationPortal"
@@ -339,7 +335,8 @@
       "roles": [
         "admin",
         "admin_officer",
-        "master"
+        "master",
+        "grand_master"
       ],
       "components": [
         "CaseBridge"
@@ -351,7 +348,8 @@
       "roles": [
         "admin",
         "admin_officer",
-        "master"
+        "master",
+        "grand_master"
       ],
       "components": [
         "ServiceAgreements"
@@ -363,7 +361,8 @@
       "roles": [
         "admin",
         "admin_officer",
-        "master"
+        "master",
+        "grand_master"
       ],
       "components": [
         "POIVOIDashboard"
@@ -375,7 +374,8 @@
       "roles": [
         "admin",
         "admin_officer",
-        "master"
+        "master",
+        "grand_master"
       ],
       "components": [
         "AccessAuditLog"
@@ -385,6 +385,9 @@
     {
       "path": "/reports",
       "roles": [
+        "client_viewer",
+        "client_officer",
+        "client_admin",
         "admin",
         "admin_officer",
         "master"
@@ -399,7 +402,8 @@
       "roles": [
         "admin",
         "admin_officer",
-        "master"
+        "master",
+        "grand_master"
       ],
       "components": [
         "ComplianceRecalculation"
@@ -468,19 +472,6 @@
     },
     {
       "path": "/enforcement-actions",
-      "roles": [
-        "admin",
-        "admin_officer",
-        "master",
-        "officer"
-      ],
-      "components": [
-        "EnforcementActions"
-      ],
-      "hasRoleGuard": true
-    },
-    {
-      "path": "/admin/enforcement",
       "roles": [
         "admin",
         "admin_officer",
@@ -702,7 +693,8 @@
       "roles": [
         "admin",
         "admin_officer",
-        "master"
+        "master",
+        "grand_master"
       ],
       "components": [
         "RadioAuditDashboard"
@@ -932,7 +924,8 @@
       "roles": [
         "admin",
         "admin_officer",
-        "master"
+        "master",
+        "grand_master"
       ],
       "components": [
         "BobIntakeQueue"
@@ -945,7 +938,8 @@
         "admin",
         "admin_officer",
         "master",
-        "officer"
+        "officer",
+        "grand_master"
       ],
       "components": [
         "BobAssistantStudio"
@@ -969,7 +963,8 @@
       "roles": [
         "admin",
         "admin_officer",
-        "master"
+        "master",
+        "grand_master"
       ],
       "components": [
         "BobUIReview"
@@ -981,7 +976,8 @@
       "roles": [
         "admin",
         "admin_officer",
-        "master"
+        "master",
+        "grand_master"
       ],
       "components": [
         "OpsLivePlanReviewQueue"
@@ -1003,6 +999,7 @@
     {
       "path": "/disputes",
       "roles": [
+        "client_admin",
         "admin",
         "admin_officer",
         "master"
@@ -1013,7 +1010,7 @@
       "hasRoleGuard": true
     },
     {
-      "path": "/admin/discrepancies",
+      "path": "/vehicle-discrepancies",
       "roles": [
         "admin",
         "admin_officer",
@@ -1089,7 +1086,9 @@
       "path": "/parking-officer",
       "roles": [
         "officer",
-        "admin_officer"
+        "admin_officer",
+        "admin",
+        "master"
       ],
       "components": [
         "ParkingOfficerPortal"
@@ -1112,7 +1111,9 @@
       "path": "/noise-officer",
       "roles": [
         "officer",
-        "admin_officer"
+        "admin_officer",
+        "admin",
+        "master"
       ],
       "components": [
         "NoiseOfficerPortal"
@@ -1135,7 +1136,9 @@
       "path": "/biosecurity-officer",
       "roles": [
         "officer",
-        "admin_officer"
+        "admin_officer",
+        "admin",
+        "master"
       ],
       "components": [
         "BiosecurityOfficerPortal"
@@ -1158,7 +1161,9 @@
       "path": "/smoke-officer",
       "roles": [
         "officer",
-        "admin_officer"
+        "admin_officer",
+        "admin",
+        "master"
       ],
       "components": [
         "SmokeComplaintOfficerPortal"
@@ -1368,7 +1373,8 @@
       "roles": [
         "admin",
         "admin_officer",
-        "master"
+        "master",
+        "grand_master"
       ],
       "components": [
         "AssetManagement"
@@ -1380,7 +1386,8 @@
       "roles": [
         "admin",
         "admin_officer",
-        "master"
+        "master",
+        "grand_master"
       ],
       "components": [
         "PatrolChainAudits"
@@ -1390,9 +1397,11 @@
     {
       "path": "/invoicing",
       "roles": [
+        "client_admin",
         "admin",
         "admin_officer",
-        "master"
+        "master",
+        "grand_master"
       ],
       "components": [
         "InvoicingPage"
@@ -1404,7 +1413,8 @@
       "roles": [
         "admin",
         "admin_officer",
-        "master"
+        "master",
+        "grand_master"
       ],
       "components": [
         "PricingPage"
@@ -1451,18 +1461,6 @@
     },
     {
       "path": "/dispatch",
-      "roles": [
-        "admin",
-        "admin_officer",
-        "master"
-      ],
-      "components": [
-        "DispatchConsole"
-      ],
-      "hasRoleGuard": true
-    },
-    {
-      "path": "/admin/dispatch",
       "roles": [
         "admin",
         "admin_officer",
@@ -1579,114 +1577,6 @@
       ],
       "components": [
         "OfficerSkills"
-      ],
-      "hasRoleGuard": true
-    },
-    {
-      "path": "/roster-shifts",
-      "roles": [
-        "admin",
-        "admin_officer",
-        "master"
-      ],
-      "components": [
-        "RosterShiftLog"
-      ],
-      "hasRoleGuard": true
-    },
-    {
-      "path": "/noise-notices",
-      "roles": [
-        "admin",
-        "admin_officer",
-        "master"
-      ],
-      "components": [
-        "NoiseNoticeLog"
-      ],
-      "hasRoleGuard": true
-    },
-    {
-      "path": "/site-incidents",
-      "roles": [
-        "admin",
-        "admin_officer",
-        "master"
-      ],
-      "components": [
-        "SiteIncidentLog"
-      ],
-      "hasRoleGuard": true
-    },
-    {
-      "path": "/person-interactions",
-      "roles": [
-        "admin",
-        "admin_officer",
-        "master"
-      ],
-      "components": [
-        "PersonInteractionLog"
-      ],
-      "hasRoleGuard": true
-    },
-    {
-      "path": "/plate-scans-log",
-      "roles": [
-        "admin",
-        "admin_officer",
-        "master"
-      ],
-      "components": [
-        "PlateScanLog"
-      ],
-      "hasRoleGuard": true
-    },
-    {
-      "path": "/dispatch-events",
-      "roles": [
-        "admin",
-        "admin_officer",
-        "master"
-      ],
-      "components": [
-        "DispatchEventLog"
-      ],
-      "hasRoleGuard": true
-    },
-    {
-      "path": "/notices-to-vacate",
-      "roles": [
-        "admin",
-        "admin_officer",
-        "master"
-      ],
-      "components": [
-        "NoticeToVacateLog"
-      ],
-      "hasRoleGuard": true
-    },
-    {
-      "path": "/contractor-manager",
-      "roles": [
-        "admin",
-        "admin_officer",
-        "master"
-      ],
-      "components": [
-        "ContractorManager"
-      ],
-      "hasRoleGuard": true
-    },
-    {
-      "path": "/vehicle-discrepancies",
-      "roles": [
-        "admin",
-        "admin_officer",
-        "master"
-      ],
-      "components": [
-        "VehicleDiscrepancyLog"
       ],
       "hasRoleGuard": true
     },
@@ -2692,7 +2582,8 @@
       "roles": [
         "admin",
         "admin_officer",
-        "master"
+        "master",
+        "grand_master"
       ],
       "components": [
         "CRMModule"
@@ -2704,7 +2595,8 @@
       "roles": [
         "admin",
         "admin_officer",
-        "master"
+        "master",
+        "grand_master"
       ],
       "components": [
         "ContractorAccountPage"
@@ -2716,7 +2608,8 @@
       "roles": [
         "admin",
         "admin_officer",
-        "master"
+        "master",
+        "grand_master"
       ],
       "components": [
         "ClientAccountPage"
@@ -2727,7 +2620,10 @@
       "path": "/ems",
       "roles": [
         "officer",
-        "admin_officer"
+        "admin_officer",
+        "admin",
+        "master",
+        "grand_master"
       ],
       "components": [
         "EMSPortal"
@@ -2738,22 +2634,13 @@
       "path": "/site-guard",
       "roles": [
         "officer",
-        "admin_officer"
+        "admin_officer",
+        "admin",
+        "master",
+        "grand_master"
       ],
       "components": [
         "SiteGuardPortal"
-      ],
-      "hasRoleGuard": true
-    },
-    {
-      "path": "/open-shifts-manager",
-      "roles": [
-        "admin",
-        "admin_officer",
-        "master"
-      ],
-      "components": [
-        "OpenShiftManager"
       ],
       "hasRoleGuard": true
     }

@@ -4,10 +4,10 @@ name: Deploy Railway STT Service
 # This replaces the RunPod serverless STT endpoint which suffered persistent
 # GPU supply constraints.
 #
-# Required secrets (supports aliases):
-#   Token (preferred first): RAILWAY_STT_TOKEN or RAILWAY_SST_TOKEN, then RAILWAY_TOKEN, RAILWAY_TOKEN2, RAILWAY_BOB_TOKEN, RAILWAY_PTT_TOKEN
-#   Target: Service ID (RAILWAY_STT_SERVICE_ID or RAILWAY_SST_SERVICE_ID or RAILWAY_SERVICE_ID)
-#           or Project ID (RAILWAY_STT_PROJECT_ID or RAILWAY_SST_PROJECT_ID or RAILWAY_BOB_PROJECT_ID or RAILWAY_PTT_PROJECT_ID) + service name
+# Required secrets:
+#   Token: RAILWAY_STT_TOKEN (preferred), or RAILWAY_TOKEN / RAILWAY_BOB_TOKEN / RAILWAY_PTT_TOKEN
+#   Target: RAILWAY_STT_SERVICE_ID (preferred) or RAILWAY_SERVICE_ID
+#           or RAILWAY_STT_PROJECT_ID (preferred) or RAILWAY_BOB_PROJECT_ID / RAILWAY_PTT_PROJECT_ID + service name
 #
 # Optional secrets:
 #   RAILWAY_STT_URL        — deployed Railway URL used for post-deploy health check
@@ -47,18 +47,18 @@ jobs:
           missing=""
           TOKEN_STT="${{ secrets.RAILWAY_STT_TOKEN }}"
           TOKEN_PRIMARY="${{ secrets.RAILWAY_TOKEN }}"
-          TOKEN_SECONDARY="${{ secrets.RAILWAY_TOKEN2 }}"
+          TOKEN_SECONDARY="${{ secrets.RAILWAY_TOKEN }}"
           TOKEN_BOB="${{ secrets.RAILWAY_BOB_TOKEN }}"
           TOKEN_PTT="${{ secrets.RAILWAY_PTT_TOKEN }}"
-          TOKEN_SST="${{ secrets.RAILWAY_SST_TOKEN }}"
-          SERVICE_ID="${{ secrets.RAILWAY_STT_SERVICE_ID || secrets.RAILWAY_SST_SERVICE_ID || secrets.RAILWAY_SERVICE_ID }}"
-          PROJECT_ID="${{ secrets.RAILWAY_STT_PROJECT_ID || secrets.RAILWAY_SST_PROJECT_ID || secrets.RAILWAY_BOB_PROJECT_ID || secrets.RAILWAY_PTT_PROJECT_ID }}"
+          TOKEN_SST="${{ secrets.RAILWAY_STT_TOKEN }}"
+          SERVICE_ID="${{ secrets.RAILWAY_STT_SERVICE_ID || secrets.RAILWAY_STT_SERVICE_ID || secrets.RAILWAY_SERVICE_ID }}"
+          PROJECT_ID="${{ secrets.RAILWAY_STT_PROJECT_ID || secrets.RAILWAY_STT_PROJECT_ID || secrets.RAILWAY_BOB_PROJECT_ID || secrets.RAILWAY_PTT_PROJECT_ID }}"
 
           if [ -z "$TOKEN_STT" ] && [ -z "$TOKEN_PRIMARY" ] && [ -z "$TOKEN_SECONDARY" ] && [ -z "$TOKEN_BOB" ] && [ -z "$TOKEN_PTT" ] && [ -z "$TOKEN_SST" ]; then
-            missing="$missing RAILWAY_STT_TOKEN|RAILWAY_SST_TOKEN|RAILWAY_TOKEN|RAILWAY_TOKEN2|RAILWAY_BOB_TOKEN|RAILWAY_PTT_TOKEN"
+            missing="$missing RAILWAY_STT_TOKEN|RAILWAY_TOKEN|RAILWAY_BOB_TOKEN|RAILWAY_PTT_TOKEN"
           fi
           if [ -z "$SERVICE_ID" ] && [ -z "$PROJECT_ID" ]; then
-            missing="$missing (RAILWAY_SST_SERVICE_ID|RAILWAY_STT_SERVICE_ID|RAILWAY_SERVICE_ID) or (RAILWAY_SST_PROJECT_ID|RAILWAY_STT_PROJECT_ID|RAILWAY_BOB_PROJECT_ID|RAILWAY_PTT_PROJECT_ID)"
+            missing="$missing (RAILWAY_STT_SERVICE_ID|RAILWAY_SERVICE_ID) or (RAILWAY_STT_PROJECT_ID|RAILWAY_BOB_PROJECT_ID|RAILWAY_PTT_PROJECT_ID)"
           fi
 
           if [ -n "$missing" ]; then
@@ -125,14 +125,14 @@ jobs:
         env:
           RAILWAY_STT_TOKEN: ${{ secrets.RAILWAY_STT_TOKEN }}
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-          RAILWAY_TOKEN2: ${{ secrets.RAILWAY_TOKEN2 }}
+          RAILWAY_TOKEN2: ${{ secrets.RAILWAY_TOKEN }}
           RAILWAY_BOB_TOKEN: ${{ secrets.RAILWAY_BOB_TOKEN }}
           RAILWAY_PTT_TOKEN: ${{ secrets.RAILWAY_PTT_TOKEN }}
-          RAILWAY_ENVIRONMENT: ${{ secrets.RAILWAY_STT_ENVIRONMENT || secrets.RAILWAY_SST_ENVIRONMENT || 'production' }}
-          RAILWAY_SST_TOKEN: ${{ secrets.RAILWAY_SST_TOKEN }}
-          RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_SST_SERVICE_ID || secrets.RAILWAY_STT_SERVICE_ID || secrets.RAILWAY_SERVICE_ID }}
-          RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_SST_PROJECT_ID || secrets.RAILWAY_STT_PROJECT_ID || secrets.RAILWAY_BOB_PROJECT_ID || secrets.RAILWAY_PTT_PROJECT_ID }}
-          RAILWAY_SERVICE_NAME: ${{ secrets.RAILWAY_SST_SERVICE_NAME || secrets.RAILWAY_STT_SERVICE_NAME || 'railway-stt' }}
+          RAILWAY_ENVIRONMENT: ${{ 'production' }}
+          RAILWAY_SST_TOKEN: ${{ secrets.RAILWAY_STT_TOKEN }}
+          RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_STT_SERVICE_ID || secrets.RAILWAY_STT_SERVICE_ID || secrets.RAILWAY_SERVICE_ID }}
+          RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_STT_PROJECT_ID || secrets.RAILWAY_STT_PROJECT_ID || secrets.RAILWAY_BOB_PROJECT_ID || secrets.RAILWAY_PTT_PROJECT_ID }}
+          RAILWAY_SERVICE_NAME: ${{ secrets.RAILWAY_STT_SERVICE_NAME || 'railway-stt' }}
         run: |
           set -euo pipefail
           cd railway-stt

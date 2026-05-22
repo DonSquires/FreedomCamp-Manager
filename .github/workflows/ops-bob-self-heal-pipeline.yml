@@ -1,0 +1,271 @@
+name: Ops Bob Self-Heal Pipeline
+
+on:
+  workflow_dispatch:
+    inputs:
+      wait_timeout_minutes:
+        description: Maximum minutes to wait for each stage
+        required: false
+        default: '45'
+      run_docs_refresh:
+        description: Refresh Bob brain/docs at the end
+        required: false
+        type: boolean
+        default: true
+  schedule:
+    - cron: '*/30 * * * *'
+
+permissions:
+  contents: read
+  actions: write
+  issues: write
+
+concurrency:
+  group: ops-bob-self-heal-pipeline-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  orchestrate:
+    name: self-heal-orchestrator
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      REPO: ${{ github.repository }}
+      BRANCH: ${{ github.ref_name }}
+      WAIT_TIMEOUT_MINUTES: ${{ inputs.wait_timeout_minutes || '45' }}
+      RUN_DOCS_REFRESH: ${{ inputs.run_docs_refresh == false && 'false' || 'true' }}
+      GH_TOKEN: ${{ secrets.BOB_WORKER_GITHUB_TOKEN || secrets.DEPLOY_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
+
+    steps:
+      - name: Validate orchestration token
+        run: |
+          set -euo pipefail
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "::error::No automation token available (BOB_WORKER_GITHUB_TOKEN or DEPLOY_GITHUB_TOKEN or GITHUB_TOKEN)."
+            exit 1
+          fi
+
+          code=$(curl -sS -o /tmp/repo_probe.json -w "%{http_code}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            "https://api.github.com/repos/$REPO")
+
+          if ! printf '%s' "$code" | grep -q '^20[0-9]$'; then
+            echo "::error::Token cannot access repository APIs (HTTP $code)."
+            cat /tmp/repo_probe.json || true
+            exit 1
+          fi
+
+      - name: Run ordered self-heal pipeline
+        run: |
+          set -euo pipefail
+
+          REPORT_MD="/tmp/self-heal-stage-report.md"
+          REPORT_JSON="/tmp/self-heal-stage-report.jsonl"
+
+          {
+            echo "| Stage | Result | Run |"
+            echo "|---|---|---|"
+          } > "$REPORT_MD"
+          : > "$REPORT_JSON"
+
+          STAGE_RUN_ID=""
+          STAGE_RUN_URL=""
+          STAGE_CONCLUSION=""
+
+          dispatch_workflow() {
+            local workflow_file="$1"
+            local payload="${2:-{}}"
+
+            local code
+            code=$(curl -sS -o /tmp/dispatch_resp.json -w "%{http_code}" \
+              -X POST \
+              -H "Accept: application/vnd.github+json" \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              "https://api.github.com/repos/$REPO/actions/workflows/$workflow_file/dispatches" \
+              -d "{\"ref\":\"$BRANCH\",\"inputs\":$payload}")
+
+            if ! printf '%s' "$code" | grep -q '^20[0-9]$'; then
+              echo "::error::Failed to dispatch $workflow_file (HTTP $code)"
+              cat /tmp/dispatch_resp.json || true
+              return 1
+            fi
+          }
+
+          wait_for_latest_run() {
+            local workflow_file="$1"
+            local timeout_minutes="$2"
+            local start_epoch
+            start_epoch=$(date +%s)
+
+            local run_id=""
+            for _ in $(seq 1 30); do
+              run_id=$(curl -sS \
+                -H "Accept: application/vnd.github+json" \
+                -H "Authorization: Bearer $GH_TOKEN" \
+                "https://api.github.com/repos/$REPO/actions/workflows/$workflow_file/runs?branch=$BRANCH&event=workflow_dispatch&per_page=1" \
+                | jq -r '.workflow_runs[0].id // empty')
+              [ -n "$run_id" ] && break
+              sleep 2
+            done
+
+            if [ -z "$run_id" ]; then
+              echo "::error::No run detected for $workflow_file after dispatch."
+              STAGE_RUN_ID=""
+              STAGE_RUN_URL=""
+              STAGE_CONCLUSION="not_found"
+              return 1
+            fi
+
+            STAGE_RUN_ID="$run_id"
+            STAGE_RUN_URL="https://github.com/$REPO/actions/runs/$run_id"
+
+            echo "Tracking $workflow_file run id=$run_id"
+
+            while true; do
+              local run_json status conclusion elapsed
+              run_json=$(curl -sS \
+                -H "Accept: application/vnd.github+json" \
+                -H "Authorization: Bearer $GH_TOKEN" \
+                "https://api.github.com/repos/$REPO/actions/runs/$run_id")
+
+              status=$(printf '%s' "$run_json" | jq -r '.status')
+              conclusion=$(printf '%s' "$run_json" | jq -r '.conclusion // ""')
+              elapsed=$(( ( $(date +%s) - start_epoch ) / 60 ))
+
+              echo "[$workflow_file] status=$status conclusion=${conclusion:-n/a} elapsed=${elapsed}m"
+
+              if [ "$status" = "completed" ]; then
+                STAGE_CONCLUSION="${conclusion:-unknown}"
+                if [ "$conclusion" = "success" ] || [ "$conclusion" = "neutral" ]; then
+                  return 0
+                fi
+                echo "::error::$workflow_file completed with conclusion=$conclusion"
+                return 1
+              fi
+
+              if [ "$elapsed" -ge "$timeout_minutes" ]; then
+                echo "::error::Timeout waiting for $workflow_file after ${timeout_minutes}m"
+                STAGE_CONCLUSION="timeout"
+                return 1
+              fi
+
+              sleep 15
+            done
+          }
+
+          run_stage() {
+            local workflow_file="$1"
+            local payload="${2:-{}}"
+            echo "=== Stage: $workflow_file ==="
+            if dispatch_workflow "$workflow_file" "$payload" && wait_for_latest_run "$workflow_file" "$WAIT_TIMEOUT_MINUTES"; then
+              echo "| $workflow_file | ✅ success | ${STAGE_RUN_URL:-n/a} |" >> "$REPORT_MD"
+              jq -n \
+                --arg stage "$workflow_file" \
+                --arg result "success" \
+                --arg run_id "${STAGE_RUN_ID:-}" \
+                --arg run_url "${STAGE_RUN_URL:-}" \
+                '{stage: $stage, result: $result, run_id: $run_id, run_url: $run_url}' >> "$REPORT_JSON"
+            else
+              echo "| $workflow_file | ❌ ${STAGE_CONCLUSION:-failed} | ${STAGE_RUN_URL:-n/a} |" >> "$REPORT_MD"
+              jq -n \
+                --arg stage "$workflow_file" \
+                --arg result "${STAGE_CONCLUSION:-failed}" \
+                --arg run_id "${STAGE_RUN_ID:-}" \
+                --arg run_url "${STAGE_RUN_URL:-}" \
+                '{stage: $stage, result: $result, run_id: $run_id, run_url: $run_url}' >> "$REPORT_JSON"
+              return 1
+            fi
+          }
+
+          # 1) Bob runs tests and verifies behavior
+          run_stage "ops-bob-self-test.yml" "{}"
+
+          # 2) Any generated bug reports are triaged and routed automatically
+          run_stage "ops-triage-bug-reports.yml" '{"max_reports":"20","dry_run":"false"}'
+
+          # 3) Dr Bob / code-task automation executes repairs and pushes changes
+          run_stage "ops-bob-code-task.yml" '{"limit":"3"}'
+
+          # 4) Bug reports are closed/updated once fixes are in place
+          run_stage "ops-close-resolved-bugs.yml" '{}'
+
+          # 5) Optional docs/brain refresh at end of cycle
+          if [ "$RUN_DOCS_REFRESH" = "true" ]; then
+            run_stage "ops-bob-brain-dump-refresh.yml" '{}'
+          fi
+
+      - name: Pipeline summary
+        if: always()
+        run: |
+          {
+            echo "## Bob Self-Heal Pipeline"
+            echo ""
+            echo "Pipeline order executed:"
+            echo "1. ops-bob-self-test.yml"
+            echo "2. ops-triage-bug-reports.yml"
+            echo "3. ops-bob-code-task.yml"
+            echo "4. ops-close-resolved-bugs.yml"
+            echo "5. ops-bob-brain-dump-refresh.yml (optional)"
+            echo ""
+            if [ -f /tmp/self-heal-stage-report.md ]; then
+              cat /tmp/self-heal-stage-report.md
+            else
+              echo "No stage report generated."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Post consolidated PR health comment
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+
+          OWNER="${REPO%%/*}"
+          REPO_NAME="${REPO##*/}"
+          RUN_URL="https://github.com/$REPO/actions/runs/$RUN_ID"
+
+          pr_number=$(curl -sS \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            "https://api.github.com/repos/$REPO/pulls?state=open&head=${OWNER}:${BRANCH}&per_page=1" \
+            | jq -r '.[0].number // empty')
+
+          if [ -z "$pr_number" ]; then
+            echo "No open PR found for branch $BRANCH; skipping PR comment."
+            exit 0
+          fi
+
+          stage_table="| Stage | Result | Run |\n|---|---|---|\n"
+          if [ -f /tmp/self-heal-stage-report.md ]; then
+            stage_table=$(cat /tmp/self-heal-stage-report.md)
+          fi
+
+          body_file="/tmp/self-heal-pr-comment.md"
+          {
+            echo "## Bob Self-Heal Pipeline Result"
+            echo
+            echo "- overall_status: **$JOB_STATUS**"
+            echo "- pipeline_run: $RUN_URL"
+            echo "- branch: \\`$BRANCH\\`"
+            echo
+            echo "$stage_table"
+            echo
+            echo "This comment is posted automatically by \\`ops-bob-self-heal-pipeline.yml\\`."
+          } > "$body_file"
+
+          payload=$(jq -n --rawfile body "$body_file" '{body: $body}')
+
+          code=$(curl -sS -o /tmp/pr-comment-response.json -w "%{http_code}" \
+            -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            "https://api.github.com/repos/$REPO/issues/$pr_number/comments" \
+            -d "$payload")
+
+          if ! printf '%s' "$code" | grep -q '^20[0-9]$'; then
+            echo "::warning::Failed to post PR summary comment (HTTP $code)."
+            cat /tmp/pr-comment-response.json || true
+          fi

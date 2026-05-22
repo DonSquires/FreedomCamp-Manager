@@ -9,7 +9,7 @@ on:
       - 'tests/e2e/helpers/supabase-transaction-mocks.ts'
       - 'playwright.config.ts'
       - 'package.json'
-      - 'bun.lock'
+      - 'package-lock.json'
       - '.github/workflows/playwright-bob-agent-conversation.yml'
   pull_request:
     branches: [main]
@@ -18,7 +18,7 @@ on:
       - 'tests/e2e/helpers/supabase-transaction-mocks.ts'
       - 'playwright.config.ts'
       - 'package.json'
-      - 'bun.lock'
+      - 'package-lock.json'
       - '.github/workflows/playwright-bob-agent-conversation.yml'
 
 concurrency:
@@ -43,16 +43,11 @@ jobs:
         with:
           node-version: 24
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: npm ci
 
       - name: Typecheck preflight
-        run: bun run typecheck
+        run: npm run typecheck
 
   bob-agent-conversation:
     name: Bob Conversation Spec (Chromium)
@@ -63,6 +58,9 @@ jobs:
       CI: true
       PLAYWRIGHT_BASE_URL: 'http://127.0.0.1:3000'
       PLAYWRIGHT_REUSE_EXISTING_SERVER: '1'
+      PLAYWRIGHT_BOB_EMAIL: ${{ secrets.PLAYWRIGHT_ADMIN_EMAIL }}
+      PLAYWRIGHT_BOB_PASSWORD: ${{ secrets.PLAYWRIGHT_ADMIN_PASSWORD }}
+      PLAYWRIGHT_ALLOW_SHARED_CREDENTIAL_FALLBACK: '1'
 
     steps:
       - name: Checkout
@@ -73,24 +71,19 @@ jobs:
         with:
           node-version: 24
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
       - name: Install dependencies
-        run: bun install
+        run: npm ci
 
       - name: Install Playwright browser and deps
-        run: bunx playwright install --with-deps chromium
+        run: npx playwright install --with-deps chromium
 
       - name: Build app
-        run: bun run build
+        run: npm run build
 
       - name: Start preview server on port 3000
         run: |
           set -euo pipefail
-          bun run preview -- --host 127.0.0.1 --port 3000 > /tmp/bob-agent-preview.log 2>&1 &
+          npm run preview -- --host 127.0.0.1 --port 3000 > /tmp/bob-agent-preview.log 2>&1 &
           echo $! > /tmp/bob-agent-preview.pid
 
           for i in $(seq 1 40); do
@@ -124,7 +117,7 @@ jobs:
 
       - name: Run Bob conversation spec
         run: |
-          bunx playwright test tests/e2e/bob-agent-conversation-ui.spec.ts \
+          npx playwright test tests/e2e/bob-agent-conversation-ui.spec.ts \
             --project=chromium \
             --reporter=list \
             --timeout=60000

@@ -30,12 +30,17 @@ import { collectDirectOrgIds } from '../_shared/orgAccess.ts'
 const PTT_SERVER_URL =
   Deno.env.get('PTT_SERVER_URL') ||
   Deno.env.get('PTT_SERVICE_URL') ||
+  Deno.env.get('PTT_URL') ||
   ''
 const PTT_WS_URL =
   Deno.env.get('PTT_WS_URL') ||
   Deno.env.get('PTT_SIGNALING_WS_URL') ||
   ''
-const PROXY_SECRET = Deno.env.get('PTT_PROXY_SECRET') || ''
+const PROXY_SECRET =
+  Deno.env.get('PTT_PROXY_SECRET') ||
+  Deno.env.get('PROXY_SECRET') ||
+  Deno.env.get('RADIO_PROXY_SECRET') ||
+  ''
 const PTT_ALLOW_INSECURE_HTTP = ['1', 'true', 'yes', 'on'].includes(
   (Deno.env.get('PTT_ALLOW_INSECURE_HTTP') || '').toLowerCase(),
 )
@@ -158,7 +163,7 @@ Deno.serve(async (req) => {
       return new Response(
         JSON.stringify({
           error: 'PTT proxy secret not configured',
-          message: 'Set PTT_PROXY_SECRET on the Supabase project secrets.',
+          message: 'Set PTT_PROXY_SECRET (or PROXY_SECRET / RADIO_PROXY_SECRET) on the Supabase project secrets.',
         }),
         { status: 503, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       )

@@ -889,7 +889,7 @@ async function main() {
     const agenticBaseUrl = String(profile.ui?.agenticBaseUrl || process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:5173').replace(/\/$/, '')
     const agenticBaseUrlWaitMs = toNumber(profile.ui?.agenticBaseUrlWaitMs, 30000)
     const autoStartAgenticWebServer = toBool(profile.ui?.autoStartAgenticWebServer, true)
-    const agenticWebServerCommand = String(profile.ui?.agenticWebServerCommand || 'bunx vite --port 5173 --strictPort')
+    const agenticWebServerCommand = String(profile.ui?.agenticWebServerCommand || 'npx vite --port 5173 --strictPort')
     let managedUiServer = null
     let baseReady = await waitForBaseUrlReady(agenticBaseUrl, agenticBaseUrlWaitMs)
 
@@ -972,7 +972,7 @@ async function main() {
 
     if (toBool(profile.ui?.runPlaywrightSweep, true)) {
       const start = Date.now()
-      const command = String(profile.ui?.playwrightCommand || 'bunx playwright test tests/e2e/crm-service-provider-visual.spec.ts --project=chromium')
+      const command = String(profile.ui?.playwrightCommand || 'npx playwright test tests/e2e/crm-service-provider-visual.spec.ts --project=chromium')
       const parts = command.split(' ').filter(Boolean)
       const cmd = await runCommand(parts[0], parts.slice(1), repoRoot, profileEnv)
       if (cmd.exitCode === 0) {

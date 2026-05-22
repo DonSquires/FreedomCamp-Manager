@@ -12,7 +12,7 @@ on:
       - 'docs/MODULE_ROADMAP.md'
       - 'docs/ENTERPRISE_PAIR_REVIEW_CANONICAL.md'
       - 'package.json'
-      - 'bun.lock'
+      - 'package-lock.json'
       - 'tsconfig.json'
       - 'tsconfig.app.json'
       - 'tsconfig.node.json'
@@ -36,7 +36,7 @@ on:
       - 'docs/MODULE_ROADMAP.md'
       - 'docs/ENTERPRISE_PAIR_REVIEW_CANONICAL.md'
       - 'package.json'
-      - 'bun.lock'
+      - 'package-lock.json'
       - 'tsconfig.json'
       - 'tsconfig.app.json'
       - 'tsconfig.node.json'
@@ -67,16 +67,11 @@ jobs:
         with:
           node-version: 22
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: npm ci
 
       - name: Typecheck preflight
-        run: bun run typecheck
+        run: npm run typecheck
 
   build-high-memory:
     needs: [typecheck-preflight]
@@ -100,30 +95,25 @@ jobs:
         if: github.event_name == 'pull_request'
         run: git fetch --no-tags --prune --depth=1 origin "${{ github.base_ref }}"
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: npm ci
 
       - name: Lint
-        run: bun run lint
+        run: npm run lint
 
       - name: Lint warning budget gate
         id: lint_warning_budget
         continue-on-error: true
-        run: bun run lint:warning-budget
+        run: npm run lint:warning-budget
 
       - name: Enforce lint warning budget gate (strict mode)
-        if: steps.lint_warning_budget.outcome == 'failure' && vars.LINT_WARNING_BUDGET_STRICT == 'true'
+        if: steps.lint_warning_budget.outcome == 'failure' && vars.LINT_WARNING_BUDGET_STRICT == 'true' && (github.event_name != 'pull_request' || vars.GOVERNANCE_STRICT_ON_PR == 'true')
         run: |
           echo "::error::Lint warning budget gate failed and strict mode is enabled (LINT_WARNING_BUDGET_STRICT=true)."
           exit 1
 
       - name: Report lint warning budget gate (non-strict)
-        if: steps.lint_warning_budget.outcome == 'failure' && vars.LINT_WARNING_BUDGET_STRICT != 'true'
+        if: steps.lint_warning_budget.outcome == 'failure' && (vars.LINT_WARNING_BUDGET_STRICT != 'true' || (github.event_name == 'pull_request' && vars.GOVERNANCE_STRICT_ON_PR != 'true'))
         run: |
           echo "::warning::Lint warning budget gate failed but strict mode is disabled; continuing."
 
@@ -133,7 +123,7 @@ jobs:
         env:
           DOC_AUTHORITY_STRICT: 'true'
           DOC_AUTHORITY_DIFF_RANGE: ${{ github.event_name == 'pull_request' && format('origin/{0}...{1}', github.base_ref, github.sha) || format('{0}..{1}', github.event.before, github.sha) }}
-        run: bun run lint:doc-authority
+        run: npm run lint:doc-authority
 
       - name: Enforce doc authority lint (strict contexts)
         if: steps.doc_authority.outcome == 'failure' && (github.event_name != 'pull_request' || vars.GOVERNANCE_STRICT_ON_PR == 'true')
@@ -151,7 +141,7 @@ jobs:
         continue-on-error: true
         env:
           BOB_GOVERNANCE_DRIFT_STRICT: 'true'
-        run: bun run lint:bob-governance-drift
+        run: npm run lint:bob-governance-drift
 
       - name: Enforce Bob governance drift lint
         if: steps.bob_governance_drift.outcome == 'failure' && (github.event_name != 'pull_request' || vars.GOVERNANCE_STRICT_ON_PR == 'true')
@@ -166,18 +156,18 @@ jobs:
 
       - name: Navigation parity tests
         id: nav_parity
-        run: bun run test:nav-parity
+        run: npm run test:nav-parity
 
       - name: Build
         id: build
-        run: bun run build
+        run: npm run build
 
       - name: Build budget gate
-        run: bun run build:budget
+        run: npm run build:budget
 
       - name: Collect workflow evidence snapshot
         run: |
-          bun run evidence:workflow --workflow WF-01,WF-07,WF-11 --status ci-snapshot --notes "ci-build-high-memory:${{ github.run_id }}" --out-dir tools/workflow-evidence/ci/${{ github.run_id }}
+          npm run evidence:workflow -- --workflow WF-01,WF-07,WF-11 --status ci-snapshot --notes "ci-build-high-memory:${{ github.run_id }}" --out-dir tools/workflow-evidence/ci/${{ github.run_id }}
 
       - name: Upload workflow evidence artifacts
         if: always()

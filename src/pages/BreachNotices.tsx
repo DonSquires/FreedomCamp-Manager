@@ -74,30 +74,49 @@ export default function BreachNotices() {
   const { data: notices = [], isLoading } = useQuery({
     queryKey: ['breach-notices', orgId, zoneId, startDate, endDate, statusFilter, breachTypeFilter],
     queryFn: async () => {
-      let q = supabase
-        .from('breach_alerts')
-        .select(`
-          id, plate_number, breach_type, status, created_at, resolved_at, notified_at, breach_details,
-          zone:zones!zone_id(name),
-          enforcement_actions(id, action_type, status)
-        `)
-        .order('created_at', { ascending: false })
-        .limit(200)
+      const applyFilters = (baseQuery: any) => {
+        let q = baseQuery.order('created_at', { ascending: false }).limit(200)
 
-      if (orgId) q = q.eq('organization_id', orgId)
-      if (zoneId) q = q.eq('zone_id', zoneId)
-      if (startDate) q = q.gte('created_at', startDate)
-      if (endDate) q = q.lte('created_at', endDate)
+        if (orgId) q = q.eq('organization_id', orgId)
+        if (zoneId) q = q.eq('zone_id', zoneId)
+        if (startDate) q = q.gte('created_at', startDate)
+        if (endDate) q = q.lte('created_at', endDate)
 
-      if (statusFilter === 'active') {
-        q = q.in('status', ['pending', 'acknowledged', 'enforcement_started'])
-      } else if (statusFilter !== 'all') {
-        q = q.eq('status', statusFilter)
+        if (statusFilter === 'active') {
+          q = q.in('status', ['pending', 'acknowledged', 'enforcement_started'])
+        } else if (statusFilter !== 'all') {
+          q = q.eq('status', statusFilter)
+        }
+
+        if (breachTypeFilter !== 'all') q = q.eq('breach_type', breachTypeFilter)
+        return q
       }
 
-      if (breachTypeFilter !== 'all') q = q.eq('breach_type', breachTypeFilter)
+      const richSelect = `
+        id, plate_number, breach_type, status, created_at, resolved_at, notified_at, breach_details,
+        zone:zones!zone_id(name),
+        enforcement_actions(id, action_type, status)
+      `
 
-      const { data, error } = await q
+      const baseSelect = `
+        id, plate_number, breach_type, status, created_at, resolved_at, notified_at, breach_details
+      `
+
+      let { data, error } = await applyFilters(
+        supabase.from('breach_alerts').select(richSelect),
+      )
+
+      if (error) {
+        const fallback = await applyFilters(
+          supabase.from('breach_alerts').select(baseSelect),
+        )
+        data = (fallback.data || []).map((row: any) => ({
+          ...row,
+          zone: null,
+          enforcement_actions: [],
+        }))
+        error = fallback.error
+      }
       if (error) throw error
       return (data || []) as unknown as BreachNotice[]
     },

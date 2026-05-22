@@ -1,41 +1,25 @@
 #!/usr/bin/env sh
 set -eu
 
-# Ensure a Bun binary is available in this shell without requiring global install.
-# Priority:
-# 1) .tools/bin/bun (repo-local)
-# 2) /home/vscode/.local/bin/bun (user-local)
-# 3) <repo>/.bun/bin/bun (workspace-local)
-# 4) /workspaces/.bun/bin/bun (shared workspace-local)
+# Compatibility wrapper that ensures npm/node are available, then executes
+# the passed command unchanged. Retains filename for backward compatibility.
 
 ROOT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
-REPO_BUN="$ROOT_DIR/.tools/bin/bun"
-WORKSPACE_REPO_BUN="$ROOT_DIR/.bun/bin/bun"
-USER_BUN="/home/vscode/.local/bin/bun"
-WORKSPACE_BUN="/workspaces/.bun/bin/bun"
+USER_NODE_BIN="/home/vscode/.local/bin"
 
-if [ -x "$REPO_BUN" ]; then
-  export PATH="$ROOT_DIR/.tools/bin:$PATH"
-elif [ -x "$WORKSPACE_REPO_BUN" ]; then
-  export BUN_INSTALL="$ROOT_DIR/.bun"
-  export PATH="$BUN_INSTALL/bin:$PATH"
-elif [ -x "$USER_BUN" ]; then
-  export PATH="/home/vscode/.local/bin:$PATH"
-elif [ -x "$WORKSPACE_BUN" ]; then
-  export BUN_INSTALL="/workspaces/.bun"
-  export PATH="$BUN_INSTALL/bin:$PATH"
+if [ -d "$USER_NODE_BIN" ]; then
+  export PATH="$USER_NODE_BIN:$PATH"
 fi
 
-if ! command -v bun >/dev/null 2>&1; then
-  echo "Bun is not installed in any expected local path."
-  echo "Expected one of:"
-  echo "  $REPO_BUN"
-  echo "  $WORKSPACE_REPO_BUN"
-  echo "  $USER_BUN"
-  echo "  $WORKSPACE_BUN"
-  echo "Install with: curl -fsSL https://bun.sh/install | BUN_INSTALL=/workspaces/.bun bash"
+if ! command -v node >/dev/null 2>&1; then
+  echo "Node.js is not installed or not in PATH."
   exit 1
 fi
 
-echo "Using Bun: $(bun --version)"
+if ! command -v npm >/dev/null 2>&1; then
+  echo "npm is not installed or not in PATH."
+  exit 1
+fi
+
+echo "Using npm: $(npm --version)"
 exec "$@"

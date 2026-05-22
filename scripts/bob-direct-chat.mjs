@@ -10,7 +10,7 @@ import readline from 'node:readline';
 const fetchFn = globalThis.fetch;
 
 if (typeof fetchFn !== 'function') {
-  console.error('Global fetch is unavailable in this runtime. Use Node 18+ or Bun with fetch enabled.');
+  console.error('Global fetch is unavailable in this runtime. Use Node 18+ with fetch enabled.');
   process.exit(1);
 }
 

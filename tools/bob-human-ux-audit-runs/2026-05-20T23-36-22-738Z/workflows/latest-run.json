@@ -1,0 +1,203 @@
+{
+  "updatedAt": "2026-05-21T00:20:24.673Z",
+  "runId": "2026-05-20T23-36-23-147Z",
+  "batch": "workflows",
+  "scope": "full",
+  "resumeMode": false,
+  "continueOnFailure": true,
+  "startedAt": "2026-05-20T23:36:23.159Z",
+  "endedAt": "2026-05-21T00:20:22.696Z",
+  "summary": {
+    "passed": 0,
+    "failed": 1
+  },
+  "failedStages": [
+    {
+      "id": "workflow-e2e-all-projects",
+      "exitCode": 1,
+      "durationMs": 2639523
+    }
+  ],
+  "failureContexts": [
+    {
+      "folder": "e2e-crm-business-crossover-5d4af-business-management-context-Mobile-Safari",
+      "testName": "e2e/crm-business-crossover.spec.ts >> CRM ↔ Business Management Crossover >> CRM account detail shows linked business management context",
+      "location": "tests/e2e/crm-business-crossover.spec.ts:24:3",
+      "error": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login"
+    },
+    {
+      "folder": "e2e-module-e2e-comprehensi-057fd-Roster-roster-planner-loads-Mobile-Safari",
+      "testName": "e2e/module-e2e-comprehensive.spec.ts >> Workforce & Roster >> roster planner loads",
+      "location": "tests/e2e/module-e2e-comprehensive.spec.ts:398:3",
+      "error": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login"
+    },
+    {
+      "folder": "e2e-module-e2e-comprehensi-06264-forcement-review-page-loads-Mobile-Safari",
+      "testName": "e2e/module-e2e-comprehensive.spec.ts >> Enforcement >> enforcement review page loads",
+      "location": "tests/e2e/module-e2e-comprehensive.spec.ts:85:3",
+      "error": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login"
+    },
+    {
+      "folder": "e2e-module-e2e-comprehensi-099a3--data-management-page-loads-Mobile-Safari",
+      "testName": "e2e/module-e2e-comprehensive.spec.ts >> Admin Data & Permissions >> data management page loads",
+      "location": "tests/e2e/module-e2e-comprehensive.spec.ts:576:3",
+      "error": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login"
+    },
+    {
+      "folder": "e2e-module-e2e-comprehensi-174aa-tions-page-loads-for-master-Mobile-Safari",
+      "testName": "e2e/module-e2e-comprehensive.spec.ts >> Master-only Modules >> organizations page loads for master",
+      "location": "tests/e2e/module-e2e-comprehensive.spec.ts:645:3",
+      "error": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login"
+    },
+    {
+      "folder": "e2e-module-e2e-comprehensi-5cf42-ncials-invoicing-page-loads-Mobile-Safari",
+      "testName": "e2e/module-e2e-comprehensive.spec.ts >> Invoicing & Financials >> invoicing page loads",
+      "location": "tests/e2e/module-e2e-comprehensive.spec.ts:378:3",
+      "error": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login"
+    },
+    {
+      "folder": "e2e-module-e2e-comprehensi-6d711-ttings-page-loads-for-admin-Mobile-Safari",
+      "testName": "e2e/module-e2e-comprehensive.spec.ts >> Settings & Profile >> settings page loads for admin",
+      "location": "tests/e2e/module-e2e-comprehensive.spec.ts:439:3",
+      "error": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login"
+    },
+    {
+      "folder": "e2e-module-e2e-comprehensi-90b95-rcement-portal-loads-admin--Mobile-Safari",
+      "testName": "e2e/module-e2e-comprehensive.spec.ts >> Specialised Portals >> parking enforcement portal loads (admin)",
+      "location": "tests/e2e/module-e2e-comprehensive.spec.ts:514:3",
+      "error": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login"
+    },
+    {
+      "folder": "e2e-module-e2e-comprehensi-97e80-nts-observations-page-loads-Mobile-Safari",
+      "testName": "e2e/module-e2e-comprehensive.spec.ts >> Observations & Incidents >> observations page loads",
+      "location": "tests/e2e/module-e2e-comprehensive.spec.ts:276:3",
+      "error": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login"
+    },
+    {
+      "folder": "e2e-module-e2e-comprehensi-b8d0a--loads-with-correct-heading-Mobile-Safari",
+      "testName": "e2e/module-e2e-comprehensive.spec.ts >> Asset Management >> page loads with correct heading",
+      "location": "tests/e2e/module-e2e-comprehensive.spec.ts:34:3",
+      "error": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login"
+    },
+    {
+      "folder": "e2e-module-e2e-comprehensi-d2942-tant-studio-loads-for-admin-Mobile-Safari",
+      "testName": "e2e/module-e2e-comprehensive.spec.ts >> Bob Assistant >> bob assistant studio loads for admin",
+      "location": "tests/e2e/module-e2e-comprehensive.spec.ts:473:3",
+      "error": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login"
+    },
+    {
+      "folder": "e2e-module-e2e-comprehensi-f0bfd-iance-compliance-page-loads-Mobile-Safari",
+      "testName": "e2e/module-e2e-comprehensive.spec.ts >> Compliance >> compliance page loads",
+      "location": "tests/e2e/module-e2e-comprehensive.spec.ts:65:3",
+      "error": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login"
+    },
+    {
+      "folder": "e2e-module-e2e-comprehensi-fdba4-t-live-patrol-monitor-loads-Mobile-Safari",
+      "testName": "e2e/module-e2e-comprehensive.spec.ts >> Patrol Management >> live patrol monitor loads",
+      "location": "tests/e2e/module-e2e-comprehensive.spec.ts:167:3",
+      "error": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login"
+    },
+    {
+      "folder": "e2e-module-e2e-comprehensive-CRM-crm-page-loads-Mobile-Safari",
+      "testName": "e2e/module-e2e-comprehensive.spec.ts >> CRM >> crm page loads",
+      "location": "tests/e2e/module-e2e-comprehensive.spec.ts:242:3",
+      "error": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login"
+    },
+    {
+      "folder": "e2e-module-e2e-comprehensive-Dispatch-dispatch-console-loads-Mobile-Safari",
+      "testName": "e2e/module-e2e-comprehensive.spec.ts >> Dispatch >> dispatch console loads",
+      "location": "tests/e2e/module-e2e-comprehensive.spec.ts:126:3",
+      "error": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login"
+    },
+    {
+      "folder": "e2e-module-e2e-comprehensive-Reports-reports-page-loads-Mobile-Safari",
+      "testName": "e2e/module-e2e-comprehensive.spec.ts >> Reports >> reports page loads",
+      "location": "tests/e2e/module-e2e-comprehensive.spec.ts:344:3",
+      "error": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login"
+    },
+    {
+      "folder": "e2e-module-e2e-comprehensive-Vehicles-vehicles-page-loads-Mobile-Safari",
+      "testName": "e2e/module-e2e-comprehensive.spec.ts >> Vehicles >> vehicles page loads",
+      "location": "tests/e2e/module-e2e-comprehensive.spec.ts:208:3",
+      "error": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login"
+    },
+    {
+      "folder": "e2e-module-e2e-comprehensive-Zones-Maps-zones-page-loads-Mobile-Safari",
+      "testName": "e2e/module-e2e-comprehensive.spec.ts >> Zones & Maps >> zones page loads",
+      "location": "tests/e2e/module-e2e-comprehensive.spec.ts:303:3",
+      "error": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login"
+    },
+    {
+      "folder": "e2e-module-route-access-mo-0d05e-officer-cannot-access-admin-Mobile-Safari",
+      "testName": "e2e/module-route-access.spec.ts >> module-route-access: officer is blocked from admin-only routes >> officer cannot access /admin",
+      "location": "tests/e2e/module-route-access.spec.ts:120:5",
+      "error": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login"
+    },
+    {
+      "folder": "e2e-module-route-access-mo-73445-ficer-Field-Officer-Portal--Mobile-Safari",
+      "testName": "e2e/module-route-access.spec.ts >> module-route-access: officer can reach officer routes >> officer loads /field-officer (Field Officer Portal)",
+      "location": "tests/e2e/module-route-access.spec.ts:103:5",
+      "error": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login"
+    },
+    {
+      "folder": "e2e-module-route-access-mo-ef46c-ess-control-Access-Control--Mobile-Safari",
+      "testName": "e2e/module-route-access.spec.ts >> module-route-access: admin can reach all admin routes >> admin loads /access-control (Access Control)",
+      "location": "tests/e2e/module-route-access.spec.ts:90:5",
+      "error": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login"
+    },
+    {
+      "folder": "e2e-ui-comprehensive-Admin-5398c-ads-with-Recent-Scans-panel-Mobile-Safari",
+      "testName": "e2e/ui-comprehensive.spec.ts >> Admin Portal — Scan and Compliance pipeline >> admin portal loads with Recent Scans panel",
+      "location": "tests/e2e/ui-comprehensive.spec.ts:2241:3",
+      "error": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login"
+    },
+    {
+      "folder": "e2e-ui-comprehensive-Admin-65132--renders-on-admin-dashboard-Mobile-Safari",
+      "testName": "e2e/ui-comprehensive.spec.ts >> Admin Portal — Scan and Compliance pipeline >> compliance chart renders on admin dashboard",
+      "location": "tests/e2e/ui-comprehensive.spec.ts:2259:3",
+      "error": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login"
+    },
+    {
+      "folder": "e2e-ui-comprehensive-CRM-M-5c2e0-ient-Sites-with-org-context-Mobile-Safari",
+      "testName": "e2e/ui-comprehensive.spec.ts >> CRM Module >> account Sites action opens Client Sites with org context",
+      "location": "tests/e2e/ui-comprehensive.spec.ts:2401:3",
+      "error": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login"
+    },
+    {
+      "folder": "e2e-ui-comprehensive-CRM-M-c8c10-ss-Control-with-org-context-Mobile-Safari",
+      "testName": "e2e/ui-comprehensive.spec.ts >> CRM Module >> account Access action opens Access Control with org context",
+      "location": "tests/e2e/ui-comprehensive.spec.ts:2417:3",
+      "error": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login"
+    },
+    {
+      "folder": "e2e-ui-comprehensive-CRM-Module-page-loads-Mobile-Safari",
+      "testName": "e2e/ui-comprehensive.spec.ts >> CRM Module >> page loads",
+      "location": "tests/e2e/ui-comprehensive.spec.ts:2392:3",
+      "error": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login"
+    },
+    {
+      "folder": "e2e-ui-comprehensive-Canon-1a23f--page-loads-for-master-user-Mobile-Safari",
+      "testName": "e2e/ui-comprehensive.spec.ts >> Canonical Records Manager >> page loads for master user",
+      "location": "tests/e2e/ui-comprehensive.spec.ts:2302:3",
+      "error": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login"
+    },
+    {
+      "folder": "e2e-ui-comprehensive-Clean-Dashboard-page-loads-Mobile-Safari",
+      "testName": "e2e/ui-comprehensive.spec.ts >> Clean Dashboard >> page loads",
+      "location": "tests/e2e/ui-comprehensive.spec.ts:2289:3",
+      "error": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login"
+    },
+    {
+      "folder": "e2e-ui-comprehensive-Compl-b079d-e-loads-with-trigger-button-Mobile-Safari",
+      "testName": "e2e/ui-comprehensive.spec.ts >> Compliance Recalculation >> page loads with trigger button",
+      "location": "tests/e2e/ui-comprehensive.spec.ts:2315:3",
+      "error": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login"
+    },
+    {
+      "folder": "e2e-ui-comprehensive-Evidence-Photo-Linker-page-loads-Mobile-Safari",
+      "testName": "e2e/ui-comprehensive.spec.ts >> Evidence Photo Linker >> page loads",
+      "location": "tests/e2e/ui-comprehensive.spec.ts:2439:3",
+      "error": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login"
+    }
+  ]
+}

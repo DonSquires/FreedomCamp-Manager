@@ -42,18 +42,13 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.BOB_WORKER_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: npm ci
 
       # ── Smoke test 1: Build ──────────────────────────────────────────────────
       - name: Build smoke test
@@ -62,20 +57,20 @@ jobs:
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || 'https://placeholder.supabase.co' }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY || 'placeholder-anon-key' }}
-        run: bun run build
+        run: npm run build
 
       # ── Smoke test 2: TypeScript type-check ─────────────────────────────────
       - name: TypeScript type-check smoke test
         id: typecheck
         continue-on-error: true
-        run: bun run build 2>&1 | grep -E 'error TS' | head -20 || true
+        run: npm run build 2>&1 | grep -E 'error TS' | head -20 || true
 
       # ── Smoke test 3: Lint budget ────────────────────────────────────────────
       - name: Lint smoke test
         id: lint
         continue-on-error: true
         run: |
-          ERRORS=$(bun run lint 2>&1 | grep -c ' error ' || true)
+          ERRORS=$(npm run lint 2>&1 | grep -c ' error ' || true)
           echo "lint_errors=$ERRORS" >> "$GITHUB_OUTPUT"
           [ "$ERRORS" -le 5 ]
 

@@ -126,7 +126,7 @@ async function createPhaseB() {
     console.log('\n✅ Feature flag setup complete!\n');
     console.log('='.repeat(60));
     console.log('\n📖 Next immediate steps:');
-    console.log('   1. Start the dev server: npm run dev OR bun run dev');
+    console.log('   1. Start the dev server: npm run dev');
     console.log('   2. Navigate to a bootstrapped route (Patrol, Dispatch, or Enforcement)');
     console.log('   3. Execute an action (capture observation, dispatch job, or create action)');
     console.log('   4. Verify events appear in: SELECT * FROM patrol_events|dispatch_events|enforcement_events');

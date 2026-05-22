@@ -58,7 +58,7 @@ jobs:
           PROXY_SERVICE_URL: ${{ secrets.PROXY_SERVICE_URL }}
           NZSCV_PROXY_URL: ${{ secrets.NZSCV_PROXY_URL }}
           PTT_SERVER_URL: ${{ secrets.PTT_SERVER_URL }}
-          PTT_SERVICE_URL: ${{ secrets.PTT_SERVICE_URL }}
+          PTT_SERVICE_URL: ${{ secrets.PTT_SERVER_URL }}
           INFERENCE_API_KEY: ${{ secrets.INFERENCE_API_KEY }}
           BOB_INFERENCE_API_KEY: ${{ secrets.BOB_INFERENCE_API_KEY }}
         run: |

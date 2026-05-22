@@ -44,7 +44,7 @@ Routing: react-router-dom v6
 Backend: Supabase (PostgreSQL + Edge Functions + RLS)
 ALPR proxy: proxy-server/ (Node/Express, NZSCV lookup)
 AI inference: inference-service/ (ONNX OCR, Node) deployed on Railway
-Package manager: bun
+Package manager: npm
 Hosting: Vercel (frontend), Railway (inference + proxy), Supabase (DB + edge)
 
 Path alias "@/*" maps to "./src/*". Always import Supabase client from "@/lib/supabase".
@@ -229,7 +229,7 @@ If Bob receives a collaboration packet, he processes it fully and publishes the 
 - Database types: Database["public"]["Tables"]["table_name"]["Row"] from "@/types/database".
 - Never re-implement shadcn/ui primitives — always import from "@/components/ui/".
 - Feature components go in "@/components/features/".
-- Build command: bun run build. Lint: bun run lint.
+- Build command: npm run build. Lint: npm run lint.
 - Migrations naming: YYYYMMDDHHMMSS prefix, never duplicate timestamps.
 
 ---

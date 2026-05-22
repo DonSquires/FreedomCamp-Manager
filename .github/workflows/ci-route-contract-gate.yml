@@ -37,16 +37,16 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
         with:
-          bun-version: latest
+          node-version: '24'
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: npm ci
 
       - name: Verify canonical route contract artifact
-        run: bun scripts/check-route-contract-artifact.mjs
+        run: node scripts/check-route-contract-artifact.mjs
 
       - name: Enforce manual and decision-log updates for route changes
         shell: bash

@@ -13,7 +13,7 @@ import { describe, it, expect, beforeAll } from 'vitest'
  * - INFERENCE_SERVICE_URL must be set and reachable
  * - INFERENCE_API_KEY must be set (if endpoint requires auth)
  *
- * Run: bun run test inference-video-contract
+ * Run: npm run test inference-video-contract
  */
 
 describe('Inference Service - Video Generation Contract', () => {

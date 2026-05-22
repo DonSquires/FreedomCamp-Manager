@@ -157,7 +157,10 @@ export default function OfficerHomePage() {
   const [nowTick, setNowTick] = useState(() => Date.now())
 
   const rosterPortalPath = rosteredShift ? getOfficerPortalPath(rosteredShift) : null
-  const keyAuditEnabled = useKeyAuditEnabled(rosteredShift?.client_org_id ?? operationalOrganizationId ?? null).data !== false
+  const keyAuditOrgId = rosteredShift?.patrol_route_id
+    ? (rosteredShift.client_org_id ?? operationalOrganizationId ?? null)
+    : null
+  const keyAuditEnabled = useKeyAuditEnabled(keyAuditOrgId).data !== false
 
   // ── Phase C: live boundary context for active shift ──────────────────────
   const [shiftGpsCoords, setShiftGpsCoords] = useState<{ lat: number; lng: number } | null>(null)

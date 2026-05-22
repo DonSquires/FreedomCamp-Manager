@@ -19,10 +19,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Install Ollama in this stage (no multi-stage copy).
 RUN curl -fsSL https://ollama.com/install.sh | sh
 
-# Bun is retained because the repo is Bun-first and startup scripts may rely on it.
-RUN curl -fsSL https://bun.sh/install | bash && \
-  ln -sf /root/.bun/bin/bun /usr/local/bin/bun
-
 # ---------------------------------------------------------------------------
 # Capability-oriented defaults (non-secret). Secrets are injected at runtime.
 # ---------------------------------------------------------------------------

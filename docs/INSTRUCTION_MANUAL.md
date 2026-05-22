@@ -7,7 +7,7 @@
 > **Canonical product authority** — this manual defines what the application is intended to do and how users are meant to use it. It is not a passive dump of current implementation details.  
 > If code, routes, role behavior, workflows, edge functions, schema-backed user flows, or operational UX change, the corresponding sections in this manual must be updated in the same change set.  
 > If the app currently behaves differently from this manual, that drift is a defect to resolve or an explicit product decision to document here first.  
-> Last reviewed: 2026-05-19
+> Last reviewed: 2026-05-20
 
 ### Current Cycle Amendment (2026-05-17)
 
@@ -20,6 +20,12 @@
 1. The costing-surface promotion cycle is a branch consolidation release and does not add new role families or route families.
 2. Deep functional browser testing now uses credential preflight as a run guard and skips test execution when CI secrets are invalid, instead of hard-failing the full merge gate.
 3. Production promotion remains contingent on required CI gates and governance records, with this manual and the enterprise canonical record updated in the same change set.
+
+### Current Cycle Amendment (2026-05-22)
+
+1. CI dependency resolution for the PR merge ref now pins an explicit `esbuild@0.28.0` dev dependency so `npm ci` remains deterministic with the Vitest/Vite dependency graph.
+2. Roster planning behavior remains data-backed: leave-request visibility in planning surfaces is sourced from `leave_requests` queries rather than static placeholders.
+3. Governance and enterprise canonical docs are updated in this same change set as required for architecture-impacting and workflow-impacting updates.
 
 ### Current Cycle Agentic Action Board (2026-05-18)
 

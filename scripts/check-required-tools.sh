@@ -13,7 +13,6 @@ required_tools=(
   node
   npm
   python3
-  bun
   rg
 )
 
@@ -45,9 +44,7 @@ if [[ ${#missing[@]} -gt 0 ]]; then
   echo "Install (root Alpine):"
   echo "  apk add --no-cache bash git curl wget jq nodejs npm python3 make g++ ripgrep"
   echo
-  echo "If root install is unavailable, use the non-root rg fallback in docs/STAGING.md and ensure bun is in PATH:"
-  echo "  export BUN_INSTALL=\"$HOME/.bun\""
-  echo "  export PATH=\"$PWD/.runtime/bin:$HOME/.local/bin:$HOME/.bun/bin:$PATH\""
+  echo "If root install is unavailable, use the non-root rg fallback in docs/STAGING.md."
   exit 1
 fi
 

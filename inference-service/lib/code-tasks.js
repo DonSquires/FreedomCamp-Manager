@@ -6,7 +6,7 @@
  *   1. Reads the task from GET /code/tasks/pending
  *   2. Uses GitHub Models API (gpt-4o) with FieldOps context to generate code
  *   3. Applies file operations (create / edit) to the repo
- *   4. Runs bun run build + bun run lint to validate
+ *   4. Runs npm run build + npm run lint to validate
  *   5. Commits to a branch, creates a PR
  *   6. Reports back via POST /code/tasks/:id/result
  *
@@ -213,7 +213,7 @@ function createCodeTaskStore(statePath = DEFAULT_PATH) {
    *   pr_url (string)            — URL of the created PR
    *   pr_number (number)         — PR number
    *   files_changed (string[])   — list of file paths that were created/modified
-   *   build_passed (boolean)     — whether bun run build succeeded
+  *   build_passed (boolean)     — whether npm run build succeeded
    *   branch (string, optional)  — branch name (overrides default)
    */
   function completeTask(id, result = {}) {

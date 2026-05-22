@@ -7,7 +7,7 @@ set -euo pipefail
 
 cd /workspaces/FreedomCamp-Manager
 
-export PATH="$HOME/.local/bin:$HOME/.bun/bin:$PATH"
+export PATH="$HOME/.local/bin:$PATH"
 
 if [[ -f ./.runtime/bob.env ]]; then
   set -a

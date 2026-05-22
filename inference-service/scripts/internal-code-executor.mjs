@@ -30,7 +30,7 @@ function parseTaskContext(rawContext) {
 }
 
 function parseCommandAllowlist() {
-  const raw = String(process.env.BOB_INTERNAL_EXECUTOR_TASK_COMMAND_ALLOWLIST || 'node,bun,npm').trim();
+  const raw = String(process.env.BOB_INTERNAL_EXECUTOR_TASK_COMMAND_ALLOWLIST || 'node,npm').trim();
   return raw
     .split(',')
     .map((item) => item.trim().toLowerCase())

@@ -29,9 +29,9 @@ service_cmd() {
   case "$svc" in
     app)
       if [[ "$START_MODE" == "preview" ]]; then
-        echo "cd '$ROOT_DIR' && bun run preview --host 0.0.0.0 --port ${PORT:-4173}"
+        echo "cd '$ROOT_DIR' && npm run preview --host 0.0.0.0 --port ${PORT:-4173}"
       else
-        echo "cd '$ROOT_DIR' && bun run dev --host 0.0.0.0 --port ${PORT:-5173}"
+        echo "cd '$ROOT_DIR' && npm run dev --host 0.0.0.0 --port ${PORT:-5173}"
       fi
       ;;
     proxy)

@@ -152,6 +152,37 @@ import { loadProductionJurisdictions } from './load-production-geofences.mjs';
 const JURISDICTIONS = loadProductionJurisdictions(/* verbose */ false);
 ```
 
+## Client-Specific Downer LINZ Setup
+
+Downer LINZ is handled as its own client zone set, not as a shared global default. Each operational area gets its own zone and compliance matrix row so the limits can stay specific to the site.
+
+Current Downer LINZ zone rules:
+
+| Zone | Rules |
+|------|-------|
+| Downer LINZ Security Zone - Lowburn | self-contained required, 3 nights per month, 3 consecutive nights |
+| Downer LINZ Security Zone - Bendigo | 3 nights per month, 3 consecutive nights |
+| Downer LINZ Security Zone - Champagne Gully | 1 night per month, 1 consecutive night |
+| Downer LINZ Security Zone - Jacksons Inlet | self-contained required, 1 night per month, 1 consecutive night |
+| Downer LINZ - Lake Dunstan Management Zone | day-visit only |
+| Downer LINZ - Queenstown Coverage Zone | day-visit only |
+
+Use the explicit reconciler to keep only these named zones aligned:
+
+```bash
+npm run bob:reconcile:downer-linz-compliance
+npm run bob:reconcile:downer-linz-compliance:apply
+```
+
+When new storage records are added, rerun:
+
+```bash
+npm run bob:enrich:downer-linz-sites
+npm run bob:enrich:downer-linz-sites:apply
+```
+
+These scripts update the matching LOIs and zones without deleting or replacing historical observations.
+
 ## Step 5: Validate with Tests
 
 Run integration tests to ensure polygon definitions work:

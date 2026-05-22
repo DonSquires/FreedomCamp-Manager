@@ -38,7 +38,7 @@ jobs:
       INFERENCE_SERVICE_URL: ${{ secrets.INFERENCE_SERVICE_URL || secrets.BOB_SERVICE_URL }}
       BOB_INFERENCE_API_KEY: ${{ secrets.BOB_INFERENCE_API_KEY || secrets.INFERENCE_API_KEY }}
       INFERENCE_API_KEY: ${{ secrets.INFERENCE_API_KEY || secrets.BOB_INFERENCE_API_KEY }}
-      MLOPS_SLACK_WEBHOOK_URL: ${{ secrets.MLOPS_SLACK_WEBHOOK_URL || secrets.RADIO_SPEECH_WEBHOOK_SECRET }}
+      MLOPS_SLACK_WEBHOOK_URL: ${{ '' }}
 
     steps:
       - name: Checkout
@@ -49,13 +49,13 @@ jobs:
         with:
           node-version: 24
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
         with:
-          bun-version: latest
+          node-version: '24'
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: npm ci
 
       - name: Run domain canary probe
         id: canary

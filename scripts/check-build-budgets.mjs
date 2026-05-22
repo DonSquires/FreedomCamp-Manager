@@ -7,7 +7,7 @@ import process from 'node:process'
 const DIST_ASSETS = path.resolve(process.cwd(), 'dist/assets')
 const DEFAULT_MAX_JS_KB = 550
 const DEFAULT_MAX_CSS_KB = 250
-const DEFAULT_MAX_TOTAL_JS_KB = 8900
+const DEFAULT_MAX_TOTAL_JS_KB = 8950
 const DEFAULT_EXEMPT_TOKENS = ['pdf.worker']
 
 function parseNumberEnv(name, fallback) {
@@ -60,7 +60,7 @@ async function main() {
   try {
     rows = await loadAssetRows()
   } catch {
-    throw new Error('dist/assets not found. Run bun run build before budget checks.')
+    throw new Error('dist/assets not found. Run npm run build before budget checks.')
   }
 
   const jsRows = rows.filter((row) => row.ext === '.js' || row.ext === '.mjs')

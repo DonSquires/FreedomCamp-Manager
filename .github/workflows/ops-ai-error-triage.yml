@@ -12,7 +12,7 @@ name: Ops - AI Error Triage & Fix PR
 #   2. ANALYZE  – call Bob (via ops-bob-code-task pattern) to get root-cause + fix plan
 #   3. GUARDRAIL – recurrence check: if same fingerprint seen < 10 min ago, skip and page human
 #   4. REMEDIATE – create fix branch ops/ai-fix/<sha>-<ts>, apply Bob's file changes, open PR
-#   5. VALIDATE  – run bun build + lint; auto-merge only if both pass
+#   5. VALIDATE  – run npm run build + lint; auto-merge only if both pass
 #
 # Guardrails:
 #   - Never pushes directly to main; always via PR + checks
@@ -198,10 +198,10 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.BOB_WORKER_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
         with:
-          bun-version: latest
+          node-version: '24'
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -209,7 +209,7 @@ jobs:
           node-version: 20
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: npm ci
 
       - name: AI root-cause analysis
         id: analysis
@@ -224,7 +224,7 @@ jobs:
 
           # Build a focused prompt grounded in the repo layout and error context
           PROMPT="You are an expert senior engineer for the FieldOps Manager (FieldOps Manager) codebase.
-          Tech stack: React 18 + TypeScript + Vite + Tailwind + Supabase + Bun. Path alias @/* = ./src/*.
+          Tech stack: React 18 + TypeScript + Vite + Tailwind + Supabase  + npm. Path alias @/* = ./src/*.
 
           A production error occurred:
           Source: $ERROR_SOURCE
@@ -357,14 +357,14 @@ jobs:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || 'https://placeholder.supabase.co' }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY || 'placeholder-anon-key' }}
         run: |
-          bun run build 2>&1 | tee "$RUNNER_TEMP/build-output.txt"
+          npm run build 2>&1 | tee "$RUNNER_TEMP/build-output.txt"
           echo "build_ok=$?" >> "$GITHUB_OUTPUT"
 
       - name: Run lint
         id: lint
         continue-on-error: true
         run: |
-          bun run lint 2>&1 | tee "$RUNNER_TEMP/lint-output.txt" || true
+          npm run lint 2>&1 | tee "$RUNNER_TEMP/lint-output.txt" || true
           echo "done" >> "$GITHUB_OUTPUT"
 
       # ── 7. COMMIT & OPEN PR ─────────────────────────────────────────────────

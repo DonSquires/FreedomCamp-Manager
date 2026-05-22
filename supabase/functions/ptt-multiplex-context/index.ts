@@ -18,7 +18,12 @@ Deno.serve(withCors(async (req: Request) => {
   }
 
   const proxyServerUrl = String(Deno.env.get('PROXY_SERVER_URL') || '').trim().replace(/\/$/, '')
-  const proxySecret = String(Deno.env.get('PROXY_SECRET') || '').trim()
+  const proxySecret = String(
+    Deno.env.get('PTT_PROXY_SECRET') ||
+    Deno.env.get('PROXY_SECRET') ||
+    Deno.env.get('RADIO_PROXY_SECRET') ||
+    '',
+  ).trim()
 
   if (!proxyServerUrl || !proxySecret) {
     return jsonResponse({

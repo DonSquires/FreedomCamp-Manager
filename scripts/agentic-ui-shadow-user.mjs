@@ -28,14 +28,7 @@ loadLocalEnv()
 const nowIso = new Date().toISOString().replace(/[:.]/g, '-')
 const defaultEvidenceDir = path.resolve('tools', 'agentic-ui-reports', nowIso)
 
-const cliArgv = (() => {
-  // In this repository, `node` may be Bun's compatibility shim.
-  // Bun exposes runtime args via Bun.argv.
-  if (typeof Bun !== 'undefined' && Array.isArray(Bun.argv) && Bun.argv.length >= 2) {
-    return Bun.argv.slice(2)
-  }
-  return process.argv.slice(2)
-})()
+const cliArgv = process.argv.slice(2)
 
 function getArg(name, fallback = '') {
   const key = `--${name}`
@@ -695,7 +688,7 @@ async function main() {
     report.ended_at = new Date().toISOString()
     const outFile = path.join(config.evidenceDir, 'report.json')
     await fs.writeFile(outFile, `${JSON.stringify(report, null, 2)}\n`, 'utf8')
-    console.error('Browser launch failed. Install Playwright browsers (bun run install:playwright) or set PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH.')
+    console.error('Browser launch failed. Install Playwright browsers (npm run install:playwright) or set PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH.')
     console.error(`Report file: ${outFile}`)
     process.exit(1)
   }

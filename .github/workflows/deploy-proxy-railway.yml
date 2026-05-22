@@ -153,7 +153,7 @@ jobs:
           RAILWAY_TOKEN:            ${{ env.RAILWAY_TOKEN }}
           RAILWAY_PROXY_SERVICE_ID: ${{ env.RAILWAY_PROXY_SERVICE_ID }}
           RAILWAY_PROXY_PROJECT_ID: ${{ env.RAILWAY_PROXY_PROJECT_ID }}
-          RAILWAY_PROXY_ENVIRONMENT_ID: ${{ secrets.RAILWAY_PROXY_ENVIRONMENT_ID }}
+          RAILWAY_PROXY_ENVIRONMENT_ID: ${{ vars.RAILWAY_PROXY_ENVIRONMENT_ID || '' }}
           NZSCV_ID_KEY:             ${{ secrets.NZSCV_ID_KEY }}
           NZSCV_API_KEY:            ${{ secrets.NZSCV_API_KEY }}
           NZSCV_ENDPOINT_URL:       ${{ secrets.NZSCV_ENDPOINT_URL }}

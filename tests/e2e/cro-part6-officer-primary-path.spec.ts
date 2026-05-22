@@ -134,7 +134,7 @@ test.describe('CRO Part 6 — Officer Primary Path Measurement', () => {
     stepStart = Date.now()
     retryCount = 0
     try {
-      const startPatrolBtn = page.locator('button:has-text("Start Patrol")').or(page.locator('button:has-text("Resume Patrol"))').first()
+      const startPatrolBtn = page.locator('button:has-text("Start Patrol")').or(page.locator('button:has-text("Resume Patrol")')).first()
       await startPatrolBtn.click()
 
       // Wait for dialog or navigation

@@ -14,7 +14,7 @@ on:
       - 'tests/e2e/setup.ts'
       - 'playwright.b4-enforcement.config.ts'
       - 'package.json'
-      - 'bun.lock'
+      - 'package-lock.json'
       - '.github/workflows/ci-phase-b4-enforcement-gate.yml'
   push:
     branches: [main]
@@ -25,7 +25,7 @@ on:
       - 'tests/e2e/setup.ts'
       - 'playwright.b4-enforcement.config.ts'
       - 'package.json'
-      - 'bun.lock'
+      - 'package-lock.json'
       - '.github/workflows/ci-phase-b4-enforcement-gate.yml'
   workflow_dispatch:
 
@@ -49,19 +49,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: npm ci
 
       - name: Run Phase B4 enforcement timeline gate suite
         id: phase_gate_suite
         continue-on-error: true
         run: |
-          bunx playwright test \
+          npx playwright test \
             tests/e2e/phase-b4-enforcement-timeline.spec.ts \
             --config=playwright.b4-enforcement.config.ts \
             --reporter=list

@@ -167,6 +167,7 @@ function resolveOrgId() {
 
 function buildBobMessage(stage, command, exitCode = null) {
   const preferredLanguage = String(process.env.BOB_ASSIST_LANGUAGE || 'en-NZ').trim();
+  const extraInstructions = String(process.env.BOB_ASSIST_EXTRA_INSTRUCTIONS || '').trim();
 
   if (stage === 'pre') {
     return [
@@ -175,7 +176,8 @@ function buildBobMessage(stage, command, exitCode = null) {
       `Command: ${command}`,
       `Respond in ${preferredLanguage}.`,
       'Provide concise risk focus areas and expected failure hotspots for this stack.',
-    ].join('\n');
+      extraInstructions ? `Additional instructions:\n${extraInstructions}` : null,
+    ].filter(Boolean).join('\n');
   }
 
   return [
@@ -187,7 +189,8 @@ function buildBobMessage(stage, command, exitCode = null) {
     exitCode === 0
       ? 'Tests passed. Provide quick verification checks for regressions we should still watch.'
       : 'Tests failed. Provide likely root causes and first 3 concrete remediation steps.',
-  ].join('\n');
+    extraInstructions ? `Additional instructions:\n${extraInstructions}` : null,
+  ].filter(Boolean).join('\n');
 }
 
 async function pingBob(stage, command, exitCode = null) {

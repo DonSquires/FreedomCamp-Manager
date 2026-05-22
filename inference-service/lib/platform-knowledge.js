@@ -245,8 +245,8 @@ const GITHUB_KNOWLEDGE = {
     features: ['Node.js 22', 'Bun (latest)', 'GitHub CLI', 'Supabase CLI 2.78.1', 'Deno'],
     vscode_extensions: ['ESLint', 'Prettier', 'Tailwind CSS IntelliSense', 'TypeScript (next)', 'SQLTools (PostgreSQL)', 'Deno', 'GitHub Copilot', 'GitHub PR'],
     ports: { '5173': 'Vite Dev Server (auto-preview)', '3000': 'Proxy Server', '3002': 'PTT Signaling Server', '8080': 'Inference Service (Bob)' },
-    setup: 'onCreateCommand copies .env.example → .env. postCreateCommand runs bun install. postStartCommand starts dev server (logs ~/vite-dev.log).',
-    start_dev: 'bun run dev — starts Vite at http://localhost:5173. Codespace auto-forwards port for browser preview.',
+    setup: 'onCreateCommand copies .env.example → .env. postCreateCommand runs npm ci. postStartCommand starts dev server (logs ~/vite-dev.log).',
+    start_dev: 'npm run dev — starts Vite at http://localhost:5173. Codespace auto-forwards port for browser preview.',
   },
   copilot: {
     summary: 'GitHub Copilot provides AI code suggestions within VS Code/Codespaces. Copilot Agent (copilot-swe-agent) is also used for automated code changes via this task system.',
@@ -255,8 +255,8 @@ const GITHUB_KNOWLEDGE = {
   },
   common_issues: [
     'Deploy workflow failed: go to Actions tab → find workflow run → click failed job → read error near bottom.',
-    'bun install --frozen-lockfile fails: bun.lock is outdated. Run: bun install (updates lockfile) → commit bun.lock.',
-    'TypeScript build fails: run bun run build locally → fix type errors → push.',
+    'npm ci fails: package-lock.json is outdated. Run: npm install (updates lockfile) → commit package-lock.json.',
+    'TypeScript build fails: run npm run build locally → fix type errors → push.',
     'Railway token expired (for proxy): regenerate in Railway dashboard → update RAILWAY_TOKEN GitHub secret.',
     'Supabase CLI auth failed: regenerate in Supabase dashboard → Account → Access Tokens → update SUPABASE_ACCESS_TOKEN.',
     'Edge Function deploy 401: SUPABASE_ACCESS_TOKEN expired or wrong project ref.',
@@ -272,8 +272,8 @@ const VERCEL_KNOWLEDGE = {
   summary: 'Vercel hosts the React/Vite frontend admin portal. SPA with rewrites to /index.html for client-side routing.',
   config_file: 'vercel.json at repo root.',
   build: {
-    command: 'bun run build',
-    install_command: 'bun install',
+    command: 'npm run build',
+    install_command: 'npm ci',
     output_directory: 'dist/',
     framework: 'Vite (React SPA)',
     env_vars: ['VITE_SUPABASE_URL', 'VITE_SUPABASE_ANON_KEY', 'VITE_PROXY_SERVER_URL', 'VITE_INFERENCE_SERVICE_URL', 'VITE_ENVIRONMENT'],
@@ -300,7 +300,7 @@ const VERCEL_KNOWLEDGE = {
   },
   deploy_command: 'Triggered automatically by deploy-frontend.yml on push to main. Manual: vercel --prod (from CLI).',
   common_issues: [
-    'Build fails: run bun run build locally to check TypeScript errors. Vercel mirrors local build.',
+    'Build fails: run npm run build locally to check TypeScript errors. Vercel mirrors local build.',
     'Routes return 404: check vercel.json rewrites section. Must have catch-all to /index.html.',
     'ENV vars missing: add in Vercel Dashboard → Project → Settings → Environment Variables. Must be prefixed VITE_ for client-side access.',
     'CSP blocking request: check Content-Security-Policy header. Add allowed domains to connect-src or script-src.',
@@ -538,7 +538,7 @@ const HYBRID_STACK_KNOWLEDGE = {
     ],
   },
   build_commands: {
-    frontend: 'bun run dev (dev server), bun run build (production), bun run lint (ESLint), npx vitest run (unit tests)',
+    frontend: 'npm run dev (dev server), npm run build (production), npm run lint (ESLint), npx vitest run (unit tests)',
     mobile: 'eas build --platform android, eas update --channel production (OTA)',
     edge_functions: 'supabase functions deploy <name> --project-ref kxwjcupuxnnbnzcgmkoi',
     bob: 'node server.js (with env vars), BOB_OPERATING_MODE=self-contained CHAT_PROVIDER=heuristic node server.js, or BOB_OPERATING_MODE=build-training CHAT_PROVIDER=ollama node server.js',
@@ -734,11 +734,11 @@ const PLATFORM_DIAGNOSTICS = {
     diagnosis: 'GitHub Actions / CI issue',
     checks: [
       { step: 'Find failed workflow run', detail: 'GitHub → Actions tab → find workflow → click failed run → click failed job → read error output.' },
-      { step: 'Check bun.lock', detail: 'bun install --frozen-lockfile fails if bun.lock is outdated. Run bun install locally and commit the updated bun.lock.' },
+      { step: 'Check package-lock.json', detail: 'npm ci fails if package-lock.json is outdated. Run npm install locally and commit the updated package-lock.json.' },
       { step: 'Check GitHub secrets', detail: 'Settings → Secrets and variables → Actions. Verify all required secrets exist and are not expired.' },
       { step: 'Check workflow trigger conditions', detail: 'Look at "on:" section. Path filters must match changed files. Branch filters must match pushed branch.' },
       { step: 'Check environment protection', detail: 'db-push.yml uses "production-schema" environment which requires @DonSquires approval before running.' },
-      { step: 'Check TypeScript build', detail: 'bun run build fails on type errors. Run locally: bun run build → fix errors → push.' },
+      { step: 'Check TypeScript build', detail: 'npm run build fails on type errors. Run locally: npm run build → fix errors → push.' },
       { step: 'Check service IDs', detail: 'RAILWAY_PTT_SERVICE_ID, RAILWAY_PROXY_SERVICE_ID must match current Railway service IDs. Re-check in Railway dashboard if deploys fail.' },
     ],
   },
@@ -747,7 +747,7 @@ const PLATFORM_DIAGNOSTICS = {
     diagnosis: 'Vercel frontend deployment issue',
     checks: [
       { step: 'Check Vercel build logs', detail: 'Vercel Dashboard → project → Deployments → select deployment → Build Logs.' },
-      { step: 'Check TypeScript errors', detail: 'Run bun run build locally. Vercel runs same command: tsc -b && vite build.' },
+      { step: 'Check TypeScript errors', detail: 'Run npm run build locally. Vercel runs same command: tsc -b && vite build.' },
       { step: 'Check environment variables', detail: 'Vercel Dashboard → project → Settings → Environment Variables. Must be prefixed VITE_ for client access.' },
       { step: 'Check SPA routing', detail: 'All routes must rewrite to /index.html. Check vercel.json rewrites section.' },
       { step: 'Check CSP header', detail: 'Browser console: "Refused to connect". Add domain to connect-src in vercel.json Content-Security-Policy header.' },

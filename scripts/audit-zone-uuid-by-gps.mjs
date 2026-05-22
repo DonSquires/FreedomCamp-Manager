@@ -1,4 +1,4 @@
-#!/usr/bin/env bun
+#!/usr/bin/env node
 
 /**
  * Audit observation.zone_id against zone geofence match from GPS coordinates.
