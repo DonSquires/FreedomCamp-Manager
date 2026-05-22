@@ -3,8 +3,11 @@ import express, { Request, Response } from 'express';
 import axios from 'axios';
 import { createClient } from '@supabase/supabase-js';
 import ws from 'ws';
+import { readFile, stat } from 'node:fs/promises';
 import { once } from 'node:events';
 import { spawn } from 'node:child_process';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { applyAgentPatch } from './agentTools.js';
 import { runInSandboxEmulator } from './validator.js';
 import { executeWebSearch, fetchWebpageContent } from './researchTool.js';
@@ -77,12 +80,89 @@ type GiteaProposeResult = {
   body: Record<string, unknown>;
 };
 
+type DocumentIntelKeyword = {
+  keyword: string;
+  score: number;
+};
+
+type DocumentIntelRow = {
+  path: string;
+  ext: string;
+  category: string;
+  bytes: number;
+  textSource: string;
+  text: string;
+  textPreview: string;
+  textChars: number;
+  sha256: string;
+  keywords: DocumentIntelKeyword[];
+  topicTags: string[];
+  indexedAt?: string;
+};
+
+type DocumentIntelPayload = {
+  generatedAt: string;
+  source: string;
+  includeDirs: string[];
+  ocrDir: string;
+  totalDocuments: number;
+  documents: DocumentIntelRow[];
+};
+
 const CHAT_DB_TIMEOUT_MS = Number(process.env.CHAT_DB_TIMEOUT_MS ?? 2500);
 const CHAT_CONTEXT_TIMEOUT_MS = Number(process.env.CHAT_CONTEXT_TIMEOUT_MS ?? 3500);
 const OLLAMA_MODEL_TIMEOUT_MS = Number(process.env.OLLAMA_MODEL_TIMEOUT_MS ?? 7000);
 const OLLAMA_TOTAL_TIMEOUT_MS = Number(process.env.OLLAMA_TOTAL_TIMEOUT_MS ?? 18000);
 const OLLAMA_STREAM_TIMEOUT_MS = Number(process.env.OLLAMA_STREAM_TIMEOUT_MS ?? 25000);
 const OLLAMA_MAX_CANDIDATES = Math.max(1, Number(process.env.OLLAMA_MAX_CANDIDATES ?? 3));
+const DOC_INTEL_DEFAULT_LIMIT = Math.max(1, Number(process.env.DOC_INTEL_DEFAULT_LIMIT ?? 20));
+const DOC_INTEL_MAX_LIMIT = Math.max(1, Number(process.env.DOC_INTEL_MAX_LIMIT ?? 100));
+
+const CURRENT_FILE = fileURLToPath(import.meta.url);
+const BACKEND_DIR = path.dirname(CURRENT_FILE);
+const REPO_ROOT = path.resolve(BACKEND_DIR, '..', '..');
+const DOC_INTEL_INDEX_FILE = path.resolve(
+  process.env.DOC_INTEL_INDEX_PATH ?? path.join(REPO_ROOT, 'data/internal-research/document-intelligence-index.json'),
+);
+
+let docIntelCache: {
+  mtimeMs: number;
+  payload: DocumentIntelPayload;
+} | null = null;
+
+function parsePositiveInt(value: string | undefined, fallback: number): number {
+  const parsed = Number(value ?? '');
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return fallback;
+  }
+  return Math.floor(parsed);
+}
+
+function parseBool(value: string | undefined): boolean {
+  const normalized = String(value ?? '').trim().toLowerCase();
+  return normalized === '1' || normalized === 'true' || normalized === 'yes';
+}
+
+async function loadDocumentIntelIndex(): Promise<DocumentIntelPayload> {
+  const fileStat = await stat(DOC_INTEL_INDEX_FILE);
+  if (docIntelCache && docIntelCache.mtimeMs === fileStat.mtimeMs) {
+    return docIntelCache.payload;
+  }
+
+  const raw = await readFile(DOC_INTEL_INDEX_FILE, 'utf8');
+  const parsed = JSON.parse(raw) as DocumentIntelPayload;
+
+  if (!parsed || !Array.isArray(parsed.documents)) {
+    throw new Error('Invalid document intelligence index structure.');
+  }
+
+  docIntelCache = {
+    mtimeMs: fileStat.mtimeMs,
+    payload: parsed,
+  };
+
+  return parsed;
+}
 
 function timeoutError(label: string, ms: number): Error {
   return new Error(`${label} timed out after ${ms}ms`);
@@ -168,6 +248,97 @@ function triggerTrainingSync(source: string): void {
 
 app.get('/health', (_req: Request, res: Response) => {
   res.status(200).json({ ok: true, service: 'fieldops-backend' });
+});
+
+app.get('/api/research/document-intelligence', async (req: Request, res: Response) => {
+  const q = String(req.query.q ?? '').trim().toLowerCase();
+  const category = String(req.query.category ?? '').trim().toLowerCase();
+  const tag = String(req.query.tag ?? '').trim().toLowerCase();
+  const pathPrefix = String(req.query.pathPrefix ?? '').trim().toLowerCase();
+  const includeText = parseBool(String(req.query.includeText ?? ''));
+  const includeKeywords = parseBool(String(req.query.includeKeywords ?? ''));
+  const limit = Math.min(
+    DOC_INTEL_MAX_LIMIT,
+    parsePositiveInt(String(req.query.limit ?? ''), DOC_INTEL_DEFAULT_LIMIT),
+  );
+
+  try {
+    const payload = await loadDocumentIntelIndex();
+
+    const filtered = payload.documents
+      .filter((row) => {
+        if (category && row.category.toLowerCase() !== category) {
+          return false;
+        }
+
+        if (tag) {
+          const hasTag = (row.topicTags ?? []).some((topicTag) => String(topicTag).toLowerCase() === tag);
+          if (!hasTag) {
+            return false;
+          }
+        }
+
+        if (pathPrefix && !row.path.toLowerCase().startsWith(pathPrefix)) {
+          return false;
+        }
+
+        if (!q) {
+          return true;
+        }
+
+        const haystack = [
+          row.path,
+          row.ext,
+          row.category,
+          row.textPreview,
+          (row.topicTags ?? []).join(' '),
+          (row.keywords ?? []).map((kw) => kw.keyword).join(' '),
+          includeText ? row.text : '',
+        ]
+          .join(' ')
+          .toLowerCase();
+
+        return haystack.includes(q);
+      })
+      .slice(0, limit)
+      .map((row) => ({
+        path: row.path,
+        ext: row.ext,
+        category: row.category,
+        bytes: row.bytes,
+        textSource: row.textSource,
+        textPreview: row.textPreview,
+        textChars: row.textChars,
+        topicTags: row.topicTags,
+        indexedAt: row.indexedAt ?? null,
+        ...(includeKeywords ? { keywords: row.keywords } : {}),
+        ...(includeText ? { text: row.text } : {}),
+      }));
+
+    res.status(200).json({
+      status: 'OK',
+      generatedAt: payload.generatedAt,
+      totalDocuments: payload.totalDocuments,
+      filteredCount: filtered.length,
+      appliedFilters: {
+        q: q || null,
+        category: category || null,
+        tag: tag || null,
+        pathPrefix: pathPrefix || null,
+        includeText,
+        includeKeywords,
+        limit,
+      },
+      results: filtered,
+    });
+  } catch (error) {
+    console.error('[/api/research/document-intelligence] Failed to load index', error);
+    res.status(500).json({
+      status: 'ERROR',
+      error: 'Failed to read compiled document intelligence index.',
+      indexPath: DOC_INTEL_INDEX_FILE,
+    });
+  }
 });
 
 // ── Supabase (service role — backend only, never expose to client) ──────────
