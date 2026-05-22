@@ -22,6 +22,30 @@ This rule is critical and overrides convenience-oriented remediation for field s
 
 ---
 
+## Production Release Snapshot (2026-05-22 — Research/Privacy/Docs Intelligence)
+
+Owner: GitHub Copilot  
+Scope: Production hardening for Bob research orchestration, NZ Privacy Act-aligned redaction, and internal document intelligence indexing.
+
+Completed:
+
+- [x] Added document intelligence compiler (`scripts/compile-document-intelligence.mjs`) and indexed internal research outputs.
+- [x] Added backend research endpoint for filtered document-intelligence queries (`GET /api/research/document-intelligence`).
+- [x] Added privacy redaction controls for research requests and indexed document responses.
+- [x] Added trusted-source policy: NZ/official domains first, trusted global docs second when needed.
+- [x] Added risky-domain restrictions and local/private host denial for research fetches.
+
+Validation:
+
+1. Backend build (Node 20 + npm 10 contract) -> PASS.
+2. Root build (TypeScript + Vite) -> PASS.
+3. Docs sync into `system_documentation_library` -> PASS (includes document-intelligence runbook).
+
+Operational status:
+
+- Production path is privacy-aware, source-governed, and repository-grounded before external escalation.
+
+---
 ## Live Bob Chat Recovery Attempt (2026-05-22)
 
 Owner: GitHub Copilot  

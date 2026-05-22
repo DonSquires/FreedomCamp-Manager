@@ -27,6 +27,13 @@
 2. Roster planning behavior remains data-backed: leave-request visibility in planning surfaces is sourced from `leave_requests` queries rather than static placeholders.
 3. Governance and enterprise canonical docs are updated in this same change set as required for architecture-impacting and workflow-impacting updates.
 
+### Current Cycle Amendment (2026-05-22 — Production Research and Privacy Controls)
+
+1. Bob research routing now prioritizes trusted New Zealand and official sources first, then expands to trusted global technical documentation only when additional evidence is required.
+2. Privacy-by-default controls are active for research and document intelligence surfaces: sensitive personal data is redacted before response output and before external research escalation.
+3. Risky source categories are blocked from research fetch paths (adult, gambling, malware/phishing-style domains), and local/private network targets are disallowed.
+4. Internal document intelligence compilation is now available to support safer, repository-grounded research before external lookups.
+
 ### Current Cycle Agentic Action Board (2026-05-18)
 
 Product Oversight To-Do (authoritative execution list):

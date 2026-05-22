@@ -147,6 +147,21 @@ Governance implication:
 1. The prior hard-failure blocker (edge 502 on `/api/heal`) is resolved.
 2. Remaining risk is upstream model availability only, surfaced explicitly as degraded content rather than transport/runtime failure.
 
+## Current Cycle Snapshot (2026-05-22 — Research Governance and NZ Privacy Controls)
+
+Material governance updates in this cycle:
+
+1. Research orchestration now follows staged source policy: trusted NZ/official domains first, then trusted global technical documentation when required.
+2. Privacy controls are active by default in research flows: sensitive personal identifiers are redacted before response output and before external escalation.
+3. Risky-source categories and local/private network targets are blocked from research fetch operations.
+4. Internal document intelligence indexing is now a first-pass evidence source before web search expansion.
+
+Validation and release posture:
+
+1. Backend compile path passed under enforced Node 20/npm 10 toolchain.
+2. Root build remained green after integration.
+3. Documentation sync updated Tier B library with document-intelligence runbook and research policy context.
+
 ### Governance / Validation Implications
 
 1. Documentation authority remains paired: instruction manual and canonical file updated in the same change set as CI/governance-impacting updates.

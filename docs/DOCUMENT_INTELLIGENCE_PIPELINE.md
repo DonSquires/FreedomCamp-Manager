@@ -39,3 +39,10 @@ Each indexed document includes:
 - This pipeline is designed for deterministic internal indexing and research synthesis.
 - It does not mutate source documents.
 - For deeper OCR quality on scanned PDFs/images, run `npm run docs:ocr:pictures` to refresh OCR sidecars before compile.
+
+## Privacy and Source Governance
+
+- Internal document intelligence is the first research source before external lookups.
+- Sensitive personal data must be redacted before external escalation and before output to users.
+- External research should prioritize trusted NZ and official domains first.
+- Risky/adult/gambling/malware-style domains and private/local targets are blocked in research fetch paths.
