@@ -65,11 +65,11 @@ function timeoutError(label: string, ms: number): Error {
   return new Error(`${label} timed out after ${ms}ms`);
 }
 
-async function withTimeout<T>(task: Promise<T>, ms: number, label: string): Promise<T> {
+async function withTimeout<T>(task: PromiseLike<T>, ms: number, label: string): Promise<T> {
   let timer: NodeJS.Timeout | null = null;
   try {
     return await Promise.race([
-      task,
+      Promise.resolve(task),
       new Promise<T>((_resolve, reject) => {
         timer = setTimeout(() => reject(timeoutError(label, ms)), ms);
       }),
@@ -342,14 +342,16 @@ async function appendChatSessionMessage(
   }
 
   const result = await withTimeout(
-    supabase
-      .from('chat_sessions')
-      .insert({
-        session_id: sessionId,
-        role,
-        content: trimmedContent,
-        created_at: new Date().toISOString(),
-      }),
+    Promise.resolve(
+      supabase
+        .from('chat_sessions')
+        .insert({
+          session_id: sessionId,
+          role,
+          content: trimmedContent,
+          created_at: new Date().toISOString(),
+        }),
+    ),
     CHAT_DB_TIMEOUT_MS,
     'chat_sessions insert',
   ).catch((error) => {
@@ -366,12 +368,14 @@ async function appendChatSessionMessage(
 
 async function loadRecentChatSessionMessages(sessionId: string, limit = 10): Promise<HealChatMessage[]> {
   const { data, error } = await withTimeout(
-    supabase
-      .from('chat_sessions')
-      .select('role,content,created_at')
-      .eq('session_id', sessionId)
-      .order('created_at', { ascending: false })
-      .limit(limit),
+    Promise.resolve(
+      supabase
+        .from('chat_sessions')
+        .select('role,content,created_at')
+        .eq('session_id', sessionId)
+        .order('created_at', { ascending: false })
+        .limit(limit),
+    ),
     CHAT_DB_TIMEOUT_MS,
     'chat_sessions select',
   ).catch((timeout) => {
@@ -814,9 +818,11 @@ async function streamOllamaResponseToClient(
 
 async function getConsultativeReferenceRunbook(errorMessage: string, agent: string): Promise<string> {
   const { data, error } = await withTimeout(
-    supabase
-      .from('system_documentation_library')
-      .select('file_path,content,intent_keywords,priority,allowed_agents'),
+    Promise.resolve(
+      supabase
+        .from('system_documentation_library')
+        .select('file_path,content,intent_keywords,priority,allowed_agents'),
+    ),
     CHAT_CONTEXT_TIMEOUT_MS,
     'system_documentation_library select',
   ).catch((timeout) => {
@@ -869,11 +875,13 @@ async function getConsultativeReferenceRunbook(errorMessage: string, agent: stri
 
 async function getTierAKnowledgeContext(): Promise<{ schemaPayload: string; systemRules: string }> {
   const { data, error } = await withTimeout(
-    supabase
-      .from('system_knowledge_base')
-      .select('schema_payload, system_rules')
-      .eq('service_name', 'railway-backend')
-      .maybeSingle(),
+    Promise.resolve(
+      supabase
+        .from('system_knowledge_base')
+        .select('schema_payload, system_rules')
+        .eq('service_name', 'railway-backend')
+        .maybeSingle(),
+    ),
     CHAT_CONTEXT_TIMEOUT_MS,
     'system_knowledge_base select',
   ).catch((timeout) => {

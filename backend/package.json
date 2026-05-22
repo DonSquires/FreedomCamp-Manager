@@ -2,8 +2,15 @@
   "name": "fieldops-backend",
   "version": "1.0.0",
   "private": true,
+  "packageManager": "npm@10",
+  "engines": {
+    "node": ">=22 <23",
+    "npm": ">=10 <11"
+  },
   "type": "module",
   "scripts": {
+    "prebuild": "node scripts/verify-toolchain.mjs",
+    "prestart": "node scripts/verify-toolchain.mjs",
     "build": "tsc",
     "start": "node dist/index.js",
     "train:sync": "npx --yes supabase gen types typescript --project-id \"$SUPABASE_PROJECT_REF\" > src/types.ts && npx ts-node --esm scripts/sync-training.ts",
