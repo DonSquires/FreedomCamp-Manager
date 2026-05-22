@@ -1686,6 +1686,15 @@ export default function App() {
               </ProtectedRoute>
             }
           />
+          {/* Legacy alias: /analytics -> /compliance-analytics */}
+          <Route
+            path="/analytics"
+            element={
+              <ProtectedRoute>
+                <Navigate to="/compliance-analytics" replace />
+              </ProtectedRoute>
+            }
+          />
           {/* Legacy alias: /admin/compliance-analytics -> /compliance-analytics */}
           <Route
             path="/admin/compliance-analytics"

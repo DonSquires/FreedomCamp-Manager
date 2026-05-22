@@ -220,22 +220,29 @@ export function createBobEngine(envInput: Partial<BobEngineEnv> & Record<string,
               '/platform',
               '/client-portal',
               '/billing',
+              '/compliance-analytics',
               '/analytics',
               '/settings',
             ]),
           }),
           execute: async ({ targetRoute }) => {
+            const normalizedRoute = targetRoute === '/analytics' ? '/compliance-analytics' : targetRoute
+
             await persistStep({
               session_id: input.sessionId,
               user_id: input.userId,
               operator_id: env.bobSystemUserId || input.userId,
               record_type: 'transaction_step',
-              content: `Navigated to ${targetRoute}`,
+              content: `Navigated to ${normalizedRoute}`,
               status: 'success',
-              metadata: { route: targetRoute, orgId: env.orgId || null },
+              metadata: {
+                route: normalizedRoute,
+                requestedRoute: targetRoute,
+                orgId: env.orgId || null,
+              },
             });
 
-            return { status: 'success', active_route: targetRoute };
+            return { status: 'success', active_route: normalizedRoute };
           },
         }),
       },

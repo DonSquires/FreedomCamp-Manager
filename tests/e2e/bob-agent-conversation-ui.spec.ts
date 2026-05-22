@@ -260,7 +260,7 @@ test.describe('Bob autonomous conversation UI', () => {
       window.dispatchEvent(new PopStateEvent('popstate'))
     })
 
-    await expect(page).toHaveURL(/\/analytics/, { timeout: 10000 })
+    await expect(page).toHaveURL(/\/compliance-analytics$/, { timeout: 10000 })
 
     const targetView = page
       .locator('[data-testid="dashboard-root"], [data-testid="analytics-root"], main, h1')
