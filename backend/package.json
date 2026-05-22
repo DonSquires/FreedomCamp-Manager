@@ -2,7 +2,7 @@
   "name": "fieldops-backend",
   "version": "1.0.0",
   "private": true,
-  "packageManager": "npm@10",
+  "packageManager": "npm@10.8.2",
   "engines": {
     "node": ">=20 <21",
     "npm": ">=10 <11"
@@ -13,7 +13,10 @@
     "prestart": "node scripts/verify-toolchain.mjs",
     "build": "tsc",
     "start": "node dist/index.js",
-    "train:sync": "npm exec --yes supabase gen types typescript --project-id \"$SUPABASE_PROJECT_REF\" > src/types.ts && npm exec ts-node -- --esm scripts/sync-training.ts",
+    "dev": "bash scripts/bob-env-run.sh run dev:raw",
+    "dev:raw": "npm run start",
+    "train:sync": "bash scripts/bob-env-run.sh run train:sync:raw",
+    "train:sync:raw": "npm exec --yes supabase gen types typescript --project-id \"$SUPABASE_PROJECT_REF\" > src/types.ts && npm exec ts-node -- --esm scripts/sync-training.ts",
     "train:validate": "if [ -n \"$SUPABASE_PROJECT_REF\" ]; then npm exec --yes supabase gen types typescript --project-id \"$SUPABASE_PROJECT_REF\" > src/types.ts; else echo \"SUPABASE_PROJECT_REF not set; skipping live type generation\"; fi && npm run build",
     "docs:sync": "npm exec ts-node -- --esm scripts/sync-docs.ts",
     "kb:update:railway": "npm exec ts-node -- --esm scripts/temp-update-railway-kb.ts",

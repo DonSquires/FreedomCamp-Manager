@@ -79,6 +79,29 @@ export function BobApprovalPanel() {
     loadPendingLogs(false)
   }, [loadPendingLogs])
 
+  useEffect(() => {
+    const channel = supabase
+      .channel('public:self_healing_logs')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'self_healing_logs' },
+        (payload) => {
+          const next = payload.new as PendingSelfHealingLog
+          if (next.status !== 'PENDING_HUMAN_REVIEW') return
+
+          setLogs((previous) => {
+            if (previous.some((entry) => entry.id === next.id)) return previous
+            return [next, ...previous]
+          })
+        },
+      )
+      .subscribe()
+
+    return () => {
+      void supabase.removeChannel(channel)
+    }
+  }, [])
+
   const rejectPatch = useCallback(async (log: PendingSelfHealingLog) => {
     try {
       setActioningId(log.id)
