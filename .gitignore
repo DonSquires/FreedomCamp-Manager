@@ -77,6 +77,10 @@ data/bob-last-runpod-self-test.json
 data/bob-response-scores.jsonl
 data/bob-failure-summary.json
 data/route-validation-*.json
+data/internal-research/document-intelligence-index.json
+data/internal-research/document-intelligence-summary.md
+public/internal-research/document-intelligence-index.json
+public/internal-research/document-intelligence-summary.md
 
 # Bob generated review and analysis artifacts
 data/dr-bob-reviews/

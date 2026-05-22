@@ -115,6 +115,20 @@ const DOCUMENTATION_SEEDS: DocumentationSeed[] = [
     priority: 'critical',
     allowedAgents: ['dr_bob', 'bob', 'emulator'],
   },
+  {
+    filePath: 'docs/DOCUMENT_INTELLIGENCE_PIPELINE.md',
+    intentKeywords: [
+      'documentation',
+      'parser',
+      'ocr',
+      'image',
+      'enrichment',
+      'index',
+      'research',
+    ],
+    priority: 'high',
+    allowedAgents: ['dr_bob', 'bob', 'writer_agent', 'research_agent'],
+  },
 ];
 
 const docsBucketName = process.env.SYSTEM_DOCS_BUCKET ?? 'bob-tier-b-docs';

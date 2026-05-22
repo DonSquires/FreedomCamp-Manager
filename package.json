@@ -7,6 +7,8 @@
     "preinstall": "npx only-allow npm",
     "dev": "vite",
     "docs:ocr:pictures": "node scripts/ocr-and-picture-extract.mjs",
+    "docs:intelligence:compile": "node scripts/compile-document-intelligence.mjs",
+    "docs:intelligence:compile:no-app": "node scripts/compile-document-intelligence.mjs --no-app-copy",
     "staging:tooling:bootstrap": "bash scripts/setup-staging-tooling.sh",
     "staging:star-trek:bob:check": "bash scripts/staging-star-trek-bob-check.sh",
     "build": "tsc -b && vite build",
