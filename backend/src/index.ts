@@ -3,6 +3,7 @@ import express, { Request, Response } from 'express';
 import axios from 'axios';
 import { createClient } from '@supabase/supabase-js';
 import { once } from 'node:events';
+import { spawn } from 'node:child_process';
 import { applyAgentPatch } from './agentTools.js';
 import { runInSandboxEmulator } from './validator.js';
 
@@ -92,6 +93,16 @@ app.use((req, res, next) => {
 });
 
 app.use(express.json());
+
+function triggerTrainingSync(source: string): void {
+  const child = spawn('npx', ['ts-node', '--esm', 'scripts/sync-training.ts'], {
+    cwd: process.cwd(),
+    detached: true,
+    stdio: 'ignore',
+    env: { ...process.env, TRAINING_TRIGGER_SOURCE: source },
+  });
+  child.unref();
+}
 
 app.get('/health', (_req: Request, res: Response) => {
   res.status(200).json({ ok: true, service: 'fieldops-backend' });
@@ -319,8 +330,26 @@ async function executeGiteaProposePr(payload: GiteaCreatePrRequest): Promise<Git
 
   try {
     const encodedBaseBranch = encodeRepoPath(baseBranch);
-    const baseRefResponse = await gitea.get(`/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/git/refs/heads/${encodedBaseBranch}`);
-    const baseSha = String((baseRefResponse.data as { object?: { sha?: string } }).object?.sha ?? '').trim();
+    let baseSha = '';
+
+    try {
+      const baseRefResponse = await gitea.get(
+        `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/git/refs/heads/${encodedBaseBranch}`,
+      );
+      baseSha = String((baseRefResponse.data as { object?: { sha?: string } }).object?.sha ?? '').trim();
+    } catch (error) {
+      if (!(axios.isAxiosError(error) && error.response?.status === 404)) {
+        throw error;
+      }
+    }
+
+    if (!baseSha) {
+      const branchResponse = await gitea.get(
+        `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/branches/${encodedBaseBranch}`,
+      );
+      const branchData = branchResponse.data as { commit?: { id?: string; sha?: string } };
+      baseSha = String(branchData.commit?.id ?? branchData.commit?.sha ?? '').trim();
+    }
 
     if (!baseSha) {
       return {
@@ -836,6 +865,33 @@ app.post('/api/gitea/propose-pr', async (req: Request, res: Response) => {
   const payload = (req.body ?? {}) as GiteaCreatePrRequest;
   const result = await executeGiteaProposePr(payload);
   res.status(result.statusCode).json(result.body);
+});
+
+// ── POST /api/gitea-webhook ───────────────────────────────────────────────
+//    Handles Gitea push/pull_request notifications and asynchronously
+//    triggers training sync to refresh Bob context.
+app.post('/api/gitea-webhook', (req: Request, res: Response) => {
+  const eventHeader = req.headers['x-gitea-event'];
+  const event = String(Array.isArray(eventHeader) ? eventHeader[0] : eventHeader ?? '').toLowerCase();
+
+  if (event !== 'push' && event !== 'pull_request') {
+    res.status(202).json({ status: 'ignored', event: event || 'unknown' });
+    return;
+  }
+
+  const body = (req.body ?? {}) as {
+    ref?: string;
+    repository?: { full_name?: string };
+    pull_request?: { head?: { ref?: string } };
+  };
+
+  const repo = String(body.repository?.full_name ?? 'unknown');
+  const ref = String(body.ref ?? body.pull_request?.head?.ref ?? '');
+  const source = `gitea:${event}:${repo}:${ref}`;
+
+  triggerTrainingSync(source);
+
+  res.status(202).json({ status: 'accepted', event, repo, ref, trigger: source });
 });
 
 // ── Start server ─────────────────────────────────────────────────────────────
