@@ -1,5 +1,6 @@
 import { test as base } from '@playwright/test'
 import { createClient } from '@supabase/supabase-js'
+import WebSocket from 'ws'
 import { loginAs } from './auth'
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL || ''
@@ -9,9 +10,25 @@ const hasSupabaseBrowserEnv = Boolean(supabaseUrl && supabaseAnonKey)
 const safeSupabaseUrl = supabaseUrl || 'https://placeholder.supabase.co'
 const safeSupabaseAnonKey = supabaseAnonKey || 'placeholder-anon-key'
 
-export const supabase = createClient(safeSupabaseUrl, safeSupabaseAnonKey)
+export const supabase = createClient(safeSupabaseUrl, safeSupabaseAnonKey, {
+  auth: {
+    persistSession: false,
+    autoRefreshToken: false,
+  },
+  realtime: {
+    transport: WebSocket,
+  },
+})
 export const supabaseAdmin = supabaseServiceRoleKey
-  ? createClient(supabaseUrl, supabaseServiceRoleKey)
+  ? createClient(supabaseUrl, supabaseServiceRoleKey, {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+      },
+      realtime: {
+        transport: WebSocket,
+      },
+    })
   : null
 
 export interface SyntheticOrganization {
