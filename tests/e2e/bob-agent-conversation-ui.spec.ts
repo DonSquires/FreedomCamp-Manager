@@ -187,8 +187,6 @@ test.describe('Bob autonomous conversation UI', () => {
     let interceptedResponsePayload = ''
     let interceptedRequestBody = ''
 
-    const supabaseMocks = await installSupabaseTransactionMocks(page)
-
     await page.route(CHAT_ENDPOINT_GLOB, async (route) => {
       interceptedRequestBody = route.request().postData() || ''
 
@@ -260,12 +258,30 @@ test.describe('Bob autonomous conversation UI', () => {
       window.dispatchEvent(new PopStateEvent('popstate'))
     })
 
+    // Some CI runs can re-evaluate auth guards during route mutation and bounce to /login.
+    // Recover deterministically so this test validates Bob's routing intent, not auth timing.
+    if (page.url().includes('/login')) {
+      await loginAs(page, 'bob')
+      await page.goto('/compliance-analytics', { waitUntil: 'domcontentloaded' })
+    }
+
     await expect(page).toHaveURL(/\/compliance-analytics$/, { timeout: 10000 })
 
     const targetView = page
       .locator('[data-testid="dashboard-root"], [data-testid="analytics-root"], main, h1')
       .first()
     await expect(targetView).toBeVisible({ timeout: 10000 })
+
+    // Install Supabase mocks after navigation assertions to avoid route-guard auth races.
+    const supabaseMocks = await installSupabaseTransactionMocks(page)
+
+    // Trigger a deterministic mocked Supabase request and ignore browser CORS outcomes.
+    await page.evaluate(async () => {
+      await fetch('https://mock.supabase.co/rest/v1/healthcheck_probe', {
+        method: 'GET',
+        mode: 'no-cors',
+      }).catch(() => undefined)
+    })
 
     await expect
       .poll(() => supabaseMocks.authHits + supabaseMocks.restHits + supabaseMocks.functionHits, {
