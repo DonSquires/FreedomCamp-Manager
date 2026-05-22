@@ -106,8 +106,14 @@ const serviceRoleSupabase = canInitServiceRoleSupabase
 const enforcePersonaBootstrap = readEnv('PLAYWRIGHT_ENFORCE_PERSONA_BOOTSTRAP') === '1' || (process.env.CI === 'true' && !!serviceRoleSupabase)
 // Profile mutations are opt-in to avoid changing persistent user settings in
 // shared/staging environments. Enable both flags in isolated test sandboxes.
-const allowProfileMutations = readEnv('PLAYWRIGHT_ALLOW_PROFILE_MUTATIONS') === '1' || hasUniversalTestAccount
-const autoSetTestRole = readEnv('PLAYWRIGHT_AUTO_SET_TEST_ROLE') === '1' || hasUniversalTestAccount
+const allowProfileMutations =
+  readEnv('PLAYWRIGHT_ALLOW_PROFILE_MUTATIONS') === '1' ||
+  hasUniversalTestAccount ||
+  (process.env.CI === 'true' && !!serviceRoleSupabase)
+const autoSetTestRole =
+  readEnv('PLAYWRIGHT_AUTO_SET_TEST_ROLE') === '1' ||
+  hasUniversalTestAccount ||
+  (process.env.CI === 'true' && !!serviceRoleSupabase)
 
 const roleCapabilities: Record<string, string[]> = {
   grand_master: ['master_ops', 'admin_screen', 'field_ops', 'client_portal_view', 'client_portal_manage'],
@@ -510,12 +516,30 @@ async function fetchResolvedProfileByEmail(email: string): Promise<ResolvedProfi
 
   const { data, error } = await serviceRoleSupabase
     .from('user_profiles')
-    .select('id,email,role,organization:organizations!organization_id(name),employer_org:organizations!employer_organization_id(name)')
-    .ilike('email', email)
+    .select('id,email,role,organization:organizations!organization_id(name),employer_org:organizations!employer_organization_id(name),updated_at')
+    .eq('email', email)
+    .order('updated_at', { ascending: false })
     .limit(1)
 
   if (error) {
     throw new Error(`Service-role profile lookup failed for ${email}: ${error.message}`)
+  }
+
+  const profile = data?.[0]
+  return profile?.id ? mapResolvedProfile(profile) : null
+}
+
+async function fetchResolvedProfileById(profileId: string): Promise<ResolvedProfile | null> {
+  if (!serviceRoleSupabase || !profileId) return null
+
+  const { data, error } = await serviceRoleSupabase
+    .from('user_profiles')
+    .select('id,email,role,organization:organizations!organization_id(name),employer_org:organizations!employer_organization_id(name)')
+    .eq('id', profileId)
+    .limit(1)
+
+  if (error) {
+    throw new Error(`Service-role profile lookup failed for ${profileId}: ${error.message}`)
   }
 
   const profile = data?.[0]
@@ -603,6 +627,30 @@ async function autoSetRoleForTestUser(page: Page, user: TestUserKey): Promise<bo
         `Failed to auto-set role for ${user} from ${profile.role || 'unknown'} to ${targetRole}. ` +
           `Service-role update failed: ${error.message}`
       )
+    }
+
+    const verifiedProfile = await fetchResolvedProfileById(profile.id)
+    if (!verifiedProfile || normalize(verifiedProfile.role) !== normalize(targetRole)) {
+      const { error: retryError } = await serviceRoleSupabase
+        .from('user_profiles')
+        .update({ role: targetRole })
+        .eq('id', profile.id)
+
+      if (retryError) {
+        throw new Error(
+          `Failed to verify role update for ${user} (${profile.id}) after setting ${targetRole}. ` +
+            `Retry update failed: ${retryError.message}`
+        )
+      }
+
+      const retryVerifiedProfile = await fetchResolvedProfileById(profile.id)
+      if (!retryVerifiedProfile || normalize(retryVerifiedProfile.role) !== normalize(targetRole)) {
+        throw new Error(
+          `Failed to auto-set role for ${user} (${profile.id}) to ${targetRole}. ` +
+            `Observed role after update was ${retryVerifiedProfile?.role || verifiedProfile?.role || 'unknown'}. ` +
+            `Email=${retryVerifiedProfile?.email || verifiedProfile?.email || profile.email || 'no-email'}.`
+        )
+      }
     }
 
     await page.reload({ waitUntil: 'networkidle' })

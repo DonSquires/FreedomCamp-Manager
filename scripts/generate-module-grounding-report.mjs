@@ -57,6 +57,23 @@ function extractLazyImports(source) {
   return map
 }
 
+function extractLocalComponents(source) {
+  const names = new Set()
+  const functionRegex = /function\s+([A-Z][A-Za-z0-9_]*)\s*\(/g
+  const constRegex = /const\s+([A-Z][A-Za-z0-9_]*)\s*=\s*(?:\([^)]*\)\s*=>|function\s*\()/g
+
+  let match
+  while ((match = functionRegex.exec(source)) !== null) {
+    names.add(String(match[1]))
+  }
+
+  while ((match = constRegex.exec(source)) !== null) {
+    names.add(String(match[1]))
+  }
+
+  return names
+}
+
 function normalizeImportPath(importPath) {
   const value = String(importPath || '').trim()
   if (!value) return ''
@@ -138,6 +155,7 @@ async function main() {
 
   const appRaw = await fs.readFile(appPath, 'utf8')
   const lazyImports = extractLazyImports(appRaw)
+  const localComponents = extractLocalComponents(appRaw)
   const routeChunks = collectRouteChunks(appRaw)
 
   const routes = []
@@ -147,6 +165,7 @@ async function main() {
     if (!primary) continue
 
     const importPath = primary.componentName ? lazyImports.get(primary.componentName) || '' : ''
+    const isLocalComponent = Boolean(primary.componentName && localComponents.has(primary.componentName))
     const resolved = await resolveImportFile(cwd, appPath, importPath)
     const existsFlag = resolved ? await exists(path.resolve(cwd, resolved)) : false
 
@@ -154,10 +173,10 @@ async function main() {
       path: primary.routePath,
       componentName: primary.componentName,
       importPath,
-      resolvedPath: resolved,
+      resolvedPath: isLocalComponent ? path.relative(cwd, appPath).replace(/\\/g, '/') : resolved,
       isRedirect: primary.isRedirect,
-      importResolved: Boolean(importPath),
-      fileExists: primary.isRedirect ? true : existsFlag,
+      importResolved: primary.isRedirect || Boolean(importPath) || isLocalComponent,
+      fileExists: primary.isRedirect ? true : (isLocalComponent ? true : existsFlag),
     })
   }
 

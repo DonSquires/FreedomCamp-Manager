@@ -1,0 +1,124 @@
+name: Ops – RunPod Set Max Workers
+
+# Raises the serverless `workersMax` cap for the fieldops-ai-engine endpoint.
+# Use this when queue pressure shows the endpoint is saturated and needs more
+# concurrency. This workflow intentionally updates only capacity, not env vars.
+
+on:
+  workflow_dispatch:
+    inputs:
+      workers_max:
+        description: 'Target RunPod workersMax value'
+        required: false
+        type: number
+        default: 15
+      dry_run:
+        description: 'Dry run — print the patch payload without calling the API'
+        required: false
+        type: boolean
+        default: false
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  set-workers-max:
+    name: Set RunPod Max Workers
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check required secrets
+        env:
+          RUNPOD_API_KEY: ${{ secrets.RUNPOD_API_KEY }}
+          RUNPOD_ENDPOINT_ID: ${{ secrets.RUNPOD_ENDPOINT_ID }}
+        run: |
+          if [ -z "${RUNPOD_API_KEY:-}" ]; then
+            echo "::error::RUNPOD_API_KEY secret is not set"
+            exit 1
+          fi
+          if [ -z "${RUNPOD_ENDPOINT_ID:-}" ]; then
+            echo "::error::RUNPOD_ENDPOINT_ID secret is not set"
+            exit 1
+          fi
+          echo "✅ Required secrets present"
+
+      - name: Resolve target workersMax
+        id: resolve
+        env:
+          INPUT_WORKERS_MAX: ${{ inputs.workers_max }}
+        run: |
+          TARGET_WORKERS_MAX="${INPUT_WORKERS_MAX:-15}"
+          if ! printf '%s' "$TARGET_WORKERS_MAX" | grep -Eq '^[0-9]+$'; then
+            echo "::error::workers_max must be a whole number"
+            exit 1
+          fi
+          if [ "$TARGET_WORKERS_MAX" -lt 1 ]; then
+            echo "::error::workers_max must be at least 1"
+            exit 1
+          fi
+          echo "workers_max=${TARGET_WORKERS_MAX}" >> "$GITHUB_OUTPUT"
+          echo "Target workersMax: ${TARGET_WORKERS_MAX}"
+
+      - name: Build JSON payload
+        id: payload
+        env:
+          WORKERS_MAX: ${{ steps.resolve.outputs.workers_max }}
+        run: |
+          PAYLOAD=$(jq -n --argjson workers_max "$WORKERS_MAX" '{"workersMax": $workers_max}')
+          echo "payload<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$PAYLOAD" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+          echo "Generated payload:"
+          echo "$PAYLOAD"
+
+      - name: Dry run — show payload
+        if: ${{ inputs.dry_run == true }}
+        run: |
+          echo "::notice::DRY RUN — no API call made"
+          echo "${{ steps.payload.outputs.payload }}"
+
+      - name: Patch RunPod endpoint workersMax
+        if: ${{ inputs.dry_run != true }}
+        env:
+          RUNPOD_API_KEY: ${{ secrets.RUNPOD_API_KEY }}
+          RUNPOD_ENDPOINT_ID: ${{ secrets.RUNPOD_ENDPOINT_ID }}
+        run: |
+          HTTP_STATUS=$(curl -s -o /tmp/runpod_workers_max_response.json -w "%{http_code}" \
+            -X PATCH \
+            "https://api.runpod.io/v2/endpoint/${RUNPOD_ENDPOINT_ID}" \
+            -H "Authorization: Bearer ${RUNPOD_API_KEY}" \
+            -H "Content-Type: application/json" \
+            -d '${{ steps.payload.outputs.payload }}')
+
+          cat /tmp/runpod_workers_max_response.json
+
+          if [ "$HTTP_STATUS" -ge 400 ]; then
+            echo "::error::RunPod API returned HTTP ${HTTP_STATUS}"
+            exit 1
+          fi
+
+          echo "✅ Endpoint workersMax updated — HTTP ${HTTP_STATUS}"
+
+      - name: Verify endpoint workersMax
+        if: ${{ inputs.dry_run != true }}
+        env:
+          RUNPOD_API_KEY: ${{ secrets.RUNPOD_API_KEY }}
+          RUNPOD_ENDPOINT_ID: ${{ secrets.RUNPOD_ENDPOINT_ID }}
+        run: |
+          sleep 5
+          HTTP_STATUS=$(curl -s -o /tmp/runpod_workers_max_verify.json -w "%{http_code}" \
+            "https://api.runpod.io/v2/endpoint/${RUNPOD_ENDPOINT_ID}" \
+            -H "Authorization: Bearer ${RUNPOD_API_KEY}")
+
+          cat /tmp/runpod_workers_max_verify.json
+          echo "Endpoint fetch HTTP status: ${HTTP_STATUS}"
+
+          UPDATED_WORKERS_MAX=$(jq -r '.workersMax // empty' /tmp/runpod_workers_max_verify.json)
+          echo "Updated workersMax: ${UPDATED_WORKERS_MAX}"
+
+          if [ "${UPDATED_WORKERS_MAX}" != "${{ steps.resolve.outputs.workers_max }}" ]; then
+            echo "::error::workersMax verification failed"
+            exit 1
+          fi
