@@ -418,6 +418,32 @@ async function ensureBootstrapTestAccount(
 
   if (!adminAuth) return
 
+  const findExistingUserByEmail = async (email: string): Promise<{ id: string } | null> => {
+    const normalizedEmail = normalize(email)
+    if (!normalizedEmail) return null
+
+    const perPage = 1000
+    const maxPages = 20
+
+    for (let page = 1; page <= maxPages; page += 1) {
+      const { data: usersData } = await adminAuth
+        .listUsers({ page, perPage })
+        .catch(() => ({ data: null }))
+
+      const users = usersData?.users || []
+      const existingUser = users.find((entry: any) => normalize(entry.email) === normalizedEmail)
+      if (existingUser?.id) {
+        return { id: existingUser.id }
+      }
+
+      if (users.length < perPage) {
+        break
+      }
+    }
+
+    return null
+  }
+
   const { data: createdUser, error: createError } = await adminAuth.createUser({
     email: credentials.email,
     password: credentials.password,
@@ -428,8 +454,7 @@ async function ensureBootstrapTestAccount(
   let userId = createdUser?.user?.id ?? null
 
   if (!userId && createError) {
-    const { data: usersData } = await adminAuth.listUsers({ page: 1, perPage: 200 }).catch(() => ({ data: null }))
-    const existingUser = usersData?.users?.find((entry: any) => normalize(entry.email) === normalize(credentials.email))
+    const existingUser = await findExistingUserByEmail(credentials.email)
     if (existingUser?.id) {
       userId = existingUser.id
 
