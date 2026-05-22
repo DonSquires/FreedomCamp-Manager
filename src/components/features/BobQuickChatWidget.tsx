@@ -4,6 +4,9 @@ import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
+import { supabase } from '@/lib/supabase'
+import { useAuthStore } from '@/stores/authStore'
+import { BobPrivilegesMatrix } from '@/components/features/BobPrivilegesMatrix'
 
 type ChatMessage = {
   id: string
@@ -45,12 +48,15 @@ async function streamBobResponse(
 ): Promise<string> {
   const controller = new AbortController()
   const timeoutId = window.setTimeout(() => controller.abort(), 30000)
+  const { data: sessionData } = await supabase.auth.getSession()
+  const accessToken = sessionData?.session?.access_token
 
   const response = await fetch(`${getBobManagerUrl()}/api/heal`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       Accept: 'text/event-stream',
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
     },
     signal: controller.signal,
     body: JSON.stringify({ ...payload, stream: true }),
@@ -274,6 +280,7 @@ function getQuickPrompts(route: string): BobQuickPrompt[] {
 }
 
 export function BobQuickChatWidget({ open, onOpenChange, onOpenStudio, currentRoute }: BobQuickChatWidgetProps) {
+  const { user } = useAuthStore()
   const [messages, setMessages] = useState<ChatMessage[]>([GREETING])
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
@@ -405,6 +412,8 @@ export function BobQuickChatWidget({ open, onOpenChange, onOpenStudio, currentRo
             </Button>
           </div>
         </div>
+
+        <BobPrivilegesMatrix role={user?.role} variant="quick" />
 
         <ScrollArea className="h-[22rem] bg-slate-50/70 px-3 py-3 dark:bg-slate-900/50">
           <div className="space-y-2.5">

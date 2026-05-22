@@ -26,6 +26,7 @@ import { useBobStore, type BobTask } from '@/stores/bobStore'
 import { useBobConversation } from '@/hooks/useBobConversation'
 import { useOperationalOrganization } from '@/hooks/useOperationalOrganization'
 import { useAuthStore } from '@/stores/authStore'
+import { BobPrivilegesMatrix } from '@/components/features/BobPrivilegesMatrix'
 import { supabase } from '@/lib/supabase'
 import { edgeFunctions } from '@/lib/edgeFunctions'
 import { toast } from 'sonner'
@@ -132,6 +133,18 @@ export default function BobStudio() {
           Bob for compliance workflows | Org: {operationalOrganizationId || 'N/A'}
         </p>
       </div>
+
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Your Bob Privileges</CardTitle>
+          <CardDescription>
+            Bob mirrors your access level, while elevated maintenance controls require grand master.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <BobPrivilegesMatrix role={user?.role} variant="studio" />
+        </CardContent>
+      </Card>
 
       {/* Global Reasoning Context */}
       {currentReasoning && (
