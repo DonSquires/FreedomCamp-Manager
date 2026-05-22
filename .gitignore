@@ -64,6 +64,7 @@ lint_output.txt
 .venv-tools/
 .venv-*/
 .tmp/
+.toolchains/
 
 # E2E test artifacts
 playwright-report/
