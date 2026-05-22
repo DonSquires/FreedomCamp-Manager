@@ -255,7 +255,7 @@ export function CanaryMetricsDashboard() {
             for structured observation and alert response procedures.
           </p>
           <p className="text-sm text-gray-600">
-            🚨 If critical alerts appear, follow the "Critical Alert Response" section for immediate actions.
+            🚨 If critical alerts appear, follow the &quot;Critical Alert Response&quot; section for immediate actions.
           </p>
           <p className="text-sm text-gray-600">
             📊 Save daily reports: <code className="bg-gray-100 px-2 py-1 rounded">node scripts/check-canary-thresholds.mjs --save-report</code>

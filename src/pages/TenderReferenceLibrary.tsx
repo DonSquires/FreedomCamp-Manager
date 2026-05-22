@@ -624,7 +624,7 @@ export default function TenderReferenceLibrary() {
                 <BookOpen className="h-8 w-8 mx-auto mb-2 text-muted-foreground/30" />
                 <p>No reference materials yet.</p>
                 {canEdit && (
-                  <p className="text-xs mt-1">Click "Add Reference" or drag a file to get started.</p>
+                  <p className="text-xs mt-1">Click &quot;Add Reference&quot; or drag a file to get started.</p>
                 )}
               </div>
             ) : (

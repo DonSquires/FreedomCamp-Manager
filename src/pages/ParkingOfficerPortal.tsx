@@ -745,7 +745,7 @@ export default function ParkingOfficerPortal() {
               <Label>Tyre Valve Position *</Label>
               <p className="text-xs text-muted-foreground">
                 Record the front-left tyre valve clock position from the vehicle photo.
-                Same position on recheck = vehicle hasn't moved.
+                Same position on recheck = vehicle hasn&apos;t moved.
               </p>
               <div className="grid grid-cols-2 gap-2">
                 {VALVE_POSITIONS.map(p => (
@@ -922,7 +922,7 @@ export default function ParkingOfficerPortal() {
               {/* Chalk pass photo comparison */}
               {recheckResult.session.entry_photo_url && (
                 <div className="space-y-1">
-                  <p className="text-xs font-medium text-muted-foreground">Chalk Pass Photo (verify vehicle hasn't moved):</p>
+                  <p className="text-xs font-medium text-muted-foreground">Chalk Pass Photo (verify vehicle hasn&apos;t moved):</p>
                   <img
                     src={recheckResult.session.entry_photo_url}
                     alt="Chalk pass photo"

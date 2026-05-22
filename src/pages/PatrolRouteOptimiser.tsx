@@ -273,7 +273,7 @@ export default function PatrolRouteOptimiser() {
                   {zones.length === 0 ? (
                     <p className="text-sm text-muted-foreground text-center py-6">No active zones with coordinates found</p>
                   ) : visibleZones.length === 0 ? (
-                    <p className="text-sm text-muted-foreground text-center py-6">No zones match "{zoneSearch}"</p>
+                    <p className="text-sm text-muted-foreground text-center py-6">No zones match &quot;{zoneSearch}&quot;</p>
                   ) : visibleZones.map(z => (
                     <label
                       key={z.id}

@@ -791,7 +791,7 @@ export default function UserManagement({ embedded = false }: UserManagementProps
       <CardHeader>
         <CardTitle>Access Denied</CardTitle>
         <CardDescription>
-          You don't have permission to access this page. Admin access required.
+          You&apos;re not allowed to access this page. Admin access required.
         </CardDescription>
       </CardHeader>
     </Card>

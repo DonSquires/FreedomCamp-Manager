@@ -320,7 +320,7 @@ export default function PatrolScheduleManagement() {
                 {!isLoading && patrols.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={11} className="text-center py-8 text-muted-foreground">
-                      No patrol schedules found. Click "Create Patrol Schedule" to get started.
+                      No patrol schedules found. Click &quot;Create Patrol Schedule&quot; to get started.
                     </TableCell>
                   </TableRow>
                 )}

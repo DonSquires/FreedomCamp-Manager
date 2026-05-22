@@ -418,7 +418,7 @@ export default function UniversalSearch() {
               </div>
               <div className="flex items-start gap-2">
                 <User className="h-4 w-4 mt-0.5 text-gray-600 shrink-0" />
-                <span>Example: "Toyota Hiace", "Graffiti", "Officer Jones"</span>
+                <span>Example: &quot;Toyota Hiace&quot;, &quot;Graffiti&quot;, &quot;Officer Jones&quot;</span>
               </div>
             </div>
           </CardContent>

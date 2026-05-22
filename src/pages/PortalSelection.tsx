@@ -140,7 +140,7 @@ export default function PortalSelection() {
       <Clock className="h-5 w-5 text-green-300 mt-0.5 flex-shrink-0" />
       <div className="flex-1 min-w-0">
         <p className="text-sm font-semibold text-green-200">
-          Today's Rostered Shift
+          Today&apos;s Rostered Shift
         </p>
         <p className="text-xs text-green-300 mt-0.5">
           {rosteredShift.service_type
