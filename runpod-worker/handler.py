@@ -165,6 +165,8 @@ TIMEOUT_S           = int(os.environ.get("OLLAMA_TIMEOUT_MS", "120000")) // 1000
 OLLAMA_RETRY_ATTEMPTS = max(1, int(os.environ.get("OLLAMA_RETRY_ATTEMPTS", "3")))
 OLLAMA_RETRY_BACKOFF_MS = max(0, int(os.environ.get("OLLAMA_RETRY_BACKOFF_MS", "500")))
 OLLAMA_TLS_VERIFY = parse_bool_env("OLLAMA_TLS_VERIFY", True)
+if any(urllib.parse.urlparse(candidate).scheme == "https" for candidate in OLLAMA_BASE_CANDIDATES):
+    OLLAMA_TLS_VERIFY = True
 TRAINING_MEMORY_PATH = os.environ.get("TRAINING_MEMORY_PATH", os.path.join(os.path.dirname(__file__), "training_memory.json"))
 MAX_RUNTIME_NOTES = 8
 OPENAI_REFERENCE_GATE_ENABLED = os.environ.get("OPENAI_REFERENCE_GATE_ENABLED", "true").strip().lower() in {"1", "true", "yes", "on"}
