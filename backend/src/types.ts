@@ -26758,6 +26758,7 @@ export type Database = {
         Row: {
           agent_roles: Json
           created_at: string
+          id: string
           schema_payload: string
           service_name: string
           system_rules: Json
@@ -26766,6 +26767,7 @@ export type Database = {
         Insert: {
           agent_roles?: Json
           created_at?: string
+          id?: string
           schema_payload: string
           service_name: string
           system_rules?: Json
@@ -26774,9 +26776,61 @@ export type Database = {
         Update: {
           agent_roles?: Json
           created_at?: string
+          id?: string
           schema_payload?: string
           service_name?: string
           system_rules?: Json
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      heal_patches: {
+        Row: {
+          created_at: string
+          deployed_at: string | null
+          dr_bob_analysis: string
+          error_message: string | null
+          error_payload: Json
+          id: string
+          patch: Json
+          patch_value: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          service_name: string | null
+          status: string
+          target_variable: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          deployed_at?: string | null
+          dr_bob_analysis: string
+          error_message?: string | null
+          error_payload?: Json
+          id?: string
+          patch?: Json
+          patch_value?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          service_name?: string | null
+          status: string
+          target_variable?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          deployed_at?: string | null
+          dr_bob_analysis?: string
+          error_message?: string | null
+          error_payload?: Json
+          id?: string
+          patch?: Json
+          patch_value?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          service_name?: string | null
+          status?: string
+          target_variable?: string | null
           updated_at?: string
         }
         Relationships: []

@@ -12,7 +12,7 @@ const ROOT = path.resolve(__dirname, '..');
 const TEXT_EXTENSIONS = new Set([
   '.md', '.mdx', '.txt', '.json', '.jsonl', '.yaml', '.yml', '.toml', '.ini',
   '.csv', '.tsv', '.sql', '.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.css',
-  '.scss', '.html', '.htm', '.xml', '.svg', '.env', '.log',
+  '.scss', '.html', '.htm', '.xml', '.svg', '.log',
 ]);
 
 const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp', '.gif', '.bmp', '.tif', '.tiff', '.heic']);
@@ -28,6 +28,31 @@ const MAX_BYTES = Number(process.env.DOC_INTEL_MAX_BYTES ?? 2_000_000);
 const MAX_PREVIEW = Number(process.env.DOC_INTEL_PREVIEW_CHARS ?? 1200);
 const MAX_TEXT = Number(process.env.DOC_INTEL_TEXT_CHARS ?? 30_000);
 
+function globToRegExp(pattern) {
+  const normalized = String(pattern ?? '').trim().replace(/\\/g, '/');
+  const escaped = normalized
+    .replace(/[.+^${}()|[\]\\]/g, '\\$&')
+    .replace(/\*\*/g, '::DOUBLE_STAR::')
+    .replace(/\*/g, '[^/]*')
+    .replace(/::DOUBLE_STAR::/g, '.*')
+    .replace(/\?/g, '.');
+  return new RegExp(`^${escaped}$`, 'i');
+}
+
+function matchesAnyPattern(value, patterns) {
+  if (!patterns.length) return true;
+  return patterns.some((pattern) => globToRegExp(pattern).test(value));
+}
+
+function isSensitiveFile(relPath) {
+  const lower = relPath.toLowerCase();
+  const base = path.basename(lower);
+  if (base === '.env' || base.startsWith('.env.')) return true;
+  if (lower.endsWith('.pem') || lower.endsWith('.key') || lower.endsWith('.p12') || lower.endsWith('.pfx')) return true;
+  if (base === 'id_rsa' || base === 'id_ecdsa' || base === 'id_ed25519') return true;
+  return false;
+}
+
 function parseArgs(argv) {
   const args = {
     outDir: path.join(ROOT, 'data/internal-research'),
@@ -35,7 +60,7 @@ function parseArgs(argv) {
     ocrDir: path.join(ROOT, 'tmp/docs/ocr-output'),
     includeDirs: [...DEFAULT_INCLUDE_DIRS],
     includePatterns: [],
-    emitAppCopy: true,
+    emitAppCopy: false,
   };
 
   for (let i = 2; i < argv.length; i += 1) {
@@ -79,6 +104,10 @@ async function walkFiles(dir, rootDir, results = []) {
     const abs = path.join(dir, entry.name);
     const rel = path.relative(rootDir, abs).split(path.sep).join('/');
     if (isIgnoredDir(rel)) {
+      continue;
+    }
+
+    if (isSensitiveFile(rel)) {
       continue;
     }
 
@@ -211,6 +240,9 @@ async function main() {
 
   const uniqueByPath = new Map();
   for (const file of fileCandidates) {
+    if (!matchesAnyPattern(file.rel, args.includePatterns)) {
+      continue;
+    }
     uniqueByPath.set(file.rel, file);
   }
 

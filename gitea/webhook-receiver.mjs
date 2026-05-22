@@ -6,10 +6,11 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const port = Number(process.env.GITEA_WEBHOOK_PORT || 4545);
-const host = process.env.GITEA_WEBHOOK_HOST || '0.0.0.0';
+const host = process.env.GITEA_WEBHOOK_HOST || '127.0.0.1';
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = process.env.GITEA_REPO_ROOT || path.resolve(scriptDir, '..');
 const sharedSecret = process.env.GITEA_WEBHOOK_SECRET || '';
+const requireSharedSecret = process.env.GITEA_REQUIRE_SECRET !== 'false' && process.env.NODE_ENV !== 'development';
 const allowedBranch = process.env.GITEA_ALLOWED_BRANCH || 'main';
 const testCommand = process.env.GITEA_TEST_COMMAND || 'npm run build && npx ts-node --esm scripts/sync-training.ts';
 const maxBodyBytes = Number(process.env.GITEA_MAX_BODY_BYTES || 1048576);
@@ -64,6 +65,10 @@ function getProvidedSecret(headers) {
 
 function hasValidSecret(req) {
   if (!sharedSecret) {
+    return !requireSharedSecret;
+  }
+
+  if (!requireSharedSecret) {
     return true;
   }
 
@@ -191,5 +196,6 @@ server.listen(port, host, () => {
   console.log(`Gitea webhook receiver listening on http://${host}:${port}`);
   console.log(`Repo root: ${repoRoot}`);
   console.log(`Allowed branch: ${allowedBranch}`);
+  console.log(`Shared secret required: ${requireSharedSecret}`);
   console.log(`Test command: ${testCommand}`);
 });

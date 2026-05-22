@@ -109,13 +109,16 @@ function getWhisperProxyUrl(): string {
 }
 
 async function blobToBase64(blob: Blob): Promise<string> {
-  const arrayBuffer = await blob.arrayBuffer()
-  const bytes = new Uint8Array(arrayBuffer)
-  let binary = ''
-  for (let i = 0; i < bytes.length; i += 1) {
-    binary += String.fromCharCode(bytes[i])
-  }
-  return btoa(binary)
+  return await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onloadend = () => {
+      const result = String(reader.result ?? '')
+      const commaIndex = result.indexOf(',')
+      resolve(commaIndex >= 0 ? result.slice(commaIndex + 1) : result)
+    }
+    reader.onerror = () => reject(reader.error ?? new Error('Failed to encode audio blob'))
+    reader.readAsDataURL(blob)
+  })
 }
 
 export default function ChatStudio() {
@@ -325,44 +328,47 @@ export default function ChatStudio() {
       const bobManagerUrl = getBobManagerUrl()
       const controller = new AbortController()
       const timeoutId = window.setTimeout(() => controller.abort(), 30000)
-      const response = await fetch(`${bobManagerUrl}/api/heal`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        signal: controller.signal,
-        body: JSON.stringify({
-          errorMessage: 'MANUAL_USER_INSTRUCTION',
-          stackTrace: trimmed,
-          userPrompt: trimmed,
-          sessionId: bobSessionIdRef.current,
-          messages: buildBobHistory(nextThread).slice(-10),
-          errorPayload: {
-            tag: 'MANUAL_USER_INSTRUCTION',
-            route: '/chat-studio',
-            text: trimmed,
+      try {
+        const response = await fetch(`${bobManagerUrl}/api/heal`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
           },
-        }),
-      })
-      window.clearTimeout(timeoutId)
+          signal: controller.signal,
+          body: JSON.stringify({
+            errorMessage: 'MANUAL_USER_INSTRUCTION',
+            stackTrace: trimmed,
+            userPrompt: trimmed,
+            sessionId: bobSessionIdRef.current,
+            messages: buildBobHistory(nextThread).slice(-10),
+            errorPayload: {
+              tag: 'MANUAL_USER_INSTRUCTION',
+              route: '/chat-studio',
+              text: trimmed,
+            },
+          }),
+        })
 
-      if (!response.ok) {
-        const errorText = await response.text()
-        throw new Error(`Bob manager request failed (${response.status}): ${errorText}`)
+        if (!response.ok) {
+          const errorText = await response.text()
+          throw new Error(`Bob manager request failed (${response.status}): ${errorText}`)
+        }
+
+        const data = await response.json() as {
+          bobResponse?: string
+          response?: string
+          message?: string
+          text?: string
+        }
+
+        const replyText = String(
+          data?.bobResponse || data?.response || data?.message || data?.text || 'Command acknowledged.',
+        ).trim()
+
+        replaceBobMessage(pendingReplyId, replyText || 'Command acknowledged.')
+      } finally {
+        window.clearTimeout(timeoutId)
       }
-
-      const data = await response.json() as {
-        bobResponse?: string
-        response?: string
-        message?: string
-        text?: string
-      }
-
-      const replyText = String(
-        data?.bobResponse || data?.response || data?.message || data?.text || 'Command acknowledged.',
-      ).trim()
-
-      replaceBobMessage(pendingReplyId, replyText || 'Command acknowledged.')
     } catch (err: any) {
       toast.error('Bob could not process that command right now.', { description: err?.message || 'Please retry.' })
       replaceBobMessage(pendingReplyId, 'Bob is temporarily unavailable, but the command has been captured for retry.')

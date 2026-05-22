@@ -37,7 +37,7 @@ Completed:
 
 Validation:
 
-1. Backend build (Node 20 + npm 10 contract) -> PASS.
+1. Backend build (Node 20.15.0 + npm 10.8.2 contract) -> PASS.
 2. Root build (TypeScript + Vite) -> PASS.
 3. Docs sync into `system_documentation_library` -> PASS (includes document-intelligence runbook).
 

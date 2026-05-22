@@ -11690,6 +11690,142 @@ export type Database = {
           },
         ]
       }
+      heal_patches: {
+        Row: {
+          created_at: string
+          deployed_at: string | null
+          dr_bob_analysis: string
+          error_message: string | null
+          error_payload: Json
+          id: string
+          patch: Json
+          patch_value: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          service_name: string | null
+          status: string
+          target_variable: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          deployed_at?: string | null
+          dr_bob_analysis: string
+          error_message?: string | null
+          error_payload?: Json
+          id?: string
+          patch?: Json
+          patch_value?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          service_name?: string | null
+          status: string
+          target_variable?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          deployed_at?: string | null
+          dr_bob_analysis?: string
+          error_message?: string | null
+          error_payload?: Json
+          id?: string
+          patch?: Json
+          patch_value?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          service_name?: string | null
+          status?: string
+          target_variable?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      system_rules: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          rule_key: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          rule_key: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          rule_key?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      system_templates: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          ಟೆంప್ಲేట్_key?: never
+          template_key: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          template_key: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          template_key?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      system_knowledge_base: {
+        Row: {
+          agent_roles: Json
+          created_at: string
+          id: string
+          schema_payload: string
+          service_name: string
+          system_rules: Json
+          updated_at: string
+        }
+        Insert: {
+          agent_roles?: Json
+          created_at?: string
+          id?: string
+          schema_payload: string
+          service_name: string
+          system_rules?: Json
+          updated_at?: string
+        }
+        Update: {
+          agent_roles?: Json
+          created_at?: string
+          id?: string
+          schema_payload?: string
+          service_name?: string
+          system_rules?: Json
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       v_canonical_person_obs_summary: {
