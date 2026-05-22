@@ -90,3 +90,16 @@ Go / No-Go outcome:
 
 - Decision: Go
 - Condition: PM narrative must explicitly keep smoke signoff as pending independent approval and keep ALPR/face claims within current evidence boundaries.
+
+## Historical Import Enhancements (2026-05-22)
+
+Progress status indicators:
+
+- Narrative Slot Parser: 100% complete
+- Confidence Thresholds: 100% complete
+- QA CSV Export: 100% complete
+- Verification: 100% complete
+
+Deployment note:
+
+These enhancements were successfully implemented and validated in `scripts/import-first-security-nelson-historical.mjs`, including parser behavior, threshold controls, and QA export flow.
