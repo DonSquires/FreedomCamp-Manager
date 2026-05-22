@@ -86,6 +86,20 @@ const DOCUMENTATION_SEEDS: DocumentationSeed[] = [
     priority: 'medium',
     allowedAgents: ['dr_bob', 'bob'],
   },
+  {
+    filePath: 'docs/AI_PATCH_RUNBOOKS.md',
+    intentKeywords: [
+      'triage',
+      'pool',
+      'eas',
+      'error',
+      'debugging',
+      'patch',
+      'runbook',
+    ],
+    priority: 'high',
+    allowedAgents: ['dr_bob', 'bob', 'emulator'],
+  },
 ];
 
 const docsBucketName = process.env.SYSTEM_DOCS_BUCKET ?? 'bob-tier-b-docs';
