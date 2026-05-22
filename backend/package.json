@@ -16,6 +16,8 @@
     "train:sync": "npx --yes supabase gen types typescript --project-id \"$SUPABASE_PROJECT_REF\" > src/types.ts && npx ts-node --esm scripts/sync-training.ts",
     "train:validate": "if [ -n \"$SUPABASE_PROJECT_REF\" ]; then npx --yes supabase gen types typescript --project-id \"$SUPABASE_PROJECT_REF\" > src/types.ts; else echo \"SUPABASE_PROJECT_REF not set; skipping live type generation\"; fi && npm run build",
     "docs:sync": "npx ts-node --esm scripts/sync-docs.ts",
+    "kb:update:railway": "npx ts-node --esm scripts/temp-update-railway-kb.ts",
+    "kb:refresh": "npm run kb:update:railway && npm run docs:sync",
     "train:all": "npm run train:sync && npm run docs:sync"
   },
   "dependencies": {
