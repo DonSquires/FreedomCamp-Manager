@@ -103,6 +103,7 @@ const serviceRoleSupabase = canInitServiceRoleSupabase
       },
     })
   : null
+const enforcePersonaBootstrap = readEnv('PLAYWRIGHT_ENFORCE_PERSONA_BOOTSTRAP') === '1' || (process.env.CI === 'true' && !!serviceRoleSupabase)
 // Profile mutations are opt-in to avoid changing persistent user settings in
 // shared/staging environments. Enable both flags in isolated test sandboxes.
 const allowProfileMutations = readEnv('PLAYWRIGHT_ALLOW_PROFILE_MUTATIONS') === '1' || hasUniversalTestAccount
@@ -971,7 +972,7 @@ async function resolvePortalSelectionIfNeeded(page: Page, user: TestUserKey): Pr
 
 export async function loginAs(page: Page, user: TestUserKey): Promise<void> {
   const credentials = getTestUser(user)
-  await ensureBootstrapTestAccount(user, credentials)
+  await ensureBootstrapTestAccount(user, credentials, { force: enforcePersonaBootstrap })
 
   let lastErrorText: string | null = null
   let apiFallbackError: string | null = null
