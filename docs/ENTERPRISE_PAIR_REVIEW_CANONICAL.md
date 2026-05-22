@@ -129,6 +129,13 @@ Material outcomes after runtime-log-driven remediation:
    - Deployment: `1d223fb3-91b5-4c26-b862-616dccb20346`
    - Commit: `eda72b4a59651d4cbd716ad965e0a5e6d5b3d257`
 
+Closure checklist (100% complete):
+
+1. WebSocket Node 20 transport migration completed.
+2. Supabase realtime transport type-safety casting completed.
+3. Dynamic environment token mapping completed (runtime `PORT` + live model/env wiring).
+4. Serverless dual-mode chat execution completed (non-stream + SSE stream).
+
 Validation state:
 
 1. `GET /health` -> HTTP 200 (`ok: true`).

@@ -78,11 +78,19 @@ Executed remediation:
 - [x] Added TypeScript declarations (`@types/ws`) and transport type-compatibility cast so container build passes strict compile.
 - [x] Triggered fresh production deployment and re-validated contract probes.
 
+Completion register (Phase closure: 100%):
+
+- [x] WebSocket Node 20 transport migration complete.
+- [x] Type-safety casting for Supabase realtime transport complete.
+- [x] Dynamic environment token mapping complete (`PORT` runtime mapping + production model/env variable wiring).
+- [x] Serverless dual-mode streaming features complete (non-stream and SSE stream contracts).
+
 Validation evidence:
 
 1. Deployment:
   - `fieldops-backend` deployment `1d223fb3-91b5-4c26-b862-616dccb20346` -> `SUCCESS`.
   - Commit: `eda72b4a59651d4cbd716ad965e0a5e6d5b3d257`.
+  - Backend compiled and deployed cleanly via `backend/Dockerfile` target.
 2. Health endpoint:
   - `GET /health` -> HTTP 200 with `{ "ok": true, "service": "fieldops-backend" }`.
 3. Non-stream chat contract:
