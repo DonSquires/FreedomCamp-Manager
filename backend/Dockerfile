@@ -1,4 +1,4 @@
-FROM node:22-alpine AS builder
+FROM node:20-alpine AS builder
 
 WORKDIR /app
 
@@ -7,11 +7,12 @@ RUN npm install
 
 COPY tsconfig.json ./
 COPY src/ ./src/
+COPY scripts/ ./scripts/
 
 RUN npm run build
 
 # ---- Production image ----
-FROM node:22-alpine AS runner
+FROM node:20-alpine AS runner
 
 WORKDIR /app
 

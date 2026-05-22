@@ -15,8 +15,8 @@ function fail(message) {
 const nodeMajor = parseMajor(process.version);
 const npmMajor = parseMajor(process.env.npm_config_user_agent?.match(/npm\/(\d+)/)?.[1]);
 
-if (nodeMajor === null || nodeMajor < 22 || nodeMajor >= 23) {
-  fail(`Node 22.x is required. Detected: ${process.version}`);
+if (nodeMajor === null || nodeMajor < 20 || nodeMajor >= 21) {
+  fail(`Node 20.x is required. Detected: ${process.version}`);
 }
 
 if (npmMajor === null || npmMajor < 10 || npmMajor >= 11) {
