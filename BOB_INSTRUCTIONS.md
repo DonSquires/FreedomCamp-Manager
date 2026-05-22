@@ -32,6 +32,45 @@ MOCK_MODE=true bunx playwright test
 
 ---
 
+## 1A. Bob Toolchain Requirements (npm/npx)
+
+Bob must treat Node + npm as mandatory prerequisites for backend training and patch-sync workflows.
+
+### Required versions
+
+1. Node.js: `20.x`
+2. npm: `10.x`
+
+### Quick verification
+
+```bash
+command -v node && node -v
+command -v npm && npm -v
+```
+
+If either command is missing, do not attempt backend sync tasks in that shell. Move to a provisioned shell/container where Node 20 + npm 10 are available.
+
+### Canonical backend maintenance commands (npm-first)
+
+```bash
+cd backend
+
+# Toolchain guard
+npm run prebuild
+
+# Refresh railway-backend system rules + Tier B docs
+npm run kb:refresh
+
+# Full training sync
+npm run train:sync
+```
+
+### Rule
+
+Prefer `npm exec`-backed scripts (`package.json`) over direct `npx` invocations for deterministic execution across shells.
+
+---
+
 ## 2. Checking Supabase RLS for Multi-Tenant Safety
 
 ```bash
@@ -176,6 +215,10 @@ If Bex (officer) login fails:
 Bob writes self-correcting notes to `knowledge_base/` — one topic per file.
 When Bob discovers a non-obvious fix or root cause, it appends the finding to the
 appropriate file so that next time the same issue appears, retrieval is instant.
+
+Primary behavior contract for high-discipline operation is in:
+
+- `docs/BOB_CODESPACE_AI_MODE.md`
 
 ```
 knowledge_base/

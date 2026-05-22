@@ -100,6 +100,20 @@ const DOCUMENTATION_SEEDS: DocumentationSeed[] = [
     priority: 'high',
     allowedAgents: ['dr_bob', 'bob', 'emulator'],
   },
+  {
+    filePath: 'docs/BOB_CODESPACE_AI_MODE.md',
+    intentKeywords: [
+      'codespace',
+      'agentic',
+      'workflow',
+      'verification',
+      'triage',
+      'patch',
+      'grounding',
+    ],
+    priority: 'critical',
+    allowedAgents: ['dr_bob', 'bob', 'emulator'],
+  },
 ];
 
 const docsBucketName = process.env.SYSTEM_DOCS_BUCKET ?? 'bob-tier-b-docs';
