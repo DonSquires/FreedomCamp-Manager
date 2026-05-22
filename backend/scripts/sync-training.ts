@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createClient } from '@supabase/supabase-js';
+import ws from 'ws';
 
 function requireEnv(name: string): string {
   const value = process.env[name];
@@ -29,7 +30,11 @@ if (!supabaseUrl) {
 
 const supabaseServiceRoleKey = requireEnv('SUPABASE_SERVICE_ROLE_KEY');
 
-const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
+const supabase = createClient(supabaseUrl, supabaseServiceRoleKey, {
+  realtime: {
+    transport: ws as unknown as never,
+  },
+});
 
 const systemRules = [
   'You operate under absolute type-safety. Never invent tables, columns, or relationships not explicitly stated in the schema_payload.',

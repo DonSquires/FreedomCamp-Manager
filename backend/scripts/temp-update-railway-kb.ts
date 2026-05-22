@@ -1,6 +1,7 @@
 import 'dotenv/config'
 
 import { createClient } from '@supabase/supabase-js'
+import ws from 'ws'
 
 type JsonValue = string | number | boolean | null | JsonObject | JsonArray
 type JsonObject = { [key: string]: JsonValue }
@@ -56,7 +57,11 @@ async function main(): Promise<void> {
 
   const supabaseServiceRoleKey = requireEnv('SUPABASE_SERVICE_ROLE_KEY')
 
-  const supabase = createClient(supabaseUrl, supabaseServiceRoleKey)
+  const supabase = createClient(supabaseUrl, supabaseServiceRoleKey, {
+    realtime: {
+      transport: ws as unknown as never,
+    },
+  })
 
   const strictProtocols = [
     'Strict Triage Matrix Protocol: classify domain, assign severity, capture hard evidence, prefer reversible patches, validate with deterministic pass/fail contract probes.',
