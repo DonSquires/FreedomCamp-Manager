@@ -49,12 +49,24 @@ CREATE OR REPLACE FUNCTION public.loi_serves_domain(
   p_domain TEXT
 )
 RETURNS BOOLEAN LANGUAGE sql STABLE AS $$
-  SELECT
-    CASE
-      WHEN '*' = ANY((SELECT service_domains FROM locations_of_interest WHERE id = p_loi_id))
-        THEN TRUE
-      ELSE p_domain = ANY((SELECT service_domains FROM locations_of_interest WHERE id = p_loi_id))
-    END;
+  SELECT COALESCE(
+    (
+      WITH loi AS (
+        SELECT to_jsonb(service_domains) AS domains
+        FROM public.locations_of_interest
+        WHERE id = p_loi_id
+      )
+      SELECT CASE
+        WHEN jsonb_typeof(domains) = 'array' THEN
+          (domains ? '*') OR (domains ? 'all') OR (domains ? p_domain)
+        WHEN jsonb_typeof(domains) = 'string' THEN
+          lower(trim(both '"' from domains::text)) IN ('*', 'all', lower(p_domain))
+        ELSE FALSE
+      END
+      FROM loi
+    ),
+    FALSE
+  );
 $$;
 
 COMMENT ON FUNCTION public.loi_serves_domain(UUID, TEXT) IS
