@@ -458,6 +458,14 @@ const SUPABASE_JWT_SECRET = optionalAnyEnv(['SUPABASE_JWT_SECRET']);
 const EFFECTIVE_SUPABASE_URL = SUPABASE_URL ?? 'http://127.0.0.1:54321';
 const EFFECTIVE_SUPABASE_SERVICE_ROLE_KEY = SUPABASE_SERVICE_ROLE_KEY ?? 'missing-service-role-key';
 const supabaseConfigReady = Boolean(SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY);
+const STRICT_STARTUP = parseBool(process.env.STRICT_STARTUP ?? 'false');
+
+if (!supabaseConfigReady && STRICT_STARTUP) {
+  throw new Error(
+    'Supabase configuration is incomplete and STRICT_STARTUP is enabled. ' +
+      'Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY, or disable STRICT_STARTUP.'
+  );
+}
 
 if (!supabaseConfigReady) {
   console.warn(
@@ -495,6 +503,29 @@ app.use((req, res, next) => {
 });
 
 app.use(express.json());
+
+app.use((req, res, next) => {
+  if (supabaseConfigReady) {
+    next();
+    return;
+  }
+
+  if (req.path === '/health') {
+    next();
+    return;
+  }
+
+  if (req.path.startsWith('/api/')) {
+    res.status(503).json({
+      error: 'Service temporarily unavailable',
+      code: 'SUPABASE_CONFIG_MISSING',
+      message: 'Backend is running in degraded mode. Configure SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.',
+    });
+    return;
+  }
+
+  next();
+});
 
 // ── Supabase (service role — backend only, never expose to client) ──────────
 const supabase = createClient(
@@ -788,6 +819,7 @@ app.get('/health', (_req: Request, res: Response) => {
     ok: true,
     service: 'fieldops-backend',
     degraded: !supabaseConfigReady,
+    strict_startup: STRICT_STARTUP,
     checks: {
       supabase_url: Boolean(SUPABASE_URL),
       supabase_service_role_key: Boolean(SUPABASE_SERVICE_ROLE_KEY),
@@ -3180,6 +3212,40 @@ app.post('/api/automation/playwright-result', async (req: Request, res: Response
 
 // ── Start server ─────────────────────────────────────────────────────────────
 const PORT = process.env.PORT ?? 3000;
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`[FieldOps Backend] Listening on port ${PORT}`);
 });
+
+server.on('error', (error: NodeJS.ErrnoException) => {
+  console.error('[FieldOps Backend] Server startup error', {
+    message: error.message,
+    code: error.code,
+    port: PORT,
+  });
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.error('[FieldOps Backend] Unhandled promise rejection', reason);
+});
+
+process.on('uncaughtException', (error) => {
+  console.error('[FieldOps Backend] Uncaught exception', error);
+  process.exit(1);
+});
+
+function shutdown(signal: 'SIGTERM' | 'SIGINT'): void {
+  console.log(`[FieldOps Backend] Received ${signal}, shutting down`);
+  server.close(() => {
+    console.log('[FieldOps Backend] HTTP server closed');
+    process.exit(0);
+  });
+
+  setTimeout(() => {
+    console.error('[FieldOps Backend] Forced shutdown after timeout');
+    process.exit(1);
+  }, 10000).unref();
+}
+
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
