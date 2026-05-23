@@ -19,6 +19,7 @@ DECLARE
   v_first_security_id  uuid;
   v_owner_org_id       uuid;
   v_has_ensure_zone_fn boolean := false;
+  v_has_zone_type_col  boolean := false;
   v_org                record;
   v_inserted           integer := 0;
   v_zones_called       integer := 0;
@@ -165,6 +166,14 @@ BEGIN
       AND p.proname = 'ensure_other_location_zone'
   ) INTO v_has_ensure_zone_fn;
 
+  SELECT EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'zones'
+      AND column_name = 'zone_type'
+  ) INTO v_has_zone_type_col;
+
   -- -------------------------------------------------------------------------
   -- 2. Insert organisations that do not already exist (by name)
   -- -------------------------------------------------------------------------
@@ -229,7 +238,7 @@ BEGIN
   -- -------------------------------------------------------------------------
   -- 4. Ensure every org has an "Other Location" zone (if helper exists)
   -- -------------------------------------------------------------------------
-  IF v_has_ensure_zone_fn THEN
+  IF v_has_ensure_zone_fn AND v_has_zone_type_col THEN
     FOR v_org IN
       SELECT id, name
       FROM organizations
@@ -241,6 +250,8 @@ BEGIN
     END LOOP;
 
     RAISE NOTICE '✅ ensure_other_location_zone() called for % organisations', v_zones_called;
+  ELSIF v_has_ensure_zone_fn AND NOT v_has_zone_type_col THEN
+    RAISE NOTICE '⚠️ zones.zone_type not present; skipping ensure_other_location_zone() bootstrap in this migration.';
   ELSE
     RAISE NOTICE '⚠️ ensure_other_location_zone(uuid) not found; skipping zone bootstrap step.';
   END IF;
