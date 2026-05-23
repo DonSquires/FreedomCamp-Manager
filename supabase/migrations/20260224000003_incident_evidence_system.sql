@@ -46,6 +46,15 @@ CREATE TABLE IF NOT EXISTS public.incidents (
   metadata JSONB DEFAULT '{}'::jsonb
 );
 
+-- Legacy-compatible uplift: earlier schemas may already have incidents without
+-- the full retention/soft-delete contract used below.
+ALTER TABLE public.incidents
+  ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW(),
+  ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW(),
+  ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS retention_hold BOOLEAN DEFAULT FALSE,
+  ADD COLUMN IF NOT EXISTS retention_until TIMESTAMPTZ;
+
 -- ============================================================================
 -- Indexes
 -- ============================================================================
