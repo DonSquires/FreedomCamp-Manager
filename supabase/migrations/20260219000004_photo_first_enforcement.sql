@@ -423,7 +423,7 @@ BEGIN
   RAISE NOTICE 'Total observations: %', total_count;
   RAISE NOTICE 'With photo hash: %', with_hash;
   RAISE NOTICE 'Missing hash: %', missing_hash;
-  RAISE NOTICE 'Coverage: %% (Target: ≥99.95%%)', coverage_pct;
+  RAISE NOTICE 'Coverage: % (Target: ≥99.95%%)', coverage_pct;
   RAISE NOTICE '===========================================';
   
   IF missing_hash > 0 THEN
