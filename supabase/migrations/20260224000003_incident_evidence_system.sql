@@ -49,6 +49,8 @@ CREATE TABLE IF NOT EXISTS public.incidents (
 -- Legacy-compatible uplift: earlier schemas may already have incidents without
 -- the full retention/soft-delete contract used below.
 ALTER TABLE public.incidents
+  ADD COLUMN IF NOT EXISTS organization_id UUID REFERENCES public.organizations(id) ON DELETE CASCADE,
+  ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES public.user_profiles(id) ON DELETE SET NULL,
   ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW(),
   ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW(),
   ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ,
