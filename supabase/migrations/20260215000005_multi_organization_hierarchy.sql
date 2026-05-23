@@ -102,30 +102,30 @@ add column if not exists organization_id uuid references organizations(id) on de
 create index if not exists idx_photo_metadata_org on photo_metadata(organization_id);
 
 -- Backfill from linked observation rows where available.
-DO $$
+DO $do$
 BEGIN
   IF EXISTS (
     SELECT 1 FROM information_schema.tables
     WHERE table_schema = 'public' AND table_name = 'observations'
   ) THEN
-    EXECUTE $$
+    EXECUTE $sql$
       UPDATE photo_metadata pm
       SET organization_id = o.organization_id
       FROM observations o
       WHERE pm.organization_id IS NULL
         AND pm.observation_id = o.observation_id
-    $$;
+    $sql$;
   ELSIF EXISTS (
     SELECT 1 FROM information_schema.tables
     WHERE table_schema = 'public' AND table_name = 'vehicle_observations'
   ) THEN
-    EXECUTE $$
+    EXECUTE $sql$
       UPDATE photo_metadata pm
       SET organization_id = vo.organization_id
       FROM vehicle_observations vo
       WHERE pm.organization_id IS NULL
         AND pm.observation_id = vo.observation_id
-    $$;
+    $sql$;
   END IF;
 
   -- Fallback from uploader profile when observation linkage is unavailable.
@@ -134,7 +134,7 @@ BEGIN
   FROM user_profiles up
   WHERE pm.organization_id IS NULL
     AND pm.user_id = up.id;
-END $$;
+END $do$;
 
 -- Step 5: Update RLS policies to use recursive multi-org logic
 -- We'll update key tables to support multi-org access
