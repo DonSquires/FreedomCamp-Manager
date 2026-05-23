@@ -1,6 +1,50 @@
 -- B1 Lean: Link existing patrol infrastructure to case model + welfare tracking
 -- This is a bridge migration that doesn't recreate existing patrol tables
 
+CREATE TABLE IF NOT EXISTS public.patrol_routes (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
+
+  route_name TEXT NOT NULL,
+  route_code TEXT UNIQUE,
+  description TEXT,
+
+  route_type TEXT NOT NULL DEFAULT 'regular'
+    CHECK (route_type IN ('regular', 'mobile', 'static', 'roving', 'response')),
+
+  default_shift TEXT DEFAULT 'day' CHECK (default_shift IN ('day', 'swing', 'night')),
+  default_start_time TIME,
+  default_end_time TIME,
+  expected_duration_minutes INTEGER,
+
+  primary_zone_id UUID REFERENCES public.zones(id),
+  secondary_zone_ids UUID[] DEFAULT '{}',
+  client_site_ids UUID[] DEFAULT '{}',
+
+  checkpoint_mode TEXT DEFAULT 'sequential'
+    CHECK (checkpoint_mode IN ('sequential', 'any_order', 'random', 'none')),
+  min_checkpoints_required INTEGER,
+
+  active_days INTEGER[] DEFAULT '{1,2,3,4,5,6,7}',
+  is_active BOOLEAN DEFAULT TRUE,
+
+  color TEXT DEFAULT '#3B82F6',
+  icon TEXT DEFAULT 'route',
+  tags TEXT[] DEFAULT '{}',
+
+  created_by UUID REFERENCES public.user_profiles(id),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_patrol_routes_org
+  ON public.patrol_routes(organization_id) WHERE is_active;
+CREATE INDEX IF NOT EXISTS idx_patrol_routes_code
+  ON public.patrol_routes(route_code) WHERE route_code IS NOT NULL;
+
+COMMENT ON TABLE public.patrol_routes IS
+  'Named patrol route templates with checkpoints, coverage, and default timing.';
+
 CREATE TABLE IF NOT EXISTS public.patrol_route_instances (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
