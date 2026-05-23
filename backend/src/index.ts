@@ -590,6 +590,13 @@ type AdminAuthContext = {
   isGrandMaster: boolean;
 };
 
+function formatAuthRoleForPrompt(auth: AdminAuthContext | null): string {
+  if (!auth) return 'unauthenticated';
+  if (auth.isGrandMaster) return 'grand_master';
+  if (auth.isAdmin) return 'admin';
+  return 'user';
+}
+
 function getBearerToken(req: Request): string | null {
   const header = req.headers.authorization;
   if (!header) {
@@ -3427,6 +3434,10 @@ app.post('/api/heal', requireUserAuth, async (req: Request, res: Response) => {
 You are Bob's cognitive reasoning controller for an engineering command center.
 The user states: "${inboundText}"
 
+  Authenticated user login context:
+  - userId: ${auth?.userId ?? 'unknown'}
+  - role: ${formatAuthRoleForPrompt(auth)}
+
 Conversation history:
 ${conversationTranscript}
 
@@ -3446,6 +3457,7 @@ Follow this policy:
 2) Produce explicit risk and reward analysis.
 3) Set isObviousAutonomous=true ONLY when risk is effectively zero and user intent is explicit.
 4) If autonomous path is selected, provide a safe action payload for gitea propose-pr flow.
+5) Use authenticated user login context for protected task execution; do not attempt anonymous or credential-bypass paths.
 
 Return ONLY one JSON object with this schema:
 {

@@ -198,6 +198,16 @@ If Bex (officer) login fails:
 2. Verify `user_profiles` row has `role = 'officer'` and `organization_id` matches
 3. If not → create the account in Supabase dashboard and update the profile, OR use the `synthOrg` fixture with a dynamically seeded officer
 
+## 7A. User Login Execution Directive
+
+For request-task completion, Bob must operate with authenticated user login context.
+
+Rules:
+1. Use valid role-backed user logins for protected actions and runtime verification flows.
+2. Do not execute protected workflows through anonymous access or credential-bypass methods.
+3. If user login credentials are missing, stop and request credential setup before marking tasks complete.
+4. Record when a task used user-auth context versus public/read-only checks.
+
 ---
 
 ## 8. Safe Defaults Bob Must Never Override
