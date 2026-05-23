@@ -19,7 +19,6 @@ SET search_path = public
 AS $$
 DECLARE
   obs record;
-  zone_rules record;
   homeless_status text;
   is_homeless boolean := false;
   consecutive_nights int := 0;
@@ -40,7 +39,7 @@ BEGIN
     cv.nzscv_warrant_type,
     cv.nzscv_warrant_expires_on,
     cv.homeless_status
-  INTO obs, zone_rules, csc_warrant, csc_expiry, homeless_status
+  INTO obs
   FROM observations o
   LEFT JOIN zone_compliance_matrix zcm ON zcm.zone_id = o.zone_id AND zcm.effective_to IS NULL
   LEFT JOIN canonical_vehicles cv ON cv.plate_number = o.plate_number
@@ -51,11 +50,15 @@ BEGIN
   END IF;
 
   -- Derive compliance inputs
+  csc_warrant := obs.nzscv_warrant_type;
+  csc_expiry := obs.nzscv_warrant_expires_on;
+  homeless_status := obs.homeless_status;
+
   is_homeless := COALESCE(homeless_status = 'confirmed', false);
-  requires_csc := COALESCE(zone_rules.requires_csc, true);
+  requires_csc := COALESCE(obs.requires_csc, true);
   vehicle_has_csc := (csc_warrant IS NOT NULL) AND (csc_expiry IS NULL OR csc_expiry >= current_date);
-  max_consecutive := COALESCE(zone_rules.max_consecutive_nights, 3);
-  max_monthly := COALESCE(zone_rules.nights_per_month, 28);
+  max_consecutive := COALESCE(obs.max_consecutive_nights, 3);
+  max_monthly := COALESCE(obs.nights_per_month, 28);
 
   -- Get monthly stays for this vehicle
   SELECT COALESCE(SUM(nights_stayed), 0), COALESCE(MAX(consecutive_nights), 0)
