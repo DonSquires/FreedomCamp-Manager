@@ -117,6 +117,16 @@ CREATE INDEX IF NOT EXISTS idx_service_agreement_obligations_client
   ON public.service_agreement_obligations(client_org_id)
   WHERE client_org_id IS NOT NULL;
 
+CREATE OR REPLACE FUNCTION public.set_updated_at()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$;
+
 DROP TRIGGER IF EXISTS set_service_agreement_obligations_updated_at ON public.service_agreement_obligations;
 CREATE TRIGGER set_service_agreement_obligations_updated_at
   BEFORE UPDATE ON public.service_agreement_obligations
