@@ -208,7 +208,7 @@ CREATE INDEX IF NOT EXISTS idx_breach_alerts_status_created
 -- Officer Activity: recent activity for active officer counts
 CREATE INDEX IF NOT EXISTS idx_officer_activity_recent 
   ON public.officer_activity_log (recorded_at DESC)
-  WHERE recorded_at >= NOW() - INTERVAL '2 hours';
+  WHERE recorded_at IS NOT NULL;
 
 -- ============================================================================
 -- Verification
