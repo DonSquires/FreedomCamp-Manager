@@ -28,10 +28,10 @@ CREATE TABLE IF NOT EXISTS public.ops_live_plans (
   assignment_scope TEXT NOT NULL DEFAULT 'organization' CHECK (
     assignment_scope IN ('organization', 'zone', 'client_site', 'service_provider_office')
   ),
-  zone_id UUID REFERENCES public.zones(id) ON DELETE SET NULL,
-  client_site_id UUID REFERENCES public.client_sites(id) ON DELETE SET NULL,
+  zone_id UUID,
+  client_site_id UUID,
   service_provider_org_id UUID REFERENCES public.organizations(id) ON DELETE SET NULL,
-  service_provider_office_id UUID REFERENCES public.office_locations(id) ON DELETE SET NULL,
+  service_provider_office_id UUID,
 
   field_staff_can_view BOOLEAN NOT NULL DEFAULT true,
 
@@ -75,8 +75,8 @@ CREATE TABLE IF NOT EXISTS public.ops_live_plan_reviews (
   source_table TEXT NOT NULL,
   source_id UUID NOT NULL,
 
-  zone_id UUID REFERENCES public.zones(id) ON DELETE SET NULL,
-  client_site_id UUID REFERENCES public.client_sites(id) ON DELETE SET NULL,
+  zone_id UUID,
+  client_site_id UUID,
 
   event_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'acknowledged', 'completed')),
@@ -91,6 +91,71 @@ CREATE INDEX IF NOT EXISTS idx_ops_live_plan_reviews_org_status
 
 CREATE INDEX IF NOT EXISTS idx_ops_live_plan_reviews_plan
   ON public.ops_live_plan_reviews(plan_id, event_at DESC);
+
+DO $$
+BEGIN
+  IF to_regclass('public.zones') IS NOT NULL THEN
+    IF NOT EXISTS (
+      SELECT 1
+      FROM pg_constraint
+      WHERE conname = 'ops_live_plans_zone_id_fkey'
+    ) THEN
+      ALTER TABLE public.ops_live_plans
+        ADD CONSTRAINT ops_live_plans_zone_id_fkey
+        FOREIGN KEY (zone_id) REFERENCES public.zones(id) ON DELETE SET NULL;
+    END IF;
+
+    IF NOT EXISTS (
+      SELECT 1
+      FROM pg_constraint
+      WHERE conname = 'ops_live_plan_reviews_zone_id_fkey'
+    ) THEN
+      ALTER TABLE public.ops_live_plan_reviews
+        ADD CONSTRAINT ops_live_plan_reviews_zone_id_fkey
+        FOREIGN KEY (zone_id) REFERENCES public.zones(id) ON DELETE SET NULL;
+    END IF;
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF to_regclass('public.client_sites') IS NOT NULL THEN
+    IF NOT EXISTS (
+      SELECT 1
+      FROM pg_constraint
+      WHERE conname = 'ops_live_plans_client_site_id_fkey'
+    ) THEN
+      ALTER TABLE public.ops_live_plans
+        ADD CONSTRAINT ops_live_plans_client_site_id_fkey
+        FOREIGN KEY (client_site_id) REFERENCES public.client_sites(id) ON DELETE SET NULL;
+    END IF;
+
+    IF NOT EXISTS (
+      SELECT 1
+      FROM pg_constraint
+      WHERE conname = 'ops_live_plan_reviews_client_site_id_fkey'
+    ) THEN
+      ALTER TABLE public.ops_live_plan_reviews
+        ADD CONSTRAINT ops_live_plan_reviews_client_site_id_fkey
+        FOREIGN KEY (client_site_id) REFERENCES public.client_sites(id) ON DELETE SET NULL;
+    END IF;
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF to_regclass('public.office_locations') IS NOT NULL THEN
+    IF NOT EXISTS (
+      SELECT 1
+      FROM pg_constraint
+      WHERE conname = 'ops_live_plans_service_provider_office_id_fkey'
+    ) THEN
+      ALTER TABLE public.ops_live_plans
+        ADD CONSTRAINT ops_live_plans_service_provider_office_id_fkey
+        FOREIGN KEY (service_provider_office_id) REFERENCES public.office_locations(id) ON DELETE SET NULL;
+    END IF;
+  END IF;
+END $$;
 
 ALTER TABLE public.ops_live_plans ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.ops_live_plan_reviews ENABLE ROW LEVEL SECURITY;
