@@ -350,18 +350,30 @@ export async function executeWebSearch(query: string): Promise<string> {
     }
   }
 
-  const duckResponse = await axios.get('https://duckduckgo.com/html/', {
-    params: { q: normalizedQuery },
-    timeout: REQUEST_TIMEOUT_MS,
-    responseType: 'text',
-  });
+  try {
+    const duckResponse = await axios.get('https://duckduckgo.com/html/', {
+      params: { q: normalizedQuery },
+      timeout: REQUEST_TIMEOUT_MS,
+      responseType: 'text',
+    });
 
-  const snippets = extractDuckDuckGoSnippets(String(duckResponse.data ?? ''));
-  if (snippets) {
-    return truncate(`${providerErrors.length ? `[provider-fallback]\n${providerErrors.join('\n')}\n\n` : ''}${snippets}`);
+    const snippets = extractDuckDuckGoSnippets(String(duckResponse.data ?? ''));
+    if (snippets) {
+      return truncate(`${providerErrors.length ? `[provider-fallback]\n${providerErrors.join('\n')}\n\n` : ''}${snippets}`);
+    }
+
+    return truncate(`${providerErrors.length ? `[provider-fallback]\n${providerErrors.join('\n')}\n\n` : ''}${stripHtml(String(duckResponse.data ?? ''))}`);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    providerErrors.push(`duckduckgo: ${message}`);
+
+    return truncate([
+      '[provider-fallback]',
+      ...providerErrors,
+      '',
+      'No external research snippets could be retrieved from configured providers.',
+    ].join('\n'));
   }
-
-  return truncate(`${providerErrors.length ? `[provider-fallback]\n${providerErrors.join('\n')}\n\n` : ''}${stripHtml(String(duckResponse.data ?? ''))}`);
 }
 
 export async function fetchWebpageContent(url: string): Promise<string> {
