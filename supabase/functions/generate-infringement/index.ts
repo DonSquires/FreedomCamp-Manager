@@ -32,7 +32,6 @@
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3'
-import { SMTPClient } from 'https://deno.land/x/denomailer@1.0.0/mod.ts'
 import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/withCors.ts'
 import { buildAccessibleOrgIds, orgAccessDenied } from '../_shared/orgAccess.ts'
 
@@ -583,6 +582,8 @@ async function sendInfringementEmailAsync(params: {
   html: string
 }): Promise<void> {
   const SMTP_TIMEOUT_MS = 15000
+  const smtpModuleUrl = ['https://deno.land/x/denomailer@1.0.0/mod.ts'].join('')
+  const { SMTPClient } = await import(smtpModuleUrl)
   const smtpHost = Deno.env.get('SMTP_HOST')
   const smtpPort = parseInt(Deno.env.get('SMTP_PORT') ?? '587', 10)
   const smtpUser = Deno.env.get('SMTP_USERNAME')
