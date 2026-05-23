@@ -976,6 +976,63 @@ function isMissingModelError(error: unknown): boolean {
   return status === 404 && /model\s+'.+'\s+not\s+found/i.test(message);
 }
 
+async function generateWithOpenAi(systemPrompt: string, userMessage: string): Promise<{ responseText: string; modelUsed: string }> {
+  const apiKey = String(process.env.OPENAI_API_KEY ?? '').trim();
+  if (!apiKey) {
+    throw new Error('OPENAI_API_KEY is not configured');
+  }
+
+  const model = String(process.env.OPENAI_MODEL ?? process.env.OPENAI_RESEARCH_MODEL ?? 'gpt-4.1-mini').trim();
+  const response = await axios.post(
+    'https://api.openai.com/v1/responses',
+    {
+      model,
+      input: [
+        {
+          role: 'system',
+          content: [{ type: 'input_text', text: systemPrompt || '' }],
+        },
+        {
+          role: 'user',
+          content: [{ type: 'input_text', text: userMessage }],
+        },
+      ],
+    },
+    {
+      timeout: OLLAMA_MODEL_TIMEOUT_MS,
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+    },
+  );
+
+  const data = response.data as {
+    output_text?: string;
+    output?: Array<{ content?: Array<{ text?: string }> }>;
+  };
+
+  const outputText = String(data.output_text ?? '').trim();
+  if (outputText) {
+    return { responseText: outputText, modelUsed: `openai:${model}` };
+  }
+
+  const chunks: string[] = [];
+  for (const block of data.output ?? []) {
+    for (const content of block.content ?? []) {
+      const text = String(content.text ?? '').trim();
+      if (text) {
+        chunks.push(text);
+      }
+    }
+  }
+
+  return {
+    responseText: chunks.join('\n').trim(),
+    modelUsed: `openai:${model}`,
+  };
+}
+
 async function generateWithModelFallback(systemPrompt: string, userMessage: string): Promise<{ responseText: string; modelUsed: string }> {
   const baseUrl = process.env.OLLAMA_PROXY_URL ?? 'http://ollama:11434';
   const models = getOllamaModelCandidates().slice(0, OLLAMA_MAX_CANDIDATES);
@@ -1018,7 +1075,13 @@ async function generateWithModelFallback(systemPrompt: string, userMessage: stri
     }
   }
 
-  throw lastError instanceof Error ? lastError : new Error('No Ollama model candidates succeeded');
+  try {
+    return await generateWithOpenAi(systemPrompt, userMessage);
+  } catch (openAiError) {
+    console.error('[model-fallback] OpenAI fallback failed', openAiError);
+  }
+
+  throw lastError instanceof Error ? lastError : new Error('No model providers succeeded');
 }
 
 async function promptOllama(role: string, systemPrompt: string, userMessage: string): Promise<string> {
