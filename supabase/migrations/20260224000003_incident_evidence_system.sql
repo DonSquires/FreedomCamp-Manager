@@ -59,13 +59,13 @@ ALTER TABLE public.incidents
 -- Indexes
 -- ============================================================================
 
-CREATE INDEX idx_incidents_org ON public.incidents(organization_id) WHERE deleted_at IS NULL;
-CREATE INDEX idx_incidents_user ON public.incidents(user_id);
-CREATE INDEX idx_incidents_status ON public.incidents(status) WHERE deleted_at IS NULL;
-CREATE INDEX idx_incidents_plate ON public.incidents(plate_number) WHERE plate_number IS NOT NULL;
-CREATE INDEX idx_incidents_created ON public.incidents(created_at DESC) WHERE deleted_at IS NULL;
-CREATE INDEX idx_incidents_retention_hold ON public.incidents(retention_hold, retention_until) WHERE deleted_at IS NULL;
-CREATE INDEX idx_incidents_purge_eligible ON public.incidents(created_at) 
+CREATE INDEX IF NOT EXISTS idx_incidents_org ON public.incidents(organization_id) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_incidents_user ON public.incidents(user_id);
+CREATE INDEX IF NOT EXISTS idx_incidents_status ON public.incidents(status) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_incidents_plate ON public.incidents(plate_number) WHERE plate_number IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_incidents_created ON public.incidents(created_at DESC) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_incidents_retention_hold ON public.incidents(retention_hold, retention_until) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_incidents_purge_eligible ON public.incidents(created_at) 
   WHERE retention_hold = FALSE AND deleted_at IS NULL;
 
 -- ============================================================================
