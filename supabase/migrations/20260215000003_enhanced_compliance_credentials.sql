@@ -3,6 +3,12 @@
 
 -- Step 1: Add enhanced credential fields
 alter table user_profiles
+add column if not exists coa_number text,
+add column if not exists coa_expiry_date date,
+add column if not exists has_warrant boolean default false,
+add column if not exists warrant_number text,
+add column if not exists warrant_expiry_date date,
+add column if not exists compliance_status text default 'pending',
 add column if not exists authorized_activities jsonb default '[]'::jsonb,
 add column if not exists issuing_authority text,
 add column if not exists coa_license_type text,
