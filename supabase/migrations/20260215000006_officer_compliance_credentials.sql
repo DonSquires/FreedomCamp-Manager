@@ -182,6 +182,7 @@ comment on trigger trigger_validate_enforcement_credentials on enforcement_actio
 'Validates officer has valid warrant before allowing enforcement action creation';
 
 -- Step 7: Create view for compliance dashboard
+drop view if exists officer_compliance_dashboard;
 create or replace view officer_compliance_dashboard as
 select 
   up.id as user_id,
