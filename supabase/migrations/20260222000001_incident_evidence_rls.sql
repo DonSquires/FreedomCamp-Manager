@@ -14,8 +14,17 @@ BEGIN
 END
 $$;
 
--- Enable RLS on storage.objects (should already be enabled by default)
-ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
+-- Enable RLS on storage.objects when permissions allow.
+DO $$
+BEGIN
+  BEGIN
+    EXECUTE 'ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY';
+  EXCEPTION
+    WHEN insufficient_privilege THEN
+      RAISE NOTICE 'Skipping ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY due to ownership constraints';
+  END;
+END
+$$;
 
 -- ============================================================================
 -- RLS Policies for incident-evidence Bucket
