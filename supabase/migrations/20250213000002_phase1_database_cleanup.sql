@@ -70,7 +70,7 @@ CREATE INDEX IF NOT EXISTS idx_observations_v2_compliance ON observations(plate_
 
 -- vehicle_monthly_stays: Optimize month queries
 CREATE INDEX IF NOT EXISTS idx_monthly_stays_plate_zone_month ON vehicle_monthly_stays(plate_number, zone_id, calendar_month);
-CREATE INDEX IF NOT EXISTS idx_monthly_stays_current_month ON vehicle_monthly_stays(calendar_month) WHERE calendar_month >= DATE_TRUNC('month', CURRENT_DATE);
+CREATE INDEX IF NOT EXISTS idx_monthly_stays_current_month ON vehicle_monthly_stays(calendar_month);
 
 -- =====================================================
 -- STEP 4: REBUILD COMPLIANCE FUNCTION (CLEAN V3)
