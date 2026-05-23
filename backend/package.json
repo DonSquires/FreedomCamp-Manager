@@ -19,6 +19,7 @@
     "train:sync:raw": "npx --yes supabase gen types typescript --project-id \"$SUPABASE_PROJECT_REF\" > src/types.ts && node --loader ts-node/esm scripts/sync-training.ts",
     "train:validate": "if [ -n \"$SUPABASE_PROJECT_REF\" ]; then npx --yes supabase gen types typescript --project-id \"$SUPABASE_PROJECT_REF\" > src/types.ts; else echo \"SUPABASE_PROJECT_REF not set; skipping live type generation\"; fi && npm run build",
     "docs:sync": "node --loader ts-node/esm scripts/sync-docs.ts",
+    "logs:stream": "railway logs --project \"$RAILWAY_PROXY_PROJECT_ID\" --environment dd4cf850-e604-458c-869d-da4ad54279db --service fieldops-backend",
     "kb:update:railway": "node --loader ts-node/esm scripts/temp-update-railway-kb.ts",
     "kb:refresh": "npm run kb:update:railway && npm run docs:sync",
     "train:all": "npm run train:sync && npm run docs:sync"

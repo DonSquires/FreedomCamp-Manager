@@ -11,6 +11,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { applyAgentPatch } from './agentTools.js';
 import { runInSandboxEmulator } from './validator.js';
+import { triggerOtaHotfix, triggerPreviewApkBuild } from './easTools.js';
+import { closeGiteaIssue, createGiteaIssue, updateMarkdownTodo } from './pmTools.js';
 import {
   buildPrioritizedResearchQueries,
   executeWebSearch,
@@ -84,6 +86,41 @@ type GiteaCreatePrRequest = {
 type GiteaProposeResult = {
   statusCode: number;
   body: Record<string, unknown>;
+};
+
+type PlaywrightVerificationWebhookPayload = {
+  status?: string;
+  verificationTag?: string;
+  managerStatus?: string;
+  eventName?: string;
+  ref?: string;
+  branch?: string;
+  repository?: string;
+  commitSha?: string;
+  command?: string;
+  output?: string;
+  capturedAt?: string;
+  logId?: number | string;
+  passRate?: number | string;
+  greenScore?: number | string;
+  testsPassed?: number | string;
+  testsTotal?: number | string;
+};
+
+type CognitiveActionPayload = {
+  mode: 'none' | 'gitea_propose_pr';
+  giteaProposePr?: GiteaCreatePrRequest | null;
+};
+
+type CognitiveReasoningResult = {
+  reasoningTrace: string;
+  intentContext: string;
+  riskAnalysis: string;
+  rewardAnalysis: string;
+  confidenceScore: number;
+  isObviousAutonomous: boolean;
+  actionPayload: CognitiveActionPayload;
+  consultativeResponse: string;
 };
 
 type DocumentIntelKeyword = {
@@ -203,6 +240,130 @@ function parseBool(value: string | undefined): boolean {
   return normalized === '1' || normalized === 'true' || normalized === 'yes';
 }
 
+function parseIssueNumber(value: unknown): number | null {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return null;
+  }
+  return Math.floor(parsed);
+}
+
+function extractIssueNumberFromPayload(value: unknown): number | null {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+
+  const record = value as Record<string, unknown>;
+  return (
+    parseIssueNumber(record.giteaIssueNumber) ??
+    parseIssueNumber(record.issueNumber) ??
+    parseIssueNumber(record.gitea_issue_number)
+  );
+}
+
+async function persistSelfHealingLog(args: {
+  serviceName: string;
+  errorMessage: string;
+  payload: Record<string, unknown>;
+  status: 'PENDING_HUMAN_REVIEW' | 'BLOCKED_BY_SANDBOX' | 'BLOCKED_BY_POLICY' | 'ORCHESTRATOR_CRASHED';
+}): Promise<void> {
+  const nowIso = new Date().toISOString();
+  const { error } = await supabase
+    .from('self_healing_logs')
+    .insert({
+      status: args.status,
+      service_name: args.serviceName,
+      error_message: args.errorMessage,
+      error_payload: args.payload,
+      created_at: nowIso,
+    } as Record<string, unknown>);
+
+  if (error) {
+    console.warn('[/api/heal] self_healing_logs insert failed', error);
+  }
+}
+
+function evaluateRootCausePolicy(args: {
+  variableName: string;
+  variableValue: string;
+  justification: string;
+}): { ok: boolean; reasons: string[] } {
+  const variableName = String(args.variableName ?? '').trim();
+  const variableValue = String(args.variableValue ?? '').trim();
+  const justification = String(args.justification ?? '').trim();
+  const lowerJustification = justification.toLowerCase();
+  const reasons: string[] = [];
+
+  if (justification.length < 24) {
+    reasons.push('Justification is too short to demonstrate root-cause reasoning.');
+  }
+
+  const rootCauseMarkers = ['root cause', 'caused by', 'due to', 'because', 'underlying'];
+  if (!rootCauseMarkers.some((marker) => lowerJustification.includes(marker))) {
+    reasons.push('Justification must explicitly describe the underlying/root cause.');
+  }
+
+  const disallowedMarkers = ['quick fix', 'temporary', 'workaround', 'bypass', 'hack', 'band-aid'];
+  const matchedDisallowed = disallowedMarkers.find((marker) => lowerJustification.includes(marker));
+  if (matchedDisallowed) {
+    reasons.push(`Policy rejected: justification contains disallowed phrase "${matchedDisallowed}".`);
+  }
+
+  if (/(disable|bypass|skip)/i.test(variableName) && /^(true|1|yes|on)$/i.test(variableValue)) {
+    reasons.push('Policy rejected: disabling/bypass flags are not allowed as primary remediation.');
+  }
+
+  return { ok: reasons.length === 0, reasons };
+}
+
+function evaluateTestIntegrityPolicy(args: {
+  variableName: string;
+  variableValue: string;
+  justification: string;
+}): { ok: boolean; reasons: string[] } {
+  const combined = [args.variableName, args.variableValue, args.justification]
+    .map((value) => String(value ?? '').toLowerCase())
+    .join(' ');
+  const reasons: string[] = [];
+
+  const testTargetMarkers = [
+    'test',
+    'tests/',
+    '__tests__',
+    '.spec.',
+    '.test.',
+    'jest',
+    'vitest',
+    'playwright',
+    'cypress',
+    'mocha',
+  ];
+  const testBypassMarkers = [
+    ' skip ',
+    ' only ',
+    ' xit ',
+    ' xdescribe ',
+    'disable test',
+    'ignore failing',
+    'mute failure',
+  ];
+
+  const matchedTarget = testTargetMarkers.find((marker) => combined.includes(marker));
+  const matchedBypass = testBypassMarkers.find((marker) => combined.includes(marker));
+
+  if (matchedTarget && matchedBypass) {
+    reasons.push(
+      `Policy rejected: autonomous patch appears to modify or bypass tests (${matchedTarget.trim()} + ${matchedBypass.trim()}).`,
+    );
+  }
+
+  if (/(jest|vitest|playwright|cypress).*?(disable|skip|only)/i.test(combined)) {
+    reasons.push('Policy rejected: test framework configuration bypass detected.');
+  }
+
+  return { ok: reasons.length === 0, reasons };
+}
+
 async function loadDocumentIntelIndex(): Promise<DocumentIntelPayload> {
   const fileStat = await stat(DOC_INTEL_INDEX_FILE);
   if (docIntelCache && docIntelCache.mtimeMs === fileStat.mtimeMs) {
@@ -254,6 +415,37 @@ function requireAnyEnv(names: string[]): string {
 
 function optionalAnyEnv(names: string[]): string | undefined {
   return names.map((name) => process.env[name]).find(Boolean);
+}
+
+function hasAutomationToken(req: Request): boolean {
+  const expected = String(process.env.AUTOMATION_WEBHOOK_TOKEN ?? process.env.GITEA_WEBHOOK_SECRET ?? '').trim();
+  if (!expected) {
+    return true;
+  }
+
+  const provided = String(req.headers['x-automation-token'] ?? '').trim();
+  return provided.length > 0 && provided === expected;
+}
+
+function toShortString(value: unknown, fallback = 'unknown'): string {
+  const normalized = String(value ?? '').trim();
+  return normalized || fallback;
+}
+
+function truncateTail(value: unknown, maxChars = 120000): string {
+  const normalized = String(value ?? '');
+  if (normalized.length <= maxChars) {
+    return normalized;
+  }
+  return normalized.slice(-maxChars);
+}
+
+function parseLogId(value: unknown): number | null {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return null;
+  }
+  return Math.floor(parsed);
 }
 
 const SUPABASE_URL =
@@ -309,11 +501,14 @@ const supabase = createClient(
 );
 
 const ADMIN_ROLES = new Set(['admin', 'admin_officer', 'master', 'grand_master', 'developer']);
+const GRAND_MASTER_ROLES = new Set(['grand_master']);
 
 type AdminAuthContext = {
   userId: string;
   role: string | null;
+  isActive: boolean;
   isAdmin: boolean;
+  isGrandMaster: boolean;
 };
 
 function getBearerToken(req: Request): string | null {
@@ -371,8 +566,27 @@ async function resolveAdminAuth(req: Request): Promise<AdminAuthContext | null> 
   return {
     userId: data.id,
     role,
+    isActive,
     isAdmin: isActive && ADMIN_ROLES.has(normalizedRole),
+    isGrandMaster: isActive && GRAND_MASTER_ROLES.has(normalizedRole),
   };
+}
+
+async function requireUserAuth(req: Request, res: Response, next: NextFunction): Promise<void> {
+  const auth = await resolveAdminAuth(req);
+
+  if (!auth) {
+    res.status(401).json({ error: 'Unauthorized. Valid bearer token required.' });
+    return;
+  }
+
+  if (!auth.isActive) {
+    res.status(403).json({ error: 'Forbidden. User is inactive.' });
+    return;
+  }
+
+  res.locals.auth = auth;
+  next();
 }
 
 async function requireAdminAuth(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -391,6 +605,22 @@ async function requireAdminAuth(req: Request, res: Response, next: NextFunction)
   next();
 }
 
+async function requireGrandMasterAuth(req: Request, res: Response, next: NextFunction): Promise<void> {
+  const auth = await resolveAdminAuth(req);
+
+  if (!auth) {
+    res.status(401).json({ error: 'Unauthorized. Valid bearer token required.' });
+    return;
+  }
+
+  if (!auth.isGrandMaster) {
+    res.status(403).json({ error: 'Forbidden. Grand master privileges required.' });
+    return;
+  }
+
+  next();
+}
+
 function triggerTrainingSync(source: string): void {
   const child = spawn('node', ['--loader', 'ts-node/esm', 'scripts/sync-training.ts'], {
     cwd: process.cwd(),
@@ -399,6 +629,119 @@ function triggerTrainingSync(source: string): void {
     env: { ...process.env, TRAINING_TRIGGER_SOURCE: source },
   });
   child.unref();
+}
+
+async function persistMobileBuildReviewRecord(args: {
+  initiatedBy: string;
+  buildUrl: string | null;
+  qrCodeUrl: string | null;
+  command: string;
+  output: string;
+}): Promise<void> {
+  const nowIso = new Date().toISOString();
+  const outputTail = args.output.slice(-6000);
+  const payload = {
+    route: '/api/mobile/build-preview',
+    command: args.command,
+    buildUrl: args.buildUrl,
+    qrCodeUrl: args.qrCodeUrl,
+    initiatedBy: args.initiatedBy,
+    recordedAt: nowIso,
+    outputTail,
+  };
+
+  const { error } = await supabase
+    .from('self_healing_logs')
+    .insert({
+      status: 'PENDING_HUMAN_REVIEW',
+      service_name: 'mobile-app',
+      error_message: 'Preview APK build completed and awaiting approval.',
+      error_payload: payload,
+      created_at: nowIso,
+    } as Record<string, unknown>);
+
+  if (!error) {
+    return;
+  }
+
+  console.warn('[/api/mobile/build-preview] self_healing_logs insert failed; mirroring to heal_patches', error);
+
+  await supabase
+    .from('heal_patches')
+    .insert({
+      status: 'PENDING_HUMAN_REVIEW',
+      service_name: 'mobile-app',
+      error_message: 'Preview APK build completed and awaiting approval.',
+      target_variable: 'mobile_preview_apk',
+      patch_value: args.buildUrl ?? args.qrCodeUrl ?? 'Build completed',
+      patch: {
+        action: 'build_preview_apk',
+        command: args.command,
+        buildUrl: args.buildUrl,
+        qrCodeUrl: args.qrCodeUrl,
+      },
+      error_payload: payload,
+      dr_bob_analysis: 'Bob executed EAS preview APK build. Human review pending before rollout.',
+      created_at: nowIso,
+    });
+}
+
+async function persistMobileOtaReviewRecord(args: {
+  initiatedBy: string;
+  message: string;
+  command: string;
+  output: string;
+  buildUrl: string | null;
+  qrCodeUrl: string | null;
+}): Promise<void> {
+  const nowIso = new Date().toISOString();
+  const outputTail = args.output.slice(-6000);
+  const payload = {
+    route: '/api/mobile/ota-hotfix',
+    message: args.message,
+    command: args.command,
+    buildUrl: args.buildUrl,
+    qrCodeUrl: args.qrCodeUrl,
+    initiatedBy: args.initiatedBy,
+    recordedAt: nowIso,
+    outputTail,
+  };
+
+  const { error } = await supabase
+    .from('self_healing_logs')
+    .insert({
+      status: 'PENDING_HUMAN_REVIEW',
+      service_name: 'mobile-app',
+      error_message: 'OTA hotfix command completed and awaiting approval.',
+      error_payload: payload,
+      created_at: nowIso,
+    } as Record<string, unknown>);
+
+  if (!error) {
+    return;
+  }
+
+  console.warn('[/api/mobile/ota-hotfix] self_healing_logs insert failed; mirroring to heal_patches', error);
+
+  await supabase
+    .from('heal_patches')
+    .insert({
+      status: 'PENDING_HUMAN_REVIEW',
+      service_name: 'mobile-app',
+      error_message: 'OTA hotfix command completed and awaiting approval.',
+      target_variable: 'mobile_ota_hotfix',
+      patch_value: args.message,
+      patch: {
+        action: 'ota_hotfix',
+        command: args.command,
+        message: args.message,
+        buildUrl: args.buildUrl,
+        qrCodeUrl: args.qrCodeUrl,
+      },
+      error_payload: payload,
+      dr_bob_analysis: 'Bob executed an EAS OTA hotfix. Human review pending before rollout.',
+      created_at: nowIso,
+    });
 }
 
 app.get('/health', (_req: Request, res: Response) => {
@@ -684,6 +1027,125 @@ function normalizeRoutedBobResponse(rawModelText: string): RoutedBobResponse {
     intentType: 'conversation',
     conversationalReply: conversationalReply || rawModelText.trim(),
   };
+}
+
+function normalizeConfidenceScore(value: unknown): number {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return 0.55;
+  }
+
+  if (parsed < 0) {
+    return 0;
+  }
+
+  if (parsed > 1) {
+    return 1;
+  }
+
+  return Math.round(parsed * 100) / 100;
+}
+
+function normalizeCognitiveReasoningOutput(rawModelText: string, inboundText: string): CognitiveReasoningResult {
+  const parsed = parseJsonObjectFromText(rawModelText);
+  const fallbackTrace = rawModelText.trim() || 'No model reasoning trace returned.';
+
+  if (!parsed) {
+    return {
+      reasoningTrace: fallbackTrace,
+      intentContext: inboundText.slice(0, 120) || 'MANUAL_USER_INSTRUCTION',
+      riskAnalysis: 'Model response was not parseable as JSON; autonomous execution disabled.',
+      rewardAnalysis: 'Human review can still act on the recommendation once reformatted.',
+      confidenceScore: 0.35,
+      isObviousAutonomous: false,
+      actionPayload: { mode: 'none', giteaProposePr: null },
+      consultativeResponse: fallbackTrace,
+    };
+  }
+
+  const reasoningTrace = typeof parsed.reasoningTrace === 'string'
+    ? parsed.reasoningTrace.trim()
+    : fallbackTrace;
+  const intentContext = typeof parsed.intentContext === 'string' && parsed.intentContext.trim().length > 0
+    ? parsed.intentContext.trim()
+    : inboundText.slice(0, 120) || 'MANUAL_USER_INSTRUCTION';
+  const riskAnalysis = typeof parsed.riskAnalysis === 'string' && parsed.riskAnalysis.trim().length > 0
+    ? parsed.riskAnalysis.trim()
+    : 'Risk analysis unavailable.';
+  const rewardAnalysis = typeof parsed.rewardAnalysis === 'string' && parsed.rewardAnalysis.trim().length > 0
+    ? parsed.rewardAnalysis.trim()
+    : 'Reward analysis unavailable.';
+  const confidenceScore = normalizeConfidenceScore(parsed.confidenceScore);
+  const isObviousAutonomous = Boolean(parsed.isObviousAutonomous);
+
+  const rawActionPayload = parsed.actionPayload;
+  let actionPayload: CognitiveActionPayload = { mode: 'none', giteaProposePr: null };
+  if (rawActionPayload && typeof rawActionPayload === 'object' && !Array.isArray(rawActionPayload)) {
+    const mode = String((rawActionPayload as Record<string, unknown>).mode ?? '').toLowerCase();
+    const rawGitea = (rawActionPayload as Record<string, unknown>).giteaProposePr;
+
+    if (mode === 'gitea_propose_pr' && rawGitea && typeof rawGitea === 'object' && !Array.isArray(rawGitea)) {
+      actionPayload = {
+        mode: 'gitea_propose_pr',
+        giteaProposePr: rawGitea as GiteaCreatePrRequest,
+      };
+    }
+  }
+
+  const consultativeResponse = typeof parsed.consultativeResponse === 'string' && parsed.consultativeResponse.trim().length > 0
+    ? parsed.consultativeResponse.trim()
+    : '';
+
+  return {
+    reasoningTrace,
+    intentContext,
+    riskAnalysis,
+    rewardAnalysis,
+    confidenceScore,
+    isObviousAutonomous,
+    actionPayload,
+    consultativeResponse,
+  };
+}
+
+function formatCognitiveRiskRewardMarkdown(reasoning: CognitiveReasoningResult): string {
+  return [
+    '## Cognitive Risk/Reward Analysis',
+    '',
+    '| Dimension | Assessment |',
+    '| --- | --- |',
+    `| Risk | ${reasoning.riskAnalysis.replace(/\n/g, '<br/>')} |`,
+    `| Reward | ${reasoning.rewardAnalysis.replace(/\n/g, '<br/>')} |`,
+    `| Confidence | ${reasoning.confidenceScore.toFixed(2)} |`,
+    `| Autonomous Path | ${reasoning.isObviousAutonomous ? 'Eligible' : 'Consultative Hold'} |`,
+    '',
+    '### Reasoning Trace',
+    reasoning.reasoningTrace || 'No reasoning trace provided.',
+  ].join('\n');
+}
+
+async function persistAiReasoningLedger(args: {
+  sessionId: string;
+  reasoning: CognitiveReasoningResult;
+  actionTaken: 'RECOMMENDED_ONLY' | 'AGENTIC_EXECUTED';
+  metadata: Record<string, unknown>;
+}): Promise<void> {
+  const { error } = await supabase
+    .from('ai_reasoning_ledger')
+    .insert({
+      session_id: args.sessionId,
+      intent_context: args.reasoning.intentContext,
+      hypothetical_risks: args.reasoning.riskAnalysis,
+      projected_rewards: args.reasoning.rewardAnalysis,
+      confidence_score: args.reasoning.confidenceScore,
+      action_taken: args.actionTaken,
+      metadata: args.metadata,
+      created_at: new Date().toISOString(),
+    } as Record<string, unknown>);
+
+  if (error) {
+    console.warn('[/api/heal] Failed to persist ai_reasoning_ledger entry', error);
+  }
 }
 
 async function appendChatSessionMessage(
@@ -1079,6 +1541,161 @@ function getGiteaClient() {
   });
 }
 
+function parseRepoOwnerAndName(repository: string): { owner: string; repo: string } | null {
+  const trimmed = String(repository ?? '').trim();
+  if (!trimmed.includes('/')) {
+    const owner = String(process.env.GITEA_OWNER ?? '').trim();
+    const repo = String(process.env.GITEA_REPO ?? '').trim();
+    return owner && repo ? { owner, repo } : null;
+  }
+
+  const [owner, repo] = trimmed.split('/', 2).map((value) => value.trim());
+  if (!owner || !repo) {
+    return null;
+  }
+
+  return { owner, repo };
+}
+
+function parsePercentValue(value: unknown): number | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  const text = String(value).trim();
+  if (!text) {
+    return null;
+  }
+
+  const normalized = text.endsWith('%') ? text.slice(0, -1) : text;
+  const parsed = Number(normalized);
+  if (!Number.isFinite(parsed)) {
+    return null;
+  }
+
+  if (parsed > 0 && parsed <= 1) {
+    return Math.round(parsed * 10000) / 100;
+  }
+
+  return Math.round(parsed * 100) / 100;
+}
+
+function isHundredPercentGreen(payload: PlaywrightVerificationWebhookPayload, status: string): boolean {
+  if (status !== 'PASSED') {
+    return false;
+  }
+
+  const passRate = parsePercentValue(payload.passRate);
+  if (passRate !== null) {
+    return passRate >= 100;
+  }
+
+  const greenScore = parsePercentValue(payload.greenScore);
+  if (greenScore !== null) {
+    return greenScore >= 100;
+  }
+
+  const passed = Number(payload.testsPassed);
+  const total = Number(payload.testsTotal);
+  if (Number.isFinite(passed) && Number.isFinite(total) && total > 0) {
+    return passed >= total;
+  }
+
+  return false;
+}
+
+async function promotePatchBranchToMain(args: {
+  repository: string;
+  branch: string;
+  baseBranch: string;
+  commitSha: string;
+  verificationTag: string;
+}): Promise<{ merged: boolean; pullRequestNumber: number | null; pullRequestUrl: string | null; detail: string }> {
+  const repoInfo = parseRepoOwnerAndName(args.repository);
+  if (!repoInfo) {
+    return {
+      merged: false,
+      pullRequestNumber: null,
+      pullRequestUrl: null,
+      detail: 'Repository owner/name is missing. Provide payload.repository as owner/repo or set GITEA_OWNER and GITEA_REPO.',
+    };
+  }
+
+  const gitea = getGiteaClient();
+  const encodedOwner = encodeURIComponent(repoInfo.owner);
+  const encodedRepo = encodeURIComponent(repoInfo.repo);
+
+  let pullRequestNumber: number | null = null;
+  let pullRequestUrl: string | null = null;
+
+  try {
+    const list = await gitea.get(`/repos/${encodedOwner}/${encodedRepo}/pulls`, {
+      params: {
+        state: 'open',
+        head: `${repoInfo.owner}:${args.branch}`,
+        base: args.baseBranch,
+      },
+    });
+    const pulls = Array.isArray(list.data) ? list.data : [];
+    if (pulls.length > 0) {
+      const pr = pulls[0] as { number?: number; html_url?: string; url?: string };
+      pullRequestNumber = Number(pr.number ?? NaN);
+      pullRequestUrl = String(pr.html_url ?? pr.url ?? '') || null;
+    }
+  } catch {
+    // Fall back to creating the PR if list query fails.
+  }
+
+  if (!pullRequestNumber || !Number.isFinite(pullRequestNumber)) {
+    const createResponse = await gitea.post(`/repos/${encodedOwner}/${encodedRepo}/pulls`, {
+      base: args.baseBranch,
+      head: args.branch,
+      title: `[AUTO-PROMOTE] ${args.branch} -> ${args.baseBranch}`,
+      body: [
+        'Automated production promotion after 100% green Playwright validation.',
+        '',
+        `Verification: ${args.verificationTag}`,
+        `Commit: ${args.commitSha}`,
+      ].join('\n'),
+    });
+
+    const created = createResponse.data as { number?: number; html_url?: string; url?: string };
+    pullRequestNumber = Number(created.number ?? NaN);
+    pullRequestUrl = String(created.html_url ?? created.url ?? '') || null;
+  }
+
+  if (!pullRequestNumber || !Number.isFinite(pullRequestNumber)) {
+    return {
+      merged: false,
+      pullRequestNumber: null,
+      pullRequestUrl,
+      detail: 'Unable to resolve pull request number for auto-promotion.',
+    };
+  }
+
+  try {
+    await gitea.post(`/repos/${encodedOwner}/${encodedRepo}/pulls/${pullRequestNumber}/merge`, {
+      Do: 'merge',
+      delete_branch_after_merge: true,
+      merge_title_field: `Auto-merge ${args.branch} after green Playwright sweep`,
+      merge_message_field: 'Automated production promotion by Bob orchestrator.',
+    });
+  } catch (error) {
+    if (!axios.isAxiosError(error) || error.response?.status !== 405) {
+      throw error;
+    }
+
+    await gitea.post(`/repos/${encodedOwner}/${encodedRepo}/pulls/${pullRequestNumber}/merge`, {});
+  }
+
+  return {
+    merged: true,
+    pullRequestNumber,
+    pullRequestUrl,
+    detail: 'Merged patch branch into production branch via automated promotion.',
+  };
+}
+
 async function streamOllamaResponseToClient(
   res: Response,
   prompt: string,
@@ -1325,7 +1942,9 @@ async function getTierAKnowledgeContext(): Promise<TierAContext> {
 //    3. Bob (fixer) proposes a patch
 //    4. Sandbox emulator validates the patch
 //    5. Save PENDING_HUMAN_REVIEW record
-app.post('/api/heal', async (req: Request, res: Response) => {
+app.post('/api/heal', requireUserAuth, async (req: Request, res: Response) => {
+  const auth = (res.locals.auth ?? null) as AdminAuthContext | null;
+
   const { errorPayload, errorMessage } = req.body as {
     errorPayload?: unknown;
     errorMessage?: string;
@@ -1340,6 +1959,14 @@ app.post('/api/heal', async (req: Request, res: Response) => {
     return;
   }
 
+  const isManualInstruction = errorMessage === 'MANUAL_USER_INSTRUCTION';
+  if (!isManualInstruction && !auth?.isGrandMaster) {
+    res.status(403).json({
+      error: 'Forbidden. Bob maintenance actions require grand master privileges.',
+    });
+    return;
+  }
+
   const stackTrace = (req.body as { stackTrace?: string }).stackTrace;
   const userPrompt = (req.body as { userPrompt?: string }).userPrompt;
   const sessionId = normalizeChatSessionId(
@@ -1347,7 +1974,7 @@ app.post('/api/heal', async (req: Request, res: Response) => {
       (req.body as { sessionId?: string; session_id?: string }).session_id,
   );
 
-  if (errorMessage === 'MANUAL_USER_INSTRUCTION') {
+  if (isManualInstruction) {
     const inboundText = (stackTrace ?? userPrompt ?? '').trim();
     const inboundTextLower = inboundText.toLowerCase();
     const requestMessageHistory: HealChatMessage[] = Array.isArray((req.body as { messages?: HealChatMessage[] }).messages)
@@ -1599,12 +2226,12 @@ app.post('/api/heal', async (req: Request, res: Response) => {
       2,
     );
 
-    const chatPrompt = `
-You are interacting live with a human engineer through a command center UI.
+    const cognitivePrompt = `
+You are Bob's cognitive reasoning controller for an engineering command center.
 The user states: "${inboundText}"
 
-  Conversation history:
-  ${conversationTranscript}
+Conversation history:
+${conversationTranscript}
 
 Structured recent history array:
 ${promptHistoryJson}
@@ -1615,75 +2242,144 @@ System Operational Rules: ${kb.systemRules}
 Consultative Reference Runbook (Tier B):
 ${consultativeRunbook}
 
-Return ONLY one JSON object with this routing contract:
-- If the user is chatting, asking a question, or requesting a status update, respond with:
-  {"intentType":"conversation","conversationalReply":"<markdown response>"}
-- If the user is explicitly asking for a system patch or config mutation, respond with:
-  {"intentType":"patch","targetVariable":"<name>","patchValue":"<value>","conversationalReply":"<optional markdown summary>"}
+Follow this policy:
+1) Audit dependencies and operational impact.
+2) Produce explicit risk and reward analysis.
+3) Set isObviousAutonomous=true ONLY when risk is effectively zero and user intent is explicit.
+4) If autonomous path is selected, provide a safe action payload for gitea propose-pr flow.
+
+Return ONLY one JSON object with this schema:
+{
+  "reasoningTrace": "string",
+  "intentContext": "string",
+  "riskAnalysis": "string",
+  "rewardAnalysis": "string",
+  "confidenceScore": 0.00,
+  "isObviousAutonomous": false,
+  "actionPayload": {
+    "mode": "none" | "gitea_propose_pr",
+    "giteaProposePr": {
+      "title": "string",
+      "body": "string",
+      "commitMessage": "string",
+      "baseBranch": "main",
+      "branchName": "patch/ai-self-heal-<slug>",
+      "files": [{ "path": "string", "content": "string" }],
+      "dryRun": false
+    }
+  },
+  "consultativeResponse": "markdown string for human decision"
+}
 
 Do not return plain text outside the JSON object.
 `;
 
-    if (req.body.stream === true) {
-      const primaryModel = getOllamaModelCandidates()[0] ?? 'llama3.2:3b';
-      let streamedModelOutput = '';
-      try {
-        streamedModelOutput = await streamOllamaResponseToClient(res, chatPrompt, primaryModel)
-      } catch (error) {
-        console.error('[/api/heal] Stream generation failed', error);
-        const degradedText = 'Bob is temporarily unavailable (model upstream). Please retry in a moment.';
-        res.write(`data: ${JSON.stringify({ type: 'final', text: degradedText })}\n\n`)
-        res.write(`data: ${JSON.stringify({ type: 'done', text: degradedText })}\n\n`)
-        res.end()
-        await appendChatSessionMessage(sessionId, 'assistant', degradedText);
-        return
-      }
-
-      const routed = normalizeRoutedBobResponse(streamedModelOutput);
-      const assistantText = routed.intentType === 'patch'
-        ? JSON.stringify({ targetVariable: routed.targetVariable, patchValue: routed.patchValue })
-        : String(routed.conversationalReply ?? streamedModelOutput ?? '').trim();
-      await appendChatSessionMessage(sessionId, 'assistant', assistantText);
-      return
-    }
-
     let modelText = '';
     let modelUsed = '';
     try {
-      const result = await generateWithModelFallback('', chatPrompt);
+      const result = await generateWithModelFallback('', cognitivePrompt);
       modelText = result.responseText.trim();
       modelUsed = result.modelUsed;
     } catch (error) {
-      console.error('[/api/heal] Non-stream generation failed', error);
+      console.error('[/api/heal] Cognitive generation failed', error);
       const degradedText = 'Bob is temporarily unavailable (model upstream). Please retry in a moment.';
       await appendChatSessionMessage(sessionId, 'assistant', degradedText);
+
+      if (req.body.stream === true) {
+        res.write(`data: ${JSON.stringify({ type: 'final', text: degradedText })}\n\n`);
+        res.write(`data: ${JSON.stringify({ type: 'done', text: degradedText })}\n\n`);
+        res.end();
+        return;
+      }
 
       res.status(200).json({
         bobResponse: degradedText,
         status: 'DEGRADED',
         sessionId,
-        intentType: 'conversation',
-        conversationalReply: degradedText,
       });
       return;
     }
 
-    console.log(`[/api/heal] Manual instruction generated via model ${modelUsed}`);
-    const routed = normalizeRoutedBobResponse(modelText);
-    const bobResponse = routed.intentType === 'patch'
-      ? JSON.stringify({ targetVariable: routed.targetVariable, patchValue: routed.patchValue })
-      : String(routed.conversationalReply ?? modelText).trim();
+    console.log(`[/api/heal] Manual cognitive response generated via model ${modelUsed}`);
+    const reasoning = normalizeCognitiveReasoningOutput(modelText, inboundText);
+
+    let actionTaken: 'RECOMMENDED_ONLY' | 'AGENTIC_EXECUTED' = 'RECOMMENDED_ONLY';
+    let executionSummary: Record<string, unknown> = {
+      mode: reasoning.actionPayload.mode,
+      executed: false,
+      outcome: 'consultative',
+    };
+    let responseStatus = 'CONSULTATIVE_RECOMMENDATION';
+    let bobResponse = formatCognitiveRiskRewardMarkdown(reasoning);
+
+    if (reasoning.isObviousAutonomous && reasoning.actionPayload.mode === 'gitea_propose_pr' && reasoning.actionPayload.giteaProposePr) {
+      const requestPayload: GiteaCreatePrRequest = {
+        ...reasoning.actionPayload.giteaProposePr,
+        branchName:
+          reasoning.actionPayload.giteaProposePr.branchName ??
+          `patch/ai-self-heal-${Date.now()}`,
+        dryRun: false,
+      };
+
+      const proposeResult = await executeGiteaProposePr(requestPayload);
+      actionTaken = proposeResult.statusCode < 400 ? 'AGENTIC_EXECUTED' : 'RECOMMENDED_ONLY';
+      responseStatus = actionTaken === 'AGENTIC_EXECUTED' ? 'AGENTIC_EXECUTED' : 'AUTONOMOUS_ACTION_FAILED';
+      executionSummary = {
+        mode: 'gitea_propose_pr',
+        executed: actionTaken === 'AGENTIC_EXECUTED',
+        statusCode: proposeResult.statusCode,
+        result: proposeResult.body,
+      };
+
+      const executionLine = formatGiteaProposeResultForBob(proposeResult);
+      bobResponse = [
+        '## Autonomous Execution Result',
+        '',
+        executionLine,
+        '',
+        formatCognitiveRiskRewardMarkdown(reasoning),
+      ].join('\n');
+    } else {
+      const consultativeBody = reasoning.consultativeResponse || 'Recommendation held for human review based on risk/reward balance.';
+      bobResponse = [
+        formatCognitiveRiskRewardMarkdown(reasoning),
+        '',
+        '## Recommendation',
+        consultativeBody,
+      ].join('\n');
+    }
+
+    await persistAiReasoningLedger({
+      sessionId,
+      reasoning,
+      actionTaken,
+      metadata: {
+        modelUsed,
+        inboundText,
+        executionSummary,
+      },
+    });
 
     await appendChatSessionMessage(sessionId, 'assistant', bobResponse);
 
+    if (req.body.stream === true) {
+      res.write(`data: ${JSON.stringify({ type: 'final', text: bobResponse })}\n\n`);
+      res.write(`data: ${JSON.stringify({ type: 'done', text: bobResponse })}\n\n`);
+      res.end();
+      return;
+    }
+
     res.status(200).json({
       bobResponse,
-      status: 'COMPLETED',
+      status: responseStatus,
       sessionId,
-      conversationalReply: routed.conversationalReply,
-      targetVariable: routed.targetVariable,
-      patchValue: routed.patchValue,
-      intentType: routed.intentType,
+      reasoningTrace: reasoning.reasoningTrace,
+      riskAnalysis: reasoning.riskAnalysis,
+      rewardAnalysis: reasoning.rewardAnalysis,
+      confidenceScore: reasoning.confidenceScore,
+      isObviousAutonomous: reasoning.isObviousAutonomous,
+      actionTaken,
+      executionSummary,
     });
     return;
   }
@@ -1707,6 +2403,35 @@ Do not return plain text outside the JSON object.
   const errorString =
     errorMessage ??
     (typeof errorPayload === 'string' ? errorPayload : JSON.stringify(errorPayload));
+  const errorPayloadRecord =
+    errorPayload && typeof errorPayload === 'object' ? (errorPayload as Record<string, unknown>) : {};
+  const serviceName = String(errorPayloadRecord.route ?? errorPayloadRecord.tag ?? 'fieldops-backend');
+
+  let giteaIssueNumber: number | null = null;
+  try {
+    const issueTitle = `[Bob Self-Heal] ${serviceName}: ${errorString.slice(0, 100)}`;
+    const issueBody = [
+      'Automated issue opened by Bob autonomous PM tracker.',
+      '',
+      `Service: ${serviceName}`,
+      `Captured at: ${new Date().toISOString()}`,
+      '',
+      'Error details:',
+      '```',
+      errorString,
+      '```',
+      '',
+      'Raw payload:',
+      '```json',
+      JSON.stringify(errorPayload ?? {}, null, 2),
+      '```',
+    ].join('\n');
+
+    giteaIssueNumber = await createGiteaIssue(issueTitle, issueBody);
+  } catch (error) {
+    console.warn('[/api/heal] Failed to create Gitea issue', error);
+  }
+
   const consultativeRunbook = await getConsultativeReferenceRunbook(errorString, 'dr_bob');
 
   // 2 ── Dr. Bob: critic agent
@@ -1715,7 +2440,8 @@ Do not return plain text outside the JSON object.
     `You are Dr. Bob, a senior adversarial code reviewer. 
      Given the following Tier A system context: ${contextSummary}
      Consultative Reference Runbook:\n${consultativeRunbook}
-     Identify the root cause of the error and list the top risks.`,
+     Identify the root cause of the error, distinguish symptoms from causes, and list the top risks.
+     Reject shallow or temporary workaround recommendations.`,
     `Error payload: ${errorString}`
   );
 
@@ -1726,7 +2452,12 @@ Do not return plain text outside the JSON object.
      Dr. Bob's analysis: ${drBobAnalysis}
      System context: ${contextSummary}
      Propose a single environment-variable patch as JSON: 
-     { "variableName": string, "variableValue": string, "justification": string }`,
+     { "variableName": string, "variableValue": string, "justification": string }
+     Constraints:
+     - The justification must explain the underlying root cause.
+     - Do NOT propose temporary workarounds, bypasses, or cheap fixes.
+     - Do NOT modify, disable, skip, or weaken tests or test-framework behavior.
+     - If a root-cause-safe patch cannot be provided, return a justification saying so explicitly.`,
     `Error payload: ${errorString}`
   );
 
@@ -1739,16 +2470,96 @@ Do not return plain text outside the JSON object.
     return;
   }
 
+  const rootCausePolicy = evaluateRootCausePolicy({
+    variableName: parsedPatch.variableName,
+    variableValue: parsedPatch.variableValue,
+    justification: parsedPatch.justification,
+  });
+
+  const testIntegrityPolicy = evaluateTestIntegrityPolicy({
+    variableName: parsedPatch.variableName,
+    variableValue: parsedPatch.variableValue,
+    justification: parsedPatch.justification,
+  });
+
+  const policyReasons = [...rootCausePolicy.reasons, ...testIntegrityPolicy.reasons];
+
+  if (!rootCausePolicy.ok || !testIntegrityPolicy.ok) {
+    const reviewPayload = {
+      ...errorPayloadRecord,
+      giteaIssueNumber,
+      policyGate: {
+        gate: 'ROOT_CAUSE_ONLY',
+        passed: false,
+        reasons: policyReasons,
+        checks: {
+          rootCauseOnly: rootCausePolicy.ok,
+          testIntegrity: testIntegrityPolicy.ok,
+        },
+      },
+      candidatePatch: parsedPatch,
+      capturedAt: new Date().toISOString(),
+    };
+
+    await persistSelfHealingLog({
+      serviceName,
+      errorMessage: errorString,
+      payload: reviewPayload,
+      status: 'BLOCKED_BY_POLICY',
+    });
+
+    await supabase.from('heal_patches').insert({
+      status: 'BLOCKED_BY_POLICY',
+      service_name: serviceName,
+      error_message: errorString,
+      target_variable: parsedPatch.variableName,
+      patch_value: parsedPatch.variableValue,
+      error_payload: reviewPayload,
+      dr_bob_analysis: `${drBobAnalysis}\n\nPolicy block: ${policyReasons.join(' | ')}`,
+      patch: {
+        ...parsedPatch,
+        giteaIssueNumber,
+      },
+      created_at: new Date().toISOString(),
+    });
+
+    res.status(422).json({
+      error: 'Patch rejected by root-cause policy gate',
+      reasons: policyReasons,
+      issueNumber: giteaIssueNumber,
+    });
+    return;
+  }
+
   const safe = await runInSandboxEmulator(parsedPatch.variableValue, parsedPatch.variableName);
+  const reviewPayload = {
+    ...errorPayloadRecord,
+    giteaIssueNumber,
+    capturedAt: new Date().toISOString(),
+  };
+
+  await persistSelfHealingLog({
+    serviceName,
+    errorMessage: errorString,
+    payload: reviewPayload,
+    status: safe ? 'PENDING_HUMAN_REVIEW' : 'BLOCKED_BY_SANDBOX',
+  });
 
   // 5 ── Save review record
   const { data: record, error: insertError } = await supabase
     .from('heal_patches')
     .insert({
       status: safe ? 'PENDING_HUMAN_REVIEW' : 'BLOCKED_BY_SANDBOX',
-      error_payload: errorPayload,
+      service_name: serviceName,
+      error_message: errorString,
+      target_variable: parsedPatch.variableName,
+      patch_value: parsedPatch.variableValue,
+      error_payload: reviewPayload,
       dr_bob_analysis: drBobAnalysis,
-      patch: parsedPatch,
+      patch: {
+        ...parsedPatch,
+        giteaIssueNumber,
+      },
       created_at: new Date().toISOString(),
     })
     .select()
@@ -1770,7 +2581,7 @@ Do not return plain text outside the JSON object.
 
 // ── POST /api/approve-patch ──────────────────────────────────────────────────
 //    Human tester override — applies the approved patch to Railway
-app.post('/api/approve-patch', requireAdminAuth, async (req: Request, res: Response) => {
+app.post('/api/approve-patch', requireGrandMasterAuth, async (req: Request, res: Response) => {
   const { patchId, projectId, environmentId, serviceId } = req.body as {
     patchId: string;
     projectId: string;
@@ -1821,7 +2632,170 @@ app.post('/api/approve-patch', requireAdminAuth, async (req: Request, res: Respo
     .update({ status: 'DEPLOYED', deployed_at: new Date().toISOString() })
     .eq('id', patchId);
 
-  res.json({ status: 'DEPLOYED', patchId, variableName });
+  const issueNumber =
+    extractIssueNumberFromPayload(record.error_payload) ??
+    extractIssueNumberFromPayload(record.patch);
+
+  const pmFailures: string[] = [];
+
+  if (issueNumber) {
+    try {
+      await closeGiteaIssue(issueNumber);
+    } catch (error) {
+      pmFailures.push(`closeGiteaIssue failed: ${error instanceof Error ? error.message : 'unknown error'}`);
+    }
+  }
+
+  try {
+    await updateMarkdownTodo(`Patch ${patchId} deployment`);
+  } catch (error) {
+    pmFailures.push(`updateMarkdownTodo failed: ${error instanceof Error ? error.message : 'unknown error'}`);
+  }
+
+  res.json({
+    status: 'DEPLOYED',
+    patchId,
+    variableName,
+    giteaIssueNumber: issueNumber,
+    pmSync: pmFailures.length === 0 ? 'COMPLETED' : 'PARTIAL_FAILURE',
+    pmFailures,
+  });
+});
+
+// ── POST /api/mobile/build-preview ──────────────────────────────────────────
+//    Runs an EAS preview APK build from the backend runtime for grand master users.
+app.post('/api/mobile/build-preview', requireGrandMasterAuth, async (req: Request, res: Response) => {
+  const auth = await resolveAdminAuth(req);
+  if (!auth) {
+    res.status(401).json({ error: 'Unauthorized. Valid bearer token required.' });
+    return;
+  }
+
+  try {
+    const result = await triggerPreviewApkBuild();
+
+    await persistMobileBuildReviewRecord({
+      initiatedBy: auth.userId,
+      buildUrl: result.buildUrl,
+      qrCodeUrl: result.qrCodeUrl,
+      command: result.command,
+      output: result.output,
+    });
+
+    res.status(202).json({
+      status: 'PENDING_HUMAN_REVIEW',
+      buildUrl: result.buildUrl,
+      qrCodeUrl: result.qrCodeUrl,
+      command: result.command,
+      output: result.output,
+    });
+  } catch (error) {
+    console.error('[/api/mobile/build-preview] EAS preview build failed', error);
+    res.status(502).json({
+      error: error instanceof Error ? error.message : 'Failed to trigger EAS preview build',
+    });
+  }
+});
+
+// ── POST /api/mobile/ota-hotfix ────────────────────────────────────────────
+//    Runs an EAS OTA hotfix update from the backend runtime for grand master users.
+app.post('/api/mobile/ota-hotfix', requireGrandMasterAuth, async (req: Request, res: Response) => {
+  const auth = await resolveAdminAuth(req);
+  if (!auth) {
+    res.status(401).json({ error: 'Unauthorized. Valid bearer token required.' });
+    return;
+  }
+
+  const message = String((req.body as { message?: unknown } | undefined)?.message ?? '').trim();
+  if (!message) {
+    res.status(400).json({ error: 'message is required' });
+    return;
+  }
+
+  try {
+    const result = await triggerOtaHotfix(message);
+
+    await persistMobileOtaReviewRecord({
+      initiatedBy: auth.userId,
+      message,
+      command: result.command,
+      output: result.output,
+      buildUrl: result.buildUrl,
+      qrCodeUrl: result.qrCodeUrl,
+    });
+
+    res.status(202).json({
+      status: 'PENDING_HUMAN_REVIEW',
+      message,
+      command: result.command,
+      output: result.output,
+      buildUrl: result.buildUrl,
+      qrCodeUrl: result.qrCodeUrl,
+    });
+  } catch (error) {
+    console.error('[/api/mobile/ota-hotfix] EAS OTA update failed', error);
+    res.status(502).json({
+      error: error instanceof Error ? error.message : 'Failed to trigger EAS OTA hotfix',
+    });
+  }
+});
+
+// ── GET /api/bob/audit-trail ───────────────────────────────────────────────
+//    Returns recent autonomous self-heal and PM trail records for grand master review.
+app.get('/api/bob/audit-trail', requireGrandMasterAuth, async (req: Request, res: Response) => {
+  const requested = Number(req.query.limit ?? 25);
+  const limit = Number.isFinite(requested) ? Math.min(Math.max(Math.floor(requested), 1), 200) : 25;
+
+  const [patchesResult, selfHealingResult] = await Promise.all([
+    supabase
+      .from('heal_patches')
+      .select(
+        'id, status, service_name, error_message, target_variable, patch_value, error_payload, patch, dr_bob_analysis, created_at, deployed_at, reviewed_at, reviewed_by',
+      )
+      .order('created_at', { ascending: false })
+      .limit(limit),
+    supabase
+      .from('self_healing_logs')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(limit),
+  ]);
+
+  if (patchesResult.error || selfHealingResult.error) {
+    console.error('[/api/bob/audit-trail] Failed to load audit trail', patchesResult.error ?? selfHealingResult.error);
+    res.status(500).json({ error: 'Failed to load Bob audit trail' });
+    return;
+  }
+
+  const patchRows = (patchesResult.data ?? []) as Array<Record<string, unknown>>;
+  const selfHealingRows = (selfHealingResult.data ?? []) as Array<Record<string, unknown>>;
+
+  const normalizedPatches = patchRows.map((row) => {
+    const payload = row.error_payload;
+    const patch = row.patch;
+    return {
+      ...row,
+      giteaIssueNumber: extractIssueNumberFromPayload(payload) ?? extractIssueNumberFromPayload(patch),
+      policyGate: payload && typeof payload === 'object' ? (payload as Record<string, unknown>).policyGate ?? null : null,
+    };
+  });
+
+  const normalizedSelfHealing = selfHealingRows.map((row) => {
+    const payload = row.error_payload;
+    return {
+      ...row,
+      giteaIssueNumber: extractIssueNumberFromPayload(payload),
+      policyGate: payload && typeof payload === 'object' ? (payload as Record<string, unknown>).policyGate ?? null : null,
+    };
+  });
+
+  res.status(200).json({
+    status: 'OK',
+    limit,
+    generatedAt: new Date().toISOString(),
+    healPatches: normalizedPatches,
+    selfHealingLogs: normalizedSelfHealing,
+  });
 });
 
 // ── POST /api/gitea/propose-pr ──────────────────────────────────────────────
@@ -1860,6 +2834,193 @@ app.post('/api/gitea-webhook', (req: Request, res: Response) => {
   triggerTrainingSync(source);
 
   res.status(202).json({ status: 'accepted', event, repo, ref, trigger: source });
+});
+
+// ── POST /api/automation/playwright-result ────────────────────────────────
+//    Receives webhook-driven Playwright gate outcomes and writes them into
+//    self_healing_logs for approval panel visibility.
+app.post('/api/automation/playwright-result', async (req: Request, res: Response) => {
+  if (!hasAutomationToken(req)) {
+    res.status(401).json({ error: 'Unauthorized automation webhook token.' });
+    return;
+  }
+
+  const payload = (req.body ?? {}) as PlaywrightVerificationWebhookPayload;
+  const status = toShortString(payload.status, 'FAILED').toUpperCase();
+  let verificationTag = toShortString(payload.verificationTag, 'Playwright Browser Verification: UNKNOWN');
+  let managerStatus =
+    status === 'PASSED'
+      ? 'PENDING_HUMAN_REVIEW'
+      : toShortString(payload.managerStatus, 'ORCHESTRATOR_CRASHED').toUpperCase();
+
+  const repository = toShortString(payload.repository, 'unknown');
+  const ref = toShortString(payload.ref, 'unknown');
+  const branch = toShortString(payload.branch, 'unknown');
+  const eventName = toShortString(payload.eventName, 'push');
+  const commitSha = toShortString(payload.commitSha, 'unknown');
+  const command = toShortString(payload.command, 'MOCK_MODE=true npx playwright test --config playwright.config.ts');
+  const output = truncateTail(payload.output, 120000);
+  const capturedAt = toShortString(payload.capturedAt, new Date().toISOString());
+  const logId = parseLogId(payload.logId);
+  const isPatchBranch = branch.startsWith('patch/ai-self-heal-');
+  const isPerfectGreen = isHundredPercentGreen(payload, status);
+  const autoPromoteEnabled = parseBool(process.env.AUTO_PROMOTE_GREEN_PLAYWRIGHT ?? 'true');
+  const promotionBaseBranch = String(process.env.AUTO_PROMOTE_BASE_BRANCH ?? 'main').trim() || 'main';
+
+  let promotionSummary: Record<string, unknown> | null = null;
+  if (autoPromoteEnabled && isPatchBranch && isPerfectGreen) {
+    try {
+      const promoted = await promotePatchBranchToMain({
+        repository,
+        branch,
+        baseBranch: promotionBaseBranch,
+        commitSha,
+        verificationTag,
+      });
+
+      if (promoted.merged) {
+        managerStatus = 'RESOLVED_AND_DEPLOYED';
+        verificationTag = `${verificationTag} | Automated Production Promotion: PASSED via 100% Green Playwright Sweep`;
+      }
+
+      promotionSummary = {
+        enabled: true,
+        branchMatched: true,
+        perfectGreen: true,
+        merged: promoted.merged,
+        baseBranch: promotionBaseBranch,
+        pullRequestNumber: promoted.pullRequestNumber,
+        pullRequestUrl: promoted.pullRequestUrl,
+        detail: promoted.detail,
+      };
+    } catch (error) {
+      managerStatus = 'ORCHESTRATOR_CRASHED';
+      const detail = error instanceof Error ? error.message : String(error);
+      promotionSummary = {
+        enabled: true,
+        branchMatched: true,
+        perfectGreen: true,
+        merged: false,
+        baseBranch: promotionBaseBranch,
+        detail,
+      };
+    }
+  } else {
+    promotionSummary = {
+      enabled: autoPromoteEnabled,
+      branchMatched: isPatchBranch,
+      perfectGreen: isPerfectGreen,
+      merged: false,
+      baseBranch: promotionBaseBranch,
+      detail: 'Auto-promotion not executed for this payload.',
+    };
+  }
+
+  let giteaIssueNumber: number | null = null;
+  if (status !== 'PASSED' || managerStatus === 'ORCHESTRATOR_CRASHED') {
+    const issueTitle = '[ORCHESTRATOR_CRASHED] Playwright browser verification failed';
+    const issueBody = [
+      'Automated issue opened by the webhook Playwright gate.',
+      '',
+      `Verification Tag: ${verificationTag}`,
+      `Manager Status: ${managerStatus}`,
+      `Repository: ${repository}`,
+      `Ref: ${ref}`,
+      `Branch: ${branch}`,
+      `Commit: ${commitSha}`,
+      `Event: ${eventName}`,
+      `Command: ${command}`,
+      `Captured At: ${capturedAt}`,
+      `Promotion Summary: ${JSON.stringify(promotionSummary ?? {})}`,
+      '',
+      'Raw Playwright output:',
+      '```',
+      output || '[No output captured]',
+      '```',
+    ].join('\n');
+
+    try {
+      giteaIssueNumber = await createGiteaIssue(issueTitle, issueBody);
+    } catch (error) {
+      console.warn('[/api/automation/playwright-result] Failed to create Gitea issue', error);
+    }
+  }
+
+  const nowIso = new Date().toISOString();
+  const recordPayload = {
+    route: '/api/automation/playwright-result',
+    gate: 'PLAYWRIGHT_BROWSER_VERIFICATION',
+    verificationTag,
+    managerStatus,
+    eventName,
+    repository,
+    ref,
+    branch,
+    commitSha,
+    command,
+    output,
+    passRate: parsePercentValue(payload.passRate),
+    greenScore: parsePercentValue(payload.greenScore),
+    testsPassed: Number(payload.testsPassed),
+    testsTotal: Number(payload.testsTotal),
+    autoPromotion: promotionSummary,
+    giteaIssueNumber,
+    capturedAt,
+    recordedAt: nowIso,
+  };
+
+  if (logId) {
+    const { error: updateError } = await supabase
+      .from('self_healing_logs')
+      .update({
+        status: managerStatus,
+        service_name: 'webhook-orchestrator',
+        error_message: verificationTag,
+        error_payload: recordPayload,
+      } as Record<string, unknown>)
+      .eq('id', logId);
+
+    if (!updateError) {
+      res.status(200).json({
+        ok: true,
+        status: managerStatus,
+        verificationTag,
+        logId,
+        giteaIssueNumber,
+        autoPromotion: promotionSummary,
+      });
+      return;
+    }
+
+    console.warn('[/api/automation/playwright-result] Failed to update self_healing_logs by logId, inserting new row', updateError);
+  }
+
+  const { data: inserted, error: insertError } = await supabase
+    .from('self_healing_logs')
+    .insert({
+      status: managerStatus,
+      service_name: 'webhook-orchestrator',
+      error_message: verificationTag,
+      error_payload: recordPayload,
+      created_at: nowIso,
+    } as Record<string, unknown>)
+    .select('id')
+    .single();
+
+  if (insertError) {
+    console.error('[/api/automation/playwright-result] Failed to persist Playwright verification result', insertError);
+    res.status(500).json({ error: 'Failed to persist Playwright verification result' });
+    return;
+  }
+
+  res.status(200).json({
+    ok: true,
+    status: managerStatus,
+    verificationTag,
+    logId: inserted?.id ?? null,
+    giteaIssueNumber,
+    autoPromotion: promotionSummary,
+  });
 });
 
 // ── Start server ─────────────────────────────────────────────────────────────
