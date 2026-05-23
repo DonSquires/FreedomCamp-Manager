@@ -22,7 +22,7 @@ WITH linked AS (
     o.recorded_at AS target_created_at
   FROM public.breach_alerts ba
   JOIN public.observations o
-    ON o.observation_id = ba.observation_id
+    ON COALESCE(to_jsonb(o) ->> 'observation_id', to_jsonb(o) ->> 'id') = ba.observation_id::text
   WHERE o.recorded_at IS NOT NULL
     AND (
       ba.created_at IS NULL
@@ -41,7 +41,7 @@ WITH linked_via_details AS (
     o.recorded_at AS target_created_at
   FROM public.breach_alerts ba
   JOIN public.observations o
-    ON o.observation_id::text = (ba.breach_details ->> 'observation_id')
+    ON COALESCE(to_jsonb(o) ->> 'observation_id', to_jsonb(o) ->> 'id') = (ba.breach_details ->> 'observation_id')
   WHERE ba.observation_id IS NULL
     AND o.recorded_at IS NOT NULL
     AND (
