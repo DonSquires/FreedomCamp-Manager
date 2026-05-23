@@ -353,7 +353,7 @@ Deno.serve(withCors(async (req: Request) => {
 }))
 
 async function doGeneration(
-  supabase: any,
+  supabase: ReturnType<typeof import('https://esm.sh/@supabase/supabase-js@2.45.3').createClient>,
   documentId: string,
   userId: string,
   generationType: string,
