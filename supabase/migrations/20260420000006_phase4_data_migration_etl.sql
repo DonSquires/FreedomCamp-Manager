@@ -17,39 +17,45 @@
 -- status = 'suspected'. Plates already in canonical_homeless are not
 -- downgraded — only upgraded if the incoming status is higher.
 
-INSERT INTO public.canonical_homeless (
-  plate_number,
-  status,
-  source,
-  notes,
-  created_at,
-  updated_at
-)
-SELECT
-  fv.plate_number,
-  -- Map priority → homeless status. 'high'/'critical' → suspected; lower → skip.
-  CASE
-    WHEN fv.priority IN ('high', 'critical') THEN 'suspected'
-    ELSE 'none'
-  END                    AS status,
-  'flagged_vehicles_etl' AS source,
-  fv.reason              AS notes,
-  fv.created_at,
-  fv.updated_at
-FROM public.flagged_vehicles fv
-WHERE fv.priority IN ('high', 'critical')
-  AND fv.plate_number IS NOT NULL
-  AND fv.plate_number != ''
-ON CONFLICT (plate_number) DO UPDATE SET
-  status = CASE
-    -- Only upgrade status; confirmed/claimed are never downgraded to suspected
-    WHEN public.canonical_homeless.status IN ('confirmed', 'claimed') THEN public.canonical_homeless.status
-    WHEN EXCLUDED.status = 'suspected'
-     AND public.canonical_homeless.status = 'none'  THEN 'suspected'
-    ELSE public.canonical_homeless.status
-  END,
-  notes      = COALESCE(public.canonical_homeless.notes, EXCLUDED.notes),
-  updated_at = GREATEST(public.canonical_homeless.updated_at, EXCLUDED.updated_at);
+DO $$
+BEGIN
+  IF to_regclass('public.canonical_homeless') IS NOT NULL
+     AND to_regclass('public.flagged_vehicles') IS NOT NULL THEN
+    INSERT INTO public.canonical_homeless (
+      plate_number,
+      status,
+      source,
+      notes,
+      created_at,
+      updated_at
+    )
+    SELECT
+      fv.plate_number,
+      -- Map priority → homeless status. 'high'/'critical' → suspected; lower → skip.
+      CASE
+        WHEN fv.priority IN ('high', 'critical') THEN 'suspected'
+        ELSE 'none'
+      END                    AS status,
+      'flagged_vehicles_etl' AS source,
+      fv.reason              AS notes,
+      fv.created_at,
+      fv.updated_at
+    FROM public.flagged_vehicles fv
+    WHERE fv.priority IN ('high', 'critical')
+      AND fv.plate_number IS NOT NULL
+      AND fv.plate_number != ''
+    ON CONFLICT (plate_number) DO UPDATE SET
+      status = CASE
+        -- Only upgrade status; confirmed/claimed are never downgraded to suspected
+        WHEN public.canonical_homeless.status IN ('confirmed', 'claimed') THEN public.canonical_homeless.status
+        WHEN EXCLUDED.status = 'suspected'
+         AND public.canonical_homeless.status = 'none'  THEN 'suspected'
+        ELSE public.canonical_homeless.status
+      END,
+      notes      = COALESCE(public.canonical_homeless.notes, EXCLUDED.notes),
+      updated_at = GREATEST(public.canonical_homeless.updated_at, EXCLUDED.updated_at);
+  END IF;
+END $$;
 
 
 -- ── 2. Row-count parity view ─────────────────────────────────────────────────
