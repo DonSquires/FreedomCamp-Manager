@@ -6,7 +6,7 @@
 create table if not exists radio_voice_profiles (
   id              uuid primary key default gen_random_uuid(),
   org_id          uuid not null references organizations(id) on delete cascade,
-  officer_id      uuid not null references profiles(id) on delete cascade,
+  officer_id      uuid not null references public.user_profiles(id) on delete cascade,
   provider        text not null check (provider in ('coqui-xtts')),
   model_ref       text not null,  -- provider-internal reference to the enrolled voice model
   enrolled_at     timestamptz not null default now(),
@@ -27,7 +27,7 @@ comment on table radio_voice_profiles is
 create table if not exists radio_voice_consents (
   id               uuid primary key default gen_random_uuid(),
   org_id           uuid not null references organizations(id) on delete cascade,
-  officer_id       uuid not null references profiles(id) on delete cascade,
+  officer_id       uuid not null references public.user_profiles(id) on delete cascade,
   voice_profile_id uuid references radio_voice_profiles(id) on delete set null,
   purpose          text not null,
   retention_days   integer not null default 90,
