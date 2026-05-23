@@ -19,7 +19,7 @@ import { Fragment, useMemo, useState } from 'react'
 import { format, parseISO } from 'date-fns'
 import {
   Bug, RefreshCw, AlertCircle, Loader2,
-  ChevronDown, ChevronRight, BrainCircuit,
+  ChevronDown, ChevronRight, BrainCircuit, ShieldCheck,
 } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -52,6 +52,25 @@ import type { Database } from '@/types/database'
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
 type BugReport = Database['public']['Tables']['bug_reports']['Row']
+type BobAuditTrailRow = {
+  id?: string
+  status?: string
+  service_name?: string | null
+  error_message?: string | null
+  created_at?: string | null
+  giteaIssueNumber?: number | null
+  policyGate?: {
+    passed?: boolean
+    reasons?: string[]
+  } | null
+}
+
+type BobAuditTrailResponse = {
+  status: string
+  generatedAt: string
+  healPatches: BobAuditTrailRow[]
+  selfHealingLogs: BobAuditTrailRow[]
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -77,10 +96,19 @@ function statusBadge(status: string | null) {
   return 'bg-yellow-100 text-yellow-800'
 }
 
+function getBobManagerUrl(): string {
+  const envUrl = String(import.meta.env.VITE_BOB_MANAGER_URL ?? '').trim()
+  if (envUrl.length > 0) {
+    return envUrl.replace(/\/$/, '')
+  }
+  return 'http://localhost:3000'
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function BugReportLog() {
   const { user } = useAuthStore()
+  const isGrandMaster = user?.role === 'grand_master'
   const orgId = user?.organization_id
   const qc = useQueryClient()
 
@@ -113,6 +141,34 @@ export default function BugReportLog() {
       if (error) throw error
       return data ?? []
     },
+  })
+
+  const {
+    data: bobAudit,
+    isLoading: auditLoading,
+    refetch: refetchAudit,
+  } = useQuery<BobAuditTrailResponse>({
+    queryKey: ['bob-audit-trail', user?.id],
+    enabled: isGrandMaster,
+    queryFn: async () => {
+      const { data: sessionData } = await supabase.auth.getSession()
+      const accessToken = sessionData?.session?.access_token
+      const response = await fetch(`${getBobManagerUrl()}/api/bob/audit-trail?limit=20`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        },
+      })
+
+      if (!response.ok) {
+        const payload = await response.text()
+        throw new Error(payload || `Failed to fetch Bob audit trail (${response.status})`)
+      }
+
+      return (await response.json()) as BobAuditTrailResponse
+    },
+    retry: 1,
   })
 
   // ── Resolve mutation ───────────────────────────────────────────────────────
