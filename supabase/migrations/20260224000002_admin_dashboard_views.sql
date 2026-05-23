@@ -7,6 +7,55 @@
 -- Purpose: Real-time KPI metrics for admin dashboard
 -- ============================================================================
 
+-- Contract bootstrap: older table variants may not have recorded_at yet.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.tables
+    WHERE table_schema = 'public'
+      AND table_name = 'enforcement_actions'
+  ) THEN
+    ALTER TABLE public.enforcement_actions
+      ADD COLUMN IF NOT EXISTS recorded_at TIMESTAMPTZ DEFAULT now();
+
+    IF EXISTS (
+      SELECT 1
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'enforcement_actions'
+        AND column_name = 'created_at'
+    ) THEN
+      UPDATE public.enforcement_actions
+      SET recorded_at = COALESCE(recorded_at, created_at, now())
+      WHERE recorded_at IS NULL;
+    END IF;
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.tables
+    WHERE table_schema = 'public'
+      AND table_name = 'officer_activity_log'
+  ) THEN
+    ALTER TABLE public.officer_activity_log
+      ADD COLUMN IF NOT EXISTS recorded_at TIMESTAMPTZ DEFAULT now();
+
+    IF EXISTS (
+      SELECT 1
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'officer_activity_log'
+        AND column_name = 'created_at'
+    ) THEN
+      UPDATE public.officer_activity_log
+      SET recorded_at = COALESCE(recorded_at, created_at, now())
+      WHERE recorded_at IS NULL;
+    END IF;
+  END IF;
+END;
+$$;
+
 CREATE OR REPLACE VIEW public.dashboard_stats_live AS
 SELECT
   -- Scans Today (observations created today)
