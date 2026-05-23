@@ -148,6 +148,46 @@ CREATE TABLE IF NOT EXISTS public.locations_of_interest (
   updated_at            TIMESTAMPTZ     NOT NULL DEFAULT now()
 );
 
+-- Compatibility backfill for environments where locations_of_interest
+-- was created earlier with a smaller column set.
+ALTER TABLE IF EXISTS public.locations_of_interest
+  ADD COLUMN IF NOT EXISTS display_address TEXT,
+  ADD COLUMN IF NOT EXISTS street_number TEXT,
+  ADD COLUMN IF NOT EXISTS street_name TEXT,
+  ADD COLUMN IF NOT EXISTS suburb TEXT,
+  ADD COLUMN IF NOT EXISTS city TEXT,
+  ADD COLUMN IF NOT EXISTS postcode TEXT,
+  ADD COLUMN IF NOT EXISTS country_code TEXT DEFAULT 'NZ',
+  ADD COLUMN IF NOT EXISTS gps_lat DOUBLE PRECISION,
+  ADD COLUMN IF NOT EXISTS gps_lng DOUBLE PRECISION,
+  ADD COLUMN IF NOT EXISTS geofence_radius_meters INTEGER DEFAULT 100,
+  ADD COLUMN IF NOT EXISTS geofence_geometry JSONB,
+  ADD COLUMN IF NOT EXISTS geocode_source TEXT,
+  ADD COLUMN IF NOT EXISTS is_verified BOOLEAN DEFAULT false,
+  ADD COLUMN IF NOT EXISTS notes TEXT,
+  ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true,
+  ADD COLUMN IF NOT EXISTS created_by UUID REFERENCES public.user_profiles(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT now(),
+  ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT now();
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'locations_of_interest'
+      AND column_name = 'address_full'
+  ) THEN
+    EXECUTE '
+      UPDATE public.locations_of_interest
+      SET display_address = COALESCE(display_address, address_full)
+      WHERE display_address IS NULL
+    ';
+  END IF;
+END;
+$$;
+
 CREATE INDEX IF NOT EXISTS idx_loi_org
   ON public.locations_of_interest(organization_id, is_active);
 
