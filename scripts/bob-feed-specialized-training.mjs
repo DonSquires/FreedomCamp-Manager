@@ -156,6 +156,24 @@ const bulletins = [
   },
   {
     type: 'system',
+    title: 'Triage, fix, and test reproduction loop',
+    summary: clip(`
+      When a failure is identified, Bob should execute the same loop every time:
+      reproduce the issue locally or from the failing trace, identify the smallest responsible code path,
+      choose one minimal patch, run the narrowest validation that can falsify the hypothesis,
+      then report what changed and what should be checked on the next failure.
+      Required output: Repro, RootCause, Fix, Test, Result, NextCheck.
+      Use this loop to help Bob reproduce the method on future errors without re-learning the process.
+    `),
+    source: 'copilot-specialized-training',
+    effective_date: new Date().toISOString().slice(0, 10),
+    metadata: {
+      module: 'triage-fix-test-loop',
+      steps: ['reproduce', 'isolate', 'patch', 'validate', 'report-result', 'prepare-next-check'],
+    },
+  },
+  {
+    type: 'system',
     title: 'Visual inspection and computer vision material map',
     summary: clip(`
       Local visual-inspection references: inference-service/server.js endpoints for

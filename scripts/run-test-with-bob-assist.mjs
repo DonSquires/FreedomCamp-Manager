@@ -243,14 +243,17 @@ function buildBobMessage(stage, command, exitCode = null) {
       ? [
           'Tests passed. Synthesize repo evidence, recent triage, and system facts into the next concrete verification checks.',
           'Do not give generic reassurance; name the specific surfaces that still deserve attention.',
+          'If there was a recent fix, state the reproduction path, the exact patch, and the narrow validation that proved it.',
         ].join('\n')
       : [
         'Tests failed. Use the mandatory 5-question investigation protocol before proposing repairs.',
         'Synthesize relevant repo research, system-state facts, logs, and code paths before concluding root cause.',
+        'Then translate the diagnosis into a reproducible repair loop: Repro, RootCause, Fix, Test, Result, NextCheck.',
         'Return plain text with headings in this exact order:',
         'Q1, Q2, Q3, Q4, Q5, RootCause, RepairPlan, RegressionChecks.',
         `Five-question protocol: ${FIVE_QUESTION_PROTOCOL.join(' | ')}`,
         'RepairPlan must include exactly 3 minimal blast-radius code actions with target file paths.',
+        'RegressionChecks must name the exact command or action that should reproduce the failure before and after the fix.',
       ].join('\n'),
     extraInstructions ? `Additional instructions:\n${extraInstructions}` : null,
   ].filter(Boolean).join('\n');
@@ -265,6 +268,7 @@ function buildFiveQuestionRetryMessage(stage, command, exitCode = null) {
     `Exit code: ${exitCode}`,
     `Respond in ${preferredLanguage}.`,
     'Synthesize repo research, system facts, and code evidence before restating root cause.',
+    'Describe the repair as a repeatable loop: Repro, RootCause, Fix, Test, Result, NextCheck.',
     'Return plain text with headings in this exact order:',
     'Q1, Q2, Q3, Q4, Q5, RootCause, RepairPlan, RegressionChecks.',
     `Five-question protocol: ${FIVE_QUESTION_PROTOCOL.join(' | ')}`,
