@@ -85,7 +85,7 @@ begin
     perform cron.schedule(
       'ptt_diagnostic_events_prune',
       '0 2 * * *',
-      $$delete from public.ptt_diagnostic_events where created_at < now() - interval '7 days'$$
+      $cron$delete from public.ptt_diagnostic_events where created_at < now() - interval '7 days'$cron$
     );
   end if;
 end $$;
