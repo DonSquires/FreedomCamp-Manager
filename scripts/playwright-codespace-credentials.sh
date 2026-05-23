@@ -86,6 +86,64 @@ set_alias_pair_if_missing() {
   fi
 }
 
+set_pair_from_profile() {
+  local email_target="$1"
+  local password_target="$2"
+  local email_source="$3"
+  local password_source="$4"
+
+  if [[ -z "${!email_source:-}" || -z "${!password_source:-}" ]]; then
+    echo "[playwright-codespace-credentials] profile is missing required vars: ${email_source}/${password_source}" >&2
+    exit 2
+  fi
+
+  export "$email_target=${!email_source}"
+  export "$password_target=${!password_source}"
+}
+
+apply_login_profile() {
+  local profile="${TEST_LOGIN_PROFILE:-}"
+  [[ -n "$profile" ]] || return 0
+
+  case "$profile" in
+    master)
+      set_pair_from_profile PLAYWRIGHT_MASTER_EMAIL PLAYWRIGHT_MASTER_PASSWORD TEST_LOGIN_MASTER_EMAIL TEST_LOGIN_MASTER_PASSWORD
+      ;;
+    admin_org1)
+      set_pair_from_profile PLAYWRIGHT_ADMIN_ORG1_EMAIL PLAYWRIGHT_ADMIN_ORG1_PASSWORD TEST_LOGIN_ADMIN_ORG1_EMAIL TEST_LOGIN_ADMIN_ORG1_PASSWORD
+      ;;
+    admin_org2)
+      set_pair_from_profile PLAYWRIGHT_ADMIN_ORG2_EMAIL PLAYWRIGHT_ADMIN_ORG2_PASSWORD TEST_LOGIN_ADMIN_ORG2_EMAIL TEST_LOGIN_ADMIN_ORG2_PASSWORD
+      ;;
+    officer_org1)
+      set_pair_from_profile PLAYWRIGHT_OFFICER_ORG1_EMAIL PLAYWRIGHT_OFFICER_ORG1_PASSWORD TEST_LOGIN_OFFICER_ORG1_EMAIL TEST_LOGIN_OFFICER_ORG1_PASSWORD
+      ;;
+    client_viewer)
+      set_pair_from_profile PLAYWRIGHT_CLIENT_VIEWER_EMAIL PLAYWRIGHT_CLIENT_VIEWER_PASSWORD TEST_LOGIN_CLIENT_VIEWER_EMAIL TEST_LOGIN_CLIENT_VIEWER_PASSWORD
+      ;;
+    client_staff)
+      set_pair_from_profile PLAYWRIGHT_CLIENT_STAFF_EMAIL PLAYWRIGHT_CLIENT_STAFF_PASSWORD TEST_LOGIN_CLIENT_STAFF_EMAIL TEST_LOGIN_CLIENT_STAFF_PASSWORD
+      ;;
+    bob_admin_officer)
+      set_pair_from_profile PLAYWRIGHT_BOB_EMAIL PLAYWRIGHT_BOB_PASSWORD TEST_LOGIN_BOB_ADMIN_OFFICER_EMAIL TEST_LOGIN_BOB_ADMIN_OFFICER_PASSWORD
+      export BOB_LOGIN_EMAIL="$PLAYWRIGHT_BOB_EMAIL"
+      export BOB_LOGIN_PASSWORD="$PLAYWRIGHT_BOB_PASSWORD"
+      ;;
+    bob_grand_master)
+      set_pair_from_profile PLAYWRIGHT_BOB_EMAIL PLAYWRIGHT_BOB_PASSWORD TEST_LOGIN_BOB_GRAND_MASTER_EMAIL TEST_LOGIN_BOB_GRAND_MASTER_PASSWORD
+      export BOB_LOGIN_EMAIL="$PLAYWRIGHT_BOB_EMAIL"
+      export BOB_LOGIN_PASSWORD="$PLAYWRIGHT_BOB_PASSWORD"
+      ;;
+    *)
+      echo "[playwright-codespace-credentials] invalid TEST_LOGIN_PROFILE=$profile" >&2
+      echo "Valid profiles: master, admin_org1, admin_org2, officer_org1, client_viewer, client_staff, bob_admin_officer, bob_grand_master" >&2
+      exit 2
+      ;;
+  esac
+
+  echo "[playwright-codespace-credentials] applied TEST_LOGIN_PROFILE=$profile"
+}
+
 # Supabase URL fallback from project ref.
 if [[ -z "${VITE_SUPABASE_URL:-}" && -n "${SUPABASE_PROJECT_REF:-}" ]]; then
   export VITE_SUPABASE_URL="https://${SUPABASE_PROJECT_REF}.supabase.co"
@@ -149,6 +207,10 @@ set_alias_pair_if_missing PLAYWRIGHT_SUPABASE_SERVICE_ROLE_KEY SUPABASE_SERVICE_
 set_alias_pair_if_missing PLAYWRIGHT_SUPABASE_URL VITE_SUPABASE_URL
 set_alias_pair_if_missing PLAYWRIGHT_SUPABASE_ANON_KEY VITE_SUPABASE_ANON_KEY
 
+# Optional explicit profile selection so role-sensitive tests always use the
+# intended privilege pair (for example bob_admin_officer vs bob_grand_master).
+apply_login_profile
+
 # Control plane URL fallback for radio floor/SFU tests.
 set_if_missing_chain PTT_SERVER_URL VITE_PTT_SERVER_URL RADIO_CONTROL_PLANE_URL PTT_API_CODESPACE
 
@@ -182,6 +244,7 @@ print_status() {
     PLAYWRIGHT_CLIENT_VIEWER_PASSWORD
     PLAYWRIGHT_CLIENT_STAFF_EMAIL
     PLAYWRIGHT_CLIENT_STAFF_PASSWORD
+    TEST_LOGIN_PROFILE
     PLAYWRIGHT_ALLOW_SHARED_CREDENTIAL_FALLBACK
   )
 

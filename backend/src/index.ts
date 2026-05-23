@@ -1696,6 +1696,58 @@ async function promotePatchBranchToMain(args: {
   };
 }
 
+async function applyRailwayPromotionStamp(args: {
+  repository: string;
+  branch: string;
+  commitSha: string;
+  verificationTag: string;
+  pullRequestNumber: number | null;
+}): Promise<{ applied: boolean; detail: string }> {
+  const projectId =
+    process.env.RAILWAY_PROXY_PROJECT_ID ?? process.env.RAILWAY_PROJECT_ID ?? process.env.RAILWAY_CORE_PROJECT_ID ?? null;
+  const environmentId =
+    process.env.RAILWAY_ENVIRONMENT_ID ??
+    process.env.RAILWAY_PRODUCTION_ENVIRONMENT_ID ??
+    process.env.RAILWAY_PROXY_ENVIRONMENT_ID ??
+    'dd4cf850-e604-458c-869d-da4ad54279db';
+  const serviceId =
+    process.env.RAILWAY_SERVICE_ID ?? process.env.RAILWAY_BACKEND_SERVICE_ID ?? process.env.RAILWAY_PROXY_SERVICE_ID ?? null;
+
+  if (!projectId || !environmentId || !serviceId) {
+    return {
+      applied: false,
+      detail: 'Railway promotion stamp skipped; missing Railway identifiers.',
+    };
+  }
+
+  try {
+    await applyAgentPatch({
+      projectId,
+      environmentId,
+      serviceId,
+      variableName: 'BOB_LAST_AUTO_PROMOTION',
+      variableValue: JSON.stringify({
+        repository: args.repository,
+        branch: args.branch,
+        commitSha: args.commitSha,
+        verificationTag: args.verificationTag,
+        pullRequestNumber: args.pullRequestNumber,
+        promotedAt: new Date().toISOString(),
+      }),
+    });
+
+    return {
+      applied: true,
+      detail: 'Applied Railway promotion stamp.',
+    };
+  } catch (error) {
+    return {
+      applied: false,
+      detail: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
 async function streamOllamaResponseToClient(
   res: Response,
   prompt: string,
@@ -2581,7 +2633,7 @@ Do not return plain text outside the JSON object.
 
 // ── POST /api/approve-patch ──────────────────────────────────────────────────
 //    Human tester override — applies the approved patch to Railway
-app.post('/api/approve-patch', requireGrandMasterAuth, async (req: Request, res: Response) => {
+app.post('/api/approve-patch', requireAdminAuth, async (req: Request, res: Response) => {
   const { patchId, projectId, environmentId, serviceId } = req.body as {
     patchId: string;
     projectId: string;
@@ -2878,9 +2930,17 @@ app.post('/api/automation/playwright-result', async (req: Request, res: Response
         verificationTag,
       });
 
+      let railwayPromotion: { applied: boolean; detail: string } | null = null;
       if (promoted.merged) {
         managerStatus = 'RESOLVED_AND_DEPLOYED';
         verificationTag = `${verificationTag} | Automated Production Promotion: PASSED via 100% Green Playwright Sweep`;
+        railwayPromotion = await applyRailwayPromotionStamp({
+          repository,
+          branch,
+          commitSha,
+          verificationTag,
+          pullRequestNumber: promoted.pullRequestNumber,
+        });
       }
 
       promotionSummary = {
@@ -2892,6 +2952,7 @@ app.post('/api/automation/playwright-result', async (req: Request, res: Response
         pullRequestNumber: promoted.pullRequestNumber,
         pullRequestUrl: promoted.pullRequestUrl,
         detail: promoted.detail,
+        railwayPromotion,
       };
     } catch (error) {
       managerStatus = 'ORCHESTRATOR_CRASHED';
