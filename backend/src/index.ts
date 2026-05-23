@@ -51,19 +51,33 @@ type TierAContext = {
   agentRoles: Record<string, string>;
 };
 
+type InitiativePatchCandidate = {
+  isObviousAutonomous?: boolean;
+  explanation?: string;
+  targetFile?: string;
+  patchValue?: string;
+};
+
+type InitiativeDecision = {
+  isObviousAutonomous: boolean;
+  explanation: string;
+  targetFile: string;
+  patchValue: string;
+};
+
 const DEFAULT_AGENT_ROLES: Record<string, string> = {
   dr_bob:
-    'Chief Medical Officer of Code. Diagnose root cause, identify risk, and constrain remediation to verified repo and schema facts.',
+    'Chief Diagnostic Officer. Diagnose root cause using evidence across UI, network, auth, runtime, database, and side-effect layers.',
   bob:
-    'Realignment Architect. Convert diagnosis into safe, minimal, parseable operational fixes aligned to platform constraints.',
+    'Unified Fleet Chief Engineer. Coordinate end-to-end process recovery from trigger to verified completion with minimal blast-radius changes.',
   emulator:
-    'Guardrail Sandbox. Validate safety and reject insecure or non-deterministic changes before approval.',
+    'Guardrail Sandbox. Validate safety, deterministic behavior, and contract compatibility before approval or promotion.',
   ui_ux_agent:
     'Visual and Interaction Architect. Specialize in React, Tailwind, accessibility, responsiveness, and visual coherence.',
   writer_agent:
-    'Technical Documentation Specialist. Generate concise, accurate updates for STAGING.md and INSTRUCTION_MANUAL.md grounded in live code changes.',
+    'Operations Chronicler. Generate concise, accurate updates for STAGING.md and INSTRUCTION_MANUAL.md grounded in live code changes and validated outcomes.',
   research_agent:
-    'Deep Web Search and Retrieval Core. Gather external release notes and docs updates, then synthesize actionable guidance for this stack.',
+    'Research Core. Gather external release notes and docs updates, then synthesize actionable guidance for this stack and current incident context.',
 };
 
 type GiteaFileChange = {
@@ -162,6 +176,9 @@ const DOC_INTEL_DEFAULT_LIMIT = Math.max(1, Number(process.env.DOC_INTEL_DEFAULT
 const DOC_INTEL_MAX_LIMIT = Math.max(1, Number(process.env.DOC_INTEL_MAX_LIMIT ?? 100));
 const PRIVACY_REDACTION_ENABLED = parseBool(process.env.PRIVACY_REDACTION_ENABLED ?? 'true');
 const SUPABASE_AUTH_LOOKUP_TIMEOUT_MS = Number(process.env.SUPABASE_AUTH_LOOKUP_TIMEOUT_MS ?? 3000);
+const PATROL_SCAN_TIMEOUT_MS = Number(process.env.PATROL_SCAN_TIMEOUT_MS ?? 20000);
+const PATROL_DRY_RUN_DEFAULT = parseBool(process.env.PATROL_DRY_RUN ?? 'false');
+const PATROL_DRY_RUN_SKIP_MODEL = parseBool(process.env.PATROL_DRY_RUN_SKIP_MODEL ?? 'true');
 
 const CURRENT_FILE = fileURLToPath(import.meta.url);
 const BACKEND_DIR = path.dirname(CURRENT_FILE);
@@ -1070,6 +1087,57 @@ function parseJsonObjectFromText(raw: string): Record<string, unknown> | null {
   }
 
   return null;
+}
+
+function normalizeStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((item) => String(item ?? '').trim())
+    .filter((item) => item.length > 0)
+    .slice(0, 12);
+}
+
+function normalizeConfidenceValue(value: unknown, fallback = 0.7): number {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return fallback;
+  }
+
+  if (parsed > 0 && parsed <= 1) {
+    return Math.max(0, Math.min(1, parsed));
+  }
+
+  return Math.max(0, Math.min(1, parsed / 100));
+}
+
+function formatIntelReportToMarkdown(report: Record<string, unknown>): string {
+  const summary = String(report.summary ?? report.overview ?? 'No situational summary was produced.').trim();
+  const activeRisks = normalizeStringArray(report.activeRisks);
+  const recommendedActions = normalizeStringArray(report.recommendedActions);
+  const sources = normalizeStringArray(report.sources);
+  const confidence = normalizeConfidenceValue(report.confidence, 0.7);
+
+  return [
+    '## Situational Intelligence Brief',
+    '',
+    `Summary: ${summary}`,
+    '',
+    'Active Risks:',
+    activeRisks.length > 0 ? activeRisks.map((risk) => `- ${risk}`).join('\n') : '- No active risks identified from current evidence.',
+    '',
+    'Recommended Actions:',
+    recommendedActions.length > 0
+      ? recommendedActions.map((action) => `- ${action}`).join('\n')
+      : '- Continue monitoring and re-run intelligence sweep when new telemetry is available.',
+    '',
+    'Sources:',
+    sources.length > 0 ? sources.map((source) => `- ${source}`).join('\n') : '- No explicit source URLs returned by synthesis model.',
+    '',
+    `Confidence: ${(confidence * 100).toFixed(0)}%`,
+  ].join('\n');
 }
 
 function normalizeRoutedBobResponse(rawModelText: string): RoutedBobResponse {
@@ -2014,6 +2082,129 @@ function extractFirstUrl(rawText: string): string | null {
   return match[0];
 }
 
+function parseInitiativeDecision(raw: string): InitiativeDecision {
+  let parsed: InitiativePatchCandidate | null = null;
+  try {
+    parsed = JSON.parse(raw) as InitiativePatchCandidate;
+  } catch {
+    parsed = null;
+  }
+
+  const explanation = String(parsed?.explanation ?? '').trim();
+  const targetFile = sanitizeFilePath(String(parsed?.targetFile ?? '').trim());
+  const patchValue = String(parsed?.patchValue ?? '').trim();
+
+  return {
+    isObviousAutonomous: parsed?.isObviousAutonomous === true,
+    explanation: explanation || 'No explanation provided by initiative engine.',
+    targetFile,
+    patchValue,
+  };
+}
+
+function isSafeAutonomousInitiative(decision: InitiativeDecision): boolean {
+  if (!decision.isObviousAutonomous) return false;
+  if (!decision.targetFile || !decision.patchValue) return false;
+  if (decision.patchValue.length > 12000) return false;
+
+  // Restrict autonomous edits to documentation-like files.
+  const normalized = decision.targetFile.toLowerCase();
+  return (
+    normalized.endsWith('.md') &&
+    (normalized.startsWith('docs/') ||
+      normalized.startsWith('knowledge_base/') ||
+      normalized === 'bob_workflow_rules.md' ||
+      normalized === 'staging.md' ||
+      normalized === 'instruction_manual.md')
+  );
+}
+
+async function executeAutonomousInitiativeFix(decision: InitiativeDecision): Promise<Record<string, unknown>> {
+  const fullPath = path.resolve(REPO_ROOT, decision.targetFile);
+
+  let existing = '';
+  try {
+    existing = await readFile(fullPath, 'utf8');
+  } catch {
+    existing = '';
+  }
+
+  const nextContent = [existing.trimEnd(), decision.patchValue.trim(), '']
+    .filter((chunk) => chunk.length > 0)
+    .join('\n\n');
+
+  const branchSuffix = Date.now();
+  const result = await executeGiteaProposePr({
+    owner: process.env.GITEA_OWNER,
+    repo: process.env.GITEA_REPO,
+    baseBranch: process.env.GITEA_BASE_BRANCH ?? 'main',
+    branchName: `ai-self-heal-initiative-${branchSuffix}`,
+    title: `[INITIATIVE] ${decision.explanation.slice(0, 80)}`,
+    body: [
+      'Autonomous initiative patch proposed by Bob patrol sweep.',
+      '',
+      `Target file: ${decision.targetFile}`,
+      `Reason: ${decision.explanation}`,
+      '',
+      'Policy: documentation-safe autonomous mode only.',
+    ].join('\n'),
+    commitMessage: `docs: proactive initiative update (${branchSuffix})`,
+    files: [
+      {
+        path: decision.targetFile,
+        content: nextContent,
+      },
+    ],
+    dryRun: false,
+  });
+
+  return {
+    statusCode: result.statusCode,
+    status: result.body.status ?? 'UNKNOWN',
+    branchName: result.body.branchName ?? null,
+    pullRequestNumber: result.body.pullRequestNumber ?? null,
+    pullRequestUrl: result.body.pullRequestUrl ?? null,
+    error: result.body.error ?? null,
+    targetFile: decision.targetFile,
+  };
+}
+
+async function logProactiveProposalToLedger(decision: InitiativeDecision): Promise<Record<string, unknown>> {
+  const issueTitle = `[PENDING_HUMAN_REVIEW] Proactive initiative proposal: ${decision.targetFile || 'unspecified target'}`;
+  const issueBody = [
+    'Bob patrol identified an initiative that requires human review.',
+    '',
+    `isObviousAutonomous: ${String(decision.isObviousAutonomous)}`,
+    `targetFile: ${decision.targetFile || 'N/A'}`,
+    `explanation: ${decision.explanation}`,
+    '',
+    'Proposed patch payload:',
+    '```',
+    decision.patchValue || '(empty)',
+    '```',
+  ].join('\n');
+
+  const giteaIssueNumber = await createGiteaIssue(issueTitle, issueBody);
+
+  await supabase.from('self_healing_logs').insert({
+    status: 'PENDING_HUMAN_REVIEW',
+    service_name: 'railway-backend',
+    error_message: issueTitle,
+    error_payload: {
+      route: '/api/cron/patrol',
+      proposal: decision,
+      giteaIssueNumber,
+      createdAt: new Date().toISOString(),
+    },
+    created_at: new Date().toISOString(),
+  } as Record<string, unknown>);
+
+  return {
+    giteaIssueNumber,
+    status: 'PENDING_HUMAN_REVIEW',
+  };
+}
+
 async function getTierAKnowledgeContext(): Promise<TierAContext> {
   const { data, error } = await withTimeout(
     Promise.resolve(
@@ -2140,6 +2331,121 @@ app.post('/api/heal', requireUserAuth, async (req: Request, res: Response) => {
     }
 
     const kb = await getTierAKnowledgeContext();
+
+    const isIntelIntent = /\b(report|alert|crime|noise|stolen|smoke|bylaw|situational|intel|intelligence)\b/i.test(inboundTextLower);
+    if (isIntelIntent) {
+      const query = inboundText.replace(/\b(report|alert|crime|noise|stolen|smoke|bylaw|situational|intel|intelligence)\b/gi, '').trim() || inboundText;
+      const queryRedaction = redactSensitivePersonalData(query);
+      const sanitizedQuery = PRIVACY_REDACTION_ENABLED ? queryRedaction.text : query;
+      const allowExternalResearch = !PRIVACY_REDACTION_ENABLED || !queryRedaction.hasSensitiveData;
+      const requestedUrl = extractFirstUrl(inboundText);
+
+      try {
+        const telemetryQuery = `${sanitizedQuery} local news police alerts noise control bylaws stolen vehicle registry`;
+        const liveWebData = allowExternalResearch
+          ? await executeWebSearch(telemetryQuery)
+          : 'External web research skipped due to detected sensitive personal data.';
+
+        let pageContent = '';
+        if (requestedUrl && allowExternalResearch) {
+          let hostname = '';
+          try {
+            hostname = new URL(requestedUrl).hostname;
+          } catch {
+            hostname = '';
+          }
+
+          if (hostname && isTrustedResearchDomain(hostname)) {
+            pageContent = await fetchWebpageContent(requestedUrl).catch(() => '');
+          }
+        }
+
+        const redactedWebData = PRIVACY_REDACTION_ENABLED
+          ? redactSensitivePersonalData(liveWebData).text
+          : liveWebData;
+        const redactedPageContent = PRIVACY_REDACTION_ENABLED
+          ? redactSensitivePersonalData(pageContent).text
+          : pageContent;
+
+        const intelPrompt = [
+          `Role: ${kb.agentRoles.research_agent}`,
+          'You are Bob\'s Intel Synthesis Core for field operations situational awareness.',
+          `User request: ${sanitizedQuery}`,
+          `Tier A system rules: ${kb.systemRules}`,
+          'Analyze the provided live context and return JSON only with this shape:',
+          '{',
+          '  "summary": "string",',
+          '  "activeRisks": ["string"],',
+          '  "recommendedActions": ["string"],',
+          '  "sources": ["string"],',
+          '  "confidence": 0.0',
+          '}',
+          'Never include personal identifiers or precise private coordinates.',
+          `Research snippets:\n${truncateRunbookContent(redactedWebData, 9000)}`,
+          redactedPageContent
+            ? `Fetched page content:\n${truncateRunbookContent(redactedPageContent, 5000)}`
+            : 'No fetched page content included.',
+        ].join('\n\n');
+
+        const intelResult = await generateWithModelFallback('', intelPrompt);
+        const parsedIntel = parseJsonObjectFromText(intelResult.responseText) ?? {
+          summary: String(intelResult.responseText ?? '').trim() || 'No synthesis text was returned.',
+          activeRisks: [],
+          recommendedActions: [],
+          sources: [],
+          confidence: 0.65,
+        };
+
+        const markdown = formatIntelReportToMarkdown(parsedIntel);
+        const confidence = normalizeConfidenceValue(parsedIntel.confidence, 0.7);
+        const risks = normalizeStringArray(parsedIntel.activeRisks);
+
+        await supabase.from('ai_reasoning_ledger').insert({
+          session_id: sessionId || 'SITUATIONAL_ALERT_CLOCK',
+          intent_context: 'REGIONAL_RISK_AUDIT',
+          hypothetical_risks: risks.join(' | ') || 'No explicit active risks returned.',
+          projected_rewards: 'Enhanced field situational awareness and safer operational planning.',
+          confidence_score: confidence,
+          action_taken: 'RECOMMENDED_ONLY',
+          metadata: {
+            routeAgent: 'research_agent',
+            status: 'INTEL_COMPLETE',
+            sensitiveDataDetected: queryRedaction.hasSensitiveData,
+            redactedFields: queryRedaction.redactedFields,
+          },
+          created_at: new Date().toISOString(),
+        } as Record<string, unknown>);
+
+        await appendChatSessionMessage(sessionId, 'assistant', markdown);
+
+        res.status(200).json({
+          bobResponse: markdown,
+          status: 'INTEL_COMPLETE',
+          sessionId,
+          routeAgent: 'research_agent',
+          modelUsed: intelResult.modelUsed,
+          intelReport: parsedIntel,
+          privacy: {
+            redactionEnabled: PRIVACY_REDACTION_ENABLED,
+            sensitiveDataDetected: queryRedaction.hasSensitiveData,
+            redactedFields: queryRedaction.redactedFields,
+            externalResearchUsed: allowExternalResearch,
+          },
+        });
+        return;
+      } catch (error) {
+        console.error('[/api/heal] Intelligence synthesis route failed', error);
+        const degradedText = 'Intelligence synthesis is temporarily unavailable. Retry after verifying research provider connectivity.';
+        await appendChatSessionMessage(sessionId, 'assistant', degradedText);
+        res.status(200).json({
+          bobResponse: degradedText,
+          status: 'DEGRADED',
+          sessionId,
+          routeAgent: 'research_agent',
+        });
+        return;
+      }
+    }
 
     const isResearchIntent = /(\bsearch\b|\blookup\b|\bresearch\b|\bbreaking\s+changes\b|\brelease\s+notes\b)/i.test(inboundTextLower);
     if (isResearchIntent) {
@@ -3208,6 +3514,104 @@ app.post('/api/automation/playwright-result', async (req: Request, res: Response
     autoPromotion: promotionSummary,
     persistenceTarget,
   });
+});
+
+// ── POST /api/cron/patrol ───────────────────────────────────────────────────
+//    Proactive initiative sweep endpoint intended for scheduler/cron triggers.
+app.post('/api/cron/patrol', async (req: Request, res: Response): Promise<void> => {
+  if (!hasAutomationToken(req)) {
+    res.status(401).json({ error: 'Unauthorized automation webhook token.' });
+    return;
+  }
+
+  console.log('[INITIATIVE] Bob is launching an autonomous System Patrol sweep...');
+
+  try {
+    const requestDryRun = parseBool(String((req.body as { dryRun?: unknown })?.dryRun ?? 'false'));
+    const dryRun = requestDryRun || PATROL_DRY_RUN_DEFAULT;
+
+    const kb = await getTierAKnowledgeContext();
+    const patrolPrompt = [
+      'You are Bob, the Serverless Fleet Chief Engineer. Run a proactive repository/system scan.',
+      'Follow the AUTONOMY INITIATIVE PROTOCOL and return strict JSON only.',
+      '',
+      `System rules: ${kb.systemRules}`,
+      `Schema payload: ${kb.schemaPayload}`,
+      '',
+      'Identify one practical improvement and classify it as autonomous or consultative.',
+      'Return JSON only using this shape:',
+      '{',
+      '  "isObviousAutonomous": true|false,',
+      '  "explanation": "string",',
+      '  "targetFile": "string",',
+      '  "patchValue": "string"',
+      '}',
+    ].join('\n');
+
+    let decision: InitiativeDecision;
+    let modelUsed = 'dry-run-mock';
+
+    if (dryRun && PATROL_DRY_RUN_SKIP_MODEL) {
+      decision = {
+        isObviousAutonomous: true,
+        explanation: 'Dry-run patrol mock decision generated without upstream model call.',
+        targetFile: 'docs/STAGING.md',
+        patchValue: '- [DRY RUN] Patrol simulation completed; no mutation performed.',
+      };
+    } else {
+      const aiResult = await withTimeout(
+        generateWithModelFallback('', patrolPrompt),
+        PATROL_SCAN_TIMEOUT_MS,
+        'initiative patrol scan',
+      );
+      decision = parseInitiativeDecision(aiResult.responseText);
+      modelUsed = aiResult.modelUsed;
+    }
+
+    let actionResult: Record<string, unknown>;
+
+    if (dryRun) {
+      actionResult = {
+        status: 'DRY_RUN',
+        detail: 'No repo mutation or issue creation performed.',
+        wouldAutoExecute: isSafeAutonomousInitiative(decision),
+      };
+    } else if (isSafeAutonomousInitiative(decision)) {
+      actionResult = await executeAutonomousInitiativeFix(decision);
+    } else {
+      actionResult = await logProactiveProposalToLedger(decision);
+    }
+
+    await supabase.from('self_healing_logs').insert({
+      status: 'PENDING_HUMAN_REVIEW',
+      service_name: 'railway-backend',
+      error_message: 'Autonomous patrol sweep completed.',
+      error_payload: {
+        route: '/api/cron/patrol',
+        decision,
+        actionResult,
+        dryRun,
+        modelUsed,
+        capturedAt: new Date().toISOString(),
+      },
+      created_at: new Date().toISOString(),
+    } as Record<string, unknown>);
+
+    res.status(202).json({
+      status: 'Initiative patrol engine engaged.',
+      decision,
+      actionResult,
+      dryRun,
+      modelUsed,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error('[CRITICAL] Bob initiative loop failed:', message);
+    res.status(500).json({
+      error: 'Initiative patrol loop failed.',
+      detail: message,
+    });
+  }
 });
 
 // ── Start server ─────────────────────────────────────────────────────────────
