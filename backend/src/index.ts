@@ -1071,7 +1071,10 @@ async function generateWithModelFallback(systemPrompt: string, userMessage: stri
         console.warn(`[ollama] Model not available, falling back to next candidate: ${model}`);
         continue;
       }
-      throw error;
+
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn(`[ollama] Model invocation failed for ${model}, trying next provider: ${message}`);
+      continue;
     }
   }
 
