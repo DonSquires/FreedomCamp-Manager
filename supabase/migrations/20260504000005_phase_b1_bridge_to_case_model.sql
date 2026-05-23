@@ -1,6 +1,66 @@
 -- B1 Lean: Link existing patrol infrastructure to case model + welfare tracking
 -- This is a bridge migration that doesn't recreate existing patrol tables
 
+CREATE TABLE IF NOT EXISTS public.patrol_route_instances (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
+
+  roster_shift_id UUID REFERENCES public.roster_shifts(id) ON DELETE SET NULL,
+  patrol_id UUID REFERENCES public.patrols(id) ON DELETE SET NULL,
+  patrol_route_id UUID NOT NULL REFERENCES public.patrol_routes(id) ON DELETE CASCADE,
+  officer_id UUID REFERENCES public.user_profiles(id) ON DELETE SET NULL,
+
+  service_type TEXT CHECK (service_type IN (
+    'freedom_camping', 'guarding', 'parking', 'noise',
+    'patrol', 'alarm_response', 'ems', 'biosecurity_inspection', 'smoke_complaint_ooh'
+  )),
+
+  planning_mode TEXT NOT NULL DEFAULT 'baseline'
+    CHECK (planning_mode IN ('baseline', 'randomized', 'dispatch_replan')),
+  plan_status TEXT NOT NULL DEFAULT 'planned'
+    CHECK (plan_status IN ('planned', 'in_progress', 'paused', 'completed', 'cancelled', 'superseded')),
+
+  generation_seed BIGINT NOT NULL DEFAULT (extract(epoch from clock_timestamp()) * 1000)::BIGINT,
+  generation_context JSONB NOT NULL DEFAULT '{}'::jsonb,
+
+  planned_start_time TIMESTAMPTZ,
+  planned_end_time TIMESTAMPTZ,
+  predicted_duration_minutes INTEGER,
+
+  actual_start_time TIMESTAMPTZ,
+  actual_end_time TIMESTAMPTZ,
+  actual_duration_minutes INTEGER,
+
+  bob_plan_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+  bob_confidence NUMERIC(4,3),
+
+  dispatch_interruptions_count INTEGER NOT NULL DEFAULT 0,
+  last_replanned_at TIMESTAMPTZ,
+
+  created_by UUID REFERENCES public.user_profiles(id) ON DELETE SET NULL,
+  approved_by UUID REFERENCES public.user_profiles(id) ON DELETE SET NULL,
+  approved_at TIMESTAMPTZ,
+
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_patrol_route_instances_org
+  ON public.patrol_route_instances(organization_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_patrol_route_instances_route
+  ON public.patrol_route_instances(patrol_route_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_patrol_route_instances_status
+  ON public.patrol_route_instances(plan_status, planned_start_time);
+CREATE INDEX IF NOT EXISTS idx_patrol_route_instances_roster
+  ON public.patrol_route_instances(roster_shift_id)
+  WHERE roster_shift_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_patrol_route_instances_patrol
+  ON public.patrol_route_instances(patrol_id)
+  WHERE patrol_id IS NOT NULL;
+
+COMMENT ON TABLE public.patrol_route_instances IS
+  'Generated patrol route plan instances linked to a roster shift or active patrol.';
+
 -- Add case_id reference to existing patrol_route_instances
 ALTER TABLE IF EXISTS public.patrol_route_instances 
 ADD COLUMN IF NOT EXISTS case_id UUID REFERENCES public.operational_cases(id) ON DELETE SET NULL;
