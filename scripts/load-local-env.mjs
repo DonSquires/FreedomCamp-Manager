@@ -111,6 +111,35 @@ export function loadLocalEnv() {
   ]);
   setEnvIfMissing('SUPABASE_SERVICE_ROLE_KEY', supabaseServiceRole);
 
+  const supabaseAnonKey = firstNonEmptyEnv([
+    'VITE_SUPABASE_ANON_KEY',
+    'SUPABASE_ANON_KEY',
+    'EXPO_PUBLIC_SUPABASE_ANON_KEY',
+  ]);
+  setEnvIfMissing('VITE_SUPABASE_ANON_KEY', supabaseAnonKey);
+  setEnvIfMissing('SUPABASE_ANON_KEY', supabaseAnonKey);
+
+  const apiTestEmail = firstNonEmptyEnv([
+    'API_TEST_EMAIL',
+    'PLAYWRIGHT_ADMIN_ORG1_EMAIL',
+    'PLAYWRIGHT_ADMIN_EMAIL',
+    'E2E_ADMIN_EMAIL',
+    'PLAYWRIGHT_LIVE_EMAIL',
+    'E2E_LIVE_EMAIL',
+  ]);
+  setEnvIfMissing('API_TEST_EMAIL', apiTestEmail);
+
+  const apiTestPassword = firstNonEmptyEnv([
+    'API_TEST_PASSWORD',
+    'PLAYWRIGHT_ADMIN_ORG1_PASSWORD',
+    'PLAYWRIGHT_ADMIN_PASSWORD',
+    'E2E_ADMIN_PASSWORD',
+    'PLAYWRIGHT_LIVE_PASSWORD',
+    'E2E_LIVE_PASSWORD',
+    'PLAYWRIGHT_TEST_PASSWORD',
+  ]);
+  setEnvIfMissing('API_TEST_PASSWORD', apiTestPassword);
+
   const translatorTemplateId = firstNonEmptyEnv([
     'TRANSLATOR_TEMPLATE_ID',
     'RUNPOD_TRANSLATOR_TEMPLATE_ID',
