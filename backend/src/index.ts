@@ -202,10 +202,18 @@ const REPO_ROOT = path.resolve(BACKEND_DIR, '..', '..');
 const DOC_INTEL_INDEX_FILE = path.resolve(
   process.env.DOC_INTEL_INDEX_PATH ?? path.join(REPO_ROOT, 'data/internal-research/document-intelligence-index.json'),
 );
+const INSTRUCTION_MANUAL_FILE = path.resolve(
+  process.env.INSTRUCTION_MANUAL_PATH ?? path.join(REPO_ROOT, 'docs/INSTRUCTION_MANUAL.md'),
+);
 
 let docIntelCache: {
   mtimeMs: number;
   payload: DocumentIntelPayload;
+} | null = null;
+
+let instructionManualCache: {
+  mtimeMs: number;
+  content: string;
 } | null = null;
 
 type RedactionResult = {
@@ -1160,6 +1168,61 @@ function truncateRunbookContent(content: string, maxChars: number): string {
   return `${content.slice(0, maxChars)}\n\n[TRUNCATED]`;
 }
 
+async function loadInstructionManualText(): Promise<string> {
+  try {
+    const fileStats = await stat(INSTRUCTION_MANUAL_FILE);
+    const cached = instructionManualCache;
+    if (cached && cached.mtimeMs === fileStats.mtimeMs) {
+      return cached.content;
+    }
+
+    const content = await readFile(INSTRUCTION_MANUAL_FILE, 'utf8');
+    instructionManualCache = {
+      mtimeMs: fileStats.mtimeMs,
+      content,
+    };
+    return content;
+  } catch (error) {
+    console.warn('[instruction-manual] Failed to load instruction manual context', error);
+    return '';
+  }
+}
+
+function extractInstructionManualGuidance(manualText: string, query: string, maxChars = 2400): string {
+  const text = String(manualText ?? '').trim();
+  if (!text) {
+    return 'Instruction manual context unavailable.';
+  }
+
+  const queryTokens = extractIntentTokens(String(query ?? ''));
+  for (const token of ['patrol', 'dispatch', 'route', 'response', 'incident', 'traffic']) {
+    queryTokens.add(token);
+  }
+
+  const sections = text.split(/\n(?=##\s+)/g);
+  const ranked = sections
+    .map((section) => {
+      const lower = section.toLowerCase();
+      let score = 0;
+      for (const token of queryTokens) {
+        if (token.length < 3) continue;
+        if (lower.includes(token)) {
+          score += 1;
+        }
+      }
+      return { section, score };
+    })
+    .sort((a, b) => b.score - a.score);
+
+  const selected = ranked
+    .filter((row) => row.score > 0)
+    .slice(0, 3)
+    .map((row) => row.section.trim());
+
+  const guidance = selected.length > 0 ? selected.join('\n\n') : truncateRunbookContent(text, Math.min(maxChars, 1200));
+  return truncateRunbookContent(guidance, maxChars);
+}
+
 function buildConversationTranscript(messages: HealChatMessage[] = []): string {
   const recentMessages = messages.slice(-20)
   if (recentMessages.length === 0) {
@@ -1258,7 +1321,7 @@ function formatIntelReportToMarkdown(report: Record<string, unknown>): string {
 }
 
 function isPatrolRouteIntent(input: string): boolean {
-  return /(patrol\s*route|best\s*route|route\s*plan|routing|waypoint|traffic|congestion|roadworks|closure|detour|stops?\s+order)/i.test(input);
+  return /(patrol\s*route|best\s*route|route\s*plan|routing|waypoint|traffic|congestion|roadworks|closure|detour|stops?\s+order|dispatch|unit\s+assignment|incident\s+response|response\s+plan|deployment\s+plan)/i.test(input);
 }
 
 function getConfiguredResearchProviders(): string[] {
@@ -1476,6 +1539,7 @@ function buildDeterministicPatrolIntelReport(
   routeSteps: string[],
   routeSource: string,
   googleSupportUsed: boolean,
+  manualGuidance: string,
 ): Record<string, unknown> {
   const hasTrafficTerms = /\b(traffic|congestion|roadworks|closure|incident|detour|crash)\b/i.test(query);
   const supportSignalsUsed = Boolean(String(liveSupportSnippets ?? '').trim());
@@ -1494,6 +1558,9 @@ function buildDeterministicPatrolIntelReport(
 
   const recommendedActions = [
     ...routeSteps,
+    manualGuidance
+      ? 'Align dispatch and response actions with instruction manual guidance before field execution.'
+      : 'Instruction manual guidance could not be loaded; use approved patrol SOP checklist manually.',
     'Validate closure/congestion conditions with dispatcher telemetry before rolling each leg.',
     'Re-run route planning when new incidents arrive or patrol priorities change.',
   ];
@@ -1504,6 +1571,9 @@ function buildDeterministicPatrolIntelReport(
   }
   if (googleSupportUsed) {
     sources.push('google-support-enrichment');
+  }
+  if (manualGuidance) {
+    sources.push('instruction-manual-guidance');
   }
 
   return {
@@ -1537,6 +1607,148 @@ function formatPatrolRouteReportToMarkdown(
 ): string {
   const core = formatIntelReportToMarkdown(report);
   return `${core}\n\n${formatTelemetryBlock(telemetry)}`;
+}
+
+type PatrolSystemCheckResult = {
+  name: string;
+  status: 'PASS' | 'FAIL';
+  detail: string;
+};
+
+async function runPatrolSystemChecks(): Promise<{
+  checks: PatrolSystemCheckResult[];
+  passed: number;
+  failed: number;
+}> {
+  const checks: PatrolSystemCheckResult[] = [];
+  const mappingGatewayUrl = String(process.env.MAPPING_GATEWAY_URL ?? '').trim().replace(/\/+$/, '');
+  const modelGatewayUrl = String(process.env.MODEL_GATEWAY_URL ?? '').trim().replace(/\/+$/, '');
+  const sampleWaypoints = buildDefaultPatrolWaypoints();
+
+  if (!mappingGatewayUrl) {
+    checks.push({
+      name: 'mapping_gateway_configured',
+      status: 'FAIL',
+      detail: 'MAPPING_GATEWAY_URL is not configured.',
+    });
+  } else {
+    try {
+      const health = await axios.get(`${mappingGatewayUrl}/health`, {
+        timeout: Number(process.env.MAPPING_GATEWAY_TIMEOUT_MS ?? 12000),
+      });
+      const ok = health.status >= 200 && health.status < 300;
+      checks.push({
+        name: 'mapping_gateway_health',
+        status: ok ? 'PASS' : 'FAIL',
+        detail: ok
+          ? `health=ok, googleSupportConfigured=${Boolean((health.data as { providers?: { googleSupportConfigured?: boolean } }).providers?.googleSupportConfigured)}`
+          : `Unexpected HTTP status ${health.status}`,
+      });
+    } catch (error) {
+      checks.push({
+        name: 'mapping_gateway_health',
+        status: 'FAIL',
+        detail: error instanceof Error ? error.message : 'unknown error',
+      });
+    }
+
+    try {
+      const requestBody = {
+        waypoints: sampleWaypoints,
+        includeTraffic: true,
+      };
+      const [first, second] = await Promise.all([
+        axios.post(`${mappingGatewayUrl}/route-plan`, requestBody, {
+          timeout: Number(process.env.MAPPING_GATEWAY_TIMEOUT_MS ?? 12000),
+        }),
+        axios.post(`${mappingGatewayUrl}/route-plan`, requestBody, {
+          timeout: Number(process.env.MAPPING_GATEWAY_TIMEOUT_MS ?? 12000),
+        }),
+      ]);
+
+      const firstOrder = Array.isArray((first.data as { orderedWaypoints?: Array<{ id?: string; label?: string }> }).orderedWaypoints)
+        ? ((first.data as { orderedWaypoints?: Array<{ id?: string; label?: string }> }).orderedWaypoints ?? [])
+            .map((row) => String(row.id ?? row.label ?? '').trim())
+            .filter(Boolean)
+        : [];
+      const secondOrder = Array.isArray((second.data as { orderedWaypoints?: Array<{ id?: string; label?: string }> }).orderedWaypoints)
+        ? ((second.data as { orderedWaypoints?: Array<{ id?: string; label?: string }> }).orderedWaypoints ?? [])
+            .map((row) => String(row.id ?? row.label ?? '').trim())
+            .filter(Boolean)
+        : [];
+
+      const deterministic = firstOrder.length > 1 && JSON.stringify(firstOrder) === JSON.stringify(secondOrder);
+      checks.push({
+        name: 'route_order_deterministic',
+        status: deterministic ? 'PASS' : 'FAIL',
+        detail: deterministic
+          ? `order=${firstOrder.join(' -> ')}`
+          : `order mismatch first=${firstOrder.join(' -> ')} second=${secondOrder.join(' -> ')}`,
+      });
+    } catch (error) {
+      checks.push({
+        name: 'route_order_deterministic',
+        status: 'FAIL',
+        detail: error instanceof Error ? error.message : 'unknown error',
+      });
+    }
+  }
+
+  if (!modelGatewayUrl) {
+    checks.push({
+      name: 'model_gateway_configured',
+      status: 'FAIL',
+      detail: 'MODEL_GATEWAY_URL is not configured.',
+    });
+  } else {
+    try {
+      const response = await axios.post(
+        `${modelGatewayUrl}/api/generate`,
+        {
+          prompt: 'Respond with OK only.',
+        },
+        {
+          timeout: OLLAMA_MODEL_TIMEOUT_MS,
+        },
+      );
+      const text = String((response.data as { response?: string }).response ?? '').trim();
+      const ok = response.status >= 200 && response.status < 300 && text.length > 0;
+      checks.push({
+        name: 'response_engine_available',
+        status: ok ? 'PASS' : 'FAIL',
+        detail: ok ? `response=${text.slice(0, 120)}` : 'Model gateway returned empty response.',
+      });
+    } catch (error) {
+      checks.push({
+        name: 'response_engine_available',
+        status: 'FAIL',
+        detail: error instanceof Error ? error.message : 'unknown error',
+      });
+    }
+  }
+
+  const passed = checks.filter((check) => check.status === 'PASS').length;
+  const failed = checks.length - passed;
+
+  return { checks, passed, failed };
+}
+
+function formatPatrolSystemTestMarkdown(result: {
+  checks: PatrolSystemCheckResult[];
+  passed: number;
+  failed: number;
+}, manualGuidance: string): string {
+  return [
+    '## Patrol System Test Report',
+    '',
+    `Summary: ${result.passed} passed, ${result.failed} failed`,
+    '',
+    'Checks:',
+    ...result.checks.map((check) => `- [${check.status}] ${check.name}: ${check.detail}`),
+    '',
+    '## Instruction Manual Alignment',
+    manualGuidance,
+  ].join('\n');
 }
 
 function normalizeRoutedBobResponse(rawModelText: string): RoutedBobResponse {
@@ -2730,8 +2942,29 @@ app.post('/api/heal', requireUserAuth, async (req: Request, res: Response) => {
     }
 
     const kb = await getTierAKnowledgeContext();
+    const instructionManualText = await loadInstructionManualText();
+    const patrolManualGuidance = extractInstructionManualGuidance(instructionManualText, inboundText, 2200);
 
-    const isIntelIntent = /\b(report|alert|crime|noise|stolen|smoke|bylaw|situational|intel|intelligence|patrol|route|traffic|congestion|roadworks|closure)\b/i.test(inboundTextLower);
+    const isPatrolTestIntent = /\b(run|execute|perform)\b[\s\S]{0,80}\b(test|tests|check|checks|verification|validate)\b[\s\S]{0,80}\b(patrol|dispatch|route|response)\b/i.test(inboundTextLower)
+      || /\bpatrol\s+system\s+tests?\b/i.test(inboundTextLower);
+    if (isPatrolTestIntent) {
+      const result = await runPatrolSystemChecks();
+      const markdown = formatPatrolSystemTestMarkdown(result, patrolManualGuidance);
+      const status = result.failed === 0 ? 'PATROL_TESTS_PASSED' : 'PATROL_TESTS_FAILED';
+
+      await appendChatSessionMessage(sessionId, 'assistant', markdown);
+
+      res.status(200).json({
+        bobResponse: markdown,
+        status,
+        sessionId,
+        routeAgent: 'research_agent',
+        checks: result.checks,
+      });
+      return;
+    }
+
+    const isIntelIntent = /\b(report|alert|crime|noise|stolen|smoke|bylaw|situational|intel|intelligence|patrol|route|traffic|congestion|roadworks|closure|dispatch|deployment|response|incident\s*response)\b/i.test(inboundTextLower);
     if (isIntelIntent) {
       const query = inboundText.replace(/\b(report|alert|crime|noise|stolen|smoke|bylaw|situational|intel|intelligence)\b/gi, '').trim() || inboundText;
       const queryRedaction = redactSensitivePersonalData(query);
@@ -2747,6 +2980,7 @@ app.post('/api/heal', requireUserAuth, async (req: Request, res: Response) => {
         cacheHit: false,
         supportSignalsUsed: false,
       };
+      const manualGuidance = extractInstructionManualGuidance(instructionManualText, sanitizedQuery, 2200);
 
       try {
         let liveWebData = 'External web research was not requested for this intent.';
@@ -2805,8 +3039,14 @@ app.post('/api/heal', requireUserAuth, async (req: Request, res: Response) => {
             routeSteps,
             routeSource,
             googleSupportUsed,
+            manualGuidance,
           );
-          const markdown = formatPatrolRouteReportToMarkdown(patrolIntel, telemetry);
+          const markdown = [
+            formatPatrolRouteReportToMarkdown(patrolIntel, telemetry),
+            '',
+            '## Instruction Manual Alignment',
+            manualGuidance,
+          ].join('\n');
           const confidence = normalizeConfidenceValue(patrolIntel.confidence, 0.75);
           const risks = normalizeStringArray(patrolIntel.activeRisks);
 
@@ -2890,6 +3130,7 @@ app.post('/api/heal', requireUserAuth, async (req: Request, res: Response) => {
           'You are Bob\'s Intel Synthesis Core for field operations situational awareness.',
           `User request: ${sanitizedQuery}`,
           `Tier A system rules: ${kb.systemRules}`,
+          `Instruction Manual guidance:\n${manualGuidance}`,
           'Analyze the provided live context and return JSON only with this shape:',
           '{',
           '  "summary": "string",',
@@ -3194,6 +3435,8 @@ ${promptHistoryJson}
 
 Reference Blueprints (Tier A): ${kb.schemaPayload}
 System Operational Rules: ${kb.systemRules}
+Instruction Manual guidance (prioritize patrol, dispatch, route, response when relevant):
+${extractInstructionManualGuidance(instructionManualText, inboundText, 1800)}
 
 Consultative Reference Runbook (Tier B):
 ${consultativeRunbook}
