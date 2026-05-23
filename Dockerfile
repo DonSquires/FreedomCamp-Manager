@@ -1,5 +1,5 @@
-# Node.js 23 Alpine for Bob/Service
-FROM node:23-alpine
+# Node.js 24 Alpine for Bob/Service
+FROM node:24-alpine
 
 # Set working directory
 WORKDIR /app

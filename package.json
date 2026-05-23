@@ -3,8 +3,13 @@
   "private": true,
   "type": "module",
   "packageManager": "npm@11.0.0",
+  "engines": {
+    "node": ">=24 <25",
+    "npm": ">=11 <12"
+  },
   "scripts": {
     "preinstall": "npx only-allow npm",
+    "toolchain:doctor": "bash scripts/check-required-tools.sh && node scripts/check-toolchain-stack.mjs",
     "dev": "vite",
     "docs:ocr:pictures": "node scripts/ocr-and-picture-extract.mjs",
     "docs:intelligence:compile": "node scripts/compile-document-intelligence.mjs",
