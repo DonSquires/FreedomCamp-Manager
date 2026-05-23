@@ -178,6 +178,11 @@ set_if_missing PLAYWRIGHT_CLIENT_STAFF_PASSWORD TEST_CLIENT_OFFICER_PASSWORD
 set_if_missing PLAYWRIGHT_BOB_EMAIL BOB_LOGIN_EMAIL
 set_if_missing PLAYWRIGHT_BOB_PASSWORD BOB_LOGIN_PASSWORD
 
+# Optional explicit profile selection so role-sensitive tests always use the
+# intended privilege pair (for example bob_admin_officer vs bob_grand_master).
+# Apply this before API_TEST and alias sync so all derived aliases stay coherent.
+apply_login_profile
+
 # API/live credential aliases used by auth helpers in tests/e2e/auth.ts.
 # Prefer owner credentials first because they are typically the most stable shared account.
 set_if_missing_chain API_TEST_EMAIL TEST_OWNER_EMAIL TEST_ADMIN_EMAIL PLAYWRIGHT_ADMIN_ORG1_EMAIL PLAYWRIGHT_ADMIN_EMAIL
@@ -206,10 +211,6 @@ set_alias_pair_if_missing PLAYWRIGHT_OFFICER_ORG1_PASSWORD PLAYWRIGHT_OFFICER_PA
 set_alias_pair_if_missing PLAYWRIGHT_SUPABASE_SERVICE_ROLE_KEY SUPABASE_SERVICE_ROLE_KEY
 set_alias_pair_if_missing PLAYWRIGHT_SUPABASE_URL VITE_SUPABASE_URL
 set_alias_pair_if_missing PLAYWRIGHT_SUPABASE_ANON_KEY VITE_SUPABASE_ANON_KEY
-
-# Optional explicit profile selection so role-sensitive tests always use the
-# intended privilege pair (for example bob_admin_officer vs bob_grand_master).
-apply_login_profile
 
 # Control plane URL fallback for radio floor/SFU tests.
 set_if_missing_chain PTT_SERVER_URL VITE_PTT_SERVER_URL RADIO_CONTROL_PLANE_URL PTT_API_CODESPACE

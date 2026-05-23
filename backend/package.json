@@ -16,7 +16,7 @@
     "start": "bash scripts/bob-env-run.sh run start:raw",
     "start:raw": "node dist/index.js",
     "dev": "bash scripts/bob-env-run.sh run dev:raw",
-    "dev:raw": "npm run start",
+    "dev:raw": "npm run start:raw",
     "train:sync": "bash scripts/bob-env-run.sh run train:sync:raw",
     "train:sync:raw": "bash scripts/supabase-gen-types.sh && node --loader ts-node/esm scripts/sync-training.ts",
     "train:validate": "bash scripts/bob-env-run.sh run train:validate:raw",

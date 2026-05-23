@@ -49,9 +49,9 @@ SELECT DISTINCT
   cv.vehicle_model,
   cv.vehicle_color,
   cv.homeless_status,
-  cv.fc_act_exempt,
   cv.is_flagged,
   cv.profile_photo,
+  cv.fc_act_exempt,
   vo.zone_id,
   z.name AS zone_name,
   z.organization_id,
@@ -78,7 +78,7 @@ LEFT JOIN zone_compliance_matrix zcm ON zcm.zone_id = vo.zone_id AND zcm.effecti
 WHERE vo.is_breach = TRUE
 GROUP BY 
   cv.plate_number, cv.vehicle_make, cv.vehicle_model, cv.vehicle_color,
-  cv.homeless_status, cv.fc_act_exempt, cv.is_flagged, cv.profile_photo,
+  cv.homeless_status, cv.is_flagged, cv.profile_photo, cv.fc_act_exempt,
   vo.zone_id, z.name, z.organization_id,
   vms.consecutive_nights, vms.nights_stayed,
   zcm.max_consecutive_nights, zcm.nights_per_month

@@ -1742,7 +1742,7 @@ async function applyRailwayPromotionStamp(args: {
     process.env.RAILWAY_ENVIRONMENT_ID ??
     process.env.RAILWAY_PRODUCTION_ENVIRONMENT_ID ??
     process.env.RAILWAY_PROXY_ENVIRONMENT_ID ??
-    'dd4cf850-e604-458c-869d-da4ad54279db';
+    null;
   const serviceId =
     process.env.RAILWAY_SERVICE_ID ?? process.env.RAILWAY_BACKEND_SERVICE_ID ?? process.env.RAILWAY_PROXY_SERVICE_ID ?? null;
 
@@ -2665,7 +2665,7 @@ Do not return plain text outside the JSON object.
 
 // ── POST /api/approve-patch ──────────────────────────────────────────────────
 //    Human tester override — applies the approved patch to Railway
-app.post('/api/approve-patch', requireAdminAuth, async (req: Request, res: Response) => {
+app.post('/api/approve-patch', requireGrandMasterAuth, async (req: Request, res: Response) => {
   const { patchId, projectId, environmentId, serviceId } = req.body as {
     patchId: string;
     projectId: string;
