@@ -103,6 +103,22 @@ type PlaywrightVerificationWebhookPayload = {
   logId?: number | string;
 };
 
+type CognitiveActionPayload = {
+  mode: 'none' | 'gitea_propose_pr';
+  giteaProposePr?: GiteaCreatePrRequest | null;
+};
+
+type CognitiveReasoningResult = {
+  reasoningTrace: string;
+  intentContext: string;
+  riskAnalysis: string;
+  rewardAnalysis: string;
+  confidenceScore: number;
+  isObviousAutonomous: boolean;
+  actionPayload: CognitiveActionPayload;
+  consultativeResponse: string;
+};
+
 type DocumentIntelKeyword = {
   keyword: string;
   score: number;
@@ -1007,6 +1023,125 @@ function normalizeRoutedBobResponse(rawModelText: string): RoutedBobResponse {
     intentType: 'conversation',
     conversationalReply: conversationalReply || rawModelText.trim(),
   };
+}
+
+function normalizeConfidenceScore(value: unknown): number {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return 0.55;
+  }
+
+  if (parsed < 0) {
+    return 0;
+  }
+
+  if (parsed > 1) {
+    return 1;
+  }
+
+  return Math.round(parsed * 100) / 100;
+}
+
+function normalizeCognitiveReasoningOutput(rawModelText: string, inboundText: string): CognitiveReasoningResult {
+  const parsed = parseJsonObjectFromText(rawModelText);
+  const fallbackTrace = rawModelText.trim() || 'No model reasoning trace returned.';
+
+  if (!parsed) {
+    return {
+      reasoningTrace: fallbackTrace,
+      intentContext: inboundText.slice(0, 120) || 'MANUAL_USER_INSTRUCTION',
+      riskAnalysis: 'Model response was not parseable as JSON; autonomous execution disabled.',
+      rewardAnalysis: 'Human review can still act on the recommendation once reformatted.',
+      confidenceScore: 0.35,
+      isObviousAutonomous: false,
+      actionPayload: { mode: 'none', giteaProposePr: null },
+      consultativeResponse: fallbackTrace,
+    };
+  }
+
+  const reasoningTrace = typeof parsed.reasoningTrace === 'string'
+    ? parsed.reasoningTrace.trim()
+    : fallbackTrace;
+  const intentContext = typeof parsed.intentContext === 'string' && parsed.intentContext.trim().length > 0
+    ? parsed.intentContext.trim()
+    : inboundText.slice(0, 120) || 'MANUAL_USER_INSTRUCTION';
+  const riskAnalysis = typeof parsed.riskAnalysis === 'string' && parsed.riskAnalysis.trim().length > 0
+    ? parsed.riskAnalysis.trim()
+    : 'Risk analysis unavailable.';
+  const rewardAnalysis = typeof parsed.rewardAnalysis === 'string' && parsed.rewardAnalysis.trim().length > 0
+    ? parsed.rewardAnalysis.trim()
+    : 'Reward analysis unavailable.';
+  const confidenceScore = normalizeConfidenceScore(parsed.confidenceScore);
+  const isObviousAutonomous = Boolean(parsed.isObviousAutonomous);
+
+  const rawActionPayload = parsed.actionPayload;
+  let actionPayload: CognitiveActionPayload = { mode: 'none', giteaProposePr: null };
+  if (rawActionPayload && typeof rawActionPayload === 'object' && !Array.isArray(rawActionPayload)) {
+    const mode = String((rawActionPayload as Record<string, unknown>).mode ?? '').toLowerCase();
+    const rawGitea = (rawActionPayload as Record<string, unknown>).giteaProposePr;
+
+    if (mode === 'gitea_propose_pr' && rawGitea && typeof rawGitea === 'object' && !Array.isArray(rawGitea)) {
+      actionPayload = {
+        mode: 'gitea_propose_pr',
+        giteaProposePr: rawGitea as GiteaCreatePrRequest,
+      };
+    }
+  }
+
+  const consultativeResponse = typeof parsed.consultativeResponse === 'string' && parsed.consultativeResponse.trim().length > 0
+    ? parsed.consultativeResponse.trim()
+    : '';
+
+  return {
+    reasoningTrace,
+    intentContext,
+    riskAnalysis,
+    rewardAnalysis,
+    confidenceScore,
+    isObviousAutonomous,
+    actionPayload,
+    consultativeResponse,
+  };
+}
+
+function formatCognitiveRiskRewardMarkdown(reasoning: CognitiveReasoningResult): string {
+  return [
+    '## Cognitive Risk/Reward Analysis',
+    '',
+    '| Dimension | Assessment |',
+    '| --- | --- |',
+    `| Risk | ${reasoning.riskAnalysis.replace(/\n/g, '<br/>')} |`,
+    `| Reward | ${reasoning.rewardAnalysis.replace(/\n/g, '<br/>')} |`,
+    `| Confidence | ${reasoning.confidenceScore.toFixed(2)} |`,
+    `| Autonomous Path | ${reasoning.isObviousAutonomous ? 'Eligible' : 'Consultative Hold'} |`,
+    '',
+    '### Reasoning Trace',
+    reasoning.reasoningTrace || 'No reasoning trace provided.',
+  ].join('\n');
+}
+
+async function persistAiReasoningLedger(args: {
+  sessionId: string;
+  reasoning: CognitiveReasoningResult;
+  actionTaken: 'RECOMMENDED_ONLY' | 'AGENTIC_EXECUTED';
+  metadata: Record<string, unknown>;
+}): Promise<void> {
+  const { error } = await supabase
+    .from('ai_reasoning_ledger')
+    .insert({
+      session_id: args.sessionId,
+      intent_context: args.reasoning.intentContext,
+      hypothetical_risks: args.reasoning.riskAnalysis,
+      projected_rewards: args.reasoning.rewardAnalysis,
+      confidence_score: args.reasoning.confidenceScore,
+      action_taken: args.actionTaken,
+      metadata: args.metadata,
+      created_at: new Date().toISOString(),
+    } as Record<string, unknown>);
+
+  if (error) {
+    console.warn('[/api/heal] Failed to persist ai_reasoning_ledger entry', error);
+  }
 }
 
 async function appendChatSessionMessage(
@@ -1932,12 +2067,12 @@ app.post('/api/heal', requireUserAuth, async (req: Request, res: Response) => {
       2,
     );
 
-    const chatPrompt = `
-You are interacting live with a human engineer through a command center UI.
+    const cognitivePrompt = `
+You are Bob's cognitive reasoning controller for an engineering command center.
 The user states: "${inboundText}"
 
-  Conversation history:
-  ${conversationTranscript}
+Conversation history:
+${conversationTranscript}
 
 Structured recent history array:
 ${promptHistoryJson}
@@ -1948,75 +2083,144 @@ System Operational Rules: ${kb.systemRules}
 Consultative Reference Runbook (Tier B):
 ${consultativeRunbook}
 
-Return ONLY one JSON object with this routing contract:
-- If the user is chatting, asking a question, or requesting a status update, respond with:
-  {"intentType":"conversation","conversationalReply":"<markdown response>"}
-- If the user is explicitly asking for a system patch or config mutation, respond with:
-  {"intentType":"patch","targetVariable":"<name>","patchValue":"<value>","conversationalReply":"<optional markdown summary>"}
+Follow this policy:
+1) Audit dependencies and operational impact.
+2) Produce explicit risk and reward analysis.
+3) Set isObviousAutonomous=true ONLY when risk is effectively zero and user intent is explicit.
+4) If autonomous path is selected, provide a safe action payload for gitea propose-pr flow.
+
+Return ONLY one JSON object with this schema:
+{
+  "reasoningTrace": "string",
+  "intentContext": "string",
+  "riskAnalysis": "string",
+  "rewardAnalysis": "string",
+  "confidenceScore": 0.00,
+  "isObviousAutonomous": false,
+  "actionPayload": {
+    "mode": "none" | "gitea_propose_pr",
+    "giteaProposePr": {
+      "title": "string",
+      "body": "string",
+      "commitMessage": "string",
+      "baseBranch": "main",
+      "branchName": "patch/ai-self-heal-<slug>",
+      "files": [{ "path": "string", "content": "string" }],
+      "dryRun": false
+    }
+  },
+  "consultativeResponse": "markdown string for human decision"
+}
 
 Do not return plain text outside the JSON object.
 `;
 
-    if (req.body.stream === true) {
-      const primaryModel = getOllamaModelCandidates()[0] ?? 'llama3.2:3b';
-      let streamedModelOutput = '';
-      try {
-        streamedModelOutput = await streamOllamaResponseToClient(res, chatPrompt, primaryModel)
-      } catch (error) {
-        console.error('[/api/heal] Stream generation failed', error);
-        const degradedText = 'Bob is temporarily unavailable (model upstream). Please retry in a moment.';
-        res.write(`data: ${JSON.stringify({ type: 'final', text: degradedText })}\n\n`)
-        res.write(`data: ${JSON.stringify({ type: 'done', text: degradedText })}\n\n`)
-        res.end()
-        await appendChatSessionMessage(sessionId, 'assistant', degradedText);
-        return
-      }
-
-      const routed = normalizeRoutedBobResponse(streamedModelOutput);
-      const assistantText = routed.intentType === 'patch'
-        ? JSON.stringify({ targetVariable: routed.targetVariable, patchValue: routed.patchValue })
-        : String(routed.conversationalReply ?? streamedModelOutput ?? '').trim();
-      await appendChatSessionMessage(sessionId, 'assistant', assistantText);
-      return
-    }
-
     let modelText = '';
     let modelUsed = '';
     try {
-      const result = await generateWithModelFallback('', chatPrompt);
+      const result = await generateWithModelFallback('', cognitivePrompt);
       modelText = result.responseText.trim();
       modelUsed = result.modelUsed;
     } catch (error) {
-      console.error('[/api/heal] Non-stream generation failed', error);
+      console.error('[/api/heal] Cognitive generation failed', error);
       const degradedText = 'Bob is temporarily unavailable (model upstream). Please retry in a moment.';
       await appendChatSessionMessage(sessionId, 'assistant', degradedText);
+
+      if (req.body.stream === true) {
+        res.write(`data: ${JSON.stringify({ type: 'final', text: degradedText })}\n\n`);
+        res.write(`data: ${JSON.stringify({ type: 'done', text: degradedText })}\n\n`);
+        res.end();
+        return;
+      }
 
       res.status(200).json({
         bobResponse: degradedText,
         status: 'DEGRADED',
         sessionId,
-        intentType: 'conversation',
-        conversationalReply: degradedText,
       });
       return;
     }
 
-    console.log(`[/api/heal] Manual instruction generated via model ${modelUsed}`);
-    const routed = normalizeRoutedBobResponse(modelText);
-    const bobResponse = routed.intentType === 'patch'
-      ? JSON.stringify({ targetVariable: routed.targetVariable, patchValue: routed.patchValue })
-      : String(routed.conversationalReply ?? modelText).trim();
+    console.log(`[/api/heal] Manual cognitive response generated via model ${modelUsed}`);
+    const reasoning = normalizeCognitiveReasoningOutput(modelText, inboundText);
+
+    let actionTaken: 'RECOMMENDED_ONLY' | 'AGENTIC_EXECUTED' = 'RECOMMENDED_ONLY';
+    let executionSummary: Record<string, unknown> = {
+      mode: reasoning.actionPayload.mode,
+      executed: false,
+      outcome: 'consultative',
+    };
+    let responseStatus = 'CONSULTATIVE_RECOMMENDATION';
+    let bobResponse = formatCognitiveRiskRewardMarkdown(reasoning);
+
+    if (reasoning.isObviousAutonomous && reasoning.actionPayload.mode === 'gitea_propose_pr' && reasoning.actionPayload.giteaProposePr) {
+      const requestPayload: GiteaCreatePrRequest = {
+        ...reasoning.actionPayload.giteaProposePr,
+        branchName:
+          reasoning.actionPayload.giteaProposePr.branchName ??
+          `patch/ai-self-heal-${Date.now()}`,
+        dryRun: false,
+      };
+
+      const proposeResult = await executeGiteaProposePr(requestPayload);
+      actionTaken = proposeResult.statusCode < 400 ? 'AGENTIC_EXECUTED' : 'RECOMMENDED_ONLY';
+      responseStatus = actionTaken === 'AGENTIC_EXECUTED' ? 'AGENTIC_EXECUTED' : 'AUTONOMOUS_ACTION_FAILED';
+      executionSummary = {
+        mode: 'gitea_propose_pr',
+        executed: actionTaken === 'AGENTIC_EXECUTED',
+        statusCode: proposeResult.statusCode,
+        result: proposeResult.body,
+      };
+
+      const executionLine = formatGiteaProposeResultForBob(proposeResult);
+      bobResponse = [
+        '## Autonomous Execution Result',
+        '',
+        executionLine,
+        '',
+        formatCognitiveRiskRewardMarkdown(reasoning),
+      ].join('\n');
+    } else {
+      const consultativeBody = reasoning.consultativeResponse || 'Recommendation held for human review based on risk/reward balance.';
+      bobResponse = [
+        formatCognitiveRiskRewardMarkdown(reasoning),
+        '',
+        '## Recommendation',
+        consultativeBody,
+      ].join('\n');
+    }
+
+    await persistAiReasoningLedger({
+      sessionId,
+      reasoning,
+      actionTaken,
+      metadata: {
+        modelUsed,
+        inboundText,
+        executionSummary,
+      },
+    });
 
     await appendChatSessionMessage(sessionId, 'assistant', bobResponse);
 
+    if (req.body.stream === true) {
+      res.write(`data: ${JSON.stringify({ type: 'final', text: bobResponse })}\n\n`);
+      res.write(`data: ${JSON.stringify({ type: 'done', text: bobResponse })}\n\n`);
+      res.end();
+      return;
+    }
+
     res.status(200).json({
       bobResponse,
-      status: 'COMPLETED',
+      status: responseStatus,
       sessionId,
-      conversationalReply: routed.conversationalReply,
-      targetVariable: routed.targetVariable,
-      patchValue: routed.patchValue,
-      intentType: routed.intentType,
+      reasoningTrace: reasoning.reasoningTrace,
+      riskAnalysis: reasoning.riskAnalysis,
+      rewardAnalysis: reasoning.rewardAnalysis,
+      confidenceScore: reasoning.confidenceScore,
+      isObviousAutonomous: reasoning.isObviousAutonomous,
+      actionTaken,
+      executionSummary,
     });
     return;
   }
