@@ -404,6 +404,9 @@ COMMENT ON FUNCTION get_observation_result(uuid) IS
 -- SECTION 5: ZONE REQUIREMENTS BREAKDOWN RPC
 -- ============================================================================
 
+-- Reset prior signature before introducing a new row shape for this RPC.
+DROP FUNCTION IF EXISTS public.evaluate_observation_requirements(uuid) CASCADE;
+
 CREATE OR REPLACE FUNCTION evaluate_observation_requirements(p_observation_id uuid)
 RETURNS TABLE (
   requirement_code text,

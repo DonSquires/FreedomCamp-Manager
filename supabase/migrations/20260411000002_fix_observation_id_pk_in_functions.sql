@@ -89,6 +89,9 @@ COMMENT ON FUNCTION public.get_observation_result(uuid) IS
 
 -- ── 2. Fix evaluate_observation_requirements() ──────────────────────────────
 
+-- Signature changes across historical migrations require explicit drop/recreate.
+DROP FUNCTION IF EXISTS public.evaluate_observation_requirements(uuid) CASCADE;
+
 CREATE OR REPLACE FUNCTION public.evaluate_observation_requirements(p_observation_id uuid)
 RETURNS jsonb
 LANGUAGE plpgsql
