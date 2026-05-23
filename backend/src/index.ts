@@ -161,6 +161,7 @@ const OLLAMA_MAX_CANDIDATES = Math.max(1, Number(process.env.OLLAMA_MAX_CANDIDAT
 const DOC_INTEL_DEFAULT_LIMIT = Math.max(1, Number(process.env.DOC_INTEL_DEFAULT_LIMIT ?? 20));
 const DOC_INTEL_MAX_LIMIT = Math.max(1, Number(process.env.DOC_INTEL_MAX_LIMIT ?? 100));
 const PRIVACY_REDACTION_ENABLED = parseBool(process.env.PRIVACY_REDACTION_ENABLED ?? 'true');
+const SUPABASE_AUTH_LOOKUP_TIMEOUT_MS = Number(process.env.SUPABASE_AUTH_LOOKUP_TIMEOUT_MS ?? 3000);
 
 const CURRENT_FILE = fileURLToPath(import.meta.url);
 const BACKEND_DIR = path.dirname(CURRENT_FILE);
@@ -548,14 +549,26 @@ async function resolveTokenSubject(token: string): Promise<string | null> {
     return localSubject;
   }
 
-  // Fallback for environments where SUPABASE_JWT_SECRET is not configured.
-  const { data, error } = await supabase.auth.getUser(token);
-  if (error) {
+  if (SUPABASE_JWT_SECRET) {
     return null;
   }
 
-  const remoteSubject = String(data?.user?.id ?? '').trim();
-  return remoteSubject || null;
+  try {
+    // Fallback only for environments where SUPABASE_JWT_SECRET is not configured.
+    const { data, error } = await withTimeout(
+      supabase.auth.getUser(token),
+      SUPABASE_AUTH_LOOKUP_TIMEOUT_MS,
+      'supabase.auth.getUser',
+    );
+    if (error) {
+      return null;
+    }
+
+    const remoteSubject = String(data?.user?.id ?? '').trim();
+    return remoteSubject || null;
+  } catch {
+    return null;
+  }
 }
 
 async function resolveAdminAuth(req: Request): Promise<AdminAuthContext | null> {
@@ -3012,7 +3025,7 @@ app.post('/api/automation/playwright-result', async (req: Request, res: Response
         ok: true,
         status: managerStatus,
         verificationTag,
-        logId,
+        persistedId: logId,
         giteaIssueNumber,
         autoPromotion: promotionSummary,
         persistenceTarget: 'self_healing_logs',
@@ -3085,7 +3098,7 @@ app.post('/api/automation/playwright-result', async (req: Request, res: Response
     ok: true,
     status: managerStatus,
     verificationTag,
-    logId: persistedId,
+    persistedId,
     giteaIssueNumber,
     autoPromotion: promotionSummary,
     persistenceTarget,
