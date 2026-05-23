@@ -114,7 +114,7 @@ validate_railway_token() {
 
   if [ "$http_code" != "200" ]; then
     log_error "Railway token ($token_name) is invalid or unreachable (HTTP $http_code): $(mask_secret "$token_value")"
-    ((INVALID_COUNT++))
+    ((INVALID_COUNT+=1))
     return 1
   fi
 
@@ -126,19 +126,19 @@ validate_railway_token() {
 
     if [[ "$first_error" == "Not Authorized" ]]; then
       log_warning "Railway token ($token_name) cannot access me() query; treating as potentially scoped token."
-      ((VALIDATED_COUNT++))
+      ((VALIDATED_COUNT+=1))
       return 0
     fi
 
     log_error "Railway token ($token_name) Graph probe failed: $first_error"
-    ((INVALID_COUNT++))
+    ((INVALID_COUNT+=1))
     return 1
   fi
 
   local viewer
   viewer=$(jq -r '.data.me.email // "unknown"' /tmp/railway-token-check.json 2>/dev/null || echo "unknown")
   log_success "Railway token ($token_name) is valid (viewer: $viewer)"
-  ((VALIDATED_COUNT++))
+  ((VALIDATED_COUNT+=1))
   return 0
 }
 
@@ -180,7 +180,7 @@ validate_railway_service_id() {
   local resolved_name
   resolved_name=$(jq -r '.data.service.name // "unknown"' /tmp/railway-service-check.json 2>/dev/null || echo "unknown")
   log_success "Service ID ($service_name) is accessible via Graph (resolved: $resolved_name)"
-  ((VALIDATED_COUNT++))
+  ((VALIDATED_COUNT+=1))
   return 0
 }
 
@@ -204,7 +204,7 @@ validate_service_url() {
   
   if [ "$http_code" = "200" ]; then
     log_success "Service ($service_name) is healthy: $health_url"
-    ((VALIDATED_COUNT++))
+    ((VALIDATED_COUNT+=1))
     return 0
   else
     log_warning "Service ($service_name) returned HTTP $http_code: $health_url"
@@ -246,14 +246,14 @@ main() {
 
   if [ -z "${RAILWAY_BOB_TOKEN:-}" ]; then
     log_error "RAILWAY_BOB_TOKEN is not set"
-    ((MISSING_COUNT++))
+    ((MISSING_COUNT+=1))
   else
     validate_railway_token "$RAILWAY_BOB_TOKEN" "RAILWAY_BOB_TOKEN"
   fi
 
   if [ -z "${RAILWAY_BOB_SERVICE_ID:-}" ]; then
     log_warning "RAILWAY_BOB_SERVICE_ID is not set (optional if RAILWAY_BOB_PROJECT_ID is set)"
-    ((MISSING_COUNT++))
+    ((MISSING_COUNT+=1))
   else
     if [ -n "${RAILWAY_BOB_TOKEN:-}" ]; then
       validate_railway_service_id "$RAILWAY_BOB_TOKEN" "$RAILWAY_BOB_SERVICE_ID" "RAILWAY_BOB_SERVICE_ID" || true
@@ -276,7 +276,7 @@ main() {
 
   if [ -z "${RAILWAY_OLLAMA_SERVICE_ID:-}" ]; then
     log_warning "RAILWAY_OLLAMA_SERVICE_ID is not set (optional if RAILWAY_BOB_PROJECT_ID is set)"
-    ((MISSING_COUNT++))
+    ((MISSING_COUNT+=1))
   else
     if [ -n "${RAILWAY_BOB_TOKEN:-}" ]; then
       validate_railway_service_id "$RAILWAY_BOB_TOKEN" "$RAILWAY_OLLAMA_SERVICE_ID" "RAILWAY_OLLAMA_SERVICE_ID" || true
@@ -295,14 +295,14 @@ main() {
 
   if [ -z "${RAILWAY_TOKEN:-}" ]; then
     log_error "RAILWAY_TOKEN is not set (required for core services)"
-    ((MISSING_COUNT++))
+    ((MISSING_COUNT+=1))
   else
     validate_railway_token "$RAILWAY_TOKEN" "RAILWAY_TOKEN"
   fi
 
   if [ -z "${RAILWAY_PROXY_SERVICE_ID:-}" ]; then
     log_error "RAILWAY_PROXY_SERVICE_ID is not set"
-    ((MISSING_COUNT++))
+    ((MISSING_COUNT+=1))
   else
     if [ -n "${RAILWAY_TOKEN:-}" ]; then
       validate_railway_service_id "$RAILWAY_TOKEN" "$RAILWAY_PROXY_SERVICE_ID" "RAILWAY_PROXY_SERVICE_ID" || true
@@ -321,7 +321,7 @@ main() {
 
   if [ -z "${RAILWAY_INFERENCE_SERVICE_ID:-}" ]; then
     log_error "RAILWAY_INFERENCE_SERVICE_ID is not set"
-    ((MISSING_COUNT++))
+    ((MISSING_COUNT+=1))
   else
     if [ -n "${RAILWAY_TOKEN:-}" ]; then
       validate_railway_service_id "$RAILWAY_TOKEN" "$RAILWAY_INFERENCE_SERVICE_ID" "RAILWAY_INFERENCE_SERVICE_ID" || true
@@ -340,7 +340,7 @@ main() {
 
   if [ -z "${RAILWAY_PTT_SERVICE_ID:-}" ]; then
     log_warning "RAILWAY_PTT_SERVICE_ID is not set"
-    ((MISSING_COUNT++))
+    ((MISSING_COUNT+=1))
   else
     if [ -n "${RAILWAY_TOKEN:-}" ]; then
       validate_railway_service_id "$RAILWAY_TOKEN" "$RAILWAY_PTT_SERVICE_ID" "RAILWAY_PTT_SERVICE_ID" || true
@@ -359,29 +359,29 @@ main() {
 
   if [ -z "${PROXY_SERVER_URL:-}" ]; then
     log_error "PROXY_SERVER_URL Supabase secret is not set"
-    ((MISSING_COUNT++))
+    ((MISSING_COUNT+=1))
   else
     validate_service_url "$PROXY_SERVER_URL" "PROXY_SERVER_URL (Supabase secret)" || true
   fi
 
   if [ -z "${INFERENCE_SERVICE_URL:-}" ]; then
     log_error "INFERENCE_SERVICE_URL Supabase secret is not set"
-    ((MISSING_COUNT++))
+    ((MISSING_COUNT+=1))
   else
     validate_service_url "$INFERENCE_SERVICE_URL" "INFERENCE_SERVICE_URL (Supabase secret)" || true
   fi
 
   if [ -z "${INFERENCE_API_KEY:-}" ]; then
     log_error "INFERENCE_API_KEY Supabase secret is not set"
-    ((MISSING_COUNT++))
+    ((MISSING_COUNT+=1))
   else
     log_success "INFERENCE_API_KEY is set: $(mask_secret "$INFERENCE_API_KEY")"
-    ((VALIDATED_COUNT++))
+    ((VALIDATED_COUNT+=1))
   fi
 
   if [ -z "${PTT_SERVER_URL:-}" ]; then
     log_warning "PTT_SERVER_URL Supabase secret is not set"
-    ((MISSING_COUNT++))
+    ((MISSING_COUNT+=1))
   else
     validate_service_url "$PTT_SERVER_URL" "PTT_SERVER_URL (Supabase secret)" || true
   fi

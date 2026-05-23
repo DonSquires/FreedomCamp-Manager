@@ -142,6 +142,7 @@ Alias resolution is handled by `scripts/load-railway-secrets-from-github-env.sh`
 |---|---|---|---|
 | `RAILWAY_PROXY_SERVICE_ID` | ✅ | `deploy-proxy-railway.yml` | Proxy service ID |
 | `RAILWAY_INFERENCE_SERVICE_ID` | ⚠️ Deprecated | `deploy-railway.yml` (legacy core) | Legacy inference-in-core-project deploy |
+| `RAILWAY_PTT_SERVICE_ID` | ✅ | PTT deploy + wiring audit | PTT signaling server service ID |
 
 ### Service URLs (Post-Deploy Health Checks + Wiring Audit)
 
