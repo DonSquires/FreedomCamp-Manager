@@ -293,6 +293,8 @@ COMMENT ON FUNCTION public.get_compliance_analytics_summary IS
 --    Fixes: breach count now uses observations.is_compliant=FALSE instead of
 --           breach_alerts (which may be partially populated).
 -- ============================================================================
+DROP FUNCTION IF EXISTS public.get_admin_dashboard_stats(timestamptz, timestamptz, uuid);
+
 CREATE OR REPLACE FUNCTION public.get_admin_dashboard_stats(
   p_start_date      TIMESTAMPTZ,
   p_end_date        TIMESTAMPTZ,
