@@ -40,6 +40,49 @@ Follow-up TODO:
 
 ---
 
+## Railway Model + Mapping Gateway Rollout (2026-05-23)
+
+Owner: GitHub Copilot  
+Scope: Deploy Railway-hosted model proxy gateway (RunPod primary) and self-hosted mapping gateway, then wire backend to both.
+
+Completed:
+
+- [x] Created Railway services:
+  - `model-gateway` (`serviceId=5105de1e-dd53-4688-9c75-dc9b28f8cf3f`)
+  - `mapping-gateway` (`serviceId=b44ed495-27df-4609-ad46-461986019a82`)
+- [x] Configured monorepo service roots:
+  - `model-gateway/`
+  - `mapping-gateway/`
+- [x] Assigned public service domains:
+  - `https://model-gateway-production-9018.up.railway.app`
+  - `https://mapping-gateway-production.up.railway.app`
+- [x] Corrected domain target port routing to `8080` for both services.
+- [x] Wired backend production variables:
+  - `MODEL_GATEWAY_URL=https://model-gateway-production-9018.up.railway.app`
+  - `MAPPING_GATEWAY_URL=https://mapping-gateway-production.up.railway.app`
+  - `MAPPING_GATEWAY_TIMEOUT_MS=12000`
+
+Validation evidence:
+
+1. Railway deployment status (production): `SUCCESS`
+  - model-gateway deployment id: `5d6469aa-ad59-4df7-818e-df3a6f63500c`
+  - mapping-gateway deployment id: `d1ad04ce-75f2-406d-b322-001a278ab8f0`
+  - fieldops-backend deployment id: `562f0091-7468-4db6-853a-d7ff853c7b42`
+2. Model gateway health:
+  - `GET /health` -> `status=ok`, `runpodConfigured=true`
+3. Model gateway inference smoke:
+  - `POST /api/generate` -> `{"response":"OK","provider":"runpod"}`
+4. Mapping gateway health:
+  - `GET /health` -> `status=ok`
+5. Mapping gateway route-plan smoke:
+  - `POST /route-plan` -> `status=ok`, deterministic waypoint ordering + distance summary
+
+Current constraint:
+
+- Backend `/api/heal` functional smoke for authenticated MANUAL_USER_INSTRUCTION requires a valid user bearer token; gateway-level and backend health checks are green.
+
+---
+
 ## Production Validation Attempt (2026-05-23)
 
 Owner: GitHub Copilot  
