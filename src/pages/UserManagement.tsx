@@ -102,6 +102,21 @@ interface UserManagementProps {
   embedded?: boolean
 }
 
+function formatOrganizationDisplayName(name: string | null | undefined): string {
+  const raw = (name || '').trim()
+  if (!raw) return 'Unknown Organisation'
+
+  // Keep UI labels stable when backend names include operational suffixes
+  // such as "[MERGED 2026-05-14]".
+  const withoutBracketSuffix = raw.replace(/\s*\[[^\]]+\]\s*$/u, '').trim()
+  return withoutBracketSuffix || raw
+}
+
+function isGenericOrganizationLabel(name: string | null | undefined): boolean {
+  const normalized = (name || '').trim()
+  return /^org\s+[a-f0-9]{8}$/i.test(normalized)
+}
+
 export default function UserManagement({ embedded = false }: UserManagementProps) {
   const { user } = useAuthStore()
   const navigate = useNavigate()
@@ -175,7 +190,8 @@ export default function UserManagement({ embedded = false }: UserManagementProps
       const { data, error } = await supabase
         .from('organizations')
         .select('id, name, parent_organization_id')
-        .eq('is_active', true)
+        // Legacy records may have null is_active; treat them as active for admin assignment flows.
+        .or('is_active.eq.true,is_active.is.null')
         .order('name', { ascending: true })
       if (error) throw error
       return data as Organization[]
@@ -233,6 +249,32 @@ export default function UserManagement({ embedded = false }: UserManagementProps
       return (row || null) as DirectUserPreview | null
     },
     enabled: isAdmin && showEditDialog && isMaster && directUserIdValid,
+    staleTime: 30000,
+  })
+
+  const { data: currentUserOrganization } = useQuery({
+    queryKey: ['current-user-organization', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return null
+
+      const { data, error } = await (supabase
+        .from('user_profiles') as any)
+        .select('organization:organizations!organization_id(id, name, parent_organization_id)')
+        .eq('id', user.id)
+        .single()
+
+      if (error) throw error
+
+      const organization = data?.organization
+      if (!organization?.id || !organization?.name) return null
+
+      return {
+        id: organization.id,
+        name: organization.name,
+        parent_organization_id: organization.parent_organization_id ?? null,
+      } as Organization
+    },
+    enabled: isAdmin && Boolean(user?.id),
     staleTime: 30000,
   })
 
@@ -296,6 +338,52 @@ export default function UserManagement({ embedded = false }: UserManagementProps
     },
     enabled: isAdmin,
   })
+
+  const assignableOrgs = useMemo<Organization[]>(() => {
+    const fromUsers = (users || [])
+      .map((u) => ({
+        id: u.organization_id,
+        name: u.organization?.name,
+      }))
+      .filter((org): org is { id: string; name: string } => Boolean(org.id && org.name))
+
+    const preferredNameByOrgId = new Map<string, string>()
+    for (const org of fromUsers) {
+      if (!preferredNameByOrgId.has(org.id)) {
+        preferredNameByOrgId.set(org.id, org.name)
+      }
+    }
+
+    if (availableOrgs.length > 0) {
+      return availableOrgs
+        .map((org) => {
+          const preferredName = preferredNameByOrgId.get(org.id)
+          if (preferredName && isGenericOrganizationLabel(org.name)) {
+            return { ...org, name: preferredName }
+          }
+          return org
+        })
+        .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+    }
+
+    if (fromUsers.length === 0) {
+      if (currentUserOrganization) return [currentUserOrganization]
+      return []
+    }
+
+    const deduped = new Map<string, Organization>()
+    for (const org of fromUsers) {
+      if (!deduped.has(org.id)) {
+        deduped.set(org.id, {
+          id: org.id,
+          name: org.name,
+          parent_organization_id: null,
+        })
+      }
+    }
+
+    return Array.from(deduped.values()).sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+  }, [availableOrgs, users, currentUserOrganization])
 
   // Create user mutation
   const createUserMutation = useMutation({
@@ -975,7 +1063,7 @@ export default function UserManagement({ embedded = false }: UserManagementProps
                 <SelectContent>
                   <SelectItem value="all">All Organisations</SelectItem>
                   {availableOrgs.map((org) => (
-                    <SelectItem key={org.id} value={org.id}>{org.name}</SelectItem>
+                    <SelectItem key={org.id} value={org.id}>{formatOrganizationDisplayName(org.name)}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -1373,8 +1461,8 @@ export default function UserManagement({ embedded = false }: UserManagementProps
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">No Organisation</SelectItem>
-                      {availableOrgs.map((org) => (
-                        <SelectItem key={org.id} value={org.id}>{org.name}</SelectItem>
+                      {assignableOrgs.map((org) => (
+                        <SelectItem key={org.id} value={org.id}>{formatOrganizationDisplayName(org.name)}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -1383,16 +1471,16 @@ export default function UserManagement({ embedded = false }: UserManagementProps
                   <Label>Authorised Additional Organisations</Label>
                   <p className="text-xs text-gray-500 mt-1">Select any extra organisations this user can work across.</p>
                   <div className="mt-2 max-h-36 overflow-y-auto rounded-md border divide-y">
-                    {availableOrgs.filter((org) => org.id !== organizationId).map((org) => (
+                        {assignableOrgs.filter((org) => org.id !== organizationId).map((org) => (
                       <label key={org.id} className="flex items-center gap-2 px-3 py-2 hover:bg-muted/50 cursor-pointer">
                         <Checkbox
                           checked={extraOrganizationIds.includes(org.id)}
                           onCheckedChange={() => toggleExtraOrganization(org.id)}
                         />
-                        <span className="text-sm text-gray-800">{org.name}</span>
+                        <span className="text-sm text-gray-800">{formatOrganizationDisplayName(org.name)}</span>
                       </label>
                     ))}
-                    {availableOrgs.filter((org) => org.id !== organizationId).length === 0 && (
+                        {assignableOrgs.filter((org) => org.id !== organizationId).length === 0 && (
                       <div className="px-3 py-2 text-xs text-gray-500">No additional organisations available.</div>
                     )}
                   </div>
@@ -1405,8 +1493,8 @@ export default function UserManagement({ embedded = false }: UserManagementProps
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">No Employer Organisation</SelectItem>
-                      {availableOrgs.map((org) => (
-                        <SelectItem key={org.id} value={org.id}>{org.name}</SelectItem>
+                          {assignableOrgs.map((org) => (
+                        <SelectItem key={org.id} value={org.id}>{formatOrganizationDisplayName(org.name)}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -1547,7 +1635,7 @@ export default function UserManagement({ embedded = false }: UserManagementProps
                 <SelectContent>
                   <SelectItem value="none">Select Organisation</SelectItem>
                   {availableOrgs.map((org) => (
-                    <SelectItem key={org.id} value={org.id}>{org.name}</SelectItem>
+                    <SelectItem key={org.id} value={org.id}>{formatOrganizationDisplayName(org.name)}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -1964,8 +2052,8 @@ export default function UserManagement({ embedded = false }: UserManagementProps
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">No Organisation</SelectItem>
-                  {availableOrgs.map((org) => (
-                    <SelectItem key={org.id} value={org.id}>{org.name}</SelectItem>
+                  {assignableOrgs.map((org) => (
+                    <SelectItem key={org.id} value={org.id}>{formatOrganizationDisplayName(org.name)}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -1976,16 +2064,16 @@ export default function UserManagement({ embedded = false }: UserManagementProps
                 Select any extra organisations this user can access.
               </p>
               <div className="mt-2 max-h-36 overflow-y-auto rounded-md border divide-y">
-                {availableOrgs.filter((org) => org.id !== organizationId).map((org) => (
+                {assignableOrgs.filter((org) => org.id !== organizationId).map((org) => (
                   <label key={org.id} className="flex items-center gap-2 px-3 py-2 hover:bg-muted/50 cursor-pointer">
                     <Checkbox
                       checked={extraOrganizationIds.includes(org.id)}
                       onCheckedChange={() => toggleExtraOrganization(org.id)}
                     />
-                    <span className="text-sm text-gray-800">{org.name}</span>
+                    <span className="text-sm text-gray-800">{formatOrganizationDisplayName(org.name)}</span>
                   </label>
                 ))}
-                {availableOrgs.filter((org) => org.id !== organizationId).length === 0 && (
+                {assignableOrgs.filter((org) => org.id !== organizationId).length === 0 && (
                   <div className="px-3 py-2 text-xs text-gray-500">No additional organisations available.</div>
                 )}
               </div>
@@ -1998,8 +2086,8 @@ export default function UserManagement({ embedded = false }: UserManagementProps
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">No Employer Organisation</SelectItem>
-                  {availableOrgs.map((org) => (
-                    <SelectItem key={org.id} value={org.id}>{org.name}</SelectItem>
+                  {assignableOrgs.map((org) => (
+                    <SelectItem key={org.id} value={org.id}>{formatOrganizationDisplayName(org.name)}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>

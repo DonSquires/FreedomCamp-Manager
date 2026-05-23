@@ -1,35 +1,29 @@
 {
-  "updatedAt": "2026-05-23T11:56:52.351Z",
-  "runId": "2026-05-23T11-55-54-483Z",
-  "batch": "core",
-  "scope": "full",
+  "updatedAt": "2026-05-23T13:48:16.624Z",
+  "runId": "2026-05-23T13-44-32-803Z",
+  "batch": "all",
+  "scope": "quick",
   "resumeMode": false,
-  "continueOnFailure": false,
-  "startedAt": "2026-05-23T11:55:54.495Z",
-  "endedAt": "2026-05-23T11:56:51.960Z",
+  "continueOnFailure": true,
+  "startedAt": "2026-05-23T13:44:32.815Z",
+  "endedAt": null,
   "summary": {
-    "passed": 0,
-    "failed": 1
+    "passed": 3,
+    "failed": 0
   },
-  "failedStages": [
-    {
-      "id": "api",
-      "exitCode": 1,
-      "durationMs": 57460
-    }
-  ],
+  "failedStages": [],
   "failureContexts": [
     {
-      "folder": "manage-user-disconnect-ptt-c9fd9-t-without-deactivating-user-api",
-      "testName": "manage-user-disconnect-ptt-api.spec.ts >> manage-user disconnect_ptt action >> master can request PTT disconnect without deactivating user",
-      "location": "tests/e2e/manage-user-disconnect-ptt-api.spec.ts:95:3",
-      "error": "Error: master login should succeed"
+      "folder": "e2e-bob-human-emulator-Bob-58e01-eps-access-controls-visible-chromium-bob",
+      "testName": "e2e/bob-human-emulator.spec.ts >> Bob human emulator capability suite >> enterprise sweep creates a user through the UI and keeps access controls visible",
+      "location": "tests/e2e/bob-human-emulator.spec.ts:50:3",
+      "error": "TimeoutError: page.waitForResponse: Timeout 10000ms exceeded while waiting for event \"response\""
     },
     {
-      "folder": "org-isolation-api-Org-Isol-31bc7-d-foreign-client-sites-rows-api",
-      "testName": "org-isolation-api.spec.ts >> Org Isolation API Proof >> non-master token cannot read foreign client_sites rows",
-      "location": "tests/e2e/org-isolation-api.spec.ts:460:3",
-      "error": "Error: expect(received).toBe(expected) // Object.is equality"
+      "folder": "e2e-bob-human-emulator-Bob-58e01-eps-access-controls-visible-chromium-bob-retry1",
+      "testName": "e2e/bob-human-emulator.spec.ts >> Bob human emulator capability suite >> enterprise sweep creates a user through the UI and keeps access controls visible",
+      "location": "tests/e2e/bob-human-emulator.spec.ts:50:3",
+      "error": "TimeoutError: page.waitForResponse: Timeout 10000ms exceeded while waiting for event \"response\""
     }
   ]
 }
