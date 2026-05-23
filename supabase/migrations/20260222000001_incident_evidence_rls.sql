@@ -71,8 +71,16 @@ CREATE POLICY "incident_evidence_delete_own" ON storage.objects
 -- ============================================================================
 
 -- Index for efficient bucket + name queries
-CREATE INDEX IF NOT EXISTS idx_storage_objects_bucket_name
-  ON storage.objects (bucket_id, name);
+DO $$
+BEGIN
+  BEGIN
+    EXECUTE 'CREATE INDEX IF NOT EXISTS idx_storage_objects_bucket_name ON storage.objects (bucket_id, name)';
+  EXCEPTION
+    WHEN insufficient_privilege THEN
+      RAISE NOTICE 'Skipping idx_storage_objects_bucket_name creation due to ownership constraints';
+  END;
+END
+$$;
 
 -- ============================================================================
 -- Verification Query
