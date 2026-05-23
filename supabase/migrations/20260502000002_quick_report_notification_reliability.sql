@@ -1,5 +1,81 @@
 -- Ensure quick reports reliably notify admins and support authenticated in-app notification inserts
 
+-- Notifications table is required by incident/report triggers and in-app notification UI.
+CREATE TABLE IF NOT EXISTS public.notifications (
+  id            uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id       uuid        NOT NULL REFERENCES public.user_profiles(id) ON DELETE CASCADE,
+  type          text        NOT NULL
+                            CHECK (type IN (
+                              'breach_alert',
+                              'investigation_assigned',
+                              'flagged_vehicle',
+                              'welfare_alert',
+                              'system_alert'
+                            )),
+  title         text        NOT NULL,
+  body          text        NOT NULL,
+  data          jsonb,
+  priority      text        NOT NULL DEFAULT 'normal'
+                            CHECK (priority IN ('low', 'normal', 'high', 'urgent')),
+  read          boolean     NOT NULL DEFAULT false,
+  read_at       timestamptz,
+  delivered     boolean     NOT NULL DEFAULT false,
+  delivered_at  timestamptz,
+  created_at    timestamptz NOT NULL DEFAULT now()
+);
+
+COMMENT ON TABLE public.notifications IS
+  'In-app and push notification records, one row per notification per user.';
+
+CREATE INDEX IF NOT EXISTS idx_notifications_user_id
+  ON public.notifications (user_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_notifications_unread
+  ON public.notifications (user_id, read)
+  WHERE read = false;
+
+ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "notifications_select_own" ON public.notifications;
+CREATE POLICY "notifications_select_own"
+  ON public.notifications FOR SELECT
+  TO authenticated
+  USING (user_id = auth.uid());
+
+DROP POLICY IF EXISTS "notifications_update_own" ON public.notifications;
+CREATE POLICY "notifications_update_own"
+  ON public.notifications FOR UPDATE
+  TO authenticated
+  USING (user_id = auth.uid());
+
+DROP POLICY IF EXISTS "notifications_delete_own" ON public.notifications;
+CREATE POLICY "notifications_delete_own"
+  ON public.notifications FOR DELETE
+  TO authenticated
+  USING (user_id = auth.uid());
+
+DROP POLICY IF EXISTS "notifications_service_role_all" ON public.notifications;
+CREATE POLICY "notifications_service_role_all"
+  ON public.notifications FOR ALL
+  TO service_role
+  USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "notifications_admins_select_org" ON public.notifications;
+CREATE POLICY "notifications_admins_select_org"
+  ON public.notifications FOR SELECT
+  TO authenticated
+  USING (
+    get_user_role(auth.uid()) = ANY (ARRAY['admin', 'admin_officer', 'master'])
+    AND (
+      get_user_role(auth.uid()) = 'master'
+      OR EXISTS (
+        SELECT 1 FROM public.user_profiles up
+        WHERE up.id = notifications.user_id
+          AND up.organization_id = get_user_organization_id(auth.uid())
+      )
+    )
+  );
+
 -- Officers/admins can insert notifications for users in their own organisation.
 DROP POLICY IF EXISTS "notifications_insert_same_org" ON public.notifications;
 CREATE POLICY "notifications_insert_same_org"
