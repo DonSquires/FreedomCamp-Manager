@@ -1,3 +1,9 @@
+-- Compatibility bootstrap: some environments may not yet have CRM document
+-- tables when this migration runs.
+CREATE TABLE IF NOT EXISTS public.crm_documents (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid()
+);
+
 CREATE TABLE IF NOT EXISTS public.ops_live_plans (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
