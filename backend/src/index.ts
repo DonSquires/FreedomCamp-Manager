@@ -2967,6 +2967,13 @@ app.post('/api/automation/playwright-result', async (req: Request, res: Response
   }
 
   const nowIso = new Date().toISOString();
+  const isMissingSelfHealingLogsTable = (error: unknown): boolean => {
+    const errorCode = String((error as { code?: unknown } | null)?.code ?? '');
+    const errorMessage = String((error as { message?: unknown } | null)?.message ?? '');
+    const combined = `${errorCode} ${errorMessage}`.toLowerCase();
+    return combined.includes('self_healing_logs') && (combined.includes('schema cache') || errorCode === 'PGRST205');
+  };
+
   const recordPayload = {
     route: '/api/automation/playwright-result',
     gate: 'PLAYWRIGHT_BROWSER_VERIFICATION',
@@ -3008,6 +3015,7 @@ app.post('/api/automation/playwright-result', async (req: Request, res: Response
         logId,
         giteaIssueNumber,
         autoPromotion: promotionSummary,
+        persistenceTarget: 'self_healing_logs',
       });
       return;
     }
@@ -3027,19 +3035,60 @@ app.post('/api/automation/playwright-result', async (req: Request, res: Response
     .select('id')
     .single();
 
+  let persistedId: unknown = inserted?.id ?? null;
+  let persistenceTarget = 'self_healing_logs';
+
   if (insertError) {
-    console.error('[/api/automation/playwright-result] Failed to persist Playwright verification result', insertError);
-    res.status(500).json({ error: 'Failed to persist Playwright verification result' });
-    return;
+    if (!isMissingSelfHealingLogsTable(insertError)) {
+      console.error('[/api/automation/playwright-result] Failed to persist Playwright verification result', insertError);
+      res.status(500).json({ error: 'Failed to persist Playwright verification result' });
+      return;
+    }
+
+    const fallbackPayload = {
+      source: 'github_actions',
+      environment: String(process.env.NODE_ENV ?? process.env.APP_ENV ?? 'production'),
+      error_summary: verificationTag,
+      error_detail: recordPayload,
+      error_fingerprint: `playwright:${repository}:${branch}`,
+      triage_tier: status === 'PASSED' ? 1 : 2,
+      ai_analysis: 'Webhook Playwright verification ingestion fallback ledger entry.',
+      fix_branch: isPatchBranch ? branch : null,
+      fix_pr_number: null,
+      fix_pr_url: null,
+      outcome: managerStatus === 'RESOLVED_AND_DEPLOYED' ? 'merged' : status === 'PASSED' ? 'pending' : 'human_required',
+      resolved_at: managerStatus === 'RESOLVED_AND_DEPLOYED' ? nowIso : null,
+      rollback_commit: null,
+      recurrence_count: 1,
+      recurrence_window_minutes: 10,
+      org_id: null,
+      created_at: nowIso,
+    } as Record<string, unknown>;
+
+    const { data: fallbackInserted, error: fallbackError } = await supabase
+      .from('self_heal_events')
+      .insert(fallbackPayload)
+      .select('id')
+      .single();
+
+    if (fallbackError) {
+      console.error('[/api/automation/playwright-result] Failed to persist Playwright verification result', fallbackError);
+      res.status(500).json({ error: 'Failed to persist Playwright verification result' });
+      return;
+    }
+
+    persistedId = fallbackInserted?.id ?? null;
+    persistenceTarget = 'self_heal_events';
   }
 
   res.status(200).json({
     ok: true,
     status: managerStatus,
     verificationTag,
-    logId: inserted?.id ?? null,
+    logId: persistedId,
     giteaIssueNumber,
     autoPromotion: promotionSummary,
+    persistenceTarget,
   });
 });
 
