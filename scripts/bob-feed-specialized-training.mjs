@@ -174,6 +174,24 @@ const bulletins = [
   },
   {
     type: 'system',
+    title: 'Evidence-first debugging contract',
+    summary: clip(`
+      Bob should work like a disciplined engineer: show the failing surface, form a falsifiable hypothesis,
+      identify the smallest discriminating check, apply the smallest possible code change, then re-run the
+      narrowest validation that proves the hypothesis wrong or right. If the check fails, step one hop deeper;
+      do not widen scope until the local cause is confirmed.
+      Required fields: Surface, Hypothesis, Check, Patch, Verify, Follow-up.
+    `),
+    source: 'copilot-specialized-training',
+    effective_date: new Date().toISOString().slice(0, 10),
+    metadata: {
+      module: 'evidence-first-debugging',
+      fields: ['surface', 'hypothesis', 'check', 'patch', 'verify', 'follow-up'],
+      rules: ['smallest-discriminating-check', 'smallest-possible-code-change', 'one-hop-deeper-if-falsified'],
+    },
+  },
+  {
+    type: 'system',
     title: 'Visual inspection and computer vision material map',
     summary: clip(`
       Local visual-inspection references: inference-service/server.js endpoints for
