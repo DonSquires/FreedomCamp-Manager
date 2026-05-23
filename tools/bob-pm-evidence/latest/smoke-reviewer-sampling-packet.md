@@ -1,6 +1,6 @@
 # Smoke Reviewer Sampling Packet
 
-Generated: 2026-05-20T03:28:28.006Z
+Generated: 2026-05-23T11:05:58.462Z
 
 - Source: data/smoke-ablation-evals.jsonl
 - Review status: sampling-packet-attached-human-signoff-pending
