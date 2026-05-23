@@ -274,20 +274,6 @@ function isLowConfidenceCaption(seg: CaptionSegment): boolean {
     && seg.confidence < CAPTION_LOW_CONFIDENCE_THRESHOLD
 }
 
-function deriveTranslatorRestUrlFromWs(raw: string): string {
-  const trimmed = String(raw || '').trim().replace(/\/$/, '')
-  if (!trimmed || trimmed.includes('your-runpod-pod.runpod.net')) return ''
-
-  const asHttp = trimmed
-    .replace(/^wss:\/\//i, 'https://')
-    .replace(/^ws:\/\//i, 'http://')
-
-  const withoutWsRoute = asHttp.replace(/\/ws\/translate(?:\?.*)?$/i, '')
-  if (!withoutWsRoute.startsWith('http://') && !withoutWsRoute.startsWith('https://')) return ''
-
-  return `${withoutWsRoute}/translate`
-}
-
 function getChannelScope(channel: RadioChannel, effectiveOrgId: string): string {
   if (channel.scope_override) {
     return channel.scope_override
@@ -1192,11 +1178,6 @@ export default function PTTRadio() {
   const mobileJurisdictionLabel = hybridHandshake?.workspace_name
     || (translationRailAvailable ? 'Client workspace active' : 'Provider jurisdiction')
   const mobileAddressLabel = handoffStreetAddress || (handoffGpsUnavailable ? 'Location unavailable' : 'Locating street…')
-
-  const translatorRestUrl = useMemo(
-    () => deriveTranslatorRestUrlFromWs(import.meta.env.VITE_BOB_TRANSLATOR_WS_URL || ''),
-    [],
-  )
 
   const crossOrgIds = useMemo(() => {
     const ids = new Set<string>()
@@ -2619,41 +2600,40 @@ export default function PTTRadio() {
         }
       }
 
-      // Tactical fallback: use translator pod REST when edge translation path fails.
-      if (!translatedText && translatorRestUrl) {
+      // Tactical fallback: use the serverless translate-text edge function.
+      if (!translatedText) {
         const fallbackStartedAt = Date.now()
-        const controller = new AbortController()
-        const timeout = setTimeout(() => controller.abort(), 15000)
+        const normalizedTarget = (() => {
+          const lowered = String(interpreterTargetLanguage || 'en').toLowerCase()
+          if (lowered.startsWith('mi')) return 'mi'
+          if (lowered.startsWith('zh')) return 'zh-Hans'
+          if (lowered.startsWith('hi')) return 'hi'
+          if (lowered.startsWith('ko')) return 'ko'
+          if (lowered.startsWith('fr')) return 'fr'
+          if (lowered.startsWith('de')) return 'de'
+          if (lowered.startsWith('es')) return 'es'
+          if (lowered.startsWith('ja')) return 'ja'
+          return 'en'
+        })() as 'en' | 'mi' | 'zh-Hans' | 'hi' | 'ko' | 'fr' | 'de' | 'es' | 'ja'
+
         try {
-          const resp = await fetch(translatorRestUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              text,
-              source_lang: 'en-NZ',
-              target_lang: interpreterTargetLanguage,
-              context: 'ptt-radio',
-              provider_org_id: providerOrgId,
-              client_org_id: translatorClientOrgId,
-              officer_id: user?.id,
-              employer_org_id: employerOrganizationId,
-              authorized_organizations: translatorAuthorizedOrgIds,
-            }),
-            signal: controller.signal,
+          const { data: fallbackData, error: fallbackError } = await edgeFunctions.translateText({
+            text,
+            source_lang: 'en',
+            target_lang: normalizedTarget,
           })
 
-          if (resp.ok) {
-            const fallbackData = await resp.json().catch(() => null)
-            const fallbackText = String(fallbackData?.translated || fallbackData?.translated_text || '').trim()
+          if (!fallbackError) {
+            const fallbackText = String(fallbackData?.translated_text || '').trim()
             if (fallbackText) {
               translatedText = fallbackText
               meta = normalizePTTTranslationPayload({
                 translated_text: fallbackText,
-                target_language: String(fallbackData?.target_lang || interpreterTargetLanguage),
-                source_lang: typeof fallbackData?.source_lang === 'string' ? fallbackData.source_lang : null,
+                target_language: interpreterTargetLanguage,
+                source_lang: 'en',
                 translation_confidence: 0.7,
-                confidence_reason: 'Direct translator pod fallback path used.',
-                provider: 'translator-rest-fallback',
+                confidence_reason: 'Serverless translate-text fallback path used.',
+                provider: 'translate-text-fallback',
                 fallback: true,
               }, {
                 targetLanguage: interpreterTargetLanguage,
@@ -2678,12 +2658,10 @@ export default function PTTRadio() {
             stage: 'translate',
             success: false,
             latency_ms: Date.now() - fallbackStartedAt,
-            reason: fetchErr?.message || 'translator-rest-failed',
+            reason: fetchErr?.message || 'translate-text-failed',
           })
-          // Translator pod unreachable — log quietly and allow outer handler to surface degraded message
-          console.warn('PTT interpreter translator pod unavailable:', fetchErr?.message || fetchErr)
-        } finally {
-          clearTimeout(timeout)
+          // Serverless fallback unavailable — log quietly and allow outer handler to surface degraded message.
+          console.warn('PTT interpreter serverless fallback unavailable:', fetchErr?.message || fetchErr)
         }
       }
 
@@ -2706,7 +2684,7 @@ export default function PTTRadio() {
     } finally {
       setIsInterpreterTranslating(false)
     }
-  }, [interpreterInput, interpreterTargetLanguage, translatorRestUrl, providerOrgId, translatorClientOrgId, user?.id, employerOrganizationId, translatorAuthorizedOrgIds])
+  }, [interpreterInput, interpreterTargetLanguage])
 
   const captureSpeechForInterpreter = useCallback(() => {
     const Ctor = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition

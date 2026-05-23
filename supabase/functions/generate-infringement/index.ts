@@ -334,8 +334,6 @@ Deno.serve(async (req) => {
       )
     }
 
-    const allowedOrganizationIds = await buildAccessibleOrgIds(supabaseAdmin, profile)
-
     if (profile.role !== 'master' && zoneOrgId && orgAccessDenied(allowedOrganizationIds, zoneOrgId)) {
       return new Response(
         JSON.stringify({ success: false, error: 'Selected zone is outside your organization scope.' }),
