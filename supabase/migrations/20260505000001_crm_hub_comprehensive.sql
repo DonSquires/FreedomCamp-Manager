@@ -698,6 +698,26 @@ CREATE TABLE IF NOT EXISTS crm_documents (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+ALTER TABLE IF EXISTS crm_documents
+  ADD COLUMN IF NOT EXISTS organization_id UUID,
+  ADD COLUMN IF NOT EXISTS contact_id UUID,
+  ADD COLUMN IF NOT EXISTS contract_id UUID,
+  ADD COLUMN IF NOT EXISTS opportunity_id UUID,
+  ADD COLUMN IF NOT EXISTS invoice_id UUID,
+  ADD COLUMN IF NOT EXISTS name TEXT,
+  ADD COLUMN IF NOT EXISTS description TEXT,
+  ADD COLUMN IF NOT EXISTS file_path TEXT,
+  ADD COLUMN IF NOT EXISTS file_name TEXT,
+  ADD COLUMN IF NOT EXISTS file_type TEXT,
+  ADD COLUMN IF NOT EXISTS file_size_bytes BIGINT,
+  ADD COLUMN IF NOT EXISTS document_type TEXT,
+  ADD COLUMN IF NOT EXISTS version INTEGER DEFAULT 1,
+  ADD COLUMN IF NOT EXISTS parent_document_id UUID,
+  ADD COLUMN IF NOT EXISTS is_confidential BOOLEAN DEFAULT FALSE,
+  ADD COLUMN IF NOT EXISTS uploaded_by UUID,
+  ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW(),
+  ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+
 CREATE INDEX IF NOT EXISTS idx_documents_org ON crm_documents(organization_id);
 CREATE INDEX IF NOT EXISTS idx_documents_contract ON crm_documents(contract_id);
 CREATE INDEX IF NOT EXISTS idx_documents_type ON crm_documents(document_type);
