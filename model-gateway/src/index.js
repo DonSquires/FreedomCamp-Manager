@@ -50,6 +50,12 @@ function extractModelText(payload) {
   const nestedText = asText(nested).trim();
   if (nestedText) return nestedText;
 
+  const deepOutput = payload.output?.output;
+  if (deepOutput && typeof deepOutput === 'object') {
+    const deepNested = asText(deepOutput.text || deepOutput.response || deepOutput.message || deepOutput.generated_text).trim();
+    if (deepNested) return deepNested;
+  }
+
   if (Array.isArray(payload.output)) {
     const chunks = payload.output
       .map((item) => asText(item?.text || item?.content || item?.response).trim())
@@ -91,6 +97,7 @@ async function callRunpod(prompt, model) {
       },
       body: JSON.stringify({
         input: {
+          message: prompt,
           prompt,
           model: model || undefined,
         },
@@ -105,6 +112,12 @@ async function callRunpod(prompt, model) {
     }
 
     const output = payload.output || payload;
+    const status = String(payload.status || '').toUpperCase();
+    if (status === 'FAILED') {
+      const reason = asText(payload.error || output?.error || 'RunPod job failed').trim();
+      throw new Error(reason || 'RunPod job failed');
+    }
+
     const modelText = extractModelText(output || payload);
     if (!modelText) {
       throw new Error('RunPod returned no usable text output.');
