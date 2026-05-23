@@ -703,6 +703,27 @@ CREATE TABLE IF NOT EXISTS infringement_notices (
   created_at timestamptz DEFAULT now()
 );
 
+-- Legacy-compatible uplift: earlier migrations created infringement_notices
+-- without case_id, while this migration relies on it for indexes and policies.
+ALTER TABLE infringement_notices
+  ADD COLUMN IF NOT EXISTS case_id uuid;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM information_schema.table_constraints
+    WHERE table_schema = 'public'
+      AND table_name = 'infringement_notices'
+      AND constraint_name = 'infringement_notices_case_id_fkey'
+  ) THEN
+    ALTER TABLE infringement_notices
+      ADD CONSTRAINT infringement_notices_case_id_fkey
+      FOREIGN KEY (case_id) REFERENCES enforcement_cases(id) ON DELETE CASCADE;
+  END IF;
+END;
+$$;
+
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_enforcement_cases_org ON enforcement_cases(organization_id);
 CREATE INDEX IF NOT EXISTS idx_enforcement_cases_plate ON enforcement_cases(plate_number);
