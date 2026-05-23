@@ -8,6 +8,58 @@ import { loadLocalEnv } from './load-local-env.mjs'
 
 loadLocalEnv()
 
+function setIfMissing(target, source) {
+  if (!process.env[target] && process.env[source]) {
+    process.env[target] = process.env[source]
+  }
+}
+
+function setIfMissingChain(target, sources = []) {
+  if (process.env[target]) return
+  for (const source of sources) {
+    if (process.env[source]) {
+      process.env[target] = process.env[source]
+      return
+    }
+  }
+}
+
+function normalizeAgenticCredentialEnv() {
+  setIfMissingChain('VITE_SUPABASE_URL', ['SUPABASE_URL'])
+  setIfMissingChain('VITE_SUPABASE_ANON_KEY', ['SUPABASE_ANON_KEY'])
+
+  setIfMissing('PLAYWRIGHT_MASTER_EMAIL', 'TEST_MASTER_EMAIL')
+  setIfMissing('PLAYWRIGHT_MASTER_PASSWORD', 'TEST_MASTER_PASSWORD')
+  setIfMissingChain('PLAYWRIGHT_ADMIN_ORG1_EMAIL', ['TEST_ADMIN_EMAIL', 'PLAYWRIGHT_ADMIN_EMAIL'])
+  setIfMissingChain('PLAYWRIGHT_ADMIN_ORG1_PASSWORD', ['TEST_ADMIN_PASSWORD', 'TEST_ADMIN_PASWORD', 'PLAYWRIGHT_ADMIN_PASSWORD'])
+  setIfMissing('PLAYWRIGHT_OFFICER_ORG1_EMAIL', 'TEST_OFFICER_EMAIL')
+  setIfMissing('PLAYWRIGHT_OFFICER_ORG1_PASSWORD', 'TEST_OFFICER_PASSWORD')
+  setIfMissingChain('PLAYWRIGHT_CLIENT_VIEWER_EMAIL', ['TEST_CLIENT_EMAIL', 'PLAYWRIGHT_CLIENT_EMAIL'])
+  setIfMissingChain('PLAYWRIGHT_CLIENT_VIEWER_PASSWORD', ['TEST_CLIENT_PASSWORD', 'PLAYWRIGHT_CLIENT_PASSWORD'])
+  setIfMissingChain('PLAYWRIGHT_CLIENT_STAFF_EMAIL', ['TEST_CLIENT_OFFICER_EMAIL', 'PLAYWRIGHT_CLIENT_OFFICER_EMAIL'])
+  setIfMissingChain('PLAYWRIGHT_CLIENT_STAFF_PASSWORD', ['TEST_CLIENT_OFFICER_PASSWORD', 'PLAYWRIGHT_CLIENT_OFFICER_PASSWORD'])
+
+  setIfMissingChain('PLAYWRIGHT_BOB_EMAIL', [
+    'BOB_LOGIN_EMAIL',
+    'TEST_LOGIN_BOB_ADMIN_OFFICER_EMAIL',
+    'TEST_LOGIN_BOB_GRAND_MASTER_EMAIL',
+    'TEST_BOB_EMAIL',
+    'TEST_OWNER_EMAIL',
+  ])
+  setIfMissingChain('PLAYWRIGHT_BOB_PASSWORD', [
+    'BOB_LOGIN_PASSWORD',
+    'TEST_LOGIN_BOB_ADMIN_OFFICER_PASSWORD',
+    'TEST_LOGIN_BOB_GRAND_MASTER_PASSWORD',
+    'TEST_BOB_PASSWORD',
+    'TEST_OWNER_PASSWORD',
+  ])
+
+  setIfMissing('BOB_LOGIN_EMAIL', 'PLAYWRIGHT_BOB_EMAIL')
+  setIfMissing('BOB_LOGIN_PASSWORD', 'PLAYWRIGHT_BOB_PASSWORD')
+}
+
+normalizeAgenticCredentialEnv()
+
 const DEFAULT_SHARED_PROJECTS = ['chromium', 'firefox', 'webkit', 'Mobile Chrome', 'Mobile Safari']
 
 function resolveSharedProjects() {

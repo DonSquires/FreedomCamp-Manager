@@ -3,6 +3,7 @@ import { X, Send, Loader2, BrainCircuit, ExternalLink } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Textarea } from '@/components/ui/textarea'
+import { supabase } from '@/lib/supabase'
 import { cn } from '@/lib/utils'
 
 type ChatMessage = {
@@ -30,105 +31,81 @@ const GREETING: ChatMessage = {
   content: 'Hi, I am Bob. Ask a quick operational question and I will help right here.',
 }
 
-function getBobManagerUrl(): string {
-  const envUrl = String(import.meta.env.VITE_BOB_MANAGER_URL ?? '').trim()
-  if (envUrl.length > 0) {
-    return envUrl.replace(/\/$/, '')
-  }
-
-  return 'http://localhost:3000'
-}
-
 async function streamBobResponse(
   payload: Record<string, unknown>,
   onToken: (text: string) => void,
 ): Promise<string> {
-  const controller = new AbortController()
-  const timeoutId = window.setTimeout(() => controller.abort(), 30000)
+  // Quick Chat must use Bob edge functions, not the separate manager ops channel.
+  const messages = Array.isArray(payload.messages)
+    ? payload.messages.filter(
+        (entry): entry is { role: 'user' | 'assistant' | 'system'; content: string } =>
+          typeof entry === 'object' &&
+          entry !== null &&
+          typeof (entry as { role?: unknown }).role === 'string' &&
+          typeof (entry as { content?: unknown }).content === 'string',
+      )
+    : []
 
-  const response = await fetch(`${getBobManagerUrl()}/api/heal`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Accept: 'text/event-stream',
-    },
-    signal: controller.signal,
-    body: JSON.stringify({ ...payload, stream: true }),
-  })
-  window.clearTimeout(timeoutId)
+  if (messages.length === 0) {
+    throw new Error('Missing chat context')
+  }
+
+  const supabaseUrl = String(import.meta.env.VITE_SUPABASE_URL ?? '').trim().replace(/\/$/, '')
+  const anonKey = String(import.meta.env.VITE_SUPABASE_ANON_KEY ?? '').trim()
+  if (!supabaseUrl || !anonKey) {
+    throw new Error('Missing Supabase configuration for Bob quick chat')
+  }
+
+  const { data: sessionData } = await supabase.auth.getSession()
+  const accessToken = sessionData?.session?.access_token
+  if (!accessToken) {
+    throw new Error('No active session found. Please sign in again.')
+  }
+
+  const controller = new AbortController()
+  const timeoutId = window.setTimeout(() => controller.abort(), 25000)
+
+  let response: Response
+  try {
+    response = await fetch(`${supabaseUrl}/functions/v1/onspace-ai-chat`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        apikey: anonKey,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        messages,
+        context: payload.errorPayload ?? payload.context ?? {},
+      }),
+      signal: controller.signal,
+    })
+  } finally {
+    window.clearTimeout(timeoutId)
+  }
+
+  const raw = await response.text()
+  let parsed: any = null
+  try {
+    parsed = raw ? JSON.parse(raw) : null
+  } catch {
+    parsed = null
+  }
 
   if (!response.ok) {
-    const errorText = await response.text()
-    throw new Error(`Bob manager request failed (${response.status}): ${errorText}`)
+    const reason = parsed?.error || parsed?.message || raw || `Bob request failed (${response.status})`
+    throw new Error(String(reason))
   }
 
-  if (!response.body) {
-    const text = await response.text()
-    try {
-      const parsed = JSON.parse(text)
-      return String(parsed?.bobResponse ?? parsed?.response ?? parsed?.message ?? parsed?.text ?? '')
-    } catch {
-      return text
-    }
+  const normalized = String(
+    parsed?.response ?? parsed?.message ?? parsed?.output?.response ?? parsed?.output?.message ?? ''
+  ).trim()
+  if (!normalized) {
+    throw new Error('Bob returned no response content')
   }
 
-  const reader = response.body.getReader()
-  const decoder = new TextDecoder()
-  let buffer = ''
-  let collected = ''
-
-  while (true) {
-    const { done, value } = await reader.read()
-    if (done) break
-
-    buffer += decoder.decode(value, { stream: true })
-    const packets = buffer.split('\n\n')
-    buffer = packets.pop() ?? ''
-
-    for (const packet of packets) {
-      const lines = packet.split('\n')
-      for (const line of lines) {
-        const trimmed = line.trim()
-        if (!trimmed.startsWith('data:')) continue
-
-        const raw = trimmed.slice(5).trim()
-        if (!raw) continue
-
-        try {
-          const event = JSON.parse(raw) as { type?: string; token?: string; text?: string }
-          if (event.type === 'token' && typeof event.token === 'string') {
-            collected += event.token
-            onToken(collected)
-          }
-          if (event.type === 'final' && typeof event.text === 'string') {
-            collected = event.text
-            onToken(collected)
-          }
-          if (event.type === 'done' && typeof event.text === 'string') {
-            collected = event.text
-            onToken(collected)
-          }
-        } catch {
-          // Ignore malformed event frames and keep reading.
-        }
-      }
-    }
-  }
-
-  if (buffer.trim().length > 0) {
-    try {
-      const raw = buffer.trim().replace(/^data:\s*/, '')
-      const event = JSON.parse(raw) as { type?: string; token?: string; text?: string }
-      if (typeof event.text === 'string' && event.text.length > 0) {
-        collected = event.text
-        onToken(collected)
-      }
-    } catch {
-      // ignore trailing noise
-    }
-  }
-
-  return collected
+  onToken(normalized)
+  return normalized
 }
 
 function getRouteDomain(route: string): 'biosecurity' | 'noise' | 'parking' | 'freedom_camping' | 'patrol' | 'general' {

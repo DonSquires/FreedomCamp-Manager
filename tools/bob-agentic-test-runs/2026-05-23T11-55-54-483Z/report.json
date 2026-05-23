@@ -1,0 +1,38 @@
+{
+  "runId": "2026-05-23T11-55-54-483Z",
+  "batch": "core",
+  "scope": "full",
+  "startedAt": "2026-05-23T11:55:54.495Z",
+  "endedAt": "2026-05-23T11:56:51.960Z",
+  "resumeMode": false,
+  "continueOnFailure": false,
+  "browserInstallAttempted": false,
+  "browserInstallExitCode": null,
+  "stages": [
+    {
+      "id": "api",
+      "description": "Run API supporting-function tests",
+      "command": "/workspaces/FreedomCamp-Manager/.toolchains/node-v20.15.0-linux-x64-musl/bin/node",
+      "args": [
+        "scripts/run-test-with-bob-assist.mjs",
+        "--",
+        "npm",
+        "run",
+        "test:api"
+      ],
+      "exitCode": 1,
+      "status": "fail",
+      "durationMs": 57460
+    }
+  ],
+  "summary": {
+    "passed": 0,
+    "failed": 1
+  },
+  "bugReportPublish": {
+    "attempted": true,
+    "skipped": null,
+    "exitCode": 0,
+    "completedAt": "2026-05-23T11:56:52.349Z"
+  }
+}
