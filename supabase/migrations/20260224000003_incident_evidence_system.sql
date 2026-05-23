@@ -79,6 +79,7 @@ CREATE INDEX IF NOT EXISTS idx_incidents_purge_eligible ON public.incidents(crea
 ALTER TABLE public.incidents ENABLE ROW LEVEL SECURITY;
 
 -- Officers can create their own incidents
+DROP POLICY IF EXISTS "officers_insert_own_incidents" ON public.incidents;
 CREATE POLICY "officers_insert_own_incidents" ON public.incidents
   FOR INSERT TO authenticated
   WITH CHECK (
@@ -87,6 +88,7 @@ CREATE POLICY "officers_insert_own_incidents" ON public.incidents
   );
 
 -- Officers can view incidents from their organization (excluding soft-deleted)
+DROP POLICY IF EXISTS "org_users_view_incidents" ON public.incidents;
 CREATE POLICY "org_users_view_incidents" ON public.incidents
   FOR SELECT TO authenticated
   USING (
@@ -98,6 +100,7 @@ CREATE POLICY "org_users_view_incidents" ON public.incidents
   );
 
 -- Officers can update their own incidents (before processing complete)
+DROP POLICY IF EXISTS "officers_update_own_incidents" ON public.incidents;
 CREATE POLICY "officers_update_own_incidents" ON public.incidents
   FOR UPDATE TO authenticated
   USING (
@@ -107,6 +110,7 @@ CREATE POLICY "officers_update_own_incidents" ON public.incidents
   );
 
 -- Admins can update any incident in their org
+DROP POLICY IF EXISTS "admins_update_org_incidents" ON public.incidents;
 CREATE POLICY "admins_update_org_incidents" ON public.incidents
   FOR UPDATE TO authenticated
   USING (
@@ -118,6 +122,7 @@ CREATE POLICY "admins_update_org_incidents" ON public.incidents
   );
 
 -- Super delete (for Don's account with permissions)
+DROP POLICY IF EXISTS "super_delete_incidents" ON public.incidents;
 CREATE POLICY "super_delete_incidents" ON public.incidents
   FOR DELETE TO authenticated
   USING (
