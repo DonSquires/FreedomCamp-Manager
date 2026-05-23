@@ -36,6 +36,8 @@ DECLARE
   v_missing_old int;
   v_missing_new int;
 BEGIN
+  -- Fresh environments may not contain historical duplicate org IDs.
+  -- Keep only mappings where both sides currently exist, then continue.
   SELECT COUNT(*)
   INTO v_missing_old
   FROM org_merge_map m
@@ -48,17 +50,14 @@ BEGIN
   LEFT JOIN public.organizations o ON o.id = m.new_id
   WHERE o.id IS NULL;
 
-  IF v_missing_old > 0 THEN
-    RAISE EXCEPTION 'Merge aborted: one or more old organization IDs do not exist';
+  IF v_missing_old > 0 OR v_missing_new > 0 THEN
+    RAISE NOTICE 'org merge map contains % missing old IDs and % missing new IDs; skipping unavailable mappings', v_missing_old, v_missing_new;
   END IF;
 
-  IF v_missing_new > 0 THEN
-    RAISE EXCEPTION 'Merge aborted: one or more new organization IDs do not exist';
-  END IF;
-
-  IF EXISTS (SELECT 1 FROM org_merge_map WHERE old_id = new_id) THEN
-    RAISE EXCEPTION 'Merge aborted: old_id equals new_id in merge map';
-  END IF;
+  DELETE FROM org_merge_map m
+  WHERE NOT EXISTS (SELECT 1 FROM public.organizations o WHERE o.id = m.old_id)
+     OR NOT EXISTS (SELECT 1 FROM public.organizations o WHERE o.id = m.new_id)
+     OR m.old_id = m.new_id;
 END;
 $$;
 
