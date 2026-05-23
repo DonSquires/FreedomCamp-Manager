@@ -31,16 +31,41 @@ create index if not exists ptt_diagnostic_events_user_created
 alter table public.ptt_diagnostic_events enable row level security;
 
 -- Admins and master role can read their org's telemetry
-create policy "ptt_diagnostic_events_select" on public.ptt_diagnostic_events
-  for select
-  using (
-    auth.uid() = user_id
-    or exists (
-      select 1 from public.profiles p
-      where p.id = auth.uid()
-        and (p.role in ('admin', 'master', 'grand_master') or p.organization_id = org_id)
-    )
-  );
+do $$
+declare
+  v_profile_table text;
+begin
+  if to_regclass('public.profiles') is not null then
+    v_profile_table := 'public.profiles';
+  elsif to_regclass('public.user_profiles') is not null then
+    v_profile_table := 'public.user_profiles';
+  else
+    v_profile_table := null;
+  end if;
+
+  execute 'drop policy if exists "ptt_diagnostic_events_select" on public.ptt_diagnostic_events';
+
+  if v_profile_table is null then
+    execute $sql$
+      create policy "ptt_diagnostic_events_select" on public.ptt_diagnostic_events
+        for select
+        using (auth.uid() = user_id)
+    $sql$;
+  else
+    execute format($fmt$
+      create policy "ptt_diagnostic_events_select" on public.ptt_diagnostic_events
+        for select
+        using (
+          auth.uid() = user_id
+          or exists (
+            select 1 from %s p
+            where p.id = auth.uid()
+              and (p.role in ('admin', 'master', 'grand_master') or p.organization_id = org_id)
+          )
+        )
+    $fmt$, v_profile_table);
+  end if;
+end $$;
 
 -- Any authenticated user can insert their own telemetry
 create policy "ptt_diagnostic_events_insert" on public.ptt_diagnostic_events
@@ -60,7 +85,7 @@ begin
     perform cron.schedule(
       'ptt_diagnostic_events_prune',
       '0 2 * * *',
-      $$delete from public.ptt_diagnostic_events where created_at < now() - interval '7 days'$$
+      $cron$delete from public.ptt_diagnostic_events where created_at < now() - interval '7 days'$cron$
     );
   end if;
 end $$;

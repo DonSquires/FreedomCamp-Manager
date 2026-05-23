@@ -25,8 +25,17 @@ BEGIN
 END
 $$;
 
--- Ensure RLS is enabled on storage.objects
-ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
+-- Ensure RLS is enabled on storage.objects when permissions allow.
+DO $$
+BEGIN
+  BEGIN
+    EXECUTE 'ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY';
+  EXCEPTION
+    WHEN insufficient_privilege THEN
+      RAISE NOTICE 'Skipping ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY due to ownership constraints';
+  END;
+END
+$$;
 
 -- ============================================================================
 -- SELECT – public read (bucket is public; policy keeps this explicit)

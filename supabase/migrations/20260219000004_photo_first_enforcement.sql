@@ -144,9 +144,18 @@ CREATE POLICY "users_view_nzscv_cache"
 -- ===========================================
 
 -- Ensure photo_original_bytes is positive if set
-ALTER TABLE observations
-  ADD CONSTRAINT IF NOT EXISTS chk_photo_bytes_positive
-  CHECK (photo_original_bytes IS NULL OR photo_original_bytes > 0);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'chk_photo_bytes_positive'
+  ) THEN
+    ALTER TABLE observations
+      ADD CONSTRAINT chk_photo_bytes_positive
+      CHECK (photo_original_bytes IS NULL OR photo_original_bytes > 0);
+  END IF;
+END $$;
 
 -- ===========================================
 -- SECTION 6: IDEMPOTENCY TRACKING (PREVENT DUPLICATES)
@@ -414,7 +423,7 @@ BEGIN
   RAISE NOTICE 'Total observations: %', total_count;
   RAISE NOTICE 'With photo hash: %', with_hash;
   RAISE NOTICE 'Missing hash: %', missing_hash;
-  RAISE NOTICE 'Coverage: %% (Target: ≥99.95%%)', coverage_pct;
+  RAISE NOTICE 'Coverage: % (Target: ≥99.95%%)', coverage_pct;
   RAISE NOTICE '===========================================';
   
   IF missing_hash > 0 THEN

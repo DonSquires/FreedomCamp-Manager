@@ -36,7 +36,10 @@ BEGIN
     vo.is_compliant,
     vo.gps_latitude,
     vo.gps_longitude,
-    vo.evidence_photos,
+    CASE
+      WHEN vo.photo IS NULL OR btrim(vo.photo) = '' THEN '[]'::jsonb
+      ELSE jsonb_build_array(vo.photo)
+    END AS evidence_photos,
     vo.notes,
     z.name AS zone_name,
     cr.violation_reasons AS compliance_violation_reasons

@@ -32,6 +32,7 @@ ALTER TABLE infringement_notices
   ADD COLUMN IF NOT EXISTS plate_number     text,
   ADD COLUMN IF NOT EXISTS offence_description text,
   ADD COLUMN IF NOT EXISTS legal_basis      text,                        -- e.g. "FCA s20(1)(a); Auckland Bylaw 12.7"
+  ADD COLUMN IF NOT EXISTS amount_cents     integer,
   ADD COLUMN IF NOT EXISTS offence_location text,
   ADD COLUMN IF NOT EXISTS offence_date     timestamptz,
   ADD COLUMN IF NOT EXISTS service_method   text CHECK (service_method IN ('hand', 'post', 'email')),

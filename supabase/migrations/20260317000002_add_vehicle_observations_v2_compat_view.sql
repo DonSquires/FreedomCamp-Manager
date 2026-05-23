@@ -68,6 +68,7 @@ $$;
 DO $$
 DECLARE
   v_v2_view_exists BOOLEAN;
+  v_obs_pk_col text;
 BEGIN
   SELECT EXISTS (
     SELECT 1
@@ -75,6 +76,26 @@ BEGIN
     WHERE table_schema = 'public'
       AND table_name = 'vehicle_observations_v2'
   ) INTO v_v2_view_exists;
+
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'observations'
+      AND column_name = 'observation_id'
+  ) THEN
+    v_obs_pk_col := 'observation_id';
+  ELSIF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'observations'
+      AND column_name = 'id'
+  ) THEN
+    v_obs_pk_col := 'id';
+  ELSE
+    RAISE EXCEPTION 'public.observations has neither observation_id nor id';
+  END IF;
 
   IF v_v2_view_exists THEN
     EXECUTE 'DROP RULE IF EXISTS vehicle_observations_v2_insert ON public.vehicle_observations_v2';
@@ -89,48 +110,26 @@ BEGIN
       RETURNING *
     $rule$;
 
-    EXECUTE $rule$
+    EXECUTE format($rule$
       CREATE RULE vehicle_observations_v2_update AS
       ON UPDATE TO public.vehicle_observations_v2
-      DO INSTEAD
-      UPDATE public.observations SET
-        plate_number = NEW.plate_number,
-        photo = NEW.photo,
-        photo_url = NEW.photo_url,
-        photo_hash = NEW.photo_hash,
-        recorded_at = NEW.recorded_at,
-        zone_id = NEW.zone_id,
-        organization_id = NEW.organization_id,
-        gps_latitude = NEW.gps_latitude,
-        gps_longitude = NEW.gps_longitude,
-        gps_accuracy = NEW.gps_accuracy,
-        recorded_by = NEW.recorded_by,
-        vehicle_make = NEW.vehicle_make,
-        vehicle_model = NEW.vehicle_model,
-        vehicle_color = NEW.vehicle_color,
-        vehicle_year = NEW.vehicle_year,
-        self_contained = NEW.self_contained,
-        self_contained_expiry = NEW.self_contained_expiry,
-        is_compliant = NEW.is_compliant,
-        breach_type = NEW.breach_type,
-        breach_reason = NEW.breach_reason,
-        nights_stayed_this_month = NEW.nights_stayed_this_month,
-        consecutive_nights = NEW.consecutive_nights,
-        officer_notes = NEW.officer_notes,
-        idempotency_key = NEW.idempotency_key,
-        updated_at = NOW()
-      WHERE observations.observation_id = OLD.observation_id
-      RETURNING *
-    $rule$;
+      DO INSTEAD (
+        DELETE FROM public.observations
+        WHERE observations.%1$I = OLD.%1$I;
 
-    EXECUTE $rule$
+        INSERT INTO public.observations VALUES (NEW.*)
+        RETURNING *
+      )
+    $rule$, v_obs_pk_col);
+
+    EXECUTE format($rule$
       CREATE RULE vehicle_observations_v2_delete AS
       ON DELETE TO public.vehicle_observations_v2
       DO INSTEAD
       DELETE FROM public.observations
-      WHERE observations.observation_id = OLD.observation_id
+      WHERE observations.%1$I = OLD.%1$I
       RETURNING *
-    $rule$;
+    $rule$, v_obs_pk_col);
 
     EXECUTE 'GRANT SELECT, INSERT, UPDATE, DELETE ON public.vehicle_observations_v2 TO authenticated';
     EXECUTE 'GRANT SELECT, INSERT, UPDATE, DELETE ON public.vehicle_observations_v2 TO service_role';

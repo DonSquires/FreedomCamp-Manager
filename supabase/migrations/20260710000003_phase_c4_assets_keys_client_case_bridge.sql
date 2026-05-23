@@ -119,6 +119,29 @@ CREATE TABLE IF NOT EXISTS public.service_agreements (
   updated_at              TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Compatibility backfill for environments where service_agreements
+-- was introduced earlier with a different column set.
+ALTER TABLE IF EXISTS public.service_agreements
+  ADD COLUMN IF NOT EXISTS client_site_id UUID REFERENCES public.client_sites(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS agreement_number TEXT,
+  ADD COLUMN IF NOT EXISTS service_type TEXT,
+  ADD COLUMN IF NOT EXISTS start_date DATE,
+  ADD COLUMN IF NOT EXISTS end_date DATE,
+  ADD COLUMN IF NOT EXISTS auto_renew BOOLEAN DEFAULT false,
+  ADD COLUMN IF NOT EXISTS renewal_notice_days INTEGER DEFAULT 30,
+  ADD COLUMN IF NOT EXISTS response_time_minutes INTEGER,
+  ADD COLUMN IF NOT EXISTS patrol_frequency_hours DECIMAL(5,2),
+  ADD COLUMN IF NOT EXISTS min_officers INTEGER DEFAULT 1,
+  ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'active',
+  ADD COLUMN IF NOT EXISTS notes TEXT,
+  ADD COLUMN IF NOT EXISTS created_by UUID REFERENCES public.user_profiles(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT now(),
+  ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT now();
+
+UPDATE public.service_agreements
+SET agreement_number = COALESCE(NULLIF(agreement_number, ''), 'AG-' || LEFT(id::text, 8))
+WHERE agreement_number IS NULL;
+
 ALTER TABLE public.service_agreements ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "service_agreements_org_policy" ON public.service_agreements;

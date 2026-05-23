@@ -36,6 +36,51 @@ All frontend variables must be prefixed with `VITE_` to be exposed to the browse
 | `VITE_APP_VERSION` | Application version for display | `1.0.0` | Semver string |
 | `VITE_ENVIRONMENT` | Environment name | `development` | `development`, `staging`, `production` |
 
+### Role-Targeted Test Login Profiles
+
+Use these variables when a test must run under a specific privilege account
+(for example, `bob_admin_officer` versus `bob_grand_master`).
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `TEST_LOGIN_PROFILE` | Forces a specific credential profile in `scripts/playwright-codespace-credentials.sh` | `bob_grand_master` |
+| `TEST_LOGIN_MASTER_EMAIL` / `TEST_LOGIN_MASTER_PASSWORD` | Master profile credentials used when `TEST_LOGIN_PROFILE=master` | `master@example.com` |
+| `TEST_LOGIN_ADMIN_ORG1_EMAIL` / `TEST_LOGIN_ADMIN_ORG1_PASSWORD` | Admin org1 profile credentials | `admin.org1@example.com` |
+| `TEST_LOGIN_ADMIN_ORG2_EMAIL` / `TEST_LOGIN_ADMIN_ORG2_PASSWORD` | Admin org2 profile credentials | `admin.org2@example.com` |
+| `TEST_LOGIN_OFFICER_ORG1_EMAIL` / `TEST_LOGIN_OFFICER_ORG1_PASSWORD` | Officer org1 profile credentials | `officer.org1@example.com` |
+| `TEST_LOGIN_CLIENT_VIEWER_EMAIL` / `TEST_LOGIN_CLIENT_VIEWER_PASSWORD` | Client viewer profile credentials | `client.viewer@example.com` |
+| `TEST_LOGIN_CLIENT_STAFF_EMAIL` / `TEST_LOGIN_CLIENT_STAFF_PASSWORD` | Client staff profile credentials | `client.staff@example.com` |
+| `TEST_LOGIN_BOB_ADMIN_OFFICER_EMAIL` / `TEST_LOGIN_BOB_ADMIN_OFFICER_PASSWORD` | Bob admin-officer account for privileged Bob tests | `bob.assistant+system@onspace.ai` |
+| `TEST_LOGIN_BOB_GRAND_MASTER_EMAIL` / `TEST_LOGIN_BOB_GRAND_MASTER_PASSWORD` | Bob grand-master account for governance/maintenance tests | `bob.assistant+staging@onspace.ai` |
+
+Supported `TEST_LOGIN_PROFILE` values:
+
+- `master`
+- `admin_org1`
+- `admin_org2`
+- `officer_org1`
+- `client_viewer`
+- `client_staff`
+- `bob_admin_officer`
+- `bob_grand_master`
+
+Quick npm shortcuts (auto-set `TEST_LOGIN_PROFILE`):
+
+- `npm run e2e:profile:master -- <playwright-args>`
+- `npm run e2e:profile:admin:org1 -- <playwright-args>`
+- `npm run e2e:profile:admin:org2 -- <playwright-args>`
+- `npm run e2e:profile:officer:org1 -- <playwright-args>`
+- `npm run e2e:profile:client:viewer -- <playwright-args>`
+- `npm run e2e:profile:client:staff -- <playwright-args>`
+- `npm run e2e:profile:bob:admin-officer -- <playwright-args>`
+- `npm run e2e:profile:bob:grand-master -- <playwright-args>`
+
+Example:
+
+```bash
+npm run e2e:profile:bob:grand-master -- tests/e2e/phase3-sentient-xo.spec.ts --project=chromium
+```
+
 ### Deployment Environment Matrix (Vercel + RunPod + Railway Proxy)
 
 Use distinct values for preview and production. Do not point preview at production services.
@@ -266,6 +311,11 @@ Located in `/mobile-app/.env`
 |----------|-------------|--------|
 | `EXPO_PUBLIC_SUPABASE_URL` | Supabase project URL | URL |
 | `EXPO_PUBLIC_SUPABASE_ANON_KEY` | Supabase anonymous key | JWT |
+| `EXPO_PUBLIC_PTT_SERVER_URL` | Mobile PTT websocket URL | `wss://<ptt-host>/ws` |
+| `VITE_INFERENCE_SERVICE_URL` | Browser/mobile Bob inference URL | URL |
+| `VITE_PTT_SERVER_URL` | Browser/mobile PTT websocket alias | `wss://<ptt-host>/ws` |
+| `VITE_WHISPER_PROXY_URL` | Browser whisper proxy URL | URL |
+| `VITE_BOB_MANAGER_URL` | Browser Bob manager URL | URL |
 
 PTT routing note:
 - Mobile PTT uses the same Supabase Edge Function (`ptt-signaling-token`) and therefore the same `PTT_SERVER_URL` secret (`https://ptt.<your-domain>`).

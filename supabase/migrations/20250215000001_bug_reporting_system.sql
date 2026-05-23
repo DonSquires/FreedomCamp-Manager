@@ -136,7 +136,7 @@ BEGIN
     'by_severity', jsonb_object_agg(severity, count) FILTER (WHERE severity IS NOT NULL),
     'by_type', jsonb_object_agg(issue_type, count) FILTER (WHERE issue_type IS NOT NULL),
     'critical_open', COUNT(*) FILTER (WHERE severity = 'critical' AND status NOT IN ('resolved', 'closed')),
-    'avg_resolution_time_hours', EXTRACT(EPOCH FROM AVG(resolved_at - created_at)) / 3600 FILTER (WHERE resolved_at IS NOT NULL)
+    'avg_resolution_time_hours', EXTRACT(EPOCH FROM (AVG(resolved_at - created_at) FILTER (WHERE resolved_at IS NOT NULL))) / 3600
   ) INTO stats
   FROM (
     SELECT 

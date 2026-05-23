@@ -48,10 +48,12 @@ create index if not exists self_heal_events_outcome_idx
 -- RLS: service role only — the AI orchestration engine uses service role; no user-facing access
 alter table public.self_heal_events enable row level security;
 
+drop policy if exists "service_role_full_access" on public.self_heal_events;
 create policy "service_role_full_access" on public.self_heal_events
   for all using (auth.role() = 'service_role');
 
 -- Admin read-only (for the operations dashboard)
+drop policy if exists "admin_read" on public.self_heal_events;
 create policy "admin_read" on public.self_heal_events
   for select using (
     exists (

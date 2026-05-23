@@ -5,6 +5,27 @@
 -- a disconnected parallel contract model.
 -- ============================================================
 
+CREATE TABLE IF NOT EXISTS public.service_agreements (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
+  client_org_id UUID REFERENCES public.organizations(id) ON DELETE SET NULL,
+  name TEXT NOT NULL,
+  reference_number TEXT,
+  agreement_type TEXT NOT NULL DEFAULT 'other',
+  status TEXT DEFAULT 'active',
+  allows_client_submission BOOLEAN NOT NULL DEFAULT false,
+  allows_auto_dispatch BOOLEAN NOT NULL DEFAULT false,
+  default_sla_minutes INTEGER NOT NULL DEFAULT 60,
+  default_priority TEXT NOT NULL DEFAULT 'normal',
+  active_from DATE,
+  active_to DATE,
+  notes TEXT,
+  is_active BOOLEAN NOT NULL DEFAULT true,
+  created_by UUID REFERENCES public.user_profiles(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 ALTER TABLE public.service_agreements
   ADD COLUMN IF NOT EXISTS client_portal_access_mode TEXT
     DEFAULT 'transparency_only'
@@ -95,6 +116,16 @@ CREATE INDEX IF NOT EXISTS idx_service_agreement_obligations_org_kind
 CREATE INDEX IF NOT EXISTS idx_service_agreement_obligations_client
   ON public.service_agreement_obligations(client_org_id)
   WHERE client_org_id IS NOT NULL;
+
+CREATE OR REPLACE FUNCTION public.set_updated_at()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$;
 
 DROP TRIGGER IF EXISTS set_service_agreement_obligations_updated_at ON public.service_agreement_obligations;
 CREATE TRIGGER set_service_agreement_obligations_updated_at

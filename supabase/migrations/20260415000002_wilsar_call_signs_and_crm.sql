@@ -35,119 +35,137 @@ COMMENT ON COLUMN public.organizations.override_validation IS
 
 -- ── 1. PATROL ROUTES — call sign, branch, vehicle ────────────────────────────
 
-ALTER TABLE public.patrol_routes
+ALTER TABLE IF EXISTS public.patrol_routes
   ADD COLUMN IF NOT EXISTS call_sign TEXT,
   ADD COLUMN IF NOT EXISTS branch_id UUID REFERENCES public.organizations(id) ON DELETE SET NULL,
   ADD COLUMN IF NOT EXISTS vehicle_id UUID;
 
--- Unique index on call_sign (sparse — NULLs are excluded)
-CREATE UNIQUE INDEX IF NOT EXISTS idx_patrol_routes_call_sign
-  ON public.patrol_routes(call_sign) WHERE call_sign IS NOT NULL;
+DO $$
+BEGIN
+  IF to_regclass('public.patrol_routes') IS NOT NULL THEN
+    -- Unique index on call_sign (sparse — NULLs are excluded)
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_patrol_routes_call_sign
+      ON public.patrol_routes(call_sign) WHERE call_sign IS NOT NULL;
 
-COMMENT ON COLUMN public.patrol_routes.call_sign IS
-  'Short operational call sign for this patrol run (e.g. 585, 586, 587)';
-COMMENT ON COLUMN public.patrol_routes.branch_id IS
-  'The First Security / Iron Eagle branch this patrol route belongs to';
-COMMENT ON COLUMN public.patrol_routes.vehicle_id IS
-  'Vehicle assigned to this patrol run (references canonical_vehicles.id or fleet vehicles)';
+    COMMENT ON COLUMN public.patrol_routes.call_sign IS
+      'Short operational call sign for this patrol run (e.g. 585, 586, 587)';
+    COMMENT ON COLUMN public.patrol_routes.branch_id IS
+      'The First Security / Iron Eagle branch this patrol route belongs to';
+    COMMENT ON COLUMN public.patrol_routes.vehicle_id IS
+      'Vehicle assigned to this patrol run (references canonical_vehicles.id or fleet vehicles)';
+  END IF;
+END $$;
 
 -- ── 2. CLIENT SITES — WILSAR client identity fields ──────────────────────────
 
-ALTER TABLE public.client_sites
+ALTER TABLE IF EXISTS public.client_sites
   ADD COLUMN IF NOT EXISTS client_code TEXT,
   ADD COLUMN IF NOT EXISTS bureau_id   TEXT,
   ADD COLUMN IF NOT EXISTS has_keys    BOOLEAN NOT NULL DEFAULT FALSE,
   ADD COLUMN IF NOT EXISTS last_response_at TIMESTAMPTZ,
   ADD COLUMN IF NOT EXISTS last_contact_at  TIMESTAMPTZ;
 
--- Unique sparse index on client_code
-CREATE UNIQUE INDEX IF NOT EXISTS idx_client_sites_client_code
-  ON public.client_sites(client_code) WHERE client_code IS NOT NULL;
+DO $$
+BEGIN
+  IF to_regclass('public.client_sites') IS NOT NULL THEN
+    -- Unique sparse index on client_code
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_client_sites_client_code
+      ON public.client_sites(client_code) WHERE client_code IS NOT NULL;
 
-CREATE INDEX IF NOT EXISTS idx_client_sites_bureau_id
-  ON public.client_sites(bureau_id) WHERE bureau_id IS NOT NULL;
+    CREATE INDEX IF NOT EXISTS idx_client_sites_bureau_id
+      ON public.client_sites(bureau_id) WHERE bureau_id IS NOT NULL;
 
-CREATE INDEX IF NOT EXISTS idx_client_sites_has_keys
-  ON public.client_sites(organization_id, has_keys) WHERE has_keys = TRUE;
+    CREATE INDEX IF NOT EXISTS idx_client_sites_has_keys
+      ON public.client_sites(organization_id, has_keys) WHERE has_keys = TRUE;
 
-COMMENT ON COLUMN public.client_sites.client_code IS
-  'Short WILSAR-style alphanumeric client ID (e.g. NA394, CHAWB8160)';
-COMMENT ON COLUMN public.client_sites.bureau_id IS
-  'Monitoring bureau code (e.g. NZ-STD, ADTAR)';
-COMMENT ON COLUMN public.client_sites.has_keys IS
-  'Whether the patrol officer holds keys for this site';
-COMMENT ON COLUMN public.client_sites.last_response_at IS
-  'Timestamp of the last completed dispatch job response to this site';
-COMMENT ON COLUMN public.client_sites.last_contact_at IS
-  'Timestamp of the last operator contact with this site''s keyholder';
+    COMMENT ON COLUMN public.client_sites.client_code IS
+      'Short WILSAR-style alphanumeric client ID (e.g. NA394, CHAWB8160)';
+    COMMENT ON COLUMN public.client_sites.bureau_id IS
+      'Monitoring bureau code (e.g. NZ-STD, ADTAR)';
+    COMMENT ON COLUMN public.client_sites.has_keys IS
+      'Whether the patrol officer holds keys for this site';
+    COMMENT ON COLUMN public.client_sites.last_response_at IS
+      'Timestamp of the last completed dispatch job response to this site';
+    COMMENT ON COLUMN public.client_sites.last_contact_at IS
+      'Timestamp of the last operator contact with this site''s keyholder';
+  END IF;
+END $$;
 
 -- ── 3. DISPATCH JOBS — full WILSAR job type library + alarm_type ─────────────
 
 -- Drop the old narrow check constraint and replace with the full WILSAR list.
-ALTER TABLE public.dispatch_jobs
+ALTER TABLE IF EXISTS public.dispatch_jobs
   DROP CONSTRAINT IF EXISTS dispatch_jobs_job_type_check;
 
-ALTER TABLE public.dispatch_jobs
-  ADD CONSTRAINT dispatch_jobs_job_type_check CHECK (job_type IN (
-    -- Core WILSAR types
-    'alarm_response',
-    'permanent_patrol',
-    'casual_patrol',
-    'escort',
-    'key_collection',
-    'key_return',
-    'let_in',
-    'let_out',
-    'lockup',
-    'open',
-    'alarm_reset',
-    'first_line_one_guard',
-    'first_line_two_guard',
-    'second_line_response',
-    'cash_in_transit',
-    -- FieldOps-native types (retained for continuity)
-    'patrol',
-    'welfare_check',
-    'noise_complaint',
-    'freedom_camping',
-    'parking',
-    'medical',
-    'fire',
-    'suspicious_activity',
-    'lock_unlock',
-    'property_check',
-    'vandalism',
-    'general',
-    'other'
-  ));
+DO $$
+BEGIN
+  IF to_regclass('public.dispatch_jobs') IS NOT NULL THEN
+    ALTER TABLE public.dispatch_jobs
+      ADD CONSTRAINT dispatch_jobs_job_type_check CHECK (job_type IN (
+        -- Core WILSAR types
+        'alarm_response',
+        'permanent_patrol',
+        'casual_patrol',
+        'escort',
+        'key_collection',
+        'key_return',
+        'let_in',
+        'let_out',
+        'lockup',
+        'open',
+        'alarm_reset',
+        'first_line_one_guard',
+        'first_line_two_guard',
+        'second_line_response',
+        'cash_in_transit',
+        -- FieldOps-native types (retained for continuity)
+        'patrol',
+        'welfare_check',
+        'noise_complaint',
+        'freedom_camping',
+        'parking',
+        'medical',
+        'fire',
+        'suspicious_activity',
+        'lock_unlock',
+        'property_check',
+        'vandalism',
+        'general',
+        'other'
+      ));
 
--- Add alarm_type column (nullable — only relevant for alarm_response jobs)
-ALTER TABLE public.dispatch_jobs
-  ADD COLUMN IF NOT EXISTS alarm_type TEXT;
+    -- Add alarm_type column (nullable — only relevant for alarm_response jobs)
+    ALTER TABLE public.dispatch_jobs
+      ADD COLUMN IF NOT EXISTS alarm_type TEXT;
 
-ALTER TABLE public.dispatch_jobs
-  ADD CONSTRAINT dispatch_jobs_alarm_type_check CHECK (
-    alarm_type IS NULL OR alarm_type IN (
-      'intruder_alarm',
-      'duress_hold_up',
-      'animal_control',
-      'cardreader_fault',
-      'late_to_close',
-      'lock_broken',
-      'noise',
-      'parking',
-      'traffic',
-      'vandalism',
-      'alarm_reset',
-      'other'
-    )
-  );
+    ALTER TABLE public.dispatch_jobs
+      DROP CONSTRAINT IF EXISTS dispatch_jobs_alarm_type_check;
 
-CREATE INDEX IF NOT EXISTS idx_dispatch_jobs_alarm_type
-  ON public.dispatch_jobs(organization_id, alarm_type) WHERE alarm_type IS NOT NULL;
+    ALTER TABLE public.dispatch_jobs
+      ADD CONSTRAINT dispatch_jobs_alarm_type_check CHECK (
+        alarm_type IS NULL OR alarm_type IN (
+          'intruder_alarm',
+          'duress_hold_up',
+          'animal_control',
+          'cardreader_fault',
+          'late_to_close',
+          'lock_broken',
+          'noise',
+          'parking',
+          'traffic',
+          'vandalism',
+          'alarm_reset',
+          'other'
+        )
+      );
 
-CREATE INDEX IF NOT EXISTS idx_dispatch_jobs_job_type
-  ON public.dispatch_jobs(organization_id, job_type);
+    CREATE INDEX IF NOT EXISTS idx_dispatch_jobs_alarm_type
+      ON public.dispatch_jobs(organization_id, alarm_type) WHERE alarm_type IS NOT NULL;
 
-COMMENT ON COLUMN public.dispatch_jobs.alarm_type IS
-  'Alarm sub-classification (used when job_type = alarm_response)';
+    CREATE INDEX IF NOT EXISTS idx_dispatch_jobs_job_type
+      ON public.dispatch_jobs(organization_id, job_type);
+
+    COMMENT ON COLUMN public.dispatch_jobs.alarm_type IS
+      'Alarm sub-classification (used when job_type = alarm_response)';
+  END IF;
+END $$;

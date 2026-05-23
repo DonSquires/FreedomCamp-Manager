@@ -453,11 +453,25 @@ const SUPABASE_URL =
   process.env.SUPABASE_URL ??
   process.env.VITE_SUPABASE_URL ??
   (process.env.SUPABASE_PROJECT_REF ? `https://${process.env.SUPABASE_PROJECT_REF}.supabase.co` : undefined);
-const SUPABASE_SERVICE_ROLE_KEY = requireAnyEnv(['SUPABASE_SERVICE_ROLE_KEY']);
+const SUPABASE_SERVICE_ROLE_KEY = optionalAnyEnv(['SUPABASE_SERVICE_ROLE_KEY']);
 const SUPABASE_JWT_SECRET = optionalAnyEnv(['SUPABASE_JWT_SECRET']);
+const EFFECTIVE_SUPABASE_URL = SUPABASE_URL ?? 'http://127.0.0.1:54321';
+const EFFECTIVE_SUPABASE_SERVICE_ROLE_KEY = SUPABASE_SERVICE_ROLE_KEY ?? 'missing-service-role-key';
+const supabaseConfigReady = Boolean(SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY);
+const STRICT_STARTUP = parseBool(process.env.STRICT_STARTUP ?? 'false');
 
-if (!SUPABASE_URL) {
-  throw new Error('Missing SUPABASE_URL. Set SUPABASE_URL, VITE_SUPABASE_URL, or SUPABASE_PROJECT_REF');
+if (!supabaseConfigReady && STRICT_STARTUP) {
+  throw new Error(
+    'Supabase configuration is incomplete and STRICT_STARTUP is enabled. ' +
+      'Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY, or disable STRICT_STARTUP.'
+  );
+}
+
+if (!supabaseConfigReady) {
+  console.warn(
+    '[FieldOps Backend] Supabase configuration is incomplete; starting in degraded mode. ' +
+      'Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY for full functionality.'
+  );
 }
 
 const app = express();
@@ -490,10 +504,33 @@ app.use((req, res, next) => {
 
 app.use(express.json());
 
+app.use((req, res, next) => {
+  if (supabaseConfigReady) {
+    next();
+    return;
+  }
+
+  if (req.path === '/health') {
+    next();
+    return;
+  }
+
+  if (req.path.startsWith('/api/')) {
+    res.status(503).json({
+      error: 'Service temporarily unavailable',
+      code: 'SUPABASE_CONFIG_MISSING',
+      message: 'Backend is running in degraded mode. Configure SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.',
+    });
+    return;
+  }
+
+  next();
+});
+
 // ── Supabase (service role — backend only, never expose to client) ──────────
 const supabase = createClient(
-  SUPABASE_URL,
-  SUPABASE_SERVICE_ROLE_KEY,
+  EFFECTIVE_SUPABASE_URL,
+  EFFECTIVE_SUPABASE_SERVICE_ROLE_KEY,
   {
     realtime: {
       transport: ws as unknown as never,
@@ -778,7 +815,16 @@ async function persistMobileOtaReviewRecord(args: {
 }
 
 app.get('/health', (_req: Request, res: Response) => {
-  res.status(200).json({ ok: true, service: 'fieldops-backend' });
+  res.status(200).json({
+    ok: true,
+    service: 'fieldops-backend',
+    degraded: !supabaseConfigReady,
+    strict_startup: STRICT_STARTUP,
+    checks: {
+      supabase_url: Boolean(SUPABASE_URL),
+      supabase_service_role_key: Boolean(SUPABASE_SERVICE_ROLE_KEY),
+    },
+  });
 });
 
 app.get('/api/research/document-intelligence', async (req: Request, res: Response) => {
@@ -1729,6 +1775,57 @@ async function promotePatchBranchToMain(args: {
   };
 }
 
+async function applyRailwayPromotionStamp(args: {
+  repository: string;
+  branch: string;
+  commitSha: string;
+  verificationTag: string;
+  pullRequestNumber: number | null;
+}): Promise<{ applied: boolean; detail: string }> {
+  const projectId =
+    process.env.RAILWAY_PROXY_PROJECT_ID ?? process.env.RAILWAY_PROJECT_ID ?? process.env.RAILWAY_CORE_PROJECT_ID ?? null;
+  const environmentId =
+    process.env.RAILWAY_ENVIRONMENT_ID ??
+    process.env.RAILWAY_PRODUCTION_ENVIRONMENT_ID ??
+    process.env.RAILWAY_PROXY_ENVIRONMENT_ID ??
+    null;
+  const serviceId =
+    process.env.RAILWAY_SERVICE_ID ?? process.env.RAILWAY_BACKEND_SERVICE_ID ?? process.env.RAILWAY_PROXY_SERVICE_ID ?? null;
+
+  if (!projectId || !environmentId || !serviceId) {
+    return {
+      applied: false,
+      detail: 'Railway promotion stamp skipped; missing Railway identifiers.',
+    };
+  }
+
+  try {
+    await applyAgentPatch({
+      projectId,
+      environmentId,
+      serviceId,
+      variableName: 'BOB_LAST_AUTO_PROMOTION',
+      variableValue: JSON.stringify({
+        repository: args.repository,
+        branch: args.branch,
+        commitSha: args.commitSha,
+        verificationTag: args.verificationTag,
+        pullRequestNumber: args.pullRequestNumber,
+        promotedAt: new Date().toISOString(),
+      }),
+    });
+
+    return {
+      applied: true,
+      detail: 'Applied Railway promotion stamp.',
+    };
+  } catch (error) {
+    return {
+      applied: false,
+      detail: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
 async function streamOllamaResponseToClient(
   res: Response,
   prompt: string,
@@ -2911,9 +3008,17 @@ app.post('/api/automation/playwright-result', async (req: Request, res: Response
         verificationTag,
       });
 
+      let railwayPromotion: { applied: boolean; detail: string } | null = null;
       if (promoted.merged) {
         managerStatus = 'RESOLVED_AND_DEPLOYED';
         verificationTag = `${verificationTag} | Automated Production Promotion: PASSED via 100% Green Playwright Sweep`;
+        railwayPromotion = await applyRailwayPromotionStamp({
+          repository,
+          branch,
+          commitSha,
+          verificationTag,
+          pullRequestNumber: promoted.pullRequestNumber,
+        });
       }
 
       promotionSummary = {
@@ -2925,6 +3030,7 @@ app.post('/api/automation/playwright-result', async (req: Request, res: Response
         pullRequestNumber: promoted.pullRequestNumber,
         pullRequestUrl: promoted.pullRequestUrl,
         detail: promoted.detail,
+        railwayPromotion,
       };
     } catch (error) {
       managerStatus = 'ORCHESTRATOR_CRASHED';
@@ -2986,7 +3092,6 @@ app.post('/api/automation/playwright-result', async (req: Request, res: Response
     const combined = `${errorCode} ${errorMessage}`.toLowerCase();
     return combined.includes('self_healing_logs') && (combined.includes('schema cache') || errorCode === 'PGRST205');
   };
-
   const recordPayload = {
     route: '/api/automation/playwright-result',
     gate: 'PLAYWRIGHT_BROWSER_VERIFICATION',
@@ -3107,6 +3212,40 @@ app.post('/api/automation/playwright-result', async (req: Request, res: Response
 
 // ── Start server ─────────────────────────────────────────────────────────────
 const PORT = process.env.PORT ?? 3000;
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`[FieldOps Backend] Listening on port ${PORT}`);
 });
+
+server.on('error', (error: NodeJS.ErrnoException) => {
+  console.error('[FieldOps Backend] Server startup error', {
+    message: error.message,
+    code: error.code,
+    port: PORT,
+  });
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.error('[FieldOps Backend] Unhandled promise rejection', reason);
+});
+
+process.on('uncaughtException', (error) => {
+  console.error('[FieldOps Backend] Uncaught exception', error);
+  process.exit(1);
+});
+
+function shutdown(signal: 'SIGTERM' | 'SIGINT'): void {
+  console.log(`[FieldOps Backend] Received ${signal}, shutting down`);
+  server.close(() => {
+    console.log('[FieldOps Backend] HTTP server closed');
+    process.exit(0);
+  });
+
+  setTimeout(() => {
+    console.error('[FieldOps Backend] Forced shutdown after timeout');
+    process.exit(1);
+  }, 10000).unref();
+}
+
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));

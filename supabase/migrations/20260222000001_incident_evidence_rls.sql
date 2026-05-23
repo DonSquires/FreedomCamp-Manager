@@ -14,8 +14,17 @@ BEGIN
 END
 $$;
 
--- Enable RLS on storage.objects (should already be enabled by default)
-ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
+-- Enable RLS on storage.objects when permissions allow.
+DO $$
+BEGIN
+  BEGIN
+    EXECUTE 'ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY';
+  EXCEPTION
+    WHEN insufficient_privilege THEN
+      RAISE NOTICE 'Skipping ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY due to ownership constraints';
+  END;
+END
+$$;
 
 -- ============================================================================
 -- RLS Policies for incident-evidence Bucket
@@ -62,8 +71,16 @@ CREATE POLICY "incident_evidence_delete_own" ON storage.objects
 -- ============================================================================
 
 -- Index for efficient bucket + name queries
-CREATE INDEX IF NOT EXISTS idx_storage_objects_bucket_name
-  ON storage.objects (bucket_id, name);
+DO $$
+BEGIN
+  BEGIN
+    EXECUTE 'CREATE INDEX IF NOT EXISTS idx_storage_objects_bucket_name ON storage.objects (bucket_id, name)';
+  EXCEPTION
+    WHEN insufficient_privilege THEN
+      RAISE NOTICE 'Skipping idx_storage_objects_bucket_name creation due to ownership constraints';
+  END;
+END
+$$;
 
 -- ============================================================================
 -- Verification Query
@@ -93,14 +110,46 @@ $$;
 -- Usage Notes
 -- ============================================================================
 
-COMMENT ON POLICY "incident_evidence_read_own" ON storage.objects IS
-  'Authenticated users can read files from their own folder: /{user-uuid}/*';
+DO $$
+BEGIN
+  BEGIN
+    EXECUTE $stmt$
+      COMMENT ON POLICY "incident_evidence_read_own" ON storage.objects IS
+        'Authenticated users can read files from their own folder: /{user-uuid}/*'
+    $stmt$;
+  EXCEPTION
+    WHEN insufficient_privilege THEN
+      RAISE NOTICE 'Skipping COMMENT ON POLICY incident_evidence_read_own due to ownership constraints';
+  END;
 
-COMMENT ON POLICY "incident_evidence_insert_own" ON storage.objects IS
-  'Authenticated users can upload files to their own folder: /{user-uuid}/*';
+  BEGIN
+    EXECUTE $stmt$
+      COMMENT ON POLICY "incident_evidence_insert_own" ON storage.objects IS
+        'Authenticated users can upload files to their own folder: /{user-uuid}/*'
+    $stmt$;
+  EXCEPTION
+    WHEN insufficient_privilege THEN
+      RAISE NOTICE 'Skipping COMMENT ON POLICY incident_evidence_insert_own due to ownership constraints';
+  END;
 
-COMMENT ON POLICY "incident_evidence_update_own" ON storage.objects IS
-  'Authenticated users can update metadata for their own files';
+  BEGIN
+    EXECUTE $stmt$
+      COMMENT ON POLICY "incident_evidence_update_own" ON storage.objects IS
+        'Authenticated users can update metadata for their own files'
+    $stmt$;
+  EXCEPTION
+    WHEN insufficient_privilege THEN
+      RAISE NOTICE 'Skipping COMMENT ON POLICY incident_evidence_update_own due to ownership constraints';
+  END;
 
-COMMENT ON POLICY "incident_evidence_delete_own" ON storage.objects IS
-  'Authenticated users can delete their own files (within 24h retention window)';
+  BEGIN
+    EXECUTE $stmt$
+      COMMENT ON POLICY "incident_evidence_delete_own" ON storage.objects IS
+        'Authenticated users can delete their own files (within 24h retention window)'
+    $stmt$;
+  EXCEPTION
+    WHEN insufficient_privilege THEN
+      RAISE NOTICE 'Skipping COMMENT ON POLICY incident_evidence_delete_own due to ownership constraints';
+  END;
+END
+$$;

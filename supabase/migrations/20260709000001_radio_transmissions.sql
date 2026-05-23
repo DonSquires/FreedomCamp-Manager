@@ -8,7 +8,7 @@ create table if not exists radio_transmissions (
   org_id           uuid not null references organizations(id) on delete cascade,
   channel_id       text not null,
   channel_type     text not null check (channel_type in ('org', 'incident', 'direct', 'emergency')),
-  speaker_id       uuid not null references profiles(id) on delete restrict,
+  speaker_id       uuid not null references public.user_profiles(id) on delete restrict,
   speaker_name     text not null,
   started_at       timestamptz not null default now(),
   ended_at         timestamptz,

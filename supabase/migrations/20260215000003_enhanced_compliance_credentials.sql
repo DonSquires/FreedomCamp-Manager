@@ -3,6 +3,12 @@
 
 -- Step 1: Add enhanced credential fields
 alter table user_profiles
+add column if not exists coa_number text,
+add column if not exists coa_expiry_date date,
+add column if not exists has_warrant boolean default false,
+add column if not exists warrant_number text,
+add column if not exists warrant_expiry_date date,
+add column if not exists compliance_status text default 'pending',
 add column if not exists authorized_activities jsonb default '[]'::jsonb,
 add column if not exists issuing_authority text,
 add column if not exists coa_license_type text,
@@ -125,6 +131,51 @@ $$ language plpgsql stable security definer;
 
 comment on function check_organization_compliance(uuid, uuid) is 
 'Checks user compliance based on employer organization requirements. Returns JSON with can_login, can_work, can_enforce, missing_items, warnings';
+
+-- Step 3b: Compatibility wrappers for legacy callers.
+-- This migration creates a dashboard view that references legacy function names
+-- (`can_officer_work`, `can_issue_enforcement`) which may not exist yet on a
+-- fresh schema until later migrations run. Keep one source of truth by routing
+-- both wrappers through `check_organization_compliance`.
+create or replace function can_officer_work(officer_id uuid)
+returns boolean as $$
+declare
+  v_org_id uuid;
+begin
+  select employer_organization_id into v_org_id
+  from user_profiles
+  where id = officer_id;
+
+  if v_org_id is null then
+    return false;
+  end if;
+
+  return coalesce((check_organization_compliance(officer_id, v_org_id)->>'can_work')::boolean, false);
+end;
+$$ language plpgsql stable security definer;
+
+comment on function can_officer_work(uuid) is
+'Legacy compatibility wrapper. Uses check_organization_compliance(...)->can_work.';
+
+create or replace function can_issue_enforcement(officer_id uuid)
+returns boolean as $$
+declare
+  v_org_id uuid;
+begin
+  select employer_organization_id into v_org_id
+  from user_profiles
+  where id = officer_id;
+
+  if v_org_id is null then
+    return false;
+  end if;
+
+  return coalesce((check_organization_compliance(officer_id, v_org_id)->>'can_enforce')::boolean, false);
+end;
+$$ language plpgsql stable security definer;
+
+comment on function can_issue_enforcement(uuid) is
+'Legacy compatibility wrapper. Uses check_organization_compliance(...)->can_enforce.';
 
 -- Step 4: Create view for compliance dashboard with organization context
 drop view if exists officer_compliance_dashboard;

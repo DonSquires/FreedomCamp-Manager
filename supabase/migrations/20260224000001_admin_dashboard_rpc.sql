@@ -6,6 +6,14 @@
 -- Function: get_admin_dashboard_stats
 -- ============================================================================
 
+-- Contract bootstrap: some environments reach this migration before later
+-- schema-alignment files that add soft-delete columns.
+ALTER TABLE public.observations
+  ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ DEFAULT NULL;
+
+ALTER TABLE public.breach_alerts
+  ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ DEFAULT NULL;
+
 CREATE OR REPLACE FUNCTION public.get_admin_dashboard_stats(
   p_start_date TIMESTAMPTZ,
   p_end_date TIMESTAMPTZ,

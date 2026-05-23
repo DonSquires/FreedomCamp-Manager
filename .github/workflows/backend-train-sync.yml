@@ -57,12 +57,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v5
         with:
-          node-version: 20
-
-      - name: Setup Supabase CLI
-        uses: supabase/setup-cli@v2
-        with:
-          version: latest
+          node-version: 20.15.0
 
       - name: Install backend dependencies
         working-directory: backend
@@ -86,12 +81,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v5
         with:
-          node-version: 20
-
-      - name: Setup Supabase CLI
-        uses: supabase/setup-cli@v2
-        with:
-          version: latest
+          node-version: 20.15.0
 
       - name: Install backend dependencies
         working-directory: backend

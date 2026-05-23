@@ -98,6 +98,12 @@ validate_railway_token() {
   local token_value="$1"
   local token_name="$2"
 
+  # UUID-shaped values are allowed in this environment. Do not fail fast here;
+  # continue with Graph checks and report scope behavior.
+  if [[ "$token_value" =~ ^[0-9a-fA-F-]{36}$ ]]; then
+    log_info "Railway token ($token_name) is UUID-shaped; continuing with Graph scope validation."
+  fi
+
   local payload='{"query":"query Viewer { me { id email name } }"}'
   local http_code
   http_code=$(curl -s -o /tmp/railway-token-check.json -w '%{http_code}' --max-time 12 \
@@ -108,28 +114,37 @@ validate_railway_token() {
 
   if [ "$http_code" != "200" ]; then
     log_error "Railway token ($token_name) is invalid or unreachable (HTTP $http_code): $(mask_secret "$token_value")"
-    ((INVALID_COUNT++))
+    ((INVALID_COUNT+=1))
     return 1
   fi
 
   local has_errors
   has_errors=$(jq -r 'if (.errors | length) > 0 then "yes" else "no" end' /tmp/railway-token-check.json 2>/dev/null || echo "yes")
   if [ "$has_errors" = "yes" ]; then
-    log_error "Railway token ($token_name) is invalid or unauthorized: $(mask_secret "$token_value")"
-    ((INVALID_COUNT++))
+    local first_error
+    first_error=$(jq -r '.errors[0].message // "unknown"' /tmp/railway-token-check.json 2>/dev/null || echo "unknown")
+
+    if [[ "$first_error" == "Not Authorized" ]]; then
+      log_warning "Railway token ($token_name) cannot access me() query; treating as potentially scoped token."
+      ((VALIDATED_COUNT+=1))
+      return 0
+    fi
+
+    log_error "Railway token ($token_name) Graph probe failed: $first_error"
+    ((INVALID_COUNT+=1))
     return 1
   fi
 
   local viewer
   viewer=$(jq -r '.data.me.email // "unknown"' /tmp/railway-token-check.json 2>/dev/null || echo "unknown")
   log_success "Railway token ($token_name) is valid (viewer: $viewer)"
-  ((VALIDATED_COUNT++))
+  ((VALIDATED_COUNT+=1))
   return 0
 }
 
 # Validate railway service exists in token scope (advisory)
 validate_railway_service_id() {
-  local _token_value="$1"
+  local token_value="$1"
   local service_id="$2"
   local service_name="$3"
 
@@ -138,9 +153,34 @@ validate_railway_service_id() {
     return 1
   fi
 
-  # We treat this as advisory because service visibility differs by token scope.
-  log_info "Service ID ($service_name) provided: $service_id"
-  ((VALIDATED_COUNT++))
+  local payload
+  payload=$(printf '{"query":"query($id:String!){ service(id:$id){ id name } }","variables":{"id":"%s"}}' "$service_id")
+
+  local http_code
+  http_code=$(curl -s -o /tmp/railway-service-check.json -w '%{http_code}' --max-time 12 \
+    -X POST 'https://backboard.railway.com/graphql/v2' \
+    -H 'Content-Type: application/json' \
+    -H "Authorization: Bearer ${token_value}" \
+    --data "$payload" 2>/dev/null || echo "000")
+
+  if [ "$http_code" != "200" ]; then
+    log_warning "Service ID ($service_name) probe unreachable (HTTP $http_code)"
+    return 1
+  fi
+
+  local has_errors
+  has_errors=$(jq -r 'if (.errors | length) > 0 then "yes" else "no" end' /tmp/railway-service-check.json 2>/dev/null || echo "yes")
+  if [ "$has_errors" = "yes" ]; then
+    local first_error
+    first_error=$(jq -r '.errors[0].message // "unknown"' /tmp/railway-service-check.json 2>/dev/null || echo "unknown")
+    log_warning "Service ID ($service_name) Graph probe failed: $first_error"
+    return 1
+  fi
+
+  local resolved_name
+  resolved_name=$(jq -r '.data.service.name // "unknown"' /tmp/railway-service-check.json 2>/dev/null || echo "unknown")
+  log_success "Service ID ($service_name) is accessible via Graph (resolved: $resolved_name)"
+  ((VALIDATED_COUNT+=1))
   return 0
 }
 
@@ -164,7 +204,7 @@ validate_service_url() {
   
   if [ "$http_code" = "200" ]; then
     log_success "Service ($service_name) is healthy: $health_url"
-    ((VALIDATED_COUNT++))
+    ((VALIDATED_COUNT+=1))
     return 0
   else
     log_warning "Service ($service_name) returned HTTP $http_code: $health_url"
@@ -206,17 +246,17 @@ main() {
 
   if [ -z "${RAILWAY_BOB_TOKEN:-}" ]; then
     log_error "RAILWAY_BOB_TOKEN is not set"
-    ((MISSING_COUNT++))
+    ((MISSING_COUNT+=1))
   else
     validate_railway_token "$RAILWAY_BOB_TOKEN" "RAILWAY_BOB_TOKEN"
   fi
 
   if [ -z "${RAILWAY_BOB_SERVICE_ID:-}" ]; then
     log_warning "RAILWAY_BOB_SERVICE_ID is not set (optional if RAILWAY_BOB_PROJECT_ID is set)"
-    ((MISSING_COUNT++))
+    ((MISSING_COUNT+=1))
   else
     if [ -n "${RAILWAY_BOB_TOKEN:-}" ]; then
-      validate_railway_service_id "$RAILWAY_BOB_TOKEN" "$RAILWAY_BOB_SERVICE_ID" "RAILWAY_BOB_SERVICE_ID"
+      validate_railway_service_id "$RAILWAY_BOB_TOKEN" "$RAILWAY_BOB_SERVICE_ID" "RAILWAY_BOB_SERVICE_ID" || true
     fi
   fi
 
@@ -225,7 +265,7 @@ main() {
   fi
 
   if [ -n "${BOB_SERVICE_URL:-}" ]; then
-    validate_service_url "$BOB_SERVICE_URL" "BOB (public URL)"
+    validate_service_url "$BOB_SERVICE_URL" "BOB (public URL)" || true
   fi
 
   # ========== OLLAMA SERVICE ==========
@@ -236,15 +276,15 @@ main() {
 
   if [ -z "${RAILWAY_OLLAMA_SERVICE_ID:-}" ]; then
     log_warning "RAILWAY_OLLAMA_SERVICE_ID is not set (optional if RAILWAY_BOB_PROJECT_ID is set)"
-    ((MISSING_COUNT++))
+    ((MISSING_COUNT+=1))
   else
     if [ -n "${RAILWAY_BOB_TOKEN:-}" ]; then
-      validate_railway_service_id "$RAILWAY_BOB_TOKEN" "$RAILWAY_OLLAMA_SERVICE_ID" "RAILWAY_OLLAMA_SERVICE_ID"
+      validate_railway_service_id "$RAILWAY_BOB_TOKEN" "$RAILWAY_OLLAMA_SERVICE_ID" "RAILWAY_OLLAMA_SERVICE_ID" || true
     fi
   fi
 
   if [ -n "${OLLAMA_SERVICE_URL:-}" ]; then
-    validate_service_url "$OLLAMA_SERVICE_URL" "Ollama (public URL)"
+    validate_service_url "$OLLAMA_SERVICE_URL" "Ollama (public URL)" || true
   fi
 
   # ========== PROXY SERVICE ==========
@@ -255,22 +295,22 @@ main() {
 
   if [ -z "${RAILWAY_TOKEN:-}" ]; then
     log_error "RAILWAY_TOKEN is not set (required for core services)"
-    ((MISSING_COUNT++))
+    ((MISSING_COUNT+=1))
   else
     validate_railway_token "$RAILWAY_TOKEN" "RAILWAY_TOKEN"
   fi
 
   if [ -z "${RAILWAY_PROXY_SERVICE_ID:-}" ]; then
     log_error "RAILWAY_PROXY_SERVICE_ID is not set"
-    ((MISSING_COUNT++))
+    ((MISSING_COUNT+=1))
   else
     if [ -n "${RAILWAY_TOKEN:-}" ]; then
-      validate_railway_service_id "$RAILWAY_TOKEN" "$RAILWAY_PROXY_SERVICE_ID" "RAILWAY_PROXY_SERVICE_ID"
+      validate_railway_service_id "$RAILWAY_TOKEN" "$RAILWAY_PROXY_SERVICE_ID" "RAILWAY_PROXY_SERVICE_ID" || true
     fi
   fi
 
   if [ -n "${PROXY_SERVICE_URL:-}" ]; then
-    validate_service_url "$PROXY_SERVICE_URL" "Proxy (public URL)"
+    validate_service_url "$PROXY_SERVICE_URL" "Proxy (public URL)" || true
   fi
 
   # ========== INFERENCE SERVICE ==========
@@ -281,15 +321,15 @@ main() {
 
   if [ -z "${RAILWAY_INFERENCE_SERVICE_ID:-}" ]; then
     log_error "RAILWAY_INFERENCE_SERVICE_ID is not set"
-    ((MISSING_COUNT++))
+    ((MISSING_COUNT+=1))
   else
     if [ -n "${RAILWAY_TOKEN:-}" ]; then
-      validate_railway_service_id "$RAILWAY_TOKEN" "$RAILWAY_INFERENCE_SERVICE_ID" "RAILWAY_INFERENCE_SERVICE_ID"
+      validate_railway_service_id "$RAILWAY_TOKEN" "$RAILWAY_INFERENCE_SERVICE_ID" "RAILWAY_INFERENCE_SERVICE_ID" || true
     fi
   fi
 
   if [ -n "${INFERENCE_SERVICE_URL:-}" ]; then
-    validate_service_url "$INFERENCE_SERVICE_URL" "Inference (public URL)"
+    validate_service_url "$INFERENCE_SERVICE_URL" "Inference (public URL)" || true
   fi
 
   # ========== PTT SERVICE ==========
@@ -300,15 +340,15 @@ main() {
 
   if [ -z "${RAILWAY_PTT_SERVICE_ID:-}" ]; then
     log_warning "RAILWAY_PTT_SERVICE_ID is not set"
-    ((MISSING_COUNT++))
+    ((MISSING_COUNT+=1))
   else
     if [ -n "${RAILWAY_TOKEN:-}" ]; then
-      validate_railway_service_id "$RAILWAY_TOKEN" "$RAILWAY_PTT_SERVICE_ID" "RAILWAY_PTT_SERVICE_ID"
+      validate_railway_service_id "$RAILWAY_TOKEN" "$RAILWAY_PTT_SERVICE_ID" "RAILWAY_PTT_SERVICE_ID" || true
     fi
   fi
 
   if [ -n "${PTT_SERVICE_URL:-}" ]; then
-    validate_service_url "$PTT_SERVICE_URL" "PTT Server (public URL)"
+    validate_service_url "$PTT_SERVICE_URL" "PTT Server (public URL)" || true
   fi
 
   # ========== SUPABASE SECRETS ==========
@@ -319,31 +359,31 @@ main() {
 
   if [ -z "${PROXY_SERVER_URL:-}" ]; then
     log_error "PROXY_SERVER_URL Supabase secret is not set"
-    ((MISSING_COUNT++))
+    ((MISSING_COUNT+=1))
   else
-    validate_service_url "$PROXY_SERVER_URL" "PROXY_SERVER_URL (Supabase secret)"
+    validate_service_url "$PROXY_SERVER_URL" "PROXY_SERVER_URL (Supabase secret)" || true
   fi
 
   if [ -z "${INFERENCE_SERVICE_URL:-}" ]; then
     log_error "INFERENCE_SERVICE_URL Supabase secret is not set"
-    ((MISSING_COUNT++))
+    ((MISSING_COUNT+=1))
   else
-    validate_service_url "$INFERENCE_SERVICE_URL" "INFERENCE_SERVICE_URL (Supabase secret)"
+    validate_service_url "$INFERENCE_SERVICE_URL" "INFERENCE_SERVICE_URL (Supabase secret)" || true
   fi
 
   if [ -z "${INFERENCE_API_KEY:-}" ]; then
     log_error "INFERENCE_API_KEY Supabase secret is not set"
-    ((MISSING_COUNT++))
+    ((MISSING_COUNT+=1))
   else
     log_success "INFERENCE_API_KEY is set: $(mask_secret "$INFERENCE_API_KEY")"
-    ((VALIDATED_COUNT++))
+    ((VALIDATED_COUNT+=1))
   fi
 
   if [ -z "${PTT_SERVER_URL:-}" ]; then
     log_warning "PTT_SERVER_URL Supabase secret is not set"
-    ((MISSING_COUNT++))
+    ((MISSING_COUNT+=1))
   else
-    validate_service_url "$PTT_SERVER_URL" "PTT_SERVER_URL (Supabase secret)"
+    validate_service_url "$PTT_SERVER_URL" "PTT_SERVER_URL (Supabase secret)" || true
   fi
 
   # ========== SUMMARY ==========

@@ -456,7 +456,7 @@ CREATE TABLE IF NOT EXISTS nzscv_cache (
 );
 
 CREATE INDEX IF NOT EXISTS idx_nzscv_cache_plate ON nzscv_cache(plate_number);
-CREATE INDEX IF NOT EXISTS idx_nzscv_cache_expires ON nzscv_cache(expires_at);
+CREATE INDEX IF NOT EXISTS idx_nzscv_cache_expires ON nzscv_cache(cache_expires_at);
 
 -- Motoweb cache (NZ vehicle registration via NZTA)
 CREATE TABLE IF NOT EXISTS motoweb_cache (

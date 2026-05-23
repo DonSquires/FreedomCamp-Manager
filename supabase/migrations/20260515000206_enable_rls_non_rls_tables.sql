@@ -69,6 +69,12 @@ CREATE POLICY "infringement_notice_counters_org" ON public.infringement_notice_c
 COMMENT ON POLICY "infringement_notice_counters_org" ON public.infringement_notice_counters
   IS 'Counter table: org-scoped access';
 
+CREATE TABLE IF NOT EXISTS public.user_callsign_counters (
+  organization_id uuid PRIMARY KEY REFERENCES public.organizations(id) ON DELETE CASCADE,
+  next_number integer NOT NULL DEFAULT 1,
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
 ALTER TABLE public.user_callsign_counters ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "user_callsign_counters_org" ON public.user_callsign_counters
   FOR SELECT USING (

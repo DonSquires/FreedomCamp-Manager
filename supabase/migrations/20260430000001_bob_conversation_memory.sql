@@ -15,15 +15,7 @@ CREATE TABLE IF NOT EXISTS public.bob_conversations (
   tags TEXT[], -- tags for categorization (e.g., ['bug-triage', 'feature-design'])
   is_archived BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-
-  CONSTRAINT bob_conversations_user_org CHECK (
-    -- Ensure conversation is tied to a valid user-org relationship
-    EXISTS (
-      SELECT 1 FROM public.user_profiles up
-      WHERE up.id = user_id AND up.organization_id = organization_id
-    )
-  )
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE INDEX IF NOT EXISTS idx_bob_conversations_user_org
@@ -124,22 +116,22 @@ ALTER TABLE public.bob_conversations ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "bob_conversations_insert_own_org" ON public.bob_conversations
   FOR INSERT WITH CHECK (
-    organization_id IN (SELECT get_user_organization_ids())
+    organization_id = ANY(get_user_organization_ids())
   );
 
 CREATE POLICY "bob_conversations_select_own_org" ON public.bob_conversations
   FOR SELECT USING (
-    organization_id IN (SELECT get_user_organization_ids())
+    organization_id = ANY(get_user_organization_ids())
   );
 
 CREATE POLICY "bob_conversations_update_own" ON public.bob_conversations
   FOR UPDATE USING (
-    user_id = auth.uid() AND organization_id IN (SELECT get_user_organization_ids())
+    user_id = auth.uid() AND organization_id = ANY(get_user_organization_ids())
   );
 
 CREATE POLICY "bob_conversations_delete_own" ON public.bob_conversations
   FOR DELETE USING (
-    user_id = auth.uid() AND organization_id IN (SELECT get_user_organization_ids())
+    user_id = auth.uid() AND organization_id = ANY(get_user_organization_ids())
   );
 
 -- ============================================================================
@@ -149,12 +141,12 @@ ALTER TABLE public.bob_messages ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "bob_messages_insert_own_org" ON public.bob_messages
   FOR INSERT WITH CHECK (
-    organization_id IN (SELECT get_user_organization_ids())
+    organization_id = ANY(get_user_organization_ids())
   );
 
 CREATE POLICY "bob_messages_select_own_org" ON public.bob_messages
   FOR SELECT USING (
-    organization_id IN (SELECT get_user_organization_ids())
+    organization_id = ANY(get_user_organization_ids())
   );
 
 -- ============================================================================
@@ -164,12 +156,12 @@ ALTER TABLE public.bob_learning_log ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "bob_learning_log_insert_own_org" ON public.bob_learning_log
   FOR INSERT WITH CHECK (
-    organization_id IN (SELECT get_user_organization_ids())
+    organization_id = ANY(get_user_organization_ids())
   );
 
 CREATE POLICY "bob_learning_log_select_own_org" ON public.bob_learning_log
   FOR SELECT USING (
-    organization_id IN (SELECT get_user_organization_ids())
+    organization_id = ANY(get_user_organization_ids())
   );
 
 -- Admins can see learning patterns for all messages
@@ -179,7 +171,7 @@ CREATE POLICY "bob_learning_log_select_admin" ON public.bob_learning_log
       SELECT 1 FROM public.user_profiles up
       WHERE up.id = auth.uid()
         AND up.role IN ('admin', 'master', 'grand_master', 'admin_officer')
-        AND up.organization_id IN (SELECT get_user_organization_ids())
+        AND up.organization_id = ANY(get_user_organization_ids())
     )
   );
 

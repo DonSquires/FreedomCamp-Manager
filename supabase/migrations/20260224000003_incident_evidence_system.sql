@@ -46,17 +46,30 @@ CREATE TABLE IF NOT EXISTS public.incidents (
   metadata JSONB DEFAULT '{}'::jsonb
 );
 
+-- Legacy-compatible uplift: earlier schemas may already have incidents without
+-- the full retention/soft-delete contract used below.
+ALTER TABLE public.incidents
+  ADD COLUMN IF NOT EXISTS organization_id UUID REFERENCES public.organizations(id) ON DELETE CASCADE,
+  ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES public.user_profiles(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'new',
+  ADD COLUMN IF NOT EXISTS plate_number TEXT,
+  ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW(),
+  ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW(),
+  ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS retention_hold BOOLEAN DEFAULT FALSE,
+  ADD COLUMN IF NOT EXISTS retention_until TIMESTAMPTZ;
+
 -- ============================================================================
 -- Indexes
 -- ============================================================================
 
-CREATE INDEX idx_incidents_org ON public.incidents(organization_id) WHERE deleted_at IS NULL;
-CREATE INDEX idx_incidents_user ON public.incidents(user_id);
-CREATE INDEX idx_incidents_status ON public.incidents(status) WHERE deleted_at IS NULL;
-CREATE INDEX idx_incidents_plate ON public.incidents(plate_number) WHERE plate_number IS NOT NULL;
-CREATE INDEX idx_incidents_created ON public.incidents(created_at DESC) WHERE deleted_at IS NULL;
-CREATE INDEX idx_incidents_retention_hold ON public.incidents(retention_hold, retention_until) WHERE deleted_at IS NULL;
-CREATE INDEX idx_incidents_purge_eligible ON public.incidents(created_at) 
+CREATE INDEX IF NOT EXISTS idx_incidents_org ON public.incidents(organization_id) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_incidents_user ON public.incidents(user_id);
+CREATE INDEX IF NOT EXISTS idx_incidents_status ON public.incidents(status) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_incidents_plate ON public.incidents(plate_number) WHERE plate_number IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_incidents_created ON public.incidents(created_at DESC) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_incidents_retention_hold ON public.incidents(retention_hold, retention_until) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_incidents_purge_eligible ON public.incidents(created_at) 
   WHERE retention_hold = FALSE AND deleted_at IS NULL;
 
 -- ============================================================================
@@ -66,6 +79,7 @@ CREATE INDEX idx_incidents_purge_eligible ON public.incidents(created_at)
 ALTER TABLE public.incidents ENABLE ROW LEVEL SECURITY;
 
 -- Officers can create their own incidents
+DROP POLICY IF EXISTS "officers_insert_own_incidents" ON public.incidents;
 CREATE POLICY "officers_insert_own_incidents" ON public.incidents
   FOR INSERT TO authenticated
   WITH CHECK (
@@ -74,6 +88,7 @@ CREATE POLICY "officers_insert_own_incidents" ON public.incidents
   );
 
 -- Officers can view incidents from their organization (excluding soft-deleted)
+DROP POLICY IF EXISTS "org_users_view_incidents" ON public.incidents;
 CREATE POLICY "org_users_view_incidents" ON public.incidents
   FOR SELECT TO authenticated
   USING (
@@ -85,6 +100,7 @@ CREATE POLICY "org_users_view_incidents" ON public.incidents
   );
 
 -- Officers can update their own incidents (before processing complete)
+DROP POLICY IF EXISTS "officers_update_own_incidents" ON public.incidents;
 CREATE POLICY "officers_update_own_incidents" ON public.incidents
   FOR UPDATE TO authenticated
   USING (
@@ -94,6 +110,7 @@ CREATE POLICY "officers_update_own_incidents" ON public.incidents
   );
 
 -- Admins can update any incident in their org
+DROP POLICY IF EXISTS "admins_update_org_incidents" ON public.incidents;
 CREATE POLICY "admins_update_org_incidents" ON public.incidents
   FOR UPDATE TO authenticated
   USING (
@@ -105,6 +122,7 @@ CREATE POLICY "admins_update_org_incidents" ON public.incidents
   );
 
 -- Super delete (for Don's account with permissions)
+DROP POLICY IF EXISTS "super_delete_incidents" ON public.incidents;
 CREATE POLICY "super_delete_incidents" ON public.incidents
   FOR DELETE TO authenticated
   USING (

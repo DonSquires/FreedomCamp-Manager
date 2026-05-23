@@ -7,6 +7,55 @@
 -- Purpose: Real-time KPI metrics for admin dashboard
 -- ============================================================================
 
+-- Contract bootstrap: older table variants may not have recorded_at yet.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.tables
+    WHERE table_schema = 'public'
+      AND table_name = 'enforcement_actions'
+  ) THEN
+    ALTER TABLE public.enforcement_actions
+      ADD COLUMN IF NOT EXISTS recorded_at TIMESTAMPTZ DEFAULT now();
+
+    IF EXISTS (
+      SELECT 1
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'enforcement_actions'
+        AND column_name = 'created_at'
+    ) THEN
+      UPDATE public.enforcement_actions
+      SET recorded_at = COALESCE(recorded_at, created_at, now())
+      WHERE recorded_at IS NULL;
+    END IF;
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.tables
+    WHERE table_schema = 'public'
+      AND table_name = 'officer_activity_log'
+  ) THEN
+    ALTER TABLE public.officer_activity_log
+      ADD COLUMN IF NOT EXISTS recorded_at TIMESTAMPTZ DEFAULT now();
+
+    IF EXISTS (
+      SELECT 1
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'officer_activity_log'
+        AND column_name = 'created_at'
+    ) THEN
+      UPDATE public.officer_activity_log
+      SET recorded_at = COALESCE(recorded_at, created_at, now())
+      WHERE recorded_at IS NULL;
+    END IF;
+  END IF;
+END;
+$$;
+
 CREATE OR REPLACE VIEW public.dashboard_stats_live AS
 SELECT
   -- Scans Today (observations created today)
@@ -76,9 +125,9 @@ SELECT
   
   -- Vehicle Details
   COALESCE(ba.plate_number, cv.plate_number, 'UNKNOWN') AS plate_number,
-  cv.make,
-  cv.model,
-  cv.colour AS color,
+  COALESCE(to_jsonb(cv)->>'make', to_jsonb(cv)->>'vehicle_make') AS make,
+  COALESCE(to_jsonb(cv)->>'model', to_jsonb(cv)->>'vehicle_model') AS model,
+  COALESCE(to_jsonb(cv)->>'colour', to_jsonb(cv)->>'color', to_jsonb(cv)->>'vehicle_color') AS color,
   
   -- Zone Details
   z.name AS zone_name,
@@ -159,7 +208,7 @@ CREATE INDEX IF NOT EXISTS idx_breach_alerts_status_created
 -- Officer Activity: recent activity for active officer counts
 CREATE INDEX IF NOT EXISTS idx_officer_activity_recent 
   ON public.officer_activity_log (recorded_at DESC)
-  WHERE recorded_at >= NOW() - INTERVAL '2 hours';
+  WHERE recorded_at IS NOT NULL;
 
 -- ============================================================================
 -- Verification

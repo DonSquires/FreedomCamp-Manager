@@ -2,6 +2,9 @@
   "name": "fieldops-manager",
   "version": "1.0.0",
   "main": "./App.tsx",
+  "engines": {
+    "node": ">=20 <21"
+  },
   "scripts": {
     "start": "expo start",
     "android": "expo start --android",

@@ -21,6 +21,35 @@
 
 BEGIN;
 
+-- Compatibility bootstrap: some environments still only have observations.id.
+DO $$
+DECLARE
+  v_has_observation_id boolean;
+  v_has_id boolean;
+BEGIN
+  SELECT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'observations' AND column_name = 'observation_id'
+  ) INTO v_has_observation_id;
+
+  IF NOT v_has_observation_id THEN
+    EXECUTE 'ALTER TABLE public.observations ADD COLUMN observation_id uuid';
+
+    SELECT EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'observations' AND column_name = 'id'
+    ) INTO v_has_id;
+
+    IF v_has_id THEN
+      EXECUTE 'UPDATE public.observations SET observation_id = id WHERE observation_id IS NULL';
+    END IF;
+
+    EXECUTE 'UPDATE public.observations SET observation_id = gen_random_uuid() WHERE observation_id IS NULL';
+    EXECUTE 'CREATE UNIQUE INDEX IF NOT EXISTS idx_observations_observation_id_compat ON public.observations(observation_id)';
+  END IF;
+END
+$$;
+
 -- ── 1. Fix evidence_access_log RLS policy ───────────────────────────────────
 DO $$
 BEGIN

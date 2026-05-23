@@ -124,7 +124,7 @@ BEGIN
         'MONTHLY LIMIT EXCEEDED: ' || v_monthly_stay.nights_stayed || ' nights stayed this month (limit: ' || v_matrix.nights_per_month || ' nights)'
       );
       
-      RAISE NOTICE 'MONTHLY BREACH: % has % nights (max %), 
+      RAISE NOTICE 'MONTHLY BREACH: % has % nights (max %)', 
         p_plate_number, v_monthly_stay.nights_stayed, v_matrix.nights_per_month;
     
     -- Check if AT MONTHLY LIMIT (will breach if stays tonight)
@@ -352,10 +352,20 @@ $$;
 -- STEP 3: Create trigger to auto-run compliance check on new observations
 DROP TRIGGER IF EXISTS trigger_auto_compliance_check ON observations;
 
+CREATE OR REPLACE FUNCTION trg_auto_compliance_check()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  PERFORM auto_evaluate_compliance_and_create_breach(NEW.observation_id);
+  RETURN NEW;
+END;
+$$;
+
 CREATE TRIGGER trigger_auto_compliance_check
   AFTER INSERT ON observations
   FOR EACH ROW
-  EXECUTE FUNCTION auto_evaluate_compliance_and_create_breach(NEW.observation_id);
+  EXECUTE FUNCTION trg_auto_compliance_check();
 
 -- STEP 4: Update canonical_vehicles to track enforcement
 ALTER TABLE canonical_vehicles

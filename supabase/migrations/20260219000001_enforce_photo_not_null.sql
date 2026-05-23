@@ -6,6 +6,12 @@
 -- This migration enforces the invariant: "No observation without verifiable photo"
 -- Run only after missing_photo_queue is empty or all records marked 'abandoned'
 
+-- Ensure required evidence columns exist even if this migration executes before
+-- other evidence-integrity migrations in lexical order.
+ALTER TABLE observations
+  ADD COLUMN IF NOT EXISTS photo_original_sha256 TEXT,
+  ADD COLUMN IF NOT EXISTS photo_original_bytes BIGINT;
+
 -- ===========================================
 -- SECTION 1: VERIFY BACKFILL COMPLETE
 -- ===========================================
@@ -20,10 +26,17 @@ BEGIN
   FROM observations
   WHERE photo_original_sha256 IS NULL;
   
-  -- Check for pending repairs in queue
-  SELECT COUNT(*) INTO pending_repairs
-  FROM missing_photo_queue
-  WHERE status IN ('pending', 'repairing');
+  -- Check for pending repairs in queue (table may be introduced later).
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'missing_photo_queue'
+  ) THEN
+    SELECT COUNT(*) INTO pending_repairs
+    FROM missing_photo_queue
+    WHERE status IN ('pending', 'repairing');
+  ELSE
+    pending_repairs := 0;
+  END IF;
   
   RAISE NOTICE '===========================================';
   RAISE NOTICE 'BACKFILL STATUS CHECK';

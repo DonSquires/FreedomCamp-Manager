@@ -91,12 +91,6 @@ content_path = "supabase/templates/magic_link.html"
 
 # ── Edge Function JWT verification settings ──────────────────────────────────
 #
-# get-weather: fetches weather via external AI API — no user data is exposed,
-# so JWT verification is not required.  Removing it also ensures the Supabase
-# gateway lets CORS pre-flight (OPTIONS) requests through without a token.
-[functions.get-weather]
-verify_jwt = false
-
 # alpr-process: uses SERVICE_ROLE_KEY internally.  JWT is NOT verified at the
 # gateway so that browser CORS pre-flight OPTIONS requests (which carry no
 # Authorization header) reach the function handler and receive the correct
@@ -130,21 +124,10 @@ verify_jwt = false
 [functions.vehicle-ingest]
 verify_jwt = false
 
-# reingest-photos: admin UI calls this directly from the browser and hits the
-# same gateway ES256 rejection pattern as vehicle-ingest. The function performs
-# its own auth/profile checks internally.
-[functions.reingest-photos]
-verify_jwt = false
-
 # cleanup-and-recalculate: browser calls can be rejected at the gateway with
 # 401 before execution_id is created (even with valid ES256 user JWTs). We
 # disable gateway verification and validate Authorization + role in function.
 [functions.cleanup-and-recalculate]
-verify_jwt = false
-
-# duplicate-detection: browser calls can be rejected at the gateway with 401
-# before execution starts; auth + role are validated in function.
-[functions.duplicate-detection]
 verify_jwt = false
 
 # sync-scv-list: follows the same browser ES256 pattern where gateway can
@@ -161,12 +144,6 @@ verify_jwt = false
 [functions.create-user]
 verify_jwt = false
 
-# recalculate-compliance-v3: admin/master trigger compliance recalculation from
-# the browser; ES256-signed JWTs are rejected at the gateway (401, execution_id:
-# null). Auth + admin role are validated inside the function body.
-[functions.recalculate-compliance-v3]
-verify_jwt = false
-
 # import-historical-data: browser calls can be rejected at the Supabase
 # gateway before execution starts (401 with execution_id: null), which also
 # means no function invocations/logs appear in the dashboard. The function
@@ -180,16 +157,7 @@ verify_jwt = false
 # validates caller identity internally using supabaseAdmin.auth.getUser(token)
 # or service-role auth before executing any privileged operation.
 
-[functions.alpr-retry]
-verify_jwt = false
-
 [functions.analyze-vehicle-photo]
-verify_jwt = false
-
-[functions.check-almost-breaches]
-verify_jwt = false
-
-[functions.check-data-integrity]
 verify_jwt = false
 
 [functions.check-nzscv-status]
@@ -198,25 +166,10 @@ verify_jwt = false
 [functions.check-services-health]
 verify_jwt = false
 
-[functions.check-zone-corrections]
-verify_jwt = false
-
-[functions.correct-zone-assignments]
-verify_jwt = false
-
-[functions.create_auth_and_profiles]
-verify_jwt = false
-
-[functions.daily-photo-reconciler]
-verify_jwt = false
-
 [functions.enrich-from-motorweb]
 verify_jwt = false
 
 [functions.generate-dashboard-report]
-verify_jwt = false
-
-[functions.generate-leadership-pack]
 verify_jwt = false
 
 [functions.generate-noise-notice]
@@ -228,13 +181,7 @@ verify_jwt = false
 [functions.generate-seizure-receipt]
 verify_jwt = false
 
-[functions.generate-vehicle-report]
-verify_jwt = false
-
 [functions.generate-warning-notice]
-verify_jwt = false
-
-[functions.get-compliance-statistics]
 verify_jwt = false
 
 [functions.hotspot-data]
@@ -243,22 +190,10 @@ verify_jwt = false
 [functions.import-data]
 verify_jwt = false
 
-[functions.link-evidence-photos]
-verify_jwt = false
-
 [functions.monitor-officer-welfare]
 verify_jwt = false
 
 [functions.nightly-privacy-cleanup]
-verify_jwt = false
-
-[functions.observations-export]
-verify_jwt = false
-
-[functions.observations-in-bounds]
-verify_jwt = false
-
-[functions.observations-list]
 verify_jwt = false
 
 [functions.onspace-ai-chat]
@@ -273,12 +208,6 @@ verify_jwt = false
 [functions.parkpow-sync]
 verify_jwt = false
 
-[functions.photo-recovery]
-verify_jwt = false
-
-[functions.plate-scanner-photo-first]
-verify_jwt = false
-
 [functions.process-credential-document]
 verify_jwt = false
 
@@ -289,9 +218,6 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.public-case-lookup]
-verify_jwt = false
-
-[functions.scan-breaches]
 verify_jwt = false
 
 [functions.scrape-vehicle-photos]
@@ -309,34 +235,10 @@ verify_jwt = false
 [functions.send-report-email]
 verify_jwt = false
 
-[functions.set-user-password]
-verify_jwt = false
-
-[functions.stream-webhook]
-verify_jwt = false
-
 [functions.submit-dispute-intake]
 verify_jwt = false
 
-[functions.suggest-new-zone]
-verify_jwt = false
-
 [functions.sync-spatial-layers]
-verify_jwt = false
-
-[functions.test-compliance-matrix]
-verify_jwt = false
-
-[functions.update-compliance-policy]
-verify_jwt = false
-
-[functions.update-user-password]
-verify_jwt = false
-
-[functions.upload-file]
-verify_jwt = false
-
-[functions.zone-correction]
 verify_jwt = false
 
 # process-face-scan: browser callers send ES256-signed JWTs that the Supabase

@@ -1,8 +1,11 @@
-FROM node:20-alpine AS builder
+FROM node:20.15.0-alpine AS builder
 
 WORKDIR /app
 
+RUN apk add --no-cache bash
+
 COPY package.json package-lock.json* ./
+COPY .node-version ./
 RUN npm install
 
 COPY tsconfig.json ./
@@ -12,11 +15,12 @@ COPY scripts/ ./scripts/
 RUN npm run build
 
 # ---- Production image ----
-FROM node:20-alpine AS runner
+FROM node:20.15.0-alpine AS runner
 
 WORKDIR /app
 
 COPY package.json package-lock.json* ./
+COPY .node-version ./
 RUN npm install --omit=dev
 
 COPY --from=builder /app/dist ./dist

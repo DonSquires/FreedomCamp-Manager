@@ -23,10 +23,12 @@ DROP TRIGGER IF EXISTS trg_create_observation_job ON public.observations;
 -- ── 2. Drop trigger/helper functions ──────────────────────────────────────
 DROP FUNCTION IF EXISTS public.trg_fn_create_observation_job();
 DROP FUNCTION IF EXISTS public.enqueue_observation_job(uuid, uuid, uuid, text, text);
-DROP FUNCTION IF EXISTS public.update_observation_jobs_updated_at();
 
 -- ── 3. Drop the table (CASCADE removes indexes, policies, constraints) ────
 DROP TABLE IF EXISTS public.observation_jobs CASCADE;
+
+-- Now that dependent triggers are gone, remove updated_at helper function.
+DROP FUNCTION IF EXISTS public.update_observation_jobs_updated_at();
 
 -- ── 4. Verification ──────────────────────────────────────────────────────
 DO $$

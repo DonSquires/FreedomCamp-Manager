@@ -161,7 +161,7 @@ BEGIN
     PERFORM cron.schedule(
       'welfare-push-reminders',
       '*/2 * * * *',
-      $$
+      $cron$
         SELECT net.http_post(
           url := current_setting('app.supabase_url') || '/functions/v1/send-welfare-reminders',
           headers := jsonb_build_object(
@@ -170,7 +170,7 @@ BEGIN
           ),
           body := '{}'::jsonb
         )
-      $$
+      $cron$
     );
   END IF;
 EXCEPTION WHEN OTHERS THEN

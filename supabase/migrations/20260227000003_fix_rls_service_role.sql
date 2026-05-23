@@ -16,6 +16,7 @@ DROP POLICY IF EXISTS "officers_insert_observations" ON observations;
 
 -- Allow SERVICE_ROLE to insert observations (used by vehicle-ingest Edge Function)
 -- This bypasses RLS entirely when using SERVICE_ROLE_KEY
+DROP POLICY IF EXISTS "service_role_insert_observations" ON observations;
 CREATE POLICY "service_role_insert_observations"
   ON observations
   FOR INSERT
@@ -23,6 +24,7 @@ CREATE POLICY "service_role_insert_observations"
   WITH CHECK (true);
 
 -- Allow authenticated users to insert their own observations
+DROP POLICY IF EXISTS "authenticated_insert_own_observations" ON observations;
 CREATE POLICY "authenticated_insert_own_observations"
   ON observations
   FOR INSERT
@@ -38,6 +40,8 @@ CREATE POLICY "authenticated_insert_own_observations"
 
 DROP POLICY IF EXISTS "authenticated_view_canonical_vehicles" ON canonical_vehicles;
 DROP POLICY IF EXISTS "system_manage_canonical_vehicles" ON canonical_vehicles;
+DROP POLICY IF EXISTS "users_view_canonical_vehicles" ON canonical_vehicles;
+DROP POLICY IF EXISTS "service_role_manage_canonical_vehicles" ON canonical_vehicles;
 
 -- Allow all authenticated users to view vehicles (for safety checks)
 CREATE POLICY "users_view_canonical_vehicles"
@@ -59,6 +63,8 @@ CREATE POLICY "service_role_manage_canonical_vehicles"
 -- ============================================================================
 
 DROP POLICY IF EXISTS "authenticated_upload_photos" ON photo_metadata;
+DROP POLICY IF EXISTS "users_upload_own_photos" ON photo_metadata;
+DROP POLICY IF EXISTS "service_role_manage_photos" ON photo_metadata;
 
 -- Allow users to upload their own photos
 CREATE POLICY "users_upload_own_photos"
@@ -80,6 +86,7 @@ CREATE POLICY "service_role_manage_photos"
 -- ============================================================================
 
 DROP POLICY IF EXISTS "system_manage_monthly_stays" ON vehicle_monthly_stays;
+DROP POLICY IF EXISTS "service_role_manage_monthly_stays" ON vehicle_monthly_stays;
 
 -- Allow SERVICE_ROLE to manage stays (used by triggers)
 CREATE POLICY "service_role_manage_monthly_stays"
@@ -119,6 +126,7 @@ END $$;
 
 DROP POLICY IF EXISTS "system_manage_breach_alerts" ON breach_alerts;
 DROP POLICY IF EXISTS "system_update_breach_alerts" ON breach_alerts;
+DROP POLICY IF EXISTS "service_role_manage_breach_alerts" ON breach_alerts;
 
 -- Allow SERVICE_ROLE to manage breach alerts (used by triggers)
 CREATE POLICY "service_role_manage_breach_alerts"

@@ -28,6 +28,9 @@ app.set('trust proxy', 1);
 // Reject downgraded requests when a reverse proxy forwards protocol headers.
 app.use((req, res, next) => {
   if (process.env.NODE_ENV === 'production') {
+    if (req.path === '/health') {
+      return next();
+    }
     const forwardedProto = req.headers['x-forwarded-proto'];
     if (forwardedProto && String(forwardedProto).toLowerCase() !== 'https') {
       return res.status(400).json({ error: 'HTTPS required', message: 'Plain HTTP requests are not accepted in production.' });

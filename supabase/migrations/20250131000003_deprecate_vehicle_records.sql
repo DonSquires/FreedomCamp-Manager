@@ -366,7 +366,10 @@ SELECT
   vo.followup_resolved_at,
   vo.followup_resolution_notes,
   vo.gps_accuracy,
-  vo.evidence_photos,
+  CASE
+    WHEN vo.photo IS NULL OR btrim(vo.photo) = '' THEN '[]'::jsonb
+    ELSE jsonb_build_array(vo.photo)
+  END AS evidence_photos,
   vo.weather_conditions,
   vo.evidence_timestamp,
   vo.created_at

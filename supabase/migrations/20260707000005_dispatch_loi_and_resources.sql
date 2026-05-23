@@ -148,6 +148,46 @@ CREATE TABLE IF NOT EXISTS public.locations_of_interest (
   updated_at            TIMESTAMPTZ     NOT NULL DEFAULT now()
 );
 
+-- Compatibility backfill for environments where locations_of_interest
+-- was created earlier with a smaller column set.
+ALTER TABLE IF EXISTS public.locations_of_interest
+  ADD COLUMN IF NOT EXISTS display_address TEXT,
+  ADD COLUMN IF NOT EXISTS street_number TEXT,
+  ADD COLUMN IF NOT EXISTS street_name TEXT,
+  ADD COLUMN IF NOT EXISTS suburb TEXT,
+  ADD COLUMN IF NOT EXISTS city TEXT,
+  ADD COLUMN IF NOT EXISTS postcode TEXT,
+  ADD COLUMN IF NOT EXISTS country_code TEXT DEFAULT 'NZ',
+  ADD COLUMN IF NOT EXISTS gps_lat DOUBLE PRECISION,
+  ADD COLUMN IF NOT EXISTS gps_lng DOUBLE PRECISION,
+  ADD COLUMN IF NOT EXISTS geofence_radius_meters INTEGER DEFAULT 100,
+  ADD COLUMN IF NOT EXISTS geofence_geometry JSONB,
+  ADD COLUMN IF NOT EXISTS geocode_source TEXT,
+  ADD COLUMN IF NOT EXISTS is_verified BOOLEAN DEFAULT false,
+  ADD COLUMN IF NOT EXISTS notes TEXT,
+  ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true,
+  ADD COLUMN IF NOT EXISTS created_by UUID REFERENCES public.user_profiles(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT now(),
+  ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT now();
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'locations_of_interest'
+      AND column_name = 'address_full'
+  ) THEN
+    EXECUTE '
+      UPDATE public.locations_of_interest
+      SET display_address = COALESCE(display_address, address_full)
+      WHERE display_address IS NULL
+    ';
+  END IF;
+END;
+$$;
+
 CREATE INDEX IF NOT EXISTS idx_loi_org
   ON public.locations_of_interest(organization_id, is_active);
 
@@ -225,6 +265,7 @@ RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN NEW.updated_at = now(); RETURN NEW; END;
 $$;
 
+DROP TRIGGER IF EXISTS trg_loi_updated_at ON public.locations_of_interest;
 CREATE TRIGGER trg_loi_updated_at
   BEFORE UPDATE ON public.locations_of_interest
   FOR EACH ROW EXECUTE FUNCTION public.update_loi_updated_at();
@@ -536,6 +577,28 @@ CREATE TABLE IF NOT EXISTS public.dispatch_resources (
   updated_at                TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Compatibility backfill for environments where dispatch_resources exists
+-- with a smaller column set.
+ALTER TABLE IF EXISTS public.dispatch_resources
+  ADD COLUMN IF NOT EXISTS callsign TEXT,
+  ADD COLUMN IF NOT EXISTS display_name TEXT,
+  ADD COLUMN IF NOT EXISTS resource_type TEXT DEFAULT 'patrol_run',
+  ADD COLUMN IF NOT EXISTS depot_zone_id UUID REFERENCES public.zones(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS patrol_route_id UUID REFERENCES public.patrol_routes(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS shift_start_time TIME,
+  ADD COLUMN IF NOT EXISTS shift_end_time TIME,
+  ADD COLUMN IF NOT EXISTS active_days INTEGER[] DEFAULT '{1,2,3,4,5,6,7}',
+  ADD COLUMN IF NOT EXISTS auto_dispatch_enabled BOOLEAN DEFAULT false,
+  ADD COLUMN IF NOT EXISTS auto_dispatch_sms TEXT,
+  ADD COLUMN IF NOT EXISTS auto_dispatch_app_user_id UUID REFERENCES public.user_profiles(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS is_subcontractor BOOLEAN DEFAULT false,
+  ADD COLUMN IF NOT EXISTS provider_org_id UUID REFERENCES public.organizations(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS supported_job_type_codes TEXT[] DEFAULT '{}',
+  ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true,
+  ADD COLUMN IF NOT EXISTS created_by UUID REFERENCES public.user_profiles(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT now(),
+  ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT now();
+
 -- Callsign must be unique within an organisation
 CREATE UNIQUE INDEX IF NOT EXISTS idx_dispatch_resources_callsign
   ON public.dispatch_resources(organization_id, callsign)
@@ -564,6 +627,7 @@ RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN NEW.updated_at = now(); RETURN NEW; END;
 $$;
 
+DROP TRIGGER IF EXISTS trg_dispatch_resources_updated_at ON public.dispatch_resources;
 CREATE TRIGGER trg_dispatch_resources_updated_at
   BEFORE UPDATE ON public.dispatch_resources
   FOR EACH ROW EXECUTE FUNCTION public.update_dispatch_resources_updated_at();
