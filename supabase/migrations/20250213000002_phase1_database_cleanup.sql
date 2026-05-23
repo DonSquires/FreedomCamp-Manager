@@ -53,8 +53,6 @@ DROP TABLE IF EXISTS verification_results CASCADE;
 DROP TABLE IF EXISTS plate_history CASCADE;
 DROP TABLE IF EXISTS observations_backup_20250213 CASCADE;
 
-RAISE NOTICE '✅ Removed deprecated tables (backups and old schemas)';
-
 -- =====================================================
 -- STEP 3: OPTIMIZE CORE TABLE INDEXES
 -- =====================================================
@@ -73,8 +71,6 @@ CREATE INDEX IF NOT EXISTS idx_observations_v2_compliance ON observations(plate_
 -- vehicle_monthly_stays: Optimize month queries
 CREATE INDEX IF NOT EXISTS idx_monthly_stays_plate_zone_month ON vehicle_monthly_stays(plate_number, zone_id, calendar_month);
 CREATE INDEX IF NOT EXISTS idx_monthly_stays_current_month ON vehicle_monthly_stays(calendar_month) WHERE calendar_month >= DATE_TRUNC('month', CURRENT_DATE);
-
-RAISE NOTICE '✅ Optimized core table indexes';
 
 -- =====================================================
 -- STEP 4: REBUILD COMPLIANCE FUNCTION (CLEAN V3)
@@ -224,8 +220,6 @@ GRANT EXECUTE ON FUNCTION check_vehicle_compliance_v3 TO service_role;
 COMMENT ON FUNCTION check_vehicle_compliance_v3 IS 
   'V3: Clean compliance check with FC Act exemption for confirmed homeless vehicles';
 
-RAISE NOTICE '✅ Rebuilt compliance function (v3 - clean)';
-
 -- =====================================================
 -- STEP 5: CONSOLIDATE TRIGGERS (KEEP ONLY ESSENTIAL)
 -- =====================================================
@@ -315,8 +309,6 @@ CREATE TRIGGER trigger_sync_homeless_to_canonical
   FOR EACH ROW
   WHEN (NEW.has_homeless_claim = TRUE)
   EXECUTE FUNCTION sync_homeless_to_canonical();
-
-RAISE NOTICE '✅ Consolidated triggers (3 essential triggers only)';
 
 -- =====================================================
 -- STEP 6: VERIFY DATA INTEGRITY AFTER CLEANUP
