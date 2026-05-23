@@ -46,6 +46,57 @@ Operational status:
 - Production path is privacy-aware, source-governed, and repository-grounded before external escalation.
 
 ---
+## Bob Capability Matrix Governance Update (2026-05-23)
+
+Owner: GitHub Copilot  
+Scope: Promote Bob capability claims to executable governance checks in backend runtime docs and operations flow.
+
+Completed:
+
+- [x] Added backend capability matrix audit script (`backend/scripts/bob-capability-matrix-audit.mjs`).
+- [x] Added backend command entrypoints:
+  1. `npm run bob:capability:matrix`
+  2. `npm run bob:capability:matrix:strict`
+  3. `npm run bob:command:templates`
+- [x] Added operator one-line templates for:
+  1. Research agent deep scrape via `/api/heal`.
+  2. Mobile preview APK trigger via `/api/mobile/build-preview`.
+  3. Mobile OTA trigger via `/api/mobile/ota-hotfix`.
+
+Validation:
+
+1. `cd backend && npm run -s bob:capability:matrix` -> READY (14/14 checks passed).
+2. `cd backend && npm run -s bob:capability:matrix:strict` -> PASS.
+3. `cd backend && npm run -s bob:command:templates` -> PASS (all command templates rendered).
+
+Operational status:
+
+- Bob capability declarations are now enforced by an executable gate in backend operations, reducing drift between stated and actual automation wiring.
+
+---
+## Star Trek All-In-One Bob Gate Integration (2026-05-23)
+
+Owner: GitHub Copilot  
+Scope: Integrate Bob capability governance directly into the Star Trek checkpoint runner so Bob validation runs as one unified gate.
+
+Completed:
+
+- [x] Updated `scripts/staging-star-trek-bob-check.sh` to execute Bob capability matrix strict gate before browser/fallback checkpoint branches.
+- [x] Added command-template snapshot output during Star Trek run:
+  - `/tmp/staging-star-trek-bob-command-templates.txt`
+- [x] Added root script alias:
+  - `npm run staging:star-trek:bob:all-in-one`
+
+Validation:
+
+1. Shell syntax check for Star Trek runner -> PASS (`bash -n scripts/staging-star-trek-bob-check.sh`).
+2. Backend strict capability matrix remains green -> PASS (`cd backend && npm run -s bob:capability:matrix:strict`).
+
+Operational status:
+
+- Star Trek checkpoint flow now includes Bob governance/capability enforcement as first-class preflight, making it an all-in-one Bob operational gate.
+
+---
 ## Live Bob Chat Recovery Attempt (2026-05-22)
 
 Owner: GitHub Copilot  

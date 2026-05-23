@@ -43,6 +43,18 @@
 3. Runtime self-healing execution loops remain code-first and service-hosted (Railway/Runtime path). GitHub Actions in this area are restricted to non-critical training freshness and validation guardrails.
 4. Canonical source-of-truth for model-safe schema context remains `system_knowledge_base.service_name='railway-backend'`, updated only through the governed sync path above.
 
+### Current Cycle Amendment (2026-05-23 — Bob Capability Matrix Governance)
+
+1. Bob capability claims must be grounded by executable backend checks, not descriptive text alone. Backend operators must run the capability matrix gate before asserting readiness.
+2. Canonical backend commands for this gate are:
+   - `cd backend && npm run -s bob:capability:matrix`
+   - `cd backend && npm run -s bob:capability:matrix:strict`
+3. The capability gate validates governance and runtime wiring across cognitive dual-mode behavior, reasoning ledger persistence, chat session memory, persona declarations, Gitea PM/PR flows, Railway variable upsert mutation path, EAS mobile actions, research routing, webhook/playwright guardrails, auth middleware, sandbox blocking, and deterministic backend runtime constraints.
+4. Operator trigger templates are standardized through:
+   - `cd backend && npm run -s bob:command:templates`
+   This command prints one-line request templates for research escalation and mobile build/OTA operations using authenticated backend routes.
+5. Any future change to Bob autonomy, guardrails, privileged routes, or capability claims must update this amendment set and `docs/STAGING.md` in the same change set.
+
 ### Current Cycle Agentic Action Board (2026-05-18)
 
 Product Oversight To-Do (authoritative execution list):
@@ -536,7 +548,10 @@ Required governance at every Star Trek phase checkpoint:
 
 1. Update this manual with user-facing behavior changes introduced by the phase.
 2. Update [docs/STAGING.md](docs/STAGING.md) in the same change set with execution evidence and PASS/FAIL outcome.
-3. Do not declare phase completion unless both manual and staging updates are present.
+3. Execute the all-in-one Bob governance preflight as part of checkpoint execution:
+   - `npm run -s staging:star-trek:bob:check` (or alias `npm run -s staging:star-trek:bob:all-in-one`)
+   - This runner now includes backend capability matrix strict validation (`backend bob:capability:matrix:strict`) before Star Trek browser/fallback tests continue.
+4. Do not declare phase completion unless manual updates, staging updates, and the all-in-one Bob preflight are all present.
 
 ### Route Naming and Alias Policy (Canonical)
 

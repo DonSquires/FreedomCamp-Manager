@@ -11,6 +11,15 @@ run_with_npm() {
   "$@"
 }
 
+run_all_in_one_bob_gate() {
+  log "Running all-in-one Bob capability matrix gate (strict)."
+  run_with_npm npm --prefix backend run -s bob:capability:matrix:strict
+
+  local template_out="/tmp/staging-star-trek-bob-command-templates.txt"
+  run_with_npm npm --prefix backend run -s bob:command:templates >"$template_out"
+  log "Bob command templates snapshot written to: $template_out"
+}
+
 find_runnable_chromium() {
   local candidates=(
     "${PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH:-}"
@@ -60,6 +69,8 @@ run_non_browser_fallback() {
 }
 
 main() {
+  run_all_in_one_bob_gate
+
   local chromium_path=""
   if chromium_path="$(find_runnable_chromium)"; then
     run_browser_suite "$chromium_path"
