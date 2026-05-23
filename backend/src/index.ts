@@ -453,11 +453,17 @@ const SUPABASE_URL =
   process.env.SUPABASE_URL ??
   process.env.VITE_SUPABASE_URL ??
   (process.env.SUPABASE_PROJECT_REF ? `https://${process.env.SUPABASE_PROJECT_REF}.supabase.co` : undefined);
-const SUPABASE_SERVICE_ROLE_KEY = requireAnyEnv(['SUPABASE_SERVICE_ROLE_KEY']);
+const SUPABASE_SERVICE_ROLE_KEY = optionalAnyEnv(['SUPABASE_SERVICE_ROLE_KEY']);
 const SUPABASE_JWT_SECRET = optionalAnyEnv(['SUPABASE_JWT_SECRET']);
+const EFFECTIVE_SUPABASE_URL = SUPABASE_URL ?? 'http://127.0.0.1:54321';
+const EFFECTIVE_SUPABASE_SERVICE_ROLE_KEY = SUPABASE_SERVICE_ROLE_KEY ?? 'missing-service-role-key';
+const supabaseConfigReady = Boolean(SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY);
 
-if (!SUPABASE_URL) {
-  throw new Error('Missing SUPABASE_URL. Set SUPABASE_URL, VITE_SUPABASE_URL, or SUPABASE_PROJECT_REF');
+if (!supabaseConfigReady) {
+  console.warn(
+    '[FieldOps Backend] Supabase configuration is incomplete; starting in degraded mode. ' +
+      'Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY for full functionality.'
+  );
 }
 
 const app = express();
@@ -492,8 +498,8 @@ app.use(express.json());
 
 // ── Supabase (service role — backend only, never expose to client) ──────────
 const supabase = createClient(
-  SUPABASE_URL,
-  SUPABASE_SERVICE_ROLE_KEY,
+  EFFECTIVE_SUPABASE_URL,
+  EFFECTIVE_SUPABASE_SERVICE_ROLE_KEY,
   {
     realtime: {
       transport: ws as unknown as never,
@@ -778,7 +784,15 @@ async function persistMobileOtaReviewRecord(args: {
 }
 
 app.get('/health', (_req: Request, res: Response) => {
-  res.status(200).json({ ok: true, service: 'fieldops-backend' });
+  res.status(200).json({
+    ok: true,
+    service: 'fieldops-backend',
+    degraded: !supabaseConfigReady,
+    checks: {
+      supabase_url: Boolean(SUPABASE_URL),
+      supabase_service_role_key: Boolean(SUPABASE_SERVICE_ROLE_KEY),
+    },
+  });
 });
 
 app.get('/api/research/document-intelligence', async (req: Request, res: Response) => {
