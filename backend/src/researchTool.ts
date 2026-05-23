@@ -29,6 +29,9 @@ const NZ_FOCUSED_DOMAINS = [
 ];
 
 const TRUSTED_OFFICIAL_DOMAINS = [
+  'googleapis.com',
+  'google.com',
+  'maps.google.com',
   'supabase.com',
   'railway.app',
   'nodejs.org',
@@ -73,8 +76,14 @@ export function buildPrioritizedResearchQueries(query: string): string[] {
   const normalizedQuery = query.trim();
   const riskyTermsExclusion = '-porn -xxx -adult -escort -casino -betting -gambling -torrent';
 
-  const nzStage = `${normalizedQuery} (${NZ_FOCUSED_DOMAINS.map((domain) => `site:${domain}`).join(' OR ')}) ${riskyTermsExclusion}`;
-  const officialStage = `${normalizedQuery} (${TRUSTED_OFFICIAL_DOMAINS.map((domain) => `site:${domain}`).join(' OR ')}) ${riskyTermsExclusion}`;
+  const isRouteIntent = /(best|optimal|fastest|safest).*(patrol|route)|\bpatrol route\b|\broute planning\b|\bdirections\b/i.test(normalizedQuery);
+  const routeSignals = isRouteIntent
+    ? 'traffic congestion roadworks incidents closures travel time shortest path fuel-efficient route'
+    : '';
+
+  const enrichedQuery = `${normalizedQuery} ${routeSignals}`.trim();
+  const nzStage = `${enrichedQuery} (${NZ_FOCUSED_DOMAINS.map((domain) => `site:${domain}`).join(' OR ')}) ${riskyTermsExclusion}`;
+  const officialStage = `${enrichedQuery} (${TRUSTED_OFFICIAL_DOMAINS.map((domain) => `site:${domain}`).join(' OR ')}) ${riskyTermsExclusion}`;
 
   return [nzStage, officialStage];
 }
@@ -262,8 +271,17 @@ export async function executeWebSearch(query: string): Promise<string> {
 
   const providerErrors: string[] = [];
 
-  const googleApiKey = String(process.env.GOOGLE_API_KEY ?? '').trim();
-  const googleCseId = String(process.env.GOOGLE_CSE_ID ?? '').trim();
+  const googleApiKey = String(
+    process.env.GOOGLE_API_KEY ??
+      process.env.GOOGLE_MAPS_API_KEY ??
+      process.env.VITE_GOOGLE_MAPS_API_KEY ??
+      '',
+  ).trim();
+  const googleCseId = String(
+    process.env.GOOGLE_CSE_ID ??
+      process.env.GOOGLE_CUSTOM_SEARCH_ENGINE_ID ??
+      '',
+  ).trim();
   if (googleApiKey && googleCseId) {
     try {
       const response = await axios.get('https://www.googleapis.com/customsearch/v1', {
