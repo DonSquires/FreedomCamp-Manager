@@ -57,7 +57,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version: 20.15.0
 
       - name: Setup Supabase CLI
         uses: supabase/setup-cli@v2
@@ -86,7 +86,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version: 20.15.0
 
       - name: Setup Supabase CLI
         uses: supabase/setup-cli@v2

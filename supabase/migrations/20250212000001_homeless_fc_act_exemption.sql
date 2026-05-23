@@ -51,7 +51,6 @@ SELECT DISTINCT
   cv.homeless_status,
   cv.is_flagged,
   cv.profile_photo,
-  cv.fc_act_exempt,
   vo.zone_id,
   z.name AS zone_name,
   z.organization_id,
@@ -69,7 +68,8 @@ SELECT DISTINCT
     WHERE ea.plate_number = cv.plate_number
       AND ea.zone_id = vo.zone_id
       AND ea.breach_status IN ('active', 'assigned', 'in_progress')
-  ) AS has_enforcement_assigned
+  ) AS has_enforcement_assigned,
+  cv.fc_act_exempt
 FROM canonical_vehicles cv
 JOIN observations vo ON vo.plate_number = cv.plate_number
 JOIN zones z ON z.id = vo.zone_id
@@ -78,10 +78,11 @@ LEFT JOIN zone_compliance_matrix zcm ON zcm.zone_id = vo.zone_id AND zcm.effecti
 WHERE vo.is_breach = TRUE
 GROUP BY 
   cv.plate_number, cv.vehicle_make, cv.vehicle_model, cv.vehicle_color,
-  cv.homeless_status, cv.is_flagged, cv.profile_photo, cv.fc_act_exempt,
+  cv.homeless_status, cv.is_flagged, cv.profile_photo,
   vo.zone_id, z.name, z.organization_id,
   vms.consecutive_nights, vms.nights_stayed,
-  zcm.max_consecutive_nights, zcm.nights_per_month
+  zcm.max_consecutive_nights, zcm.nights_per_month,
+  cv.fc_act_exempt
 ORDER BY last_breach_at DESC NULLS LAST;
 
 COMMENT ON VIEW active_breaches_v2 IS 'Consolidated view of all active breaches with FC Act exemption status';
