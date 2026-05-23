@@ -14,6 +14,18 @@ const PTT_SCOPE_PATTERN = /^(org|incident|direct|team|deployment):[a-f0-9-]+$/
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 const PORTAL_ACCESS_PATTERN = /^[a-z0-9_:-]{2,64}$/
 
+function decodeJwtPayload(token: string): Record<string, unknown> | null {
+  const segments = String(token || '').split('.')
+  if (segments.length < 2) return null
+
+  try {
+    const json = atob(segments[1].replace(/-/g, '+').replace(/_/g, '/'))
+    return JSON.parse(json) as Record<string, unknown>
+  } catch {
+    return null
+  }
+}
+
 function normalizeScopeList(raw: unknown): string[] {
   if (!Array.isArray(raw)) return []
   return Array.from(
@@ -136,18 +148,26 @@ Deno.serve(async (req) => {
       global: { headers: { Authorization: authHeader } },
     })
 
-    const { data: { user }, error: authError } = await userClient.auth.getUser()
-    if (authError || !user) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+    const jwt = authHeader.replace(/^Bearer\s+/i, '').trim()
+    const jwtPayload = decodeJwtPayload(jwt)
+    let userId = typeof jwtPayload?.sub === 'string' && jwtPayload.sub.trim() ? jwtPayload.sub.trim() : ''
+
+    if (!userId) {
+      const { data: { user }, error: authError } = await userClient.auth.getUser(jwt)
+      if (authError || !user) {
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+          status: 401,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+
+      userId = user.id
     }
 
     const { data: caller } = await adminClient
       .from('user_profiles')
       .select('organization_id, role')
-      .eq('id', user.id)
+      .eq('id', userId)
       .single()
 
     const isAdminLike = caller && ['admin', 'admin_officer', 'master', 'grand_master'].includes(caller.role)
