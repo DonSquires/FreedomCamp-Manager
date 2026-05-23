@@ -101,6 +101,10 @@ type PlaywrightVerificationWebhookPayload = {
   output?: string;
   capturedAt?: string;
   logId?: number | string;
+  passRate?: number | string;
+  greenScore?: number | string;
+  testsPassed?: number | string;
+  testsTotal?: number | string;
 };
 
 type CognitiveActionPayload = {
@@ -1537,6 +1541,161 @@ function getGiteaClient() {
   });
 }
 
+function parseRepoOwnerAndName(repository: string): { owner: string; repo: string } | null {
+  const trimmed = String(repository ?? '').trim();
+  if (!trimmed.includes('/')) {
+    const owner = String(process.env.GITEA_OWNER ?? '').trim();
+    const repo = String(process.env.GITEA_REPO ?? '').trim();
+    return owner && repo ? { owner, repo } : null;
+  }
+
+  const [owner, repo] = trimmed.split('/', 2).map((value) => value.trim());
+  if (!owner || !repo) {
+    return null;
+  }
+
+  return { owner, repo };
+}
+
+function parsePercentValue(value: unknown): number | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  const text = String(value).trim();
+  if (!text) {
+    return null;
+  }
+
+  const normalized = text.endsWith('%') ? text.slice(0, -1) : text;
+  const parsed = Number(normalized);
+  if (!Number.isFinite(parsed)) {
+    return null;
+  }
+
+  if (parsed > 0 && parsed <= 1) {
+    return Math.round(parsed * 10000) / 100;
+  }
+
+  return Math.round(parsed * 100) / 100;
+}
+
+function isHundredPercentGreen(payload: PlaywrightVerificationWebhookPayload, status: string): boolean {
+  if (status !== 'PASSED') {
+    return false;
+  }
+
+  const passRate = parsePercentValue(payload.passRate);
+  if (passRate !== null) {
+    return passRate >= 100;
+  }
+
+  const greenScore = parsePercentValue(payload.greenScore);
+  if (greenScore !== null) {
+    return greenScore >= 100;
+  }
+
+  const passed = Number(payload.testsPassed);
+  const total = Number(payload.testsTotal);
+  if (Number.isFinite(passed) && Number.isFinite(total) && total > 0) {
+    return passed >= total;
+  }
+
+  return false;
+}
+
+async function promotePatchBranchToMain(args: {
+  repository: string;
+  branch: string;
+  baseBranch: string;
+  commitSha: string;
+  verificationTag: string;
+}): Promise<{ merged: boolean; pullRequestNumber: number | null; pullRequestUrl: string | null; detail: string }> {
+  const repoInfo = parseRepoOwnerAndName(args.repository);
+  if (!repoInfo) {
+    return {
+      merged: false,
+      pullRequestNumber: null,
+      pullRequestUrl: null,
+      detail: 'Repository owner/name is missing. Provide payload.repository as owner/repo or set GITEA_OWNER and GITEA_REPO.',
+    };
+  }
+
+  const gitea = getGiteaClient();
+  const encodedOwner = encodeURIComponent(repoInfo.owner);
+  const encodedRepo = encodeURIComponent(repoInfo.repo);
+
+  let pullRequestNumber: number | null = null;
+  let pullRequestUrl: string | null = null;
+
+  try {
+    const list = await gitea.get(`/repos/${encodedOwner}/${encodedRepo}/pulls`, {
+      params: {
+        state: 'open',
+        head: `${repoInfo.owner}:${args.branch}`,
+        base: args.baseBranch,
+      },
+    });
+    const pulls = Array.isArray(list.data) ? list.data : [];
+    if (pulls.length > 0) {
+      const pr = pulls[0] as { number?: number; html_url?: string; url?: string };
+      pullRequestNumber = Number(pr.number ?? NaN);
+      pullRequestUrl = String(pr.html_url ?? pr.url ?? '') || null;
+    }
+  } catch {
+    // Fall back to creating the PR if list query fails.
+  }
+
+  if (!pullRequestNumber || !Number.isFinite(pullRequestNumber)) {
+    const createResponse = await gitea.post(`/repos/${encodedOwner}/${encodedRepo}/pulls`, {
+      base: args.baseBranch,
+      head: args.branch,
+      title: `[AUTO-PROMOTE] ${args.branch} -> ${args.baseBranch}`,
+      body: [
+        'Automated production promotion after 100% green Playwright validation.',
+        '',
+        `Verification: ${args.verificationTag}`,
+        `Commit: ${args.commitSha}`,
+      ].join('\n'),
+    });
+
+    const created = createResponse.data as { number?: number; html_url?: string; url?: string };
+    pullRequestNumber = Number(created.number ?? NaN);
+    pullRequestUrl = String(created.html_url ?? created.url ?? '') || null;
+  }
+
+  if (!pullRequestNumber || !Number.isFinite(pullRequestNumber)) {
+    return {
+      merged: false,
+      pullRequestNumber: null,
+      pullRequestUrl,
+      detail: 'Unable to resolve pull request number for auto-promotion.',
+    };
+  }
+
+  try {
+    await gitea.post(`/repos/${encodedOwner}/${encodedRepo}/pulls/${pullRequestNumber}/merge`, {
+      Do: 'merge',
+      delete_branch_after_merge: true,
+      merge_title_field: `Auto-merge ${args.branch} after green Playwright sweep`,
+      merge_message_field: 'Automated production promotion by Bob orchestrator.',
+    });
+  } catch (error) {
+    if (!axios.isAxiosError(error) || error.response?.status !== 405) {
+      throw error;
+    }
+
+    await gitea.post(`/repos/${encodedOwner}/${encodedRepo}/pulls/${pullRequestNumber}/merge`, {});
+  }
+
+  return {
+    merged: true,
+    pullRequestNumber,
+    pullRequestUrl,
+    detail: 'Merged patch branch into production branch via automated promotion.',
+  };
+}
+
 async function streamOllamaResponseToClient(
   res: Response,
   prompt: string,
@@ -2688,8 +2847,8 @@ app.post('/api/automation/playwright-result', async (req: Request, res: Response
 
   const payload = (req.body ?? {}) as PlaywrightVerificationWebhookPayload;
   const status = toShortString(payload.status, 'FAILED').toUpperCase();
-  const verificationTag = toShortString(payload.verificationTag, 'Playwright Browser Verification: UNKNOWN');
-  const managerStatus =
+  let verificationTag = toShortString(payload.verificationTag, 'Playwright Browser Verification: UNKNOWN');
+  let managerStatus =
     status === 'PASSED'
       ? 'PENDING_HUMAN_REVIEW'
       : toShortString(payload.managerStatus, 'ORCHESTRATOR_CRASHED').toUpperCase();
@@ -2703,9 +2862,62 @@ app.post('/api/automation/playwright-result', async (req: Request, res: Response
   const output = truncateTail(payload.output, 120000);
   const capturedAt = toShortString(payload.capturedAt, new Date().toISOString());
   const logId = parseLogId(payload.logId);
+  const isPatchBranch = branch.startsWith('patch/ai-self-heal-');
+  const isPerfectGreen = isHundredPercentGreen(payload, status);
+  const autoPromoteEnabled = parseBool(process.env.AUTO_PROMOTE_GREEN_PLAYWRIGHT ?? 'true');
+  const promotionBaseBranch = String(process.env.AUTO_PROMOTE_BASE_BRANCH ?? 'main').trim() || 'main';
+
+  let promotionSummary: Record<string, unknown> | null = null;
+  if (autoPromoteEnabled && isPatchBranch && isPerfectGreen) {
+    try {
+      const promoted = await promotePatchBranchToMain({
+        repository,
+        branch,
+        baseBranch: promotionBaseBranch,
+        commitSha,
+        verificationTag,
+      });
+
+      if (promoted.merged) {
+        managerStatus = 'RESOLVED_AND_DEPLOYED';
+        verificationTag = `${verificationTag} | Automated Production Promotion: PASSED via 100% Green Playwright Sweep`;
+      }
+
+      promotionSummary = {
+        enabled: true,
+        branchMatched: true,
+        perfectGreen: true,
+        merged: promoted.merged,
+        baseBranch: promotionBaseBranch,
+        pullRequestNumber: promoted.pullRequestNumber,
+        pullRequestUrl: promoted.pullRequestUrl,
+        detail: promoted.detail,
+      };
+    } catch (error) {
+      managerStatus = 'ORCHESTRATOR_CRASHED';
+      const detail = error instanceof Error ? error.message : String(error);
+      promotionSummary = {
+        enabled: true,
+        branchMatched: true,
+        perfectGreen: true,
+        merged: false,
+        baseBranch: promotionBaseBranch,
+        detail,
+      };
+    }
+  } else {
+    promotionSummary = {
+      enabled: autoPromoteEnabled,
+      branchMatched: isPatchBranch,
+      perfectGreen: isPerfectGreen,
+      merged: false,
+      baseBranch: promotionBaseBranch,
+      detail: 'Auto-promotion not executed for this payload.',
+    };
+  }
 
   let giteaIssueNumber: number | null = null;
-  if (status !== 'PASSED') {
+  if (status !== 'PASSED' || managerStatus === 'ORCHESTRATOR_CRASHED') {
     const issueTitle = '[ORCHESTRATOR_CRASHED] Playwright browser verification failed';
     const issueBody = [
       'Automated issue opened by the webhook Playwright gate.',
@@ -2719,6 +2931,7 @@ app.post('/api/automation/playwright-result', async (req: Request, res: Response
       `Event: ${eventName}`,
       `Command: ${command}`,
       `Captured At: ${capturedAt}`,
+      `Promotion Summary: ${JSON.stringify(promotionSummary ?? {})}`,
       '',
       'Raw Playwright output:',
       '```',
@@ -2746,6 +2959,11 @@ app.post('/api/automation/playwright-result', async (req: Request, res: Response
     commitSha,
     command,
     output,
+    passRate: parsePercentValue(payload.passRate),
+    greenScore: parsePercentValue(payload.greenScore),
+    testsPassed: Number(payload.testsPassed),
+    testsTotal: Number(payload.testsTotal),
+    autoPromotion: promotionSummary,
     giteaIssueNumber,
     capturedAt,
     recordedAt: nowIso,
@@ -2769,6 +2987,7 @@ app.post('/api/automation/playwright-result', async (req: Request, res: Response
         verificationTag,
         logId,
         giteaIssueNumber,
+        autoPromotion: promotionSummary,
       });
       return;
     }
@@ -2800,6 +3019,7 @@ app.post('/api/automation/playwright-result', async (req: Request, res: Response
     verificationTag,
     logId: inserted?.id ?? null,
     giteaIssueNumber,
+    autoPromotion: promotionSummary,
   });
 });
 
