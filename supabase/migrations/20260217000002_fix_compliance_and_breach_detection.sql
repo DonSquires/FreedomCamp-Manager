@@ -124,7 +124,7 @@ BEGIN
         'MONTHLY LIMIT EXCEEDED: ' || v_monthly_stay.nights_stayed || ' nights stayed this month (limit: ' || v_matrix.nights_per_month || ' nights)'
       );
       
-      RAISE NOTICE 'MONTHLY BREACH: % has % nights (max %), 
+      RAISE NOTICE 'MONTHLY BREACH: % has % nights (max %)', 
         p_plate_number, v_monthly_stay.nights_stayed, v_matrix.nights_per_month;
     
     -- Check if AT MONTHLY LIMIT (will breach if stays tonight)
