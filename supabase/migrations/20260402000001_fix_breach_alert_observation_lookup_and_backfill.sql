@@ -164,16 +164,29 @@ COMMENT ON FUNCTION public.create_breach_alert_from_compliance() IS
 -- PART 2: Ensure trigger is attached to compliance_results
 -- ============================================================================
 
-DROP TRIGGER IF EXISTS trigger_create_breach_alert_from_compliance ON compliance_results;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'compliance_results'
+  ) THEN
+    EXECUTE 'DROP TRIGGER IF EXISTS trigger_create_breach_alert_from_compliance ON compliance_results';
 
-CREATE TRIGGER trigger_create_breach_alert_from_compliance
-  AFTER INSERT ON compliance_results
-  FOR EACH ROW
-  WHEN (NEW.is_compliant = false)
-  EXECUTE FUNCTION create_breach_alert_from_compliance();
+    EXECUTE $sql$
+      CREATE TRIGGER trigger_create_breach_alert_from_compliance
+        AFTER INSERT ON compliance_results
+        FOR EACH ROW
+        WHEN (NEW.is_compliant = false)
+        EXECUTE FUNCTION create_breach_alert_from_compliance()
+    $sql$;
 
--- Also drop old trigger name variant if it exists
-DROP TRIGGER IF EXISTS trigger_auto_create_breach_alert ON compliance_results;
+    -- Also drop old trigger name variant if it exists
+    EXECUTE 'DROP TRIGGER IF EXISTS trigger_auto_create_breach_alert ON compliance_results';
+  ELSE
+    RAISE NOTICE 'compliance_results table not present; skipping trigger attachment';
+  END IF;
+END;
+$$;
 
 -- ============================================================================
 -- PART 3: Backfill breach_alerts from existing non-compliant compliance_results
@@ -186,6 +199,14 @@ DECLARE
   v_skipped integer := 0;
   v_total integer := 0;
 BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'compliance_results'
+  ) THEN
+    RAISE NOTICE 'compliance_results table not present; skipping breach_alerts backfill';
+    RETURN;
+  END IF;
+
   -- Detect observation PK column (observation_id first, then id)
   IF EXISTS (
     SELECT 1 FROM information_schema.columns
