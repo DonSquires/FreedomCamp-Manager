@@ -16,7 +16,7 @@
 -- Used in RLS policies to check permissions
 -- SECURITY DEFINER bypasses RLS to prevent recursion
 
-create or replace function get_user_role(user_id uuid)
+create or replace function get_user_role(p_user_id uuid)
 returns text
 language sql
 stable
@@ -24,7 +24,7 @@ security definer
 as $$
   select role 
   from user_profiles 
-  where id = user_id;
+  where id = p_user_id;
 $$;
 
 comment on function get_user_role(uuid) is 
@@ -36,7 +36,7 @@ comment on function get_user_role(uuid) is
 -- Returns the primary organization_id of a user
 -- Used in RLS policies to check organization membership
 
-create or replace function get_user_organization_id(user_id uuid)
+create or replace function get_user_organization_id(p_user_id uuid)
 returns uuid
 language sql
 stable
@@ -44,7 +44,7 @@ security definer
 as $$
   select organization_id 
   from user_profiles 
-  where id = user_id;
+  where id = p_user_id;
 $$;
 
 comment on function get_user_organization_id(uuid) is 
