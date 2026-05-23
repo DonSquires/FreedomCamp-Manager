@@ -10,6 +10,7 @@
 -- Add legacy import flags to observations
 ALTER TABLE observations
   ADD COLUMN IF NOT EXISTS is_legacy_import BOOLEAN DEFAULT false,
+  ADD COLUMN IF NOT EXISTS review_blocked BOOLEAN DEFAULT false,
   ADD COLUMN IF NOT EXISTS evidence_state TEXT 
     CHECK(evidence_state IN ('original_present', 'legacy_no_photo', 'reconstructed', 'external_reference'))
     DEFAULT 'original_present',
@@ -19,6 +20,7 @@ ALTER TABLE observations
   ADD COLUMN IF NOT EXISTS external_evidence_hash TEXT;
 
 COMMENT ON COLUMN observations.is_legacy_import IS 'True if imported from pre-photo-first system (v1 export, historical data)';
+COMMENT ON COLUMN observations.review_blocked IS 'When TRUE the observation is blocked from enforcement actions pending admin/legal review';
 COMMENT ON COLUMN observations.evidence_state IS 'Evidence quality: original_present (court-ready), legacy_no_photo (non-enforceable), reconstructed (derived only), external_reference (3rd-party proof)';
 COMMENT ON COLUMN observations.legacy_source_tag IS 'Source identifier for legacy import (e.g., "v1_export_2024Q4", "manual_migration_2025")';
 COMMENT ON COLUMN observations.legacy_note IS 'Free text explanation: where photo went missing, why no original, recovery attempts made';
