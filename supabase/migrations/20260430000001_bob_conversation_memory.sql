@@ -15,15 +15,7 @@ CREATE TABLE IF NOT EXISTS public.bob_conversations (
   tags TEXT[], -- tags for categorization (e.g., ['bug-triage', 'feature-design'])
   is_archived BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-
-  CONSTRAINT bob_conversations_user_org CHECK (
-    -- Ensure conversation is tied to a valid user-org relationship
-    EXISTS (
-      SELECT 1 FROM public.user_profiles up
-      WHERE up.id = user_id AND up.organization_id = organization_id
-    )
-  )
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE INDEX IF NOT EXISTS idx_bob_conversations_user_org
