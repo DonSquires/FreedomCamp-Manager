@@ -110,14 +110,46 @@ $$;
 -- Usage Notes
 -- ============================================================================
 
-COMMENT ON POLICY "incident_evidence_read_own" ON storage.objects IS
-  'Authenticated users can read files from their own folder: /{user-uuid}/*';
+DO $$
+BEGIN
+  BEGIN
+    EXECUTE $stmt$
+      COMMENT ON POLICY "incident_evidence_read_own" ON storage.objects IS
+        'Authenticated users can read files from their own folder: /{user-uuid}/*'
+    $stmt$;
+  EXCEPTION
+    WHEN insufficient_privilege THEN
+      RAISE NOTICE 'Skipping COMMENT ON POLICY incident_evidence_read_own due to ownership constraints';
+  END;
 
-COMMENT ON POLICY "incident_evidence_insert_own" ON storage.objects IS
-  'Authenticated users can upload files to their own folder: /{user-uuid}/*';
+  BEGIN
+    EXECUTE $stmt$
+      COMMENT ON POLICY "incident_evidence_insert_own" ON storage.objects IS
+        'Authenticated users can upload files to their own folder: /{user-uuid}/*'
+    $stmt$;
+  EXCEPTION
+    WHEN insufficient_privilege THEN
+      RAISE NOTICE 'Skipping COMMENT ON POLICY incident_evidence_insert_own due to ownership constraints';
+  END;
 
-COMMENT ON POLICY "incident_evidence_update_own" ON storage.objects IS
-  'Authenticated users can update metadata for their own files';
+  BEGIN
+    EXECUTE $stmt$
+      COMMENT ON POLICY "incident_evidence_update_own" ON storage.objects IS
+        'Authenticated users can update metadata for their own files'
+    $stmt$;
+  EXCEPTION
+    WHEN insufficient_privilege THEN
+      RAISE NOTICE 'Skipping COMMENT ON POLICY incident_evidence_update_own due to ownership constraints';
+  END;
 
-COMMENT ON POLICY "incident_evidence_delete_own" ON storage.objects IS
-  'Authenticated users can delete their own files (within 24h retention window)';
+  BEGIN
+    EXECUTE $stmt$
+      COMMENT ON POLICY "incident_evidence_delete_own" ON storage.objects IS
+        'Authenticated users can delete their own files (within 24h retention window)'
+    $stmt$;
+  EXCEPTION
+    WHEN insufficient_privilege THEN
+      RAISE NOTICE 'Skipping COMMENT ON POLICY incident_evidence_delete_own due to ownership constraints';
+  END;
+END
+$$;
