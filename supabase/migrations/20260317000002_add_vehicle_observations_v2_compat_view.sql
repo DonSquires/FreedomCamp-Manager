@@ -68,6 +68,7 @@ $$;
 DO $$
 DECLARE
   v_v2_view_exists BOOLEAN;
+  v_obs_pk_col text;
 BEGIN
   SELECT EXISTS (
     SELECT 1
@@ -75,6 +76,26 @@ BEGIN
     WHERE table_schema = 'public'
       AND table_name = 'vehicle_observations_v2'
   ) INTO v_v2_view_exists;
+
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'observations'
+      AND column_name = 'observation_id'
+  ) THEN
+    v_obs_pk_col := 'observation_id';
+  ELSIF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'observations'
+      AND column_name = 'id'
+  ) THEN
+    v_obs_pk_col := 'id';
+  ELSE
+    RAISE EXCEPTION 'public.observations has neither observation_id nor id';
+  END IF;
 
   IF v_v2_view_exists THEN
     EXECUTE 'DROP RULE IF EXISTS vehicle_observations_v2_insert ON public.vehicle_observations_v2';
@@ -89,7 +110,7 @@ BEGIN
       RETURNING *
     $rule$;
 
-    EXECUTE $rule$
+    EXECUTE format($rule$
       CREATE RULE vehicle_observations_v2_update AS
       ON UPDATE TO public.vehicle_observations_v2
       DO INSTEAD
@@ -119,18 +140,18 @@ BEGIN
         officer_notes = NEW.officer_notes,
         idempotency_key = NEW.idempotency_key,
         updated_at = NOW()
-      WHERE observations.observation_id = OLD.observation_id
+      WHERE observations.%1$I = OLD.%1$I
       RETURNING *
-    $rule$;
+    $rule$, v_obs_pk_col);
 
-    EXECUTE $rule$
+    EXECUTE format($rule$
       CREATE RULE vehicle_observations_v2_delete AS
       ON DELETE TO public.vehicle_observations_v2
       DO INSTEAD
       DELETE FROM public.observations
-      WHERE observations.observation_id = OLD.observation_id
+      WHERE observations.%1$I = OLD.%1$I
       RETURNING *
-    $rule$;
+    $rule$, v_obs_pk_col);
 
     EXECUTE 'GRANT SELECT, INSERT, UPDATE, DELETE ON public.vehicle_observations_v2 TO authenticated';
     EXECUTE 'GRANT SELECT, INSERT, UPDATE, DELETE ON public.vehicle_observations_v2 TO service_role';
