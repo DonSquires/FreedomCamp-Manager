@@ -161,6 +161,7 @@ const OLLAMA_MAX_CANDIDATES = Math.max(1, Number(process.env.OLLAMA_MAX_CANDIDAT
 const DOC_INTEL_DEFAULT_LIMIT = Math.max(1, Number(process.env.DOC_INTEL_DEFAULT_LIMIT ?? 20));
 const DOC_INTEL_MAX_LIMIT = Math.max(1, Number(process.env.DOC_INTEL_MAX_LIMIT ?? 100));
 const PRIVACY_REDACTION_ENABLED = parseBool(process.env.PRIVACY_REDACTION_ENABLED ?? 'true');
+const SUPABASE_AUTH_LOOKUP_TIMEOUT_MS = Number(process.env.SUPABASE_AUTH_LOOKUP_TIMEOUT_MS ?? 3000);
 
 const CURRENT_FILE = fileURLToPath(import.meta.url);
 const BACKEND_DIR = path.dirname(CURRENT_FILE);
@@ -453,7 +454,7 @@ const SUPABASE_URL =
   process.env.VITE_SUPABASE_URL ??
   (process.env.SUPABASE_PROJECT_REF ? `https://${process.env.SUPABASE_PROJECT_REF}.supabase.co` : undefined);
 const SUPABASE_SERVICE_ROLE_KEY = requireAnyEnv(['SUPABASE_SERVICE_ROLE_KEY']);
-const SUPABASE_JWT_SECRET = requireAnyEnv(['SUPABASE_JWT_SECRET']);
+const SUPABASE_JWT_SECRET = optionalAnyEnv(['SUPABASE_JWT_SECRET']);
 
 if (!SUPABASE_URL) {
   throw new Error('Missing SUPABASE_URL. Set SUPABASE_URL, VITE_SUPABASE_URL, or SUPABASE_PROJECT_REF');
@@ -522,6 +523,10 @@ function getBearerToken(req: Request): string | null {
 }
 
 function verifySupabaseToken(token: string): JwtPayload | null {
+  if (!SUPABASE_JWT_SECRET) {
+    return null;
+  }
+
   try {
     const decoded = jwt.verify(token, SUPABASE_JWT_SECRET, {
       algorithms: ['HS256'],
@@ -537,14 +542,42 @@ function verifySupabaseToken(token: string): JwtPayload | null {
   }
 }
 
+async function resolveTokenSubject(token: string): Promise<string | null> {
+  const localClaims = verifySupabaseToken(token);
+  const localSubject = String(localClaims?.sub ?? '').trim();
+  if (localSubject) {
+    return localSubject;
+  }
+
+  if (SUPABASE_JWT_SECRET) {
+    return null;
+  }
+
+  try {
+    // Fallback only for environments where SUPABASE_JWT_SECRET is not configured.
+    const { data, error } = await withTimeout(
+      supabase.auth.getUser(token),
+      SUPABASE_AUTH_LOOKUP_TIMEOUT_MS,
+      'supabase.auth.getUser',
+    );
+    if (error) {
+      return null;
+    }
+
+    const remoteSubject = String(data?.user?.id ?? '').trim();
+    return remoteSubject || null;
+  } catch {
+    return null;
+  }
+}
+
 async function resolveAdminAuth(req: Request): Promise<AdminAuthContext | null> {
   const token = getBearerToken(req);
   if (!token) {
     return null;
   }
 
-  const claims = verifySupabaseToken(token);
-  const subject = String(claims?.sub ?? '').trim();
+  const subject = await resolveTokenSubject(token);
   if (!subject) {
     return null;
   }
@@ -2947,6 +2980,13 @@ app.post('/api/automation/playwright-result', async (req: Request, res: Response
   }
 
   const nowIso = new Date().toISOString();
+  const isMissingSelfHealingLogsTable = (error: unknown): boolean => {
+    const errorCode = String((error as { code?: unknown } | null)?.code ?? '');
+    const errorMessage = String((error as { message?: unknown } | null)?.message ?? '');
+    const combined = `${errorCode} ${errorMessage}`.toLowerCase();
+    return combined.includes('self_healing_logs') && (combined.includes('schema cache') || errorCode === 'PGRST205');
+  };
+
   const recordPayload = {
     route: '/api/automation/playwright-result',
     gate: 'PLAYWRIGHT_BROWSER_VERIFICATION',
@@ -2985,9 +3025,10 @@ app.post('/api/automation/playwright-result', async (req: Request, res: Response
         ok: true,
         status: managerStatus,
         verificationTag,
-        logId,
+        persistedId: logId,
         giteaIssueNumber,
         autoPromotion: promotionSummary,
+        persistenceTarget: 'self_healing_logs',
       });
       return;
     }
@@ -3007,19 +3048,60 @@ app.post('/api/automation/playwright-result', async (req: Request, res: Response
     .select('id')
     .single();
 
+  let persistedId: unknown = inserted?.id ?? null;
+  let persistenceTarget = 'self_healing_logs';
+
   if (insertError) {
-    console.error('[/api/automation/playwright-result] Failed to persist Playwright verification result', insertError);
-    res.status(500).json({ error: 'Failed to persist Playwright verification result' });
-    return;
+    if (!isMissingSelfHealingLogsTable(insertError)) {
+      console.error('[/api/automation/playwright-result] Failed to persist Playwright verification result', insertError);
+      res.status(500).json({ error: 'Failed to persist Playwright verification result' });
+      return;
+    }
+
+    const fallbackPayload = {
+      source: 'github_actions',
+      environment: String(process.env.NODE_ENV ?? process.env.APP_ENV ?? 'production'),
+      error_summary: verificationTag,
+      error_detail: recordPayload,
+      error_fingerprint: `playwright:${repository}:${branch}`,
+      triage_tier: status === 'PASSED' ? 1 : 2,
+      ai_analysis: 'Webhook Playwright verification ingestion fallback ledger entry.',
+      fix_branch: isPatchBranch ? branch : null,
+      fix_pr_number: null,
+      fix_pr_url: null,
+      outcome: managerStatus === 'RESOLVED_AND_DEPLOYED' ? 'merged' : status === 'PASSED' ? 'pending' : 'human_required',
+      resolved_at: managerStatus === 'RESOLVED_AND_DEPLOYED' ? nowIso : null,
+      rollback_commit: null,
+      recurrence_count: 1,
+      recurrence_window_minutes: 10,
+      org_id: null,
+      created_at: nowIso,
+    } as Record<string, unknown>;
+
+    const { data: fallbackInserted, error: fallbackError } = await supabase
+      .from('self_heal_events')
+      .insert(fallbackPayload)
+      .select('id')
+      .single();
+
+    if (fallbackError) {
+      console.error('[/api/automation/playwright-result] Failed to persist Playwright verification result', fallbackError);
+      res.status(500).json({ error: 'Failed to persist Playwright verification result' });
+      return;
+    }
+
+    persistedId = fallbackInserted?.id ?? null;
+    persistenceTarget = 'self_heal_events';
   }
 
   res.status(200).json({
     ok: true,
     status: managerStatus,
     verificationTag,
-    logId: inserted?.id ?? null,
+    persistedId,
     giteaIssueNumber,
     autoPromotion: promotionSummary,
+    persistenceTarget,
   });
 });
 
