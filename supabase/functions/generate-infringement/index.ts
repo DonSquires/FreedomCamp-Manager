@@ -628,11 +628,11 @@ function generateNoticeHtml(params: {
     d.toLocaleTimeString('en-NZ', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Pacific/Auckland' })
 
   const vehicleDesc = [params.vehicleMake, params.vehicleModel].filter(Boolean).join(' ') || 'Not recorded'
-  const orgContactLines = [
-    params.orgAddress,
-    params.orgPhone ? `Ph: ${params.orgPhone}` : null,
-    params.orgEmail ? `Email: ${params.orgEmail}` : null,
-  ].filter(Boolean).join('&nbsp;&nbsp;|&nbsp;&nbsp;')
+  const serviceLabel = params.serviceMethod === 'hand'
+    ? 'Hand delivered (on-site)'
+    : params.serviceMethod === 'post'
+      ? 'Posted'
+      : 'Email'
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -640,229 +640,60 @@ function generateNoticeHtml(params: {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Infringement Notice ${params.noticeNumber}</title>
-  <base href="https://www.ironeaglesecurity.co.nz">
   <style>
-    @page { size: A4; margin: 12mm 15mm; }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: Arial, Helvetica, sans-serif; font-size: 10.5pt; color: #000; background: #fff; }
-    .page { width: 100%; max-width: 180mm; margin: 0 auto; }
-    .page-break { page-break-before: always; }
-    /* Header */
-    .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid #1e3a8a; padding-bottom: 7pt; margin-bottom: 10pt; }
-    .org-name { font-size: 15pt; font-weight: bold; color: #1e3a8a; }
-    .org-contact { font-size: 7.5pt; color: #444; margin-top: 3pt; }
-    .notice-type { font-size: 18pt; font-weight: bold; color: #dc2626; text-align: right; }
-    .notice-meta { font-size: 9pt; color: #444; text-align: right; margin-top: 3pt; }
-    /* Plate box */
-    .plate-box { border: 3px solid #000; padding: 6pt 14pt; display: inline-block; font-size: 26pt; font-weight: bold; font-family: 'Courier New', monospace; letter-spacing: 4pt; margin: 6pt 0 2pt; background: #fff; }
-    /* Sections */
-    .section { margin-bottom: 9pt; }
-    .section-title { font-weight: bold; font-size: 8.5pt; text-transform: uppercase; color: #444; border-bottom: 1px solid #bbb; padding-bottom: 2pt; margin-bottom: 4pt; letter-spacing: 0.5pt; }
-    .field-row { display: flex; gap: 14pt; margin-bottom: 4pt; }
-    .field { flex: 1; }
-    .field-label { font-size: 7.5pt; color: #666; margin-bottom: 1pt; }
-    .field-value { font-size: 10pt; border-bottom: 1px solid #ccc; padding-bottom: 1pt; min-height: 13pt; }
-    /* Amount box */
-    .amount-box { border: 2.5px solid #dc2626; padding: 7pt 12pt; text-align: center; margin: 8pt 0; background: #fff9f9; }
-    .amount-label { font-size: 8.5pt; text-transform: uppercase; color: #dc2626; font-weight: bold; letter-spacing: 0.5pt; }
-    .amount-value { font-size: 22pt; font-weight: bold; color: #dc2626; margin: 2pt 0; }
-    .amount-due { font-size: 9pt; color: #555; }
-    /* Authority payment box */
-    .payment-box { border: 1px solid #1e3a8a; padding: 6pt 10pt; margin: 8pt 0; background: #f0f4ff; font-size: 9pt; }
-    .payment-box-title { font-weight: bold; color: #1e3a8a; margin-bottom: 3pt; font-size: 8.5pt; text-transform: uppercase; }
-    .contact-box { border: 1px solid #334155; padding: 6pt 10pt; margin: 8pt 0; background: #f8fafc; font-size: 9pt; }
-    .contact-box-title { font-weight: bold; color: #0f172a; margin-bottom: 3pt; font-size: 8.5pt; text-transform: uppercase; }
-    /* Footer */
-    .footer { margin-top: 10pt; font-size: 7.5pt; color: #666; border-top: 1px solid #ccc; padding-top: 5pt; }
-    /* Rights page */
-    .rights-title { font-size: 13pt; font-weight: bold; color: #1e3a8a; margin-bottom: 10pt; border-bottom: 2px solid #1e3a8a; padding-bottom: 4pt; }
-    .rights-text { font-size: 9.5pt; line-height: 1.55; white-space: pre-wrap; }
-    /* Print bar */
-    @media screen { .print-bar { background: #f8fafc; border: 1px solid #e2e8f0; padding: 10px; margin-bottom: 14pt; display: flex; gap: 8px; align-items: center; border-radius: 6px; } }
-    @media print { .print-bar { display: none; } }
+    body { font-family: Arial, Helvetica, sans-serif; margin: 24px; color: #0f172a; }
+    h1 { margin: 0 0 8px; }
+    h2 { margin: 24px 0 8px; }
+    .muted { color: #475569; font-size: 12px; }
+    .box { border: 1px solid #cbd5e1; padding: 12px; margin: 12px 0; }
+    .row { margin: 6px 0; }
   </style>
 </head>
 <body>
-  <div class="print-bar">
-    <button onclick="window.print()" style="background:#1e3a8a;color:#fff;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-size:12px;">🖨️ Print Notice</button>
-    <span style="font-size:12px;color:#64748b;">Notice ${params.noticeNumber} — ${params.platNumber}</span>
+  <h1>Infringement Notice</h1>
+  <div class="muted">Notice ${params.noticeNumber} | Issued ${nzDate(new Date())} ${nzTime(new Date())}</div>
+
+  <div class="box">
+    <div class="row"><strong>Authority:</strong> ${params.orgName}</div>
+    <div class="row"><strong>Address:</strong> ${params.orgAddress || 'Not recorded'}</div>
+    <div class="row"><strong>Phone:</strong> ${params.orgPhone || 'Not recorded'}</div>
+    <div class="row"><strong>Email:</strong> ${params.orgEmail || 'Not recorded'}</div>
   </div>
 
-  <!-- FRONT OF NOTICE -->
-  <div class="page">
-
-    <!-- Header: enforcement authority + notice title -->
-    <div class="header">
-      <div>
-        ${params.orgLogoUrl ? `<img src="${params.orgLogoUrl}" alt="${params.orgName}" style="max-height:56px;max-width:200px;object-fit:contain;display:block;margin-bottom:5pt;">` : ''}
-        <div class="org-name">${params.orgName}</div>
-        <div style="font-size:8.5pt;color:#1e3a8a;font-weight:bold;margin-top:1pt;">Freedom Camping Act 2011 — Infringement Notice</div>
-        ${orgContactLines ? `<div class="org-contact">${orgContactLines}</div>` : ''}
-      </div>
-      <div style="text-align:right;">
-        <div class="notice-type">INFRINGEMENT NOTICE</div>
-        <div class="notice-meta">Notice No: <strong>${params.noticeNumber}</strong></div>
-        <div class="notice-meta">Date Issued: <strong>${nzDate(new Date())}</strong></div>
-        <div class="notice-meta">Time Issued: <strong>${nzTime(new Date())}</strong></div>
-      </div>
-    </div>
-
-    <!-- Vehicle details -->
-    <div class="section">
-      <div class="section-title">Vehicle Identification</div>
-      <div class="field-row">
-        <div class="field" style="flex:0 0 auto;">
-          <div class="field-label">Registration Plate</div>
-          <div class="plate-box">${params.platNumber}</div>
-        </div>
-        <div class="field" style="padding-top:6pt;">
-          <div class="field-row" style="margin-bottom:0;">
-            <div class="field">
-              <div class="field-label">Vehicle Make</div>
-              <div class="field-value">${params.vehicleMake ?? '&nbsp;'}</div>
-            </div>
-            <div class="field">
-              <div class="field-label">Vehicle Model</div>
-              <div class="field-value">${params.vehicleModel ?? '&nbsp;'}</div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Offence details -->
-    <div class="section">
-      <div class="section-title">Alleged Offence</div>
-      <div class="field-row">
-        <div class="field">
-          <div class="field-label">Date of Offence</div>
-          <div class="field-value">${nzDate(params.offenceDate)}</div>
-        </div>
-        <div class="field">
-          <div class="field-label">Time of Offence</div>
-          <div class="field-value">${nzTime(params.offenceDate)}</div>
-        </div>
-      </div>
-      <div class="field" style="margin-bottom:4pt;">
-        <div class="field-label">Jurisdiction</div>
-        <div class="field-value">${params.jurisdiction}</div>
-      </div>
-      <div class="field" style="margin-bottom:4pt;">
-        <div class="field-label">Location of Offence (recorded address / locality)</div>
-        <div class="field-value">${params.offenceLocation}</div>
-      </div>
-      <div class="field-row">
-        <div class="field">
-          <div class="field-label">GPS Coordinates</div>
-          <div class="field-value">${params.offenceGps || '&nbsp;'}</div>
-        </div>
-        <div class="field">
-          <div class="field-label">Zone</div>
-          <div class="field-value">${params.zoneName || '&nbsp;'}</div>
-        </div>
-      </div>
-      <div class="field" style="margin-bottom:4pt;">
-        <div class="field-label">Nature of Alleged Offence</div>
-        <div class="field-value" style="font-weight:bold;">${params.offenceDescription}</div>
-      </div>
-      <div class="field-row">
-        <div class="field">
-          <div class="field-label">Legal Basis</div>
-          <div class="field-value">${params.legalBasis}</div>
-        </div>
-        <div class="field">
-          <div class="field-label">Offence Reference No.</div>
-          <div class="field-value">${params.noticeNumber}-01</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Fine amount -->
-    <div class="amount-box">
-      <div class="amount-label">Infringement Fee Payable</div>
-      <div class="amount-value">NZD $${params.amountDollars}</div>
-      <div class="amount-due">Payment due within 28 days — by <strong>${nzDate(params.dueDt)}</strong></div>
-    </div>
-
-    <!-- Payment authority -->
-    <div class="payment-box">
-      <div class="payment-box-title">How To Pay This Infringement</div>
-      <div>${params.orgName}${params.orgAddress ? ' &mdash; ' + params.orgAddress : ''}</div>
-      ${params.orgPhone ? `<div>Phone: ${params.orgPhone}</div>` : ''}
-      ${params.orgEmail ? `<div>Email: ${params.orgEmail}</div>` : ''}
-      ${params.paymentOnlineUrl ? `<div>Online payment: ${params.paymentOnlineUrl}</div>` : ''}
-      ${params.paymentBankAccount ? `<div>Bank account: ${params.paymentBankAccount}</div>` : ''}
-      ${params.paymentInstructions ? `<div style="margin-top:3pt;">${params.paymentInstructions}</div>` : ''}
-      <div style="margin-top:3pt;font-size:8.5pt;color:#444;">Quote infringement notice number <strong>${params.noticeNumber}</strong> in all correspondence.</div>
-    </div>
-
-    <div class="contact-box">
-      <div class="contact-box-title">How To Lodge An Objection</div>
-      ${params.objectionsEmail ? `<div>Email objections to: ${params.objectionsEmail}</div>` : ''}
-      ${params.objectionsPostalAddress ? `<div>Post objections to: ${params.objectionsPostalAddress}</div>` : ''}
-      ${!params.objectionsEmail && !params.objectionsPostalAddress ? `<div>Send written objections to ${params.orgName} using the contact details above.</div>` : ''}
-      <div style="margin-top:3pt;font-size:8.5pt;color:#444;">Written objections must quote notice number <strong>${params.noticeNumber}</strong> and be sent within 28 days.</div>
-      ${params.disputePortalUrl ? `<div style="margin-top:5pt;"><strong>Online dispute portal:</strong> <a href="${params.disputePortalUrl}" style="color:#1e3a8a;">${params.disputePortalUrl}</a></div>` : ''}
-    </div>
-
-    <!-- Issued to / service -->
-    <div class="section">
-      <div class="section-title">Issued To</div>
-      <div class="field-row">
-        <div class="field">
-          <div class="field-label">Name (if known)</div>
-          <div class="field-value">${params.recipientName ?? 'Owner / Registered Operator of Vehicle'}</div>
-        </div>
-        <div class="field">
-          <div class="field-label">Service Method</div>
-          <div class="field-value" style="text-transform:capitalize;">${params.serviceMethod === 'hand' ? 'Hand delivered (on-site)' : params.serviceMethod === 'post' ? 'Posted' : 'Email'}</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Issuing officer -->
-    <div class="section">
-      <div class="section-title">Enforcement Officer</div>
-      <div class="field-row">
-        <div class="field">
-          <div class="field-label">Officer Warrant No.</div>
-          <div class="field-value">${params.issuerWarrantNumber}</div>
-        </div>
-        <div class="field">
-          <div class="field-label">Role / Authority</div>
-          <div class="field-value">${params.issuerRole}</div>
-        </div>
-      </div>
-      <div class="field-row">
-        <div class="field" style="flex:2;">
-          <div class="field-label">Officer Signature</div>
-          <div class="field-value" style="height:28pt;"></div>
-        </div>
-        <div class="field">
-          <div class="field-label">Date Signed</div>
-          <div class="field-value" style="height:28pt;"></div>
-        </div>
-      </div>
-    </div>
-
-    <div class="footer">
-      See overleaf for Notes to Defendant (Summary of Rights). This notice is issued under section 20 of the Freedom Camping Act 2011 and/or the applicable territorial authority bylaw.
-      Infringement notice number <strong>${params.noticeNumber}</strong> issued by <strong>${params.orgName}</strong> on ${nzDate(new Date())}.
-    </div>
-    <div style="margin-top:6pt;padding-top:4pt;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center;">
-      <span style="font-size:7pt;color:#94a3b8;">Enforcement management by <strong style="color:#1e3a8a;">Field Compliance Manager</strong> &mdash; Iron Eagle Security</span>
-      <img src="/iron-eagle-security-logo.jpg" alt="Iron Eagle Security" style="height:22px;opacity:0.55;object-fit:contain;">
-    </div>
+  <div class="box">
+    <div class="row"><strong>Plate:</strong> ${params.platNumber}</div>
+    <div class="row"><strong>Vehicle:</strong> ${vehicleDesc}</div>
+    <div class="row"><strong>Offence Date/Time:</strong> ${nzDate(params.offenceDate)} ${nzTime(params.offenceDate)}</div>
+    <div class="row"><strong>Location:</strong> ${params.offenceLocation}</div>
+    <div class="row"><strong>GPS:</strong> ${params.offenceGps || 'Not recorded'}</div>
+    <div class="row"><strong>Zone:</strong> ${params.zoneName || 'Not recorded'}</div>
+    <div class="row"><strong>Jurisdiction:</strong> ${params.jurisdiction || 'Not recorded'}</div>
+    <div class="row"><strong>Description:</strong> ${params.offenceDescription}</div>
+    <div class="row"><strong>Legal Basis:</strong> ${params.legalBasis}</div>
   </div>
 
-  <!-- BACK OF NOTICE — Notes to Defendant (page break for print) -->
-  <div class="page page-break">
-    <div class="rights-title">NOTES TO DEFENDANT — SUMMARY OF RIGHTS</div>
-    <div class="rights-text">${params.summaryOfRights}</div>
-    <div class="footer" style="margin-top:20pt;">
-      Notice No: ${params.noticeNumber}&nbsp;&nbsp;|&nbsp;&nbsp;Vehicle: ${params.platNumber} ${vehicleDesc}&nbsp;&nbsp;|&nbsp;&nbsp;Issued: ${nzDate(new Date())}&nbsp;&nbsp;|&nbsp;&nbsp;${params.orgName}
-    </div>
+  <div class="box">
+    <div class="row"><strong>Amount Due:</strong> NZD $${params.amountDollars}</div>
+    <div class="row"><strong>Payment Due Date:</strong> ${nzDate(params.dueDt)}</div>
+    <div class="row"><strong>Payment Online:</strong> ${params.paymentOnlineUrl || 'Not provided'}</div>
+    <div class="row"><strong>Bank Account:</strong> ${params.paymentBankAccount || 'Not provided'}</div>
+    <div class="row"><strong>Payment Instructions:</strong> ${params.paymentInstructions || 'Not provided'}</div>
   </div>
+
+  <div class="box">
+    <div class="row"><strong>Recipient:</strong> ${params.recipientName || 'Owner / Registered Operator of Vehicle'}</div>
+    <div class="row"><strong>Service Method:</strong> ${serviceLabel}</div>
+    <div class="row"><strong>Officer Warrant:</strong> ${params.issuerWarrantNumber || 'Not recorded'}</div>
+    <div class="row"><strong>Officer Role:</strong> ${params.issuerRole}</div>
+  </div>
+
+  <h2>Objections</h2>
+  <div class="row"><strong>Email:</strong> ${params.objectionsEmail || 'Not provided'}</div>
+  <div class="row"><strong>Postal:</strong> ${params.objectionsPostalAddress || 'Not provided'}</div>
+  <div class="row"><strong>Portal:</strong> ${params.disputePortalUrl || 'Not provided'}</div>
+
+  <h2>Summary of Rights</h2>
+  <pre>${params.summaryOfRights}</pre>
 </body>
 </html>`
 }
