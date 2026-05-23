@@ -26,8 +26,6 @@ import { withCors, getCorsHeaders } from '../_shared/withCors.ts'
 import { collectDirectOrgIds } from '../_shared/orgAccess.ts'
 import { buildBobInferenceHeaders, isBobRunpodServerlessUrl } from '../_shared/bobInfer.ts'
 
-type SupabaseClient = ReturnType<typeof createClient>
-
 const INFERENCE_SERVICE_URL = (Deno.env.get('INFERENCE_SERVICE_URL') || '').replace(/\/$/, '')
 
 function envTimeoutMs(key: string, fallback: number, min: number, max: number): number {
@@ -355,7 +353,7 @@ Deno.serve(withCors(async (req: Request) => {
 }))
 
 async function doGeneration(
-  supabase: SupabaseClient,
+  supabase: any,
   documentId: string,
   userId: string,
   generationType: string,
