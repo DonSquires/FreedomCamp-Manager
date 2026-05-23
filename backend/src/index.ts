@@ -137,6 +137,22 @@ type CognitiveReasoningResult = {
   consultativeResponse: string;
 };
 
+type HealProviderTelemetry = {
+  routeEngineUsed: 'local_deterministic' | 'model_synthesis';
+  providersTried: string[];
+  providerErrors: string[];
+  externalCallsCount: number;
+  cacheHit: boolean;
+  supportSignalsUsed: boolean;
+};
+
+type PatrolWaypoint = {
+  id: string;
+  label: string;
+  lat: number;
+  lng: number;
+};
+
 type DocumentIntelKeyword = {
   keyword: string;
   score: number;
@@ -1034,10 +1050,45 @@ async function generateWithOpenAi(systemPrompt: string, userMessage: string): Pr
 }
 
 async function generateWithModelFallback(systemPrompt: string, userMessage: string): Promise<{ responseText: string; modelUsed: string }> {
+  const gatewayUrl = String(process.env.MODEL_GATEWAY_URL ?? '').trim().replace(/\/+$/, '');
   const baseUrl = process.env.OLLAMA_PROXY_URL ?? 'http://ollama:11434';
   const models = getOllamaModelCandidates().slice(0, OLLAMA_MAX_CANDIDATES);
   let lastError: unknown = null;
   const startedAt = Date.now();
+
+  if (gatewayUrl) {
+    for (const model of models) {
+      const elapsed = Date.now() - startedAt;
+      const remainingBudget = OLLAMA_TOTAL_TIMEOUT_MS - elapsed;
+      if (remainingBudget <= 500) {
+        break;
+      }
+
+      const requestTimeoutMs = Math.max(1000, Math.min(OLLAMA_MODEL_TIMEOUT_MS, remainingBudget));
+      try {
+        const response = await axios.post(
+          `${gatewayUrl}/api/generate`,
+          {
+            model,
+            system: systemPrompt,
+            prompt: userMessage,
+            stream: false,
+          },
+          {
+            timeout: requestTimeoutMs,
+          },
+        );
+
+        return {
+          responseText: String((response.data as { response?: string }).response ?? ''),
+          modelUsed: `model_gateway:${model}`,
+        };
+      } catch (error) {
+        lastError = error;
+        console.warn(`[model-fallback] model gateway failed for ${model}`, error);
+      }
+    }
+  }
 
   for (const model of models) {
     const elapsed = Date.now() - startedAt;
@@ -1204,6 +1255,288 @@ function formatIntelReportToMarkdown(report: Record<string, unknown>): string {
     '',
     `Confidence: ${(confidence * 100).toFixed(0)}%`,
   ].join('\n');
+}
+
+function isPatrolRouteIntent(input: string): boolean {
+  return /(patrol\s*route|best\s*route|route\s*plan|routing|waypoint|traffic|congestion|roadworks|closure|detour|stops?\s+order)/i.test(input);
+}
+
+function getConfiguredResearchProviders(): string[] {
+  const configured: string[] = [];
+  const googleApiKey = String(
+    process.env.GOOGLE_API_KEY ?? process.env.GOOGLE_MAPS_API_KEY ?? process.env.VITE_GOOGLE_MAPS_API_KEY ?? '',
+  ).trim();
+  const googleCseId = String(process.env.GOOGLE_CSE_ID ?? process.env.GOOGLE_CUSTOM_SEARCH_ENGINE_ID ?? '').trim();
+
+  if (googleApiKey && googleCseId) {
+    configured.push('google_cse');
+  }
+
+  if (String(process.env.OPENAI_API_KEY ?? '').trim()) {
+    configured.push('openai_web_search');
+  }
+
+  if (String(process.env.RESEARCH_SEARCH_PROXY_URL ?? '').trim()) {
+    configured.push('research_proxy');
+  }
+
+  if (String(process.env.SERPER_API_KEY ?? '').trim()) {
+    configured.push('serper');
+  }
+
+  configured.push('duckduckgo');
+  return configured;
+}
+
+function parseProviderTelemetryFromSearchOutput(raw: string): { providersTried: string[]; providerErrors: string[] } {
+  const providers = new Set<string>();
+  const errors: string[] = [];
+  const trimmed = String(raw ?? '').trim();
+
+  if (!trimmed) {
+    return { providersTried: [], providerErrors: [] };
+  }
+
+  const fallbackMarker = '[provider-fallback]';
+  if (trimmed.includes(fallbackMarker)) {
+    const afterMarker = trimmed.split(fallbackMarker).slice(1).join(fallbackMarker).trim();
+    const lines = afterMarker.split('\n');
+    for (const line of lines) {
+      const cleaned = line.trim();
+      if (!cleaned) {
+        break;
+      }
+
+      const sepIndex = cleaned.indexOf(':');
+      if (sepIndex > 0) {
+        const provider = cleaned.slice(0, sepIndex).trim().toLowerCase();
+        providers.add(provider);
+        errors.push(cleaned);
+      }
+    }
+
+    if (trimmed.match(/^-\s+/m)) {
+      providers.add('duckduckgo');
+    }
+  } else {
+    const configured = getConfiguredResearchProviders();
+    if (configured.length > 0) {
+      providers.add(configured[0]);
+    }
+  }
+
+  return {
+    providersTried: Array.from(providers),
+    providerErrors: errors,
+  };
+}
+
+function extractCoordinateWaypoints(input: string): PatrolWaypoint[] {
+  const regex = /(-?\d{1,2}\.\d+)\s*,\s*(-?\d{1,3}\.\d+)/g;
+  const waypoints: PatrolWaypoint[] = [];
+  let match: RegExpExecArray | null = regex.exec(input);
+  let index = 1;
+
+  while (match) {
+    const lat = Number(match[1]);
+    const lng = Number(match[2]);
+    if (Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180) {
+      waypoints.push({
+        id: `wp-${index}`,
+        label: `Waypoint ${index}`,
+        lat,
+        lng,
+      });
+      index += 1;
+    }
+
+    match = regex.exec(input);
+  }
+
+  return waypoints.slice(0, 12);
+}
+
+function haversineKm(a: PatrolWaypoint, b: PatrolWaypoint): number {
+  const deg2rad = (value: number): number => (value * Math.PI) / 180;
+  const earthRadiusKm = 6371;
+  const dLat = deg2rad(b.lat - a.lat);
+  const dLng = deg2rad(b.lng - a.lng);
+  const aa =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(deg2rad(a.lat)) * Math.cos(deg2rad(b.lat)) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  const c = 2 * Math.atan2(Math.sqrt(aa), Math.sqrt(1 - aa));
+  return earthRadiusKm * c;
+}
+
+function orderWaypointsNearestNeighbor(waypoints: PatrolWaypoint[]): PatrolWaypoint[] {
+  if (waypoints.length <= 2) {
+    return [...waypoints];
+  }
+
+  const remaining = [...waypoints.slice(1)];
+  const route: PatrolWaypoint[] = [waypoints[0]];
+
+  while (remaining.length > 0) {
+    const current = route[route.length - 1];
+    let nextIndex = 0;
+    let nextDistance = Number.POSITIVE_INFINITY;
+
+    for (let idx = 0; idx < remaining.length; idx += 1) {
+      const distance = haversineKm(current, remaining[idx]);
+      if (distance < nextDistance) {
+        nextDistance = distance;
+        nextIndex = idx;
+      }
+    }
+
+    route.push(remaining[nextIndex]);
+    remaining.splice(nextIndex, 1);
+  }
+
+  return route;
+}
+
+function buildDefaultPatrolWaypoints(): PatrolWaypoint[] {
+  return [
+    { id: 'sector-start', label: 'Central staging point', lat: -41.2706, lng: 173.284 },
+    { id: 'sector-north', label: 'Northern perimeter sweep', lat: -41.2615, lng: 173.2865 },
+    { id: 'sector-east', label: 'Eastern perimeter sweep', lat: -41.2698, lng: 173.296 },
+    { id: 'sector-south', label: 'Southern perimeter sweep', lat: -41.2788, lng: 173.2857 },
+    { id: 'sector-west', label: 'Western perimeter sweep', lat: -41.2704, lng: 173.2722 },
+  ];
+}
+
+async function fetchSelfHostedRoutePlan(waypoints: PatrolWaypoint[]): Promise<{
+  routeSteps: string[];
+  source: string;
+  googleSupportUsed: boolean;
+  metadata?: Record<string, unknown>;
+}> {
+  const mappingGatewayUrl = String(process.env.MAPPING_GATEWAY_URL ?? '').trim().replace(/\/+$/, '');
+  if (!mappingGatewayUrl || waypoints.length < 2) {
+    const ordered = orderWaypointsNearestNeighbor(waypoints);
+    return {
+      routeSteps: ordered.map((point, index) => {
+        const suffix = index === 0 ? ' (start)' : '';
+        return `Stop ${index + 1}: ${point.label}${suffix} (${point.lat.toFixed(5)}, ${point.lng.toFixed(5)})`;
+      }),
+      source: 'inbuilt-patrol-route-engine',
+      googleSupportUsed: false,
+    };
+  }
+
+  const response = await axios.post(
+    `${mappingGatewayUrl}/route-plan`,
+    {
+      waypoints,
+      includeTraffic: true,
+    },
+    {
+      timeout: Number(process.env.MAPPING_GATEWAY_TIMEOUT_MS ?? 12000),
+    },
+  );
+
+  const payload = response.data as {
+    orderedWaypoints?: Array<{ label?: string; lat?: number; lng?: number }>;
+    support?: { google?: { used?: boolean } };
+    provider?: string;
+    route?: Record<string, unknown>;
+  };
+
+  const ordered = Array.isArray(payload.orderedWaypoints)
+    ? payload.orderedWaypoints
+        .map((row, index) => ({
+          label: String(row?.label ?? `Waypoint ${index + 1}`),
+          lat: Number(row?.lat),
+          lng: Number(row?.lng),
+        }))
+        .filter((row) => Number.isFinite(row.lat) && Number.isFinite(row.lng))
+    : [];
+
+  if (ordered.length < 2) {
+    throw new Error('Mapping gateway returned insufficient waypoint data');
+  }
+
+  const routeSteps = ordered.map((point, index) => {
+    const suffix = index === 0 ? ' (start)' : '';
+    return `Stop ${index + 1}: ${point.label}${suffix} (${point.lat.toFixed(5)}, ${point.lng.toFixed(5)})`;
+  });
+
+  return {
+    routeSteps,
+    source: String(payload.provider ?? 'self_hosted_mapping_gateway'),
+    googleSupportUsed: Boolean(payload.support?.google?.used),
+    metadata: payload.route,
+  };
+}
+
+function buildDeterministicPatrolIntelReport(
+  query: string,
+  liveSupportSnippets: string,
+  routeSteps: string[],
+  routeSource: string,
+  googleSupportUsed: boolean,
+): Record<string, unknown> {
+  const hasTrafficTerms = /\b(traffic|congestion|roadworks|closure|incident|detour|crash)\b/i.test(query);
+  const supportSignalsUsed = Boolean(String(liveSupportSnippets ?? '').trim());
+
+  const activeRisks = [
+    hasTrafficTerms
+      ? 'Route request includes traffic/closure concerns; dynamic checks are required before dispatch.'
+      : 'No explicit traffic signals in prompt; assume normal patrol variability.',
+    supportSignalsUsed
+      ? 'External support snippets were consulted; verify each signal against official agency feeds before action.'
+      : 'No external support snippets were used; treat this route as deterministic baseline only.',
+    googleSupportUsed
+      ? 'Google support signals were used as secondary enrichment; self-hosted mapping remained primary.'
+      : 'Google support enrichment was not used for this route build.',
+  ];
+
+  const recommendedActions = [
+    ...routeSteps,
+    'Validate closure/congestion conditions with dispatcher telemetry before rolling each leg.',
+    'Re-run route planning when new incidents arrive or patrol priorities change.',
+  ];
+
+  const sources = [routeSource || 'inbuilt-patrol-route-engine'];
+  if (supportSignalsUsed) {
+    sources.push('external-support-signals');
+  }
+  if (googleSupportUsed) {
+    sources.push('google-support-enrichment');
+  }
+
+  return {
+    summary: 'Deterministic patrol route generated from self-hosted mapping stack. External providers are optional support only.',
+    activeRisks,
+    recommendedActions,
+    sources,
+    confidence: supportSignalsUsed ? 0.82 : 0.74,
+  };
+}
+
+function formatTelemetryBlock(telemetry: HealProviderTelemetry): string {
+  const providers = telemetry.providersTried.length > 0 ? telemetry.providersTried.join(', ') : 'none';
+  const errors = telemetry.providerErrors.length > 0 ? telemetry.providerErrors.map((err) => `- ${err}`).join('\n') : '- none';
+
+  return [
+    'Telemetry:',
+    `- routeEngineUsed: ${telemetry.routeEngineUsed}`,
+    `- externalCallsCount: ${telemetry.externalCallsCount}`,
+    `- supportSignalsUsed: ${telemetry.supportSignalsUsed}`,
+    `- cacheHit: ${telemetry.cacheHit}`,
+    `- providersTried: ${providers}`,
+    '- providerErrors:',
+    errors,
+  ].join('\n');
+}
+
+function formatPatrolRouteReportToMarkdown(
+  report: Record<string, unknown>,
+  telemetry: HealProviderTelemetry,
+): string {
+  const core = formatIntelReportToMarkdown(report);
+  return `${core}\n\n${formatTelemetryBlock(telemetry)}`;
 }
 
 function normalizeRoutedBobResponse(rawModelText: string): RoutedBobResponse {
@@ -2405,12 +2738,131 @@ app.post('/api/heal', requireUserAuth, async (req: Request, res: Response) => {
       const sanitizedQuery = PRIVACY_REDACTION_ENABLED ? queryRedaction.text : query;
       const allowExternalResearch = !PRIVACY_REDACTION_ENABLED || !queryRedaction.hasSensitiveData;
       const requestedUrl = extractFirstUrl(inboundText);
+      const patrolRouteIntent = isPatrolRouteIntent(sanitizedQuery);
+      const telemetry: HealProviderTelemetry = {
+        routeEngineUsed: patrolRouteIntent ? 'local_deterministic' : 'model_synthesis',
+        providersTried: [],
+        providerErrors: [],
+        externalCallsCount: 0,
+        cacheHit: false,
+        supportSignalsUsed: false,
+      };
 
       try {
+        let liveWebData = 'External web research was not requested for this intent.';
+
+        if (patrolRouteIntent) {
+          const needsTrafficSignals = /\b(traffic|congestion|roadworks|closure|incident|detour|crash)\b/i.test(sanitizedQuery);
+          const extractedWaypoints = extractCoordinateWaypoints(sanitizedQuery);
+          const baseWaypoints = extractedWaypoints.length >= 2 ? extractedWaypoints : buildDefaultPatrolWaypoints();
+
+          let routeSteps = baseWaypoints.map((point, index) => {
+            const suffix = index === 0 ? ' (start)' : '';
+            return `Stop ${index + 1}: ${point.label}${suffix} (${point.lat.toFixed(5)}, ${point.lng.toFixed(5)})`;
+          });
+          let routeSource = 'inbuilt-patrol-route-engine';
+          let googleSupportUsed = false;
+
+          try {
+            const selfHostedRoute = await fetchSelfHostedRoutePlan(baseWaypoints);
+            routeSteps = selfHostedRoute.routeSteps;
+            routeSource = selfHostedRoute.source;
+            googleSupportUsed = selfHostedRoute.googleSupportUsed;
+            telemetry.providersTried.push(routeSource);
+            if (googleSupportUsed) {
+              telemetry.providersTried.push('google_maps_support');
+            }
+            telemetry.externalCallsCount += 1;
+            telemetry.supportSignalsUsed = telemetry.supportSignalsUsed || googleSupportUsed;
+          } catch (mappingError) {
+            telemetry.providerErrors.push(
+              `self_hosted_mapping_failed: ${mappingError instanceof Error ? mappingError.message : 'unknown error'}`,
+            );
+          }
+
+          if (allowExternalResearch && needsTrafficSignals) {
+            try {
+              const supportQuery = `${sanitizedQuery} nzta road closures traffic incidents official update`;
+              liveWebData = await executeWebSearch(supportQuery);
+              telemetry.externalCallsCount += 1;
+              telemetry.supportSignalsUsed = Boolean(String(liveWebData ?? '').trim());
+
+              const providerTelemetry = parseProviderTelemetryFromSearchOutput(liveWebData);
+              telemetry.providersTried = providerTelemetry.providersTried;
+              telemetry.providerErrors = providerTelemetry.providerErrors;
+            } catch (searchError) {
+              telemetry.providerErrors.push(
+                `support_search_failed: ${searchError instanceof Error ? searchError.message : 'unknown error'}`,
+              );
+            }
+          } else if (!allowExternalResearch) {
+            telemetry.providerErrors.push('external_research_blocked: sensitive data policy');
+          }
+
+          const patrolIntel = buildDeterministicPatrolIntelReport(
+            sanitizedQuery,
+            liveWebData,
+            routeSteps,
+            routeSource,
+            googleSupportUsed,
+          );
+          const markdown = formatPatrolRouteReportToMarkdown(patrolIntel, telemetry);
+          const confidence = normalizeConfidenceValue(patrolIntel.confidence, 0.75);
+          const risks = normalizeStringArray(patrolIntel.activeRisks);
+
+          await supabase.from('ai_reasoning_ledger').insert({
+            session_id: sessionId || 'SITUATIONAL_ALERT_CLOCK',
+            intent_context: 'REGIONAL_RISK_AUDIT',
+            hypothetical_risks: risks.join(' | ') || 'No explicit active risks returned.',
+            projected_rewards: 'Stable patrol route continuity even during model/provider outages.',
+            confidence_score: confidence,
+            action_taken: 'RECOMMENDED_ONLY',
+            metadata: {
+              routeAgent: 'research_agent',
+              status: 'INTEL_COMPLETE',
+              routeEngineUsed: telemetry.routeEngineUsed,
+              providersTried: telemetry.providersTried,
+              providerErrors: telemetry.providerErrors,
+              externalCallsCount: telemetry.externalCallsCount,
+              supportSignalsUsed: telemetry.supportSignalsUsed,
+              sensitiveDataDetected: queryRedaction.hasSensitiveData,
+              redactedFields: queryRedaction.redactedFields,
+            },
+            created_at: new Date().toISOString(),
+          } as Record<string, unknown>);
+
+          await appendChatSessionMessage(sessionId, 'assistant', markdown);
+
+          res.status(200).json({
+            bobResponse: markdown,
+            status: 'INTEL_COMPLETE',
+            sessionId,
+            routeAgent: 'research_agent',
+            routeEngineUsed: telemetry.routeEngineUsed,
+            intelReport: patrolIntel,
+            telemetry,
+            privacy: {
+              redactionEnabled: PRIVACY_REDACTION_ENABLED,
+              sensitiveDataDetected: queryRedaction.hasSensitiveData,
+              redactedFields: queryRedaction.redactedFields,
+              externalResearchUsed: allowExternalResearch,
+            },
+          });
+          return;
+        }
+
         const telemetryQuery = `${sanitizedQuery} local news police alerts noise control bylaws stolen vehicle registry`;
-        const liveWebData = allowExternalResearch
-          ? await executeWebSearch(telemetryQuery)
-          : 'External web research skipped due to detected sensitive personal data.';
+        if (allowExternalResearch) {
+          liveWebData = await executeWebSearch(telemetryQuery);
+          telemetry.externalCallsCount += 1;
+          const providerTelemetry = parseProviderTelemetryFromSearchOutput(liveWebData);
+          telemetry.providersTried = providerTelemetry.providersTried;
+          telemetry.providerErrors = providerTelemetry.providerErrors;
+          telemetry.supportSignalsUsed = Boolean(String(liveWebData ?? '').trim());
+        } else {
+          liveWebData = 'External web research skipped due to detected sensitive personal data.';
+          telemetry.providerErrors.push('external_research_blocked: sensitive data policy');
+        }
 
         let pageContent = '';
         if (requestedUrl && allowExternalResearch) {
@@ -2491,6 +2943,7 @@ app.post('/api/heal', requireUserAuth, async (req: Request, res: Response) => {
           routeAgent: 'research_agent',
           modelUsed: intelResult.modelUsed,
           intelReport: parsedIntel,
+          telemetry,
           privacy: {
             redactionEnabled: PRIVACY_REDACTION_ENABLED,
             sensitiveDataDetected: queryRedaction.hasSensitiveData,
@@ -2508,6 +2961,7 @@ app.post('/api/heal', requireUserAuth, async (req: Request, res: Response) => {
           status: 'DEGRADED',
           sessionId,
           routeAgent: 'research_agent',
+          telemetry,
         });
         return;
       }
