@@ -2398,7 +2398,7 @@ app.post('/api/heal', requireUserAuth, async (req: Request, res: Response) => {
 
     const kb = await getTierAKnowledgeContext();
 
-    const isIntelIntent = /\b(report|alert|crime|noise|stolen|smoke|bylaw|situational|intel|intelligence)\b/i.test(inboundTextLower);
+    const isIntelIntent = /\b(report|alert|crime|noise|stolen|smoke|bylaw|situational|intel|intelligence|patrol|route|traffic|congestion|roadworks|closure)\b/i.test(inboundTextLower);
     if (isIntelIntent) {
       const query = inboundText.replace(/\b(report|alert|crime|noise|stolen|smoke|bylaw|situational|intel|intelligence)\b/gi, '').trim() || inboundText;
       const queryRedaction = redactSensitivePersonalData(query);
