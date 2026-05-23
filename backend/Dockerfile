@@ -5,6 +5,7 @@ WORKDIR /app
 RUN apk add --no-cache bash
 
 COPY package.json package-lock.json* ./
+COPY .node-version ./
 RUN npm install
 
 COPY tsconfig.json ./
@@ -19,6 +20,7 @@ FROM node:20-alpine AS runner
 WORKDIR /app
 
 COPY package.json package-lock.json* ./
+COPY .node-version ./
 RUN npm install --omit=dev
 
 COPY --from=builder /app/dist ./dist
