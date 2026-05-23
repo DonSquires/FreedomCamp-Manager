@@ -6,6 +6,83 @@ Status: **ALL GATES GREEN** — npm standardized; Vercel/mobile deployment updat
 
 ---
 
+## Proactive Patrol + Intelligence Validation (2026-05-23)
+
+Owner: GitHub Copilot  
+Scope: Execute the three runtime checks and add patrol dry-run evidence to staging report.
+
+Executed checks:
+
+- [x] Check 1: `POST /api/cron/patrol` with `{"dryRun": true}`
+  - Result: PASS
+  - Response status: `Initiative patrol engine engaged.`
+  - Model route: `dry-run-mock`
+  - Action result: `DRY_RUN` (no repo mutation, no issue creation)
+- [x] Check 2: `POST /api/heal` manual intelligence prompt (`report local noise bylaws and active alerts in nelson region`)
+  - Result: DEGRADED
+  - Response: `Intelligence synthesis is temporarily unavailable. Retry after verifying research provider connectivity.`
+  - Interpretation: intelligence route wiring/auth is functional; upstream research/synthesis dependency unavailable at runtime.
+- [x] Check 3: `ai_reasoning_ledger` query for `intent_context=REGIONAL_RISK_AUDIT`
+  - Result: PASS (query executed)
+  - Dataset state: empty (`[]`) for this context in current environment.
+
+Key outcome:
+
+1. Patrol dry-run is now operational and resilient even when Ollama/RunPod is unavailable.
+2. Intelligence path is integrated but currently blocked by upstream research provider availability.
+3. Ledger read path works; no `REGIONAL_RISK_AUDIT` rows were present at check time.
+
+Follow-up TODO:
+
+- [ ] Restore/validate research upstream connectivity (`OLLAMA_PROXY_URL` and related model endpoint reachability).
+- [ ] Re-run intelligence check after upstream recovery and confirm `INTEL_COMPLETE` response.
+- [ ] Verify new `REGIONAL_RISK_AUDIT` ledger row persists after a successful intelligence run.
+
+---
+
+## Production Validation Attempt (2026-05-23)
+
+Owner: GitHub Copilot  
+Scope: Run the same three checks against production backend endpoint.
+
+Result:
+
+- [x] Production target resolved: `https://fieldops-backend-production.up.railway.app`
+- [x] Production backend deploy triggered via Railway GraphQL (`serviceInstanceDeployV2`) and completed successfully.
+- [x] Production check 1 (`POST /api/cron/patrol` with `{"dryRun": true}`) now passes.
+- [x] Production check 2 (`POST /api/heal` with authenticated `MANUAL_USER_INSTRUCTION`) now executes and returns controlled `DEGRADED` state instead of `500`.
+- [x] Production check 3 (`ai_reasoning_ledger` query for `REGIONAL_RISK_AUDIT`) executes successfully.
+- [ ] All three production checks green — blocked by upstream research provider connectivity in production.
+
+Observed blockers:
+
+1. Post-deploy intelligence run (`MANUAL_USER_INSTRUCTION`) still returns `DEGRADED` with `Intelligence synthesis is temporarily unavailable. Retry after verifying research provider connectivity.`
+2. Because intelligence did not reach `INTEL_COMPLETE`, no new `REGIONAL_RISK_AUDIT` rows were inserted (`ledger HTTP 200`, rows `0`).
+3. Railway CLI was installed, but the binary is incompatible in this Alpine container (`Error relocating ... __res_init: symbol not found`), so discovery/deploy was executed via Railway GraphQL API.
+
+Production evidence (post-deploy):
+
+- Deploy trigger: `serviceInstanceDeployV2` for `fieldops-backend` service `72ae811c-cae0-4fee-9023-89c1df4290fa` in production environment `dd4cf850-e604-458c-869d-da4ad54279db`.
+- Deployment id: `49bceddd-3ff1-4f9c-b7fe-a24ab1836628`.
+- Deployment status: `SUCCESS`.
+- Check 1 response: `202`, `Initiative patrol engine engaged.`, `actionResult.status=DRY_RUN`, `modelUsed=dry-run-mock`.
+- Check 2 response: `200`, `status=DEGRADED`, `routeAgent=research_agent`.
+- Check 3 response: Supabase REST `200`, `[]` for `intent_context=REGIONAL_RISK_AUDIT`.
+
+Required inputs to complete production validation:
+
+- Configure/restore production research provider connectivity for intelligence synthesis (search/fetch model dependencies used by `/api/heal` research route).
+- Re-run intelligence check until `status=INTEL_COMPLETE`.
+- Verify resulting `REGIONAL_RISK_AUDIT` ledger row creation.
+
+Completion criteria once inputs are provided:
+
+1. Run production `POST /api/cron/patrol` with `{"dryRun": true}` and capture response.
+2. Run production `POST /api/heal` intelligence prompt and capture status (`INTEL_COMPLETE` or `DEGRADED`).
+3. Query `ai_reasoning_ledger` for `REGIONAL_RISK_AUDIT` records and append evidence.
+
+---
+
 ## Critical Engineering Rule — Must Follow
 
 This application is an enterprise-grade field compliance management system. It supports health and safety operations, infringement handling, and court-documentation workflows.
