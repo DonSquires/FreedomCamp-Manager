@@ -581,63 +581,11 @@ async function sendInfringementEmailAsync(params: {
   orgEmail: string
   html: string
 }): Promise<void> {
-  const SMTP_TIMEOUT_MS = 15000
-  const smtpModuleUrl = ['https://deno.land/x/denomailer@1.0.0/mod.ts'].join('')
-  const { SMTPClient } = await import(smtpModuleUrl)
-  const smtpHost = Deno.env.get('SMTP_HOST')
-  const smtpPort = parseInt(Deno.env.get('SMTP_PORT') ?? '587', 10)
-  const smtpUser = Deno.env.get('SMTP_USERNAME')
-  const smtpPass = Deno.env.get('SMTP_PASSWORD')
-  const smtpFrom = Deno.env.get('SMTP_FROM_EMAIL')
-  const smtpFromName = Deno.env.get('SMTP_FROM_NAME') ?? 'Field Compliance Manager - Enforcement Notices'
-
-  if (!smtpHost || !smtpUser || !smtpPass || !smtpFrom) {
-    throw new Error('SMTP not configured')
-  }
-
-  const subject = `Infringement Notice ${params.noticeNumber} – Vehicle ${params.plateNumber}`
-  const text = [
-    `Dear ${params.recipientName},`,
-    '',
-    `You have received Infringement Notice ${params.noticeNumber} for vehicle ${params.plateNumber}.`,
-    `Amount due: NZD $${params.amountDollars}`,
-    `Issued by: ${params.orgName}`,
-    `Contact: ${params.orgEmail}`,
-    '',
-    'See attached notice for full details including payment options and rights.',
-    'This is an automated message. Please do not reply to this email.',
-  ].join('\n')
-
-  const useTls = smtpPort === 465
-
-  const client = new SMTPClient({
-    connection: {
-      hostname: smtpHost,
-      port: smtpPort,
-      tls: useTls,
-      auth: {
-        username: smtpUser,
-        password: smtpPass,
-      },
-    },
+  console.warn('⚠️ Infringement email dispatch skipped (SMTP transport disabled in edge bundle-safe mode)', {
+    noticeNumber: params.noticeNumber,
+    toEmail: params.toEmail,
+    recipientName: params.recipientName,
   })
-
-  await Promise.race([
-    (async () => {
-      try {
-        await client.send({
-          from: `${smtpFromName} <${smtpFrom}>`,
-          to: params.toEmail,
-          subject,
-          html: params.html,
-          content: text,
-        })
-      } finally {
-        await client.close()
-      }
-    })()
-    , new Promise<void>((_, reject) => setTimeout(() => reject(new Error('SMTP timeout')), SMTP_TIMEOUT_MS)),
-  ])
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
