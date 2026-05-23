@@ -125,9 +125,9 @@ SELECT
   
   -- Vehicle Details
   COALESCE(ba.plate_number, cv.plate_number, 'UNKNOWN') AS plate_number,
-  cv.make,
-  cv.model,
-  cv.colour AS color,
+  COALESCE(to_jsonb(cv)->>'make', to_jsonb(cv)->>'vehicle_make') AS make,
+  COALESCE(to_jsonb(cv)->>'model', to_jsonb(cv)->>'vehicle_model') AS model,
+  COALESCE(to_jsonb(cv)->>'colour', to_jsonb(cv)->>'color', to_jsonb(cv)->>'vehicle_color') AS color,
   
   -- Zone Details
   z.name AS zone_name,
