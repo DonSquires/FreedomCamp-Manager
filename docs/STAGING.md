@@ -75,6 +75,17 @@ Required inputs to complete production validation:
 - Re-run intelligence check until `status=INTEL_COMPLETE`.
 - Verify resulting `REGIONAL_RISK_AUDIT` ledger row creation.
 
+Production revalidation update (2026-05-23, post edge-function redeploy + backend fallback hardening):
+
+- [x] All Supabase edge functions redeployed to `kxwjcupuxnnbnzcgmkoi`.
+- [x] Production `/api/heal` manual intelligence check now returns `INTEL_COMPLETE`.
+- [x] `ai_reasoning_ledger` now contains `REGIONAL_RISK_AUDIT` evidence row.
+
+Evidence:
+
+- Heal check: `HTTP 200`, `status=INTEL_COMPLETE`, `routeAgent=research_agent`, `modelUsed=qwen2.5:7b`.
+- Ledger check: `HTTP 200`, `rows=1`, latest row id `77edc7e3-fcb1-4b91-bb5a-aea8bb33b370` with `intent_context=REGIONAL_RISK_AUDIT`.
+
 Completion criteria once inputs are provided:
 
 1. Run production `POST /api/cron/patrol` with `{"dryRun": true}` and capture response.
