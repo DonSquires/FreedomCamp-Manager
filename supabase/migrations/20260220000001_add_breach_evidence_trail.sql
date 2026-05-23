@@ -412,6 +412,11 @@ COMMENT ON FUNCTION generate_compliance_explanation IS
 -- 3. BACKFILL EXISTING OBSERVATIONS WITH NEW EVIDENCE TRAIL
 -- =====================================================================
 
+-- This migration runs before 20260220000002 on a clean schema, so ensure the
+-- target column exists before writing into it.
+ALTER TABLE observations
+  ADD COLUMN IF NOT EXISTS compliance_summary JSONB DEFAULT NULL;
+
 -- Backfill compliance summaries for existing observations
 UPDATE observations
 SET compliance_summary = generate_compliance_explanation(observation_id)
