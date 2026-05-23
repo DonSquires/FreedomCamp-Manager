@@ -96,6 +96,8 @@ COMMENT ON COLUMN compliance_results.fc_act_exempt IS 'Whether this observation 
 COMMENT ON COLUMN compliance_results.exemption_reason IS 'Reason for exemption (e.g., "Homeless status confirmed")';
 
 -- Update get_vehicle_master_data function to include FC Act exemption
+DROP FUNCTION IF EXISTS get_vehicle_master_data(TEXT);
+
 CREATE OR REPLACE FUNCTION get_vehicle_master_data(p_plate_number TEXT)
 RETURNS TABLE (
   plate_number TEXT,
