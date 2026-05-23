@@ -2665,7 +2665,7 @@ Do not return plain text outside the JSON object.
 
 // ── POST /api/approve-patch ──────────────────────────────────────────────────
 //    Human tester override — applies the approved patch to Railway
-app.post('/api/approve-patch', requireGrandMasterAuth, async (req: Request, res: Response) => {
+app.post('/api/approve-patch', requireAdminAuth, async (req: Request, res: Response) => {
   const { patchId, projectId, environmentId, serviceId } = req.body as {
     patchId: string;
     projectId: string;
