@@ -453,7 +453,7 @@ const SUPABASE_URL =
   process.env.VITE_SUPABASE_URL ??
   (process.env.SUPABASE_PROJECT_REF ? `https://${process.env.SUPABASE_PROJECT_REF}.supabase.co` : undefined);
 const SUPABASE_SERVICE_ROLE_KEY = requireAnyEnv(['SUPABASE_SERVICE_ROLE_KEY']);
-const SUPABASE_JWT_SECRET = requireAnyEnv(['SUPABASE_JWT_SECRET']);
+const SUPABASE_JWT_SECRET = optionalAnyEnv(['SUPABASE_JWT_SECRET']);
 
 if (!SUPABASE_URL) {
   throw new Error('Missing SUPABASE_URL. Set SUPABASE_URL, VITE_SUPABASE_URL, or SUPABASE_PROJECT_REF');
@@ -522,6 +522,10 @@ function getBearerToken(req: Request): string | null {
 }
 
 function verifySupabaseToken(token: string): JwtPayload | null {
+  if (!SUPABASE_JWT_SECRET) {
+    return null;
+  }
+
   try {
     const decoded = jwt.verify(token, SUPABASE_JWT_SECRET, {
       algorithms: ['HS256'],
@@ -537,14 +541,30 @@ function verifySupabaseToken(token: string): JwtPayload | null {
   }
 }
 
+async function resolveTokenSubject(token: string): Promise<string | null> {
+  const localClaims = verifySupabaseToken(token);
+  const localSubject = String(localClaims?.sub ?? '').trim();
+  if (localSubject) {
+    return localSubject;
+  }
+
+  // Fallback for environments where SUPABASE_JWT_SECRET is not configured.
+  const { data, error } = await supabase.auth.getUser(token);
+  if (error) {
+    return null;
+  }
+
+  const remoteSubject = String(data?.user?.id ?? '').trim();
+  return remoteSubject || null;
+}
+
 async function resolveAdminAuth(req: Request): Promise<AdminAuthContext | null> {
   const token = getBearerToken(req);
   if (!token) {
     return null;
   }
 
-  const claims = verifySupabaseToken(token);
-  const subject = String(claims?.sub ?? '').trim();
+  const subject = await resolveTokenSubject(token);
   if (!subject) {
     return null;
   }
