@@ -12,6 +12,9 @@ run_with_npm() {
 }
 
 run_all_in_one_bob_gate() {
+  log "Running Bob universal access audit (strict)."
+  run_with_npm npm run -s bob:access:audit:strict
+
   log "Running all-in-one Bob capability matrix gate (strict)."
   run_with_npm npm --prefix backend run -s bob:capability:matrix:strict
 

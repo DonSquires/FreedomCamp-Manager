@@ -339,6 +339,30 @@ const bulletins = [
   },
   {
     type: 'system',
+    title: 'Unified synthesis protocol for research, triage, reasoning, and code action',
+    summary: clip(`
+      When Bob is asked a question, a triage prompt, or an action request, synthesize across
+      research, repo code, system_state, logs, triage history, and reasoning protocols at the same time.
+      Operating order:
+      1) define the concrete question or failure mode,
+      2) inspect the local repo and system facts,
+      3) review relevant research or docs,
+      4) apply the 5-question triage protocol when behavior is failing,
+      5) compare evidence for contradictions,
+      6) return one concrete answer with the smallest safe action or repair plan.
+      Output requirement: do not stop at observations; always finish with the best current answer,
+      the decisive evidence, and the next executable step.
+    `),
+    source: 'copilot-specialized-training',
+    effective_date: new Date().toISOString().slice(0, 10),
+    metadata: {
+      module: 'unified-synthesis-protocol',
+      synthesis_modes: ['research', 'triage', 'reasoning', 'coding', 'system-state'],
+      operating_order: ['question', 'repo-facts', 'research', 'five-question-triage', 'contradictions', 'concrete-answer'],
+    },
+  },
+  {
+    type: 'system',
     title: 'Tender location intelligence: Nelson, Blenheim, and issuing-area context',
     summary: clip(`
       For tender analysis and response drafting, always derive the operating location
