@@ -311,6 +311,11 @@ Located in `/mobile-app/.env`
 |----------|-------------|--------|
 | `EXPO_PUBLIC_SUPABASE_URL` | Supabase project URL | URL |
 | `EXPO_PUBLIC_SUPABASE_ANON_KEY` | Supabase anonymous key | JWT |
+| `EXPO_PUBLIC_PTT_SERVER_URL` | Mobile PTT websocket URL | `wss://<ptt-host>/ws` |
+| `VITE_INFERENCE_SERVICE_URL` | Browser/mobile Bob inference URL | URL |
+| `VITE_PTT_SERVER_URL` | Browser/mobile PTT websocket alias | `wss://<ptt-host>/ws` |
+| `VITE_WHISPER_PROXY_URL` | Browser whisper proxy URL | URL |
+| `VITE_BOB_MANAGER_URL` | Browser Bob manager URL | URL |
 
 PTT routing note:
 - Mobile PTT uses the same Supabase Edge Function (`ptt-signaling-token`) and therefore the same `PTT_SERVER_URL` secret (`https://ptt.<your-domain>`).
