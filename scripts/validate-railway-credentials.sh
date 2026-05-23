@@ -98,6 +98,15 @@ validate_railway_token() {
   local token_value="$1"
   local token_name="$2"
 
+  # Guard against the most common wiring mistake: placing a project/service UUID
+  # into a token variable.
+  if [[ "$token_value" =~ ^[0-9a-fA-F-]{36}$ ]]; then
+    log_error "Railway token ($token_name) looks like a UUID, not an API token: $(mask_secret "$token_value")"
+    log_info "Set $token_name to a Railway account token (from Railway account settings), not a project/service ID."
+    ((INVALID_COUNT++))
+    return 1
+  fi
+
   local payload='{"query":"query Viewer { me { id email name } }"}'
   local http_code
   http_code=$(curl -s -o /tmp/railway-token-check.json -w '%{http_code}' --max-time 12 \
