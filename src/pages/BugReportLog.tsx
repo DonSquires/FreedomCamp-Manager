@@ -96,12 +96,12 @@ function statusBadge(status: string | null) {
   return 'bg-yellow-100 text-yellow-800'
 }
 
-function getBobManagerUrl(): string {
+function getBobManagerUrl(): string | null {
   const envUrl = String(import.meta.env.VITE_BOB_MANAGER_URL ?? '').trim()
   if (envUrl.length > 0) {
     return envUrl.replace(/\/$/, '')
   }
-  return 'http://localhost:3000'
+  return null
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -111,6 +111,7 @@ export default function BugReportLog() {
   const isGrandMaster = user?.role === 'grand_master'
   const orgId = user?.organization_id
   const qc = useQueryClient()
+  const bobManagerUrl = useMemo(() => getBobManagerUrl(), [])
 
   const [issueTypeFilter, setIssueTypeFilter] = useState('all')
   const [severityFilter,  setSeverityFilter]  = useState('all')
@@ -149,11 +150,15 @@ export default function BugReportLog() {
     refetch: refetchAudit,
   } = useQuery<BobAuditTrailResponse>({
     queryKey: ['bob-audit-trail', user?.id],
-    enabled: isGrandMaster,
+    enabled: isGrandMaster && Boolean(bobManagerUrl),
     queryFn: async () => {
+      if (!bobManagerUrl) {
+        throw new Error('Configuration Error: VITE_BOB_MANAGER_URL is missing.')
+      }
+
       const { data: sessionData } = await supabase.auth.getSession()
       const accessToken = sessionData?.session?.access_token
-      const response = await fetch(`${getBobManagerUrl()}/api/bob/audit-trail?limit=20`, {
+      const response = await fetch(`${bobManagerUrl}/api/bob/audit-trail?limit=20`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -170,6 +175,10 @@ export default function BugReportLog() {
     },
     retry: 1,
   })
+
+  if (isGrandMaster && !bobManagerUrl) {
+    console.error('Configuration Error: VITE_BOB_MANAGER_URL is missing.')
+  }
 
   // ── Resolve mutation ───────────────────────────────────────────────────────
 
@@ -275,6 +284,12 @@ export default function BugReportLog() {
         </div>
 
         {/* Pending AI patches */}
+        {isGrandMaster && !bobManagerUrl && (
+          <div className="rounded-md border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-900">
+            Configuration Error: `VITE_BOB_MANAGER_URL` is missing. Bob audit and deployment controls are unavailable.
+          </div>
+        )}
+
         <BobApprovalPanel />
 
         {/* Table */}

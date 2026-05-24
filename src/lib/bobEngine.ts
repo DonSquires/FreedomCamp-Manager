@@ -171,7 +171,7 @@ export function createBobEngine(envInput: Partial<BobEngineEnv> & Record<string,
       }),
       supabase.rpc('match_bob_memories', {
         query_embedding: embedding,
-        match_threshold: 0.7,
+        match_threshold: 0.45,
         match_count: 3,
         p_user_id: input.userId,
       }),

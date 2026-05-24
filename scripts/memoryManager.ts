@@ -36,7 +36,7 @@ export async function getBobContext(
   const semanticQuery = Array.isArray(currentPromptEmbedding) && currentPromptEmbedding.length > 0
     ? supabase.rpc('match_memories', {
         query_embedding: currentPromptEmbedding,
-        match_threshold: 0.78,
+        match_threshold: 0.45,
         match_count: 5,
         p_user_id: userId,
       })

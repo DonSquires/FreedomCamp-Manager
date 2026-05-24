@@ -88,24 +88,12 @@ function buildBobHistory(messages: ChatThreadMessage[]) {
   }))
 }
 
-function getBobManagerUrl(): string {
+function getBobManagerUrl(): string | null {
   const envUrl = String(import.meta.env.VITE_BOB_MANAGER_URL ?? '').trim()
   if (envUrl.length > 0) {
     return envUrl.replace(/\/$/, '')
   }
-  return 'http://localhost:3000'
-}
-
-function getWhisperProxyUrl(): string {
-  const envUrl = String(
-    import.meta.env.VITE_WHISPER_PROXY_URL ?? import.meta.env.VITE_RAILWAY_STT_URL ?? '',
-  ).trim()
-  if (envUrl.length > 0) {
-    return envUrl.replace(/\/$/, '')
-  }
-
-  // Production fallback from modular speech runbook.
-  return 'https://fieldops-railway-stt-production.up.railway.app'
+  return null
 }
 
 async function blobToBase64(blob: Blob): Promise<string> {
@@ -151,6 +139,14 @@ export default function ChatStudio() {
     () => user?.organization_id || organizationId || null,
     [organizationId, user?.organization_id],
   )
+
+  const bobManagerUrl = useMemo(() => getBobManagerUrl(), [])
+
+  useEffect(() => {
+    if (!bobManagerUrl) {
+      console.error('Configuration Error: VITE_BOB_MANAGER_URL is missing.')
+    }
+  }, [bobManagerUrl])
 
   const { data: members = [] } = useQuery<Participant[]>({
     queryKey: ['chat-studio-members', effectiveOrgId],
@@ -322,13 +318,23 @@ export default function ChatStudio() {
       }
 
       // Otherwise, escalate to Bob's full conversation engine
-      const bobManagerUrl = getBobManagerUrl()
+      if (!bobManagerUrl) {
+        throw new Error('Configuration Error: VITE_BOB_MANAGER_URL is missing.')
+      }
+
+      const { data: sessionData } = await supabase.auth.getSession()
+      const accessToken = sessionData?.session?.access_token
+      if (!accessToken) {
+        throw new Error('No active session found. Please sign in again.')
+      }
+
       const controller = new AbortController()
       const timeoutId = window.setTimeout(() => controller.abort(), 30000)
       const response = await fetch(`${bobManagerUrl}/api/heal`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
         },
         signal: controller.signal,
         body: JSON.stringify({
@@ -367,7 +373,7 @@ export default function ChatStudio() {
       toast.error('Bob could not process that command right now.', { description: err?.message || 'Please retry.' })
       replaceBobMessage(pendingReplyId, 'Bob is temporarily unavailable, but the command has been captured for retry.')
     }
-  }, [bobThread, effectiveOrgId, inputText, replaceBobMessage, user?.first_name, user?.id, user?.last_name, user?.role])
+  }, [bobManagerUrl, bobThread, effectiveOrgId, inputText, replaceBobMessage, user?.first_name, user?.id, user?.last_name, user?.role])
 
   const handleVoiceToBob = useCallback(async () => {
     if (mode !== 'bob' || voiceTranscribing) return
@@ -399,24 +405,33 @@ export default function ChatStudio() {
           const blob = new Blob(voiceChunksRef.current, { type: recorder.mimeType || 'audio/webm' })
           const audioBase64 = await blobToBase64(blob)
 
-          const response = await fetch(`${getWhisperProxyUrl()}/transcribe`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
+          // Route browser audio through Supabase Edge Function to avoid direct browser CORS constraints
+          // on external Whisper proxy infrastructure.
+          const { data, error: fnError } = await supabase.functions.invoke('transcribe-audio', {
+            body: {
               audio_base64: audioBase64,
+              audio_mime_type: blob.type || recorder.mimeType || 'audio/webm',
               language: 'en',
-            }),
+            },
           })
 
-          if (!response.ok) {
-            const errorText = await response.text()
-            throw new Error(`Whisper proxy failed (${response.status}): ${errorText}`)
+          if (fnError) {
+            throw new Error(fnError.message || 'transcribe-audio failed')
           }
 
-          const payload = await response.json() as { transcript?: string; text?: string; response?: string }
+          const payload = (data || {}) as {
+            transcript?: string
+            text?: string
+            response?: string
+            output?: {
+              transcript?: string
+              text?: string
+              response?: string
+            }
+          }
+
           const transcript = String(payload.transcript || payload.text || payload.response || '').trim()
+            || String(payload.output?.transcript || payload.output?.text || payload.output?.response || '').trim()
           if (!transcript) {
             throw new Error('Whisper returned an empty transcript')
           }
@@ -524,6 +539,12 @@ export default function ChatStudio() {
       description="One place for Bob commands, roster changes, compliance actions, and direct team messages."
     >
       <GlobalFilterRibbon />
+
+      {!bobManagerUrl && (
+        <div className="mb-4 rounded-md border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-900">
+          Configuration Error: `VITE_BOB_MANAGER_URL` is missing. Bob manager features are unavailable until this is set.
+        </div>
+      )}
 
       <div className="grid min-h-[calc(100vh-180px)] gap-4 xl:grid-cols-[280px_minmax(0,1fr)_320px]">
         <Card className="border-slate-200/70 bg-slate-950 text-slate-50 shadow-xl shadow-slate-900/10">

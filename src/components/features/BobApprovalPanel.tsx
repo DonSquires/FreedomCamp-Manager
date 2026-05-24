@@ -17,12 +17,12 @@ type PendingSelfHealingLog = {
   created_at: string | null
 }
 
-function getBobManagerUrl(): string {
+function getBobManagerUrl(): string | null {
   const envUrl = String(import.meta.env.VITE_BOB_MANAGER_URL ?? '').trim()
   if (envUrl.length > 0) {
     return envUrl.replace(/\/$/, '')
   }
-  return 'http://localhost:3000'
+  return null
 }
 
 function formatDateTime(value: string | null): string {
@@ -44,6 +44,13 @@ export function BobApprovalPanel() {
   const [isLoading, setIsLoading] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [actioningId, setActioningId] = useState<string | null>(null)
+  const bobManagerUrl = useMemo(() => getBobManagerUrl(), [])
+
+  useEffect(() => {
+    if (!bobManagerUrl) {
+      console.error('Configuration Error: VITE_BOB_MANAGER_URL is missing.')
+    }
+  }, [bobManagerUrl])
 
   const activeUserName = useMemo(() => {
     const fullName = String(user?.full_name ?? '').trim()
@@ -127,10 +134,14 @@ export function BobApprovalPanel() {
     try {
       setActioningId(log.id)
 
+      if (!bobManagerUrl) {
+        throw new Error('Configuration Error: VITE_BOB_MANAGER_URL is missing.')
+      }
+
       const { data: sessionData } = await supabase.auth.getSession()
       const accessToken = sessionData?.session?.access_token
 
-      const response = await fetch(`${getBobManagerUrl()}/api/approve-patch`, {
+      const response = await fetch(`${bobManagerUrl}/api/approve-patch`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -160,7 +171,7 @@ export function BobApprovalPanel() {
     } finally {
       setActioningId(null)
     }
-  }, [activeUserName, loadPendingLogs])
+  }, [activeUserName, bobManagerUrl, loadPendingLogs])
 
   return (
     <Card className="border-2">
@@ -185,6 +196,12 @@ export function BobApprovalPanel() {
       </CardHeader>
 
       <CardContent className="space-y-4">
+        {!bobManagerUrl && (
+          <div className="rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-900">
+            Configuration Error: `VITE_BOB_MANAGER_URL` is missing. Approval and deploy actions are disabled.
+          </div>
+        )}
+
         {isLoading ? (
           <div className="flex items-center justify-center py-10 text-sm text-muted-foreground gap-2">
             <Loader2 className="h-4 w-4 animate-spin" />
