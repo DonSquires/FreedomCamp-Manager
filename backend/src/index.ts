@@ -7,6 +7,7 @@ import ws from 'ws';
 import { readFile, stat } from 'node:fs/promises';
 import { once } from 'node:events';
 import { spawn } from 'node:child_process';
+import { timingSafeEqual } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { applyAgentPatch } from './agentTools.js';
@@ -472,6 +473,40 @@ function hasAutomationToken(req: Request): boolean {
 
   const provided = String(req.headers['x-automation-token'] ?? '').trim();
   return provided.length > 0 && provided === expected;
+}
+
+function secureCompareHeaderValue(provided: string, expected: string): boolean {
+  const providedBuffer = Buffer.from(provided, 'utf8');
+  const expectedBuffer = Buffer.from(expected, 'utf8');
+
+  if (providedBuffer.length !== expectedBuffer.length) {
+    return false;
+  }
+
+  return timingSafeEqual(providedBuffer, expectedBuffer);
+}
+
+function verifyGiteaWebhookSignature(req: Request): { ok: boolean; reason: string } {
+  const expected = String(process.env.GITEA_WEBHOOK_SECRET ?? '').trim();
+  if (!expected) {
+    return { ok: false, reason: 'GITEA_WEBHOOK_SECRET is not configured.' };
+  }
+
+  const rawHeader = req.headers['x-gitea-signature'] ?? req.headers['x-gitea-token'];
+  if (Array.isArray(rawHeader)) {
+    return { ok: false, reason: 'Malformed webhook signature header.' };
+  }
+
+  const provided = String(rawHeader ?? '').trim();
+  if (!provided) {
+    return { ok: false, reason: 'Missing webhook signature header.' };
+  }
+
+  if (!secureCompareHeaderValue(provided, expected)) {
+    return { ok: false, reason: 'Unauthorized webhook signature.' };
+  }
+
+  return { ok: true, reason: 'OK' };
 }
 
 function toShortString(value: unknown, fallback = 'unknown'): string {
@@ -3009,6 +3044,92 @@ async function logProactiveProposalToLedger(decision: InitiativeDecision): Promi
   };
 }
 
+function buildPatrolReasoning(args: {
+  decision: InitiativeDecision;
+  dryRun: boolean;
+  modelUsed: string;
+  auth: AdminAuthContext | null;
+  mutationAuthorized: boolean;
+}): CognitiveReasoningResult {
+  const { decision, dryRun, modelUsed, auth, mutationAuthorized } = args;
+  const docsSafe = isSafeAutonomousInitiative(decision);
+  const authRole = formatAuthRoleForPrompt(auth);
+  const targetFile = decision.targetFile || 'unspecified target';
+  const consultativeReasons: string[] = [];
+
+  if (dryRun) {
+    consultativeReasons.push('Dry-run mode prevented repository mutation.');
+  }
+
+  if (!docsSafe) {
+    consultativeReasons.push('Candidate change is outside the documentation-safe autonomous boundary.');
+  }
+
+  if (docsSafe && !mutationAuthorized) {
+    consultativeReasons.push('Repository mutation was blocked because no admin or grand-master bearer context was verified.');
+  }
+
+  const actionPayload: CognitiveActionPayload =
+    !dryRun && docsSafe && mutationAuthorized
+      ? {
+          mode: 'gitea_propose_pr',
+          giteaProposePr: {
+            owner: process.env.GITEA_OWNER,
+            repo: process.env.GITEA_REPO,
+            baseBranch: process.env.GITEA_BASE_BRANCH ?? 'main',
+            branchName: `ai-self-heal-initiative-${Date.now()}`,
+            title: `[INITIATIVE] ${decision.explanation.slice(0, 80)}`,
+            body: [
+              'Autonomous initiative patch proposed by Bob patrol sweep.',
+              '',
+              `Target file: ${targetFile}`,
+              `Reason: ${decision.explanation}`,
+              '',
+              'Policy: documentation-safe autonomous mode only.',
+            ].join('\n'),
+            commitMessage: `docs: proactive initiative update (${Date.now()})`,
+            files: decision.targetFile && decision.patchValue
+              ? [{ path: decision.targetFile, content: decision.patchValue }]
+              : [],
+            dryRun: false,
+          },
+        }
+      : { mode: 'none', giteaProposePr: null };
+
+  const riskAnalysis = dryRun
+    ? 'Dry-run patrol execution intentionally avoided repository mutation; operational review only.'
+    : docsSafe
+      ? mutationAuthorized
+        ? 'Low-risk documentation-scoped change candidate. Repository mutation is permitted only because an admin/grand-master bearer context was verified.'
+        : 'Repository mutation is currently blocked. Shared automation token alone is insufficient for Gitea write operations.'
+      : 'Candidate requires consultative review because the proposed change is not documentation-safe or lacks a complete mutation payload.';
+
+  const rewardAnalysis = docsSafe
+    ? `Patrol identified a narrow improvement path targeting ${targetFile}.`
+    : `Patrol captured an improvement proposal for ${targetFile}, but it remains in consultative hold until a human validates scope and safety.`;
+
+  const confidenceScore = dryRun ? 0.2 : docsSafe ? (mutationAuthorized ? 0.82 : 0.58) : 0.46;
+
+  return {
+    reasoningTrace: [
+      `Patrol explanation: ${decision.explanation}`,
+      `Model source: ${modelUsed}`,
+      `Auth role: ${authRole}`,
+      `Docs-safe autonomous candidate: ${docsSafe ? 'yes' : 'no'}`,
+      `Mutation authorized: ${mutationAuthorized ? 'yes' : 'no'}`,
+      consultativeReasons.length > 0 ? `Hold reasons: ${consultativeReasons.join(' | ')}` : 'No additional hold reasons.',
+    ].join('\n'),
+    intentContext: 'AUTONOMOUS_PATROL_SWEEP',
+    riskAnalysis,
+    rewardAnalysis,
+    confidenceScore,
+    isObviousAutonomous: decision.isObviousAutonomous && docsSafe && mutationAuthorized,
+    actionPayload,
+    consultativeResponse:
+      consultativeReasons.join(' ') || 'Autonomous documentation-safe proposal is eligible for guarded execution.',
+  };
+}
+
 async function getTierAKnowledgeContext(): Promise<TierAContext> {
   const { data, error } = await withTimeout(
     Promise.resolve(
@@ -4223,6 +4344,12 @@ app.post('/api/gitea/propose-pr', requireAdminAuth, async (req: Request, res: Re
 //    Handles Gitea push/pull_request notifications and asynchronously
 //    triggers training sync to refresh Bob context.
 app.post('/api/gitea-webhook', (req: Request, res: Response) => {
+  const verification = verifyGiteaWebhookSignature(req);
+  if (!verification.ok) {
+    res.status(401).json({ error: verification.reason });
+    return;
+  }
+
   const eventHeader = req.headers['x-gitea-event'];
   const event = String(Array.isArray(eventHeader) ? eventHeader[0] : eventHeader ?? '').toLowerCase();
 
@@ -4695,14 +4822,19 @@ app.post('/api/cron/patrol', async (req: Request, res: Response): Promise<void> 
   try {
     const requestDryRun = parseBool(String((req.body as { dryRun?: unknown })?.dryRun ?? 'false'));
     const dryRun = requestDryRun || PATROL_DRY_RUN_DEFAULT;
+    const auth = await resolveAdminAuth(req);
+    const mutationAuthorized = Boolean(auth?.isAdmin || auth?.isGrandMaster);
+    const patrolSessionId = `cron-patrol:${Date.now()}`;
 
     const kb = await getTierAKnowledgeContext();
     const patrolPrompt = [
       'You are Bob, the Serverless Fleet Chief Engineer. Run a proactive repository/system scan.',
       'Follow the AUTONOMY INITIATIVE PROTOCOL and return strict JSON only.',
+      'Evaluate the finding through the mandatory risk-vs-reward matrix before any proposed action.',
       '',
       `System rules: ${kb.systemRules}`,
       `Schema payload: ${kb.schemaPayload}`,
+      `Authenticated patrol role context: ${formatAuthRoleForPrompt(auth)}`,
       '',
       'Identify one practical improvement and classify it as autonomous or consultative.',
       'Return JSON only using this shape:',
@@ -4734,19 +4866,52 @@ app.post('/api/cron/patrol', async (req: Request, res: Response): Promise<void> 
       modelUsed = aiResult.modelUsed;
     }
 
+    const reasoning = buildPatrolReasoning({
+      decision,
+      dryRun,
+      modelUsed,
+      auth,
+      mutationAuthorized,
+    });
+
     let actionResult: Record<string, unknown>;
+    let actionTaken: 'RECOMMENDED_ONLY' | 'AGENTIC_EXECUTED' = 'RECOMMENDED_ONLY';
 
     if (dryRun) {
       actionResult = {
         status: 'DRY_RUN',
         detail: 'No repo mutation or issue creation performed.',
         wouldAutoExecute: isSafeAutonomousInitiative(decision),
+        mutationAuthorized,
       };
-    } else if (isSafeAutonomousInitiative(decision)) {
+    } else if (isSafeAutonomousInitiative(decision) && mutationAuthorized) {
       actionResult = await executeAutonomousInitiativeFix(decision);
+      actionTaken = 'AGENTIC_EXECUTED';
     } else {
       actionResult = await logProactiveProposalToLedger(decision);
     }
+
+    await persistAiReasoningLedger({
+      sessionId: patrolSessionId,
+      reasoning,
+      actionTaken,
+      metadata: {
+        route: '/api/cron/patrol',
+        dryRun,
+        modelUsed,
+        decision,
+        actionResult,
+        authContext: auth
+          ? {
+              userId: auth.userId,
+              role: auth.role,
+              isAdmin: auth.isAdmin,
+              isGrandMaster: auth.isGrandMaster,
+            }
+          : null,
+        mutationAuthorized,
+      },
+    });
 
     await supabase.from('self_healing_logs').insert({
       status: 'PENDING_HUMAN_REVIEW',
@@ -4755,9 +4920,14 @@ app.post('/api/cron/patrol', async (req: Request, res: Response): Promise<void> 
       error_payload: {
         route: '/api/cron/patrol',
         decision,
+        reasoningTrace: reasoning.reasoningTrace,
+        riskAnalysis: reasoning.riskAnalysis,
+        rewardAnalysis: reasoning.rewardAnalysis,
+        confidenceScore: reasoning.confidenceScore,
         actionResult,
         dryRun,
         modelUsed,
+        mutationAuthorized,
         capturedAt: new Date().toISOString(),
       },
       created_at: new Date().toISOString(),
@@ -4766,9 +4936,14 @@ app.post('/api/cron/patrol', async (req: Request, res: Response): Promise<void> 
     res.status(202).json({
       status: 'Initiative patrol engine engaged.',
       decision,
+      reasoningTrace: reasoning.reasoningTrace,
+      riskAnalysis: reasoning.riskAnalysis,
+      rewardAnalysis: reasoning.rewardAnalysis,
+      confidenceScore: reasoning.confidenceScore,
       actionResult,
       dryRun,
       modelUsed,
+      mutationAuthorized,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

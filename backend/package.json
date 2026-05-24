@@ -22,7 +22,7 @@
     "train:validate": "bash scripts/bob-env-run.sh run train:validate:raw",
     "train:validate:raw": "bash scripts/supabase-gen-types.sh && npm run build:raw",
     "docs:sync": "node --loader ts-node/esm scripts/sync-docs.ts",
-    "logs:stream": "railway logs --project \"$RAILWAY_PROXY_PROJECT_ID\" --environment dd4cf850-e604-458c-869d-da4ad54279db --service fieldops-backend",
+    "logs:stream": "NODE_OPTIONS=--loader=ts-node/esm TS_NODE_TRANSPILE_ONLY=true TS_NODE_PROJECT=tsconfig.scripts.json npx ts-node --esm scripts/stream-raw-logs.ts",
     "bob:capability:matrix": "node scripts/bob-capability-matrix-audit.mjs",
     "bob:capability:matrix:strict": "node scripts/bob-capability-matrix-audit.mjs --strict",
     "bob:command:templates": "node scripts/bob-capability-matrix-audit.mjs --templates",
