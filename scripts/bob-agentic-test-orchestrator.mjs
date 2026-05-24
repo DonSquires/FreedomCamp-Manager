@@ -232,8 +232,9 @@ function selectStageIds(args) {
     throw new Error(`Unknown batch "${args.batch}". Use --list-batches to view valid values.`)
   }
 
-  const batchSet = new Set(BATCHES[args.batch])
-  return scopeIds.filter((id) => batchSet.has(id))
+  // If an explicit movement batch is requested, honor it even in quick scope.
+  // This prevents false PASS reports where a selected batch resolves to zero stages.
+  return [...BATCHES[args.batch]]
 }
 
 function applyFromStage(stageIds, fromStage) {
