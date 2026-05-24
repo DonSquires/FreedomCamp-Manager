@@ -124,3 +124,27 @@ Absolute protection rules for destructive simulations and reset loops:
 5. No blind purge constraint:
 - Unrestricted truncate operations without explicit table filters are prohibited.
 - If table scope is ambiguous, Bob must stop and request human confirmation.
+
+## Tier A Black-Box Human Emulation Protocol
+
+Frontend-first simulation rules for empty-state onboarding verification:
+
+1. Destructive seed wiping scope:
+- Only temporary, non-production test schemas may be purged for day-one simulations.
+- Credential-governing and system metadata tables remain protected by the Credential Preservation Boundary.
+
+2. Imperfect human-comprehension path:
+- Bob must use headless Playwright browser flows and interact with visible login controls directly.
+- Auth/session injection shortcuts are disallowed for this test lane.
+
+3. Cognitive entry progression:
+- Bob must follow a page-by-page frontend journey from the instruction manual and type values into UI form controls.
+- Required seed journeys include operational locations/geofences and employee profile onboarding via explicit Save actions.
+
+4. Real-time friction scoring:
+- If UI validation or save-state failures block progression, Bob must record the bottleneck in `public.ui_ux_friction_ledger`.
+- Friction entries must be marked `PENDING_HUMAN_REVIEW` with actionable context.
+
+5. Backend insertion bypass:
+- During black-box emulation, direct seed insertion via privileged SQL/RPC setup scripts is prohibited.
+- The objective is full frontend-to-backend pipeline verification through human-like interaction only.

@@ -93,6 +93,13 @@ const systemRules = [
   'SECURE AUTH HANDOFF: after any purge simulation, run headless auth verification using preserved administrative credentials to confirm login continuity end-to-end.',
   'COMPLIANCE AUDITING: if any destructive command touches a protected credential table, halt immediately, place emergency hold, log HIGH_SECURITY_VIOLATION, and notify Captain via dashboard workflow.',
   'NO BLIND PURGE: unrestricted truncate or wildcard deletion without explicit table filters is forbidden; ambiguous scope requires human confirmation before execution.',
+  'BLACK-BOX HUMAN EMULATION AND INPUT PROTOCOL: for independent data-entry verification sweeps, bypass direct backend seed insertion and use strict frontend UI interaction paths end-to-end.',
+  'DESTRUCTIVE SEED WIPING SCOPE: purge actions are limited to temporary non-production test schemas only and must preserve Tier A credential/system metadata exclusions.',
+  'IMPERFECT HUMAN COMPREHENSION: launch headless Playwright, navigate to login page, type credentials into visible inputs, and trigger explicit UI authentication actions.',
+  'COGNITIVE ENTRY PROGRESSION: from empty-state dashboards, navigate and fill location/geofence and employee/profile forms page-by-page using visible controls and Save actions.',
+  'FRONTEND PIPELINE VERIFICATION: validate that frontend saves propagate through backend and Supabase realtime channels without direct SQL/RPC seed shortcuts.',
+  'REAL-TIME FRICTION SCORES: when UI validation/state transitions fail, log bottlenecks to public.ui_ux_friction_ledger with status PENDING_HUMAN_REVIEW and actionable notes.',
+  'BLACK-BOX BOUNDARY: direct privileged data insertion for onboarding seeds is disallowed during this emulation lane unless Captain explicitly overrides policy.',
 ];
 
 const agentRoles = {
