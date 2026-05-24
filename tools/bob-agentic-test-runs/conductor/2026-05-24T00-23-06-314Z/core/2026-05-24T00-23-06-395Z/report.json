@@ -1,0 +1,68 @@
+{
+  "runId": "2026-05-24T00-23-06-395Z",
+  "batch": "core",
+  "scope": "quick",
+  "startedAt": "2026-05-24T00:23:06.407Z",
+  "endedAt": "2026-05-24T00:29:26.746Z",
+  "resumeMode": true,
+  "continueOnFailure": true,
+  "browserInstallAttempted": false,
+  "browserInstallExitCode": null,
+  "stages": [
+    {
+      "id": "lint",
+      "description": "Lint codebase",
+      "command": "/usr/bin/node",
+      "args": [
+        "scripts/run-test-with-bob-assist.mjs",
+        "--",
+        "npm",
+        "run",
+        "lint"
+      ],
+      "exitCode": 0,
+      "status": "pass",
+      "durationMs": 70620
+    },
+    {
+      "id": "build",
+      "description": "Build app",
+      "command": "/usr/bin/node",
+      "args": [
+        "scripts/run-test-with-bob-assist.mjs",
+        "--",
+        "npm",
+        "run",
+        "build"
+      ],
+      "exitCode": 2,
+      "status": "fail",
+      "durationMs": 159289
+    },
+    {
+      "id": "nav-parity",
+      "description": "Run navigation parity tests",
+      "command": "/usr/bin/node",
+      "args": [
+        "scripts/run-test-with-bob-assist.mjs",
+        "--",
+        "npm",
+        "run",
+        "test:nav-parity"
+      ],
+      "exitCode": 0,
+      "status": "pass",
+      "durationMs": 32921
+    }
+  ],
+  "summary": {
+    "passed": 2,
+    "failed": 1
+  },
+  "bugReportPublish": {
+    "attempted": true,
+    "skipped": null,
+    "exitCode": 0,
+    "completedAt": "2026-05-24T00:29:27.086Z"
+  }
+}
