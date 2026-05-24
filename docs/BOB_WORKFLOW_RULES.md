@@ -33,3 +33,14 @@
 - No production deployment is considered complete without approval evidence.
 - Keep architecture decisions grounded in repo state, migrations, and active runtime configs.
 - Prefer least-privilege credentials and org-aware routing for operational tasks.
+
+## Credential Bootstrap
+
+- Backend startup now auto-loads secrets from common env files (`.env`, `.env.local`, `backend/.env`, `backend/.env.local`) and normalizes aliases into canonical keys.
+- Repo API access supports both Gitea and GitHub credentials with automatic fallback.
+- Accepted repository credential aliases:
+   - `GITEA_BASE_URL` <- `GITEA_URL`, `GITEA_API_URL`
+   - `GITEA_TOKEN` <- `GITEA_ADMIN_TOKEN`, `GITEA_API_TOKEN`, `GITEA_ACCESS_TOKEN`
+   - `GITEA_OWNER` <- `GITEA_ORG`, `GITEA_ORGANIZATION`
+   - `GITEA_REPO` <- `GITEA_REPOSITORY`
+- If Gitea credentials are not present, backend will use GitHub credentials (`GITHUB_API_URL`/`GITHUB_SERVER_URL` + `GITHUB_TOKEN`/`GH_TOKEN`) for repository operations.
