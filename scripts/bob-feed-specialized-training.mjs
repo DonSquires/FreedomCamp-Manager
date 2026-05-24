@@ -156,6 +156,42 @@ const bulletins = [
   },
   {
     type: 'system',
+    title: 'Triage, fix, and test reproduction loop',
+    summary: clip(`
+      When a failure is identified, Bob should execute the same loop every time:
+      reproduce the issue locally or from the failing trace, identify the smallest responsible code path,
+      choose one minimal patch, run the narrowest validation that can falsify the hypothesis,
+      then report what changed and what should be checked on the next failure.
+      Required output: Repro, RootCause, Fix, Test, Result, NextCheck.
+      Use this loop to help Bob reproduce the method on future errors without re-learning the process.
+    `),
+    source: 'copilot-specialized-training',
+    effective_date: new Date().toISOString().slice(0, 10),
+    metadata: {
+      module: 'triage-fix-test-loop',
+      steps: ['reproduce', 'isolate', 'patch', 'validate', 'report-result', 'prepare-next-check'],
+    },
+  },
+  {
+    type: 'system',
+    title: 'Evidence-first debugging contract',
+    summary: clip(`
+      Bob should work like a disciplined engineer: show the failing surface, form a falsifiable hypothesis,
+      identify the smallest discriminating check, apply the smallest possible code change, then re-run the
+      narrowest validation that proves the hypothesis wrong or right. If the check fails, step one hop deeper;
+      do not widen scope until the local cause is confirmed.
+      Required fields: Surface, Hypothesis, Check, Patch, Verify, Follow-up.
+    `),
+    source: 'copilot-specialized-training',
+    effective_date: new Date().toISOString().slice(0, 10),
+    metadata: {
+      module: 'evidence-first-debugging',
+      fields: ['surface', 'hypothesis', 'check', 'patch', 'verify', 'follow-up'],
+      rules: ['smallest-discriminating-check', 'smallest-possible-code-change', 'one-hop-deeper-if-falsified'],
+    },
+  },
+  {
+    type: 'system',
     title: 'Visual inspection and computer vision material map',
     summary: clip(`
       Local visual-inspection references: inference-service/server.js endpoints for
@@ -335,6 +371,30 @@ const bulletins = [
       module: 'copilot-inspired-policy',
       restrictions: ['no-fabrication', 'explicit-uncertainty', 'verifiable-sourcing', 'execution-honesty'],
       research_steps: ['objective', 'queries', 'authorities', 'recency', 'conflict-resolution', 'implementation-map'],
+    },
+  },
+  {
+    type: 'system',
+    title: 'Unified synthesis protocol for research, triage, reasoning, and code action',
+    summary: clip(`
+      When Bob is asked a question, a triage prompt, or an action request, synthesize across
+      research, repo code, system_state, logs, triage history, and reasoning protocols at the same time.
+      Operating order:
+      1) define the concrete question or failure mode,
+      2) inspect the local repo and system facts,
+      3) review relevant research or docs,
+      4) apply the 5-question triage protocol when behavior is failing,
+      5) compare evidence for contradictions,
+      6) return one concrete answer with the smallest safe action or repair plan.
+      Output requirement: do not stop at observations; always finish with the best current answer,
+      the decisive evidence, and the next executable step.
+    `),
+    source: 'copilot-specialized-training',
+    effective_date: new Date().toISOString().slice(0, 10),
+    metadata: {
+      module: 'unified-synthesis-protocol',
+      synthesis_modes: ['research', 'triage', 'reasoning', 'coding', 'system-state'],
+      operating_order: ['question', 'repo-facts', 'research', 'five-question-triage', 'contradictions', 'concrete-answer'],
     },
   },
   {

@@ -896,16 +896,18 @@ export default function BobAssistantStudio() {
   const [chatInput, setChatInput] = useState('')
   const [chat, setChat] = useState<ChatMessage[]>([])
   const [completedChecklist, setCompletedChecklist] = useState<Record<string, boolean>>({})
-    const isPolicyManager = user?.role === 'master' || user?.role === 'grand_master'
-    const policyMode = useBobExecutionPolicyStore((state) => state.mode)
-    const setPolicyMode = useBobExecutionPolicyStore((state) => state.setMode)
-    const enforceSchemaCheck = useBobExecutionPolicyStore((state) => state.enforceSchemaCheck)
-    const setEnforceSchemaCheck = useBobExecutionPolicyStore((state) => state.setEnforceSchemaCheck)
-    const enforceHardSections = useBobExecutionPolicyStore((state) => state.enforceHardSections)
-    const setEnforceHardSections = useBobExecutionPolicyStore((state) => state.setEnforceHardSections)
-    const showActionChecklist = useBobExecutionPolicyStore((state) => state.showActionChecklist)
-    const setShowActionChecklist = useBobExecutionPolicyStore((state) => state.setShowActionChecklist)
-    const effectivePolicy = getEffectiveBobExecutionPolicy()
+  const isPolicyManager = user?.role === 'master' || user?.role === 'grand_master'
+  const policyMode = useBobExecutionPolicyStore((state) => state.mode)
+  const setPolicyMode = useBobExecutionPolicyStore((state) => state.setMode)
+  const enforceSchemaCheck = useBobExecutionPolicyStore((state) => state.enforceSchemaCheck)
+  const setEnforceSchemaCheck = useBobExecutionPolicyStore((state) => state.setEnforceSchemaCheck)
+  const enforceHardSections = useBobExecutionPolicyStore((state) => state.enforceHardSections)
+  const setEnforceHardSections = useBobExecutionPolicyStore((state) => state.setEnforceHardSections)
+  const showActionChecklist = useBobExecutionPolicyStore((state) => state.showActionChecklist)
+  const setShowActionChecklist = useBobExecutionPolicyStore((state) => state.setShowActionChecklist)
+  const effectivePolicy = getEffectiveBobExecutionPolicy()
+  const doctorMutationAccess = assertBobMutationAccess('run_grandmaster_diagnostics', effectivePolicy.mode)
+  const canRunDoctorDiagnostics = doctorMutationAccess.allowed
   const [pendingCommandConfirmation, setPendingCommandConfirmation] = useState<{
     command: BobCommand
     requestedAt: string
@@ -4988,7 +4990,7 @@ export default function BobAssistantStudio() {
   }, [effectiveOrgId, user?.id, user?.role])
 
   const loadDoctorHealth = useCallback(async () => {
-    if (!isGrandMaster) return
+    if (!canRunDoctorDiagnostics) return
     setDoctorLoading(true)
     try {
       const { data, error } = await edgeFunctions.grandmasterStudio({ action: 'doctor_health' })
@@ -4999,30 +5001,66 @@ export default function BobAssistantStudio() {
     } finally {
       setDoctorLoading(false)
     }
-  }, [isGrandMaster])
+  }, [canRunDoctorDiagnostics])
 
   const loadEndpointHealth = useCallback(async () => {
-    if (!isGrandMaster) return
+    if (!canRunDoctorDiagnostics) return
     try {
       const { data, error } = await edgeFunctions.grandmasterStudio({ action: 'inference_endpoint_health' })
       if (!error && data) setEndpointHealth(data)
     } catch {
       // non-fatal: endpoint health is best-effort
     }
-  }, [isGrandMaster])
+  }, [canRunDoctorDiagnostics])
 
   const refreshStatusCockpit = useCallback(async () => {
     setStatusRefreshing(true)
     try {
       await Promise.all([
         loadPendingApprovals(),
-        isGrandMaster ? loadDoctorHealth() : Promise.resolve(),
+        canRunDoctorDiagnostics ? loadDoctorHealth() : Promise.resolve(),
         loadEndpointHealth(),
       ])
     } finally {
       setStatusRefreshing(false)
     }
-  }, [isGrandMaster, loadPendingApprovals, loadDoctorHealth, loadEndpointHealth])
+  }, [canRunDoctorDiagnostics, loadPendingApprovals, loadDoctorHealth, loadEndpointHealth])
+
+  const runDoctorQuickCheck = useCallback(async () => {
+    if (!canRunDoctorDiagnostics) {
+      toast.error(`Doctor diagnostics unavailable: ${doctorMutationAccess.reason}`)
+      return
+    }
+
+    setStatusRefreshing(true)
+    try {
+      const [healthResult, endpointsResult, timelineResult] = await Promise.all([
+        edgeFunctions.grandmasterStudio({ action: 'doctor_health' }),
+        edgeFunctions.grandmasterStudio({ action: 'inference_endpoint_health' }),
+        edgeFunctions.grandmasterStudio({ action: 'doctor_timeline', limit: 5 }),
+      ])
+
+      if (healthResult.error) throw new Error(String(healthResult.error))
+      setDoctorHealth(healthResult.data)
+
+      if (!endpointsResult.error && endpointsResult.data) {
+        setEndpointHealth(endpointsResult.data)
+      }
+
+      const timelineItems = Array.isArray((timelineResult.data as any)?.items)
+        ? (timelineResult.data as any).items.length
+        : Array.isArray((timelineResult.data as any)?.timeline)
+          ? (timelineResult.data as any).timeline.length
+          : 0
+      const health = (healthResult.data as any)?.health ?? healthResult.data
+      setStatusLastCheckedAt(new Date().toISOString())
+      toast.success(`Doctor check complete: ${String(health?.status ?? 'ok')} · timeline items: ${timelineItems}`)
+    } catch (err: any) {
+      toast.error(err?.message || 'Doctor quick check failed')
+    } finally {
+      setStatusRefreshing(false)
+    }
+  }, [canRunDoctorDiagnostics, doctorMutationAccess.reason])
 
   const runDoctorPlaybook = async (playbook: DoctorPlaybookId, dryRun = false) => {
     if (!isGrandMaster) return
@@ -5047,9 +5085,9 @@ export default function BobAssistantStudio() {
   }
 
   useEffect(() => {
-    if (!isGrandMaster) return
+    if (!canRunDoctorDiagnostics) return
     void loadDoctorHealth()
-  }, [isGrandMaster, loadDoctorHealth])
+  }, [canRunDoctorDiagnostics, loadDoctorHealth])
 
   useEffect(() => {
     void loadPendingApprovals()
@@ -5449,6 +5487,12 @@ export default function BobAssistantStudio() {
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="flex flex-wrap gap-2">
+                {canRunDoctorDiagnostics && (
+                  <Button variant="outline" size="sm" onClick={() => void runDoctorQuickCheck()} disabled={statusRefreshing || doctorLoading}>
+                    {statusRefreshing || doctorLoading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Stethoscope className="h-4 w-4 mr-1" />}
+                    Run Doctor Check
+                  </Button>
+                )}
                 <Badge variant={bobDegraded ? 'destructive' : 'default'}>
                   Runtime: {bobDegraded ? 'DEGRADED' : thinking ? 'BUSY' : 'READY'}
                 </Badge>

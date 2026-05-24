@@ -6,6 +6,169 @@ Status: **ALL GATES GREEN** — npm standardized; Vercel/mobile deployment updat
 
 ---
 
+## Runtime Governance + Mapping Verification Update (2026-05-24)
+
+Owner: GitHub Copilot  
+Scope: Capture production-documented outcomes that were completed and previously under-documented in staging notes.
+
+Completed:
+
+- [x] Human test harness rerun completed with full green outcome.
+- [x] Bob org/actionability verification rerun completed with full green outcome.
+- [x] Conductor explicit-batch stage selection regression fixed and deployed (`scripts/bob-agentic-test-orchestrator.mjs`).
+- [x] Generated runtime evidence artifacts committed and pushed to production branch history for audit continuity.
+
+Validation evidence:
+
+1. Human test engine report: `tools/human-test-engine/reports/2026-05-24T00-02-31-119Z/report.md`
+  - Result: PASS (19 passed, 0 failed, reliability 100%)
+  - Includes `external.check_railway_health` PASS for live connectivity verification.
+2. Actionability contract report: `data/bob-actionability-check.json`
+  - Result: PASS (7 passed, 0 failed)
+  - Confirms org access helper integration + Star Trek non-regression checkpoint.
+3. Conductor evidence bundles committed:
+  - `tools/bob-agentic-test-runs/conductor/2026-05-24T00-23-06-314Z/`
+  - `tools/bob-agentic-test-runs/conductor/2026-05-24T00-27-01-076Z/`
+
+Operational outcome:
+
+1. Mapping/runtime governance path is documented with current evidence.
+2. Production branch now contains both the conductor fix and associated audit artifacts.
+3. Runtime validation chain (human checks + org actionability checks) is now explicitly represented in STAGING.
+
+---
+
+## Proactive Patrol + Intelligence Validation (2026-05-23)
+
+Owner: GitHub Copilot  
+Scope: Execute the three runtime checks and add patrol dry-run evidence to staging report.
+
+Executed checks:
+
+- [x] Check 1: `POST /api/cron/patrol` with `{"dryRun": true}`
+  - Result: PASS
+  - Response status: `Initiative patrol engine engaged.`
+  - Model route: `dry-run-mock`
+  - Action result: `DRY_RUN` (no repo mutation, no issue creation)
+- [x] Check 2: `POST /api/heal` manual intelligence prompt (`report local noise bylaws and active alerts in nelson region`)
+  - Result: DEGRADED
+  - Response: `Intelligence synthesis is temporarily unavailable. Retry after verifying research provider connectivity.`
+  - Interpretation: intelligence route wiring/auth is functional; upstream research/synthesis dependency unavailable at runtime.
+- [x] Check 3: `ai_reasoning_ledger` query for `intent_context=REGIONAL_RISK_AUDIT`
+  - Result: PASS (query executed)
+  - Dataset state: empty (`[]`) for this context in current environment.
+
+Key outcome:
+
+1. Patrol dry-run is now operational and resilient even when Ollama/RunPod is unavailable.
+2. Intelligence path is integrated but currently blocked by upstream research provider availability.
+3. Ledger read path works; no `REGIONAL_RISK_AUDIT` rows were present at check time.
+
+Follow-up TODO:
+
+- [ ] Restore/validate research upstream connectivity (`OLLAMA_PROXY_URL` and related model endpoint reachability).
+- [ ] Re-run intelligence check after upstream recovery and confirm `INTEL_COMPLETE` response.
+- [ ] Verify new `REGIONAL_RISK_AUDIT` ledger row persists after a successful intelligence run.
+
+---
+
+## Railway Model + Mapping Gateway Rollout (2026-05-23)
+
+Owner: GitHub Copilot  
+Scope: Deploy Railway-hosted model proxy gateway (RunPod primary) and self-hosted mapping gateway, then wire backend to both.
+
+Completed:
+
+- [x] Created Railway services:
+  - `model-gateway` (`serviceId=5105de1e-dd53-4688-9c75-dc9b28f8cf3f`)
+  - `mapping-gateway` (`serviceId=b44ed495-27df-4609-ad46-461986019a82`)
+- [x] Configured monorepo service roots:
+  - `model-gateway/`
+  - `mapping-gateway/`
+- [x] Assigned public service domains:
+  - `https://model-gateway-production-9018.up.railway.app`
+  - `https://mapping-gateway-production.up.railway.app`
+- [x] Corrected domain target port routing to `8080` for both services.
+- [x] Wired backend production variables:
+  - `MODEL_GATEWAY_URL=https://model-gateway-production-9018.up.railway.app`
+  - `MAPPING_GATEWAY_URL=https://mapping-gateway-production.up.railway.app`
+  - `MAPPING_GATEWAY_TIMEOUT_MS=12000`
+
+Validation evidence:
+
+1. Railway deployment status (production): `SUCCESS`
+  - model-gateway deployment id: `5d6469aa-ad59-4df7-818e-df3a6f63500c`
+  - mapping-gateway deployment id: `d1ad04ce-75f2-406d-b322-001a278ab8f0`
+  - fieldops-backend deployment id: `562f0091-7468-4db6-853a-d7ff853c7b42`
+2. Model gateway health:
+  - `GET /health` -> `status=ok`, `runpodConfigured=true`
+3. Model gateway inference smoke:
+  - `POST /api/generate` -> `{"response":"OK","provider":"runpod"}`
+4. Mapping gateway health:
+  - `GET /health` -> `status=ok`
+5. Mapping gateway route-plan smoke:
+  - `POST /route-plan` -> `status=ok`, deterministic waypoint ordering + distance summary
+
+Current constraint:
+
+- Backend `/api/heal` functional smoke for authenticated MANUAL_USER_INSTRUCTION requires a valid user bearer token; gateway-level and backend health checks are green.
+
+---
+
+## Production Validation Attempt (2026-05-23)
+
+Owner: GitHub Copilot  
+Scope: Run the same three checks against production backend endpoint.
+
+Result:
+
+- [x] Production target resolved: `https://fieldops-backend-production.up.railway.app`
+- [x] Production backend deploy triggered via Railway GraphQL (`serviceInstanceDeployV2`) and completed successfully.
+- [x] Production check 1 (`POST /api/cron/patrol` with `{"dryRun": true}`) now passes.
+- [x] Production check 2 (`POST /api/heal` with authenticated `MANUAL_USER_INSTRUCTION`) now executes and returns controlled `DEGRADED` state instead of `500`.
+- [x] Production check 3 (`ai_reasoning_ledger` query for `REGIONAL_RISK_AUDIT`) executes successfully.
+- [ ] All three production checks green — blocked by upstream research provider connectivity in production.
+
+Observed blockers:
+
+1. Post-deploy intelligence run (`MANUAL_USER_INSTRUCTION`) still returns `DEGRADED` with `Intelligence synthesis is temporarily unavailable. Retry after verifying research provider connectivity.`
+2. Because intelligence did not reach `INTEL_COMPLETE`, no new `REGIONAL_RISK_AUDIT` rows were inserted (`ledger HTTP 200`, rows `0`).
+3. Railway CLI was installed, but the binary is incompatible in this Alpine container (`Error relocating ... __res_init: symbol not found`), so discovery/deploy was executed via Railway GraphQL API.
+
+Production evidence (post-deploy):
+
+- Deploy trigger: `serviceInstanceDeployV2` for `fieldops-backend` service `72ae811c-cae0-4fee-9023-89c1df4290fa` in production environment `dd4cf850-e604-458c-869d-da4ad54279db`.
+- Deployment id: `49bceddd-3ff1-4f9c-b7fe-a24ab1836628`.
+- Deployment status: `SUCCESS`.
+- Check 1 response: `202`, `Initiative patrol engine engaged.`, `actionResult.status=DRY_RUN`, `modelUsed=dry-run-mock`.
+- Check 2 response: `200`, `status=DEGRADED`, `routeAgent=research_agent`.
+- Check 3 response: Supabase REST `200`, `[]` for `intent_context=REGIONAL_RISK_AUDIT`.
+
+Required inputs to complete production validation:
+
+- Configure/restore production research provider connectivity for intelligence synthesis (search/fetch model dependencies used by `/api/heal` research route).
+- Re-run intelligence check until `status=INTEL_COMPLETE`.
+- Verify resulting `REGIONAL_RISK_AUDIT` ledger row creation.
+
+Production revalidation update (2026-05-23, post edge-function redeploy + backend fallback hardening):
+
+- [x] All Supabase edge functions redeployed to `kxwjcupuxnnbnzcgmkoi`.
+- [x] Production `/api/heal` manual intelligence check now returns `INTEL_COMPLETE`.
+- [x] `ai_reasoning_ledger` now contains `REGIONAL_RISK_AUDIT` evidence row.
+
+Evidence:
+
+- Heal check: `HTTP 200`, `status=INTEL_COMPLETE`, `routeAgent=research_agent`, `modelUsed=qwen2.5:7b`.
+- Ledger check: `HTTP 200`, `rows=1`, latest row id `77edc7e3-fcb1-4b91-bb5a-aea8bb33b370` with `intent_context=REGIONAL_RISK_AUDIT`.
+
+Completion criteria once inputs are provided:
+
+1. Run production `POST /api/cron/patrol` with `{"dryRun": true}` and capture response.
+2. Run production `POST /api/heal` intelligence prompt and capture status (`INTEL_COMPLETE` or `DEGRADED`).
+3. Query `ai_reasoning_ledger` for `REGIONAL_RISK_AUDIT` records and append evidence.
+
+---
+
 ## Critical Engineering Rule — Must Follow
 
 This application is an enterprise-grade field compliance management system. It supports health and safety operations, infringement handling, and court-documentation workflows.
@@ -44,6 +207,57 @@ Validation:
 Operational status:
 
 - Production path is privacy-aware, source-governed, and repository-grounded before external escalation.
+
+---
+## Bob Capability Matrix Governance Update (2026-05-23)
+
+Owner: GitHub Copilot  
+Scope: Promote Bob capability claims to executable governance checks in backend runtime docs and operations flow.
+
+Completed:
+
+- [x] Added backend capability matrix audit script (`backend/scripts/bob-capability-matrix-audit.mjs`).
+- [x] Added backend command entrypoints:
+  1. `npm run bob:capability:matrix`
+  2. `npm run bob:capability:matrix:strict`
+  3. `npm run bob:command:templates`
+- [x] Added operator one-line templates for:
+  1. Research agent deep scrape via `/api/heal`.
+  2. Mobile preview APK trigger via `/api/mobile/build-preview`.
+  3. Mobile OTA trigger via `/api/mobile/ota-hotfix`.
+
+Validation:
+
+1. `cd backend && npm run -s bob:capability:matrix` -> READY (14/14 checks passed).
+2. `cd backend && npm run -s bob:capability:matrix:strict` -> PASS.
+3. `cd backend && npm run -s bob:command:templates` -> PASS (all command templates rendered).
+
+Operational status:
+
+- Bob capability declarations are now enforced by an executable gate in backend operations, reducing drift between stated and actual automation wiring.
+
+---
+## Star Trek All-In-One Bob Gate Integration (2026-05-23)
+
+Owner: GitHub Copilot  
+Scope: Integrate Bob capability governance directly into the Star Trek checkpoint runner so Bob validation runs as one unified gate.
+
+Completed:
+
+- [x] Updated `scripts/staging-star-trek-bob-check.sh` to execute Bob capability matrix strict gate before browser/fallback checkpoint branches.
+- [x] Added command-template snapshot output during Star Trek run:
+  - `/tmp/staging-star-trek-bob-command-templates.txt`
+- [x] Added root script alias:
+  - `npm run staging:star-trek:bob:all-in-one`
+
+Validation:
+
+1. Shell syntax check for Star Trek runner -> PASS (`bash -n scripts/staging-star-trek-bob-check.sh`).
+2. Backend strict capability matrix remains green -> PASS (`cd backend && npm run -s bob:capability:matrix:strict`).
+
+Operational status:
+
+- Star Trek checkpoint flow now includes Bob governance/capability enforcement as first-class preflight, making it an all-in-one Bob operational gate.
 
 ---
 ## Live Bob Chat Recovery Attempt (2026-05-22)

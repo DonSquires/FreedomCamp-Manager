@@ -29,6 +29,9 @@ const NZ_FOCUSED_DOMAINS = [
 ];
 
 const TRUSTED_OFFICIAL_DOMAINS = [
+  'googleapis.com',
+  'google.com',
+  'maps.google.com',
   'supabase.com',
   'railway.app',
   'nodejs.org',
@@ -73,8 +76,14 @@ export function buildPrioritizedResearchQueries(query: string): string[] {
   const normalizedQuery = query.trim();
   const riskyTermsExclusion = '-porn -xxx -adult -escort -casino -betting -gambling -torrent';
 
-  const nzStage = `${normalizedQuery} (${NZ_FOCUSED_DOMAINS.map((domain) => `site:${domain}`).join(' OR ')}) ${riskyTermsExclusion}`;
-  const officialStage = `${normalizedQuery} (${TRUSTED_OFFICIAL_DOMAINS.map((domain) => `site:${domain}`).join(' OR ')}) ${riskyTermsExclusion}`;
+  const isRouteIntent = /(best|optimal|fastest|safest).*(patrol|route)|\bpatrol route\b|\broute planning\b|\bdirections\b/i.test(normalizedQuery);
+  const routeSignals = isRouteIntent
+    ? 'traffic congestion roadworks incidents closures travel time shortest path fuel-efficient route'
+    : '';
+
+  const enrichedQuery = `${normalizedQuery} ${routeSignals}`.trim();
+  const nzStage = `${enrichedQuery} (${NZ_FOCUSED_DOMAINS.map((domain) => `site:${domain}`).join(' OR ')}) ${riskyTermsExclusion}`;
+  const officialStage = `${enrichedQuery} (${TRUSTED_OFFICIAL_DOMAINS.map((domain) => `site:${domain}`).join(' OR ')}) ${riskyTermsExclusion}`;
 
   return [nzStage, officialStage];
 }
@@ -141,6 +150,76 @@ function parseSerperResult(data: unknown): string {
   return lines.join('\n').trim();
 }
 
+function parseGoogleCustomSearchResult(data: unknown): string {
+  if (!data || typeof data !== 'object') {
+    return '';
+  }
+
+  const payload = data as {
+    items?: Array<{
+      title?: string;
+      link?: string;
+      snippet?: string;
+      displayLink?: string;
+    }>;
+    spelling?: { correctedQuery?: string };
+    searchInformation?: { formattedTotalResults?: string };
+  };
+
+  const lines: string[] = [];
+
+  if (payload.spelling?.correctedQuery) {
+    lines.push(`Did you mean: ${payload.spelling.correctedQuery}`);
+  }
+
+  if (payload.searchInformation?.formattedTotalResults) {
+    lines.push(`Total results: ${payload.searchInformation.formattedTotalResults}`);
+  }
+
+  for (const item of payload.items ?? []) {
+    const title = String(item.title ?? '').trim();
+    const link = String(item.link ?? '').trim();
+    const snippet = String(item.snippet ?? '').trim();
+    const displayLink = String(item.displayLink ?? '').trim();
+    if (!title && !link && !snippet) {
+      continue;
+    }
+
+    const source = displayLink ? ` (${displayLink})` : '';
+    lines.push(`- ${title || 'Untitled'}${source}\n  ${link}\n  ${snippet}`);
+  }
+
+  return lines.join('\n').trim();
+}
+
+function parseOpenAiResponsesResult(data: unknown): string {
+  if (!data || typeof data !== 'object') {
+    return '';
+  }
+
+  const payload = data as {
+    output_text?: string;
+    output?: Array<{ content?: Array<{ text?: string }> }>;
+  };
+
+  const outputText = String(payload.output_text ?? '').trim();
+  if (outputText) {
+    return outputText;
+  }
+
+  const chunks: string[] = [];
+  for (const block of payload.output ?? []) {
+    for (const content of block.content ?? []) {
+      const text = String(content.text ?? '').trim();
+      if (text) {
+        chunks.push(text);
+      }
+    }
+  }
+
+  return chunks.join('\n').trim();
+}
+
 function extractDuckDuckGoSnippets(html: string): string {
   const snippets = Array.from(html.matchAll(/<a[^>]*class="result__a"[^>]*>([\s\S]*?)<\/a>[\s\S]*?<a[^>]*class="result__snippet"[^>]*>([\s\S]*?)<\/a>/gi));
 
@@ -190,6 +269,68 @@ export async function executeWebSearch(query: string): Promise<string> {
     throw new Error('Search query is required');
   }
 
+  const providerErrors: string[] = [];
+
+  const googleApiKey = String(
+    process.env.GOOGLE_API_KEY ??
+      process.env.GOOGLE_MAPS_API_KEY ??
+      process.env.VITE_GOOGLE_MAPS_API_KEY ??
+      '',
+  ).trim();
+  const googleCseId = String(
+    process.env.GOOGLE_CSE_ID ??
+      process.env.GOOGLE_CUSTOM_SEARCH_ENGINE_ID ??
+      '',
+  ).trim();
+  if (googleApiKey && googleCseId) {
+    try {
+      const response = await axios.get('https://www.googleapis.com/customsearch/v1', {
+        params: {
+          key: googleApiKey,
+          cx: googleCseId,
+          q: normalizedQuery,
+          num: 8,
+          safe: 'active',
+        },
+        timeout: REQUEST_TIMEOUT_MS,
+      });
+
+      const parsed = parseGoogleCustomSearchResult(response.data);
+      return truncate(parsed || JSON.stringify(response.data, null, 2));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      providerErrors.push(`google_cse: ${message}`);
+    }
+  }
+
+  const openAiApiKey = String(process.env.OPENAI_API_KEY ?? '').trim();
+  if (openAiApiKey) {
+    const model = String(process.env.OPENAI_RESEARCH_MODEL ?? 'gpt-4.1-mini').trim();
+    try {
+      const response = await axios.post(
+        'https://api.openai.com/v1/responses',
+        {
+          model,
+          input: `Search for authoritative sources and provide concise result snippets for: ${normalizedQuery}`,
+          tools: [{ type: 'web_search_preview' }],
+        },
+        {
+          timeout: REQUEST_TIMEOUT_MS,
+          headers: {
+            Authorization: `Bearer ${openAiApiKey}`,
+            'Content-Type': 'application/json',
+          },
+        },
+      );
+
+      const parsed = parseOpenAiResponsesResult(response.data);
+      return truncate(parsed || JSON.stringify(response.data, null, 2));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      providerErrors.push(`openai_web_search: ${message}`);
+    }
+  }
+
   const proxyUrl = String(process.env.RESEARCH_SEARCH_PROXY_URL ?? '').trim();
   if (proxyUrl) {
     const response = await axios.get(proxyUrl, {
@@ -206,34 +347,51 @@ export async function executeWebSearch(query: string): Promise<string> {
 
   const serperApiKey = String(process.env.SERPER_API_KEY ?? '').trim();
   if (serperApiKey) {
-    const response = await axios.post(
-      'https://google.serper.dev/search',
-      { q: normalizedQuery },
-      {
-        timeout: REQUEST_TIMEOUT_MS,
-        headers: {
-          'X-API-KEY': serperApiKey,
-          'Content-Type': 'application/json',
+    try {
+      const response = await axios.post(
+        'https://google.serper.dev/search',
+        { q: normalizedQuery },
+        {
+          timeout: REQUEST_TIMEOUT_MS,
+          headers: {
+            'X-API-KEY': serperApiKey,
+            'Content-Type': 'application/json',
+          },
         },
-      },
-    );
+      );
 
-    const parsed = parseSerperResult(response.data);
-    return truncate(parsed || JSON.stringify(response.data, null, 2));
+      const parsed = parseSerperResult(response.data);
+      return truncate(parsed || JSON.stringify(response.data, null, 2));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      providerErrors.push(`serper: ${message}`);
+    }
   }
 
-  const duckResponse = await axios.get('https://duckduckgo.com/html/', {
-    params: { q: normalizedQuery },
-    timeout: REQUEST_TIMEOUT_MS,
-    responseType: 'text',
-  });
+  try {
+    const duckResponse = await axios.get('https://duckduckgo.com/html/', {
+      params: { q: normalizedQuery },
+      timeout: REQUEST_TIMEOUT_MS,
+      responseType: 'text',
+    });
 
-  const snippets = extractDuckDuckGoSnippets(String(duckResponse.data ?? ''));
-  if (snippets) {
-    return truncate(snippets);
+    const snippets = extractDuckDuckGoSnippets(String(duckResponse.data ?? ''));
+    if (snippets) {
+      return truncate(`${providerErrors.length ? `[provider-fallback]\n${providerErrors.join('\n')}\n\n` : ''}${snippets}`);
+    }
+
+    return truncate(`${providerErrors.length ? `[provider-fallback]\n${providerErrors.join('\n')}\n\n` : ''}${stripHtml(String(duckResponse.data ?? ''))}`);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    providerErrors.push(`duckduckgo: ${message}`);
+
+    return truncate([
+      '[provider-fallback]',
+      ...providerErrors,
+      '',
+      'No external research snippets could be retrieved from configured providers.',
+    ].join('\n'));
   }
-
-  return truncate(stripHtml(String(duckResponse.data ?? '')));
 }
 
 export async function fetchWebpageContent(url: string): Promise<string> {

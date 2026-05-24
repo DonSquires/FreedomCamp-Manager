@@ -39,6 +39,49 @@ for env_file in .env .env.local .env.playwright.local; do
   load_env_if_missing "./$env_file"
 done
 
+set_if_missing_chain() {
+  local target="$1"
+  shift
+  if [[ -n "${!target:-}" ]]; then
+    return
+  fi
+
+  local src
+  for src in "$@"; do
+    if [[ -n "${!src:-}" ]]; then
+      export "$target=${!src}"
+      return
+    fi
+  done
+}
+
+resolve_bob_credentials() {
+  # Resolve Bob credentials from all known CI/local aliases before enforcing.
+  set_if_missing_chain BOB_LOGIN_EMAIL \
+    PLAYWRIGHT_BOB_EMAIL \
+    TEST_LOGIN_BOB_ADMIN_OFFICER_EMAIL \
+    TEST_LOGIN_BOB_GRAND_MASTER_EMAIL \
+    TEST_BOB_EMAIL \
+    TEST_OWNER_EMAIL
+
+  set_if_missing_chain BOB_LOGIN_PASSWORD \
+    PLAYWRIGHT_BOB_PASSWORD \
+    TEST_LOGIN_BOB_ADMIN_OFFICER_PASSWORD \
+    TEST_LOGIN_BOB_GRAND_MASTER_PASSWORD \
+    TEST_BOB_PASSWORD \
+    TEST_OWNER_PASSWORD
+
+  if [[ -z "${PLAYWRIGHT_BOB_EMAIL:-}" && -n "${BOB_LOGIN_EMAIL:-}" ]]; then
+    export PLAYWRIGHT_BOB_EMAIL="$BOB_LOGIN_EMAIL"
+  fi
+
+  if [[ -z "${PLAYWRIGHT_BOB_PASSWORD:-}" && -n "${BOB_LOGIN_PASSWORD:-}" ]]; then
+    export PLAYWRIGHT_BOB_PASSWORD="$BOB_LOGIN_PASSWORD"
+  fi
+}
+
+resolve_bob_credentials
+
 if [[ "${1:-}" == "--status" ]]; then
   export PLAYWRIGHT_ALLOW_SHARED_CREDENTIAL_FALLBACK=0
   bash scripts/playwright-codespace-credentials.sh
@@ -59,14 +102,6 @@ export PLAYWRIGHT_ALLOW_SHARED_CREDENTIAL_FALLBACK=0
 
 if [[ -z "${PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH:-}" ]]; then
   export PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium
-fi
-
-if [[ -z "${PLAYWRIGHT_BOB_EMAIL:-}" && -n "${BOB_LOGIN_EMAIL:-}" ]]; then
-  export PLAYWRIGHT_BOB_EMAIL="$BOB_LOGIN_EMAIL"
-fi
-
-if [[ -z "${PLAYWRIGHT_BOB_PASSWORD:-}" && -n "${BOB_LOGIN_PASSWORD:-}" ]]; then
-  export PLAYWRIGHT_BOB_PASSWORD="$BOB_LOGIN_PASSWORD"
 fi
 
 if [[ -z "${PLAYWRIGHT_BOB_EMAIL:-}" || -z "${PLAYWRIGHT_BOB_PASSWORD:-}" ]]; then

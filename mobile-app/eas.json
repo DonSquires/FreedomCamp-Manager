@@ -14,6 +14,17 @@
         "gradleCommand": ":app:assembleDevelopmentDebug"
       }
     },
+    "preview": {
+      "channel": "preview",
+      "distribution": "internal",
+      "env": {
+        "APP_VARIANT": "staging"
+      },
+      "android": {
+        "buildType": "apk",
+        "credentialsSource": "local"
+      }
+    },
     "staging": {
       "channel": "preview",
       "distribution": "internal",
@@ -34,7 +45,7 @@
         "APP_VARIANT": "production"
       },
       "android": {
-        "buildType": "apk",
+        "buildType": "app-bundle",
         "credentialsSource": "remote"
       }
     },
@@ -45,6 +56,7 @@
         "CI_RELEASE_APPROVED": "true"
       },
       "android": {
+        "buildType": "app-bundle",
         "credentialsSource": "local"
       }
     }

@@ -163,7 +163,7 @@ export const BOB_MUTATION_CATALOG: BobMutationCatalogEntry[] = [
     writesTo: ['diagnostic logs only'],
     purpose: 'Run guarded Bob health and infrastructure diagnostics through the Grandmaster workflow.',
     emergencyPriorityBehavior: 'allow',
-    allowedExecutionModes: ['owner_full'],
+    allowedExecutionModes: ['owner_full', 'master_balanced'],
     approvalLevel: 'owner_only',
     dryRunSupported: true,
   },

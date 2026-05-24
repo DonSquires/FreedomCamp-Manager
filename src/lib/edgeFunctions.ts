@@ -18,6 +18,21 @@ import { findBobSchemaEntitiesForText, getBobSchemaRegistrySummary } from './bob
 const ACCESS_TOKEN_REFRESH_BUFFER_MS = 60_000
 const EDGE_FUNCTION_TIMEOUT_MS = 35_000
 
+async function withTimeout<T>(promise: Promise<T>, ms: number, timeoutMessage: string): Promise<T> {
+  return await new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(timeoutMessage)), ms)
+    promise
+      .then((value) => {
+        clearTimeout(timer)
+        resolve(value)
+      })
+      .catch((error) => {
+        clearTimeout(timer)
+        reject(error)
+      })
+  })
+}
+
 // ---------------------------------------------------------------------------
 // trimHistoryToTokenBudget
 //
@@ -264,23 +279,52 @@ function mapGrandmasterActionToMutationContract(action: string): string | null {
 
 /** Retrieve the current session's access token, or null if not signed in. */
 async function getValidAccessToken(): Promise<string | null> {
-  const { data: { session } } = await supabase.auth.getSession()
-  if (!session?.access_token) return null
-
-  // Proactively refresh when the token is close to expiry.
-  const expiresAt = (session.expires_at ?? 0) * 1000
-  if (Date.now() + ACCESS_TOKEN_REFRESH_BUFFER_MS >= expiresAt) {
-    const { data: refreshed } = await supabase.auth.refreshSession()
-    return refreshed.session?.access_token ?? null
+  try {
+    const { data, error } = await withTimeout(
+      supabase.auth.refreshSession(),
+      6000,
+      'Auth refresh timed out',
+    )
+    if (!error && data.session?.access_token) {
+      return data.session.access_token
+    }
+  } catch {
+    // Fall back to current session lookup when refresh stalls.
   }
 
-  return session.access_token
+  try {
+    const { data: { session } } = await withTimeout(
+      supabase.auth.getSession(),
+      4000,
+      'Session lookup timed out',
+    )
+    if (!session?.access_token) return null
+
+    // Proactively refresh when the token is close to expiry.
+    const expiresAt = (session.expires_at ?? 0) * 1000
+    if (Date.now() + ACCESS_TOKEN_REFRESH_BUFFER_MS >= expiresAt) {
+      const { data: refreshed } = await withTimeout(
+        supabase.auth.refreshSession(),
+        6000,
+        'Auth refresh timed out',
+      )
+      return refreshed.session?.access_token ?? null
+    }
+
+    return session.access_token
+  } catch {
+    return null
+  }
 }
 
 /** Force-refresh the Supabase session and return the new access token, or null on failure. */
 async function tryRefreshAccessToken(): Promise<string | null> {
   try {
-    const { data, error } = await supabase.auth.refreshSession()
+    const { data, error } = await withTimeout(
+      supabase.auth.refreshSession(),
+      6000,
+      'Auth refresh timed out',
+    )
     if (error || !data.session) return null
     return data.session.access_token
   } catch {

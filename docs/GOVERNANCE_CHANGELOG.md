@@ -28,3 +28,26 @@ Use this file to record governance wording, approval-flow, and route-contract up
   - [src/pages/RosterPlanner.tsx](src/pages/RosterPlanner.tsx)
   - [package.json](package.json)
   - [package-lock.json](package-lock.json)
+
+## 2026-05-24
+
+- Enforced Bob authenticated-user execution policy across protected task handling and manual guidance updates.
+- Persisted Bob credential alias coverage for local runtime and test harness compatibility (`.runtime/bob.env` installer + env loader aliases).
+- Fixed conductor/orchestrator batch selection regression so explicit `--batch` stage requests are honored in quick scope runs.
+- Published conductor evidence artifacts and actionability checks to production branch history.
+- Verification captured:
+  - Human test engine green run: `tools/human-test-engine/reports/2026-05-24T00-02-31-119Z/report.md` (Pass 19, Fail 0)
+  - Actionability check: `data/bob-actionability-check.json` (Pass 7, Fail 0)
+  - Conductor evidence bundles:
+    - `tools/bob-agentic-test-runs/conductor/2026-05-24T00-23-06-314Z/`
+    - `tools/bob-agentic-test-runs/conductor/2026-05-24T00-27-01-076Z/`
+
+- Source files updated in this changeset:
+  - [scripts/bob-agentic-test-orchestrator.mjs](scripts/bob-agentic-test-orchestrator.mjs)
+  - [scripts/install-local-bob-creds.sh](scripts/install-local-bob-creds.sh)
+  - [scripts/load-local-env.mjs](scripts/load-local-env.mjs)
+  - [backend/src/index.ts](backend/src/index.ts)
+  - [BOB_INSTRUCTIONS.md](BOB_INSTRUCTIONS.md)
+  - [data/bob-actionability-check.json](data/bob-actionability-check.json)
+  - [data/bob-global-triage-repair-training.jsonl](data/bob-global-triage-repair-training.jsonl)
+  - [data/bob-response-scores.jsonl](data/bob-response-scores.jsonl)

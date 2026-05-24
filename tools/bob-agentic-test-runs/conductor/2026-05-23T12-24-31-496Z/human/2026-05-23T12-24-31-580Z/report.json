@@ -1,0 +1,37 @@
+{
+  "runId": "2026-05-23T12-24-31-580Z",
+  "batch": "human",
+  "scope": "full",
+  "startedAt": "2026-05-23T12:24:31.592Z",
+  "endedAt": "2026-05-23T12:25:28.355Z",
+  "resumeMode": true,
+  "continueOnFailure": true,
+  "browserInstallAttempted": false,
+  "browserInstallExitCode": null,
+  "stages": [
+    {
+      "id": "human-engine",
+      "description": "Run agentic human-test engine for broad UI workflow probing",
+      "command": "/workspaces/FreedomCamp-Manager/.toolchains/node-v20.15.0-linux-x64-musl/bin/node",
+      "args": [
+        "scripts/run-test-with-bob-assist.mjs",
+        "--",
+        "node",
+        "scripts/human-test-engine.mjs"
+      ],
+      "exitCode": 1,
+      "status": "fail",
+      "durationMs": 26233
+    }
+  ],
+  "summary": {
+    "passed": 0,
+    "failed": 1
+  },
+  "bugReportPublish": {
+    "attempted": true,
+    "skipped": null,
+    "exitCode": 0,
+    "completedAt": "2026-05-23T12:25:28.746Z"
+  }
+}

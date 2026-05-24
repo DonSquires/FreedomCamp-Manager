@@ -11,6 +11,8 @@ const BOB_URL = String(process.env.BOB_SERVICE_URL || process.env.INFERENCE_SERV
 const API_KEY = String(process.env.BOB_INFERENCE_API_KEY || process.env.INFERENCE_API_KEY || '').trim()
 const INTEL_INGEST_URL = String(process.env.INTEL_INGEST_URL || process.env.BOB_INTEL_INGEST_URL || '').trim().replace(/\/$/, '')
 const INTEL_ORGANIZATION_ID = String(process.env.INTEL_ORGANIZATION_ID || process.env.BOB_ORG_ID || process.env.ORG_ID || process.env.DEFAULT_ORG_ID || '').trim()
+const SUPABASE_URL = String(process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '').trim().replace(/\/$/, '')
+const SUPABASE_SERVICE_ROLE_KEY = String(process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
 
 if (!BOB_URL || !API_KEY) {
   console.error('[Error] Missing BOB_SERVICE_URL/INFERENCE_SERVICE_URL or BOB_INFERENCE_API_KEY/INFERENCE_API_KEY')
@@ -107,6 +109,34 @@ const confirmedBuckets = [
   'dispute-evidence',
 ]
 
+async function discoverAllBuckets() {
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) return []
+
+  try {
+    const response = await fetch(`${SUPABASE_URL}/storage/v1/bucket`, {
+      method: 'GET',
+      headers: {
+        apikey: SUPABASE_SERVICE_ROLE_KEY,
+        Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+      },
+    })
+
+    if (!response.ok) return []
+    const payload = await response.json().catch(() => [])
+    if (!Array.isArray(payload)) return []
+
+    return payload
+      .map((row) => String(row?.name || '').trim())
+      .filter(Boolean)
+      .sort((a, b) => a.localeCompare(b))
+  } catch {
+    return []
+  }
+}
+
+const discoveredBuckets = await discoverAllBuckets()
+const allGroundedBuckets = Array.from(new Set([...confirmedBuckets, ...discoveredBuckets])).sort((a, b) => a.localeCompare(b))
+
 const bulletins = [
   {
     type: 'system',
@@ -114,7 +144,7 @@ const bulletins = [
     summary: clip(`
       When asked about storage buckets, Bob must use only grounded sources from this repository
       and runtime APIs. Do not invent bucket names, paths, or table links.
-      Primary grounded list for this project: ${confirmedBuckets.join(', ')}.
+      Primary grounded list for this project (dynamic + static): ${allGroundedBuckets.join(', ')}.
       If a bucket cannot be verified from source files or runtime query, respond with "unsure"
       and request confirmation instead of guessing.
     `),
@@ -123,6 +153,8 @@ const bulletins = [
       module: 'storage-grounding',
       rule: 'no-invention',
       confirmed_buckets: confirmedBuckets,
+      discovered_buckets: discoveredBuckets,
+      all_grounded_buckets: allGroundedBuckets,
     },
   },
   {
@@ -135,6 +167,7 @@ const bulletins = [
       3) source calls like supabase.storage.from('<bucket>') in src/ and supabase/functions/,
       4) runtime verification through Supabase storage.buckets query when authorized.
       Return findings in plain language and include confidence level.
+      Runtime-discovered buckets for this execution: ${allGroundedBuckets.join(', ')}.
       LIVE_SCHEMA excerpt: ${liveSchemaStorageSection}
       Storage audit excerpt: ${storageAuditSection}
     `),

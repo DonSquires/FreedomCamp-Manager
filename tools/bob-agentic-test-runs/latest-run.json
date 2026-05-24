@@ -1,11 +1,11 @@
 {
-  "updatedAt": "2026-05-10T05:30:51.376Z",
-  "runId": "2026-05-10T05-27-44-633Z",
+  "updatedAt": "2026-05-23T13:48:16.624Z",
+  "runId": "2026-05-23T13-44-32-803Z",
   "batch": "all",
   "scope": "quick",
   "resumeMode": false,
   "continueOnFailure": true,
-  "startedAt": "2026-05-10T05:27:44.636Z",
+  "startedAt": "2026-05-23T13:44:32.815Z",
   "endedAt": null,
   "summary": {
     "passed": 3,
@@ -14,76 +14,16 @@
   "failedStages": [],
   "failureContexts": [
     {
-      "folder": "phase-c1-site-guard-Phase--3c1e4-e-when-querying-Org-B-scope-chromium",
-      "testName": "phase-c1-site-guard.spec.ts >> Phase C1 — Site Guard / Static Guard Case Bridge >> site_guard_shifts from Org A are not visible when querying Org B scope",
-      "location": "tests/e2e/phase-c1-site-guard.spec.ts:349:3",
-      "error": "Error: expect(received).toBeNull()"
+      "folder": "e2e-bob-human-emulator-Bob-58e01-eps-access-controls-visible-chromium-bob",
+      "testName": "e2e/bob-human-emulator.spec.ts >> Bob human emulator capability suite >> enterprise sweep creates a user through the UI and keeps access controls visible",
+      "location": "tests/e2e/bob-human-emulator.spec.ts:50:3",
+      "error": "TimeoutError: page.waitForResponse: Timeout 10000ms exceeded while waiting for event \"response\""
     },
     {
-      "folder": "phase-c1-site-guard-Phase--e25aa-ted-and-case-remains-active-chromium",
-      "testName": "phase-c1-site-guard.spec.ts >> Phase C1 — Site Guard / Static Guard Case Bridge >> emergency assist event is created and case remains active",
-      "location": "tests/e2e/phase-c1-site-guard.spec.ts:194:3",
-      "error": "Error: expect(received).toBeNull()"
-    },
-    {
-      "folder": "phase-e3-communications-au-475b3-ntract-files-remain-present-chromium",
-      "testName": "phase-e3-communications-audit-retry.spec.ts >> Phase E3 — Communications audit and retry governance gate >> E3 communications contract files remain present",
-      "location": "tests/e2e/phase-e3-communications-audit-retry.spec.ts:31:3",
-      "error": "Error: communicationsMigration should remain at supabase/migrations/20260506000001_platform_enhancements_complete.sql"
-    },
-    {
-      "folder": "phase-c1-site-guard-Phase--a6220-d-shifts-table-is-queryable-chromium",
-      "testName": "phase-c1-site-guard.spec.ts >> Phase C1 — Site Guard / Static Guard Case Bridge >> site_guard_shifts table is queryable",
-      "location": "tests/e2e/phase-c1-site-guard.spec.ts:99:3",
-      "error": "Error: expect(received).toBeNull()"
-    },
-    {
-      "folder": "phase-e3-communications-au-ec7a6-lidation-and-fallback-paths-chromium",
-      "testName": "phase-e3-communications-audit-retry.spec.ts >> Phase E3 — Communications audit and retry governance gate >> email delivery keeps bounded SMTP validation and fallback paths",
-      "location": "tests/e2e/phase-e3-communications-audit-retry.spec.ts:109:3",
-      "error": "Error: expect(received).toContain(expected) // indexOf"
-    },
-    {
-      "folder": "phase-c1-site-guard-Phase--54b79-t-events-table-is-queryable-chromium",
-      "testName": "phase-c1-site-guard.spec.ts >> Phase C1 — Site Guard / Static Guard Case Bridge >> emergency_assist_events table is queryable",
-      "location": "tests/e2e/phase-c1-site-guard.spec.ts:109:3",
-      "error": "Error: expect(received).toBeNull()"
-    },
-    {
-      "folder": "phase-c1-site-guard-Phase--9fa42-marks-the-case-as-completed-chromium",
-      "testName": "phase-c1-site-guard.spec.ts >> Phase C1 — Site Guard / Static Guard Case Bridge >> ending a shift marks the case as completed",
-      "location": "tests/e2e/phase-c1-site-guard.spec.ts:264:3",
-      "error": "TypeError: Cannot read properties of null (reading 'id')"
-    },
-    {
-      "folder": "phase-c1-site-guard-Phase--7f4c7-e-with-case-type-site-guard-chromium",
-      "testName": "phase-c1-site-guard.spec.ts >> Phase C1 — Site Guard / Static Guard Case Bridge >> shift start creates operational_case with case_type=site_guard",
-      "location": "tests/e2e/phase-c1-site-guard.spec.ts:119:3",
-      "error": "Error: expect(received).toBeNull()"
-    },
-    {
-      "folder": "phase-c1-site-guard-Phase--4950f-and-emergency-assist-events-chromium",
-      "testName": "phase-c1-site-guard.spec.ts >> Phase C1 — Site Guard / Static Guard Case Bridge >> full timeline returns shifts, incidents, and emergency assist events",
-      "location": "tests/e2e/phase-c1-site-guard.spec.ts:309:3",
-      "error": "Error: expect(received).toBeGreaterThanOrEqual(expected)"
-    },
-    {
-      "folder": "phase-c1-site-guard-Phase--3861d-d-linked-to-site-guard-case-chromium",
-      "testName": "phase-c1-site-guard.spec.ts >> Phase C1 — Site Guard / Static Guard Case Bridge >> site_incident can be created with case_id linked to site_guard case",
-      "location": "tests/e2e/phase-c1-site-guard.spec.ts:164:3",
-      "error": "Error: expect(received).toBeNull()"
-    },
-    {
-      "folder": "phase-c1-site-guard-Phase--bc349-us-is-active-after-creation-chromium",
-      "testName": "phase-c1-site-guard.spec.ts >> Phase C1 — Site Guard / Static Guard Case Bridge >> emergency assist event status is active after creation",
-      "location": "tests/e2e/phase-c1-site-guard.spec.ts:233:3",
-      "error": "Error: expect(received).toBe(expected) // Object.is equality"
-    },
-    {
-      "folder": "phase-e3-communications-au-05f94-able-for-E3-rollout-metrics-chromium",
-      "testName": "phase-e3-communications-audit-retry.spec.ts >> Phase E3 — Communications audit and retry governance gate >> communications audit schema and retry primitive remain available for E3 rollout metrics",
-      "location": "tests/e2e/phase-e3-communications-audit-retry.spec.ts:141:3",
-      "error": "Error: ENOENT: no such file or directory, open '/workspaces/FreedomCamp-Manager/supabase/migrations/20260506000001_platform_enhancements_complete.sql'"
+      "folder": "e2e-bob-human-emulator-Bob-58e01-eps-access-controls-visible-chromium-bob-retry1",
+      "testName": "e2e/bob-human-emulator.spec.ts >> Bob human emulator capability suite >> enterprise sweep creates a user through the UI and keeps access controls visible",
+      "location": "tests/e2e/bob-human-emulator.spec.ts:50:3",
+      "error": "TimeoutError: page.waitForResponse: Timeout 10000ms exceeded while waiting for event \"response\""
     }
   ]
 }

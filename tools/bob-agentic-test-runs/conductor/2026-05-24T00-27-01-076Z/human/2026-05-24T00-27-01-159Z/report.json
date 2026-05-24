@@ -1,0 +1,22 @@
+{
+  "runId": "2026-05-24T00-27-01-159Z",
+  "batch": "human",
+  "scope": "quick",
+  "startedAt": "2026-05-24T00:27:01.171Z",
+  "endedAt": "2026-05-24T00:27:01.171Z",
+  "resumeMode": false,
+  "continueOnFailure": true,
+  "browserInstallAttempted": false,
+  "browserInstallExitCode": null,
+  "stages": [],
+  "summary": {
+    "passed": 0,
+    "failed": 0
+  },
+  "bugReportPublish": {
+    "attempted": true,
+    "skipped": null,
+    "exitCode": 0,
+    "completedAt": "2026-05-24T00:27:01.558Z"
+  }
+}

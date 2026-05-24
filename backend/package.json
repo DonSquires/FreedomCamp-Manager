@@ -23,6 +23,9 @@
     "train:validate:raw": "bash scripts/supabase-gen-types.sh && npm run build:raw",
     "docs:sync": "node --loader ts-node/esm scripts/sync-docs.ts",
     "logs:stream": "railway logs --project \"$RAILWAY_PROXY_PROJECT_ID\" --environment dd4cf850-e604-458c-869d-da4ad54279db --service fieldops-backend",
+    "bob:capability:matrix": "node scripts/bob-capability-matrix-audit.mjs",
+    "bob:capability:matrix:strict": "node scripts/bob-capability-matrix-audit.mjs --strict",
+    "bob:command:templates": "node scripts/bob-capability-matrix-audit.mjs --templates",
     "kb:update:railway": "node --loader ts-node/esm scripts/temp-update-railway-kb.ts",
     "kb:refresh": "npm run kb:update:railway && npm run docs:sync",
     "train:all": "npm run train:sync && npm run docs:sync"

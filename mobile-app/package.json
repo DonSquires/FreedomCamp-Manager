@@ -1,6 +1,7 @@
 {
   "name": "fieldops-manager",
   "version": "1.0.0",
+  "packageManager": "npm@10.8.2",
   "main": "./App.tsx",
   "engines": {
     "node": ">=20 <21"

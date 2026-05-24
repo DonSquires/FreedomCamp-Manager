@@ -51,19 +51,33 @@ type TierAContext = {
   agentRoles: Record<string, string>;
 };
 
+type InitiativePatchCandidate = {
+  isObviousAutonomous?: boolean;
+  explanation?: string;
+  targetFile?: string;
+  patchValue?: string;
+};
+
+type InitiativeDecision = {
+  isObviousAutonomous: boolean;
+  explanation: string;
+  targetFile: string;
+  patchValue: string;
+};
+
 const DEFAULT_AGENT_ROLES: Record<string, string> = {
   dr_bob:
-    'Chief Medical Officer of Code. Diagnose root cause, identify risk, and constrain remediation to verified repo and schema facts.',
+    'Chief Diagnostic Officer. Diagnose root cause using evidence across UI, network, auth, runtime, database, and side-effect layers.',
   bob:
-    'Realignment Architect. Convert diagnosis into safe, minimal, parseable operational fixes aligned to platform constraints.',
+    'Unified Fleet Chief Engineer. Coordinate end-to-end process recovery from trigger to verified completion with minimal blast-radius changes.',
   emulator:
-    'Guardrail Sandbox. Validate safety and reject insecure or non-deterministic changes before approval.',
+    'Guardrail Sandbox. Validate safety, deterministic behavior, and contract compatibility before approval or promotion.',
   ui_ux_agent:
     'Visual and Interaction Architect. Specialize in React, Tailwind, accessibility, responsiveness, and visual coherence.',
   writer_agent:
-    'Technical Documentation Specialist. Generate concise, accurate updates for STAGING.md and INSTRUCTION_MANUAL.md grounded in live code changes.',
+    'Operations Chronicler. Generate concise, accurate updates for STAGING.md and INSTRUCTION_MANUAL.md grounded in live code changes and validated outcomes.',
   research_agent:
-    'Deep Web Search and Retrieval Core. Gather external release notes and docs updates, then synthesize actionable guidance for this stack.',
+    'Research Core. Gather external release notes and docs updates, then synthesize actionable guidance for this stack and current incident context.',
 };
 
 type GiteaFileChange = {
@@ -123,6 +137,22 @@ type CognitiveReasoningResult = {
   consultativeResponse: string;
 };
 
+type HealProviderTelemetry = {
+  routeEngineUsed: 'local_deterministic' | 'model_synthesis';
+  providersTried: string[];
+  providerErrors: string[];
+  externalCallsCount: number;
+  cacheHit: boolean;
+  supportSignalsUsed: boolean;
+};
+
+type PatrolWaypoint = {
+  id: string;
+  label: string;
+  lat: number;
+  lng: number;
+};
+
 type DocumentIntelKeyword = {
   keyword: string;
   score: number;
@@ -162,6 +192,9 @@ const DOC_INTEL_DEFAULT_LIMIT = Math.max(1, Number(process.env.DOC_INTEL_DEFAULT
 const DOC_INTEL_MAX_LIMIT = Math.max(1, Number(process.env.DOC_INTEL_MAX_LIMIT ?? 100));
 const PRIVACY_REDACTION_ENABLED = parseBool(process.env.PRIVACY_REDACTION_ENABLED ?? 'true');
 const SUPABASE_AUTH_LOOKUP_TIMEOUT_MS = Number(process.env.SUPABASE_AUTH_LOOKUP_TIMEOUT_MS ?? 3000);
+const PATROL_SCAN_TIMEOUT_MS = Number(process.env.PATROL_SCAN_TIMEOUT_MS ?? 20000);
+const PATROL_DRY_RUN_DEFAULT = parseBool(process.env.PATROL_DRY_RUN ?? 'false');
+const PATROL_DRY_RUN_SKIP_MODEL = parseBool(process.env.PATROL_DRY_RUN_SKIP_MODEL ?? 'true');
 
 const CURRENT_FILE = fileURLToPath(import.meta.url);
 const BACKEND_DIR = path.dirname(CURRENT_FILE);
@@ -169,10 +202,18 @@ const REPO_ROOT = path.resolve(BACKEND_DIR, '..', '..');
 const DOC_INTEL_INDEX_FILE = path.resolve(
   process.env.DOC_INTEL_INDEX_PATH ?? path.join(REPO_ROOT, 'data/internal-research/document-intelligence-index.json'),
 );
+const INSTRUCTION_MANUAL_FILE = path.resolve(
+  process.env.INSTRUCTION_MANUAL_PATH ?? path.join(REPO_ROOT, 'docs/INSTRUCTION_MANUAL.md'),
+);
 
 let docIntelCache: {
   mtimeMs: number;
   payload: DocumentIntelPayload;
+} | null = null;
+
+let instructionManualCache: {
+  mtimeMs: number;
+  content: string;
 } | null = null;
 
 type RedactionResult = {
@@ -548,6 +589,13 @@ type AdminAuthContext = {
   isAdmin: boolean;
   isGrandMaster: boolean;
 };
+
+function formatAuthRoleForPrompt(auth: AdminAuthContext | null): string {
+  if (!auth) return 'unauthenticated';
+  if (auth.isGrandMaster) return 'grand_master';
+  if (auth.isAdmin) return 'admin';
+  return 'user';
+}
 
 function getBearerToken(req: Request): string | null {
   const header = req.headers.authorization;
@@ -959,11 +1007,103 @@ function isMissingModelError(error: unknown): boolean {
   return status === 404 && /model\s+'.+'\s+not\s+found/i.test(message);
 }
 
+async function generateWithOpenAi(systemPrompt: string, userMessage: string): Promise<{ responseText: string; modelUsed: string }> {
+  const apiKey = String(process.env.OPENAI_API_KEY ?? '').trim();
+  if (!apiKey) {
+    throw new Error('OPENAI_API_KEY is not configured');
+  }
+
+  const model = String(process.env.OPENAI_MODEL ?? process.env.OPENAI_RESEARCH_MODEL ?? 'gpt-4.1-mini').trim();
+  const response = await axios.post(
+    'https://api.openai.com/v1/responses',
+    {
+      model,
+      input: [
+        {
+          role: 'system',
+          content: [{ type: 'input_text', text: systemPrompt || '' }],
+        },
+        {
+          role: 'user',
+          content: [{ type: 'input_text', text: userMessage }],
+        },
+      ],
+    },
+    {
+      timeout: OLLAMA_MODEL_TIMEOUT_MS,
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+    },
+  );
+
+  const data = response.data as {
+    output_text?: string;
+    output?: Array<{ content?: Array<{ text?: string }> }>;
+  };
+
+  const outputText = String(data.output_text ?? '').trim();
+  if (outputText) {
+    return { responseText: outputText, modelUsed: `openai:${model}` };
+  }
+
+  const chunks: string[] = [];
+  for (const block of data.output ?? []) {
+    for (const content of block.content ?? []) {
+      const text = String(content.text ?? '').trim();
+      if (text) {
+        chunks.push(text);
+      }
+    }
+  }
+
+  return {
+    responseText: chunks.join('\n').trim(),
+    modelUsed: `openai:${model}`,
+  };
+}
+
 async function generateWithModelFallback(systemPrompt: string, userMessage: string): Promise<{ responseText: string; modelUsed: string }> {
+  const gatewayUrl = String(process.env.MODEL_GATEWAY_URL ?? '').trim().replace(/\/+$/, '');
   const baseUrl = process.env.OLLAMA_PROXY_URL ?? 'http://ollama:11434';
   const models = getOllamaModelCandidates().slice(0, OLLAMA_MAX_CANDIDATES);
   let lastError: unknown = null;
   const startedAt = Date.now();
+
+  if (gatewayUrl) {
+    for (const model of models) {
+      const elapsed = Date.now() - startedAt;
+      const remainingBudget = OLLAMA_TOTAL_TIMEOUT_MS - elapsed;
+      if (remainingBudget <= 500) {
+        break;
+      }
+
+      const requestTimeoutMs = Math.max(1000, Math.min(OLLAMA_MODEL_TIMEOUT_MS, remainingBudget));
+      try {
+        const response = await axios.post(
+          `${gatewayUrl}/api/generate`,
+          {
+            model,
+            system: systemPrompt,
+            prompt: userMessage,
+            stream: false,
+          },
+          {
+            timeout: requestTimeoutMs,
+          },
+        );
+
+        return {
+          responseText: String((response.data as { response?: string }).response ?? ''),
+          modelUsed: `model_gateway:${model}`,
+        };
+      } catch (error) {
+        lastError = error;
+        console.warn(`[model-fallback] model gateway failed for ${model}`, error);
+      }
+    }
+  }
 
   for (const model of models) {
     const elapsed = Date.now() - startedAt;
@@ -997,11 +1137,20 @@ async function generateWithModelFallback(systemPrompt: string, userMessage: stri
         console.warn(`[ollama] Model not available, falling back to next candidate: ${model}`);
         continue;
       }
-      throw error;
+
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn(`[ollama] Model invocation failed for ${model}, trying next provider: ${message}`);
+      continue;
     }
   }
 
-  throw lastError instanceof Error ? lastError : new Error('No Ollama model candidates succeeded');
+  try {
+    return await generateWithOpenAi(systemPrompt, userMessage);
+  } catch (openAiError) {
+    console.error('[model-fallback] OpenAI fallback failed', openAiError);
+  }
+
+  throw lastError instanceof Error ? lastError : new Error('No model providers succeeded');
 }
 
 async function promptOllama(role: string, systemPrompt: string, userMessage: string): Promise<string> {
@@ -1024,6 +1173,61 @@ function truncateRunbookContent(content: string, maxChars: number): string {
     return content;
   }
   return `${content.slice(0, maxChars)}\n\n[TRUNCATED]`;
+}
+
+async function loadInstructionManualText(): Promise<string> {
+  try {
+    const fileStats = await stat(INSTRUCTION_MANUAL_FILE);
+    const cached = instructionManualCache;
+    if (cached && cached.mtimeMs === fileStats.mtimeMs) {
+      return cached.content;
+    }
+
+    const content = await readFile(INSTRUCTION_MANUAL_FILE, 'utf8');
+    instructionManualCache = {
+      mtimeMs: fileStats.mtimeMs,
+      content,
+    };
+    return content;
+  } catch (error) {
+    console.warn('[instruction-manual] Failed to load instruction manual context', error);
+    return '';
+  }
+}
+
+function extractInstructionManualGuidance(manualText: string, query: string, maxChars = 2400): string {
+  const text = String(manualText ?? '').trim();
+  if (!text) {
+    return 'Instruction manual context unavailable.';
+  }
+
+  const queryTokens = extractIntentTokens(String(query ?? ''));
+  for (const token of ['patrol', 'dispatch', 'route', 'response', 'incident', 'traffic']) {
+    queryTokens.add(token);
+  }
+
+  const sections = text.split(/\n(?=##\s+)/g);
+  const ranked = sections
+    .map((section) => {
+      const lower = section.toLowerCase();
+      let score = 0;
+      for (const token of queryTokens) {
+        if (token.length < 3) continue;
+        if (lower.includes(token)) {
+          score += 1;
+        }
+      }
+      return { section, score };
+    })
+    .sort((a, b) => b.score - a.score);
+
+  const selected = ranked
+    .filter((row) => row.score > 0)
+    .slice(0, 3)
+    .map((row) => row.section.trim());
+
+  const guidance = selected.length > 0 ? selected.join('\n\n') : truncateRunbookContent(text, Math.min(maxChars, 1200));
+  return truncateRunbookContent(guidance, maxChars);
 }
 
 function buildConversationTranscript(messages: HealChatMessage[] = []): string {
@@ -1070,6 +1274,488 @@ function parseJsonObjectFromText(raw: string): Record<string, unknown> | null {
   }
 
   return null;
+}
+
+function normalizeStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((item) => String(item ?? '').trim())
+    .filter((item) => item.length > 0)
+    .slice(0, 12);
+}
+
+function normalizeConfidenceValue(value: unknown, fallback = 0.7): number {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return fallback;
+  }
+
+  if (parsed > 0 && parsed <= 1) {
+    return Math.max(0, Math.min(1, parsed));
+  }
+
+  return Math.max(0, Math.min(1, parsed / 100));
+}
+
+function formatIntelReportToMarkdown(report: Record<string, unknown>): string {
+  const summary = String(report.summary ?? report.overview ?? 'No situational summary was produced.').trim();
+  const activeRisks = normalizeStringArray(report.activeRisks);
+  const recommendedActions = normalizeStringArray(report.recommendedActions);
+  const sources = normalizeStringArray(report.sources);
+  const confidence = normalizeConfidenceValue(report.confidence, 0.7);
+
+  return [
+    '## Situational Intelligence Brief',
+    '',
+    `Summary: ${summary}`,
+    '',
+    'Active Risks:',
+    activeRisks.length > 0 ? activeRisks.map((risk) => `- ${risk}`).join('\n') : '- No active risks identified from current evidence.',
+    '',
+    'Recommended Actions:',
+    recommendedActions.length > 0
+      ? recommendedActions.map((action) => `- ${action}`).join('\n')
+      : '- Continue monitoring and re-run intelligence sweep when new telemetry is available.',
+    '',
+    'Sources:',
+    sources.length > 0 ? sources.map((source) => `- ${source}`).join('\n') : '- No explicit source URLs returned by synthesis model.',
+    '',
+    `Confidence: ${(confidence * 100).toFixed(0)}%`,
+  ].join('\n');
+}
+
+function isPatrolRouteIntent(input: string): boolean {
+  return /(patrol\s*route|best\s*route|route\s*plan|routing|waypoint|traffic|congestion|roadworks|closure|detour|stops?\s+order|dispatch|unit\s+assignment|incident\s+response|response\s+plan|deployment\s+plan)/i.test(input);
+}
+
+function getConfiguredResearchProviders(): string[] {
+  const configured: string[] = [];
+  const googleApiKey = String(
+    process.env.GOOGLE_API_KEY ?? process.env.GOOGLE_MAPS_API_KEY ?? process.env.VITE_GOOGLE_MAPS_API_KEY ?? '',
+  ).trim();
+  const googleCseId = String(process.env.GOOGLE_CSE_ID ?? process.env.GOOGLE_CUSTOM_SEARCH_ENGINE_ID ?? '').trim();
+
+  if (googleApiKey && googleCseId) {
+    configured.push('google_cse');
+  }
+
+  if (String(process.env.OPENAI_API_KEY ?? '').trim()) {
+    configured.push('openai_web_search');
+  }
+
+  if (String(process.env.RESEARCH_SEARCH_PROXY_URL ?? '').trim()) {
+    configured.push('research_proxy');
+  }
+
+  if (String(process.env.SERPER_API_KEY ?? '').trim()) {
+    configured.push('serper');
+  }
+
+  configured.push('duckduckgo');
+  return configured;
+}
+
+function parseProviderTelemetryFromSearchOutput(raw: string): { providersTried: string[]; providerErrors: string[] } {
+  const providers = new Set<string>();
+  const errors: string[] = [];
+  const trimmed = String(raw ?? '').trim();
+
+  if (!trimmed) {
+    return { providersTried: [], providerErrors: [] };
+  }
+
+  const fallbackMarker = '[provider-fallback]';
+  if (trimmed.includes(fallbackMarker)) {
+    const afterMarker = trimmed.split(fallbackMarker).slice(1).join(fallbackMarker).trim();
+    const lines = afterMarker.split('\n');
+    for (const line of lines) {
+      const cleaned = line.trim();
+      if (!cleaned) {
+        break;
+      }
+
+      const sepIndex = cleaned.indexOf(':');
+      if (sepIndex > 0) {
+        const provider = cleaned.slice(0, sepIndex).trim().toLowerCase();
+        providers.add(provider);
+        errors.push(cleaned);
+      }
+    }
+
+    if (trimmed.match(/^-\s+/m)) {
+      providers.add('duckduckgo');
+    }
+  } else {
+    const configured = getConfiguredResearchProviders();
+    if (configured.length > 0) {
+      providers.add(configured[0]);
+    }
+  }
+
+  return {
+    providersTried: Array.from(providers),
+    providerErrors: errors,
+  };
+}
+
+function extractCoordinateWaypoints(input: string): PatrolWaypoint[] {
+  const regex = /(-?\d{1,2}\.\d+)\s*,\s*(-?\d{1,3}\.\d+)/g;
+  const waypoints: PatrolWaypoint[] = [];
+  let match: RegExpExecArray | null = regex.exec(input);
+  let index = 1;
+
+  while (match) {
+    const lat = Number(match[1]);
+    const lng = Number(match[2]);
+    if (Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180) {
+      waypoints.push({
+        id: `wp-${index}`,
+        label: `Waypoint ${index}`,
+        lat,
+        lng,
+      });
+      index += 1;
+    }
+
+    match = regex.exec(input);
+  }
+
+  return waypoints.slice(0, 12);
+}
+
+function haversineKm(a: PatrolWaypoint, b: PatrolWaypoint): number {
+  const deg2rad = (value: number): number => (value * Math.PI) / 180;
+  const earthRadiusKm = 6371;
+  const dLat = deg2rad(b.lat - a.lat);
+  const dLng = deg2rad(b.lng - a.lng);
+  const aa =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(deg2rad(a.lat)) * Math.cos(deg2rad(b.lat)) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  const c = 2 * Math.atan2(Math.sqrt(aa), Math.sqrt(1 - aa));
+  return earthRadiusKm * c;
+}
+
+function orderWaypointsNearestNeighbor(waypoints: PatrolWaypoint[]): PatrolWaypoint[] {
+  if (waypoints.length <= 2) {
+    return [...waypoints];
+  }
+
+  const remaining = [...waypoints.slice(1)];
+  const route: PatrolWaypoint[] = [waypoints[0]];
+
+  while (remaining.length > 0) {
+    const current = route[route.length - 1];
+    let nextIndex = 0;
+    let nextDistance = Number.POSITIVE_INFINITY;
+
+    for (let idx = 0; idx < remaining.length; idx += 1) {
+      const distance = haversineKm(current, remaining[idx]);
+      if (distance < nextDistance) {
+        nextDistance = distance;
+        nextIndex = idx;
+      }
+    }
+
+    route.push(remaining[nextIndex]);
+    remaining.splice(nextIndex, 1);
+  }
+
+  return route;
+}
+
+function buildDefaultPatrolWaypoints(): PatrolWaypoint[] {
+  return [
+    { id: 'sector-start', label: 'Central staging point', lat: -41.2706, lng: 173.284 },
+    { id: 'sector-north', label: 'Northern perimeter sweep', lat: -41.2615, lng: 173.2865 },
+    { id: 'sector-east', label: 'Eastern perimeter sweep', lat: -41.2698, lng: 173.296 },
+    { id: 'sector-south', label: 'Southern perimeter sweep', lat: -41.2788, lng: 173.2857 },
+    { id: 'sector-west', label: 'Western perimeter sweep', lat: -41.2704, lng: 173.2722 },
+  ];
+}
+
+async function fetchSelfHostedRoutePlan(waypoints: PatrolWaypoint[]): Promise<{
+  routeSteps: string[];
+  source: string;
+  googleSupportUsed: boolean;
+  metadata?: Record<string, unknown>;
+}> {
+  const mappingGatewayUrl = String(process.env.MAPPING_GATEWAY_URL ?? '').trim().replace(/\/+$/, '');
+  if (!mappingGatewayUrl || waypoints.length < 2) {
+    const ordered = orderWaypointsNearestNeighbor(waypoints);
+    return {
+      routeSteps: ordered.map((point, index) => {
+        const suffix = index === 0 ? ' (start)' : '';
+        return `Stop ${index + 1}: ${point.label}${suffix} (${point.lat.toFixed(5)}, ${point.lng.toFixed(5)})`;
+      }),
+      source: 'inbuilt-patrol-route-engine',
+      googleSupportUsed: false,
+    };
+  }
+
+  const response = await axios.post(
+    `${mappingGatewayUrl}/route-plan`,
+    {
+      waypoints,
+      includeTraffic: true,
+    },
+    {
+      timeout: Number(process.env.MAPPING_GATEWAY_TIMEOUT_MS ?? 12000),
+    },
+  );
+
+  const payload = response.data as {
+    orderedWaypoints?: Array<{ label?: string; lat?: number; lng?: number }>;
+    support?: { google?: { used?: boolean } };
+    provider?: string;
+    route?: Record<string, unknown>;
+  };
+
+  const ordered = Array.isArray(payload.orderedWaypoints)
+    ? payload.orderedWaypoints
+        .map((row, index) => ({
+          label: String(row?.label ?? `Waypoint ${index + 1}`),
+          lat: Number(row?.lat),
+          lng: Number(row?.lng),
+        }))
+        .filter((row) => Number.isFinite(row.lat) && Number.isFinite(row.lng))
+    : [];
+
+  if (ordered.length < 2) {
+    throw new Error('Mapping gateway returned insufficient waypoint data');
+  }
+
+  const routeSteps = ordered.map((point, index) => {
+    const suffix = index === 0 ? ' (start)' : '';
+    return `Stop ${index + 1}: ${point.label}${suffix} (${point.lat.toFixed(5)}, ${point.lng.toFixed(5)})`;
+  });
+
+  return {
+    routeSteps,
+    source: String(payload.provider ?? 'self_hosted_mapping_gateway'),
+    googleSupportUsed: Boolean(payload.support?.google?.used),
+    metadata: payload.route,
+  };
+}
+
+function buildDeterministicPatrolIntelReport(
+  query: string,
+  liveSupportSnippets: string,
+  routeSteps: string[],
+  routeSource: string,
+  googleSupportUsed: boolean,
+  manualGuidance: string,
+): Record<string, unknown> {
+  const hasTrafficTerms = /\b(traffic|congestion|roadworks|closure|incident|detour|crash)\b/i.test(query);
+  const supportSignalsUsed = Boolean(String(liveSupportSnippets ?? '').trim());
+
+  const activeRisks = [
+    hasTrafficTerms
+      ? 'Route request includes traffic/closure concerns; dynamic checks are required before dispatch.'
+      : 'No explicit traffic signals in prompt; assume normal patrol variability.',
+    supportSignalsUsed
+      ? 'External support snippets were consulted; verify each signal against official agency feeds before action.'
+      : 'No external support snippets were used; treat this route as deterministic baseline only.',
+    googleSupportUsed
+      ? 'Google support signals were used as secondary enrichment; self-hosted mapping remained primary.'
+      : 'Google support enrichment was not used for this route build.',
+  ];
+
+  const recommendedActions = [
+    ...routeSteps,
+    manualGuidance
+      ? 'Align dispatch and response actions with instruction manual guidance before field execution.'
+      : 'Instruction manual guidance could not be loaded; use approved patrol SOP checklist manually.',
+    'Validate closure/congestion conditions with dispatcher telemetry before rolling each leg.',
+    'Re-run route planning when new incidents arrive or patrol priorities change.',
+  ];
+
+  const sources = [routeSource || 'inbuilt-patrol-route-engine'];
+  if (supportSignalsUsed) {
+    sources.push('external-support-signals');
+  }
+  if (googleSupportUsed) {
+    sources.push('google-support-enrichment');
+  }
+  if (manualGuidance) {
+    sources.push('instruction-manual-guidance');
+  }
+
+  return {
+    summary: 'Deterministic patrol route generated from self-hosted mapping stack. External providers are optional support only.',
+    activeRisks,
+    recommendedActions,
+    sources,
+    confidence: supportSignalsUsed ? 0.82 : 0.74,
+  };
+}
+
+function formatTelemetryBlock(telemetry: HealProviderTelemetry): string {
+  const providers = telemetry.providersTried.length > 0 ? telemetry.providersTried.join(', ') : 'none';
+  const errors = telemetry.providerErrors.length > 0 ? telemetry.providerErrors.map((err) => `- ${err}`).join('\n') : '- none';
+
+  return [
+    'Telemetry:',
+    `- routeEngineUsed: ${telemetry.routeEngineUsed}`,
+    `- externalCallsCount: ${telemetry.externalCallsCount}`,
+    `- supportSignalsUsed: ${telemetry.supportSignalsUsed}`,
+    `- cacheHit: ${telemetry.cacheHit}`,
+    `- providersTried: ${providers}`,
+    '- providerErrors:',
+    errors,
+  ].join('\n');
+}
+
+function formatPatrolRouteReportToMarkdown(
+  report: Record<string, unknown>,
+  telemetry: HealProviderTelemetry,
+): string {
+  const core = formatIntelReportToMarkdown(report);
+  return `${core}\n\n${formatTelemetryBlock(telemetry)}`;
+}
+
+type PatrolSystemCheckResult = {
+  name: string;
+  status: 'PASS' | 'FAIL';
+  detail: string;
+};
+
+async function runPatrolSystemChecks(): Promise<{
+  checks: PatrolSystemCheckResult[];
+  passed: number;
+  failed: number;
+}> {
+  const checks: PatrolSystemCheckResult[] = [];
+  const mappingGatewayUrl = String(process.env.MAPPING_GATEWAY_URL ?? '').trim().replace(/\/+$/, '');
+  const modelGatewayUrl = String(process.env.MODEL_GATEWAY_URL ?? '').trim().replace(/\/+$/, '');
+  const sampleWaypoints = buildDefaultPatrolWaypoints();
+
+  if (!mappingGatewayUrl) {
+    checks.push({
+      name: 'mapping_gateway_configured',
+      status: 'FAIL',
+      detail: 'MAPPING_GATEWAY_URL is not configured.',
+    });
+  } else {
+    try {
+      const health = await axios.get(`${mappingGatewayUrl}/health`, {
+        timeout: Number(process.env.MAPPING_GATEWAY_TIMEOUT_MS ?? 12000),
+      });
+      const ok = health.status >= 200 && health.status < 300;
+      checks.push({
+        name: 'mapping_gateway_health',
+        status: ok ? 'PASS' : 'FAIL',
+        detail: ok
+          ? `health=ok, googleSupportConfigured=${Boolean((health.data as { providers?: { googleSupportConfigured?: boolean } }).providers?.googleSupportConfigured)}`
+          : `Unexpected HTTP status ${health.status}`,
+      });
+    } catch (error) {
+      checks.push({
+        name: 'mapping_gateway_health',
+        status: 'FAIL',
+        detail: error instanceof Error ? error.message : 'unknown error',
+      });
+    }
+
+    try {
+      const requestBody = {
+        waypoints: sampleWaypoints,
+        includeTraffic: true,
+      };
+      const [first, second] = await Promise.all([
+        axios.post(`${mappingGatewayUrl}/route-plan`, requestBody, {
+          timeout: Number(process.env.MAPPING_GATEWAY_TIMEOUT_MS ?? 12000),
+        }),
+        axios.post(`${mappingGatewayUrl}/route-plan`, requestBody, {
+          timeout: Number(process.env.MAPPING_GATEWAY_TIMEOUT_MS ?? 12000),
+        }),
+      ]);
+
+      const firstOrder = Array.isArray((first.data as { orderedWaypoints?: Array<{ id?: string; label?: string }> }).orderedWaypoints)
+        ? ((first.data as { orderedWaypoints?: Array<{ id?: string; label?: string }> }).orderedWaypoints ?? [])
+            .map((row) => String(row.id ?? row.label ?? '').trim())
+            .filter(Boolean)
+        : [];
+      const secondOrder = Array.isArray((second.data as { orderedWaypoints?: Array<{ id?: string; label?: string }> }).orderedWaypoints)
+        ? ((second.data as { orderedWaypoints?: Array<{ id?: string; label?: string }> }).orderedWaypoints ?? [])
+            .map((row) => String(row.id ?? row.label ?? '').trim())
+            .filter(Boolean)
+        : [];
+
+      const deterministic = firstOrder.length > 1 && JSON.stringify(firstOrder) === JSON.stringify(secondOrder);
+      checks.push({
+        name: 'route_order_deterministic',
+        status: deterministic ? 'PASS' : 'FAIL',
+        detail: deterministic
+          ? `order=${firstOrder.join(' -> ')}`
+          : `order mismatch first=${firstOrder.join(' -> ')} second=${secondOrder.join(' -> ')}`,
+      });
+    } catch (error) {
+      checks.push({
+        name: 'route_order_deterministic',
+        status: 'FAIL',
+        detail: error instanceof Error ? error.message : 'unknown error',
+      });
+    }
+  }
+
+  if (!modelGatewayUrl) {
+    checks.push({
+      name: 'model_gateway_configured',
+      status: 'FAIL',
+      detail: 'MODEL_GATEWAY_URL is not configured.',
+    });
+  } else {
+    try {
+      const response = await axios.post(
+        `${modelGatewayUrl}/api/generate`,
+        {
+          prompt: 'Respond with OK only.',
+        },
+        {
+          timeout: OLLAMA_MODEL_TIMEOUT_MS,
+        },
+      );
+      const text = String((response.data as { response?: string }).response ?? '').trim();
+      const ok = response.status >= 200 && response.status < 300 && text.length > 0;
+      checks.push({
+        name: 'response_engine_available',
+        status: ok ? 'PASS' : 'FAIL',
+        detail: ok ? `response=${text.slice(0, 120)}` : 'Model gateway returned empty response.',
+      });
+    } catch (error) {
+      checks.push({
+        name: 'response_engine_available',
+        status: 'FAIL',
+        detail: error instanceof Error ? error.message : 'unknown error',
+      });
+    }
+  }
+
+  const passed = checks.filter((check) => check.status === 'PASS').length;
+  const failed = checks.length - passed;
+
+  return { checks, passed, failed };
+}
+
+function formatPatrolSystemTestMarkdown(result: {
+  checks: PatrolSystemCheckResult[];
+  passed: number;
+  failed: number;
+}, manualGuidance: string): string {
+  return [
+    '## Patrol System Test Report',
+    '',
+    `Summary: ${result.passed} passed, ${result.failed} failed`,
+    '',
+    'Checks:',
+    ...result.checks.map((check) => `- [${check.status}] ${check.name}: ${check.detail}`),
+    '',
+    '## Instruction Manual Alignment',
+    manualGuidance,
+  ].join('\n');
 }
 
 function normalizeRoutedBobResponse(rawModelText: string): RoutedBobResponse {
@@ -2014,6 +2700,129 @@ function extractFirstUrl(rawText: string): string | null {
   return match[0];
 }
 
+function parseInitiativeDecision(raw: string): InitiativeDecision {
+  let parsed: InitiativePatchCandidate | null = null;
+  try {
+    parsed = JSON.parse(raw) as InitiativePatchCandidate;
+  } catch {
+    parsed = null;
+  }
+
+  const explanation = String(parsed?.explanation ?? '').trim();
+  const targetFile = sanitizeFilePath(String(parsed?.targetFile ?? '').trim());
+  const patchValue = String(parsed?.patchValue ?? '').trim();
+
+  return {
+    isObviousAutonomous: parsed?.isObviousAutonomous === true,
+    explanation: explanation || 'No explanation provided by initiative engine.',
+    targetFile,
+    patchValue,
+  };
+}
+
+function isSafeAutonomousInitiative(decision: InitiativeDecision): boolean {
+  if (!decision.isObviousAutonomous) return false;
+  if (!decision.targetFile || !decision.patchValue) return false;
+  if (decision.patchValue.length > 12000) return false;
+
+  // Restrict autonomous edits to documentation-like files.
+  const normalized = decision.targetFile.toLowerCase();
+  return (
+    normalized.endsWith('.md') &&
+    (normalized.startsWith('docs/') ||
+      normalized.startsWith('knowledge_base/') ||
+      normalized === 'bob_workflow_rules.md' ||
+      normalized === 'staging.md' ||
+      normalized === 'instruction_manual.md')
+  );
+}
+
+async function executeAutonomousInitiativeFix(decision: InitiativeDecision): Promise<Record<string, unknown>> {
+  const fullPath = path.resolve(REPO_ROOT, decision.targetFile);
+
+  let existing = '';
+  try {
+    existing = await readFile(fullPath, 'utf8');
+  } catch {
+    existing = '';
+  }
+
+  const nextContent = [existing.trimEnd(), decision.patchValue.trim(), '']
+    .filter((chunk) => chunk.length > 0)
+    .join('\n\n');
+
+  const branchSuffix = Date.now();
+  const result = await executeGiteaProposePr({
+    owner: process.env.GITEA_OWNER,
+    repo: process.env.GITEA_REPO,
+    baseBranch: process.env.GITEA_BASE_BRANCH ?? 'main',
+    branchName: `ai-self-heal-initiative-${branchSuffix}`,
+    title: `[INITIATIVE] ${decision.explanation.slice(0, 80)}`,
+    body: [
+      'Autonomous initiative patch proposed by Bob patrol sweep.',
+      '',
+      `Target file: ${decision.targetFile}`,
+      `Reason: ${decision.explanation}`,
+      '',
+      'Policy: documentation-safe autonomous mode only.',
+    ].join('\n'),
+    commitMessage: `docs: proactive initiative update (${branchSuffix})`,
+    files: [
+      {
+        path: decision.targetFile,
+        content: nextContent,
+      },
+    ],
+    dryRun: false,
+  });
+
+  return {
+    statusCode: result.statusCode,
+    status: result.body.status ?? 'UNKNOWN',
+    branchName: result.body.branchName ?? null,
+    pullRequestNumber: result.body.pullRequestNumber ?? null,
+    pullRequestUrl: result.body.pullRequestUrl ?? null,
+    error: result.body.error ?? null,
+    targetFile: decision.targetFile,
+  };
+}
+
+async function logProactiveProposalToLedger(decision: InitiativeDecision): Promise<Record<string, unknown>> {
+  const issueTitle = `[PENDING_HUMAN_REVIEW] Proactive initiative proposal: ${decision.targetFile || 'unspecified target'}`;
+  const issueBody = [
+    'Bob patrol identified an initiative that requires human review.',
+    '',
+    `isObviousAutonomous: ${String(decision.isObviousAutonomous)}`,
+    `targetFile: ${decision.targetFile || 'N/A'}`,
+    `explanation: ${decision.explanation}`,
+    '',
+    'Proposed patch payload:',
+    '```',
+    decision.patchValue || '(empty)',
+    '```',
+  ].join('\n');
+
+  const giteaIssueNumber = await createGiteaIssue(issueTitle, issueBody);
+
+  await supabase.from('self_healing_logs').insert({
+    status: 'PENDING_HUMAN_REVIEW',
+    service_name: 'railway-backend',
+    error_message: issueTitle,
+    error_payload: {
+      route: '/api/cron/patrol',
+      proposal: decision,
+      giteaIssueNumber,
+      createdAt: new Date().toISOString(),
+    },
+    created_at: new Date().toISOString(),
+  } as Record<string, unknown>);
+
+  return {
+    giteaIssueNumber,
+    status: 'PENDING_HUMAN_REVIEW',
+  };
+}
+
 async function getTierAKnowledgeContext(): Promise<TierAContext> {
   const { data, error } = await withTimeout(
     Promise.resolve(
@@ -2140,6 +2949,271 @@ app.post('/api/heal', requireUserAuth, async (req: Request, res: Response) => {
     }
 
     const kb = await getTierAKnowledgeContext();
+    const instructionManualText = await loadInstructionManualText();
+    const patrolManualGuidance = extractInstructionManualGuidance(instructionManualText, inboundText, 2200);
+
+    const isPatrolTestIntent = /\b(run|execute|perform)\b[\s\S]{0,80}\b(test|tests|check|checks|verification|validate)\b[\s\S]{0,80}\b(patrol|dispatch|route|response)\b/i.test(inboundTextLower)
+      || /\bpatrol\s+system\s+tests?\b/i.test(inboundTextLower);
+    if (isPatrolTestIntent) {
+      const result = await runPatrolSystemChecks();
+      const markdown = formatPatrolSystemTestMarkdown(result, patrolManualGuidance);
+      const status = result.failed === 0 ? 'PATROL_TESTS_PASSED' : 'PATROL_TESTS_FAILED';
+
+      await appendChatSessionMessage(sessionId, 'assistant', markdown);
+
+      res.status(200).json({
+        bobResponse: markdown,
+        status,
+        sessionId,
+        routeAgent: 'research_agent',
+        checks: result.checks,
+      });
+      return;
+    }
+
+    const isIntelIntent = /\b(report|alert|crime|noise|stolen|smoke|bylaw|situational|intel|intelligence|patrol|route|traffic|congestion|roadworks|closure|dispatch|deployment|response|incident\s*response)\b/i.test(inboundTextLower);
+    if (isIntelIntent) {
+      const query = inboundText.replace(/\b(report|alert|crime|noise|stolen|smoke|bylaw|situational|intel|intelligence)\b/gi, '').trim() || inboundText;
+      const queryRedaction = redactSensitivePersonalData(query);
+      const sanitizedQuery = PRIVACY_REDACTION_ENABLED ? queryRedaction.text : query;
+      const allowExternalResearch = !PRIVACY_REDACTION_ENABLED || !queryRedaction.hasSensitiveData;
+      const requestedUrl = extractFirstUrl(inboundText);
+      const patrolRouteIntent = isPatrolRouteIntent(sanitizedQuery);
+      const telemetry: HealProviderTelemetry = {
+        routeEngineUsed: patrolRouteIntent ? 'local_deterministic' : 'model_synthesis',
+        providersTried: [],
+        providerErrors: [],
+        externalCallsCount: 0,
+        cacheHit: false,
+        supportSignalsUsed: false,
+      };
+      const manualGuidance = extractInstructionManualGuidance(instructionManualText, sanitizedQuery, 2200);
+
+      try {
+        let liveWebData = 'External web research was not requested for this intent.';
+
+        if (patrolRouteIntent) {
+          const needsTrafficSignals = /\b(traffic|congestion|roadworks|closure|incident|detour|crash)\b/i.test(sanitizedQuery);
+          const extractedWaypoints = extractCoordinateWaypoints(sanitizedQuery);
+          const baseWaypoints = extractedWaypoints.length >= 2 ? extractedWaypoints : buildDefaultPatrolWaypoints();
+
+          let routeSteps = baseWaypoints.map((point, index) => {
+            const suffix = index === 0 ? ' (start)' : '';
+            return `Stop ${index + 1}: ${point.label}${suffix} (${point.lat.toFixed(5)}, ${point.lng.toFixed(5)})`;
+          });
+          let routeSource = 'inbuilt-patrol-route-engine';
+          let googleSupportUsed = false;
+
+          try {
+            const selfHostedRoute = await fetchSelfHostedRoutePlan(baseWaypoints);
+            routeSteps = selfHostedRoute.routeSteps;
+            routeSource = selfHostedRoute.source;
+            googleSupportUsed = selfHostedRoute.googleSupportUsed;
+            telemetry.providersTried.push(routeSource);
+            if (googleSupportUsed) {
+              telemetry.providersTried.push('google_maps_support');
+            }
+            telemetry.externalCallsCount += 1;
+            telemetry.supportSignalsUsed = telemetry.supportSignalsUsed || googleSupportUsed;
+          } catch (mappingError) {
+            telemetry.providerErrors.push(
+              `self_hosted_mapping_failed: ${mappingError instanceof Error ? mappingError.message : 'unknown error'}`,
+            );
+          }
+
+          if (allowExternalResearch && needsTrafficSignals) {
+            try {
+              const supportQuery = `${sanitizedQuery} nzta road closures traffic incidents official update`;
+              liveWebData = await executeWebSearch(supportQuery);
+              telemetry.externalCallsCount += 1;
+              telemetry.supportSignalsUsed = Boolean(String(liveWebData ?? '').trim());
+
+              const providerTelemetry = parseProviderTelemetryFromSearchOutput(liveWebData);
+              telemetry.providersTried = providerTelemetry.providersTried;
+              telemetry.providerErrors = providerTelemetry.providerErrors;
+            } catch (searchError) {
+              telemetry.providerErrors.push(
+                `support_search_failed: ${searchError instanceof Error ? searchError.message : 'unknown error'}`,
+              );
+            }
+          } else if (!allowExternalResearch) {
+            telemetry.providerErrors.push('external_research_blocked: sensitive data policy');
+          }
+
+          const patrolIntel = buildDeterministicPatrolIntelReport(
+            sanitizedQuery,
+            liveWebData,
+            routeSteps,
+            routeSource,
+            googleSupportUsed,
+            manualGuidance,
+          );
+          const markdown = [
+            formatPatrolRouteReportToMarkdown(patrolIntel, telemetry),
+            '',
+            '## Instruction Manual Alignment',
+            manualGuidance,
+          ].join('\n');
+          const confidence = normalizeConfidenceValue(patrolIntel.confidence, 0.75);
+          const risks = normalizeStringArray(patrolIntel.activeRisks);
+
+          await supabase.from('ai_reasoning_ledger').insert({
+            session_id: sessionId || 'SITUATIONAL_ALERT_CLOCK',
+            intent_context: 'REGIONAL_RISK_AUDIT',
+            hypothetical_risks: risks.join(' | ') || 'No explicit active risks returned.',
+            projected_rewards: 'Stable patrol route continuity even during model/provider outages.',
+            confidence_score: confidence,
+            action_taken: 'RECOMMENDED_ONLY',
+            metadata: {
+              routeAgent: 'research_agent',
+              status: 'INTEL_COMPLETE',
+              routeEngineUsed: telemetry.routeEngineUsed,
+              providersTried: telemetry.providersTried,
+              providerErrors: telemetry.providerErrors,
+              externalCallsCount: telemetry.externalCallsCount,
+              supportSignalsUsed: telemetry.supportSignalsUsed,
+              sensitiveDataDetected: queryRedaction.hasSensitiveData,
+              redactedFields: queryRedaction.redactedFields,
+            },
+            created_at: new Date().toISOString(),
+          } as Record<string, unknown>);
+
+          await appendChatSessionMessage(sessionId, 'assistant', markdown);
+
+          res.status(200).json({
+            bobResponse: markdown,
+            status: 'INTEL_COMPLETE',
+            sessionId,
+            routeAgent: 'research_agent',
+            routeEngineUsed: telemetry.routeEngineUsed,
+            intelReport: patrolIntel,
+            telemetry,
+            privacy: {
+              redactionEnabled: PRIVACY_REDACTION_ENABLED,
+              sensitiveDataDetected: queryRedaction.hasSensitiveData,
+              redactedFields: queryRedaction.redactedFields,
+              externalResearchUsed: allowExternalResearch,
+            },
+          });
+          return;
+        }
+
+        const telemetryQuery = `${sanitizedQuery} local news police alerts noise control bylaws stolen vehicle registry`;
+        if (allowExternalResearch) {
+          liveWebData = await executeWebSearch(telemetryQuery);
+          telemetry.externalCallsCount += 1;
+          const providerTelemetry = parseProviderTelemetryFromSearchOutput(liveWebData);
+          telemetry.providersTried = providerTelemetry.providersTried;
+          telemetry.providerErrors = providerTelemetry.providerErrors;
+          telemetry.supportSignalsUsed = Boolean(String(liveWebData ?? '').trim());
+        } else {
+          liveWebData = 'External web research skipped due to detected sensitive personal data.';
+          telemetry.providerErrors.push('external_research_blocked: sensitive data policy');
+        }
+
+        let pageContent = '';
+        if (requestedUrl && allowExternalResearch) {
+          let hostname = '';
+          try {
+            hostname = new URL(requestedUrl).hostname;
+          } catch {
+            hostname = '';
+          }
+
+          if (hostname && isTrustedResearchDomain(hostname)) {
+            pageContent = await fetchWebpageContent(requestedUrl).catch(() => '');
+          }
+        }
+
+        const redactedWebData = PRIVACY_REDACTION_ENABLED
+          ? redactSensitivePersonalData(liveWebData).text
+          : liveWebData;
+        const redactedPageContent = PRIVACY_REDACTION_ENABLED
+          ? redactSensitivePersonalData(pageContent).text
+          : pageContent;
+
+        const intelPrompt = [
+          `Role: ${kb.agentRoles.research_agent}`,
+          'You are Bob\'s Intel Synthesis Core for field operations situational awareness.',
+          `User request: ${sanitizedQuery}`,
+          `Tier A system rules: ${kb.systemRules}`,
+          `Instruction Manual guidance:\n${manualGuidance}`,
+          'Analyze the provided live context and return JSON only with this shape:',
+          '{',
+          '  "summary": "string",',
+          '  "activeRisks": ["string"],',
+          '  "recommendedActions": ["string"],',
+          '  "sources": ["string"],',
+          '  "confidence": 0.0',
+          '}',
+          'Never include personal identifiers or precise private coordinates.',
+          `Research snippets:\n${truncateRunbookContent(redactedWebData, 9000)}`,
+          redactedPageContent
+            ? `Fetched page content:\n${truncateRunbookContent(redactedPageContent, 5000)}`
+            : 'No fetched page content included.',
+        ].join('\n\n');
+
+        const intelResult = await generateWithModelFallback('', intelPrompt);
+        const parsedIntel = parseJsonObjectFromText(intelResult.responseText) ?? {
+          summary: String(intelResult.responseText ?? '').trim() || 'No synthesis text was returned.',
+          activeRisks: [],
+          recommendedActions: [],
+          sources: [],
+          confidence: 0.65,
+        };
+
+        const markdown = formatIntelReportToMarkdown(parsedIntel);
+        const confidence = normalizeConfidenceValue(parsedIntel.confidence, 0.7);
+        const risks = normalizeStringArray(parsedIntel.activeRisks);
+
+        await supabase.from('ai_reasoning_ledger').insert({
+          session_id: sessionId || 'SITUATIONAL_ALERT_CLOCK',
+          intent_context: 'REGIONAL_RISK_AUDIT',
+          hypothetical_risks: risks.join(' | ') || 'No explicit active risks returned.',
+          projected_rewards: 'Enhanced field situational awareness and safer operational planning.',
+          confidence_score: confidence,
+          action_taken: 'RECOMMENDED_ONLY',
+          metadata: {
+            routeAgent: 'research_agent',
+            status: 'INTEL_COMPLETE',
+            sensitiveDataDetected: queryRedaction.hasSensitiveData,
+            redactedFields: queryRedaction.redactedFields,
+          },
+          created_at: new Date().toISOString(),
+        } as Record<string, unknown>);
+
+        await appendChatSessionMessage(sessionId, 'assistant', markdown);
+
+        res.status(200).json({
+          bobResponse: markdown,
+          status: 'INTEL_COMPLETE',
+          sessionId,
+          routeAgent: 'research_agent',
+          modelUsed: intelResult.modelUsed,
+          intelReport: parsedIntel,
+          telemetry,
+          privacy: {
+            redactionEnabled: PRIVACY_REDACTION_ENABLED,
+            sensitiveDataDetected: queryRedaction.hasSensitiveData,
+            redactedFields: queryRedaction.redactedFields,
+            externalResearchUsed: allowExternalResearch,
+          },
+        });
+        return;
+      } catch (error) {
+        console.error('[/api/heal] Intelligence synthesis route failed', error);
+        const degradedText = 'Intelligence synthesis is temporarily unavailable. Retry after verifying research provider connectivity.';
+        await appendChatSessionMessage(sessionId, 'assistant', degradedText);
+        res.status(200).json({
+          bobResponse: degradedText,
+          status: 'DEGRADED',
+          sessionId,
+          routeAgent: 'research_agent',
+          telemetry,
+        });
+        return;
+      }
+    }
 
     const isResearchIntent = /(\bsearch\b|\blookup\b|\bresearch\b|\bbreaking\s+changes\b|\brelease\s+notes\b)/i.test(inboundTextLower);
     if (isResearchIntent) {
@@ -2360,6 +3434,10 @@ app.post('/api/heal', requireUserAuth, async (req: Request, res: Response) => {
 You are Bob's cognitive reasoning controller for an engineering command center.
 The user states: "${inboundText}"
 
+  Authenticated user login context:
+  - userId: ${auth?.userId ?? 'unknown'}
+  - role: ${formatAuthRoleForPrompt(auth)}
+
 Conversation history:
 ${conversationTranscript}
 
@@ -2368,6 +3446,8 @@ ${promptHistoryJson}
 
 Reference Blueprints (Tier A): ${kb.schemaPayload}
 System Operational Rules: ${kb.systemRules}
+Instruction Manual guidance (prioritize patrol, dispatch, route, response when relevant):
+${extractInstructionManualGuidance(instructionManualText, inboundText, 1800)}
 
 Consultative Reference Runbook (Tier B):
 ${consultativeRunbook}
@@ -2377,6 +3457,7 @@ Follow this policy:
 2) Produce explicit risk and reward analysis.
 3) Set isObviousAutonomous=true ONLY when risk is effectively zero and user intent is explicit.
 4) If autonomous path is selected, provide a safe action payload for gitea propose-pr flow.
+5) Use authenticated user login context for protected task execution; do not attempt anonymous or credential-bypass paths.
 
 Return ONLY one JSON object with this schema:
 {
@@ -3208,6 +4289,104 @@ app.post('/api/automation/playwright-result', async (req: Request, res: Response
     autoPromotion: promotionSummary,
     persistenceTarget,
   });
+});
+
+// ── POST /api/cron/patrol ───────────────────────────────────────────────────
+//    Proactive initiative sweep endpoint intended for scheduler/cron triggers.
+app.post('/api/cron/patrol', async (req: Request, res: Response): Promise<void> => {
+  if (!hasAutomationToken(req)) {
+    res.status(401).json({ error: 'Unauthorized automation webhook token.' });
+    return;
+  }
+
+  console.log('[INITIATIVE] Bob is launching an autonomous System Patrol sweep...');
+
+  try {
+    const requestDryRun = parseBool(String((req.body as { dryRun?: unknown })?.dryRun ?? 'false'));
+    const dryRun = requestDryRun || PATROL_DRY_RUN_DEFAULT;
+
+    const kb = await getTierAKnowledgeContext();
+    const patrolPrompt = [
+      'You are Bob, the Serverless Fleet Chief Engineer. Run a proactive repository/system scan.',
+      'Follow the AUTONOMY INITIATIVE PROTOCOL and return strict JSON only.',
+      '',
+      `System rules: ${kb.systemRules}`,
+      `Schema payload: ${kb.schemaPayload}`,
+      '',
+      'Identify one practical improvement and classify it as autonomous or consultative.',
+      'Return JSON only using this shape:',
+      '{',
+      '  "isObviousAutonomous": true|false,',
+      '  "explanation": "string",',
+      '  "targetFile": "string",',
+      '  "patchValue": "string"',
+      '}',
+    ].join('\n');
+
+    let decision: InitiativeDecision;
+    let modelUsed = 'dry-run-mock';
+
+    if (dryRun && PATROL_DRY_RUN_SKIP_MODEL) {
+      decision = {
+        isObviousAutonomous: true,
+        explanation: 'Dry-run patrol mock decision generated without upstream model call.',
+        targetFile: 'docs/STAGING.md',
+        patchValue: '- [DRY RUN] Patrol simulation completed; no mutation performed.',
+      };
+    } else {
+      const aiResult = await withTimeout(
+        generateWithModelFallback('', patrolPrompt),
+        PATROL_SCAN_TIMEOUT_MS,
+        'initiative patrol scan',
+      );
+      decision = parseInitiativeDecision(aiResult.responseText);
+      modelUsed = aiResult.modelUsed;
+    }
+
+    let actionResult: Record<string, unknown>;
+
+    if (dryRun) {
+      actionResult = {
+        status: 'DRY_RUN',
+        detail: 'No repo mutation or issue creation performed.',
+        wouldAutoExecute: isSafeAutonomousInitiative(decision),
+      };
+    } else if (isSafeAutonomousInitiative(decision)) {
+      actionResult = await executeAutonomousInitiativeFix(decision);
+    } else {
+      actionResult = await logProactiveProposalToLedger(decision);
+    }
+
+    await supabase.from('self_healing_logs').insert({
+      status: 'PENDING_HUMAN_REVIEW',
+      service_name: 'railway-backend',
+      error_message: 'Autonomous patrol sweep completed.',
+      error_payload: {
+        route: '/api/cron/patrol',
+        decision,
+        actionResult,
+        dryRun,
+        modelUsed,
+        capturedAt: new Date().toISOString(),
+      },
+      created_at: new Date().toISOString(),
+    } as Record<string, unknown>);
+
+    res.status(202).json({
+      status: 'Initiative patrol engine engaged.',
+      decision,
+      actionResult,
+      dryRun,
+      modelUsed,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error('[CRITICAL] Bob initiative loop failed:', message);
+    res.status(500).json({
+      error: 'Initiative patrol loop failed.',
+      detail: message,
+    });
+  }
 });
 
 // ── Start server ─────────────────────────────────────────────────────────────
