@@ -114,6 +114,10 @@ extract_response_text() {
 normalize_runsync_url() {
   local url="$1"
   url="${url%/}"
+  if [[ "$url" =~ ^rpa_[A-Za-z0-9]+$ ]]; then
+    echo ""
+    return 0
+  fi
   if [[ "$url" == */run ]]; then
     echo "${url%/run}/runsync"
     return 0
@@ -156,9 +160,13 @@ call_chat() {
     return 0
   fi
 
-  local runpod_base="${RUNPOD_API_URL:-${RUNPOD_RUNSYNC_URL:-$BASE_URL}}"
+  local runpod_base="${RUNPOD_RUNSYNC_URL:-${RUNPOD_ENDPOINT_URL:-${RUNPOD_SERVERLESS_URL:-${RUNPOD_GATEWAY_URL:-${RUNPOD_API_URL:-$BASE_URL}}}}}"
   local runpod_url
   runpod_url=$(normalize_runsync_url "$runpod_base")
+
+  if [[ -z "$runpod_url" ]]; then
+    runpod_url=$(normalize_runsync_url "$BASE_URL")
+  fi
 
   local runpod_resp=""
   local runpod_text=""

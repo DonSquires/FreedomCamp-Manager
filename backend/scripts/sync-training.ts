@@ -5,6 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createClient } from '@supabase/supabase-js';
 import ws from 'ws';
+import { discoverEnvironmentKey } from '../src/intelTools.js';
 
 function requireEnv(name: string): string {
   const value = process.env[name];
@@ -18,17 +19,21 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const typesPath = path.resolve(__dirname, '../src/types.ts');
 
+const discoveredSupabaseUrl = await discoverEnvironmentKey('SUPABASE_URL');
+const discoveredViteSupabaseUrl = await discoverEnvironmentKey('VITE_SUPABASE_URL');
+const discoveredProjectRef =
+  (await discoverEnvironmentKey('SUPABASE_PROJECT_REF')) ?? String(process.env.SUPABASE_PROJECT_REF ?? '').trim();
+
 const supabaseUrl =
-  process.env.SUPABASE_URL ??
-  process.env.VITE_SUPABASE_URL ??
-  (process.env.SUPABASE_PROJECT_REF
-    ? `https://${process.env.SUPABASE_PROJECT_REF}.supabase.co`
-    : undefined);
+  discoveredSupabaseUrl ??
+  discoveredViteSupabaseUrl ??
+  (discoveredProjectRef ? `https://${discoveredProjectRef}.supabase.co` : undefined);
 if (!supabaseUrl) {
   throw new Error('Missing SUPABASE_URL (or VITE_SUPABASE_URL or SUPABASE_PROJECT_REF)');
 }
 
-const supabaseServiceRoleKey = requireEnv('SUPABASE_SERVICE_ROLE_KEY');
+const supabaseServiceRoleKey =
+  (await discoverEnvironmentKey('SUPABASE_SERVICE_ROLE_KEY')) ?? requireEnv('SUPABASE_SERVICE_ROLE_KEY');
 
 const supabase = createClient(supabaseUrl, supabaseServiceRoleKey, {
   realtime: {
@@ -56,6 +61,22 @@ const systemRules = [
   'LIVE TELEMETRY & SITUATIONAL INTELLIGENCE PROTOCOL: when commanded for operational risk research, build exact-match query tokens, gather trusted-source context, and synthesize actionable field-safe recommendations.',
   'DATA SYNTHESIS MANDATE: cross-reference scraped trusted-source context against local models to identify high-risk vectors (for example stolen vehicle alerts or local bylaw restrictions).',
   'STRICT PRIVACY REDACTION: never send unredacted personal names, precise user coordinates, or private facility identifiers to external research/synthesis providers.',
+  'NON-CODING SYSTEM TRIAGE MANUAL (INFRASTRUCTURE & ENVIRONMENT DIRECTIVES): When an anomaly payload is routed via /api/automation/telemetry-triage, bypass feature-code modification entirely and execute strict triage protocols.',
+  'LAYER A - DATA STORE MISMATCHES & MIGRATION DRIFT: If source_layer is SUPABASE_SCHEMA, compare live table structures in payload against Tier A types.ts definitions.',
+  'LAYER A ACTION: If an index is missing or a column drifts, do not touch TypeScript source. Generate a defensive SQL migration using DROP POLICY/INDEX IF EXISTS and ALTER TABLE ... ADD COLUMN IF NOT EXISTS.',
+  'LAYER B - THIRD-PARTY API CONTRACT DRIFT: If source_layer is API_CONTRACT (for example Vercel, Railway, Expo EAS, or hPanel key rotations), activate Research Sub-Agent via executeWebSearch().',
+  'LAYER B ACTION: Run high-density keyword search combining provider name and exact error payload string. Extract corrected header/variable schema and use applyAgentPatch() for high-privilege environment variable updates where authorized.',
+  'LAYER C - STATE INVERSION & MEMORY OUTAGES: If source_layer is CONTAINER_METRICS and payload maps high RAM usage (>90%) with rapid process terminations, do not change feature code.',
+  'LAYER C ACTION: You are authorized to issue infra configuration patches to adjust Node memory flags, alter connection pooling thresholds, or request automated container recycle through approved ops channels.',
+  'LAYER D - CORS, ACCESS, & ROUTING DRIFT: If source_layer is CORS_POLICY with preflight blocked-origin exceptions, parse calling client URL string.',
+  'LAYER D ACTION: Programmatically update allowed-origins arrays in server configuration or environment maps via applyAgentPatch() when policy permits.',
+  'LAYER E - ENVIRONMENT VARIABLE OVERLAPS: If source_layer is ENV_VARS and a key is missing, run a dependency tree audit mapping process.env.* usage to active Railway/runtime variables.',
+  'LAYER E ACTION: Inject safe architectural fallback defaults via approved infrastructure API, log mismatch to ledger, and place administrative hold until verified.',
+  'ACTIVE ENVIRONMENTAL INTROSPECTION PROTOCOL: When an operational task, mobile EAS build, or self-healing triage pass is blocked by a missing or invalid environment variable, API token, or configuration key, execute proactive discovery before logging failure.',
+  'RUNTIME VARIABLE AUDIT: Run local introspection sweep over active process variables and backend config environments. Check fallback aliases (for example RAILWAY_API_TOKEN -> RAILWAY_TOKEN, RAILWAY_CORE_TOKEN).',
+  'SECURE KNOWLEDGE DEPLOYMENT: If token is absent from shell context, query secure administrative credential stores with service-role permissions and enforce allowed_agents scope.',
+  'METADATA CONVENTION PARSING: If naming layout is unknown, use research agent to parse consultative Tier B docs (for example ENVIRONMENT_VARIABLES.md) and extract canonical project naming.',
+  'PAINLESS COGNITIVE VARIABLE HEALING: After discovering verified key or alias, reconstruct execution payload, apply approved environment patch via applyAgentPatch(), and resume task autonomously.',
 ];
 
 const agentRoles = {

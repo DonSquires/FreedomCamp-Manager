@@ -13,6 +13,7 @@ import { applyAgentPatch } from './agentTools.js';
 import { runInSandboxEmulator } from './validator.js';
 import { triggerOtaHotfix, triggerPreviewApkBuild } from './easTools.js';
 import { closeGiteaIssue, createGiteaIssue, updateMarkdownTodo } from './pmTools.js';
+import { discoverEnvironmentKey } from './intelTools.js';
 import {
   buildPrioritizedResearchQueries,
   executeWebSearch,
@@ -490,11 +491,18 @@ function parseLogId(value: unknown): number | null {
   return Math.floor(parsed);
 }
 
+const discoveredSupabaseUrl = await discoverEnvironmentKey('SUPABASE_URL');
+const discoveredViteSupabaseUrl = await discoverEnvironmentKey('VITE_SUPABASE_URL');
+const discoveredSupabaseProjectRef =
+  (await discoverEnvironmentKey('SUPABASE_PROJECT_REF')) ?? String(process.env.SUPABASE_PROJECT_REF ?? '').trim();
+
 const SUPABASE_URL =
-  process.env.SUPABASE_URL ??
-  process.env.VITE_SUPABASE_URL ??
-  (process.env.SUPABASE_PROJECT_REF ? `https://${process.env.SUPABASE_PROJECT_REF}.supabase.co` : undefined);
-const SUPABASE_SERVICE_ROLE_KEY = optionalAnyEnv(['SUPABASE_SERVICE_ROLE_KEY']);
+  discoveredSupabaseUrl ??
+  discoveredViteSupabaseUrl ??
+  (discoveredSupabaseProjectRef ? `https://${discoveredSupabaseProjectRef}.supabase.co` : undefined);
+
+const SUPABASE_SERVICE_ROLE_KEY =
+  (await discoverEnvironmentKey('SUPABASE_SERVICE_ROLE_KEY')) ?? optionalAnyEnv(['SUPABASE_SERVICE_ROLE_KEY']);
 const SUPABASE_JWT_SECRET = optionalAnyEnv(['SUPABASE_JWT_SECRET']);
 const EFFECTIVE_SUPABASE_URL = SUPABASE_URL ?? 'http://127.0.0.1:54321';
 const EFFECTIVE_SUPABASE_SERVICE_ROLE_KEY = SUPABASE_SERVICE_ROLE_KEY ?? 'missing-service-role-key';
@@ -588,6 +596,25 @@ type AdminAuthContext = {
   isActive: boolean;
   isAdmin: boolean;
   isGrandMaster: boolean;
+};
+
+type TelemetrySourceLayer =
+  | 'SUPABASE_SCHEMA'
+  | 'API_CONTRACT'
+  | 'CONTAINER_METRICS'
+  | 'CORS_POLICY'
+  | 'ENV_VARS';
+
+type MultiAgentAssemblyResult = {
+  status: 'PENDING_HUMAN_REVIEW' | 'BLOCKED_BY_SANDBOX';
+  patchId: string;
+  patch: {
+    variableName: string;
+    variableValue: string;
+    justification: string;
+  };
+  drBobAnalysis: string;
+  issueNumber: number | null;
 };
 
 function formatAuthRoleForPrompt(auth: AdminAuthContext | null): string {
@@ -2874,6 +2901,193 @@ async function getTierAKnowledgeContext(): Promise<TierAContext> {
   };
 }
 
+async function executeMultiAgentAssemblyLine(args: {
+  errorPayload?: unknown;
+  errorMessage?: string;
+}): Promise<MultiAgentAssemblyResult> {
+  const { errorPayload, errorMessage } = args;
+
+  const { data: templates, error: tplError } = await supabase
+    .from('system_templates')
+    .select('*');
+
+  const { data: rules, error: rulesError } = await supabase
+    .from('system_rules')
+    .select('*');
+
+  if (tplError || rulesError) {
+    throw new Error('Failed to fetch system context from Supabase');
+  }
+
+  const contextSummary = JSON.stringify({ templates, rules });
+  const errorString =
+    errorMessage ??
+    (typeof errorPayload === 'string' ? errorPayload : JSON.stringify(errorPayload));
+  const errorPayloadRecord =
+    errorPayload && typeof errorPayload === 'object' ? (errorPayload as Record<string, unknown>) : {};
+  const serviceName = String(errorPayloadRecord.route ?? errorPayloadRecord.tag ?? 'fieldops-backend');
+
+  let giteaIssueNumber: number | null = null;
+  try {
+    const issueTitle = `[Bob Self-Heal] ${serviceName}: ${errorString.slice(0, 100)}`;
+    const issueBody = [
+      'Automated issue opened by Bob autonomous PM tracker.',
+      '',
+      `Service: ${serviceName}`,
+      `Captured at: ${new Date().toISOString()}`,
+      '',
+      'Error details:',
+      '```',
+      errorString,
+      '```',
+      '',
+      'Raw payload:',
+      '```json',
+      JSON.stringify(errorPayload ?? {}, null, 2),
+      '```',
+    ].join('\n');
+
+    giteaIssueNumber = await createGiteaIssue(issueTitle, issueBody);
+  } catch (error) {
+    console.warn('[/api/heal] Failed to create Gitea issue', error);
+  }
+
+  const consultativeRunbook = await getConsultativeReferenceRunbook(errorString, 'dr_bob');
+
+  const drBobAnalysis = await promptOllama(
+    'Dr. Bob',
+    `You are Dr. Bob, a senior adversarial code reviewer.
+     Given the following Tier A system context: ${contextSummary}
+     Consultative Reference Runbook:\n${consultativeRunbook}
+     Identify the root cause of the error, distinguish symptoms from causes, and list the top risks.
+     Reject shallow or temporary workaround recommendations.`,
+    `Error payload: ${errorString}`
+  );
+
+  const bobPatch = await promptOllama(
+    'Bob',
+    `You are Bob, a senior site-reliability engineer.
+     Dr. Bob's analysis: ${drBobAnalysis}
+     System context: ${contextSummary}
+     Propose a single environment-variable patch as JSON:
+     { "variableName": string, "variableValue": string, "justification": string }
+     Constraints:
+     - The justification must explain the underlying root cause.
+     - Do NOT propose temporary workarounds, bypasses, or cheap fixes.
+     - Do NOT modify, disable, skip, or weaken tests or test-framework behavior.
+     - If a root-cause-safe patch cannot be provided, return a justification saying so explicitly.`,
+    `Error payload: ${errorString}`
+  );
+
+  let parsedPatch: { variableName: string; variableValue: string; justification: string };
+  try {
+    parsedPatch = JSON.parse(bobPatch);
+  } catch {
+    throw new Error(`Bob produced an unparseable patch: ${bobPatch}`);
+  }
+
+  const rootCausePolicy = evaluateRootCausePolicy({
+    variableName: parsedPatch.variableName,
+    variableValue: parsedPatch.variableValue,
+    justification: parsedPatch.justification,
+  });
+
+  const testIntegrityPolicy = evaluateTestIntegrityPolicy({
+    variableName: parsedPatch.variableName,
+    variableValue: parsedPatch.variableValue,
+    justification: parsedPatch.justification,
+  });
+
+  const policyReasons = [...rootCausePolicy.reasons, ...testIntegrityPolicy.reasons];
+
+  if (!rootCausePolicy.ok || !testIntegrityPolicy.ok) {
+    const reviewPayload = {
+      ...errorPayloadRecord,
+      giteaIssueNumber,
+      policyGate: {
+        gate: 'ROOT_CAUSE_ONLY',
+        passed: false,
+        reasons: policyReasons,
+        checks: {
+          rootCauseOnly: rootCausePolicy.ok,
+          testIntegrity: testIntegrityPolicy.ok,
+        },
+      },
+      candidatePatch: parsedPatch,
+      capturedAt: new Date().toISOString(),
+    };
+
+    await persistSelfHealingLog({
+      serviceName,
+      errorMessage: errorString,
+      payload: reviewPayload,
+      status: 'BLOCKED_BY_POLICY',
+    });
+
+    await supabase.from('heal_patches').insert({
+      status: 'BLOCKED_BY_POLICY',
+      service_name: serviceName,
+      error_message: errorString,
+      target_variable: parsedPatch.variableName,
+      patch_value: parsedPatch.variableValue,
+      error_payload: reviewPayload,
+      dr_bob_analysis: `${drBobAnalysis}\n\nPolicy block: ${policyReasons.join(' | ')}`,
+      patch: {
+        ...parsedPatch,
+        giteaIssueNumber,
+      },
+      created_at: new Date().toISOString(),
+    });
+
+    throw new Error(`Patch rejected by root-cause policy gate: ${policyReasons.join(' | ')}`);
+  }
+
+  const safe = await runInSandboxEmulator(parsedPatch.variableValue, parsedPatch.variableName);
+  const reviewPayload = {
+    ...errorPayloadRecord,
+    giteaIssueNumber,
+    capturedAt: new Date().toISOString(),
+  };
+
+  await persistSelfHealingLog({
+    serviceName,
+    errorMessage: errorString,
+    payload: reviewPayload,
+    status: safe ? 'PENDING_HUMAN_REVIEW' : 'BLOCKED_BY_SANDBOX',
+  });
+
+  const { data: record, error: insertError } = await supabase
+    .from('heal_patches')
+    .insert({
+      status: safe ? 'PENDING_HUMAN_REVIEW' : 'BLOCKED_BY_SANDBOX',
+      service_name: serviceName,
+      error_message: errorString,
+      target_variable: parsedPatch.variableName,
+      patch_value: parsedPatch.variableValue,
+      error_payload: reviewPayload,
+      dr_bob_analysis: drBobAnalysis,
+      patch: {
+        ...parsedPatch,
+        giteaIssueNumber,
+      },
+      created_at: new Date().toISOString(),
+    })
+    .select()
+    .single();
+
+  if (insertError || !record?.id) {
+    throw new Error('Failed to save review record');
+  }
+
+  return {
+    status: safe ? 'PENDING_HUMAN_REVIEW' : 'BLOCKED_BY_SANDBOX',
+    patchId: String(record.id),
+    patch: parsedPatch,
+    drBobAnalysis,
+    issueNumber: giteaIssueNumber,
+  };
+}
+
 // ── POST /api/heal ───────────────────────────────────────────────────────────
 //    Multi-agent assembly line:
 //    1. Fetch system templates & rules from Supabase
@@ -3595,199 +3809,25 @@ Do not return plain text outside the JSON object.
     return;
   }
 
-  // 1 ── Fetch system context from Supabase
-  const { data: templates, error: tplError } = await supabase
-    .from('system_templates')
-    .select('*');
-
-  const { data: rules, error: rulesError } = await supabase
-    .from('system_rules')
-    .select('*');
-
-  if (tplError || rulesError) {
-    console.error('[/api/heal] Supabase fetch error', tplError ?? rulesError);
-    res.status(500).json({ error: 'Failed to fetch system context from Supabase' });
-    return;
-  }
-
-  const contextSummary = JSON.stringify({ templates, rules });
-  const errorString =
-    errorMessage ??
-    (typeof errorPayload === 'string' ? errorPayload : JSON.stringify(errorPayload));
-  const errorPayloadRecord =
-    errorPayload && typeof errorPayload === 'object' ? (errorPayload as Record<string, unknown>) : {};
-  const serviceName = String(errorPayloadRecord.route ?? errorPayloadRecord.tag ?? 'fieldops-backend');
-
-  let giteaIssueNumber: number | null = null;
   try {
-    const issueTitle = `[Bob Self-Heal] ${serviceName}: ${errorString.slice(0, 100)}`;
-    const issueBody = [
-      'Automated issue opened by Bob autonomous PM tracker.',
-      '',
-      `Service: ${serviceName}`,
-      `Captured at: ${new Date().toISOString()}`,
-      '',
-      'Error details:',
-      '```',
-      errorString,
-      '```',
-      '',
-      'Raw payload:',
-      '```json',
-      JSON.stringify(errorPayload ?? {}, null, 2),
-      '```',
-    ].join('\n');
+    const result = await executeMultiAgentAssemblyLine({
+      errorPayload,
+      errorMessage,
+    });
 
-    giteaIssueNumber = await createGiteaIssue(issueTitle, issueBody);
+    res.json({
+      status: result.status,
+      patchId: result.patchId,
+      patch: result.patch,
+      drBobAnalysis: result.drBobAnalysis,
+      issueNumber: result.issueNumber,
+    });
   } catch (error) {
-    console.warn('[/api/heal] Failed to create Gitea issue', error);
+    const message = error instanceof Error ? error.message : String(error);
+    console.error('[/api/heal] assembly line failed', message);
+    const status = message.includes('root-cause policy gate') ? 422 : 500;
+    res.status(status).json({ error: message });
   }
-
-  const consultativeRunbook = await getConsultativeReferenceRunbook(errorString, 'dr_bob');
-
-  // 2 ── Dr. Bob: critic agent
-  const drBobAnalysis = await promptOllama(
-    'Dr. Bob',
-    `You are Dr. Bob, a senior adversarial code reviewer. 
-     Given the following Tier A system context: ${contextSummary}
-     Consultative Reference Runbook:\n${consultativeRunbook}
-     Identify the root cause of the error, distinguish symptoms from causes, and list the top risks.
-     Reject shallow or temporary workaround recommendations.`,
-    `Error payload: ${errorString}`
-  );
-
-  // 3 ── Bob: fixer agent
-  const bobPatch = await promptOllama(
-    'Bob',
-    `You are Bob, a senior site-reliability engineer.
-     Dr. Bob's analysis: ${drBobAnalysis}
-     System context: ${contextSummary}
-     Propose a single environment-variable patch as JSON: 
-     { "variableName": string, "variableValue": string, "justification": string }
-     Constraints:
-     - The justification must explain the underlying root cause.
-     - Do NOT propose temporary workarounds, bypasses, or cheap fixes.
-     - Do NOT modify, disable, skip, or weaken tests or test-framework behavior.
-     - If a root-cause-safe patch cannot be provided, return a justification saying so explicitly.`,
-    `Error payload: ${errorString}`
-  );
-
-  // 4 ── Sandbox emulator validates the patch
-  let parsedPatch: { variableName: string; variableValue: string; justification: string };
-  try {
-    parsedPatch = JSON.parse(bobPatch);
-  } catch {
-    res.status(422).json({ error: 'Bob produced an unparseable patch', raw: bobPatch });
-    return;
-  }
-
-  const rootCausePolicy = evaluateRootCausePolicy({
-    variableName: parsedPatch.variableName,
-    variableValue: parsedPatch.variableValue,
-    justification: parsedPatch.justification,
-  });
-
-  const testIntegrityPolicy = evaluateTestIntegrityPolicy({
-    variableName: parsedPatch.variableName,
-    variableValue: parsedPatch.variableValue,
-    justification: parsedPatch.justification,
-  });
-
-  const policyReasons = [...rootCausePolicy.reasons, ...testIntegrityPolicy.reasons];
-
-  if (!rootCausePolicy.ok || !testIntegrityPolicy.ok) {
-    const reviewPayload = {
-      ...errorPayloadRecord,
-      giteaIssueNumber,
-      policyGate: {
-        gate: 'ROOT_CAUSE_ONLY',
-        passed: false,
-        reasons: policyReasons,
-        checks: {
-          rootCauseOnly: rootCausePolicy.ok,
-          testIntegrity: testIntegrityPolicy.ok,
-        },
-      },
-      candidatePatch: parsedPatch,
-      capturedAt: new Date().toISOString(),
-    };
-
-    await persistSelfHealingLog({
-      serviceName,
-      errorMessage: errorString,
-      payload: reviewPayload,
-      status: 'BLOCKED_BY_POLICY',
-    });
-
-    await supabase.from('heal_patches').insert({
-      status: 'BLOCKED_BY_POLICY',
-      service_name: serviceName,
-      error_message: errorString,
-      target_variable: parsedPatch.variableName,
-      patch_value: parsedPatch.variableValue,
-      error_payload: reviewPayload,
-      dr_bob_analysis: `${drBobAnalysis}\n\nPolicy block: ${policyReasons.join(' | ')}`,
-      patch: {
-        ...parsedPatch,
-        giteaIssueNumber,
-      },
-      created_at: new Date().toISOString(),
-    });
-
-    res.status(422).json({
-      error: 'Patch rejected by root-cause policy gate',
-      reasons: policyReasons,
-      issueNumber: giteaIssueNumber,
-    });
-    return;
-  }
-
-  const safe = await runInSandboxEmulator(parsedPatch.variableValue, parsedPatch.variableName);
-  const reviewPayload = {
-    ...errorPayloadRecord,
-    giteaIssueNumber,
-    capturedAt: new Date().toISOString(),
-  };
-
-  await persistSelfHealingLog({
-    serviceName,
-    errorMessage: errorString,
-    payload: reviewPayload,
-    status: safe ? 'PENDING_HUMAN_REVIEW' : 'BLOCKED_BY_SANDBOX',
-  });
-
-  // 5 ── Save review record
-  const { data: record, error: insertError } = await supabase
-    .from('heal_patches')
-    .insert({
-      status: safe ? 'PENDING_HUMAN_REVIEW' : 'BLOCKED_BY_SANDBOX',
-      service_name: serviceName,
-      error_message: errorString,
-      target_variable: parsedPatch.variableName,
-      patch_value: parsedPatch.variableValue,
-      error_payload: reviewPayload,
-      dr_bob_analysis: drBobAnalysis,
-      patch: {
-        ...parsedPatch,
-        giteaIssueNumber,
-      },
-      created_at: new Date().toISOString(),
-    })
-    .select()
-    .single();
-
-  if (insertError) {
-    console.error('[/api/heal] Failed to persist review record', insertError);
-    res.status(500).json({ error: 'Failed to save review record' });
-    return;
-  }
-
-  res.json({
-    status: safe ? 'PENDING_HUMAN_REVIEW' : 'BLOCKED_BY_SANDBOX',
-    patchId: record.id,
-    patch: parsedPatch,
-    drBobAnalysis,
-  });
 });
 
 // ── POST /api/approve-patch ──────────────────────────────────────────────────
@@ -4045,6 +4085,89 @@ app.post('/api/gitea-webhook', (req: Request, res: Response) => {
   triggerTrainingSync(source);
 
   res.status(202).json({ status: 'accepted', event, repo, ref, trigger: source });
+});
+
+app.post('/api/automation/telemetry-triage', requireAdminAuth, async (req: Request, res: Response) => {
+  const allowedLayers = new Set<TelemetrySourceLayer>([
+    'SUPABASE_SCHEMA',
+    'API_CONTRACT',
+    'CONTAINER_METRICS',
+    'CORS_POLICY',
+    'ENV_VARS',
+  ]);
+
+  const body = (req.body ?? {}) as {
+    source_layer?: string;
+    sourceLayer?: string;
+    error_signature?: string;
+    errorSignature?: string;
+    payload_snapshot?: unknown;
+    payloadSnapshot?: unknown;
+    errorMessage?: string;
+  };
+
+  const sourceLayer = String(body.source_layer ?? body.sourceLayer ?? '').trim().toUpperCase() as TelemetrySourceLayer;
+  const errorSignature = String(body.error_signature ?? body.errorSignature ?? '').trim();
+  const payloadSnapshot = body.payload_snapshot ?? body.payloadSnapshot ?? {};
+  const errorMessage = String(body.errorMessage ?? '').trim();
+
+  if (!allowedLayers.has(sourceLayer)) {
+    res.status(400).json({
+      error:
+        'Invalid source_layer. Allowed values: SUPABASE_SCHEMA, API_CONTRACT, CONTAINER_METRICS, CORS_POLICY, ENV_VARS.',
+    });
+    return;
+  }
+
+  if (!errorSignature) {
+    res.status(400).json({ error: 'error_signature is required.' });
+    return;
+  }
+
+  const { data: telemetryLog, error: telemetryInsertError } = await supabase
+    .from('system_telemetry_logs')
+    .insert({
+      source_layer: sourceLayer,
+      error_signature: errorSignature,
+      payload_snapshot: payloadSnapshot,
+    })
+    .select('id, created_at, source_layer, error_signature')
+    .single();
+
+  if (telemetryInsertError || !telemetryLog?.id) {
+    console.error('[/api/automation/telemetry-triage] failed to persist telemetry log', telemetryInsertError);
+    res.status(500).json({ error: 'Failed to persist telemetry log entry.' });
+    return;
+  }
+
+  const assemblyPayload = {
+    route: '/api/automation/telemetry-triage',
+    telemetryLogId: telemetryLog.id,
+    sourceLayer,
+    errorSignature,
+    payloadSnapshot,
+  };
+
+  try {
+    const assembly = await executeMultiAgentAssemblyLine({
+      errorPayload: assemblyPayload,
+      errorMessage: errorMessage || `Telemetry triage ${sourceLayer}: ${errorSignature}`,
+    });
+
+    res.status(200).json({
+      status: 'ACCEPTED_AND_TRIAGED',
+      telemetryLog,
+      assemblyLine: assembly,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error('[/api/automation/telemetry-triage] assembly line failed', message);
+    res.status(500).json({
+      status: 'TELEMETRY_LOGGED_TRIAGE_FAILED',
+      telemetryLog,
+      error: message,
+    });
+  }
 });
 
 // ── POST /api/automation/playwright-result ────────────────────────────────

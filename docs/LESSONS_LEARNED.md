@@ -13,6 +13,27 @@ Use this file to record concrete mistakes Bob and Dr Bob found during adversaria
 
 ## Current Lessons
 
+- Date: 2026-05-24
+- Trigger: User directive to stop non-coding auto-closures and teach Dr Bob endpoint/env/load/wiring triage.
+- Mistake: Non-coding incidents (endpoint URL mistakes, API-key-vs-URL confusion, env misconfiguration, failed-load signatures, and wrong wiring direction) could be returned as `resolve` by model output and applied too early.
+- Risk: Premature closure hides infrastructure root causes and creates false confidence while failures continue.
+- Fix: Enforced triage-first policy in rerun workflow: all non-coding lanes stay open (`keep_open`/`investigating` unless explicit human escalation), with structured `nonCodingType`, `nextAction`, and `evidenceRequired` fields persisted in `ai_analysis`.
+- Prevention Rule: For endpoint/env/load/wiring/API-vs-URL issues, always classify as non-coding triage lane, require rerun + config evidence, and never auto-resolve on first-pass AI output.
+
+- Date: 2026-05-24
+- Trigger: Needs-human backlog review (`requires_human_review=true`) showed 111 open items, with 108 from Vercel emulator runs and 103 titled `FAILED_LAUNCH`.
+- Mistake: Dr Bob treated environment launch failures (browser/app boot instability in emulator context) as product bug regressions and kept them in human-review queues.
+- Risk: Human triage load balloons with non-product incidents, masking real app defects and delaying root-cause fixes.
+- Fix: Added autonomous closeout staging and explicit remediation-closeout wiring; reinforced triage rule that emulator launch failures must be classified as infrastructure/runtime incidents first, then retried before filing product bug conclusions.
+- Prevention Rule: If failure signature is `FAILED_LAUNCH`, connection refusal, or worker bootstrap error, classify as runtime/infrastructure and rerun environment checks before escalating as product bug.
+
+- Date: 2026-05-24
+- Trigger: Dr Bob escalation queue reached 42 needs-human entries dominated by `blocker-findings` and `unstructured-review` outcomes.
+- Mistake: Review artifacts were escalated when proposals were not clearly grounded in `system_state.json` and when Dr Bob response formatting drifted from strict JSON.
+- Risk: Escalation queue becomes stale/noisy; autonomous healing appears inactive despite repeated runs.
+- Fix: Reinforced stage-gated closeout flow plus explicit guidance to rerun with strict grounding and strict JSON output contract before human handoff.
+- Prevention Rule: Dr Bob must fail-fast on ungrounded module references, mark future-state items as proposed, and always return strict JSON schema output for every review pass.
+
 - Date: 2026-05-12
 - Trigger: Live-user reports — PTT not requesting permissions on first load and "PTT server unavailable" for regular officers.
 - Mistake: `getPlatformAdminFallbackScope()` had a `role !== 'grand_master'` guard that blocked the zone-error recovery path for all other roles. PTTRadio auto-connect only fired for `dispatch`/`direct` modes. No automatic microphone permission prompt existed on page mount.
