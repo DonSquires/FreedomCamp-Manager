@@ -61,6 +61,49 @@ function sharedPassword(...names: string[]): string {
   return readEnv(...names) || 'Test123!'
 }
 
+function isManualUserRequestJob(): boolean {
+  const signal = readEnv(
+    'BOB_REQUEST_SOURCE',
+    'JOB_REQUEST_SOURCE',
+    'HEAL_ERROR_MESSAGE',
+    'BOB_JOB_INTENT',
+    'BOB_USER_REQUEST_MODE'
+  ).toLowerCase()
+
+  if (!signal) return false
+  return /manual_user_instruction|user[_\s-]?request/.test(signal)
+}
+
+function resolveHardwiredAutomationCredentials(): TestCredentials | null {
+  const enabled = readEnv('PLAYWRIGHT_HARDWIRE_AUTOMATION_CREDENTIALS', 'BOB_HARDWIRE_AUTOMATION_CREDENTIALS')
+  const hardwireEnabled = enabled ? enabled === '1' || enabled.toLowerCase() === 'true' : true
+
+  if (!hardwireEnabled || isManualUserRequestJob()) {
+    return null
+  }
+
+  const email = readEnv(
+    'PLAYWRIGHT_MASTER_EMAIL',
+    'E2E_MASTER_EMAIL',
+    'BOB_LOGIN_EMAIL',
+    'PLAYWRIGHT_BOB_EMAIL',
+    'PLAYWRIGHT_ADMIN_ORG1_EMAIL',
+    'PLAYWRIGHT_ADMIN_EMAIL'
+  )
+
+  const password = readEnv(
+    'PLAYWRIGHT_MASTER_PASSWORD',
+    'E2E_MASTER_PASSWORD',
+    'BOB_LOGIN_PASSWORD',
+    'PLAYWRIGHT_BOB_PASSWORD',
+    'PLAYWRIGHT_ADMIN_ORG1_PASSWORD',
+    'PLAYWRIGHT_ADMIN_PASSWORD'
+  )
+
+  if (!email || !password) return null
+  return { email, password }
+}
+
 const universalTestEmail = readEnv('PLAYWRIGHT_OWNER_EMAIL', 'PLAYWRIGHT_OFFICER_EMAIL', 'PLAYWRIGHT_TEST_EMAIL')
 const universalTestPassword = readEnv('PLAYWRIGHT_OWNER_PASSWORD', 'PLAYWRIGHT_OFFICER_PASSWORD', 'PLAYWRIGHT_TEST_PASSWORD')
 
@@ -339,6 +382,11 @@ export function validateRoleCredentialPreflight(
 }
 
 function resolveRoleCredentials(user: TestUserKey): TestCredentials {
+  const hardwired = resolveHardwiredAutomationCredentials()
+  if (hardwired) {
+    return hardwired
+  }
+
   if (hasUniversalTestAccount) {
     return {
       email: universalTestEmail,

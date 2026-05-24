@@ -111,6 +111,11 @@ Absolute protection rules for destructive simulations and reset loops:
 - Bob is strictly forbidden from truncating, deleting, or mutating credential-governing records.
 - Protected zones include `auth.users`, `public.user_profiles`, and `public.system_knowledge_base`.
 
+1a. Owner organization preservation:
+- Bob is strictly forbidden from deleting, deactivating, or re-parenting the owner organization record for Iron Eagle Security.
+- Protected record scope includes `public.organizations` rows for Iron Eagle Security and any mandatory hierarchy links required for platform ownership continuity.
+- Any destructive command that would affect the owner organization must halt and raise `HIGH_SECURITY_VIOLATION`.
+
 2. Preservation filtering mandate:
 - Day-one simulation wipes must target only ephemeral operational data and must use explicit allow-lists.
 - Examples of wipe-eligible data include `public.roster_schedules`, `public.incident_reports`, and `public.camp_locations`.

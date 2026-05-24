@@ -185,6 +185,49 @@ set_alias_pair_if_missing PLAYWRIGHT_BOB_PASSWORD BOB_LOGIN_PASSWORD
 # Apply this before API_TEST and alias sync so all derived aliases stay coherent.
 apply_login_profile
 
+is_user_request_job=0
+request_signal="${BOB_REQUEST_SOURCE:-}${JOB_REQUEST_SOURCE:-}${HEAL_ERROR_MESSAGE:-}${BOB_JOB_INTENT:-}${BOB_USER_REQUEST_MODE:-}"
+request_signal="${request_signal,,}"
+if [[ "$request_signal" == *"manual_user_instruction"* || "$request_signal" == *"user_request"* || "$request_signal" == "1" ]]; then
+  is_user_request_job=1
+fi
+
+# Hardwire automation credentials for non-user-request jobs.
+if [[ "$is_user_request_job" -eq 0 ]]; then
+  hardwire_enabled="${PLAYWRIGHT_HARDWIRE_AUTOMATION_CREDENTIALS:-${BOB_HARDWIRE_AUTOMATION_CREDENTIALS:-1}}"
+  hardwire_enabled="${hardwire_enabled,,}"
+
+  if [[ "$hardwire_enabled" == "1" || "$hardwire_enabled" == "true" ]]; then
+    master_email="${PLAYWRIGHT_MASTER_EMAIL:-${E2E_MASTER_EMAIL:-${BOB_LOGIN_EMAIL:-${PLAYWRIGHT_BOB_EMAIL:-${PLAYWRIGHT_ADMIN_ORG1_EMAIL:-${PLAYWRIGHT_ADMIN_EMAIL:-}}}}}}"
+    master_password="${PLAYWRIGHT_MASTER_PASSWORD:-${E2E_MASTER_PASSWORD:-${BOB_LOGIN_PASSWORD:-${PLAYWRIGHT_BOB_PASSWORD:-${PLAYWRIGHT_ADMIN_ORG1_PASSWORD:-${PLAYWRIGHT_ADMIN_PASSWORD:-}}}}}}"
+
+    if [[ -n "$master_email" && -n "$master_password" ]]; then
+      export PLAYWRIGHT_MASTER_EMAIL="$master_email"
+      export PLAYWRIGHT_MASTER_PASSWORD="$master_password"
+
+      export PLAYWRIGHT_ADMIN_ORG1_EMAIL="$master_email"
+      export PLAYWRIGHT_ADMIN_ORG1_PASSWORD="$master_password"
+      export PLAYWRIGHT_ADMIN_ORG2_EMAIL="$master_email"
+      export PLAYWRIGHT_ADMIN_ORG2_PASSWORD="$master_password"
+      export PLAYWRIGHT_OFFICER_ORG1_EMAIL="$master_email"
+      export PLAYWRIGHT_OFFICER_ORG1_PASSWORD="$master_password"
+      export PLAYWRIGHT_CLIENT_VIEWER_EMAIL="$master_email"
+      export PLAYWRIGHT_CLIENT_VIEWER_PASSWORD="$master_password"
+      export PLAYWRIGHT_CLIENT_STAFF_EMAIL="$master_email"
+      export PLAYWRIGHT_CLIENT_STAFF_PASSWORD="$master_password"
+      export PLAYWRIGHT_BOB_EMAIL="$master_email"
+      export PLAYWRIGHT_BOB_PASSWORD="$master_password"
+      export BOB_LOGIN_EMAIL="$master_email"
+      export BOB_LOGIN_PASSWORD="$master_password"
+
+      export API_TEST_EMAIL="$master_email"
+      export API_TEST_PASSWORD="$master_password"
+      export PLAYWRIGHT_LIVE_EMAIL="$master_email"
+      export PLAYWRIGHT_LIVE_PASSWORD="$master_password"
+    fi
+  fi
+fi
+
 # API/live credential aliases used by auth helpers in tests/e2e/auth.ts.
 # Prefer owner credentials first because they are typically the most stable shared account.
 set_if_missing_chain API_TEST_EMAIL TEST_OWNER_EMAIL TEST_ADMIN_EMAIL PLAYWRIGHT_ADMIN_ORG1_EMAIL PLAYWRIGHT_ADMIN_EMAIL

@@ -89,6 +89,8 @@ const systemRules = [
   'GOVERNANCE INTERVENTION: Never auto-deploy subjective UI/UX structural changes. Log findings to ui_ux_friction_ledger with risk/reward notes and hold as PENDING_HUMAN_REVIEW.',
   'SAFE CREDENTIAL PRESERVATION AND DESTRUCTIVE PURGE PROTOCOL: destructive simulation commands must preserve all core authentication, authorization, and system metadata records.',
   'DATA DESTRUCTION EXCLUSION ZONES: never truncate, delete, or mutate auth.users, public.user_profiles, or public.system_knowledge_base during any wipe or reset cycle.',
+  'OWNER ORGANIZATION PRESERVATION: never delete, deactivate, or re-parent the owner organization record for Iron Eagle Security in public.organizations.',
+  'OWNER HIERARCHY PROTECTION: never execute destructive mutations that break mandatory ownership hierarchy links required by Iron Eagle Security platform control.',
   'PRESERVATION FILTERING: day-one simulation resets must target only explicit allow-listed ephemeral operational tables (for example public.roster_schedules, public.incident_reports, public.camp_locations).',
   'SECURE AUTH HANDOFF: after any purge simulation, run headless auth verification using preserved administrative credentials to confirm login continuity end-to-end.',
   'COMPLIANCE AUDITING: if any destructive command touches a protected credential table, halt immediately, place emergency hold, log HIGH_SECURITY_VIOLATION, and notify Captain via dashboard workflow.',
