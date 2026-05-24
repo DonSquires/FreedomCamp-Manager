@@ -38,11 +38,48 @@ const state = {
 
 let supabase = null;
 
+function firstNonEmptyEnv(names) {
+  for (const name of names) {
+    const value = String(process.env[name] || '').trim();
+    if (value) {
+      return value;
+    }
+  }
+  return '';
+}
+
 function getConfig() {
-  const supabaseUrl = String(process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '').trim().replace(/\/+$/, '');
-  const supabaseKey = String(process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
-  const email = String(process.env.BOB_SYSTEM_EMAIL || '').trim().toLowerCase();
-  const password = String(process.env.BOB_SYSTEM_PASSWORD || '').trim();
+  const supabaseUrl = firstNonEmptyEnv([
+    'SUPABASE_URL',
+    'VITE_SUPABASE_URL',
+    'SUPABASE_PROJECT_URL',
+  ]).replace(/\/+$/, '');
+
+  const supabaseKey = firstNonEmptyEnv([
+    'SUPABASE_ANON_KEY',
+    'VITE_SUPABASE_ANON_KEY',
+    'SUPABASE_SERVICE_ROLE_KEY',
+    'SERVICE_ROLE_KEY',
+    'SB_SERVICE_KEY',
+  ]);
+
+  // Accept multiple credential aliases so production secret naming drift does not hard-fail startup.
+  const email = firstNonEmptyEnv([
+    'BOB_SYSTEM_EMAIL',
+    'BOB_LOGIN_EMAIL',
+    'PLAYWRIGHT_MASTER_EMAIL',
+    'TEST_OWNER_EMAIL',
+    'API_TEST_EMAIL',
+  ]).toLowerCase();
+
+  const password = firstNonEmptyEnv([
+    'BOB_SYSTEM_PASSWORD',
+    'BOB_LOGIN_PASSWORD',
+    'PLAYWRIGHT_MASTER_PASSWORD',
+    'TEST_OWNER_PASSWORD',
+    'API_TEST_PASSWORD',
+  ]);
+
   const refreshBufferSeconds = Math.max(30, Number(process.env.BOB_SYSTEM_REFRESH_BUFFER_SECONDS || 120));
 
   return {
@@ -133,7 +170,9 @@ function recordFailure(error) {
 async function signInWithPassword() {
   const cfg = getConfig();
   if (!cfg.configured) {
-    throw new Error('Missing Supabase/Bob system login env variables.');
+    throw new Error(
+      'Missing Supabase/Bob system login env variables. Required: SUPABASE_URL + key and Bob credentials (BOB_SYSTEM_* or fallback aliases).'
+    );
   }
 
   ensureWebSocketSupport();
@@ -201,7 +240,7 @@ async function initBobSystemAuth() {
 
   if (!cfg.configured) {
     state.ready = false;
-    state.lastError = 'BOB_SYSTEM_EMAIL/BOB_SYSTEM_PASSWORD not configured.';
+    state.lastError = 'Bob system credentials are not configured (BOB_SYSTEM_* or fallback aliases).';
     return false;
   }
 
@@ -238,9 +277,9 @@ function getBobSystemAuthStatus() {
     last_failure_kind: state.lastFailureKind,
     last_failure_at: state.lastFailureAt,
     self_heal_hint: state.lastFailureKind === 'credentials'
-      ? 'Rotate or correct BOB_SYSTEM_EMAIL / BOB_SYSTEM_PASSWORD, then restart the proxy so Bob can re-authenticate.'
+      ? 'Rotate or correct Bob auth credentials (BOB_SYSTEM_* preferred), then restart the proxy so Bob can re-authenticate.'
       : state.lastFailureKind === 'configuration'
-        ? 'Set BOB_SYSTEM_EMAIL and BOB_SYSTEM_PASSWORD before restarting the proxy.'
+        ? 'Set Bob auth credentials before restarting the proxy. Preferred: BOB_SYSTEM_EMAIL + BOB_SYSTEM_PASSWORD.'
         : null,
   };
 }
