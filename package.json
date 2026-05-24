@@ -18,6 +18,7 @@
     "staging:star-trek:bob:check": "bash scripts/staging-star-trek-bob-check.sh",
     "staging:star-trek:bob:all-in-one": "bash scripts/staging-star-trek-bob-check.sh",
     "build": "tsc -b && vite build",
+    "bob:build:orchestrate": "bash scripts/bob-build-orchestrator.sh",
     "build:split": "bash scripts/build-split.sh",
     "ops:audit:time-restrictions": "node scripts/audit-runtime-timeouts.mjs",
     "build:budget": "node scripts/check-build-budgets.mjs",

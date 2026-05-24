@@ -774,7 +774,9 @@ function GovernanceMutationGate({
   const location = useLocation()
   const [confirmed, setConfirmed] = useState(false)
 
-  const requiresGate = user?.role === 'master' || user?.role === 'grand_master'
+  // grand_master is full-governance and should not be blocked by an extra
+  // confirmation wall. Keep explicit confirmation for master workflows.
+  const requiresGate = user?.role === 'master'
 
   useEffect(() => {
     if (!requiresGate) return
@@ -2559,6 +2561,17 @@ export default function App() {
           />
           <Route
             path="/dispatch"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <DispatchConsole />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+          {/* Canonical manual path alias: /dispatch-console */}
+          <Route
+            path="/dispatch-console"
             element={
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>

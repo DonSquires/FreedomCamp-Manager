@@ -1,17 +1,8 @@
-/**
- * Bob AI Control Center Module
- * 
- * Consolidates AI/automation pages:
- * - BobStudio, BobAssistantStudio → Bob: Studio
- * - BobProposalLog, BobIntakeQueue → Bob: Proposal Queue
- * - Removes BobUIReview (debug page)
- */
+import { Navigate } from 'react-router-dom'
 
+/**
+ * Bob module entry should always resolve to the operational assistant surface.
+ */
 export default function BobModule() {
-  return (
-    <div className="p-6">
-      <h1>Bob AI Control Center — Coming Soon</h1>
-      <p>Consolidating 2 views: Studio, Proposal Queue</p>
-    </div>
-  )
+  return <Navigate to="/bob-assistant" replace />
 }
