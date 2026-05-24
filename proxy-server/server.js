@@ -158,18 +158,44 @@ const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 app.use(cors(corsOptions));
 app.use(express.json());
 
+function firstNonEmptyEnv(names, fallback = '') {
+  for (const name of names) {
+    const value = String(process.env[name] || '').trim();
+    if (value) {
+      return value;
+    }
+  }
+  return fallback;
+}
+
 // Environment variables validation
-const NZSCV_API_KEY = process.env.NZSCV_API_KEY;
-const NZSCV_ID_KEY = process.env.NZSCV_ID_KEY;
-const NZSCV_BASE_URL = process.env.NZSCV_BASE_URL || 'https://www.nzscv.co.nz';
+const NZSCV_API_KEY = firstNonEmptyEnv([
+  'NZSCV_API_KEY',
+  'PGDB_AUTHORIZATION',
+  'NZSCV_AUTHORIZATION',
+]);
+const NZSCV_ID_KEY = firstNonEmptyEnv([
+  'NZSCV_ID_KEY',
+  'PGDB_IDENTIFIER',
+  'NZSCV_IDENTIFIER',
+]);
+const NZSCV_BASE_URL = firstNonEmptyEnv(['NZSCV_BASE_URL'], 'https://www.nzscv.co.nz');
 // NZSCV_ENDPOINT_URL overrides the full endpoint URL — set this to match the target
 // environment (test or production). See proxy-server/.env.example for the correct values.
-const NZSCV_ENDPOINT_URL = process.env.NZSCV_ENDPOINT_URL ||
+const NZSCV_ENDPOINT_URL = firstNonEmptyEnv(['NZSCV_ENDPOINT_URL']) ||
   `${NZSCV_BASE_URL}/api/rest/scv/v1/vehicleregistrationinfo`;
-const NZSCV_METHOD = (process.env.NZSCV_METHOD || '').toUpperCase();
-const MOTORWEB_API_KEY = process.env.MOTORWEB_API_KEY;
-const MOTORWEB_ID_KEY = process.env.MOTORWEB_ID_KEY;
-const MOTORWEB_BASE_URL = process.env.MOTORWEB_BASE_URL || 'https://robot.motorweb.co.nz';
+const NZSCV_METHOD = firstNonEmptyEnv(['NZSCV_METHOD']).toUpperCase();
+const MOTORWEB_API_KEY = firstNonEmptyEnv([
+  'MOTORWEB_API_KEY',
+  'MOTORWEB_KEY',
+  'MW_API_KEY',
+]);
+const MOTORWEB_ID_KEY = firstNonEmptyEnv([
+  'MOTORWEB_ID_KEY',
+  'MOTORWEB_IDENTIFIER',
+  'MW_ID_KEY',
+]);
+const MOTORWEB_BASE_URL = firstNonEmptyEnv(['MOTORWEB_BASE_URL'], 'https://robot.motorweb.co.nz');
 const PROXY_SECRET = process.env.PROXY_SECRET; // Secret to authenticate your Edge Functions
 const SMTP_HOST = process.env.SMTP_HOST;
 const SMTP_PORT = parseInt(process.env.SMTP_PORT || '465', 10);
