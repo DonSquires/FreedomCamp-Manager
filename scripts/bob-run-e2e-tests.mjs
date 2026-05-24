@@ -20,8 +20,8 @@
  */
 
 import { execSync } from 'node:child_process'
-import { writeFileSync, mkdirSync, readFileSync, existsSync } from 'node:fs'
-import { resolve, dirname } from 'node:path'
+import { writeFileSync, mkdirSync, existsSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { randomUUID } from 'node:crypto'
 
 const ROOT = process.cwd()
@@ -29,18 +29,23 @@ const RESULTS_DIR = resolve(ROOT, 'data/e2e-test-results')
 const TEST_PATTERN = getArg('test-pattern', 'session-inactivity')
 const REPORT_TO_BOB = getBoolArg('report-to-bob', true)
 const TIMEOUT_MS = getNumArg('timeout', 600000) // 10 minutes default
-const TEST_FILE_PATTERN = TEST_PATTERN === 'session-inactivity' ? 'session-inactivity-timeout' : TEST_PATTERN
-const TEST_FILE = `tests/e2e/${TEST_FILE_PATTERN}.spec.ts`
+const { testTarget: TEST_TARGET, requiresExistsCheck: REQUIRES_EXISTS_CHECK } = resolveTestTarget(TEST_PATTERN)
 
 function getArg(name, fallback = '') {
   const key = `--${name}`
   const argv = process.argv.slice(2)
+  let value = fallback
   for (let i = 0; i < argv.length; i += 1) {
     const token = String(argv[i] || '')
-    if (token === key) return argv[i + 1] || fallback
-    if (token.startsWith(`${key}=`)) return token.slice(key.length + 1)
+    if (token === key) {
+      value = argv[i + 1] || fallback
+      continue
+    }
+    if (token.startsWith(`${key}=`)) {
+      value = token.slice(key.length + 1)
+    }
   }
-  return fallback
+  return value
 }
 
 function getBoolArg(name, fallback = false) {
@@ -70,6 +75,31 @@ function runCommand(cmd, options = {}) {
       output: String(error?.message || error),
       code: error?.status || 1,
     }
+  }
+}
+
+function resolveTestTarget(pattern) {
+  const normalized = pattern === 'session-inactivity' ? 'session-inactivity-timeout' : pattern
+  const hasGlob = /[*?\[\]{}]/.test(normalized)
+  const hasExplicitPath = normalized.startsWith('tests/')
+
+  if (hasGlob) {
+    return {
+      testTarget: hasExplicitPath ? normalized : `tests/e2e/${normalized}`,
+      requiresExistsCheck: false,
+    }
+  }
+
+  if (normalized.endsWith('.spec.ts') || normalized.endsWith('.ts')) {
+    return {
+      testTarget: hasExplicitPath ? normalized : `tests/e2e/${normalized}`,
+      requiresExistsCheck: true,
+    }
+  }
+
+  return {
+    testTarget: `tests/e2e/${normalized}.spec.ts`,
+    requiresExistsCheck: true,
   }
 }
 
@@ -115,22 +145,26 @@ function parsePlaywrightOutput(output) {
 
 function main() {
   console.log(`[BOB] Starting E2E test runner`)
-  console.log(`[BOB] Test file: ${TEST_FILE}`)
+  console.log(`[BOB] Test target: ${TEST_TARGET}`)
   console.log(`[BOB] Results directory: ${RESULTS_DIR}`)
   
   // Create results directory
   mkdirSync(RESULTS_DIR, { recursive: true })
   
   // Check test file exists
-  if (!existsSync(TEST_FILE)) {
-    console.error(`[BOB] ✗ Test file not found: ${TEST_FILE}`)
+  if (REQUIRES_EXISTS_CHECK && !existsSync(TEST_TARGET)) {
+    console.error(`[BOB] ✗ Test file not found: ${TEST_TARGET}`)
     process.exit(1)
   }
   
-  console.log(`[BOB] ✓ Test file found`)
+  if (REQUIRES_EXISTS_CHECK) {
+    console.log(`[BOB] ✓ Test file found`)
+  } else {
+    console.log(`[BOB] ✓ Test glob accepted`)
+  }
   
   // Run Playwright tests with detailed reporting
-  const testCommand = `npx playwright test ${TEST_FILE} --reporter=json --reporter=list`
+  const testCommand = `npx playwright test ${TEST_TARGET} --reporter=json --reporter=list`
   const runResult = runCommand(testCommand)
   
   if (!runResult.success) {
@@ -145,7 +179,7 @@ function main() {
   const report = {
     testRunId: randomUUID(),
     timestamp: new Date().toISOString(),
-    testFile: TEST_FILE,
+    testFile: TEST_TARGET,
     testPattern: TEST_PATTERN,
     status: runResult.success ? 'completed' : 'failed',
     summary: {

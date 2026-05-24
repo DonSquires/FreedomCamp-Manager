@@ -70,6 +70,13 @@
 4. If scheduler install is blocked by runtime permissions, the system must write a fallback cron entry and start the daemon fallback automatically.
 5. GitHub Actions remain optional for non-critical training freshness and validation guardrails, not as the primary self-healing scheduler.
 
+### Current Cycle Amendment (2026-05-24 — Authentication Session Reliability)
+
+1. Login/session flows now enforce deterministic invalid-session cleanup when Supabase session or profile refresh fails.
+2. The web auth store clears stale persisted auth artifacts on invalid session/profile states instead of preserving pseudo-authenticated local user data.
+3. Password login now performs a local sign-out before creating a new session to prevent stale in-memory token reuse after forced browser closes.
+4. User-facing expectation remains unchanged: if stale browser artifacts cause auth drift, clear site storage and re-authenticate.
+
 ### Current Cycle Agentic Action Board (2026-05-18)
 
 Product Oversight To-Do (authoritative execution list):
@@ -3378,7 +3385,7 @@ The `proxy-server/` is deployed to Railway. The Railway project's **Root Directo
 
 | Symptom | Likely Cause | Resolution |
 |---|---|---|
-| Login succeeds but blank screen | Stale auth token in browser storage | Clear site data / sessionStorage and reload |
+| Login succeeds but blank screen | Stale auth token in browser storage or invalid persisted session state | Clear site data / sessionStorage and reload; the app now auto-clears invalid auth state on failed session/profile checks and prompts re-authentication |
 | Officer stuck on loading spinner | Auth session check timeout (>3 s) | Auto-resolved after 3 s; if persistent, check Supabase connectivity |
 | Scan returns Unknown | ALPR could not read plate, or plate not in NZSCV | Enter plate manually; use VOI Lookup for history |
 | No zones in zone selector | Officer not linked to correct organisation | Update `organization_id` or `authorized_work_locations` in User Management |

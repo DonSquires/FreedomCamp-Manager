@@ -35,6 +35,12 @@ function clearClientAuthArtifacts() {
   }
 }
 
+function clearInvalidAuthState(set: (partial: Partial<AuthState>) => void) {
+  clearClientAuthArtifacts()
+  set({ user: null, isAuthenticated: false, loading: false })
+  useSessionLockStore.getState().unlock()
+}
+
 interface AuthUser {
   id: string
   email: string
@@ -90,7 +96,7 @@ export const useAuthStore = create<AuthState>()(
         supabase.auth.onAuthStateChange(async (_event, session) => {
           try {
             if (!session) {
-              set({ user: null, isAuthenticated: false, loading: false })
+              clearInvalidAuthState(set)
               return
             }
 
@@ -101,17 +107,12 @@ export const useAuthStore = create<AuthState>()(
 
             if (profileError) {
               console.warn('[authStore] profile refresh failed on auth change:', profileError)
-              set((state) => {
-                if (state.user) {
-                  return { ...state, isAuthenticated: true, loading: false }
-                }
-                return { user: null, isAuthenticated: false, loading: false }
-              })
+              clearInvalidAuthState(set)
               return
             }
 
             if (!profile) {
-              set({ user: null, isAuthenticated: false, loading: false })
+              clearInvalidAuthState(set)
               return
             }
 
@@ -141,7 +142,7 @@ export const useAuthStore = create<AuthState>()(
             }
           } catch (err) {
             console.warn('[authStore] onAuthStateChange handler error:', err)
-            set({ user: null, isAuthenticated: false, loading: false })
+            clearInvalidAuthState(set)
           }
         })
       },
@@ -159,6 +160,7 @@ export const useAuthStore = create<AuthState>()(
         // new session.  If the app was previously force-closed without logging
         // out, a half-expired or corrupt token can cause the Supabase client to
         // enter a broken state where it attempts to reuse the old session.
+        await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined)
         clearClientAuthArtifacts()
 
         const { data, error } = await supabase.auth.signInWithPassword({
@@ -249,17 +251,13 @@ export const useAuthStore = create<AuthState>()(
           ])
 
           if (sessionError) {
-            set((state) => {
-              if (state.user) {
-                return { ...state, isAuthenticated: true, loading: false }
-              }
-              return { user: null, isAuthenticated: false, loading: false }
-            })
+            console.warn('[authStore] session check reported an auth error:', sessionError)
+            clearInvalidAuthState(set)
             return
           }
 
           if (!session) {
-            set({ user: null, isAuthenticated: false, loading: false })
+            clearInvalidAuthState(set)
             return
           }
 
@@ -271,12 +269,7 @@ export const useAuthStore = create<AuthState>()(
 
           if (profileError) {
             console.warn('[authStore] checkSession profile fetch failed:', profileError)
-            set((state) => {
-              if (state.user) {
-                return { ...state, isAuthenticated: true, loading: false }
-              }
-              return { user: null, isAuthenticated: false, loading: false }
-            })
+            clearInvalidAuthState(set)
             return
           }
 
@@ -298,16 +291,11 @@ export const useAuthStore = create<AuthState>()(
             }
             set({ user: authUser, isAuthenticated: true, loading: false })
           } else {
-            set({ user: null, isAuthenticated: false, loading: false })
+            clearInvalidAuthState(set)
           }
         } catch (error) {
           console.warn('[authStore] checkSession failed:', error)
-          set((state) => {
-            if (state.user) {
-              return { ...state, isAuthenticated: true, loading: false }
-            }
-            return { user: null, isAuthenticated: false, loading: false }
-          })
+          clearInvalidAuthState(set)
         }
       },
     }),

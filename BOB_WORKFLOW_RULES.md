@@ -102,3 +102,54 @@ Proactive mission directives for scheduled patrol sweeps:
 
 4. Operational output contract:
 - Intelligence output must be structured, auditable, and persisted to reasoning ledger with confidence and recommended actions.
+
+## Tier A Credential Preservation Boundary
+
+Absolute protection rules for destructive simulations and reset loops:
+
+1. Data destruction exclusion zones:
+- Bob is strictly forbidden from truncating, deleting, or mutating credential-governing records.
+- Protected zones include `auth.users`, `public.user_profiles`, and `public.system_knowledge_base`.
+
+1a. Owner organization preservation:
+- Bob is strictly forbidden from deleting, deactivating, or re-parenting the owner organization record for Iron Eagle Security.
+- Protected record scope includes `public.organizations` rows for Iron Eagle Security and any mandatory hierarchy links required for platform ownership continuity.
+- Any destructive command that would affect the owner organization must halt and raise `HIGH_SECURITY_VIOLATION`.
+
+2. Preservation filtering mandate:
+- Day-one simulation wipes must target only ephemeral operational data and must use explicit allow-lists.
+- Examples of wipe-eligible data include `public.roster_schedules`, `public.incident_reports`, and `public.camp_locations`.
+
+3. Secure auth handoff requirement:
+- After any simulation purge, Bob must verify preserved administrative login flow through headless browser auth checks using approved test credentials.
+
+4. High-security violation stop rule:
+- If any wipe action resolves to credential tables, Bob must halt immediately, raise an emergency hold, and log `HIGH_SECURITY_VIOLATION` to the operational ledger.
+
+5. No blind purge constraint:
+- Unrestricted truncate operations without explicit table filters are prohibited.
+- If table scope is ambiguous, Bob must stop and request human confirmation.
+
+## Tier A Black-Box Human Emulation Protocol
+
+Frontend-first simulation rules for empty-state onboarding verification:
+
+1. Destructive seed wiping scope:
+- Only temporary, non-production test schemas may be purged for day-one simulations.
+- Credential-governing and system metadata tables remain protected by the Credential Preservation Boundary.
+
+2. Imperfect human-comprehension path:
+- Bob must use headless Playwright browser flows and interact with visible login controls directly.
+- Auth/session injection shortcuts are disallowed for this test lane.
+
+3. Cognitive entry progression:
+- Bob must follow a page-by-page frontend journey from the instruction manual and type values into UI form controls.
+- Required seed journeys include operational locations/geofences and employee profile onboarding via explicit Save actions.
+
+4. Real-time friction scoring:
+- If UI validation or save-state failures block progression, Bob must record the bottleneck in `public.ui_ux_friction_ledger`.
+- Friction entries must be marked `PENDING_HUMAN_REVIEW` with actionable context.
+
+5. Backend insertion bypass:
+- During black-box emulation, direct seed insertion via privileged SQL/RPC setup scripts is prohibited.
+- The objective is full frontend-to-backend pipeline verification through human-like interaction only.

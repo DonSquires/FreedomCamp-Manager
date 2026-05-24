@@ -6,6 +6,26 @@ Status: **ALL GATES GREEN** — npm standardized; Vercel/mobile deployment updat
 
 ---
 
+## Authentication Session Reliability Update (2026-05-24)
+
+Owner: GitHub Copilot  
+Scope: Resolve stale-login and blank-screen behavior caused by invalid persisted auth state.
+
+Completed:
+
+- [x] Added centralized invalid-auth cleanup path in `src/stores/authStore.ts`.
+- [x] Updated auth listener/session-check failure branches to clear invalid persisted auth state instead of preserving stale local user state.
+- [x] Added local sign-out before fresh password login to prevent stale in-memory Supabase session reuse.
+- [x] Verified compile safety with `npm run typecheck` (PASS).
+
+Operational outcome:
+
+1. Login failures caused by stale/invalid session artifacts now force deterministic re-auth instead of leaving the app in a pseudo-authenticated state.
+2. Session/profile read failures no longer keep users marked authenticated from stale local state.
+3. Troubleshooting guidance in the instruction manual remains valid and now matches runtime behavior.
+
+---
+
 ## Autonomous Self-Heal Scheduler Alignment (2026-05-24)
 
 Owner: GitHub Copilot  
