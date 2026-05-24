@@ -16,10 +16,11 @@ const __dirname = path.dirname(__filename);
 const workspaceRoot = path.resolve(__dirname, '..');
 const envRunpodEndpointId = String(process.env.RUNPOD_ENDPOINT_ID || '').trim();
 const defaultRunpodUrl = String(
-  process.env.RUNPOD_API_URL ||
   process.env.RUNPOD_RUNSYNC_URL ||
   process.env.RUNPOD_SERVERLESS_URL ||
   process.env.RUNPOD_GATEWAY_URL ||
+  process.env.BOB_SERVICE_URL ||
+  process.env.INFERENCE_SERVICE_URL ||
   (envRunpodEndpointId ? `https://api.runpod.ai/v2/${envRunpodEndpointId}/runsync` : '')
 ).trim();
 const drBobModel = String(process.env.DR_BOB_MODEL || process.env.OLLAMA_MODEL || '').trim();
@@ -34,6 +35,8 @@ const attemptBackoffMs = Number.parseInt(String(process.env.DR_BOB_ATTEMPT_BACKO
 function normalizeRunpodRunsyncUrl(rawUrl) {
   const trimmed = String(rawUrl || '').trim().replace(/\/+$/, '');
   if (!trimmed) return '';
+  if (/^rpa_[a-z0-9]+$/i.test(trimmed)) return '';
+  if (!/^https?:\/\//i.test(trimmed) && !/[./:]/.test(trimmed)) return '';
 
   const withScheme = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
 
@@ -51,13 +54,13 @@ function normalizeRunpodRunsyncUrl(rawUrl) {
 function resolveDrBobRunpodUrl() {
   const candidates = [
     process.env.DR_BOB_RUNPOD_URL,
+    process.env.BOB_SERVICE_URL,
+    process.env.INFERENCE_SERVICE_URL,
     process.env.RUNPOD_RUNSYNC_URL,
     process.env.RUNPOD_SERVERLESS_URL,
     process.env.RUNPOD_GATEWAY_URL,
     process.env.RUNPOD_ENDPOINT_URL,
     process.env.RUNPOD_API_URL,
-    process.env.BOB_SERVICE_URL,
-    process.env.INFERENCE_SERVICE_URL,
     defaultRunpodUrl,
   ];
 

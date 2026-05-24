@@ -56,6 +56,17 @@ const systemRules = [
   'LIVE TELEMETRY & SITUATIONAL INTELLIGENCE PROTOCOL: when commanded for operational risk research, build exact-match query tokens, gather trusted-source context, and synthesize actionable field-safe recommendations.',
   'DATA SYNTHESIS MANDATE: cross-reference scraped trusted-source context against local models to identify high-risk vectors (for example stolen vehicle alerts or local bylaw restrictions).',
   'STRICT PRIVACY REDACTION: never send unredacted personal names, precise user coordinates, or private facility identifiers to external research/synthesis providers.',
+  'NON-CODING SYSTEM TRIAGE MANUAL (INFRASTRUCTURE & ENVIRONMENT DIRECTIVES): When an anomaly payload is routed via /api/automation/telemetry-triage, bypass feature-code modification entirely and execute strict triage protocols.',
+  'LAYER A - DATA STORE MISMATCHES & MIGRATION DRIFT: If source_layer is SUPABASE_SCHEMA, compare live table structures in payload against Tier A types.ts definitions.',
+  'LAYER A ACTION: If an index is missing or a column drifts, do not touch TypeScript source. Generate a defensive SQL migration using DROP POLICY/INDEX IF EXISTS and ALTER TABLE ... ADD COLUMN IF NOT EXISTS.',
+  'LAYER B - THIRD-PARTY API CONTRACT DRIFT: If source_layer is API_CONTRACT (for example Vercel, Railway, Expo EAS, or hPanel key rotations), activate Research Sub-Agent via executeWebSearch().',
+  'LAYER B ACTION: Run high-density keyword search combining provider name and exact error payload string. Extract corrected header/variable schema and use applyAgentPatch() for high-privilege environment variable updates where authorized.',
+  'LAYER C - STATE INVERSION & MEMORY OUTAGES: If source_layer is CONTAINER_METRICS and payload maps high RAM usage (>90%) with rapid process terminations, do not change feature code.',
+  'LAYER C ACTION: You are authorized to issue infra configuration patches to adjust Node memory flags, alter connection pooling thresholds, or request automated container recycle through approved ops channels.',
+  'LAYER D - CORS, ACCESS, & ROUTING DRIFT: If source_layer is CORS_POLICY with preflight blocked-origin exceptions, parse calling client URL string.',
+  'LAYER D ACTION: Programmatically update allowed-origins arrays in server configuration or environment maps via applyAgentPatch() when policy permits.',
+  'LAYER E - ENVIRONMENT VARIABLE OVERLAPS: If source_layer is ENV_VARS and a key is missing, run a dependency tree audit mapping process.env.* usage to active Railway/runtime variables.',
+  'LAYER E ACTION: Inject safe architectural fallback defaults via approved infrastructure API, log mismatch to ledger, and place administrative hold until verified.',
 ];
 
 const agentRoles = {
