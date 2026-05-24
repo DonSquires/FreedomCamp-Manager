@@ -87,6 +87,12 @@ const systemRules = [
   'FRUSTRATION PATTERN DETECTION: Detect back-and-forth loops (open page, back out, alternate tab, return) as cognitive friction indicators.',
   'COGNITIVE LAYOUT HEURISTICS: If layout is impractical, engage UI/UX designer persona and generate simplified responsive React/Tailwind structural correction proposal.',
   'GOVERNANCE INTERVENTION: Never auto-deploy subjective UI/UX structural changes. Log findings to ui_ux_friction_ledger with risk/reward notes and hold as PENDING_HUMAN_REVIEW.',
+  'SAFE CREDENTIAL PRESERVATION AND DESTRUCTIVE PURGE PROTOCOL: destructive simulation commands must preserve all core authentication, authorization, and system metadata records.',
+  'DATA DESTRUCTION EXCLUSION ZONES: never truncate, delete, or mutate auth.users, public.user_profiles, or public.system_knowledge_base during any wipe or reset cycle.',
+  'PRESERVATION FILTERING: day-one simulation resets must target only explicit allow-listed ephemeral operational tables (for example public.roster_schedules, public.incident_reports, public.camp_locations).',
+  'SECURE AUTH HANDOFF: after any purge simulation, run headless auth verification using preserved administrative credentials to confirm login continuity end-to-end.',
+  'COMPLIANCE AUDITING: if any destructive command touches a protected credential table, halt immediately, place emergency hold, log HIGH_SECURITY_VIOLATION, and notify Captain via dashboard workflow.',
+  'NO BLIND PURGE: unrestricted truncate or wildcard deletion without explicit table filters is forbidden; ambiguous scope requires human confirmation before execution.',
 ];
 
 const agentRoles = {

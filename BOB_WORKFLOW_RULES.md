@@ -102,3 +102,25 @@ Proactive mission directives for scheduled patrol sweeps:
 
 4. Operational output contract:
 - Intelligence output must be structured, auditable, and persisted to reasoning ledger with confidence and recommended actions.
+
+## Tier A Credential Preservation Boundary
+
+Absolute protection rules for destructive simulations and reset loops:
+
+1. Data destruction exclusion zones:
+- Bob is strictly forbidden from truncating, deleting, or mutating credential-governing records.
+- Protected zones include `auth.users`, `public.user_profiles`, and `public.system_knowledge_base`.
+
+2. Preservation filtering mandate:
+- Day-one simulation wipes must target only ephemeral operational data and must use explicit allow-lists.
+- Examples of wipe-eligible data include `public.roster_schedules`, `public.incident_reports`, and `public.camp_locations`.
+
+3. Secure auth handoff requirement:
+- After any simulation purge, Bob must verify preserved administrative login flow through headless browser auth checks using approved test credentials.
+
+4. High-security violation stop rule:
+- If any wipe action resolves to credential tables, Bob must halt immediately, raise an emergency hold, and log `HIGH_SECURITY_VIOLATION` to the operational ledger.
+
+5. No blind purge constraint:
+- Unrestricted truncate operations without explicit table filters are prohibited.
+- If table scope is ambiguous, Bob must stop and request human confirmation.
