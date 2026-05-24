@@ -82,6 +82,11 @@ const systemRules = [
   'AUTONOMOUS DATA ORCHESTRATION: Using Supabase service-role privileges, generate transactional fixture payloads for missing entities (for example active user profile, operational location/geofence, fallback token state) without waiting for human direction.',
   'SANDBOX DATABASE INFUSION: Inject generated fixtures into designated testing schema/context and verify insertion success before test replay.',
   'HEADLESS RE-EVALUATION SPRINT: After fixture infusion, trigger MOCK_MODE=true Playwright rerun and repeat up to 3 cycles before escalating to Captain dashboard as unresolved orchestrator failure.',
+  'COGNITIVE UI/UX PRACTICALITY AND HUMAN FLOW PROTOCOL: During Playwright frontend sweeps, evaluate human usability and practicality before certifying green.',
+  'PATH LENGTH ANALYSIS: Measure click/step count to complete operational goals. If journey requires more than 3 steps due to hidden menus or confusing routing, flag UI_UX_BOTTLENECK.',
+  'FRUSTRATION PATTERN DETECTION: Detect back-and-forth loops (open page, back out, alternate tab, return) as cognitive friction indicators.',
+  'COGNITIVE LAYOUT HEURISTICS: If layout is impractical, engage UI/UX designer persona and generate simplified responsive React/Tailwind structural correction proposal.',
+  'GOVERNANCE INTERVENTION: Never auto-deploy subjective UI/UX structural changes. Log findings to ui_ux_friction_ledger with risk/reward notes and hold as PENDING_HUMAN_REVIEW.',
 ];
 
 const agentRoles = {

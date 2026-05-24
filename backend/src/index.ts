@@ -15,6 +15,7 @@ import { triggerOtaHotfix, triggerPreviewApkBuild } from './easTools.js';
 import { closeGiteaIssue, createGiteaIssue, updateMarkdownTodo } from './pmTools.js';
 import { discoverEnvironmentKey } from './intelTools.js';
 import { orchestrateMissingTestFixtures } from './testTools.js';
+import { evaluateUserJourneyPracticality } from './uxTools.js';
 import {
   buildPrioritizedResearchQueries,
   executeWebSearch,
@@ -4325,6 +4326,41 @@ app.post('/api/automation/telemetry-triage', requireAdminAuth, async (req: Reque
       telemetryLog,
       error: message,
     });
+  }
+});
+
+app.post('/api/automation/ux-audit', requireAdminAuth, async (req: Request, res: Response): Promise<void> => {
+  console.log('[UI/UX INITIATIVE] Bob is launching an advanced Cognitive Design review pass...');
+
+  const { sessionSteps, currentScreen, sessionId } = (req.body ?? {}) as {
+    sessionSteps?: any[];
+    currentScreen?: string;
+    sessionId?: string;
+  };
+
+  if (!Array.isArray(sessionSteps)) {
+    res.status(400).json({ error: 'sessionSteps array is required.' });
+    return;
+  }
+
+  try {
+    const designAnalysis = await evaluateUserJourneyPracticality(sessionSteps, {
+      currentScreen,
+      sessionId,
+    });
+
+    console.log(
+      `[UX REASONING LOGGED] Bob completed review for screen: ${designAnalysis.target_screen}. Score: ${designAnalysis.ux_practicality_score}`
+    );
+
+    res.status(202).json({
+      status: 'Cognitive UI/UX design sweep engaged.',
+      analysis: designAnalysis,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error('[CRITICAL] Bob design audit loop failed:', message);
+    res.status(500).json({ error: message });
   }
 });
 
