@@ -7,6 +7,7 @@ import ws from 'ws';
 import { readFile, stat } from 'node:fs/promises';
 import { once } from 'node:events';
 import { spawn } from 'node:child_process';
+import { timingSafeEqual } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { applyAgentPatch } from './agentTools.js';
@@ -14,6 +15,8 @@ import { runInSandboxEmulator } from './validator.js';
 import { triggerOtaHotfix, triggerPreviewApkBuild } from './easTools.js';
 import { closeGiteaIssue, createGiteaIssue, updateMarkdownTodo } from './pmTools.js';
 import { discoverEnvironmentKey } from './intelTools.js';
+import { orchestrateMissingTestFixtures } from './testTools.js';
+import { evaluateUserJourneyPracticality } from './uxTools.js';
 import {
   buildPrioritizedResearchQueries,
   executeWebSearch,
@@ -120,6 +123,8 @@ type PlaywrightVerificationWebhookPayload = {
   greenScore?: number | string;
   testsPassed?: number | string;
   testsTotal?: number | string;
+  recoveryAttempt?: number | string;
+  retryCount?: number | string;
 };
 
 type CognitiveActionPayload = {
@@ -470,6 +475,40 @@ function hasAutomationToken(req: Request): boolean {
   return provided.length > 0 && provided === expected;
 }
 
+function secureCompareHeaderValue(provided: string, expected: string): boolean {
+  const providedBuffer = Buffer.from(provided, 'utf8');
+  const expectedBuffer = Buffer.from(expected, 'utf8');
+
+  if (providedBuffer.length !== expectedBuffer.length) {
+    return false;
+  }
+
+  return timingSafeEqual(providedBuffer, expectedBuffer);
+}
+
+function verifyGiteaWebhookSignature(req: Request): { ok: boolean; reason: string } {
+  const expected = String(process.env.GITEA_WEBHOOK_SECRET ?? '').trim();
+  if (!expected) {
+    return { ok: false, reason: 'GITEA_WEBHOOK_SECRET is not configured.' };
+  }
+
+  const rawHeader = req.headers['x-gitea-signature'] ?? req.headers['x-gitea-token'];
+  if (Array.isArray(rawHeader)) {
+    return { ok: false, reason: 'Malformed webhook signature header.' };
+  }
+
+  const provided = String(rawHeader ?? '').trim();
+  if (!provided) {
+    return { ok: false, reason: 'Missing webhook signature header.' };
+  }
+
+  if (!secureCompareHeaderValue(provided, expected)) {
+    return { ok: false, reason: 'Unauthorized webhook signature.' };
+  }
+
+  return { ok: true, reason: 'OK' };
+}
+
 function toShortString(value: unknown, fallback = 'unknown'): string {
   const normalized = String(value ?? '').trim();
   return normalized || fallback;
@@ -489,6 +528,161 @@ function parseLogId(value: unknown): number | null {
     return null;
   }
   return Math.floor(parsed);
+}
+
+function parsePositiveIntOrFallback(value: unknown, fallback: number): number {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return fallback;
+  }
+  return Math.floor(parsed);
+}
+
+function triggerPlaywrightRecoveryRerun(branch: string): boolean {
+  const enabled = parseBool(process.env.AUTO_PLAYWRIGHT_RECOVERY_RERUN ?? 'true');
+  if (!enabled) {
+    return false;
+  }
+
+  const command =
+    String(process.env.PLAYWRIGHT_RECOVERY_COMMAND ?? 'MOCK_MODE=true npx playwright test --config playwright.config.ts').trim();
+
+  if (!command) {
+    return false;
+  }
+
+  try {
+    const child = spawn('sh', ['-lc', command], {
+      cwd: REPO_ROOT,
+      detached: true,
+      stdio: 'ignore',
+      env: {
+        ...process.env,
+        PLAYWRIGHT_RECOVERY_BRANCH: branch,
+        PLAYWRIGHT_RECOVERY_TRIGGER: 'fixture-infusion',
+      },
+    });
+
+    child.unref();
+    return true;
+  } catch (error) {
+    console.warn('[/api/automation/playwright-result] Failed to trigger autonomous rerun', error);
+    return false;
+  }
+}
+
+async function resolveBugReportActor(): Promise<{ userId: string; userRole: string } | null> {
+  const explicitUserId = String(process.env.BOB_AUTOMATION_USER_ID ?? '').trim();
+  const explicitUserRole = String(process.env.BOB_AUTOMATION_USER_ROLE ?? 'admin').trim() || 'admin';
+  if (explicitUserId) {
+    return { userId: explicitUserId, userRole: explicitUserRole };
+  }
+
+  const { data: recentReport } = await supabase
+    .from('bug_reports')
+    .select('user_id, user_role')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const candidateUserId = String((recentReport as any)?.user_id ?? '').trim();
+  const candidateUserRole = String((recentReport as any)?.user_role ?? 'admin').trim() || 'admin';
+  if (candidateUserId) {
+    return { userId: candidateUserId, userRole: candidateUserRole };
+  }
+
+  return null;
+}
+
+async function upsertPlaywrightFailureBugReport(args: {
+  repository: string;
+  branch: string;
+  verificationTag: string;
+  output: string;
+  command: string;
+  managerStatus: string;
+  recoverySummary: Record<string, unknown>;
+  attemptCount: number;
+}): Promise<string | null> {
+  const actor = await resolveBugReportActor();
+  if (!actor) {
+    console.warn('[/api/automation/playwright-result] Unable to resolve bug-report actor for escalation.');
+    return null;
+  }
+
+  const title = `[PLAYWRIGHT][AUTO] ${args.repository} ${args.branch} verification failed`;
+  const description = [
+    `Playwright verification failed and escalated after recovery attempt ${args.attemptCount}.`,
+    `Manager status: ${args.managerStatus}`,
+    `Verification tag: ${args.verificationTag}`,
+    `Command: ${args.command}`,
+    `Recovery summary: ${JSON.stringify(args.recoverySummary)}`,
+    '',
+    'Output excerpt:',
+    args.output || '[No output captured]',
+  ].join('\n');
+
+  const upsertPayload = {
+    user_id: actor.userId,
+    user_role: actor.userRole,
+    issue_type: 'functional_bug',
+    severity: 'high',
+    priority: 'high',
+    title,
+    description,
+    current_page: '/api/automation/playwright-result',
+    app_version: `playwright-webhook:${args.repository}`,
+    status: 'investigating',
+    requires_human_review: true,
+    ai_analyzed: true,
+    ai_analysis: {
+      source: 'playwright-recovery-escalation',
+      branch: args.branch,
+      attemptCount: args.attemptCount,
+      managerStatus: args.managerStatus,
+      recoverySummary: args.recoverySummary,
+      escalatedAt: new Date().toISOString(),
+    },
+    auto_reported: true,
+    admin_notified: false,
+    user_notified: false,
+  } as Record<string, unknown>;
+
+  const { data: existing } = await supabase
+    .from('bug_reports')
+    .select('id')
+    .eq('title', title)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if ((existing as any)?.id) {
+    const bugReportId = String((existing as any).id);
+    const { error } = await supabase
+      .from('bug_reports')
+      .update(upsertPayload)
+      .eq('id', bugReportId);
+
+    if (error) {
+      console.warn('[/api/automation/playwright-result] Failed to update bug report escalation', error);
+      return null;
+    }
+
+    return bugReportId;
+  }
+
+  const { data: inserted, error: insertError } = await supabase
+    .from('bug_reports')
+    .insert(upsertPayload)
+    .select('id')
+    .single();
+
+  if (insertError) {
+    console.warn('[/api/automation/playwright-result] Failed to insert bug report escalation', insertError);
+    return null;
+  }
+
+  return String((inserted as any)?.id ?? '');
 }
 
 const discoveredSupabaseUrl = await discoverEnvironmentKey('SUPABASE_URL');
@@ -2850,6 +3044,92 @@ async function logProactiveProposalToLedger(decision: InitiativeDecision): Promi
   };
 }
 
+function buildPatrolReasoning(args: {
+  decision: InitiativeDecision;
+  dryRun: boolean;
+  modelUsed: string;
+  auth: AdminAuthContext | null;
+  mutationAuthorized: boolean;
+}): CognitiveReasoningResult {
+  const { decision, dryRun, modelUsed, auth, mutationAuthorized } = args;
+  const docsSafe = isSafeAutonomousInitiative(decision);
+  const authRole = formatAuthRoleForPrompt(auth);
+  const targetFile = decision.targetFile || 'unspecified target';
+  const consultativeReasons: string[] = [];
+
+  if (dryRun) {
+    consultativeReasons.push('Dry-run mode prevented repository mutation.');
+  }
+
+  if (!docsSafe) {
+    consultativeReasons.push('Candidate change is outside the documentation-safe autonomous boundary.');
+  }
+
+  if (docsSafe && !mutationAuthorized) {
+    consultativeReasons.push('Repository mutation was blocked because no admin or grand-master bearer context was verified.');
+  }
+
+  const actionPayload: CognitiveActionPayload =
+    !dryRun && docsSafe && mutationAuthorized
+      ? {
+          mode: 'gitea_propose_pr',
+          giteaProposePr: {
+            owner: process.env.GITEA_OWNER,
+            repo: process.env.GITEA_REPO,
+            baseBranch: process.env.GITEA_BASE_BRANCH ?? 'main',
+            branchName: `ai-self-heal-initiative-${Date.now()}`,
+            title: `[INITIATIVE] ${decision.explanation.slice(0, 80)}`,
+            body: [
+              'Autonomous initiative patch proposed by Bob patrol sweep.',
+              '',
+              `Target file: ${targetFile}`,
+              `Reason: ${decision.explanation}`,
+              '',
+              'Policy: documentation-safe autonomous mode only.',
+            ].join('\n'),
+            commitMessage: `docs: proactive initiative update (${Date.now()})`,
+            files: decision.targetFile && decision.patchValue
+              ? [{ path: decision.targetFile, content: decision.patchValue }]
+              : [],
+            dryRun: false,
+          },
+        }
+      : { mode: 'none', giteaProposePr: null };
+
+  const riskAnalysis = dryRun
+    ? 'Dry-run patrol execution intentionally avoided repository mutation; operational review only.'
+    : docsSafe
+      ? mutationAuthorized
+        ? 'Low-risk documentation-scoped change candidate. Repository mutation is permitted only because an admin/grand-master bearer context was verified.'
+        : 'Repository mutation is currently blocked. Shared automation token alone is insufficient for Gitea write operations.'
+      : 'Candidate requires consultative review because the proposed change is not documentation-safe or lacks a complete mutation payload.';
+
+  const rewardAnalysis = docsSafe
+    ? `Patrol identified a narrow improvement path targeting ${targetFile}.`
+    : `Patrol captured an improvement proposal for ${targetFile}, but it remains in consultative hold until a human validates scope and safety.`;
+
+  const confidenceScore = dryRun ? 0.2 : docsSafe ? (mutationAuthorized ? 0.82 : 0.58) : 0.46;
+
+  return {
+    reasoningTrace: [
+      `Patrol explanation: ${decision.explanation}`,
+      `Model source: ${modelUsed}`,
+      `Auth role: ${authRole}`,
+      `Docs-safe autonomous candidate: ${docsSafe ? 'yes' : 'no'}`,
+      `Mutation authorized: ${mutationAuthorized ? 'yes' : 'no'}`,
+      consultativeReasons.length > 0 ? `Hold reasons: ${consultativeReasons.join(' | ')}` : 'No additional hold reasons.',
+    ].join('\n'),
+    intentContext: 'AUTONOMOUS_PATROL_SWEEP',
+    riskAnalysis,
+    rewardAnalysis,
+    confidenceScore,
+    isObviousAutonomous: decision.isObviousAutonomous && docsSafe && mutationAuthorized,
+    actionPayload,
+    consultativeResponse:
+      consultativeReasons.join(' ') || 'Autonomous documentation-safe proposal is eligible for guarded execution.',
+  };
+}
+
 async function getTierAKnowledgeContext(): Promise<TierAContext> {
   const { data, error } = await withTimeout(
     Promise.resolve(
@@ -4064,6 +4344,12 @@ app.post('/api/gitea/propose-pr', requireAdminAuth, async (req: Request, res: Re
 //    Handles Gitea push/pull_request notifications and asynchronously
 //    triggers training sync to refresh Bob context.
 app.post('/api/gitea-webhook', (req: Request, res: Response) => {
+  const verification = verifyGiteaWebhookSignature(req);
+  if (!verification.ok) {
+    res.status(401).json({ error: verification.reason });
+    return;
+  }
+
   const eventHeader = req.headers['x-gitea-event'];
   const event = String(Array.isArray(eventHeader) ? eventHeader[0] : eventHeader ?? '').toLowerCase();
 
@@ -4170,6 +4456,41 @@ app.post('/api/automation/telemetry-triage', requireAdminAuth, async (req: Reque
   }
 });
 
+app.post('/api/automation/ux-audit', requireAdminAuth, async (req: Request, res: Response): Promise<void> => {
+  console.log('[UI/UX INITIATIVE] Bob is launching an advanced Cognitive Design review pass...');
+
+  const { sessionSteps, currentScreen, sessionId } = (req.body ?? {}) as {
+    sessionSteps?: any[];
+    currentScreen?: string;
+    sessionId?: string;
+  };
+
+  if (!Array.isArray(sessionSteps)) {
+    res.status(400).json({ error: 'sessionSteps array is required.' });
+    return;
+  }
+
+  try {
+    const designAnalysis = await evaluateUserJourneyPracticality(sessionSteps, {
+      currentScreen,
+      sessionId,
+    });
+
+    console.log(
+      `[UX REASONING LOGGED] Bob completed review for screen: ${designAnalysis.target_screen}. Score: ${designAnalysis.ux_practicality_score}`
+    );
+
+    res.status(202).json({
+      status: 'Cognitive UI/UX design sweep engaged.',
+      analysis: designAnalysis,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error('[CRITICAL] Bob design audit loop failed:', message);
+    res.status(500).json({ error: message });
+  }
+});
+
 // ── POST /api/automation/playwright-result ────────────────────────────────
 //    Receives webhook-driven Playwright gate outcomes and writes them into
 //    self_healing_logs for approval panel visibility.
@@ -4200,6 +4521,25 @@ app.post('/api/automation/playwright-result', async (req: Request, res: Response
   const isPerfectGreen = isHundredPercentGreen(payload, status);
   const autoPromoteEnabled = parseBool(process.env.AUTO_PROMOTE_GREEN_PLAYWRIGHT ?? 'true');
   const promotionBaseBranch = String(process.env.AUTO_PROMOTE_BASE_BRANCH ?? 'main').trim() || 'main';
+  const maxRecoveryAttempts = parsePositiveIntOrFallback(process.env.PLAYWRIGHT_RECOVERY_MAX_ATTEMPTS, 3);
+  const attemptCount = parsePositiveIntOrFallback(payload.recoveryAttempt ?? payload.retryCount, 1);
+  const recoverySummary: {
+    attempted: boolean;
+    fixturesInjected: boolean;
+    rerunTriggered: boolean;
+    reason: string | null;
+    attemptCount: number;
+    maxAttempts: number;
+    escalatedToBugReport: boolean;
+  } = {
+    attempted: false,
+    fixturesInjected: false,
+    rerunTriggered: false,
+    reason: null,
+    attemptCount,
+    maxAttempts: maxRecoveryAttempts,
+    escalatedToBugReport: false,
+  };
 
   let promotionSummary: Record<string, unknown> | null = null;
   if (autoPromoteEnabled && isPatchBranch && isPerfectGreen) {
@@ -4259,8 +4599,39 @@ app.post('/api/automation/playwright-result', async (req: Request, res: Response
     };
   }
 
+  if (status !== 'PASSED') {
+    recoverySummary.attempted = true;
+
+    try {
+      const fixturesInjected = await orchestrateMissingTestFixtures(output);
+      recoverySummary.fixturesInjected = fixturesInjected;
+
+      if (fixturesInjected) {
+        const canRetry = attemptCount < maxRecoveryAttempts;
+        const rerunTriggered = canRetry ? triggerPlaywrightRecoveryRerun(branch) : false;
+        recoverySummary.rerunTriggered = rerunTriggered;
+        managerStatus = rerunTriggered ? 'RECOVERY_RETRY_TRIGGERED' : 'PENDING_HUMAN_REVIEW';
+        verificationTag = `${verificationTag} | Fixture Recovery: ${rerunTriggered ? 'INJECTED_AND_RERUN' : 'INJECTED'}`;
+        recoverySummary.reason = rerunTriggered
+          ? 'Detected missing test fixture context and triggered autonomous playwright rerun.'
+          : canRetry
+            ? 'Detected missing test fixture context and injected recovery fixtures.'
+            : `Maximum recovery attempts reached (${maxRecoveryAttempts}); escalating to bug reports.`;
+      } else {
+        recoverySummary.reason = 'No recognized missing fixture signatures found in failure output.';
+      }
+    } catch (error) {
+      recoverySummary.reason = `Fixture orchestration failed: ${error instanceof Error ? error.message : String(error)}`;
+    }
+  }
+
   let giteaIssueNumber: number | null = null;
-  if (status !== 'PASSED' || managerStatus === 'ORCHESTRATOR_CRASHED') {
+  const shouldOpenIssue =
+    status !== 'PASSED' && !recoverySummary.fixturesInjected
+      ? true
+      : managerStatus === 'ORCHESTRATOR_CRASHED';
+
+  if (shouldOpenIssue) {
     const issueTitle = '[ORCHESTRATOR_CRASHED] Playwright browser verification failed';
     const issueBody = [
       'Automated issue opened by the webhook Playwright gate.',
@@ -4275,6 +4646,7 @@ app.post('/api/automation/playwright-result', async (req: Request, res: Response
       `Command: ${command}`,
       `Captured At: ${capturedAt}`,
       `Promotion Summary: ${JSON.stringify(promotionSummary ?? {})}`,
+      `Recovery Summary: ${JSON.stringify(recoverySummary)}`,
       '',
       'Raw Playwright output:',
       '```',
@@ -4287,6 +4659,25 @@ app.post('/api/automation/playwright-result', async (req: Request, res: Response
     } catch (error) {
       console.warn('[/api/automation/playwright-result] Failed to create Gitea issue', error);
     }
+  }
+
+  let bugReportId: string | null = null;
+  const shouldEscalateToBugReport =
+    status !== 'PASSED' &&
+    (!recoverySummary.rerunTriggered || attemptCount >= maxRecoveryAttempts || managerStatus === 'ORCHESTRATOR_CRASHED');
+
+  if (shouldEscalateToBugReport) {
+    bugReportId = await upsertPlaywrightFailureBugReport({
+      repository,
+      branch,
+      verificationTag,
+      output,
+      command,
+      managerStatus,
+      recoverySummary,
+      attemptCount,
+    });
+    recoverySummary.escalatedToBugReport = Boolean(bugReportId);
   }
 
   const nowIso = new Date().toISOString();
@@ -4313,7 +4704,9 @@ app.post('/api/automation/playwright-result', async (req: Request, res: Response
     testsPassed: Number(payload.testsPassed),
     testsTotal: Number(payload.testsTotal),
     autoPromotion: promotionSummary,
+    recoverySummary,
     giteaIssueNumber,
+    bugReportId,
     capturedAt,
     recordedAt: nowIso,
   };
@@ -4336,6 +4729,7 @@ app.post('/api/automation/playwright-result', async (req: Request, res: Response
         verificationTag,
         persistedId: logId,
         giteaIssueNumber,
+        bugReportId,
         autoPromotion: promotionSummary,
         persistenceTarget: 'self_healing_logs',
       });
@@ -4409,6 +4803,7 @@ app.post('/api/automation/playwright-result', async (req: Request, res: Response
     verificationTag,
     persistedId,
     giteaIssueNumber,
+    bugReportId,
     autoPromotion: promotionSummary,
     persistenceTarget,
   });
@@ -4427,14 +4822,19 @@ app.post('/api/cron/patrol', async (req: Request, res: Response): Promise<void> 
   try {
     const requestDryRun = parseBool(String((req.body as { dryRun?: unknown })?.dryRun ?? 'false'));
     const dryRun = requestDryRun || PATROL_DRY_RUN_DEFAULT;
+    const auth = await resolveAdminAuth(req);
+    const mutationAuthorized = Boolean(auth?.isAdmin || auth?.isGrandMaster);
+    const patrolSessionId = `cron-patrol:${Date.now()}`;
 
     const kb = await getTierAKnowledgeContext();
     const patrolPrompt = [
       'You are Bob, the Serverless Fleet Chief Engineer. Run a proactive repository/system scan.',
       'Follow the AUTONOMY INITIATIVE PROTOCOL and return strict JSON only.',
+      'Evaluate the finding through the mandatory risk-vs-reward matrix before any proposed action.',
       '',
       `System rules: ${kb.systemRules}`,
       `Schema payload: ${kb.schemaPayload}`,
+      `Authenticated patrol role context: ${formatAuthRoleForPrompt(auth)}`,
       '',
       'Identify one practical improvement and classify it as autonomous or consultative.',
       'Return JSON only using this shape:',
@@ -4466,19 +4866,52 @@ app.post('/api/cron/patrol', async (req: Request, res: Response): Promise<void> 
       modelUsed = aiResult.modelUsed;
     }
 
+    const reasoning = buildPatrolReasoning({
+      decision,
+      dryRun,
+      modelUsed,
+      auth,
+      mutationAuthorized,
+    });
+
     let actionResult: Record<string, unknown>;
+    let actionTaken: 'RECOMMENDED_ONLY' | 'AGENTIC_EXECUTED' = 'RECOMMENDED_ONLY';
 
     if (dryRun) {
       actionResult = {
         status: 'DRY_RUN',
         detail: 'No repo mutation or issue creation performed.',
         wouldAutoExecute: isSafeAutonomousInitiative(decision),
+        mutationAuthorized,
       };
-    } else if (isSafeAutonomousInitiative(decision)) {
+    } else if (isSafeAutonomousInitiative(decision) && mutationAuthorized) {
       actionResult = await executeAutonomousInitiativeFix(decision);
+      actionTaken = 'AGENTIC_EXECUTED';
     } else {
       actionResult = await logProactiveProposalToLedger(decision);
     }
+
+    await persistAiReasoningLedger({
+      sessionId: patrolSessionId,
+      reasoning,
+      actionTaken,
+      metadata: {
+        route: '/api/cron/patrol',
+        dryRun,
+        modelUsed,
+        decision,
+        actionResult,
+        authContext: auth
+          ? {
+              userId: auth.userId,
+              role: auth.role,
+              isAdmin: auth.isAdmin,
+              isGrandMaster: auth.isGrandMaster,
+            }
+          : null,
+        mutationAuthorized,
+      },
+    });
 
     await supabase.from('self_healing_logs').insert({
       status: 'PENDING_HUMAN_REVIEW',
@@ -4487,9 +4920,14 @@ app.post('/api/cron/patrol', async (req: Request, res: Response): Promise<void> 
       error_payload: {
         route: '/api/cron/patrol',
         decision,
+        reasoningTrace: reasoning.reasoningTrace,
+        riskAnalysis: reasoning.riskAnalysis,
+        rewardAnalysis: reasoning.rewardAnalysis,
+        confidenceScore: reasoning.confidenceScore,
         actionResult,
         dryRun,
         modelUsed,
+        mutationAuthorized,
         capturedAt: new Date().toISOString(),
       },
       created_at: new Date().toISOString(),
@@ -4498,9 +4936,14 @@ app.post('/api/cron/patrol', async (req: Request, res: Response): Promise<void> 
     res.status(202).json({
       status: 'Initiative patrol engine engaged.',
       decision,
+      reasoningTrace: reasoning.reasoningTrace,
+      riskAnalysis: reasoning.riskAnalysis,
+      rewardAnalysis: reasoning.rewardAnalysis,
+      confidenceScore: reasoning.confidenceScore,
       actionResult,
       dryRun,
       modelUsed,
+      mutationAuthorized,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
