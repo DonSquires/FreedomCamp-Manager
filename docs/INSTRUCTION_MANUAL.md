@@ -55,6 +55,21 @@
    This command prints one-line request templates for research escalation and mobile build/OTA operations using authenticated backend routes.
 5. Any future change to Bob autonomy, guardrails, privileged routes, or capability claims must update this amendment set and `docs/STAGING.md` in the same change set.
 
+### Current Cycle Amendment (2026-05-24 — Autonomous Self-Heal Scheduler Alignment)
+
+1. Autonomous self-healing execution is app/Bob runtime-driven by default, not GitHub Actions-driven.
+2. Canonical runtime cycle script is `scripts/run-autonomous-learning-cycle.sh` and must include:
+   - `scripts/system-check.sh`
+   - `scripts/monitor-bob.sh`
+   - `scripts/run-ci-self-heal-cycle.mjs`
+   - `scripts/summarize-failures.mjs`
+   - `scripts/auto-ingest.mjs`
+3. Required schedule cadence is once daily.
+   - Cron path (preferred): `scripts/manage-autonomous-cron.sh` with default schedule `15 2 * * *`.
+   - Runtime fallback path (when user crontab cannot be installed): `scripts/manage-autonomous-daemon.sh` with `BOB_AUTONOMOUS_INTERVAL_MINUTES=1440`.
+4. If scheduler install is blocked by runtime permissions, the system must write a fallback cron entry and start the daemon fallback automatically.
+5. GitHub Actions remain optional for non-critical training freshness and validation guardrails, not as the primary self-healing scheduler.
+
 ### Current Cycle Agentic Action Board (2026-05-18)
 
 Product Oversight To-Do (authoritative execution list):
@@ -109,8 +124,9 @@ Operational automation now includes two distinct loops:
    - Dependency update PRs are additionally handled by Dependabot via `.github/dependabot.yml`.
 
 2. Self-Healing Watchdog Loop
-   - Workflow: `.github/workflows/ops-self-healing-watchdog.yml`
-   - Primary script: `scripts/run-ci-self-heal-cycle.mjs`
+   - Runtime primary script: `scripts/run-ci-self-heal-cycle.mjs`
+   - Runtime scheduler: `scripts/manage-autonomous-cron.sh` (cron) or `scripts/manage-autonomous-daemon.sh` (fallback)
+   - Canonical cycle wrapper: `scripts/run-autonomous-learning-cycle.sh`
    - Detects failed CI workflows, attempts rerun for known-safe cases, and opens/updates escalation issues for human follow-up.
 
 Governance rules for both loops:
