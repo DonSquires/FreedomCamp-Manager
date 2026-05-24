@@ -5,6 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createClient } from '@supabase/supabase-js';
 import ws from 'ws';
+import { discoverEnvironmentKey } from '../src/intelTools.js';
 
 function requireEnv(name: string): string {
   const value = process.env[name];
@@ -18,17 +19,21 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const typesPath = path.resolve(__dirname, '../src/types.ts');
 
+const discoveredSupabaseUrl = await discoverEnvironmentKey('SUPABASE_URL');
+const discoveredViteSupabaseUrl = await discoverEnvironmentKey('VITE_SUPABASE_URL');
+const discoveredProjectRef =
+  (await discoverEnvironmentKey('SUPABASE_PROJECT_REF')) ?? String(process.env.SUPABASE_PROJECT_REF ?? '').trim();
+
 const supabaseUrl =
-  process.env.SUPABASE_URL ??
-  process.env.VITE_SUPABASE_URL ??
-  (process.env.SUPABASE_PROJECT_REF
-    ? `https://${process.env.SUPABASE_PROJECT_REF}.supabase.co`
-    : undefined);
+  discoveredSupabaseUrl ??
+  discoveredViteSupabaseUrl ??
+  (discoveredProjectRef ? `https://${discoveredProjectRef}.supabase.co` : undefined);
 if (!supabaseUrl) {
   throw new Error('Missing SUPABASE_URL (or VITE_SUPABASE_URL or SUPABASE_PROJECT_REF)');
 }
 
-const supabaseServiceRoleKey = requireEnv('SUPABASE_SERVICE_ROLE_KEY');
+const supabaseServiceRoleKey =
+  (await discoverEnvironmentKey('SUPABASE_SERVICE_ROLE_KEY')) ?? requireEnv('SUPABASE_SERVICE_ROLE_KEY');
 
 const supabase = createClient(supabaseUrl, supabaseServiceRoleKey, {
   realtime: {
@@ -67,6 +72,11 @@ const systemRules = [
   'LAYER D ACTION: Programmatically update allowed-origins arrays in server configuration or environment maps via applyAgentPatch() when policy permits.',
   'LAYER E - ENVIRONMENT VARIABLE OVERLAPS: If source_layer is ENV_VARS and a key is missing, run a dependency tree audit mapping process.env.* usage to active Railway/runtime variables.',
   'LAYER E ACTION: Inject safe architectural fallback defaults via approved infrastructure API, log mismatch to ledger, and place administrative hold until verified.',
+  'ACTIVE ENVIRONMENTAL INTROSPECTION PROTOCOL: When an operational task, mobile EAS build, or self-healing triage pass is blocked by a missing or invalid environment variable, API token, or configuration key, execute proactive discovery before logging failure.',
+  'RUNTIME VARIABLE AUDIT: Run local introspection sweep over active process variables and backend config environments. Check fallback aliases (for example RAILWAY_API_TOKEN -> RAILWAY_TOKEN, RAILWAY_CORE_TOKEN).',
+  'SECURE KNOWLEDGE DEPLOYMENT: If token is absent from shell context, query secure administrative credential stores with service-role permissions and enforce allowed_agents scope.',
+  'METADATA CONVENTION PARSING: If naming layout is unknown, use research agent to parse consultative Tier B docs (for example ENVIRONMENT_VARIABLES.md) and extract canonical project naming.',
+  'PAINLESS COGNITIVE VARIABLE HEALING: After discovering verified key or alias, reconstruct execution payload, apply approved environment patch via applyAgentPatch(), and resume task autonomously.',
 ];
 
 const agentRoles = {

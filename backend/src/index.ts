@@ -13,6 +13,7 @@ import { applyAgentPatch } from './agentTools.js';
 import { runInSandboxEmulator } from './validator.js';
 import { triggerOtaHotfix, triggerPreviewApkBuild } from './easTools.js';
 import { closeGiteaIssue, createGiteaIssue, updateMarkdownTodo } from './pmTools.js';
+import { discoverEnvironmentKey } from './intelTools.js';
 import {
   buildPrioritizedResearchQueries,
   executeWebSearch,
@@ -490,11 +491,18 @@ function parseLogId(value: unknown): number | null {
   return Math.floor(parsed);
 }
 
+const discoveredSupabaseUrl = await discoverEnvironmentKey('SUPABASE_URL');
+const discoveredViteSupabaseUrl = await discoverEnvironmentKey('VITE_SUPABASE_URL');
+const discoveredSupabaseProjectRef =
+  (await discoverEnvironmentKey('SUPABASE_PROJECT_REF')) ?? String(process.env.SUPABASE_PROJECT_REF ?? '').trim();
+
 const SUPABASE_URL =
-  process.env.SUPABASE_URL ??
-  process.env.VITE_SUPABASE_URL ??
-  (process.env.SUPABASE_PROJECT_REF ? `https://${process.env.SUPABASE_PROJECT_REF}.supabase.co` : undefined);
-const SUPABASE_SERVICE_ROLE_KEY = optionalAnyEnv(['SUPABASE_SERVICE_ROLE_KEY']);
+  discoveredSupabaseUrl ??
+  discoveredViteSupabaseUrl ??
+  (discoveredSupabaseProjectRef ? `https://${discoveredSupabaseProjectRef}.supabase.co` : undefined);
+
+const SUPABASE_SERVICE_ROLE_KEY =
+  (await discoverEnvironmentKey('SUPABASE_SERVICE_ROLE_KEY')) ?? optionalAnyEnv(['SUPABASE_SERVICE_ROLE_KEY']);
 const SUPABASE_JWT_SECRET = optionalAnyEnv(['SUPABASE_JWT_SECRET']);
 const EFFECTIVE_SUPABASE_URL = SUPABASE_URL ?? 'http://127.0.0.1:54321';
 const EFFECTIVE_SUPABASE_SERVICE_ROLE_KEY = SUPABASE_SERVICE_ROLE_KEY ?? 'missing-service-role-key';
