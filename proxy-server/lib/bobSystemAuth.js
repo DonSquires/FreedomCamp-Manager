@@ -48,6 +48,17 @@ function firstNonEmptyEnv(names) {
   return '';
 }
 
+function firstResolvedEnv(names) {
+  for (const name of names) {
+    const value = String(process.env[name] || '').trim();
+    if (value) {
+      return { value, source: name };
+    }
+  }
+
+  return { value: '', source: null };
+}
+
 function getConfig() {
   const supabaseUrl = firstNonEmptyEnv([
     'SUPABASE_URL',
@@ -63,22 +74,35 @@ function getConfig() {
     'SB_SERVICE_KEY',
   ]);
 
-  // Accept multiple credential aliases so production secret naming drift does not hard-fail startup.
-  const email = firstNonEmptyEnv([
-    'BOB_SYSTEM_EMAIL',
-    'BOB_LOGIN_EMAIL',
-    'PLAYWRIGHT_MASTER_EMAIL',
-    'TEST_OWNER_EMAIL',
-    'API_TEST_EMAIL',
-  ]).toLowerCase();
+  const isProduction = String(process.env.NODE_ENV || '').toLowerCase() === 'production';
+  const allowLegacyAliases = !isProduction || String(process.env.BOB_SYSTEM_ALLOW_LEGACY_ALIASES || '').trim() === '1';
 
-  const password = firstNonEmptyEnv([
-    'BOB_SYSTEM_PASSWORD',
-    'BOB_LOGIN_PASSWORD',
-    'PLAYWRIGHT_MASTER_PASSWORD',
-    'TEST_OWNER_PASSWORD',
-    'API_TEST_PASSWORD',
-  ]);
+  const canonicalEmail = firstResolvedEnv(['BOB_SYSTEM_EMAIL']);
+  const canonicalPassword = firstResolvedEnv(['BOB_SYSTEM_PASSWORD']);
+
+  const legacyEmail = allowLegacyAliases
+    ? firstResolvedEnv([
+      'BOB_LOGIN_EMAIL',
+      'PLAYWRIGHT_MASTER_EMAIL',
+      'TEST_OWNER_EMAIL',
+      'API_TEST_EMAIL',
+    ])
+    : { value: '', source: null };
+
+  const legacyPassword = allowLegacyAliases
+    ? firstResolvedEnv([
+      'BOB_LOGIN_PASSWORD',
+      'PLAYWRIGHT_MASTER_PASSWORD',
+      'TEST_OWNER_PASSWORD',
+      'API_TEST_PASSWORD',
+    ])
+    : { value: '', source: null };
+
+  const selectedEmail = canonicalEmail.value ? canonicalEmail : legacyEmail;
+  const selectedPassword = canonicalPassword.value ? canonicalPassword : legacyPassword;
+
+  const email = selectedEmail.value.toLowerCase();
+  const password = selectedPassword.value;
 
   const refreshBufferSeconds = Math.max(30, Number(process.env.BOB_SYSTEM_REFRESH_BUFFER_SECONDS || 120));
 
@@ -86,7 +110,11 @@ function getConfig() {
     supabaseUrl,
     supabaseKey,
     email,
+    emailSource: selectedEmail.source,
     password,
+    passwordSource: selectedPassword.source,
+    isProduction,
+    allowLegacyAliases,
     refreshBufferSeconds,
     configured: Boolean(supabaseUrl && supabaseKey && email && password),
   };
@@ -171,7 +199,7 @@ async function signInWithPassword() {
   const cfg = getConfig();
   if (!cfg.configured) {
     throw new Error(
-      'Missing Supabase/Bob system login env variables. Required: SUPABASE_URL + key and Bob credentials (BOB_SYSTEM_* or fallback aliases).'
+      'Missing Supabase/Bob system login env variables. Required: SUPABASE_URL + key and Bob credentials (BOB_SYSTEM_EMAIL + BOB_SYSTEM_PASSWORD; legacy aliases require BOB_SYSTEM_ALLOW_LEGACY_ALIASES=1 in production).'
     );
   }
 
@@ -192,7 +220,8 @@ async function signInWithPassword() {
   });
 
   if (error) {
-    throw new Error(`signInWithPassword failed: ${error.message}`);
+    const sourceHint = [cfg.emailSource, cfg.passwordSource].filter(Boolean).join(' / ') || 'unknown env source';
+    throw new Error(`signInWithPassword failed: ${error.message} (credential source: ${sourceHint})`);
   }
 
   if (!data?.session) {
@@ -269,6 +298,12 @@ function getBobSystemAuthStatus() {
     configured: state.configured,
     ready: state.ready,
     email: state.email,
+    credentials_source: {
+      email: getConfig().emailSource,
+      password: getConfig().passwordSource,
+      allow_legacy_aliases: getConfig().allowLegacyAliases,
+      node_env: getConfig().isProduction ? 'production' : (process.env.NODE_ENV || 'development'),
+    },
     user_id: state.userId,
     expires_at: state.expiresAtMs ? new Date(state.expiresAtMs).toISOString() : null,
     last_refresh_at: state.lastRefreshAt,
