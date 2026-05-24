@@ -77,6 +77,11 @@ const systemRules = [
   'SECURE KNOWLEDGE DEPLOYMENT: If token is absent from shell context, query secure administrative credential stores with service-role permissions and enforce allowed_agents scope.',
   'METADATA CONVENTION PARSING: If naming layout is unknown, use research agent to parse consultative Tier B docs (for example ENVIRONMENT_VARIABLES.md) and extract canonical project naming.',
   'PAINLESS COGNITIVE VARIABLE HEALING: After discovering verified key or alias, reconstruct execution payload, apply approved environment patch via applyAgentPatch(), and resume task autonomously.',
+  'PROACTIVE TEST ORCHESTRATION AND DATA DEPENDENCY PROTOCOL: When Playwright or endpoint test lanes fail due to missing/unseeded database prerequisites, do not log terminal crash before dependency recovery loop is attempted.',
+  'FAILURE LOG ANALYSIS: Deploy Dr Bob to parse stdout/stderr traces and isolate exact missing entities, foreign-key prerequisites, or structural constraints causing test failure.',
+  'AUTONOMOUS DATA ORCHESTRATION: Using Supabase service-role privileges, generate transactional fixture payloads for missing entities (for example active user profile, operational location/geofence, fallback token state) without waiting for human direction.',
+  'SANDBOX DATABASE INFUSION: Inject generated fixtures into designated testing schema/context and verify insertion success before test replay.',
+  'HEADLESS RE-EVALUATION SPRINT: After fixture infusion, trigger MOCK_MODE=true Playwright rerun and repeat up to 3 cycles before escalating to Captain dashboard as unresolved orchestrator failure.',
 ];
 
 const agentRoles = {

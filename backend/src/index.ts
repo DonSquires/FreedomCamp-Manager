@@ -14,6 +14,7 @@ import { runInSandboxEmulator } from './validator.js';
 import { triggerOtaHotfix, triggerPreviewApkBuild } from './easTools.js';
 import { closeGiteaIssue, createGiteaIssue, updateMarkdownTodo } from './pmTools.js';
 import { discoverEnvironmentKey } from './intelTools.js';
+import { orchestrateMissingTestFixtures } from './testTools.js';
 import {
   buildPrioritizedResearchQueries,
   executeWebSearch,
@@ -489,6 +490,39 @@ function parseLogId(value: unknown): number | null {
     return null;
   }
   return Math.floor(parsed);
+}
+
+function triggerPlaywrightRecoveryRerun(branch: string): boolean {
+  const enabled = parseBool(process.env.AUTO_PLAYWRIGHT_RECOVERY_RERUN ?? 'true');
+  if (!enabled) {
+    return false;
+  }
+
+  const command =
+    String(process.env.PLAYWRIGHT_RECOVERY_COMMAND ?? 'MOCK_MODE=true npx playwright test --config playwright.config.ts').trim();
+
+  if (!command) {
+    return false;
+  }
+
+  try {
+    const child = spawn('sh', ['-lc', command], {
+      cwd: REPO_ROOT,
+      detached: true,
+      stdio: 'ignore',
+      env: {
+        ...process.env,
+        PLAYWRIGHT_RECOVERY_BRANCH: branch,
+        PLAYWRIGHT_RECOVERY_TRIGGER: 'fixture-infusion',
+      },
+    });
+
+    child.unref();
+    return true;
+  } catch (error) {
+    console.warn('[/api/automation/playwright-result] Failed to trigger autonomous rerun', error);
+    return false;
+  }
 }
 
 const discoveredSupabaseUrl = await discoverEnvironmentKey('SUPABASE_URL');
@@ -4200,6 +4234,17 @@ app.post('/api/automation/playwright-result', async (req: Request, res: Response
   const isPerfectGreen = isHundredPercentGreen(payload, status);
   const autoPromoteEnabled = parseBool(process.env.AUTO_PROMOTE_GREEN_PLAYWRIGHT ?? 'true');
   const promotionBaseBranch = String(process.env.AUTO_PROMOTE_BASE_BRANCH ?? 'main').trim() || 'main';
+  const recoverySummary: {
+    attempted: boolean;
+    fixturesInjected: boolean;
+    rerunTriggered: boolean;
+    reason: string | null;
+  } = {
+    attempted: false,
+    fixturesInjected: false,
+    rerunTriggered: false,
+    reason: null,
+  };
 
   let promotionSummary: Record<string, unknown> | null = null;
   if (autoPromoteEnabled && isPatchBranch && isPerfectGreen) {
@@ -4259,8 +4304,36 @@ app.post('/api/automation/playwright-result', async (req: Request, res: Response
     };
   }
 
+  if (status !== 'PASSED') {
+    recoverySummary.attempted = true;
+
+    try {
+      const fixturesInjected = await orchestrateMissingTestFixtures(output);
+      recoverySummary.fixturesInjected = fixturesInjected;
+
+      if (fixturesInjected) {
+        const rerunTriggered = triggerPlaywrightRecoveryRerun(branch);
+        recoverySummary.rerunTriggered = rerunTriggered;
+        managerStatus = rerunTriggered ? 'RECOVERY_RETRY_TRIGGERED' : 'PENDING_HUMAN_REVIEW';
+        verificationTag = `${verificationTag} | Fixture Recovery: ${rerunTriggered ? 'INJECTED_AND_RERUN' : 'INJECTED'}`;
+        recoverySummary.reason = rerunTriggered
+          ? 'Detected missing test fixture context and triggered autonomous playwright rerun.'
+          : 'Detected missing test fixture context and injected recovery fixtures.';
+      } else {
+        recoverySummary.reason = 'No recognized missing fixture signatures found in failure output.';
+      }
+    } catch (error) {
+      recoverySummary.reason = `Fixture orchestration failed: ${error instanceof Error ? error.message : String(error)}`;
+    }
+  }
+
   let giteaIssueNumber: number | null = null;
-  if (status !== 'PASSED' || managerStatus === 'ORCHESTRATOR_CRASHED') {
+  const shouldOpenIssue =
+    status !== 'PASSED' && !recoverySummary.fixturesInjected
+      ? true
+      : managerStatus === 'ORCHESTRATOR_CRASHED';
+
+  if (shouldOpenIssue) {
     const issueTitle = '[ORCHESTRATOR_CRASHED] Playwright browser verification failed';
     const issueBody = [
       'Automated issue opened by the webhook Playwright gate.',
@@ -4275,6 +4348,7 @@ app.post('/api/automation/playwright-result', async (req: Request, res: Response
       `Command: ${command}`,
       `Captured At: ${capturedAt}`,
       `Promotion Summary: ${JSON.stringify(promotionSummary ?? {})}`,
+      `Recovery Summary: ${JSON.stringify(recoverySummary)}`,
       '',
       'Raw Playwright output:',
       '```',
@@ -4313,6 +4387,7 @@ app.post('/api/automation/playwright-result', async (req: Request, res: Response
     testsPassed: Number(payload.testsPassed),
     testsTotal: Number(payload.testsTotal),
     autoPromotion: promotionSummary,
+    recoverySummary,
     giteaIssueNumber,
     capturedAt,
     recordedAt: nowIso,
