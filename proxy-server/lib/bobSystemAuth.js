@@ -34,6 +34,10 @@ const state = {
   lastFailureAt: null,
   lastRefreshAt: null,
   refreshFailures: 0,
+  credentialSource: {
+    email: null,
+    password: null,
+  },
 };
 
 let supabase = null;
@@ -77,32 +81,21 @@ function getConfig() {
   const isProduction = String(process.env.NODE_ENV || '').toLowerCase() === 'production';
   const allowLegacyAliases = !isProduction || String(process.env.BOB_SYSTEM_ALLOW_LEGACY_ALIASES || '').trim() === '1';
 
-  const canonicalEmail = firstResolvedEnv(['BOB_SYSTEM_EMAIL']);
-  const canonicalPassword = firstResolvedEnv(['BOB_SYSTEM_PASSWORD']);
+  const email = firstNonEmptyEnv([
+    'BOB_SYSTEM_EMAIL',
+    'BOB_LOGIN_EMAIL',
+    'PLAYWRIGHT_MASTER_EMAIL',
+    'TEST_OWNER_EMAIL',
+    'API_TEST_EMAIL',
+  ]).toLowerCase();
 
-  const legacyEmail = allowLegacyAliases
-    ? firstResolvedEnv([
-      'BOB_LOGIN_EMAIL',
-      'PLAYWRIGHT_MASTER_EMAIL',
-      'TEST_OWNER_EMAIL',
-      'API_TEST_EMAIL',
-    ])
-    : { value: '', source: null };
-
-  const legacyPassword = allowLegacyAliases
-    ? firstResolvedEnv([
-      'BOB_LOGIN_PASSWORD',
-      'PLAYWRIGHT_MASTER_PASSWORD',
-      'TEST_OWNER_PASSWORD',
-      'API_TEST_PASSWORD',
-    ])
-    : { value: '', source: null };
-
-  const selectedEmail = canonicalEmail.value ? canonicalEmail : legacyEmail;
-  const selectedPassword = canonicalPassword.value ? canonicalPassword : legacyPassword;
-
-  const email = selectedEmail.value.toLowerCase();
-  const password = selectedPassword.value;
+  const password = firstNonEmptyEnv([
+    'BOB_SYSTEM_PASSWORD',
+    'BOB_LOGIN_PASSWORD',
+    'PLAYWRIGHT_MASTER_PASSWORD',
+    'TEST_OWNER_PASSWORD',
+    'API_TEST_PASSWORD',
+  ]);
 
   const refreshBufferSeconds = Math.max(30, Number(process.env.BOB_SYSTEM_REFRESH_BUFFER_SECONDS || 120));
 
@@ -110,14 +103,49 @@ function getConfig() {
     supabaseUrl,
     supabaseKey,
     email,
-    emailSource: selectedEmail.source,
     password,
-    passwordSource: selectedPassword.source,
     isProduction,
     allowLegacyAliases,
     refreshBufferSeconds,
     configured: Boolean(supabaseUrl && supabaseKey && email && password),
   };
+}
+
+function credentialCandidates(cfg) {
+  const canonicalPair = {
+    email: firstResolvedEnv(['BOB_SYSTEM_EMAIL']),
+    password: firstResolvedEnv(['BOB_SYSTEM_PASSWORD']),
+  };
+
+  const legacyPairs = cfg.allowLegacyAliases
+    ? [
+      ['BOB_LOGIN_EMAIL', 'BOB_LOGIN_PASSWORD'],
+      ['PLAYWRIGHT_MASTER_EMAIL', 'PLAYWRIGHT_MASTER_PASSWORD'],
+      ['TEST_OWNER_EMAIL', 'TEST_OWNER_PASSWORD'],
+      ['API_TEST_EMAIL', 'API_TEST_PASSWORD'],
+    ]
+      .map(([emailName, passwordName]) => ({
+        email: firstResolvedEnv([emailName]),
+        password: firstResolvedEnv([passwordName]),
+      }))
+      .filter((pair) => pair.email.value && pair.password.value)
+    : [];
+
+  const candidates = [];
+  if (canonicalPair.email.value && canonicalPair.password.value) {
+    candidates.push(canonicalPair);
+  }
+
+  for (const pair of legacyPairs) {
+    const duplicateCanonical =
+      pair.email.value.toLowerCase() === String(canonicalPair.email.value || '').toLowerCase() &&
+      pair.password.value === String(canonicalPair.password.value || '');
+    if (!duplicateCanonical) {
+      candidates.push(pair);
+    }
+  }
+
+  return candidates;
 }
 
 function clearTimer() {
@@ -214,23 +242,39 @@ async function signInWithPassword() {
     });
   }
 
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email: cfg.email,
-    password: cfg.password,
-  });
+  const candidates = credentialCandidates(cfg);
+  const failures = [];
 
-  if (error) {
-    const sourceHint = [cfg.emailSource, cfg.passwordSource].filter(Boolean).join(' / ') || 'unknown env source';
-    throw new Error(`signInWithPassword failed: ${error.message} (credential source: ${sourceHint})`);
+  for (const candidate of candidates) {
+    const email = String(candidate.email.value || '').toLowerCase();
+    const password = String(candidate.password.value || '');
+    const sourceHint = [candidate.email.source, candidate.password.source].filter(Boolean).join(' / ') || 'unknown env source';
+
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (error) {
+      failures.push(`source=${sourceHint}: ${error.message}`);
+      continue;
+    }
+
+    if (!data?.session) {
+      failures.push(`source=${sourceHint}: no session returned`);
+      continue;
+    }
+
+    state.credentialSource = {
+      email: candidate.email.source,
+      password: candidate.password.source,
+    };
+    applySession(data.session, email);
+    state.refreshFailures = 0;
+    return data.session;
   }
 
-  if (!data?.session) {
-    throw new Error('Supabase sign-in succeeded but no session was returned.');
-  }
-
-  applySession(data.session, cfg.email);
-  state.refreshFailures = 0;
-  return data.session;
+  throw new Error(`signInWithPassword failed: ${failures.join(' | ')}`);
 }
 
 async function rotateSession() {
@@ -299,8 +343,8 @@ function getBobSystemAuthStatus() {
     ready: state.ready,
     email: state.email,
     credentials_source: {
-      email: getConfig().emailSource,
-      password: getConfig().passwordSource,
+      email: state.credentialSource.email,
+      password: state.credentialSource.password,
       allow_legacy_aliases: getConfig().allowLegacyAliases,
       node_env: getConfig().isProduction ? 'production' : (process.env.NODE_ENV || 'development'),
     },
