@@ -105,3 +105,18 @@ curl -sS -X POST https://<mapping-gateway>.up.railway.app/route-plan \
 - Keep RunPod keys only in Railway secrets; do not commit keys.
 - Keep Google keys optional and support-only.
 - Patrol-route continuity should remain available even when RunPod/Google are unavailable.
+
+## Operational update (2026-05-24)
+
+The following evidence was validated and committed during the 2026-05-24 production update cycle:
+
+1. Railway gateway connectivity is healthy from the runtime test harness.
+  - Evidence: `external.check_railway_health` PASS in `tools/human-test-engine/reports/2026-05-24T00-02-31-119Z/report.md`.
+2. Mapping continuity is still grounded to deterministic route planning when enrichment providers are unavailable.
+  - Contract source: this document's Service 2 fallback path (`mapping-gateway` first, deterministic fallback retained).
+3. Production governance and evidence runs were captured and versioned in repository artifacts.
+  - Evidence bundle paths:
+    - `tools/bob-agentic-test-runs/conductor/2026-05-24T00-23-06-314Z/`
+    - `tools/bob-agentic-test-runs/conductor/2026-05-24T00-27-01-076Z/`
+4. Mapping/runtime validation remains auth-aware for protected control paths.
+  - For `/api/heal` patrol-route/manual instruction checks, continue using authenticated user context and org-scoped headers as required by backend policy.

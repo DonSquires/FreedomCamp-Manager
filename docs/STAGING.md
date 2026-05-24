@@ -6,6 +6,38 @@ Status: **ALL GATES GREEN** — npm standardized; Vercel/mobile deployment updat
 
 ---
 
+## Runtime Governance + Mapping Verification Update (2026-05-24)
+
+Owner: GitHub Copilot  
+Scope: Capture production-documented outcomes that were completed and previously under-documented in staging notes.
+
+Completed:
+
+- [x] Human test harness rerun completed with full green outcome.
+- [x] Bob org/actionability verification rerun completed with full green outcome.
+- [x] Conductor explicit-batch stage selection regression fixed and deployed (`scripts/bob-agentic-test-orchestrator.mjs`).
+- [x] Generated runtime evidence artifacts committed and pushed to production branch history for audit continuity.
+
+Validation evidence:
+
+1. Human test engine report: `tools/human-test-engine/reports/2026-05-24T00-02-31-119Z/report.md`
+  - Result: PASS (19 passed, 0 failed, reliability 100%)
+  - Includes `external.check_railway_health` PASS for live connectivity verification.
+2. Actionability contract report: `data/bob-actionability-check.json`
+  - Result: PASS (7 passed, 0 failed)
+  - Confirms org access helper integration + Star Trek non-regression checkpoint.
+3. Conductor evidence bundles committed:
+  - `tools/bob-agentic-test-runs/conductor/2026-05-24T00-23-06-314Z/`
+  - `tools/bob-agentic-test-runs/conductor/2026-05-24T00-27-01-076Z/`
+
+Operational outcome:
+
+1. Mapping/runtime governance path is documented with current evidence.
+2. Production branch now contains both the conductor fix and associated audit artifacts.
+3. Runtime validation chain (human checks + org actionability checks) is now explicitly represented in STAGING.
+
+---
+
 ## Proactive Patrol + Intelligence Validation (2026-05-23)
 
 Owner: GitHub Copilot  
