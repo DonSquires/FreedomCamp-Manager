@@ -121,6 +121,8 @@ type PlaywrightVerificationWebhookPayload = {
   greenScore?: number | string;
   testsPassed?: number | string;
   testsTotal?: number | string;
+  recoveryAttempt?: number | string;
+  retryCount?: number | string;
 };
 
 type CognitiveActionPayload = {
@@ -492,6 +494,14 @@ function parseLogId(value: unknown): number | null {
   return Math.floor(parsed);
 }
 
+function parsePositiveIntOrFallback(value: unknown, fallback: number): number {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return fallback;
+  }
+  return Math.floor(parsed);
+}
+
 function triggerPlaywrightRecoveryRerun(branch: string): boolean {
   const enabled = parseBool(process.env.AUTO_PLAYWRIGHT_RECOVERY_RERUN ?? 'true');
   if (!enabled) {
@@ -523,6 +533,120 @@ function triggerPlaywrightRecoveryRerun(branch: string): boolean {
     console.warn('[/api/automation/playwright-result] Failed to trigger autonomous rerun', error);
     return false;
   }
+}
+
+async function resolveBugReportActor(): Promise<{ userId: string; userRole: string } | null> {
+  const explicitUserId = String(process.env.BOB_AUTOMATION_USER_ID ?? '').trim();
+  const explicitUserRole = String(process.env.BOB_AUTOMATION_USER_ROLE ?? 'admin').trim() || 'admin';
+  if (explicitUserId) {
+    return { userId: explicitUserId, userRole: explicitUserRole };
+  }
+
+  const { data: recentReport } = await supabase
+    .from('bug_reports')
+    .select('user_id, user_role')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const candidateUserId = String((recentReport as any)?.user_id ?? '').trim();
+  const candidateUserRole = String((recentReport as any)?.user_role ?? 'admin').trim() || 'admin';
+  if (candidateUserId) {
+    return { userId: candidateUserId, userRole: candidateUserRole };
+  }
+
+  return null;
+}
+
+async function upsertPlaywrightFailureBugReport(args: {
+  repository: string;
+  branch: string;
+  verificationTag: string;
+  output: string;
+  command: string;
+  managerStatus: string;
+  recoverySummary: Record<string, unknown>;
+  attemptCount: number;
+}): Promise<string | null> {
+  const actor = await resolveBugReportActor();
+  if (!actor) {
+    console.warn('[/api/automation/playwright-result] Unable to resolve bug-report actor for escalation.');
+    return null;
+  }
+
+  const title = `[PLAYWRIGHT][AUTO] ${args.repository} ${args.branch} verification failed`;
+  const description = [
+    `Playwright verification failed and escalated after recovery attempt ${args.attemptCount}.`,
+    `Manager status: ${args.managerStatus}`,
+    `Verification tag: ${args.verificationTag}`,
+    `Command: ${args.command}`,
+    `Recovery summary: ${JSON.stringify(args.recoverySummary)}`,
+    '',
+    'Output excerpt:',
+    args.output || '[No output captured]',
+  ].join('\n');
+
+  const upsertPayload = {
+    user_id: actor.userId,
+    user_role: actor.userRole,
+    issue_type: 'functional_bug',
+    severity: 'high',
+    priority: 'high',
+    title,
+    description,
+    current_page: '/api/automation/playwright-result',
+    app_version: `playwright-webhook:${args.repository}`,
+    status: 'investigating',
+    requires_human_review: true,
+    ai_analyzed: true,
+    ai_analysis: {
+      source: 'playwright-recovery-escalation',
+      branch: args.branch,
+      attemptCount: args.attemptCount,
+      managerStatus: args.managerStatus,
+      recoverySummary: args.recoverySummary,
+      escalatedAt: new Date().toISOString(),
+    },
+    auto_reported: true,
+    admin_notified: false,
+    user_notified: false,
+  } as Record<string, unknown>;
+
+  const { data: existing } = await supabase
+    .from('bug_reports')
+    .select('id')
+    .eq('title', title)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if ((existing as any)?.id) {
+    const bugReportId = String((existing as any).id);
+    const { error } = await supabase
+      .from('bug_reports')
+      .update(upsertPayload)
+      .eq('id', bugReportId);
+
+    if (error) {
+      console.warn('[/api/automation/playwright-result] Failed to update bug report escalation', error);
+      return null;
+    }
+
+    return bugReportId;
+  }
+
+  const { data: inserted, error: insertError } = await supabase
+    .from('bug_reports')
+    .insert(upsertPayload)
+    .select('id')
+    .single();
+
+  if (insertError) {
+    console.warn('[/api/automation/playwright-result] Failed to insert bug report escalation', insertError);
+    return null;
+  }
+
+  return String((inserted as any)?.id ?? '');
 }
 
 const discoveredSupabaseUrl = await discoverEnvironmentKey('SUPABASE_URL');
@@ -4234,16 +4358,24 @@ app.post('/api/automation/playwright-result', async (req: Request, res: Response
   const isPerfectGreen = isHundredPercentGreen(payload, status);
   const autoPromoteEnabled = parseBool(process.env.AUTO_PROMOTE_GREEN_PLAYWRIGHT ?? 'true');
   const promotionBaseBranch = String(process.env.AUTO_PROMOTE_BASE_BRANCH ?? 'main').trim() || 'main';
+  const maxRecoveryAttempts = parsePositiveIntOrFallback(process.env.PLAYWRIGHT_RECOVERY_MAX_ATTEMPTS, 3);
+  const attemptCount = parsePositiveIntOrFallback(payload.recoveryAttempt ?? payload.retryCount, 1);
   const recoverySummary: {
     attempted: boolean;
     fixturesInjected: boolean;
     rerunTriggered: boolean;
     reason: string | null;
+    attemptCount: number;
+    maxAttempts: number;
+    escalatedToBugReport: boolean;
   } = {
     attempted: false,
     fixturesInjected: false,
     rerunTriggered: false,
     reason: null,
+    attemptCount,
+    maxAttempts: maxRecoveryAttempts,
+    escalatedToBugReport: false,
   };
 
   let promotionSummary: Record<string, unknown> | null = null;
@@ -4312,13 +4444,16 @@ app.post('/api/automation/playwright-result', async (req: Request, res: Response
       recoverySummary.fixturesInjected = fixturesInjected;
 
       if (fixturesInjected) {
-        const rerunTriggered = triggerPlaywrightRecoveryRerun(branch);
+        const canRetry = attemptCount < maxRecoveryAttempts;
+        const rerunTriggered = canRetry ? triggerPlaywrightRecoveryRerun(branch) : false;
         recoverySummary.rerunTriggered = rerunTriggered;
         managerStatus = rerunTriggered ? 'RECOVERY_RETRY_TRIGGERED' : 'PENDING_HUMAN_REVIEW';
         verificationTag = `${verificationTag} | Fixture Recovery: ${rerunTriggered ? 'INJECTED_AND_RERUN' : 'INJECTED'}`;
         recoverySummary.reason = rerunTriggered
           ? 'Detected missing test fixture context and triggered autonomous playwright rerun.'
-          : 'Detected missing test fixture context and injected recovery fixtures.';
+          : canRetry
+            ? 'Detected missing test fixture context and injected recovery fixtures.'
+            : `Maximum recovery attempts reached (${maxRecoveryAttempts}); escalating to bug reports.`;
       } else {
         recoverySummary.reason = 'No recognized missing fixture signatures found in failure output.';
       }
@@ -4363,6 +4498,25 @@ app.post('/api/automation/playwright-result', async (req: Request, res: Response
     }
   }
 
+  let bugReportId: string | null = null;
+  const shouldEscalateToBugReport =
+    status !== 'PASSED' &&
+    (!recoverySummary.rerunTriggered || attemptCount >= maxRecoveryAttempts || managerStatus === 'ORCHESTRATOR_CRASHED');
+
+  if (shouldEscalateToBugReport) {
+    bugReportId = await upsertPlaywrightFailureBugReport({
+      repository,
+      branch,
+      verificationTag,
+      output,
+      command,
+      managerStatus,
+      recoverySummary,
+      attemptCount,
+    });
+    recoverySummary.escalatedToBugReport = Boolean(bugReportId);
+  }
+
   const nowIso = new Date().toISOString();
   const isMissingSelfHealingLogsTable = (error: unknown): boolean => {
     const errorCode = String((error as { code?: unknown } | null)?.code ?? '');
@@ -4389,6 +4543,7 @@ app.post('/api/automation/playwright-result', async (req: Request, res: Response
     autoPromotion: promotionSummary,
     recoverySummary,
     giteaIssueNumber,
+    bugReportId,
     capturedAt,
     recordedAt: nowIso,
   };
@@ -4411,6 +4566,7 @@ app.post('/api/automation/playwright-result', async (req: Request, res: Response
         verificationTag,
         persistedId: logId,
         giteaIssueNumber,
+        bugReportId,
         autoPromotion: promotionSummary,
         persistenceTarget: 'self_healing_logs',
       });
@@ -4484,6 +4640,7 @@ app.post('/api/automation/playwright-result', async (req: Request, res: Response
     verificationTag,
     persistedId,
     giteaIssueNumber,
+    bugReportId,
     autoPromotion: promotionSummary,
     persistenceTarget,
   });
