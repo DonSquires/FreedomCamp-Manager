@@ -214,13 +214,39 @@ export const useAuthStore = create<AuthState>()(
 
       // Re-authenticates from the session lock screen without triggering the
       // global loading state, preventing the app from briefly unmounting and
-      // causing a visual loop. User state is kept current via the onAuthStateChange
-      // listener (registered in initializeAuth) which fires automatically on
-      // successful sign-in and refreshes the user profile in the store.
+      // causing a visual loop.
       unlockSession: async (email: string, password: string) => {
-        const { error } = await supabase.auth.signInWithPassword({ email, password })
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password })
         if (error) throw error
-        // Clear the session lock; the auth listener will keep user state current.
+
+        const { data: profile, error: profileError } = await supabase
+          .from('user_profiles')
+          .select('id, email, role, organization_id, employer_organization_id, first_name, last_name, job_title, portal_access, authorized_work_locations, extra_organization_ids, ptt_channel_access')
+          .eq('id', data.user.id)
+          .single()
+
+        if (profileError) {
+          throw profileError
+        }
+
+        const p = profile as any
+        const authUser: AuthUser = {
+          id: p.id,
+          email: p.email,
+          role: p.role as AuthUser['role'],
+          organization_id: p.organization_id,
+          employer_organization_id: p.employer_organization_id ?? null,
+          full_name: `${p.first_name} ${p.last_name}`,
+          first_name: p.first_name ?? null,
+          last_name: p.last_name ?? null,
+          job_title: p.job_title ?? null,
+          portal_access: p.portal_access ?? [],
+          authorized_work_locations: p.authorized_work_locations ?? [],
+          extra_organization_ids: p.extra_organization_ids ?? [],
+          ptt_channel_access: p.ptt_channel_access ?? null,
+        }
+
+        set({ user: authUser, isAuthenticated: true, loading: false })
         useSessionLockStore.getState().unlock()
       },
 
