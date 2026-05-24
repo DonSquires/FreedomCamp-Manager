@@ -5435,7 +5435,6 @@ app.post('/api/automation/deep-system-audit', requireAdminAuth, async (req: Requ
     }
   })();
 });
-
 // ── POST /api/automation/playwright-result ────────────────────────────────
 //    Receives webhook-driven Playwright gate outcomes and writes them into
 //    self_healing_logs for approval panel visibility.
