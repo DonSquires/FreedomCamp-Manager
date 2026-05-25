@@ -1437,13 +1437,20 @@ export function AppLayout({ children, title, description, showBackButton, immers
                     Log back in from this screen to continue where you left off, or sign out completely.
                   </p>
 
-                  <div className="space-y-2">
+                  <form
+                    className="space-y-2"
+                    onSubmit={(e) => {
+                      e.preventDefault()
+                      handleUnlockSession()
+                    }}
+                  >
                     <label htmlFor="unlock-password" className="text-sm font-medium text-slate-700">
                       Password for {user?.email}
                     </label>
                     <Input
                       id="unlock-password"
                       type="password"
+                      autoComplete="current-password"
                       value={reLoginPassword}
                       onChange={(e) => setReLoginPassword(e.target.value)}
                       placeholder="Enter password to unlock"
@@ -1455,7 +1462,7 @@ export function AppLayout({ children, title, description, showBackButton, immers
                         }
                       }}
                     />
-                  </div>
+                  </form>
 
                   <div className="flex flex-col sm:flex-row gap-2 pt-2">
                     <Button className="flex-1" onClick={handleUnlockSession} disabled={unlocking}>

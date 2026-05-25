@@ -17,6 +17,18 @@ import { findBobSchemaEntitiesForText, getBobSchemaRegistrySummary } from './bob
 
 const ACCESS_TOKEN_REFRESH_BUFFER_MS = 60_000
 const EDGE_FUNCTION_TIMEOUT_MS = 35_000
+const SESSION_TOAST_COOLDOWN_MS = 15_000
+
+let lastSessionToastAtMs = 0
+
+function shouldEmitSessionToast(): boolean {
+  const now = Date.now()
+  if (now - lastSessionToastAtMs < SESSION_TOAST_COOLDOWN_MS) {
+    return false
+  }
+  lastSessionToastAtMs = now
+  return true
+}
 
 async function withTimeout<T>(promise: Promise<T>, ms: number, timeoutMessage: string): Promise<T> {
   return await new Promise<T>((resolve, reject) => {
@@ -468,8 +480,11 @@ async function callEdgeFunction<T = any>(
     const accessToken = await getValidAccessToken()
     if (!accessToken) {
       const errorMessage = 'No active session found. Please sign in again and retry.'
-      lock('Session Lockout', 'Your session is no longer active. Log back in to unlock this workspace.')
-      if (options.showToast) {
+      const { isLocked } = useSessionLockStore.getState()
+      if (!isLocked) {
+        lock('Session Lockout', 'Your session is no longer active. Log back in to unlock this workspace.')
+      }
+      if (options.showToast && shouldEmitSessionToast()) {
         toast.error(errorMessage)
       }
       return { data: null, error: errorMessage }
@@ -582,8 +597,11 @@ async function callEdgeFunction<T = any>(
         }
 
         const authErrorMessage = 'Session expired during request. Please retry once or sign in again.'
-        lock('Session Timed Out', 'Your session expired while this task was running. Log back in to continue safely.')
-        if (options.showToast) {
+        const { isLocked } = useSessionLockStore.getState()
+        if (!isLocked) {
+          lock('Session Timed Out', 'Your session expired while this task was running. Log back in to continue safely.')
+        }
+        if (options.showToast && shouldEmitSessionToast()) {
           toast.error(authErrorMessage)
         }
         return { data: null, error: authErrorMessage }
@@ -601,9 +619,12 @@ async function callEdgeFunction<T = any>(
   } catch (error: any) {
     const errorMessage = await getErrorMessage(error)
     if (errorMessage.toLowerCase().includes('session')) {
-      lock('Session Lockout', 'Your session could not be refreshed. Log back in to unlock this workspace.')
+      const { isLocked } = useSessionLockStore.getState()
+      if (!isLocked) {
+        lock('Session Lockout', 'Your session could not be refreshed. Log back in to unlock this workspace.')
+      }
     }
-    if (options.showToast) {
+    if (options.showToast && (!errorMessage.toLowerCase().includes('session') || shouldEmitSessionToast())) {
       toast.error(errorMessage)
     }
     return { data: null, error: errorMessage }
@@ -628,7 +649,15 @@ async function callEdgeFunctionRoute<T = any>(
   try {
     const accessToken = await getValidAccessToken()
     if (!accessToken) {
-      return { data: null, error: 'No active session found. Please sign in again and retry.' }
+      const message = 'No active session found. Please sign in again and retry.'
+      const { isLocked, lock } = useSessionLockStore.getState()
+      if (!isLocked) {
+        lock('Session Lockout', 'Your session is no longer active. Log back in to unlock this workspace.')
+      }
+      if (showToast && shouldEmitSessionToast()) {
+        toast.error(message)
+      }
+      return { data: null, error: message }
     }
 
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined
