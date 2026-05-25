@@ -69,7 +69,6 @@ function softResolveAuthLoading(set: (partial: Partial<AuthState> | ((state: Aut
     isAuthenticated: sessionUserId ? state.user?.id === sessionUserId || state.isAuthenticated : state.isAuthenticated,
   }))
 }
-
 async function getFreshSessionAfterLogin() {
   const { data, error } = await supabase.auth.refreshSession()
   if (!error && data.session) {

@@ -1827,7 +1827,6 @@ async function generateWithModelFallback(systemPrompt: string, userMessage: stri
       `[prompt-guardrails] Context truncated before model dispatch (${guardrail.totalBytesBefore} -> ${guardrail.totalBytesAfter} bytes)`,
     );
   }
-
   try {
     return await generateWithRunpod(guardrail.systemPrompt, guardrail.userMessage);
   } catch (error) {
