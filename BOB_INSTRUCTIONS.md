@@ -10,23 +10,23 @@
 
 ```bash
 # Start the Vite dev server (http://localhost:5173)
-bun run dev
+npm run dev
 
 # Run ALL Playwright E2E tests in headless Chromium
-bunx playwright test --config playwright.config.ts
+npm exec playwright test --config playwright.config.ts
 
 # Run only the deep-functional suite
-bunx playwright test tests/e2e/deep-functional.spec.ts
+npm exec playwright test tests/e2e/deep-functional.spec.ts
 
 # Run with visible browser (debug mode)
-bunx playwright test --headed
+npm exec playwright test --headed
 
 # Run with MOCK_MODE so no RunPod/Whisper calls happen
-MOCK_MODE=true bunx playwright test
+MOCK_MODE=true npm exec playwright test
 ```
 
 **Pre-flight checklist before running tests:**
-1. `bun run build` must pass (type errors → fix before testing)
+1. `npm run build` must pass (type errors → fix before testing)
 2. Dev server must be on port 5173 (check with `lsof -i :5173`)
 3. Verify `.env.playwright.local` exists with all four role credentials
 
@@ -68,6 +68,7 @@ npm run train:sync
 ### Rule
 
 Prefer `npm exec`-backed scripts (`package.json`) over direct `npx` invocations for deterministic execution across shells.
+Root workspace execution is npm-only; if a doc or stale artifact still references Bun, treat that as documentation drift and prefer `package.json` plus `system_state.json`.
 
 ---
 
@@ -371,13 +372,13 @@ Before any major architectural redesign or module-wide UI proposal:
 2. Read `system_state.json` before proposing architecture.
 3. If a module is not in `system_state.json.modules`, do not claim it exists.
 4. Determine package manager from `system_state.json.lockfiles`:
-  - `bun.lock` => Bun
   - `package-lock.json` => npm
+  - If `package.json.packageManager` starts with `npm@`, treat npm as canonical even if older docs mention Bun
 5. Never guess missing runtime facts. Return blocker + safest fallback.
 
 Required operator prompt when drift is detected:
 
-"Bob, before you provide any code or architectural advice, you must check system_state.json. If a module or package is not listed in that file, you are prohibited from assuming it exists. If you are asked to use a package manager, look at the lockfiles array. If bun.lock exists, use Bun. If package-lock.json exists, use NPM. Never guess."
+"Bob, before you provide any code or architectural advice, you must check system_state.json. If a module or package is not listed in that file, you are prohibited from assuming it exists. If you are asked to use a package manager, use the lockfiles array and packageManager field. If package-lock.json exists or package.json declares npm, use NPM. Never guess."
 
 ---
 
@@ -846,8 +847,8 @@ Primary commands:
 #### Release Gate Order
 
 Bob must run service tests in this order:
-1. `bun run build`
-2. `bun run lint`
+1. `npm run build`
+2. `npm run lint`
 3. Focused Bob web / PWA specs
 4. Mobile / Expo profile validation in `mobile-app/`
 5. Voice and dispatch local mocks

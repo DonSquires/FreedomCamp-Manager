@@ -126,8 +126,8 @@ curl -sS "${INFERENCE_SERVICE_URL}/runsync" \
 3. Build and lint:
 
 ```bash
-bun run build
-bun run lint
+npm run build
+npm run lint
 ```
 
 ## Security Notes

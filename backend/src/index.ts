@@ -26,6 +26,7 @@ import {
   fetchWebpageContent,
   isTrustedResearchDomain,
 } from './researchTool.js';
+import { applyPromptGuardrails, buildSchemaAwareBlueprint } from './schemaContextRouter.js';
 
 function hydrateEnvFromFile(filePath: string): void {
   if (!existsSync(filePath)) {
@@ -171,6 +172,11 @@ type PlaywrightVerificationWebhookPayload = {
   retryCount?: number | string;
 };
 
+type PlaywrightBugReportUpsertResult = {
+  bugReportId: string | null;
+  created: boolean;
+};
+
 type CognitiveActionPayload = {
   mode: 'none' | 'gitea_propose_pr';
   giteaProposePr?: GiteaCreatePrRequest | null;
@@ -244,7 +250,7 @@ const OLLAMA_MODEL_TIMEOUT_MS = Number(process.env.OLLAMA_MODEL_TIMEOUT_MS ?? 70
 const OLLAMA_TOTAL_TIMEOUT_MS = Number(process.env.OLLAMA_TOTAL_TIMEOUT_MS ?? 18000);
 const OLLAMA_STREAM_TIMEOUT_MS = Number(process.env.OLLAMA_STREAM_TIMEOUT_MS ?? 25000);
 const OLLAMA_MAX_CANDIDATES = Math.max(1, Number(process.env.OLLAMA_MAX_CANDIDATES ?? 3));
-const RUNPOD_REQUEST_TIMEOUT_MS = Number(process.env.RUNPOD_REQUEST_TIMEOUT_MS ?? 120000);
+const RUNPOD_REQUEST_TIMEOUT_MS = Number(process.env.RUNPOD_REQUEST_TIMEOUT_MS ?? 180000);
 const RUNPOD_POLL_INTERVAL_MS = Math.max(500, Number(process.env.RUNPOD_POLL_INTERVAL_MS ?? 2500));
 const RUNPOD_POLL_TIMEOUT_MS = Math.max(2000, Number(process.env.RUNPOD_POLL_TIMEOUT_MS ?? RUNPOD_REQUEST_TIMEOUT_MS));
 const RUNPOD_STATUS_REQUEST_TIMEOUT_MS = Math.max(1000, Number(process.env.RUNPOD_STATUS_REQUEST_TIMEOUT_MS ?? 20000));
@@ -255,10 +261,36 @@ const SUPABASE_AUTH_LOOKUP_TIMEOUT_MS = Number(process.env.SUPABASE_AUTH_LOOKUP_
 const PATROL_SCAN_TIMEOUT_MS = Number(process.env.PATROL_SCAN_TIMEOUT_MS ?? 20000);
 const PATROL_DRY_RUN_DEFAULT = parseBool(process.env.PATROL_DRY_RUN ?? 'false');
 const PATROL_DRY_RUN_SKIP_MODEL = parseBool(process.env.PATROL_DRY_RUN_SKIP_MODEL ?? 'true');
+const SUPABASE_AUTH_REMOTE_FALLBACK = parseBool(process.env.SUPABASE_AUTH_REMOTE_FALLBACK ?? 'false');
+const BOB_CONTEXT_MAX_BYTES = Math.max(1024, Number(process.env.BOB_CONTEXT_MAX_BYTES ?? 8192));
+const BOB_CONTEXT_STRICT_MODE = parseBool(process.env.BOB_CONTEXT_STRICT_MODE ?? 'true');
+const BOB_CONTEXT_FALLBACK_ACTION =
+  String(process.env.BOB_CONTEXT_FALLBACK_ACTION ?? 'truncate_blueprints').trim().toLowerCase() === 'truncate_prompt'
+    ? 'truncate_prompt'
+    : 'truncate_blueprints';
+const DR_BOB_BUG_REPORT_AUTOTRIAGE_ENABLED = parseBool(process.env.DR_BOB_BUG_REPORT_AUTOTRIAGE_ENABLED ?? 'true');
+const DR_BOB_BUG_REPORT_AUTOTRIAGE_OUTPUT_MAX_CHARS = Math.max(
+  500,
+  Number(process.env.DR_BOB_BUG_REPORT_AUTOTRIAGE_OUTPUT_MAX_CHARS ?? 12000),
+);
+const DR_BOB_BUG_REPORT_AUTOTRIAGE_RESULT_MAX_CHARS = Math.max(
+  500,
+  Number(process.env.DR_BOB_BUG_REPORT_AUTOTRIAGE_RESULT_MAX_CHARS ?? 4000),
+);
+const DR_BOB_BUG_REPORT_AUTOTRIAGE_POLL_MS = Math.max(
+  1000,
+  Number(process.env.DR_BOB_BUG_REPORT_AUTOTRIAGE_POLL_MS ?? 10000),
+);
+const DR_BOB_BUG_REPORT_AUTOTRIAGE_BATCH_SIZE = Math.max(
+  1,
+  Number(process.env.DR_BOB_BUG_REPORT_AUTOTRIAGE_BATCH_SIZE ?? 5),
+);
 
 const CURRENT_FILE = fileURLToPath(import.meta.url);
 const BACKEND_DIR = path.dirname(CURRENT_FILE);
 const REPO_ROOT = path.resolve(BACKEND_DIR, '..', '..');
+const drBobBugReportTriageInFlight = new Set<string>();
+let drBobBugReportWorkerRunning = false;
 const DOC_INTEL_INDEX_FILE = path.resolve(
   process.env.DOC_INTEL_INDEX_PATH ?? path.join(REPO_ROOT, 'data/internal-research/document-intelligence-index.json'),
 );
@@ -657,11 +689,11 @@ async function upsertPlaywrightFailureBugReport(args: {
   managerStatus: string;
   recoverySummary: Record<string, unknown>;
   attemptCount: number;
-}): Promise<string | null> {
+}): Promise<PlaywrightBugReportUpsertResult> {
   const actor = await resolveBugReportActor();
   if (!actor) {
     console.warn('[/api/automation/playwright-result] Unable to resolve bug-report actor for escalation.');
-    return null;
+    return { bugReportId: null, created: false };
   }
 
   const title = `[PLAYWRIGHT][AUTO] ${args.repository} ${args.branch} verification failed`;
@@ -719,10 +751,10 @@ async function upsertPlaywrightFailureBugReport(args: {
 
     if (error) {
       console.warn('[/api/automation/playwright-result] Failed to update bug report escalation', error);
-      return null;
+      return { bugReportId: null, created: false };
     }
 
-    return bugReportId;
+    return { bugReportId, created: false };
   }
 
   const { data: inserted, error: insertError } = await supabase
@@ -733,10 +765,198 @@ async function upsertPlaywrightFailureBugReport(args: {
 
   if (insertError) {
     console.warn('[/api/automation/playwright-result] Failed to insert bug report escalation', insertError);
-    return null;
+    return { bugReportId: null, created: false };
   }
 
-  return String((inserted as any)?.id ?? '');
+  return {
+    bugReportId: String((inserted as any)?.id ?? ''),
+    created: true,
+  };
+}
+
+async function triggerDrBobBugReportAutoTriage(args: {
+  bugReportId: string;
+  repository?: string;
+  branch?: string;
+  verificationTag?: string;
+  managerStatus?: string;
+  command?: string;
+  output?: string;
+  attemptCount?: number;
+  title?: string;
+  description?: string;
+  issueType?: string;
+  severity?: string;
+  currentPage?: string;
+  created: boolean;
+  source: 'playwright-webhook' | 'poller' | 'ingest-webhook';
+}): Promise<void> {
+  if (!DR_BOB_BUG_REPORT_AUTOTRIAGE_ENABLED) {
+    return;
+  }
+
+  if (drBobBugReportTriageInFlight.has(args.bugReportId)) {
+    return;
+  }
+
+  drBobBugReportTriageInFlight.add(args.bugReportId);
+
+  try {
+    const startedAt = new Date().toISOString();
+    const outputExcerpt = truncateTail(args.output ?? '', DR_BOB_BUG_REPORT_AUTOTRIAGE_OUTPUT_MAX_CHARS);
+    let triageText = '';
+    let modelUsed = 'runpod';
+    let triageError: string | null = null;
+
+    try {
+
+    const triagePrompt = [
+      'Bug report triage request.',
+      `Bug report id: ${args.bugReportId}`,
+      `Source: ${args.source}`,
+      `Repository: ${toShortString(args.repository, 'unknown')}`,
+      `Branch: ${toShortString(args.branch, 'unknown')}`,
+      `Verification tag: ${toShortString(args.verificationTag, 'unknown')}`,
+      `Manager status: ${toShortString(args.managerStatus, 'investigating')}`,
+      `Command: ${toShortString(args.command, 'unknown')}`,
+      `Attempt count: ${parsePositiveIntOrFallback(args.attemptCount, 1)}`,
+      `Title: ${toShortString(args.title, 'untitled bug report')}`,
+      `Issue type: ${toShortString(args.issueType, 'unknown')}`,
+      `Severity: ${toShortString(args.severity, 'unknown')}`,
+      `Current page: ${toShortString(args.currentPage, 'unknown')}`,
+      '',
+      'Return concise markdown with these sections:',
+      '1) Root cause hypothesis',
+      '2) Immediate containment',
+      '3) Proposed fix',
+      '4) Validation steps',
+      '',
+      'Bug report description excerpt:',
+      truncateTail(args.description ?? '', 3000) || '[No description provided]',
+      '',
+      'Playwright output excerpt:',
+      outputExcerpt || '[No output captured]',
+    ].join('\n');
+
+    const triageResult = await generateWithRunpod(
+      'You are Dr Bob. Produce a concise, actionable bug triage report grounded only in supplied evidence.',
+      triagePrompt,
+    );
+    triageText = truncateTail(triageResult.responseText, DR_BOB_BUG_REPORT_AUTOTRIAGE_RESULT_MAX_CHARS);
+    modelUsed = triageResult.modelUsed;
+    } catch (error) {
+      triageError = error instanceof Error ? error.message : String(error);
+      triageText = `Dr Bob auto-triage failed: ${triageError}`;
+    }
+
+    const completedAt = new Date().toISOString();
+    const aiAnalysisPayload = {
+      source: 'dr_bob_auto_triage',
+      trigger_source: args.source,
+      lifecycle: args.created ? 'created' : 'updated',
+      triggered_at: startedAt,
+      completed_at: completedAt,
+      model_used: modelUsed,
+      repository: toShortString(args.repository, 'unknown'),
+      branch: toShortString(args.branch, 'unknown'),
+      verification_tag: toShortString(args.verificationTag, 'unknown'),
+      manager_status: toShortString(args.managerStatus, 'investigating'),
+      attempt_count: parsePositiveIntOrFallback(args.attemptCount, 1),
+      triage_error: triageError,
+      triage_report: triageText,
+    };
+
+    const { error: updateError } = await supabase
+      .from('bug_reports')
+      .update({
+        ai_analyzed: true,
+        ai_analysis: aiAnalysisPayload,
+        ai_suggested_fix: triageText,
+        status: 'investigating',
+        requires_human_review: true,
+      } as Record<string, unknown>)
+      .eq('id', args.bugReportId);
+
+    if (updateError) {
+      console.warn('[/api/automation/playwright-result] Failed to persist Dr Bob auto-triage on bug report', updateError);
+    }
+  } finally {
+    drBobBugReportTriageInFlight.delete(args.bugReportId);
+  }
+}
+
+async function triagePendingBugReports(args: {
+  limit: number;
+  source: 'poller' | 'ingest-webhook';
+  bugReportId?: string;
+}): Promise<number> {
+  if (!DR_BOB_BUG_REPORT_AUTOTRIAGE_ENABLED) {
+    return 0;
+  }
+
+  const requestedId = String(args.bugReportId ?? '').trim();
+  if (drBobBugReportWorkerRunning && !requestedId) {
+    return 0;
+  }
+
+  drBobBugReportWorkerRunning = true;
+
+  try {
+    let query = supabase
+      .from('bug_reports')
+      .select('id, title, description, issue_type, severity, current_page, status, requires_human_review, ai_analyzed, updated_at')
+      .or('requires_human_review.is.true,status.eq.investigating')
+      .order('updated_at', { ascending: false })
+      .limit(Math.max(1, args.limit * 2));
+
+    if (requestedId) {
+      query = query.eq('id', requestedId);
+    }
+
+    const { data, error } = await query;
+    if (error) {
+      console.warn('[dr-bob-bug-triage] Failed to load pending bug reports', error);
+      return 0;
+    }
+
+    const rows = Array.isArray(data) ? data : [];
+    const candidates = rows
+      .filter((row: any) => {
+        if (!row?.id) {
+          return false;
+        }
+        if (requestedId) {
+          return true;
+        }
+        return !Boolean(row.ai_analyzed);
+      })
+      .slice(0, Math.max(1, args.limit));
+
+    let triggered = 0;
+    for (const row of candidates) {
+      const bugReportId = String((row as any).id ?? '').trim();
+      if (!bugReportId || drBobBugReportTriageInFlight.has(bugReportId)) {
+        continue;
+      }
+
+      triggered += 1;
+      void triggerDrBobBugReportAutoTriage({
+        bugReportId,
+        title: toShortString((row as any).title, 'untitled bug report'),
+        description: toShortString((row as any).description, ''),
+        issueType: toShortString((row as any).issue_type, 'unknown'),
+        severity: toShortString((row as any).severity, 'unknown'),
+        currentPage: toShortString((row as any).current_page, 'unknown'),
+        managerStatus: toShortString((row as any).status, 'investigating'),
+        created: false,
+        source: args.source,
+      });
+    }
+
+    return triggered;
+  } finally {
+    drBobBugReportWorkerRunning = false;
+  }
 }
 
 const discoveredSupabaseUrl = await discoverEnvironmentKey('SUPABASE_URL');
@@ -790,22 +1010,46 @@ if (!supabaseConfigReady) {
 
 const app = express();
 
-const allowedOrigins = (
+const defaultAllowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:8081',
+  'https://fcmanager.co.nz',
+  'https://www.fcmanager.co.nz',
+  'https://freedomcampmanager.onspace.build',
+];
+
+const configuredOrigins = (
   process.env.CORS_ALLOW_ORIGINS ??
   process.env.FRONTEND_ORIGIN ??
-  'http://localhost:5173'
+  ''
 )
   .split(',')
   .map((value) => value.trim())
   .filter(Boolean);
+
+const allowedOrigins = Array.from(new Set([...defaultAllowedOrigins, ...configuredOrigins]));
 
 app.use((req, res, next) => {
   const origin = req.headers.origin;
   if (origin && allowedOrigins.includes(origin)) {
     res.header('Access-Control-Allow-Origin', origin);
     res.header('Vary', 'Origin');
+    res.header('Access-Control-Allow-Credentials', 'true');
   }
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.header(
+    'Access-Control-Allow-Headers',
+    [
+      'Content-Type',
+      'Authorization',
+      'X-Authorization',
+      'X-Forwarded-Authorization',
+      'X-Original-Authorization',
+      'X-Access-Token',
+      'X-Supabase-Auth',
+      'apikey',
+      'x-client-info',
+    ].join(', '),
+  );
   res.header('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
 
   if (req.method === 'OPTIONS') {
@@ -889,14 +1133,56 @@ function formatAuthRoleForPrompt(auth: AdminAuthContext | null): string {
   return 'user';
 }
 
+function readHeaderValue(req: Request, headerName: string): string {
+  const raw = req.headers[headerName.toLowerCase()];
+  if (Array.isArray(raw)) {
+    return raw.find((value) => String(value || '').trim().length > 0)?.trim() ?? '';
+  }
+  return String(raw ?? '').trim();
+}
+
+function isJwtLike(value: string): boolean {
+  const token = String(value || '').trim();
+  const parts = token.split('.');
+  if (parts.length !== 3) {
+    return false;
+  }
+  return parts.every((part) => /^[A-Za-z0-9_-]+$/.test(part) && part.length > 0);
+}
+
 function getBearerToken(req: Request): string | null {
-  const header = req.headers.authorization;
-  if (!header) {
-    return null;
+  const headerCandidates = [
+    readHeaderValue(req, 'authorization'),
+    readHeaderValue(req, 'x-authorization'),
+    readHeaderValue(req, 'x-forwarded-authorization'),
+    readHeaderValue(req, 'x-original-authorization'),
+    readHeaderValue(req, 'proxy-authorization'),
+  ].filter(Boolean);
+
+  for (const candidate of headerCandidates) {
+    const match = candidate.match(/^Bearer\s+(.+)$/i);
+    if (match?.[1]?.trim()) {
+      return match[1].trim();
+    }
+
+    if (isJwtLike(candidate)) {
+      // Allow raw JWT value when a proxy strips the Bearer prefix.
+      return candidate;
+    }
   }
 
-  const match = header.match(/^Bearer\s+(.+)$/i);
-  return match?.[1]?.trim() || null;
+  const tokenCandidates = [
+    readHeaderValue(req, 'x-access-token'),
+    readHeaderValue(req, 'x-supabase-auth'),
+  ].filter(Boolean);
+
+  for (const candidate of tokenCandidates) {
+    if (isJwtLike(candidate)) {
+      return candidate;
+    }
+  }
+
+  return null;
 }
 
 function verifySupabaseToken(token: string): JwtPayload | null {
@@ -926,12 +1212,12 @@ async function resolveTokenSubject(token: string): Promise<string | null> {
     return localSubject;
   }
 
-  if (SUPABASE_JWT_SECRET) {
+  if (!SUPABASE_AUTH_REMOTE_FALLBACK) {
     return null;
   }
 
   try {
-    // Fallback only for environments where SUPABASE_JWT_SECRET is not configured.
+    // Remote fallback allows token validation even when proxies alter headers or JWT secret config drifts.
     const { data, error } = await withTimeout(
       supabase.auth.getUser(token),
       SUPABASE_AUTH_LOOKUP_TIMEOUT_MS,
@@ -1539,8 +1825,19 @@ async function generateWithOpenAi(systemPrompt: string, userMessage: string): Pr
 }
 
 async function generateWithModelFallback(systemPrompt: string, userMessage: string): Promise<{ responseText: string; modelUsed: string }> {
+  const guardrail = applyPromptGuardrails(systemPrompt, userMessage, {
+    maxContextBytes: BOB_CONTEXT_MAX_BYTES,
+    strictMode: BOB_CONTEXT_STRICT_MODE,
+    fallbackAction: BOB_CONTEXT_FALLBACK_ACTION,
+  });
+
+  if (guardrail.truncated) {
+    console.warn(
+      `[prompt-guardrails] Context truncated before model dispatch (${guardrail.totalBytesBefore} -> ${guardrail.totalBytesAfter} bytes)`,
+    );
+  }
   try {
-    return await generateWithRunpod(systemPrompt, userMessage);
+    return await generateWithRunpod(guardrail.systemPrompt, guardrail.userMessage);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     throw new Error(`RunPod invocation failed and no fallback providers are allowed: ${message}`);
@@ -3529,6 +3826,16 @@ function normalizeAgentRoles(input: unknown): Record<string, string> {
   return { ...DEFAULT_AGENT_ROLES };
 }
 
+function isLightweightHealthIntent(input: string): boolean {
+  const normalized = input.toLowerCase();
+  if (!normalized) return false;
+
+  return (
+    /\b(health\s*check|status\s*check|readiness\s*check|init(?:ializ(?:e|ation))?|ping|are\s+you\s+online|respond\s+with\s+bob_ok)\b/i.test(normalized)
+    && normalized.length <= 400
+  );
+}
+
 function extractFirstUrl(rawText: string): string | null {
   const match = rawText.match(/https?:\/\/[^\s)]+/i);
   if (!match) {
@@ -4100,6 +4407,44 @@ app.post('/api/heal', requireUserAuth, async (req: Request, res: Response) => {
       }
     }
 
+    if (isLightweightHealthIntent(inboundText)) {
+      const lightweightPrompt = [
+        'You are Bob runtime health probe responder.',
+        'Do not use repository blueprints or schema context for this check.',
+        'Return one short line indicating runtime readiness and active provider path if known.',
+        'If upstream provider is unavailable, state DEGRADED and include the short reason.',
+      ].join('\n');
+
+      try {
+        const healthResult = await generateWithModelFallback('', `${lightweightPrompt}\n\nProbe request: ${inboundText}`);
+        const bobResponse = healthResult.responseText.trim() || 'BOB_OK';
+
+        await appendChatSessionMessage(sessionId, 'assistant', bobResponse);
+
+        res.status(200).json({
+          bobResponse,
+          status: 'HEALTH_CHECK_OK',
+          sessionId,
+          routeAgent: 'health_probe',
+          modelUsed: healthResult.modelUsed,
+        });
+        return;
+      } catch (error) {
+        const upstreamMessage = error instanceof Error ? error.message : String(error);
+        const degradedText = `DEGRADED: ${upstreamMessage.slice(0, 240)}`;
+
+        await appendChatSessionMessage(sessionId, 'assistant', degradedText);
+
+        res.status(200).json({
+          bobResponse: degradedText,
+          status: 'DEGRADED',
+          sessionId,
+          routeAgent: 'health_probe',
+        });
+        return;
+      }
+    }
+
     const kb = await getTierAKnowledgeContext();
     const instructionManualText = await loadInstructionManualText();
     const patrolManualGuidance = extractInstructionManualGuidance(instructionManualText, inboundText, 2200);
@@ -4582,6 +4927,12 @@ app.post('/api/heal', requireUserAuth, async (req: Request, res: Response) => {
       2,
     );
 
+    const routedBlueprint = buildSchemaAwareBlueprint({
+      intentText: inboundText,
+      masterSchemaPayload: kb.schemaPayload,
+      maxBytes: Math.min(4096, Math.floor(BOB_CONTEXT_MAX_BYTES / 2)),
+    });
+
     const cognitivePrompt = `
 You are Bob's cognitive reasoning controller for an engineering command center.
 The user states: "${inboundText}"
@@ -4596,7 +4947,7 @@ ${conversationTranscript}
 Structured recent history array:
 ${promptHistoryJson}
 
-Reference Blueprints (Tier A): ${kb.schemaPayload}
+Reference Blueprints (Tier A): ${routedBlueprint.minimizedSchema}
 System Operational Rules: ${kb.systemRules}
 Instruction Manual guidance (prioritize patrol, dispatch, route, response when relevant):
 ${extractInstructionManualGuidance(instructionManualText, inboundText, 1800)}
@@ -5289,7 +5640,7 @@ app.post('/api/automation/deep-system-audit', requireAdminAuth, async (req: Requ
           hypothetical_risks: 'Cross-layer anomalies may impact onboarding, media integrity, and field operations UX.',
           projected_rewards: 'Unified diagnostics increase pre-beta confidence while preserving manual governance sign-off.',
           confidence_score: 0.88,
-          action_taken: 'PENDING_HUMAN_REVIEW',
+          action_taken: 'RECOMMENDED_ONLY',
           metadata,
           created_at: new Date().toISOString(),
         });
@@ -5305,19 +5656,26 @@ app.post('/api/automation/deep-system-audit', requireAdminAuth, async (req: Requ
       const message = error instanceof Error ? error.message : String(error);
       console.error('[CRITICAL] Deep system audit pass dropped:', message);
 
-      await (supabase as any).from('self_healing_logs').insert({
-        status: 'PENDING_HUMAN_REVIEW',
-        service_name: 'railway-backend',
-        error_message: '[DEEP-SYSTEM] Audit execution failed; manual intervention required.',
-        error_payload: {
-          route: '/api/automation/deep-system-audit',
-          sessionId,
-          reason: message,
-        },
-        created_at: new Date().toISOString(),
-      }).catch(() => {
+      try {
+        await (supabase as any).from('self_heal_events').insert({
+          source: 'backend',
+          environment: process.env.NODE_ENV || 'development',
+          error_summary: '[DEEP-SYSTEM] Audit execution failed; manual intervention required.',
+          error_detail: {
+            route: '/api/automation/deep-system-audit',
+            sessionId,
+            reason: message,
+          },
+          error_fingerprint: `deep-system-audit:${sessionId}`,
+          triage_tier: 1,
+          ai_analysis: 'Deep-system audit async task failed and requires follow-up.',
+          outcome: 'pending',
+          recurrence_count: 1,
+          recurrence_window_minutes: 10,
+        });
+      } catch {
         // Keep deep-system failures non-fatal for the async handler.
-      });
+      }
     }
   })();
 });
@@ -5497,7 +5855,7 @@ app.post('/api/automation/playwright-result', async (req: Request, res: Response
     (!recoverySummary.rerunTriggered || attemptCount >= maxRecoveryAttempts || managerStatus === 'ORCHESTRATOR_CRASHED');
 
   if (shouldEscalateToBugReport) {
-    bugReportId = await upsertPlaywrightFailureBugReport({
+    const bugReportUpsertResult = await upsertPlaywrightFailureBugReport({
       repository,
       branch,
       verificationTag,
@@ -5507,7 +5865,23 @@ app.post('/api/automation/playwright-result', async (req: Request, res: Response
       recoverySummary,
       attemptCount,
     });
+    bugReportId = bugReportUpsertResult.bugReportId;
     recoverySummary.escalatedToBugReport = Boolean(bugReportId);
+
+    if (bugReportId) {
+      void triggerDrBobBugReportAutoTriage({
+        bugReportId,
+        repository,
+        branch,
+        verificationTag,
+        managerStatus,
+        command,
+        output,
+        attemptCount,
+        created: bugReportUpsertResult.created,
+        source: 'playwright-webhook',
+      });
+    }
   }
 
   const nowIso = new Date().toISOString();
@@ -5639,6 +6013,28 @@ app.post('/api/automation/playwright-result', async (req: Request, res: Response
   });
 });
 
+app.post('/api/automation/bug-report-ingested', async (req: Request, res: Response) => {
+  if (!hasAutomationToken(req)) {
+    res.status(401).json({ error: 'Unauthorized automation webhook token.' });
+    return;
+  }
+
+  const body = (req.body ?? {}) as { bugReportId?: unknown; bug_report_id?: unknown };
+  const bugReportId = String(body.bugReportId ?? body.bug_report_id ?? '').trim();
+  const triggered = await triagePendingBugReports({
+    limit: DR_BOB_BUG_REPORT_AUTOTRIAGE_BATCH_SIZE,
+    source: 'ingest-webhook',
+    bugReportId: bugReportId || undefined,
+  });
+
+  res.status(202).json({
+    ok: true,
+    status: 'Dr Bob auto-triage dispatched.',
+    bugReportId: bugReportId || null,
+    triggered,
+  });
+});
+
 // ── POST /api/cron/patrol ───────────────────────────────────────────────────
 //    Proactive initiative sweep endpoint intended for scheduler/cron triggers.
 app.post('/api/cron/patrol', async (req: Request, res: Response): Promise<void> => {
@@ -5657,13 +6053,18 @@ app.post('/api/cron/patrol', async (req: Request, res: Response): Promise<void> 
     const patrolSessionId = `cron-patrol:${Date.now()}`;
 
     const kb = await getTierAKnowledgeContext();
+    const routedPatrolBlueprint = buildSchemaAwareBlueprint({
+      intentText: 'patrol system scan',
+      masterSchemaPayload: kb.schemaPayload,
+      maxBytes: Math.min(4096, Math.floor(BOB_CONTEXT_MAX_BYTES / 2)),
+    });
     const patrolPrompt = [
       'You are Bob, the Serverless Fleet Chief Engineer. Run a proactive repository/system scan.',
       'Follow the AUTONOMY INITIATIVE PROTOCOL and return strict JSON only.',
       'Evaluate the finding through the mandatory risk-vs-reward matrix before any proposed action.',
       '',
       `System rules: ${kb.systemRules}`,
-      `Schema payload: ${kb.schemaPayload}`,
+      `Schema payload: ${routedPatrolBlueprint.minimizedSchema}`,
       `Authenticated patrol role context: ${formatAuthRoleForPrompt(auth)}`,
       '',
       'Identify one practical improvement and classify it as autonomous or consultative.',
@@ -5791,6 +6192,14 @@ const server = app.listen(PORT, () => {
   console.log(`[FieldOps Backend] Listening on port ${PORT}`);
 });
 
+const drBobBugReportPollHandle = setInterval(() => {
+  void triagePendingBugReports({
+    limit: DR_BOB_BUG_REPORT_AUTOTRIAGE_BATCH_SIZE,
+    source: 'poller',
+  });
+}, DR_BOB_BUG_REPORT_AUTOTRIAGE_POLL_MS);
+drBobBugReportPollHandle.unref();
+
 server.on('error', (error: NodeJS.ErrnoException) => {
   console.error('[FieldOps Backend] Server startup error', {
     message: error.message,
@@ -5811,6 +6220,7 @@ process.on('uncaughtException', (error) => {
 
 function shutdown(signal: 'SIGTERM' | 'SIGINT'): void {
   console.log(`[FieldOps Backend] Received ${signal}, shutting down`);
+  clearInterval(drBobBugReportPollHandle);
   server.close(() => {
     console.log('[FieldOps Backend] HTTP server closed');
     process.exit(0);
