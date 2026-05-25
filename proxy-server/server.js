@@ -215,7 +215,6 @@ const MOTORWEB_ID_KEY_RESOLVED = firstResolvedEnv([
 const MOTORWEB_ID_KEY = MOTORWEB_ID_KEY_RESOLVED.value;
 const MOTORWEB_BASE_URL_RESOLVED = firstResolvedEnv(['MOTORWEB_BASE_URL'], 'https://robot.motorweb.co.nz');
 const MOTORWEB_BASE_URL = MOTORWEB_BASE_URL_RESOLVED.value;
-
 const PROXY_SECRET = process.env.PROXY_SECRET; // Secret to authenticate your Edge Functions
 const SMTP_HOST = process.env.SMTP_HOST;
 const SMTP_PORT = parseInt(process.env.SMTP_PORT || '465', 10);
