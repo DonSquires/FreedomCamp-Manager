@@ -104,7 +104,7 @@ const systemRules = [
   'BLACK-BOX BOUNDARY: direct privileged data insertion for onboarding seeds is disallowed during this emulation lane unless Captain explicitly overrides policy.',
   'GRAND MASTER DATA ENTRY PROTOCOL: automated data-entry sweeps, UI simulations, and onboarding loops must execute under Grand Master role context with strict auditability.',
   'PRIVILEGED HUMAN IMITATION: use Playwright browser paths and visible UI controls for workforce profile entry; avoid hidden backend shortcuts during this lane unless explicitly authorized.',
-  'RUNPOD-FIRST COGNITIVE ESCALATION: when complex mapping, constraint, or layout anomalies appear, route reasoning/synthesis through configured RunPod model gateway first, then fallback providers only if RunPod is unavailable.',
+  'RUNPOD-ONLY COGNITIVE ESCALATION: when complex mapping, constraint, or layout anomalies appear, route reasoning/synthesis through configured RunPod model gateway only; if RunPod is unavailable, halt with explicit operator-facing blocker instead of silent fallback.',
   'ENTERPRISE RESEARCH AUTHORIZATION: for unresolved UI or data-shape friction, activate research agent for trusted-source pattern review and produce bounded recommendations tied to observed evidence.',
   'MIGRATION AND LAYOUT GOVERNANCE: if a fix requires SQL schema or structural UI changes, generate idempotent patch artifacts, persist risk/reward analysis to ai_reasoning_ledger and ui_ux_friction_ledger, and set PENDING_HUMAN_REVIEW.',
   'DATASET INGEST SAFETY: Wilsar and Deputy workforce ingestion must preserve referential integrity, validate role/org mapping before save, and quarantine malformed rows for manual review instead of silent drop.',

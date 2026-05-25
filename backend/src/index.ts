@@ -261,7 +261,7 @@ const SUPABASE_AUTH_LOOKUP_TIMEOUT_MS = Number(process.env.SUPABASE_AUTH_LOOKUP_
 const PATROL_SCAN_TIMEOUT_MS = Number(process.env.PATROL_SCAN_TIMEOUT_MS ?? 20000);
 const PATROL_DRY_RUN_DEFAULT = parseBool(process.env.PATROL_DRY_RUN ?? 'false');
 const PATROL_DRY_RUN_SKIP_MODEL = parseBool(process.env.PATROL_DRY_RUN_SKIP_MODEL ?? 'true');
-const SUPABASE_AUTH_REMOTE_FALLBACK = parseBool(process.env.SUPABASE_AUTH_REMOTE_FALLBACK ?? 'true');
+const SUPABASE_AUTH_REMOTE_FALLBACK = parseBool(process.env.SUPABASE_AUTH_REMOTE_FALLBACK ?? 'false');
 const BOB_CONTEXT_MAX_BYTES = Math.max(1024, Number(process.env.BOB_CONTEXT_MAX_BYTES ?? 8192));
 const BOB_CONTEXT_STRICT_MODE = parseBool(process.env.BOB_CONTEXT_STRICT_MODE ?? 'true');
 const BOB_CONTEXT_FALLBACK_ACTION =
@@ -1141,6 +1141,15 @@ function readHeaderValue(req: Request, headerName: string): string {
   return String(raw ?? '').trim();
 }
 
+function isJwtLike(value: string): boolean {
+  const token = String(value || '').trim();
+  const parts = token.split('.');
+  if (parts.length !== 3) {
+    return false;
+  }
+  return parts.every((part) => /^[A-Za-z0-9_-]+$/.test(part) && part.length > 0);
+}
+
 function getBearerToken(req: Request): string | null {
   const headerCandidates = [
     readHeaderValue(req, 'authorization'),
@@ -1156,7 +1165,7 @@ function getBearerToken(req: Request): string | null {
       return match[1].trim();
     }
 
-    if (candidate.length > 24 && !candidate.includes(' ')) {
+    if (isJwtLike(candidate)) {
       // Allow raw JWT value when a proxy strips the Bearer prefix.
       return candidate;
     }
@@ -1168,7 +1177,7 @@ function getBearerToken(req: Request): string | null {
   ].filter(Boolean);
 
   for (const candidate of tokenCandidates) {
-    if (candidate.length > 24) {
+    if (isJwtLike(candidate)) {
       return candidate;
     }
   }

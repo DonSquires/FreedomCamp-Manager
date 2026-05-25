@@ -71,7 +71,10 @@ export function inferPortalTypeFromIntent(intentText: string): string {
   if (/biosecurity|chilean\s+needlegrass|weed|flora/.test(normalized)) {
     return 'biosecurity';
   }
-  if (/smoke|noise|compliance|bylaw/.test(normalized)) {
+  if (/compliance|bylaw/.test(normalized)) {
+    return 'compliance';
+  }
+  if (/smoke|noise/.test(normalized)) {
     return 'smoke_assessment';
   }
   if (/access\s+control|credential|plate|vehicle\s+gate/.test(normalized)) {

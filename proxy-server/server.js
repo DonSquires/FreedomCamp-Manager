@@ -275,7 +275,7 @@ app.get('/health', (req, res) => {
     status: 'ok', 
     timestamp: new Date().toISOString(),
     service: 'NZSCV Proxy Server',
-    bob_system_auth: getBobSystemAuthStatus(),
+    bob_system_auth: getBobSystemAuthStatus({ includeSensitive: false }),
   });
 });
 
@@ -287,7 +287,7 @@ app.get('/api/bob/system-auth/status', rateLimitMiddleware, (req, res) => {
 
   return res.status(200).json({
     success: true,
-    bob_system_auth: getBobSystemAuthStatus(),
+    bob_system_auth: getBobSystemAuthStatus({ includeSensitive: true }),
   });
 });
 
@@ -1263,6 +1263,11 @@ app.post('/api/disputes/submit', disputeRateLimitMiddleware, async (req, res) =>
 
 // Rate limiting info endpoint (optional)
 app.get('/api/info', (req, res) => {
+  const authResult = checkProxyAuth(req);
+  if (authResult) {
+    return res.status(authResult.status).json(authResult.body);
+  }
+
   res.json({
     service: 'NZSCV & MotorWeb Proxy Server',
     version: '1.1.0',
@@ -1283,14 +1288,6 @@ app.get('/api/info', (req, res) => {
     motorwebConfigured,
     nzscvConfigured,
     nzscvEndpoint: NZSCV_ENDPOINT_URL,
-    envSources: {
-      nzscvApiKey: NZSCV_API_KEY_RESOLVED.source,
-      nzscvIdKey: NZSCV_ID_KEY_RESOLVED.source,
-      nzscvEndpoint: NZSCV_ENDPOINT_URL_RESOLVED.source || '(derived from NZSCV_BASE_URL)',
-      motorwebApiKey: MOTORWEB_API_KEY_RESOLVED.source,
-      motorwebIdKey: MOTORWEB_ID_KEY_RESOLVED.source,
-      motorwebBaseUrl: MOTORWEB_BASE_URL_RESOLVED.source,
-    },
   });
 });
 

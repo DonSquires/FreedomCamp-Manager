@@ -243,6 +243,12 @@ async function signInWithPassword() {
   const candidates = credentialCandidates(cfg);
   const failures = [];
 
+  if (candidates.length === 0) {
+    throw new Error(
+      'No Bob system credential candidates found. Set BOB_SYSTEM_EMAIL + BOB_SYSTEM_PASSWORD, or enable legacy aliases with BOB_SYSTEM_ALLOW_LEGACY_ALIASES=1 where appropriate.'
+    );
+  }
+
   for (const candidate of candidates) {
     const email = String(candidate.email.value || '').toLowerCase();
     const password = String(candidate.password.value || '');
@@ -335,17 +341,23 @@ function getBobSystemAccessToken() {
   return state.accessToken;
 }
 
-function getBobSystemAuthStatus() {
+function getBobSystemAuthStatus(options = {}) {
+  const includeSensitive = Boolean(options.includeSensitive);
+
   return {
     configured: state.configured,
     ready: state.ready,
     email: state.email,
-    credentials_source: {
-      email: state.credentialSource.email,
-      password: state.credentialSource.password,
-      allow_legacy_aliases: getConfig().allowLegacyAliases,
-      node_env: getConfig().isProduction ? 'production' : (process.env.NODE_ENV || 'development'),
-    },
+    ...(includeSensitive
+      ? {
+          credentials_source: {
+            email: state.credentialSource.email,
+            password: state.credentialSource.password,
+            allow_legacy_aliases: getConfig().allowLegacyAliases,
+            node_env: getConfig().isProduction ? 'production' : (process.env.NODE_ENV || 'development'),
+          },
+        }
+      : {}),
     user_id: state.userId,
     expires_at: state.expiresAtMs ? new Date(state.expiresAtMs).toISOString() : null,
     last_refresh_at: state.lastRefreshAt,
