@@ -226,7 +226,6 @@ async function signInWithPassword() {
   if (!cfg.configured) {
     throw new Error(
       'Missing Supabase/Bob system login env variables. Required: SUPABASE_URL + key and Bob credentials (BOB_SYSTEM_EMAIL + BOB_SYSTEM_PASSWORD; legacy aliases require BOB_SYSTEM_ALLOW_LEGACY_ALIASES=1 in production).'
-  'Missing Supabase/Bob system login env variables. Required: SUPABASE_URL + key and Bob credentials (BOB_SYSTEM_EMAIL + BOB_SYSTEM_PASSWORD; legacy aliases require BOB_SYSTEM_ALLOW_LEGACY_ALIASES=1 in production).'
     );
   }
 
