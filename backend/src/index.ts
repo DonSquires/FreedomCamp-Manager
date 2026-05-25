@@ -1539,100 +1539,12 @@ async function generateWithOpenAi(systemPrompt: string, userMessage: string): Pr
 }
 
 async function generateWithModelFallback(systemPrompt: string, userMessage: string): Promise<{ responseText: string; modelUsed: string }> {
-  const gatewayUrl = String(process.env.MODEL_GATEWAY_URL ?? '').trim().replace(/\/+$/, '');
-  const baseUrl = process.env.OLLAMA_PROXY_URL ?? 'http://ollama:11434';
-  const models = getOllamaModelCandidates().slice(0, OLLAMA_MAX_CANDIDATES);
-  let lastError: unknown = null;
-  const startedAt = Date.now();
-
   try {
     return await generateWithRunpod(systemPrompt, userMessage);
   } catch (error) {
-    lastError = error;
     const message = error instanceof Error ? error.message : String(error);
-    console.warn(`[model-fallback] runpod invocation failed: ${message}`);
+    throw new Error(`RunPod invocation failed and no fallback providers are allowed: ${message}`);
   }
-
-  if (gatewayUrl) {
-    for (const model of models) {
-      const elapsed = Date.now() - startedAt;
-      const remainingBudget = OLLAMA_TOTAL_TIMEOUT_MS - elapsed;
-      if (remainingBudget <= 500) {
-        break;
-      }
-
-      const requestTimeoutMs = Math.max(1000, Math.min(OLLAMA_MODEL_TIMEOUT_MS, remainingBudget));
-      try {
-        const response = await axios.post(
-          `${gatewayUrl}/api/generate`,
-          {
-            model,
-            system: systemPrompt,
-            prompt: userMessage,
-            stream: false,
-          },
-          {
-            timeout: requestTimeoutMs,
-          },
-        );
-
-        return {
-          responseText: String((response.data as { response?: string }).response ?? ''),
-          modelUsed: `model_gateway:${model}`,
-        };
-      } catch (error) {
-        lastError = error;
-        console.warn(`[model-fallback] model gateway failed for ${model}`, error);
-      }
-    }
-  }
-
-  for (const model of models) {
-    const elapsed = Date.now() - startedAt;
-    const remainingBudget = OLLAMA_TOTAL_TIMEOUT_MS - elapsed;
-    if (remainingBudget <= 500) {
-      break;
-    }
-
-    const requestTimeoutMs = Math.max(1000, Math.min(OLLAMA_MODEL_TIMEOUT_MS, remainingBudget));
-    try {
-      const response = await axios.post(
-        `${baseUrl}/api/generate`,
-        {
-          model,
-          system: systemPrompt,
-          prompt: userMessage,
-          stream: false,
-        },
-        {
-          timeout: requestTimeoutMs,
-        },
-      );
-
-      return {
-        responseText: String((response.data as { response?: string }).response ?? ''),
-        modelUsed: model,
-      };
-    } catch (error) {
-      lastError = error;
-      if (isMissingModelError(error)) {
-        console.warn(`[ollama] Model not available, falling back to next candidate: ${model}`);
-        continue;
-      }
-
-      const message = error instanceof Error ? error.message : String(error);
-      console.warn(`[ollama] Model invocation failed for ${model}, trying next provider: ${message}`);
-      continue;
-    }
-  }
-
-  try {
-    return await generateWithOpenAi(systemPrompt, userMessage);
-  } catch (openAiError) {
-    console.error('[model-fallback] OpenAI fallback failed', openAiError);
-  }
-
-  throw lastError instanceof Error ? lastError : new Error('No model providers succeeded');
 }
 
 async function promptOllama(role: string, systemPrompt: string, userMessage: string): Promise<string> {
@@ -2529,7 +2441,6 @@ async function runPatrolSystemChecks(): Promise<{
 }> {
   const checks: PatrolSystemCheckResult[] = [];
   const mappingGatewayUrl = String(process.env.MAPPING_GATEWAY_URL ?? '').trim().replace(/\/+$/, '');
-  const modelGatewayUrl = String(process.env.MODEL_GATEWAY_URL ?? '').trim().replace(/\/+$/, '');
   const runpodConfig = getRunpodConfig();
   const sampleWaypoints = buildDefaultPatrolWaypoints();
 
@@ -2632,37 +2543,12 @@ async function runPatrolSystemChecks(): Promise<{
         detail: error instanceof Error ? error.message : 'unknown error',
       });
     }
-  } else if (!modelGatewayUrl) {
-    checks.push({
-      name: 'model_gateway_configured',
-      status: 'FAIL',
-      detail: 'Neither RunPod endpoint nor MODEL_GATEWAY_URL is configured.',
-    });
   } else {
-    try {
-      const response = await axios.post(
-        `${modelGatewayUrl}/api/generate`,
-        {
-          prompt: 'Respond with OK only.',
-        },
-        {
-          timeout: OLLAMA_MODEL_TIMEOUT_MS,
-        },
-      );
-      const text = String((response.data as { response?: string }).response ?? '').trim();
-      const ok = response.status >= 200 && response.status < 300 && text.length > 0;
-      checks.push({
-        name: 'response_engine_available',
-        status: ok ? 'PASS' : 'FAIL',
-        detail: ok ? `response=${text.slice(0, 120)}` : 'Model gateway returned empty response.',
-      });
-    } catch (error) {
-      checks.push({
-        name: 'response_engine_available',
-        status: 'FAIL',
-        detail: error instanceof Error ? error.message : 'unknown error',
-      });
-    }
+    checks.push({
+      name: 'runpod_configured',
+      status: 'FAIL',
+      detail: 'RunPod endpoint is not configured. RunPod is the only allowed Bob execution provider.',
+    });
   }
 
   const passed = checks.filter((check) => check.status === 'PASS').length;
