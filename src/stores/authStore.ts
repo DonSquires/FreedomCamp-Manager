@@ -6,6 +6,28 @@ import { useGlobalFiltersStore } from './globalFiltersStore'
 
 let authListenerInitialized = false
 
+async function fetchProfileWithRetry(userId: string, attempts = 2) {
+  let lastError: unknown = null
+
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    const { data, error } = await (supabase.from('user_profiles') as any)
+      .select('id, email, role, organization_id, employer_organization_id, first_name, last_name, job_title, portal_access, authorized_work_locations, extra_organization_ids, ptt_channel_access')
+      .eq('id', userId)
+      .single()
+
+    if (!error && data) {
+      return { profile: data, error: null as unknown }
+    }
+
+    lastError = error
+    if (attempt < attempts) {
+      await new Promise((resolve) => setTimeout(resolve, 250))
+    }
+  }
+
+  return { profile: null, error: lastError }
+}
+
 function clearClientAuthArtifacts() {
   if (typeof window === 'undefined') return
 
@@ -39,6 +61,13 @@ function clearInvalidAuthState(set: (partial: Partial<AuthState>) => void) {
   clearClientAuthArtifacts()
   set({ user: null, isAuthenticated: false, loading: false })
   useSessionLockStore.getState().unlock()
+}
+
+function softResolveAuthLoading(set: (partial: Partial<AuthState> | ((state: AuthState) => Partial<AuthState>)) => void, sessionUserId?: string) {
+  set((state) => ({
+    loading: false,
+    isAuthenticated: sessionUserId ? state.user?.id === sessionUserId || state.isAuthenticated : state.isAuthenticated,
+  }))
 }
 
 async function getFreshSessionAfterLogin() {
@@ -116,14 +145,11 @@ export const useAuthStore = create<AuthState>()(
               return
             }
 
-            const { data: profile, error: profileError } = await (supabase.from('user_profiles') as any)
-              .select('id, email, role, organization_id, employer_organization_id, first_name, last_name, job_title, portal_access, authorized_work_locations, extra_organization_ids, ptt_channel_access')
-              .eq('id', session.user.id)
-              .single()
+            const { profile, error: profileError } = await fetchProfileWithRetry(session.user.id)
 
             if (profileError) {
               console.warn('[authStore] profile refresh failed on auth change:', profileError)
-              clearInvalidAuthState(set)
+              softResolveAuthLoading(set, session.user.id)
               return
             }
 
@@ -158,7 +184,7 @@ export const useAuthStore = create<AuthState>()(
             }
           } catch (err) {
             console.warn('[authStore] onAuthStateChange handler error:', err)
-            clearInvalidAuthState(set)
+            softResolveAuthLoading(set)
           }
         })
       },
@@ -172,12 +198,8 @@ export const useAuthStore = create<AuthState>()(
         // screen before the portal appears.  The Login page has its own local
         // loading state (disabled button / "Signing in…" label) for UX feedback.
 
-        // Wipe any stale Supabase auth tokens from storage before creating a
-        // new session.  If the app was previously force-closed without logging
-        // out, a half-expired or corrupt token can cause the Supabase client to
-        // enter a broken state where it attempts to reuse the old session.
-        await supabase.auth.signOut({ scope: 'global' }).catch(() => undefined)
-        await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined)
+        // Wipe locally persisted auth artifacts that may be stale from an
+        // interrupted browser session before creating a new one.
         clearClientAuthArtifacts()
 
         const { data, error } = await supabase.auth.signInWithPassword({
@@ -300,7 +322,7 @@ export const useAuthStore = create<AuthState>()(
 
           if (sessionError) {
             console.warn('[authStore] session check reported an auth error:', sessionError)
-            clearInvalidAuthState(set)
+            softResolveAuthLoading(set)
             return
           }
 
@@ -310,14 +332,11 @@ export const useAuthStore = create<AuthState>()(
           }
 
           // Fetch user profile
-          const { data: profile, error: profileError } = await (supabase.from('user_profiles') as any)
-            .select('id, email, role, organization_id, employer_organization_id, first_name, last_name, job_title, portal_access, authorized_work_locations, extra_organization_ids, ptt_channel_access')
-            .eq('id', session.user.id)
-            .single()
+          const { profile, error: profileError } = await fetchProfileWithRetry(session.user.id)
 
           if (profileError) {
             console.warn('[authStore] checkSession profile fetch failed:', profileError)
-            clearInvalidAuthState(set)
+            softResolveAuthLoading(set, session.user.id)
             return
           }
 
@@ -343,7 +362,7 @@ export const useAuthStore = create<AuthState>()(
           }
         } catch (error) {
           console.warn('[authStore] checkSession failed:', error)
-          clearInvalidAuthState(set)
+          softResolveAuthLoading(set)
         }
       },
     }),

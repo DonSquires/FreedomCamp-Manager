@@ -20,25 +20,25 @@ This workflow uses the existing orchestrator `scripts/run-autonomous-learning-cy
 Run the existing orchestrator directly:
 
 ```bash
-bun run bob:autonomous-cycle
+npm run bob:autonomous-cycle
 ```
 
 Run orchestrator plus report generation wrapper:
 
 ```bash
-bun run bob:self-ground
+npm run bob:self-ground
 ```
 
 Baseline grounding wrapper (local, no remote broadcast):
 
 ```bash
-bun run bob:self-ground
+npm run bob:self-ground
 ```
 
 Full grounding wrapper (includes truth broadcast):
 
 ```bash
-bun run bob:self-ground:full
+npm run bob:self-ground:full
 ```
 
 Direct node usage:

@@ -6,6 +6,66 @@ Status: **ALL GATES GREEN** — npm standardized; Vercel/mobile deployment updat
 
 ---
 
+## Bob Truth Assessment Review Update (2026-05-25)
+
+Owner: GitHub Copilot  
+Scope: Review Bob's current evidence-grounding behavior and align canonical Bob docs with the repo's npm-only runtime.
+
+Completed:
+
+- [x] Reviewed canonical Bob operating docs against live repo/package-manager state.
+- [x] Confirmed `system_state.json` lockfiles currently list only `package-lock.json`.
+- [x] Updated canonical Bob docs to use npm-first commands and npm-only package-manager guidance.
+- [x] Re-ran Bob truth assessment with auto-correction enabled.
+
+Current standing:
+
+1. Bob runtime/governance surfaces remain present and operational, but truthfulness is still below acceptable threshold for self-reported evidence.
+2. The current truth gate is functioning as intended: it rejected fabricated or malformed evidence instead of silently accepting it.
+3. The latest drift-aware validation did not downgrade any failure to drift; all failed citations remained genuine evidence misses.
+
+Validation evidence:
+
+1. Truth assessment report: `data/bob-truthfulness-report.json`
+  - Result: FAIL
+  - Generated: `2026-05-25T06:16:46.307Z`
+  - `status=failed`
+  - `driftWarnings=[]`
+  - `truthScore=11`, `initiativeScore=100`, `overallTrustScore=38`
+2. Primary failure pattern:
+  - invented multiline workflow snippets,
+  - invalid or empty evidence paths in `missingItems`,
+  - false line-anchored quotes in existing files.
+
+Operational outcome:
+
+1. Canonical Bob docs now reflect the repository's npm-only standing instead of stale Bun-era guidance.
+2. Bob should be treated as initiative-capable but still under active truthfulness hardening for evidence-backed self-assessment flows.
+3. Further trust-gate tightening should focus on exact single-line evidence extraction and stricter null-evidence handling for missing items.
+
+---
+
+## Schema-Aware Context Paging Rollout (2026-05-25)
+
+Owner: GitHub Copilot  
+Scope: Harden Bob prompt routing to prevent oversized schema payloads from creating timeout/502 risk.
+
+Completed:
+
+- [x] Added schema-aware context router module in backend runtime (`backend/src/schemaContextRouter.ts`).
+- [x] Added domain routing by intent to reduce schema footprint before model dispatch.
+- [x] Added strict byte guardrails (`BOB_CONTEXT_MAX_BYTES`, default 8192) with fallback truncation policy (`truncate_blueprints`).
+- [x] Integrated minimized schema blueprints into manual cognitive path and proactive patrol path.
+- [x] Added regression coverage for routing + truncation behavior (`backend/src/schemaContextRouter.test.ts`).
+
+Expected operational outcome:
+
+1. Health/status and low-context prompts stay lightweight by design.
+2. Heavy prompts are constrained by enforced byte limits before reaching RunPod.
+3. Timeout mismatch risk is reduced because oversized context is trimmed deterministically.
+
+---
+
 ## Authentication Session Reliability Update (2026-05-24)
 
 Owner: GitHub Copilot  

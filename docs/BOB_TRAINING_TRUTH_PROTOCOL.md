@@ -18,8 +18,8 @@ If a module is not listed in `system_state.json.modules`, do not claim it alread
 
 If package manager choice is requested, resolve from `system_state.json.lockfiles`:
 
-- `bun.lock` present => use Bun
 - `package-lock.json` present => use npm
+- If `package.json.packageManager` starts with `npm@`, use npm and treat Bun-era instructions as stale unless live repo state proves otherwise
 
 Never guess unknown runtime facts.
 

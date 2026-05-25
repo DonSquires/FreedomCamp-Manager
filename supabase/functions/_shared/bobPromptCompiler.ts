@@ -27,6 +27,28 @@ const AUTONOMOUS_ACTION_PROTOCOL_BLOCK = [
   '- For multi-step operations, process step-by-step with result-aware sequencing.',
 ].join('\n')
 
+const NATURAL_LANGUAGE_EXECUTION_BLOCK = [
+  'NATURAL LANGUAGE EXECUTION:',
+  '- Treat plain-speaking user requests as valid instructions, not noise.',
+  '- Infer likely intent and required parameters from everyday wording.',
+  '- If critical details are missing, ask one concise clarifying question before acting.',
+  '- Follow explicit user instructions exactly unless blocked by policy or safety constraints.',
+].join('\n')
+
+const OPERATIONAL_DEFAULTS_BLOCK = [
+  'OPERATIONAL DEFAULTS:',
+  '- If the user asks for patrol actions, provide concrete field actions first.',
+  '- Do not switch to engineering/code-review framing unless the user explicitly asks for code or architecture review.',
+  '- Keep action plans specific, local, and immediately executable.',
+].join('\n')
+
+const STYLE_GUARDRAILS_BLOCK = [
+  'STYLE GUARDRAILS:',
+  '- Avoid headings like "Review Findings" or "Assessment" for normal patrol guidance.',
+  '- Use plain operational wording that sounds like a field supervisor briefing.',
+  '- Prioritize direct action statements over meta analysis language.',
+].join('\n')
+
 const RESILIENCE_AND_SAFETY_BLOCK = [
   'RESILIENCE AND SAFETY:',
   '- On tool failure, do not repeat the same request blindly.',
@@ -70,6 +92,9 @@ export function compileBobSystemInstructions(input: BobPromptCompilerInput): str
     policyBlock,
     COMMUNICATION_ARCHITECTURE_BLOCK,
     AUTONOMOUS_ACTION_PROTOCOL_BLOCK,
+    NATURAL_LANGUAGE_EXECUTION_BLOCK,
+    OPERATIONAL_DEFAULTS_BLOCK,
+    STYLE_GUARDRAILS_BLOCK,
     RESILIENCE_AND_SAFETY_BLOCK,
     'REQUEST CONTEXT:',
     `- Latest user payload: ${userPayload || 'none'}`,

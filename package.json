@@ -96,6 +96,8 @@
     "bob:e2e:manual-validation": "node scripts/bob-run-e2e-tests.mjs --test-pattern '*.spec.ts' --report-to-bob --timeout 5400000",
     "bob:monitor": "bash scripts/monitor-bob.sh",
     "bob:summarize-failures": "node scripts/summarize-failures.mjs",
+    "bob:assess:truth": "node scripts/bob-truth-assessment.mjs",
+    "bob:assess:truth:auto": "node scripts/bob-truth-assessment.mjs --auto-correct",
     "bob:eval:setup": "bash scripts/setup-rag-evals.sh",
     "bob:eval:llm-regression": "node scripts/bob-llm-regression-suite.mjs",
     "bob:evidence:pm": "node scripts/generate-bob-pm-evidence.mjs",

@@ -36,6 +36,7 @@ done
 
 echo "Toolchain check"
 echo "--------------"
+echo "Policy: npm-only runtime (bun is not supported for this app workflow)."
 for tool in "${required_tools[@]}"; do
   if command -v "$tool" >/dev/null 2>&1; then
     version_line="$($tool --version 2>/dev/null | head -n 1 || true)"
@@ -76,6 +77,36 @@ if [[ ${#optional_missing[@]} -gt 0 ]]; then
   echo "Install for faster code search:"
   echo "  apk add --no-cache ripgrep"
 fi
+
+if command -v bun >/dev/null 2>&1; then
+  echo
+  echo "[notice] bun detected on PATH but this repository policy is npm-only."
+fi
+
+echo
+echo "npm-only shebang audit"
+echo "----------------------"
+
+package_manager=""
+if [[ -f package.json ]]; then
+  package_manager="$(jq -r '.packageManager // ""' package.json 2>/dev/null || true)"
+fi
+
+if [[ -z "$package_manager" || "$package_manager" != npm@* ]]; then
+  echo "[error] package.json must declare npm in packageManager (example: npm@10.8.2)"
+  exit 1
+fi
+
+if [[ -d scripts ]]; then
+  bun_shebang_files="$(grep -RIl '^#!/usr/bin/env bun' scripts 2>/dev/null || true)"
+  if [[ -n "$bun_shebang_files" ]]; then
+    echo "[error] bun shebang detected in scripts/ (npm-only policy violation):"
+    echo "$bun_shebang_files"
+    exit 1
+  fi
+fi
+
+echo "[ok] packageManager is npm and no bun shebangs found in scripts/."
 
 echo
 echo "All required tools are available."
