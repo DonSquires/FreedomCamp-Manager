@@ -1,7 +1,13 @@
 # Bob Production Railway Setup
 
-> **Deprecated (2026-04-19):** Bob/Ollama inference has moved to **RunPod Serverless**.
-> This document is retained for historical migration context only and should not be used for active deployment.
+> DEPRECATED - REFERENCE ONLY
+>
+> Bob/Ollama primary inference has moved to RunPod Serverless.
+> This file is retained for migration history only and should not be used as active deployment guidance.
+>
+> Canonical runtime authority is:
+> - `docs/BOB_MASTER_RUNTIME_TRUTH.md`
+> - `docs/RAILWAY_SERVICES_AUTHORITY.md`
 
 Bob is an independent AI inference service with his own repository: **DonSquires/Bob**.
 
