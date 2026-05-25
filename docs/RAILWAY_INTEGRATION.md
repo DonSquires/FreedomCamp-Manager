@@ -1,5 +1,14 @@
 # Railway Services Integration Guide
 
+> DEPRECATED - REFERENCE ONLY
+>
+> This document contains legacy integration context and mixed historical guidance.
+> Do not use it as active Bob runtime authority.
+>
+> Canonical runtime authority is:
+> - `docs/BOB_MASTER_RUNTIME_TRUTH.md`
+> - `docs/RAILWAY_SERVICES_AUTHORITY.md`
+
 This document describes how the FieldOps Manager application integrates with Railway-deployed backend services.
 
 ---

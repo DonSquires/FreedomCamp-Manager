@@ -83,7 +83,10 @@ export async function checkServicesHealth() {
     const { data, error } = await edgeFunctions.checkServicesHealth()
 
     if (error) {
-      console.error('Services health check failed:', error)
+      const msg = String(error).toLowerCase()
+      if (!msg.includes('no active session')) {
+        console.error('Services health check failed:', error)
+      }
       return { proxy: false, inference: false }
     }
 
