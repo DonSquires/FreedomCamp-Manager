@@ -298,7 +298,7 @@
     "install:playwright": "playwright install"
   },
   "dependencies": {
-    "@ai-sdk/openai": "^3.0.63",
+    "@ai-sdk/openai": "^3.0.65",
     "@aws-sdk/client-s3": "^3.1051.0",
     "@aws-sdk/util-stream-node": "^3.370.0",
     "@hookform/resolvers": "^3.9.0",
