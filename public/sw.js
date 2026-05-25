@@ -2,7 +2,7 @@
 // Handles offline caching, background sync, and auto-updates
 // NOW WITH: IndexedDB sync, offline API queue, Background Sync API
 
-var CACHE_VERSION = '2.5.0'; // B-05: offline map tile cache
+var CACHE_VERSION = '2.5.1'; // B-05: offline map tile cache + safer network fallback
 var CACHE_NAME = 'fieldops-v' + CACHE_VERSION;
 var API_CACHE = 'fieldops-api-v' + CACHE_VERSION;
 // Separate tile cache — intentionally NOT versioned with CACHE_VERSION so that
@@ -110,6 +110,12 @@ self.addEventListener('fetch', function(event) {
   // is never served stale after a new deployment changes asset hashes.
   var isNavigationRequest = event.request.mode === 'navigate';
 
+  // Never apply app-shell fallback behavior to cross-origin requests.
+  if (event.request.url.indexOf(self.location.origin) !== 0) {
+    event.respondWith(fetch(event.request));
+    return;
+  }
+
   // API requests - Network first with offline fallback
   if (isApiRequest && !isBobChatRequest) {
     event.respondWith(
@@ -215,8 +221,9 @@ self.addEventListener('fetch', function(event) {
 
         return fetchResponse;
       }).catch(function() {
-        // Return offline page if available
-        return caches.match('/index.html');
+        // This branch only handles non-navigation requests. Returning index.html
+        // here can break script/style loads due to MIME mismatches.
+        return Response.error();
       });
     })
   );
