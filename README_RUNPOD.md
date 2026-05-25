@@ -15,34 +15,29 @@ Important repo rule:
 - This repository's Bob paths append `/runsync` in code and validation commands.
 - Do not persist `/run-sync` in env for this repo.
 
-## Recommended production mode: pod primary + serverless backup
+## Recommended production mode: serverless only
 
-Use both runtimes, but with clear role separation:
-
-- Primary runtime (interactive and full capability): RunPod pod URL in `BOB_SERVICE_URL`
-- Backup and burst runtime (stateless fallback and warm checks): RunPod serverless endpoint via `INFERENCE_SERVICE_URL` and endpoint secrets
+Use only RunPod serverless in this repository.
 
 Practical control-plane contract for this repo:
 
-- `BOB_SERVICE_URL` -> pod URL (for pod watchdog and self-test)
+- `BOB_SERVICE_URL` -> serverless base URL `https://api.runpod.ai/v2/<endpoint-id>`
 - `INFERENCE_SERVICE_URL` -> serverless base URL `https://api.runpod.ai/v2/<endpoint-id>`
-- `INFERENCE_API_KEY` -> shared key accepted by both paths where applicable
-- `RUNPOD_POD_ID` -> current managed pod id
+- `INFERENCE_API_KEY` -> RunPod endpoint key
 - `RUNPOD_ENDPOINT_ID`/`RUNPOD_ENDPOINT_URL` + endpoint API key -> serverless smoke path
 
-Recommended GitHub Actions variables (deterministic automation policy):
+Do not rely on pod runtime variables:
 
-- `BOB_WATCHDOG_SERVERLESS_REQUIRED=chat`
-- `BOB_WATCHDOG_POD_REQUIRED=chat,health,self_heal`
-- `BOB_IDLE_STOP_THRESHOLD_MIN=15`
+- `RUNPOD_POD_ID`
+- pod URL values in `BOB_SERVICE_URL`
+- pod-only watchdog requirements
 
 Recommended validation order after any Bob runtime change:
 
 1. `Ops - RunPod Serverless Smoke`
-2. `Ops - Bob Pod Self-Test`
-3. `Ops - Bob Capability Watchdog` with target `both`
+2. `Ops - Bob Capability Watchdog` with target `serverless`
 
-If all three are green, the dual-mode system is considered operationally healthy.
+If both are green, the serverless runtime is considered operationally healthy.
 
 ## Codespace setup
 
