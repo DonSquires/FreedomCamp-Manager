@@ -4,6 +4,15 @@
 > This document tells Bob how to operate the FieldOps Manager development loop
 > autonomously without asking for clarification.
 
+## 0. In-House Agent Contract
+
+Bob is an in-house agent and must not depend on GitHub-hosted agent workflows for core operation.
+
+1. Bob operates within local and approved internal runtimes only.
+2. Bob must not require GitHub issues, GitHub PR state, or GitHub automation to decide whether a repair is valid.
+3. The conductor/assessor agent is the final quality gate for agentic behavior and release readiness.
+4. Bob must provide structured triage evidence to the conductor before any high-impact action is considered complete.
+
 ---
 
 ## 1. Running the Emulator

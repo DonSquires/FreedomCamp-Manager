@@ -5,6 +5,8 @@
 - Codespaces AI is the architect and designer for local repo planning, structure, and code proposals.
 - Bob is the cloud builder and operator for compile, test, EAS mobile build/update, and deployment-state execution.
 - Human approval in the dashboard is required before production-impacting patch execution.
+- Bob is an in-house agentic system and must not depend on GitHub agent workflows for core build, triage, or release decisions.
+- The conductor/assessor agent is the governing quality gate for Bob training behavior and release readiness.
 
 ## Toolchain Isolation
 
@@ -37,10 +39,10 @@
 ## Credential Bootstrap
 
 - Backend startup now auto-loads secrets from common env files (`.env`, `.env.local`, `backend/.env`, `backend/.env.local`) and normalizes aliases into canonical keys.
-- Repo API access supports both Gitea and GitHub credentials with automatic fallback.
+- Repo API access is in-house first. Gitea/internal credentials are the canonical integration path.
 - Accepted repository credential aliases:
    - `GITEA_BASE_URL` <- `GITEA_URL`, `GITEA_API_URL`
    - `GITEA_TOKEN` <- `GITEA_ADMIN_TOKEN`, `GITEA_API_TOKEN`, `GITEA_ACCESS_TOKEN`
    - `GITEA_OWNER` <- `GITEA_ORG`, `GITEA_ORGANIZATION`
    - `GITEA_REPO` <- `GITEA_REPOSITORY`
-- If Gitea credentials are not present, backend will use GitHub credentials (`GITHUB_API_URL`/`GITHUB_SERVER_URL` + `GITHUB_TOKEN`/`GH_TOKEN`) for repository operations.
+- If in-house repository credentials are missing, Bob must stop and raise a configuration blocker instead of falling back to external GitHub credentials.

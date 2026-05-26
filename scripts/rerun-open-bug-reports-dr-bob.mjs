@@ -6,6 +6,7 @@ import { loadLocalEnv } from './load-local-env.mjs'
 loadLocalEnv()
 
 const TERMINAL_STATUSES = ['resolved', 'closed', 'wont_fix', 'duplicate']
+const TRIAGE_PROTOCOL_VERSION = 'dr-bob-triage-v2.1'
 
 function arg(name, fallback = '') {
   const key = `--${name}`
@@ -266,6 +267,15 @@ async function askDrBob(report, classification) {
   const prompt = [
     'You are Dr Bob triage specialist.',
     'Task: triage one bug report and return strict JSON only.',
+    `Protocol version: ${TRIAGE_PROTOCOL_VERSION}`,
+    'Mandatory workflow order:',
+    '1) investigate at least 5 distinct root-cause paths',
+    '2) include evidence for each path (support or rejection)',
+    '3) propose one corrective fix aligned to dominant root cause',
+    '4) define verification plan and execute/record rerun outcome',
+    '5) resolve only if verificationResult starts with pass and fixEvidence=true',
+    'You must investigate at least 5 distinct root-cause paths before proposing closure.',
+    'For each path, include what evidence supports or rejects it.',
     'Allowed decisions: resolve, keep_open, needs_human.',
     'Allowed statuses: acknowledged, investigating, in_progress, resolved.',
     'Non-coding triage matrix:',
@@ -276,9 +286,10 @@ async function askDrBob(report, classification) {
     '- other non-coding operational incidents => lane=operations, keep_open, status=investigating',
     'If bug is coding/test-regression, classify lane=coding.',
     'Do NOT auto-close non-coding issues. They must remain triaged/open until verified remediation evidence is attached.',
+    'Do NOT resolve coding bugs unless verificationResult explicitly confirms clean rerun for affected tests.',
     'When triaging non-coding issues, always include exact nextAction and evidenceRequired fields.',
     'JSON schema:',
-    '{"decision":"resolve|keep_open|needs_human","lane":"coding|runtime_infra|operations","status":"acknowledged|investigating|in_progress|resolved","requiresHumanReview":true|false,"fixEvidence":true|false,"nonCodingType":"endpoint_or_api_url_misconfig|environment_configuration|failure_to_load_or_launch|wiring_or_route_direction|operations_process|n/a","nextAction":"...","evidenceRequired":"...","resolutionNotes":"...","trainingNote":"..."}',
+    '{"decision":"resolve|keep_open|needs_human","lane":"coding|runtime_infra|operations","status":"acknowledged|investigating|in_progress|resolved","requiresHumanReview":true|false,"fixEvidence":true|false,"nonCodingType":"endpoint_or_api_url_misconfig|environment_configuration|failure_to_load_or_launch|wiring_or_route_direction|operations_process|n/a","rootCausePaths":["path1","path2","path3","path4","path5"],"rootCauseEvidence":["evidence1","evidence2","evidence3","evidence4","evidence5"],"proposedFix":"...","verificationPlan":"...","verificationResult":"pass|fail|pending: ...","nextAction":"...","evidenceRequired":"...","resolutionNotes":"...","trainingNote":"..."}',
     'Bug report payload:',
     JSON.stringify(report),
     'Classification hint:',
@@ -335,6 +346,23 @@ function heuristicDecision(classification, autoResolveNonCoding) {
       requiresHumanReview: false,
       fixEvidence: false,
       nonCodingType: classification.nonCodingType,
+      rootCausePaths: [
+        'endpoint_or_api_url_misconfig',
+        'environment_configuration',
+        'failure_to_load_or_launch',
+        'wiring_or_route_direction',
+        'operations_process',
+      ],
+      rootCauseEvidence: [
+        'pending investigation',
+        'pending investigation',
+        'pending investigation',
+        'pending investigation',
+        'pending investigation',
+      ],
+      proposedFix: 'Validate and correct endpoint/env wiring before rerun.',
+      verificationPlan: 'Run endpoint reachability + full affected test rerun and capture logs.',
+      verificationResult: 'pending: awaiting rerun evidence',
       nextAction:
         'Validate endpoint and environment wiring, then rerun in clean environment before considering resolution.',
       evidenceRequired:
@@ -354,6 +382,23 @@ function heuristicDecision(classification, autoResolveNonCoding) {
       requiresHumanReview: false,
       fixEvidence: false,
       nonCodingType: 'n/a',
+      rootCausePaths: [
+        'regression in UI behavior',
+        'test data/setup drift',
+        'role/organization resolution mismatch',
+        'selector/async timing instability',
+        'dependency/runtime incompatibility',
+      ],
+      rootCauseEvidence: [
+        'pending investigation',
+        'pending investigation',
+        'pending investigation',
+        'pending investigation',
+        'pending investigation',
+      ],
+      proposedFix: 'Implement code-level remediation tied to the dominant validated root cause.',
+      verificationPlan: 'Rerun affected tests + relevant smoke/build checks and attach outputs.',
+      verificationResult: 'pending: remediation not validated yet',
       nextAction: 'Implement and validate code remediation in coding lane.',
       evidenceRequired: 'Attach passing tests/build evidence for the affected flow.',
       resolutionNotes: 'Coding-lane bug rerun through Dr Bob; kept open for remediation.',
@@ -368,6 +413,23 @@ function heuristicDecision(classification, autoResolveNonCoding) {
     requiresHumanReview: false,
     fixEvidence: false,
     nonCodingType: classification.nonCodingType,
+    rootCausePaths: [
+      'operational process mismatch',
+      'endpoint_or_api_url_misconfig',
+      'environment_configuration',
+      'wiring_or_route_direction',
+      'insufficient reproduction data',
+    ],
+    rootCauseEvidence: [
+      'pending investigation',
+      'pending investigation',
+      'pending investigation',
+      'pending investigation',
+      'pending investigation',
+    ],
+    proposedFix: 'Complete operational triage and then execute targeted remediation with evidence.',
+    verificationPlan: 'Collect reproducible artifacts and rerun affected workflow.',
+    verificationResult: 'pending: investigation in progress',
     nextAction: 'Triage operational cause and collect reproducible evidence before escalation.',
     evidenceRequired: 'Attach logs, exact repro steps, and verification checkpoints.',
     resolutionNotes: 'Operations-lane bug rerun through Dr Bob triage; retained for investigation.',
@@ -377,6 +439,12 @@ function heuristicDecision(classification, autoResolveNonCoding) {
 
 function normalizeDecision(candidate, fallback) {
   const value = candidate && typeof candidate === 'object' ? candidate : {}
+  const rootCausePaths = Array.isArray(value.rootCausePaths)
+    ? value.rootCausePaths.map((v) => String(v || '').trim()).filter(Boolean).slice(0, 10)
+    : fallback.rootCausePaths
+  const rootCauseEvidence = Array.isArray(value.rootCauseEvidence)
+    ? value.rootCauseEvidence.map((v) => String(v || '').trim()).filter(Boolean).slice(0, 10)
+    : fallback.rootCauseEvidence
   return {
     decision: ['resolve', 'keep_open', 'needs_human'].includes(String(value.decision || '').trim())
       ? String(value.decision).trim()
@@ -391,6 +459,11 @@ function normalizeDecision(candidate, fallback) {
       typeof value.requiresHumanReview === 'boolean' ? value.requiresHumanReview : fallback.requiresHumanReview,
     fixEvidence: typeof value.fixEvidence === 'boolean' ? value.fixEvidence : fallback.fixEvidence,
     nonCodingType: String(value.nonCodingType || '').trim() || fallback.nonCodingType,
+    rootCausePaths,
+    rootCauseEvidence,
+    proposedFix: String(value.proposedFix || '').trim() || fallback.proposedFix,
+    verificationPlan: String(value.verificationPlan || '').trim() || fallback.verificationPlan,
+    verificationResult: String(value.verificationResult || '').trim() || fallback.verificationResult,
     nextAction: String(value.nextAction || '').trim() || fallback.nextAction,
     evidenceRequired: String(value.evidenceRequired || '').trim() || fallback.evidenceRequired,
     resolutionNotes: String(value.resolutionNotes || '').trim() || fallback.resolutionNotes,
@@ -418,6 +491,25 @@ function enforceTriagePolicy(decision, classification) {
       'Non-coding incident triaged by Dr Bob and kept open pending verified rerun success evidence.'
   }
 
+  // Coding issues cannot be resolved unless root-cause analysis and verification evidence are present.
+  if (normalized.lane === 'coding') {
+    const hasFivePaths = Array.isArray(normalized.rootCausePaths) && normalized.rootCausePaths.length >= 5
+    const hasFiveEvidence =
+      Array.isArray(normalized.rootCauseEvidence) && normalized.rootCauseEvidence.length >= 5
+    const verificationPass = /^pass\b/i.test(String(normalized.verificationResult || '').trim())
+    const hasProposedFix = String(normalized.proposedFix || '').trim().length > 0
+    if (
+      normalized.decision === 'resolve' &&
+      (!normalized.fixEvidence || !hasFivePaths || !hasFiveEvidence || !hasProposedFix || !verificationPass)
+    ) {
+      normalized.decision = 'keep_open'
+      normalized.status = 'investigating'
+      normalized.resolutionNotes =
+        normalized.resolutionNotes ||
+        'Resolution blocked: requires five-path analysis, five evidence items, concrete proposed fix, and passing verification evidence.'
+    }
+  }
+
   return normalized
 }
 
@@ -427,11 +519,17 @@ async function updateBugReport(report, decision, source) {
     requires_human_review: decision.requiresHumanReview,
     ai_analyzed: true,
     ai_analysis: {
+      protocol_version: TRIAGE_PROTOCOL_VERSION,
       source,
       triaged_at: nowIso(),
       decision: decision.decision,
       lane: decision.lane,
       non_coding_type: decision.nonCodingType,
+      root_cause_paths: decision.rootCausePaths,
+      root_cause_evidence: decision.rootCauseEvidence,
+      proposed_fix: decision.proposedFix,
+      verification_plan: decision.verificationPlan,
+      verification_result: decision.verificationResult,
       next_action: decision.nextAction,
       evidence_required: decision.evidenceRequired,
       fix_evidence: decision.fixEvidence,
