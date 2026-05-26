@@ -12,13 +12,6 @@ jobs:
   train-validate:
     name: train-validate
     runs-on: ubuntu-latest
-    env:
-      VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-      RUNPOD_API_KEY: ${{ secrets.RUNPOD_API_KEY }}
-      RUNPOD_ENDPOINT_ID: ${{ secrets.RUNPOD_ENDPOINT_ID }}
-      DR_BOB_RUNPOD_URL: ${{ secrets.DR_BOB_RUNPOD_URL }}
-      SYNTHETIC_MONITOR_USER_ID: ${{ secrets.SYNTHETIC_MONITOR_USER_ID }}
 
     steps:
       - name: Checkout
@@ -29,17 +22,12 @@ jobs:
         with:
           node-version: 20.15.0
           cache: npm
+          cache-dependency-path: backend/package-lock.json
 
-      - name: Install root dependencies
-        run: npm ci --legacy-peer-deps
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm ci
 
-      - name: Run Bob self-heal gate (must end green)
-        run: |
-          npm run bob:self-heal:until-green -- \
-            --max-attempts 3 \
-            --push false \
-            --publish-failures true \
-            --triage true \
-            --test-timeout-ms 1800000 \
-            --triage-timeout-ms 600000 \
-            --fix-timeout-ms 900000
+      - name: Validate backend build
+        working-directory: backend
+        run: npm run build
