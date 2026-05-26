@@ -43,6 +43,7 @@ Recovery note:
 
 - To build consecutive green history on a non-main branch, run the canary workflow on the branch and then re-run the promotion gate with `MLOPS_CANARY_BRANCH=<branch-name>`.
 - GitHub workflow dispatch from the current integration token is blocked with `Resource not accessible by integration`; a PAT or workflow-capable token is required to create new Actions runs on this branch.
+- `GITHUB_CODESPACE_TOKEN` is not a usable fallback for GitHub Actions dispatch here (`401 Bad credentials`).
 - Local canary health is currently green (`3/3` pass), but promotion remains blocked until GitHub run history exists for the branch.
 
 ---
