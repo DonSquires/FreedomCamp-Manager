@@ -20,7 +20,7 @@ import { useBobActionApproval } from '@/hooks/useBobActionApproval'
 import { listPendingBobActionProposals, type BobActionProposalRow } from '@/hooks/useBobApprovalD1'
 import { usePTTStore } from '@/stores/pttStore'
 import { supabase } from '@/lib/supabase'
-import { BrainCircuit, Camera, CheckCircle2, ChevronDown, ClipboardList, Copy, FlaskConical, Loader2, MapPinned, Mic, MicOff, Paintbrush2, Play, Plus, Radio, Route, Send, Volume2, VolumeX, Wrench, Github, ShieldAlert, PhoneOff, SignalHigh, Stethoscope, XCircle } from 'lucide-react'
+import { BrainCircuit, Camera, CheckCircle2, ChevronDown, ClipboardList, Copy, FlaskConical, Loader2, MapPinned, Mic, MicOff, Paintbrush2, Play, Plus, Radio, Route, Send, Volume2, VolumeX, Wrench, GitBranch, ShieldAlert, PhoneOff, SignalHigh, Stethoscope, XCircle } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import { toast } from 'sonner'
 import { edgeFunctions } from '@/lib/edgeFunctions'
@@ -5451,7 +5451,7 @@ export default function BobAssistantStudio() {
                   }}
                   disabled={!codeTaskResult.trim()}
                 >
-                  <Github className="h-4 w-4 mr-1" /> Copy for GitHub/Copilot
+                  <GitBranch className="h-4 w-4 mr-1" /> Copy for GitHub/Copilot
                 </Button>
               </div>
 

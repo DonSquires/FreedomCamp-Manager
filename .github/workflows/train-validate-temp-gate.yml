@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   train-validate:
-    name: production-green-gate
+    name: train-validate
     runs-on: ubuntu-latest
     env:
       VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
