@@ -48,6 +48,43 @@ Recovery note:
 
 ---
 
+## Production Auth Header Matrix Revalidation (2026-05-26)
+
+Owner: GitHub Copilot
+Scope: Execute focused production verification for session lockout/auth middleware behavior across browser and proxy header variants.
+
+Completed:
+
+- [x] Confirmed production CORS preflight now returns expanded allowed headers and explicit credential/origin behavior.
+- [x] Diagnosed remaining `401` failures as runtime configuration issue: `SUPABASE_AUTH_REMOTE_FALLBACK` unset in production environment.
+- [x] Applied production env correction via Railway GraphQL:
+  - `SUPABASE_AUTH_REMOTE_FALLBACK=true`
+- [x] Triggered and completed backend production redeploy after env update.
+- [x] Re-ran authenticated matrix against `POST /api/heal` using a temporary real Supabase user/profile context.
+
+Validation evidence:
+
+1. Deploy trigger + completion:
+  - Deployment id: `2df66a5a-bf15-41e4-8105-426b367cf877`
+  - Final status: `SUCCESS`
+2. Preflight (`OPTIONS /api/heal`, origin `https://fcmanager.co.nz`):
+  - HTTP `204`
+  - `Access-Control-Allow-Origin: https://fcmanager.co.nz`
+  - `Access-Control-Allow-Credentials: true`
+  - `Access-Control-Allow-Headers` includes `X-Forwarded-Authorization`, `X-Access-Token`, `X-Supabase-Auth`
+3. Authenticated route checks (`POST /api/heal`):
+  - `Authorization: Bearer <token>` -> HTTP `200`
+  - `X-Forwarded-Authorization: Bearer <token>` -> HTTP `200`
+  - `X-Access-Token: <token>` -> HTTP `200`
+  - Response path currently `status=DEGRADED`, `routeAgent=health_probe` due model-provider availability (`RunPod is not configured`) and no fallback providers.
+
+Operational outcome:
+
+1. Session/auth lockout behavior for valid tokens across browser and forwarded-header paths is now functioning in production.
+2. Residual degradation is upstream model-provider configuration, not auth/CORS/session middleware rejection.
+
+---
+
 ## Bob Truth Assessment Review Update (2026-05-25)
 
 Owner: GitHub Copilot  
