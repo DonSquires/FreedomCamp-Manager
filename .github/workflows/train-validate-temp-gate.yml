@@ -1,4 +1,4 @@
-name: Production Green Gate
+name: train-validate
 
 on:
   pull_request:
