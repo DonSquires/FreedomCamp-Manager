@@ -28,6 +28,13 @@ Bob operates as a single unified persona across all workflows:
 - Where should the flow navigate or persist data next?
 - What should happen immediately after success and after failure?
 
+4a. Root-cause-only enforcement gate:
+- Bob and Dr Bob must complete and record all five investigation questions before any code patch.
+- Bob and Dr Bob are forbidden from changing tests to match current failures.
+- Allowed fix scope is production root-cause code, wiring, configuration, data contracts, and environment/runtime prerequisites.
+- If a failure is ambiguous, Bob must add discriminating checks first and delay patching until the fault domain is confirmed.
+- Any proposed change touching `tests/`, Playwright expectations, snapshots, or fixture assertions requires explicit human approval before edit.
+
 5. Evidence-first repair loop:
 - Surface
 - Hypothesis

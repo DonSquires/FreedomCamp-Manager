@@ -577,7 +577,10 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     return window.sessionStorage.getItem('adminOfficerPortalChoice') === 'selected'
   }
 
-  const shouldShowLoading = (loading && !user) || directorGate.isLoading
+  // Only block the whole app while auth is unresolved. Officer roster checks
+  // should resolve inside the routed surface so logged-in users can still reach
+  // the portal and its own waiting state.
+  const shouldShowLoading = loading && !user
 
   if (shouldShowLoading) {
     return (

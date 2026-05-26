@@ -3,6 +3,7 @@ import type { Database } from '@/types/database'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || ''
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
+const envFallbackNote = '(VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY, or legacy SUPABASE_URL / SUPABASE_ANON_KEY via build-time fallback)'
 
 const memoryStorage = new Map<string, string>()
 
@@ -67,8 +68,8 @@ export const supabaseConfigured = !!(supabaseUrl && supabaseAnonKey)
 
 if (!supabaseConfigured) {
   console.warn(
-    '[Field Compliance Manager] VITE_SUPABASE_URL and/or VITE_SUPABASE_ANON_KEY are not set. ' +
-    'Configure these environment variables in your deployment platform ' +
+    '[Field Compliance Manager] Supabase env vars are not set. ' +
+    `Configure ${envFallbackNote} in your deployment platform ` +
     '(Environment Variables dashboard, or GitHub Secrets for the CI workflow). ' +
     'The application will not function until they are provided.'
   )

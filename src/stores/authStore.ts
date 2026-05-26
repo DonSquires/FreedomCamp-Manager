@@ -222,24 +222,15 @@ export const useAuthStore = create<AuthState>()(
           throw error
         }
 
-        // Revoke all other active sessions for this user on the server so any
-        // stale JWT from a previous force-closed session cannot be replayed.
-        // Fire-and-forget — we don't want sign-out of others to block or fail
-        // the current login if the network hiccups.
-        supabase.auth.signOut({ scope: 'others' }).catch((e) => {
-          console.warn('[authStore] Failed to revoke previous sessions on login:', e)
-        })
-
         // Prefer the session returned by sign-in. Immediate refresh can deadlock
         // under competing auth locks in browser automation contexts.
         const freshSession = data.session ?? await getFreshSessionAfterLogin()
 
-        // Fetch user profile
-        const { data: profile, error: profileError } = await supabase
-          .from('user_profiles')
-          .select('id, email, role, organization_id, employer_organization_id, first_name, last_name, job_title, portal_access, authorized_work_locations, extra_organization_ids, ptt_channel_access')
-          .eq('id', freshSession.user.id)
-          .single()
+        // Fetch user profile with a short retry window. The auth session can
+        // be valid before the profile row is immediately readable through RLS
+        // in the same turn, so a single retry avoids turning a successful sign-in
+        // into a false login failure.
+        const { profile, error: profileError } = await fetchProfileWithRetry(freshSession.user.id, 3)
 
         if (profileError) {
           throw profileError
@@ -279,11 +270,7 @@ export const useAuthStore = create<AuthState>()(
 
         const freshSession = data.session ?? await getFreshSessionAfterLogin()
 
-        const { data: profile, error: profileError } = await supabase
-          .from('user_profiles')
-          .select('id, email, role, organization_id, employer_organization_id, first_name, last_name, job_title, portal_access, authorized_work_locations, extra_organization_ids, ptt_channel_access')
-          .eq('id', freshSession.user.id)
-          .single()
+        const { profile, error: profileError } = await fetchProfileWithRetry(freshSession.user.id, 3)
 
         if (profileError) {
           throw profileError
