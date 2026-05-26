@@ -134,6 +134,58 @@ is_runpod_serverless_url() {
   [[ "$url" =~ ^https://api\.runpod\.ai/v2/[^/]+(/runsync)?$ ]]
 }
 
+runpod_status_url() {
+  local runsync_url="$1"
+  local job_id="$2"
+  local base
+  base="${runsync_url%/}"
+  base="${base%/runsync}"
+  echo "$base/status/$job_id"
+}
+
+poll_runpod_job() {
+  local runsync_url="$1"
+  local job_id="$2"
+  local attempts="${3:-40}"
+  local interval_seconds="${4:-3}"
+  local url
+  url=$(runpod_status_url "$runsync_url" "$job_id")
+
+  for _ in $(seq 1 "$attempts"); do
+    local out
+    local status
+
+    out=$(curl -sS --max-time 25 \
+      -H "Authorization: Bearer $API_KEY" \
+      -H "x-inference-api-key: $API_KEY" \
+      "$url" 2>/dev/null || true)
+
+    if ! is_json "$out"; then
+      sleep "$interval_seconds"
+      continue
+    fi
+
+    status=$(jq -r '.status // ""' <<<"$out")
+    case "$status" in
+      COMPLETED|FAILED|CANCELLED|TIMED_OUT)
+        echo "$out"
+        return 0
+        ;;
+      *)
+        ;;
+    esac
+
+    sleep "$interval_seconds"
+  done
+
+  jq -n \
+    --arg id "$job_id" \
+    --arg status "IN_QUEUE" \
+    --arg mode "serverless-pending" \
+    --arg warning "RunPod job accepted but did not reach terminal status within polling window." \
+    '{success:true,accepted:true,id:$id,status:$status,mode:$mode,warning:$warning}'
+}
+
 to_json_file_array() {
   local csv="$1"
   if [[ -z "$csv" ]]; then
@@ -437,6 +489,21 @@ queue_code_task() {
       -d "$runsync_payload" 2>/dev/null || true)
 
     if is_json "$response"; then
+      local queued_status
+      queued_status=$(jq -r '.status // ""' <<<"$response")
+      if [[ "$queued_status" == "IN_QUEUE" || "$queued_status" == "IN_PROGRESS" ]]; then
+        local job_id
+        local poll_attempts
+        local poll_interval
+        job_id=$(jq -r '.id // ""' <<<"$response")
+        poll_attempts="${BOB_QUEUE_POLL_ATTEMPTS:-40}"
+        poll_interval="${BOB_QUEUE_POLL_INTERVAL_SECONDS:-3}"
+        if [[ -n "$job_id" ]]; then
+          poll_runpod_job "$runsync_url" "$job_id" "$poll_attempts" "$poll_interval" | jq .
+          return 0
+        fi
+      fi
+
       local serverless_error
       serverless_error=$(jq -r '.error // .output?.error // ""' <<<"$response")
       if grep -qi 'Unknown action: code_task_submit' <<<"$serverless_error"; then

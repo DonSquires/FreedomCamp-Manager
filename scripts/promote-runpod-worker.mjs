@@ -213,32 +213,121 @@ async function setSupabaseModelSecrets(modelTag) {
   if (stderr.trim()) process.stderr.write(stderr);
 }
 
-async function smokeDirectRunsync(endpointId, apiKey, modelTag) {
-  const response = await fetch(`https://api.runpod.ai/v2/${endpointId}/runsync`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      input: {
-        action: 'chat',
-        message: 'Promotion smoke test. Reply with one short sentence.',
-        history: [],
-        model: modelTag,
-        temperature: 0.2,
-      },
-    }),
-  });
+async function pollRunpodStatus(endpointId, apiKey, jobId, timeoutMs = 180000, intervalMs = 3000) {
+  const deadline = Date.now() + timeoutMs;
+  const statusUrl = `https://api.runpod.ai/v2/${endpointId}/status/${encodeURIComponent(jobId)}`;
+  let lastPayload = null;
 
-  const text = await response.text();
-  if (!response.ok) {
-    throw new Error(`RunPod smoke failed (${response.status}): ${text.slice(0, 300)}`);
+  while (Date.now() < deadline) {
+    const response = await fetch(statusUrl, {
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+      },
+    });
+
+    const text = await response.text();
+    if (!response.ok) {
+      throw new Error(`RunPod status poll failed (${response.status}): ${text.slice(0, 300)}`);
+    }
+
+    const payload = text ? JSON.parse(text) : {};
+    lastPayload = payload;
+    const status = String(payload?.status || '').toUpperCase();
+
+    if (status === 'COMPLETED' || status === 'FAILED' || status === 'CANCELLED' || status === 'TIMED_OUT') {
+      return payload;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
   }
 
-  const payload = JSON.parse(text);
-  const ok = payload?.status === 'COMPLETED' && payload?.output?.success === true;
-  if (!ok) {
+  throw new Error(`RunPod status poll timed out for job ${jobId}. Last payload: ${JSON.stringify(lastPayload).slice(0, 500)}`);
+}
+
+function isSuccessfulRunpodPayload(payload) {
+  const status = String(payload?.status || '').toUpperCase();
+  if (status !== 'COMPLETED') return false;
+
+  if (payload?.output?.success === false) return false;
+  if (payload?.error || payload?.output?.error) return false;
+  return true;
+}
+
+async function smokeDirectRunsync(endpointId, apiKey, modelTag) {
+  const allowPending = String(process.env.RUNPOD_SMOKE_ALLOW_PENDING || 'true').trim().toLowerCase() !== 'false';
+  const requestTimeoutMs = Number(process.env.RUNPOD_SMOKE_REQUEST_TIMEOUT_MS || 90000);
+  const smokeInput = {
+    input: {
+      action: 'chat',
+      message: 'Promotion smoke test. Reply with one short sentence.',
+      history: [],
+      model: modelTag,
+      temperature: 0.2,
+    },
+  };
+
+  const requestJson = async (url) => {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), requestTimeoutMs);
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(smokeInput),
+        signal: controller.signal,
+      });
+      const text = await response.text();
+      if (!response.ok) {
+        throw new Error(`RunPod smoke failed (${response.status}): ${text.slice(0, 300)}`);
+      }
+      return JSON.parse(text);
+    } finally {
+      clearTimeout(timeout);
+    }
+  };
+
+  let payload = null;
+  try {
+    payload = await requestJson(`https://api.runpod.ai/v2/${endpointId}/runsync`);
+  } catch (error) {
+    if (error?.name === 'AbortError') {
+      console.warn(`RunPod runsync request timed out after ${requestTimeoutMs}ms; switching to async /run path.`);
+      payload = await requestJson(`https://api.runpod.ai/v2/${endpointId}/run`);
+    } else {
+      throw error;
+    }
+  }
+
+  const status = String(payload?.status || '').toUpperCase();
+
+  if (status === 'IN_QUEUE' || status === 'IN_PROGRESS') {
+    const jobId = String(payload?.id || '').trim();
+    if (!jobId) {
+      throw new Error(`RunPod smoke returned queued status without job ID: ${JSON.stringify(payload).slice(0, 500)}`);
+    }
+    console.log(`RunPod smoke queued: jobId=${jobId}. Polling until terminal status...`);
+    let terminalPayload = null;
+    try {
+      terminalPayload = await pollRunpodStatus(endpointId, apiKey, jobId);
+    } catch (error) {
+      if (allowPending && String(error?.message || '').includes('timed out')) {
+        console.warn(`RunPod smoke pending: ${error?.message || String(error)}`);
+        console.warn(`Proceeding because RUNPOD_SMOKE_ALLOW_PENDING=${process.env.RUNPOD_SMOKE_ALLOW_PENDING || 'true'}.`);
+        return;
+      }
+      throw error;
+    }
+    if (!isSuccessfulRunpodPayload(terminalPayload)) {
+      throw new Error(`RunPod smoke terminal payload not successful: ${JSON.stringify(terminalPayload).slice(0, 500)}`);
+    }
+    console.log(`RunPod smoke ok: workerId=${terminalPayload?.workerId || '?'} model=${terminalPayload?.output?.model || modelTag}`);
+    return;
+  }
+
+  if (!isSuccessfulRunpodPayload(payload)) {
     throw new Error(`RunPod smoke returned unexpected payload: ${JSON.stringify(payload).slice(0, 500)}`);
   }
 
@@ -246,17 +335,31 @@ async function smokeDirectRunsync(endpointId, apiKey, modelTag) {
 }
 
 async function smokeDirectRunsyncWithCandidates(endpointId, modelTag, keyCandidates) {
+  const candidateTimeoutMs = Number(process.env.RUNPOD_SMOKE_CANDIDATE_TIMEOUT_MS || 210000);
   let lastError = null;
   for (const candidate of keyCandidates) {
     const apiKey = String(candidate?.value || '').trim();
     if (!apiKey) continue;
+    let timeoutId = null;
     try {
-      await smokeDirectRunsync(endpointId, apiKey, modelTag);
+      const timedAttempt = Promise.race([
+        smokeDirectRunsync(endpointId, apiKey, modelTag),
+        new Promise((_, reject) => {
+          timeoutId = setTimeout(
+            () => reject(new Error(`RunPod smoke candidate timed out after ${candidateTimeoutMs}ms`)),
+            candidateTimeoutMs,
+          );
+        }),
+      ]);
+      await timedAttempt;
+      if (timeoutId) clearTimeout(timeoutId);
       console.log(`RunPod smoke auth key: ${candidate.label}`);
       return apiKey;
     } catch (error) {
       lastError = error;
       console.warn(`RunPod smoke failed with ${candidate.label}; trying next key...`);
+    } finally {
+      if (timeoutId) clearTimeout(timeoutId);
     }
   }
 
@@ -416,6 +519,9 @@ async function main() {
     // Wait a moment before scaling back up
     await new Promise(resolve => setTimeout(resolve, 2000));
     await graphqlWithCandidates(`mutation { updateEndpointWorkersMax(input:{ endpointId:"${endpointId}", workerCount: 2 }) { id name workersMin workersMax idleTimeout } }`, graphqlKeyCandidates);
+    if (keepWarm) {
+      await graphqlWithCandidates(`mutation { updateEndpointWorkersMin(input:{ endpointId:"${endpointId}", workerCount: 1 }) { id name workersMin workersMax idleTimeout } }`, graphqlKeyCandidates);
+    }
     console.log('Endpoint refresh via GraphQL completed.');
   } catch (error) {
     console.warn(`Endpoint refresh via GraphQL failed: ${error?.message || String(error)}`);
