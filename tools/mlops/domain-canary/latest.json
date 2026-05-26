@@ -1,0 +1,82 @@
+{
+  "generatedAt": "2026-05-26T04:01:24.108Z",
+  "strict": false,
+  "status": "passed",
+  "reason": "ok",
+  "endpoint": "https://api.runpod.ai/v2/n0bp1ifmq01cx2/runsync",
+  "timeoutMs": 25000,
+  "retries": 2,
+  "passedCount": 3,
+  "failedCount": 0,
+  "domains": [
+    {
+      "domain": "biosecurity",
+      "ok": true,
+      "reason": "ok",
+      "latencyMs": 4723,
+      "httpStatus": 200,
+      "attempts": [
+        {
+          "attempt": 1,
+          "ok": true,
+          "reason": "ok",
+          "latencyMs": 4723,
+          "httpStatus": 200
+        }
+      ],
+      "responsePreview": "{\"domain\":\"biosecurity\",\"classification\":\"medium\",\"recommended_action\":\"Contain and remove the weed immediately.\",\"legal_basis\":\"Biosecurity Act 1993, Section 28 - Duty to prevent the spread of pests and diseases\"}",
+      "parsed": {
+        "domain": "biosecurity",
+        "classification": "medium",
+        "recommended_action": "Contain and remove the weed immediately.",
+        "legal_basis": "Biosecurity Act 1993, Section 28 - Duty to prevent the spread of pests and diseases"
+      }
+    },
+    {
+      "domain": "noise",
+      "ok": true,
+      "reason": "ok",
+      "latencyMs": 4424,
+      "httpStatus": 200,
+      "attempts": [
+        {
+          "attempt": 1,
+          "ok": true,
+          "reason": "ok",
+          "latencyMs": 4424,
+          "httpStatus": 200
+        }
+      ],
+      "responsePreview": "{\"domain\":\"noise\",\"classification\":\"medium\",\"recommended_action\":\"Issue a verbal warning\",\"legal_basis\":\"FieldOps Manager Compliance Policy 2023, Section 5.2\"}",
+      "parsed": {
+        "domain": "noise",
+        "classification": "medium",
+        "recommended_action": "Issue a verbal warning",
+        "legal_basis": "FieldOps Manager Compliance Policy 2023, Section 5.2"
+      }
+    },
+    {
+      "domain": "parking",
+      "ok": true,
+      "reason": "ok",
+      "latencyMs": 4277,
+      "httpStatus": 200,
+      "attempts": [
+        {
+          "attempt": 1,
+          "ok": true,
+          "reason": "ok",
+          "latencyMs": 4277,
+          "httpStatus": 200
+        }
+      ],
+      "responsePreview": "{\"domain\":\"parking\",\"classification\":\"high\",\"recommended_action\":\"Issue parking infringement notice\",\"legal_basis\":\"Freedom Camping Regulations 2023, Section 15\"}",
+      "parsed": {
+        "domain": "parking",
+        "classification": "high",
+        "recommended_action": "Issue parking infringement notice",
+        "legal_basis": "Freedom Camping Regulations 2023, Section 15"
+      }
+    }
+  ]
+}

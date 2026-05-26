@@ -2350,7 +2350,7 @@ export default function BobAssistantStudio() {
             messages: [
               {
                 role: 'system',
-                content: 'You extract organization setup details for FieldOps Manager. Return strict JSON only with keys organizationName, organizationType, organizationLevel, parentOrganizationName, address, contactEmail, contactPhone, isActive, notes, childSiteNames, childZoneNames, childGeofenceNames, missingFields, followUpQuestions. If a field is unknown, set it to an empty string or empty array and add the field name to missingFields plus a short followUpQuestion.',
+                content: 'You extract organization setup details for Field Compliance Manager. Return strict JSON only with keys organizationName, organizationType, organizationLevel, parentOrganizationName, address, contactEmail, contactPhone, isActive, notes, childSiteNames, childZoneNames, childGeofenceNames, missingFields, followUpQuestions. If a field is unknown, set it to an empty string or empty array and add the field name to missingFields plus a short followUpQuestion.',
               },
               {
                 role: 'user',

@@ -42,13 +42,19 @@ const browserLock: SupabaseLock = async <T>(name: string, _acquireTimeout: numbe
     return fn()
   }
 
+  const acquireTimeout = Number.isFinite(_acquireTimeout) && _acquireTimeout > 0 ? _acquireTimeout : 5000
+  const controller = new AbortController()
+  const abortTimer = setTimeout(() => controller.abort(), acquireTimeout)
+
   try {
-    return await navigator.locks.request(name, { mode: 'exclusive' }, async () => fn())
+    return await navigator.locks.request(name, { mode: 'exclusive', signal: controller.signal }, async () => fn())
   } catch (error: unknown) {
     if (error instanceof DOMException && error.name === 'AbortError') {
       return fn()
     }
     throw error
+  } finally {
+    clearTimeout(abortTimer)
   }
 }
 

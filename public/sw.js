@@ -1,4 +1,4 @@
-// Service Worker for FieldOps Manager PWA
+// Service Worker for Field Compliance Manager PWA
 // Handles offline caching, background sync, and auto-updates
 // NOW WITH: IndexedDB sync, offline API queue, Background Sync API
 
@@ -302,7 +302,7 @@ self.addEventListener('push', function(event) {
   try {
     data = event.data.json();
   } catch (e) {
-    data = { title: 'FieldOps Manager', body: event.data.text() };
+    data = { title: 'Field Compliance Manager', body: event.data.text() };
   }
 
   // Map notification type → vibration pattern + urgency
@@ -344,7 +344,7 @@ self.addEventListener('push', function(event) {
 
   event.waitUntil(
     self.registration.showNotification(
-      data.title || 'FieldOps Manager',
+      data.title || 'Field Compliance Manager',
       options
     )
   );

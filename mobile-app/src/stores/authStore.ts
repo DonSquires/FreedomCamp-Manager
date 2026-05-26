@@ -6,7 +6,7 @@ import { supabase } from '../lib/supabase'
 async function ensureNotificationChannel(): Promise<void> {
   if (Platform.OS !== 'android') return
   await Notifications.setNotificationChannelAsync('default', {
-    name: 'FieldOps Alerts',
+    name: 'Field Compliance Alerts',
     importance: Notifications.AndroidImportance.HIGH,
     vibrationPattern: [0, 250, 250, 250],
     lightColor: '#1d4ed8',

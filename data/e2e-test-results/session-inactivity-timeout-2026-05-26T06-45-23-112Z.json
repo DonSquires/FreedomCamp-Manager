@@ -1,0 +1,17 @@
+{
+  "testRunId": "10a00163-d671-4c5d-837f-6d714f26ea71",
+  "timestamp": "2026-05-26T06:45:23.102Z",
+  "testFile": "tests/e2e/session-inactivity-timeout.spec.ts",
+  "testPattern": "session-inactivity-timeout",
+  "status": "failed",
+  "summary": {
+    "total": 0,
+    "passed": 0,
+    "failed": 0,
+    "skipped": 0,
+    "successRate": "N/A"
+  },
+  "diagnostics": [],
+  "errors": [],
+  "rawOutput": "Command failed: npx playwright test tests/e2e/session-inactivity-timeout.spec.ts --reporter=json --reporter=list"
+}

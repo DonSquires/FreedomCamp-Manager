@@ -838,7 +838,7 @@ export function AppLayout({ children, title, description, showBackButton, immers
               <SheetContent side="left" className="w-64 p-0">
                 <div className="flex flex-col h-full">
                   <div className="p-4 border-b dark:border-[#9E9E9E]/20">
-                    <h2 className="font-semibold text-lg">FieldOps</h2>
+                    <h2 className="font-semibold text-lg">Field Compliance Manager</h2>
                     <p className="text-sm text-gray-600 dark:text-gray-400">
                       {user?.full_name}
                     </p>
@@ -876,7 +876,7 @@ export function AppLayout({ children, title, description, showBackButton, immers
             )}
           </div>
 
-          <h1 className="font-semibold text-lg truncate">{title || 'FieldOps'}</h1>
+          <h1 className="font-semibold text-lg truncate">{title || 'Field Compliance Manager'}</h1>
           
           {/* Mobile: notification bell */}
           <button
@@ -925,7 +925,7 @@ export function AppLayout({ children, title, description, showBackButton, immers
           <div className="p-5 border-b dark:border-[#9E9E9E]/20 bg-[#121212] dark:bg-[#1E1E1E]">
             <div className="flex items-start justify-between">
               <div className="min-w-0">
-                <h2 className="font-bold text-xl text-white">FieldOps</h2>
+                <h2 className="font-bold text-xl text-white">Field Compliance Manager</h2>
                 <p className="text-sm text-[#BDBDBD] mt-0.5 truncate">
                   {user?.full_name}
                 </p>
@@ -1096,7 +1096,7 @@ export function AppLayout({ children, title, description, showBackButton, immers
               Connection lost. You are offline and some live data may be stale.
             </div>
           )}
-          {!immersive && !isOffline && activeFetchCount > 0 && (
+          {!immersive && !isOffline && !isLocked && activeFetchCount > 0 && (
             <div className="mb-3 inline-flex items-center gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 dark:border-blue-800 dark:bg-blue-900/20 dark:text-blue-300">
               <RefreshCw className="h-3.5 w-3.5 animate-spin" />
               Refreshing live data in the background

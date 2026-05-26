@@ -1,11 +1,12 @@
 #!/usr/bin/env node
 
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '..');
+const DEFAULT_HISTORY = resolve(ROOT, 'tools', 'mlops', 'domain-canary', 'history.jsonl');
 
 function argValue(name) {
   const index = process.argv.indexOf(name);
@@ -31,22 +32,24 @@ function writeReport(path, report) {
   writeFileSync(path, JSON.stringify(report, null, 2));
 }
 
-async function githubGet(url, token) {
-  const res = await fetch(url, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      Accept: 'application/vnd.github+json',
-      'User-Agent': 'fieldops-mlops-domain-promotion-gate',
-      'X-GitHub-Api-Version': '2022-11-28',
-    },
-  });
-
-  const raw = await res.text();
-  if (!res.ok) {
-    throw new Error(`GitHub API ${res.status}: ${raw.slice(0, 400)}`);
+function readHistory(historyPath) {
+  try {
+    const raw = readFileSync(historyPath, 'utf8');
+    return raw
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => {
+        try {
+          return JSON.parse(line);
+        } catch {
+          return null;
+        }
+      })
+      .filter(Boolean);
+  } catch {
+    return [];
   }
-
-  return JSON.parse(raw);
 }
 
 function evaluateConsecutiveSuccess(runs, required) {
@@ -54,7 +57,9 @@ function evaluateConsecutiveSuccess(runs, required) {
   const inspected = [];
 
   for (const run of runs) {
-    if (run.status !== 'completed') continue;
+    const status = String(run.status || '').trim().toLowerCase();
+    const conclusion = String(run.conclusion || '').trim().toLowerCase();
+    const passed = conclusion === 'success' || status === 'passed' || status === 'success';
 
     inspected.push({
       id: run.id,
@@ -64,9 +69,10 @@ function evaluateConsecutiveSuccess(runs, required) {
       html_url: run.html_url,
       head_sha: run.head_sha,
       event: run.event,
+      result: passed ? 'success' : 'failure',
     });
 
-    if (run.conclusion === 'success') {
+    if (passed) {
       consecutive += 1;
       if (consecutive >= required) {
         break;
@@ -91,43 +97,34 @@ async function main() {
     argValue('--out') || `tools/mlops/domain-canary/promotion-gate/${runId}/promotion-gate.json`,
   );
 
-  const repository = firstNonEmpty([process.env.GITHUB_REPOSITORY]);
-  const token = firstNonEmpty([process.env.GITHUB_TOKEN]);
+  const historyPath = resolve(ROOT, argValue('--history') || DEFAULT_HISTORY);
+  const historyRuns = readHistory(historyPath);
+  const { consecutive: localConsecutive, inspected: localInspected } = evaluateConsecutiveSuccess(historyRuns.slice().reverse(), required);
 
-  if (!repository || !token) {
+  if (historyRuns.length === 0) {
     const report = {
       generatedAt: new Date().toISOString(),
       strict,
       status: strict ? 'failed' : 'skipped',
-      reason: 'missing_github_repository_or_token',
+      reason: 'missing_local_canary_history',
       requiredConsecutiveGreen: required,
       achievedConsecutiveGreen: 0,
       inspectedRuns: [],
+      historyPath,
     };
 
     writeReport(outputPath, report);
 
     if (strict) {
-      console.error('Missing GITHUB_REPOSITORY or GITHUB_TOKEN.');
+      console.error('Missing local canary history. Run the domain canary workflow locally first.');
       process.exit(1);
     }
 
-    console.log('Promotion gate skipped: missing GITHUB_REPOSITORY or GITHUB_TOKEN.');
+    console.log('Promotion gate skipped: missing local canary history.');
     process.exit(0);
   }
-
-  const [owner, repo] = repository.split('/');
-  const workflowFile = firstNonEmpty([
-    process.env.MLOPS_CANARY_WORKFLOW_FILE,
-    'ops-mlops-domain-canary.yml',
-  ]);
-
-  const branch = firstNonEmpty([process.env.MLOPS_CANARY_BRANCH, 'main']);
-  const listUrl = `https://api.github.com/repos/${owner}/${repo}/actions/workflows/${encodeURIComponent(workflowFile)}/runs?per_page=50&branch=${encodeURIComponent(branch)}`;
-
-  const data = await githubGet(listUrl, token);
-  const runs = Array.isArray(data.workflow_runs) ? data.workflow_runs : [];
-  const { consecutive, inspected } = evaluateConsecutiveSuccess(runs, required);
+  const consecutive = localConsecutive;
+  const inspected = localInspected;
 
   const passed = consecutive >= required;
   const report = {
@@ -135,9 +132,7 @@ async function main() {
     strict,
     status: passed ? 'passed' : 'failed',
     reason: passed ? 'ok' : 'insufficient_consecutive_green_runs',
-    repository,
-    workflowFile,
-    branch,
+    historyPath,
     requiredConsecutiveGreen: required,
     achievedConsecutiveGreen: consecutive,
     inspectedRuns: inspected,

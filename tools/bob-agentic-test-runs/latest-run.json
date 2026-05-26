@@ -1,29 +1,66 @@
 {
-  "updatedAt": "2026-05-23T13:48:16.624Z",
-  "runId": "2026-05-23T13-44-32-803Z",
+  "updatedAt": "2026-05-26T05:42:17.307Z",
+  "runId": "2026-05-26T01-42-49-930Z",
   "batch": "all",
-  "scope": "quick",
-  "resumeMode": false,
+  "scope": "full",
+  "resumeMode": true,
   "continueOnFailure": true,
-  "startedAt": "2026-05-23T13:44:32.815Z",
-  "endedAt": null,
+  "startedAt": "2026-05-26T01:42:49.943Z",
+  "endedAt": "2026-05-26T05:42:16.556Z",
   "summary": {
-    "passed": 3,
-    "failed": 0
+    "passed": 2,
+    "failed": 6
   },
-  "failedStages": [],
-  "failureContexts": [
+  "failedStages": [
     {
-      "folder": "e2e-bob-human-emulator-Bob-58e01-eps-access-controls-visible-chromium-bob",
-      "testName": "e2e/bob-human-emulator.spec.ts >> Bob human emulator capability suite >> enterprise sweep creates a user through the UI and keeps access controls visible",
-      "location": "tests/e2e/bob-human-emulator.spec.ts:50:3",
-      "error": "TimeoutError: page.waitForResponse: Timeout 10000ms exceeded while waiting for event \"response\""
+      "id": "nav-parity",
+      "exitCode": 1,
+      "durationMs": 53353
     },
     {
-      "folder": "e2e-bob-human-emulator-Bob-58e01-eps-access-controls-visible-chromium-bob-retry1",
-      "testName": "e2e/bob-human-emulator.spec.ts >> Bob human emulator capability suite >> enterprise sweep creates a user through the UI and keeps access controls visible",
-      "location": "tests/e2e/bob-human-emulator.spec.ts:50:3",
-      "error": "TimeoutError: page.waitForResponse: Timeout 10000ms exceeded while waiting for event \"response\""
+      "id": "unit",
+      "exitCode": 1,
+      "durationMs": 96380
+    },
+    {
+      "id": "api",
+      "exitCode": 1,
+      "durationMs": 106099
+    },
+    {
+      "id": "workflow-e2e-all-projects",
+      "exitCode": 1,
+      "durationMs": 10877123
+    },
+    {
+      "id": "visual-e2e-emulation",
+      "exitCode": 1,
+      "durationMs": 156366
+    },
+    {
+      "id": "human-engine",
+      "exitCode": 1,
+      "durationMs": 51961
+    }
+  ],
+  "failureContexts": [
+    {
+      "folder": "e2e-crm-service-provider-v-18774-d-service-provider-visually-Mobile-Chrome",
+      "testName": "e2e/crm-service-provider-visual.spec.ts >> CRM full visual provisioning and module sweep >> validate live client and service provider visually",
+      "location": "tests/e2e/crm-service-provider-visual.spec.ts:48:3",
+      "error": "TimeoutError: locator.fill: Timeout 10000ms exceeded."
+    },
+    {
+      "folder": "e2e-crm-service-provider-v-18774-d-service-provider-visually-Mobile-Safari",
+      "testName": "e2e/crm-service-provider-visual.spec.ts >> CRM full visual provisioning and module sweep >> validate live client and service provider visually",
+      "location": "tests/e2e/crm-service-provider-visual.spec.ts:48:3",
+      "error": "TimeoutError: locator.fill: Timeout 10000ms exceeded."
+    },
+    {
+      "folder": "e2e-crm-service-provider-v-18774-d-service-provider-visually-chromium",
+      "testName": "e2e/crm-service-provider-visual.spec.ts >> CRM full visual provisioning and module sweep >> validate live client and service provider visually",
+      "location": "tests/e2e/crm-service-provider-visual.spec.ts:48:3",
+      "error": "TimeoutError: locator.fill: Timeout 10000ms exceeded."
     }
   ]
 }

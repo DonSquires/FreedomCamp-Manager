@@ -577,7 +577,9 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     return window.sessionStorage.getItem('adminOfficerPortalChoice') === 'selected'
   }
 
-  if (loading || directorGate.isLoading) {
+  const shouldShowLoading = (loading && !user) || directorGate.isLoading
+
+  if (shouldShowLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center space-y-4">

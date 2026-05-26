@@ -74,19 +74,19 @@ enable_manual_linking = false
 # automatically for local development via `supabase start`.
 
 [auth.email.template.invite]
-subject = "You're invited to FieldOps Manager"
+subject = "You're invited to Field Compliance Manager"
 content_path = "supabase/templates/invite.html"
 
 [auth.email.template.recovery]
-subject = "Reset Your Password - FieldOps Manager"
+subject = "Reset Your Password - Field Compliance Manager"
 content_path = "supabase/templates/recovery.html"
 
 [auth.email.template.confirmation]
-subject = "Confirm Your Email - FieldOps Manager"
+subject = "Confirm Your Email - Field Compliance Manager"
 content_path = "supabase/templates/confirmation.html"
 
 [auth.email.template.magic_link]
-subject = "Your Login Link - FieldOps Manager"
+subject = "Your Login Link - Field Compliance Manager"
 content_path = "supabase/templates/magic_link.html"
 
 # ── Edge Function JWT verification settings ──────────────────────────────────

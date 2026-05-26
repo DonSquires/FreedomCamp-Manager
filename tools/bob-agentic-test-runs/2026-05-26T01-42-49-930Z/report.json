@@ -1,0 +1,171 @@
+{
+  "runId": "2026-05-26T01-42-49-930Z",
+  "batch": "all",
+  "scope": "full",
+  "startedAt": "2026-05-26T01:42:49.943Z",
+  "endedAt": "2026-05-26T05:42:16.556Z",
+  "resumeMode": true,
+  "continueOnFailure": true,
+  "browserInstallAttempted": true,
+  "browserInstallExitCode": 0,
+  "stages": [
+    {
+      "id": "lint",
+      "description": "Lint codebase",
+      "command": "/workspaces/FreedomCamp-Manager/.tools/node-musl/bin/node",
+      "args": [
+        "scripts/run-test-with-bob-assist.mjs",
+        "--",
+        "npm",
+        "run",
+        "lint"
+      ],
+      "exitCode": 0,
+      "status": "pass",
+      "durationMs": 58182
+    },
+    {
+      "id": "build",
+      "description": "Build app",
+      "command": "/workspaces/FreedomCamp-Manager/.tools/node-musl/bin/node",
+      "args": [
+        "scripts/run-test-with-bob-assist.mjs",
+        "--",
+        "npm",
+        "run",
+        "build"
+      ],
+      "exitCode": 0,
+      "status": "pass",
+      "durationMs": 141382
+    },
+    {
+      "id": "nav-parity",
+      "description": "Run navigation parity tests",
+      "command": "/workspaces/FreedomCamp-Manager/.tools/node-musl/bin/node",
+      "args": [
+        "scripts/run-test-with-bob-assist.mjs",
+        "--",
+        "npm",
+        "run",
+        "test:nav-parity"
+      ],
+      "exitCode": 1,
+      "status": "fail",
+      "durationMs": 53353
+    },
+    {
+      "id": "unit",
+      "description": "Run unit tests",
+      "command": "/workspaces/FreedomCamp-Manager/.tools/node-musl/bin/node",
+      "args": [
+        "scripts/run-test-with-bob-assist.mjs",
+        "--",
+        "npm",
+        "run",
+        "test:unit"
+      ],
+      "exitCode": 1,
+      "status": "fail",
+      "durationMs": 96380
+    },
+    {
+      "id": "api",
+      "description": "Run API supporting-function tests",
+      "command": "/workspaces/FreedomCamp-Manager/.tools/node-musl/bin/node",
+      "args": [
+        "scripts/run-test-with-bob-assist.mjs",
+        "--",
+        "npm",
+        "run",
+        "test:api"
+      ],
+      "exitCode": 1,
+      "status": "fail",
+      "durationMs": 106099
+    },
+    {
+      "id": "workflow-e2e-all-projects",
+      "description": "Run end-to-end workflow tests across desktop/mobile projects",
+      "command": "/workspaces/FreedomCamp-Manager/.tools/node-musl/bin/node",
+      "args": [
+        "scripts/run-test-with-bob-assist.mjs",
+        "--",
+        "npx",
+        "playwright",
+        "test",
+        "tests/e2e/deep-functional.spec.ts",
+        "tests/e2e/module-route-access.spec.ts",
+        "tests/e2e/module-e2e-comprehensive.spec.ts",
+        "tests/e2e/ui-comprehensive.spec.ts",
+        "tests/e2e/officer-portal-walkthrough.spec.ts",
+        "tests/e2e/crm-business-crossover.spec.ts",
+        "tests/e2e/client-portal-isolation.spec.ts",
+        "tests/e2e/asset-management-scan.spec.ts",
+        "tests/e2e/report-generation.spec.ts",
+        "tests/e2e/capability-overview.spec.ts",
+        "--project",
+        "chromium",
+        "--project",
+        "firefox",
+        "--project",
+        "webkit",
+        "--project",
+        "Mobile Chrome",
+        "--project",
+        "Mobile Safari",
+        "--reporter=list,json"
+      ],
+      "exitCode": 1,
+      "status": "fail",
+      "durationMs": 10877123
+    },
+    {
+      "id": "visual-e2e-emulation",
+      "description": "Run visual regression-style sweeps on desktop and mobile emulation",
+      "command": "/workspaces/FreedomCamp-Manager/.tools/node-musl/bin/node",
+      "args": [
+        "scripts/run-test-with-bob-assist.mjs",
+        "--",
+        "npx",
+        "playwright",
+        "test",
+        "tests/e2e/crm-service-provider-visual.spec.ts",
+        "--project",
+        "chromium",
+        "--project",
+        "Mobile Chrome",
+        "--project",
+        "Mobile Safari",
+        "--reporter=list,json"
+      ],
+      "exitCode": 1,
+      "status": "fail",
+      "durationMs": 156366
+    },
+    {
+      "id": "human-engine",
+      "description": "Run agentic human-test engine for broad UI workflow probing",
+      "command": "/workspaces/FreedomCamp-Manager/.tools/node-musl/bin/node",
+      "args": [
+        "scripts/run-test-with-bob-assist.mjs",
+        "--",
+        "node",
+        "scripts/human-test-engine.mjs"
+      ],
+      "exitCode": 1,
+      "status": "fail",
+      "durationMs": 51961
+    }
+  ],
+  "summary": {
+    "passed": 2,
+    "failed": 6
+  },
+  "bugReportPublish": {
+    "attempted": true,
+    "skipped": null,
+    "exitCode": 0,
+    "completedAt": "2026-05-26T05:42:17.305Z"
+  }
+}
