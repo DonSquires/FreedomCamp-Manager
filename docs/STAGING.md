@@ -27,23 +27,24 @@ Validation evidence:
 1. Provider diagnostics result: healthy.
   - Endpoint: `https://api.runpod.ai/v2/n0bp1ifmq01cx2`
   - Health artifact: `data/inference-endpoint-health.json`
-2. Promotion gate rerun result: passed on the local-history path.
+2. Promotion gate rerun result: failed by policy threshold, not by runtime/tooling failure.
   - Required consecutive green runs: `3`
-  - Achieved consecutive green runs: `3`
-  - Source of truth: `tools/mlops/domain-canary/history.jsonl`
+  - Achieved consecutive green runs: `0`
+  - Latest recorded failure run id: `26277837877`
 
 Operational outcome:
 
 1. Tooling blocker is removed for this container session.
 2. Provider diagnostics path is green.
-3. Promotion path now uses local canary history as the source of truth, so the repo no longer depends on GitHub Actions run history for the promotion decision.
-4. Added the missing `ops-mlops-domain-canary.yml` workflow for optional audit/reporting, but the runtime promotion gate now reads local history from `tools/mlops/domain-canary/history.jsonl`.
+3. Promotion path remains blocked by canary quality history and must be recovered through successful canary runs before promotion can pass.
+4. Added the missing `ops-mlops-domain-canary.yml` workflow so future canary reruns can create real GitHub run history for the promotion gate.
 
 Recovery note:
 
-- Run `npm run mlops:canary:domains` to append a local canary result to `tools/mlops/domain-canary/history.jsonl`.
-- Re-run `npm run mlops:gate:promotion` to evaluate the local consecutive-green threshold.
-- GitHub Actions is no longer required for the core promotion decision path.
+- To build consecutive green history on a non-main branch, run the canary workflow on the branch and then re-run the promotion gate with `MLOPS_CANARY_BRANCH=<branch-name>`.
+- GitHub workflow dispatch from the current integration token is blocked with `Resource not accessible by integration`; a PAT or workflow-capable token is required to create new Actions runs on this branch.
+- `GITHUB_CODESPACE_TOKEN` is not a usable fallback for GitHub Actions dispatch here (`401 Bad credentials`).
+- Local canary health is currently green (`3/3` pass), but promotion remains blocked until GitHub run history exists for the branch.
 
 ---
 
