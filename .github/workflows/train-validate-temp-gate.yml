@@ -22,7 +22,6 @@ jobs:
         with:
           node-version: 20.15.0
           cache: npm
-          cache-dependency-path: backend/package-lock.json
 
       - name: Install backend dependencies
         working-directory: backend
