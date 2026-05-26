@@ -72,6 +72,10 @@ Model/runtime promotion sequence:
 4. Confirm docs/runtime drift checks are green before production promotion.
 5. Confirm PM-facing claims do not exceed manifested datasets and documented human-review boundaries.
 
+Implementation note:
+
+- The canary workflow is dispatchable via `ops-mlops-domain-canary.yml`, and the promotion gate can be evaluated against a non-main branch by setting `MLOPS_CANARY_BRANCH=<branch-name>` when replaying history for recovery.
+
 ## 5) Drift Detection and Retraining Cadence
 
 Cadence:

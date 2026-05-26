@@ -37,6 +37,11 @@ Operational outcome:
 1. Tooling blocker is removed for this container session.
 2. Provider diagnostics path is green.
 3. Promotion path remains blocked by canary quality history and must be recovered through successful canary runs before promotion can pass.
+4. Added the missing `ops-mlops-domain-canary.yml` workflow so future canary reruns can create real GitHub run history for the promotion gate.
+
+Recovery note:
+
+- To build consecutive green history on a non-main branch, run the canary workflow on the branch and then re-run the promotion gate with `MLOPS_CANARY_BRANCH=<branch-name>`.
 
 ---
 
