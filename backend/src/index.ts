@@ -928,7 +928,7 @@ async function triagePendingBugReports(args: {
         if (requestedId) {
           return true;
         }
-        return !Boolean(row.ai_analyzed);
+        return !row.ai_analyzed;
       })
       .slice(0, Math.max(1, args.limit));
 

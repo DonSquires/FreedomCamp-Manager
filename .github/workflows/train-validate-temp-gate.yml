@@ -1,4 +1,4 @@
-name: Temporary Train Validate Gate
+name: train-validate
 
 on:
   pull_request:
@@ -21,10 +21,11 @@ jobs:
         uses: actions/setup-node@v5
         with:
           node-version: 20.15.0
+          cache: npm
 
       - name: Install backend dependencies
         working-directory: backend
-        run: npm install
+        run: npm install --legacy-peer-deps
 
       - name: Validate backend build
         working-directory: backend

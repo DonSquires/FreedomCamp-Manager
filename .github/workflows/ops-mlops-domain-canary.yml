@@ -1,0 +1,44 @@
+name: Ops MLOps Domain Canary
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '15 3 * * *'
+
+permissions:
+  contents: read
+
+jobs:
+  domain-canary:
+    runs-on: ubuntu-latest
+    env:
+      BOB_SERVICE_URL: ${{ secrets.BOB_SERVICE_URL }}
+      INFERENCE_SERVICE_URL: ${{ secrets.INFERENCE_SERVICE_URL }}
+      BOB_INFERENCE_API_KEY: ${{ secrets.BOB_INFERENCE_API_KEY }}
+      INFERENCE_API_KEY: ${{ secrets.INFERENCE_API_KEY }}
+      MLOPS_CANARY_STRICT: 'true'
+      MLOPS_CANARY_TIMEOUT_MS: '25000'
+      MLOPS_CANARY_RETRIES: '2'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 20.15.0
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run domain canary
+        run: npm run mlops:canary:domains -- --out tools/mlops/domain-canary/${{ github.run_id }}/domain-canary.json
+
+      - name: Upload canary artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: domain-canary-${{ github.run_id }}
+          path: tools/mlops/domain-canary/${{ github.run_id }}/domain-canary.json
