@@ -3,6 +3,7 @@ import type { Database } from '@/types/database'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || ''
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
+const envFallbackNote = '(VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY, or legacy SUPABASE_URL / SUPABASE_ANON_KEY via build-time fallback)'
 
 const memoryStorage = new Map<string, string>()
 
@@ -42,13 +43,19 @@ const browserLock: SupabaseLock = async <T>(name: string, _acquireTimeout: numbe
     return fn()
   }
 
+  const acquireTimeout = Number.isFinite(_acquireTimeout) && _acquireTimeout > 0 ? _acquireTimeout : 5000
+  const controller = new AbortController()
+  const abortTimer = setTimeout(() => controller.abort(), acquireTimeout)
+
   try {
-    return await navigator.locks.request(name, { mode: 'exclusive' }, async () => fn())
+    return await navigator.locks.request(name, { mode: 'exclusive', signal: controller.signal }, async () => fn())
   } catch (error: unknown) {
     if (error instanceof DOMException && error.name === 'AbortError') {
       return fn()
     }
     throw error
+  } finally {
+    clearTimeout(abortTimer)
   }
 }
 
@@ -61,8 +68,8 @@ export const supabaseConfigured = !!(supabaseUrl && supabaseAnonKey)
 
 if (!supabaseConfigured) {
   console.warn(
-    '[Field Compliance Manager] VITE_SUPABASE_URL and/or VITE_SUPABASE_ANON_KEY are not set. ' +
-    'Configure these environment variables in your deployment platform ' +
+    '[Field Compliance Manager] Supabase env vars are not set. ' +
+    `Configure ${envFallbackNote} in your deployment platform ` +
     '(Environment Variables dashboard, or GitHub Secrets for the CI workflow). ' +
     'The application will not function until they are provided.'
   )

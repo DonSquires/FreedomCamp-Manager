@@ -85,6 +85,7 @@ if (!supabaseConfigured) {
         }}>
           <div>{'VITE_SUPABASE_URL=https://kxwjcupuxnnbnzcgmkoi.supabase.co'}</div>
           <div>VITE_SUPABASE_ANON_KEY=eyJhbGci...</div>
+          <div style={{ color: '#94a3b8', marginTop: '0.5rem' }}>Legacy support: SUPABASE_URL / SUPABASE_ANON_KEY are accepted at build time.</div>
         </div>
         <p style={{ color: '#64748b', fontSize: '0.875rem' }}>
           Find these values in the Supabase Dashboard → Settings → API.

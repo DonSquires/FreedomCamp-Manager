@@ -70,19 +70,27 @@ function softResolveAuthLoading(set: (partial: Partial<AuthState> | ((state: Aut
   }))
 }
 async function getFreshSessionAfterLogin() {
-  const { data, error } = await supabase.auth.refreshSession()
-  if (!error && data.session) {
-    return data.session
+  const { data, error } = await supabase.auth.getSession()
+  if (error) {
+    throw error
   }
-
-  const { data: fallbackData, error: fallbackError } = await supabase.auth.getSession()
-  if (fallbackError) {
-    throw fallbackError
-  }
-  if (!fallbackData.session) {
+  if (!data.session) {
     throw new Error('No active session after login')
   }
-  return fallbackData.session
+  return data.session
+}
+
+async function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  let timeoutHandle: ReturnType<typeof setTimeout> | null = null
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutHandle = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms)
+  })
+
+  try {
+    return await Promise.race([promise, timeoutPromise])
+  } finally {
+    if (timeoutHandle) clearTimeout(timeoutHandle)
+  }
 }
 
 interface AuthUser {
@@ -201,33 +209,28 @@ export const useAuthStore = create<AuthState>()(
         // interrupted browser session before creating a new one.
         clearClientAuthArtifacts()
 
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        })
+        const { data, error } = await withTimeout(
+          supabase.auth.signInWithPassword({
+            email,
+            password,
+          }),
+          20000,
+          'signInWithPassword'
+        )
 
         if (error) {
           throw error
         }
 
-        // Revoke all other active sessions for this user on the server so any
-        // stale JWT from a previous force-closed session cannot be replayed.
-        // Fire-and-forget — we don't want sign-out of others to block or fail
-        // the current login if the network hiccups.
-        supabase.auth.signOut({ scope: 'others' }).catch((e) => {
-          console.warn('[authStore] Failed to revoke previous sessions on login:', e)
-        })
+        // Prefer the session returned by sign-in. Immediate refresh can deadlock
+        // under competing auth locks in browser automation contexts.
+        const freshSession = data.session ?? await getFreshSessionAfterLogin()
 
-        // Force a fresh access token immediately after login so all downstream
-        // API calls use newly-issued credentials from this sign-in.
-        const freshSession = await getFreshSessionAfterLogin()
-
-        // Fetch user profile
-        const { data: profile, error: profileError } = await supabase
-          .from('user_profiles')
-          .select('id, email, role, organization_id, employer_organization_id, first_name, last_name, job_title, portal_access, authorized_work_locations, extra_organization_ids, ptt_channel_access')
-          .eq('id', freshSession.user.id)
-          .single()
+        // Fetch user profile with a short retry window. The auth session can
+        // be valid before the profile row is immediately readable through RLS
+        // in the same turn, so a single retry avoids turning a successful sign-in
+        // into a false login failure.
+        const { profile, error: profileError } = await fetchProfileWithRetry(freshSession.user.id, 3)
 
         if (profileError) {
           throw profileError
@@ -258,14 +261,16 @@ export const useAuthStore = create<AuthState>()(
       // global loading state, preventing the app from briefly unmounting and
       // causing a visual loop.
       unlockSession: async (email: string, password: string) => {
-        const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+        const { data, error } = await withTimeout(
+          supabase.auth.signInWithPassword({ email, password }),
+          20000,
+          'unlock signInWithPassword'
+        )
         if (error) throw error
 
-        const { data: profile, error: profileError } = await supabase
-          .from('user_profiles')
-          .select('id, email, role, organization_id, employer_organization_id, first_name, last_name, job_title, portal_access, authorized_work_locations, extra_organization_ids, ptt_channel_access')
-          .eq('id', data.user.id)
-          .single()
+        const freshSession = data.session ?? await getFreshSessionAfterLogin()
+
+        const { profile, error: profileError } = await fetchProfileWithRetry(freshSession.user.id, 3)
 
         if (profileError) {
           throw profileError

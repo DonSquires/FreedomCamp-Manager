@@ -237,7 +237,7 @@ export default function TimesheetReview() {
     return values.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')
   }
 
-  /** Generic FieldOps CSV — matches original export columns */
+  /** Generic Field Compliance CSV — matches original export columns */
   function buildGenericCsv(): string {
     const rows = [
       csvRow(['Officer', 'Email', 'Zone', 'Shift Start', 'Shift End', 'Duration', 'Status', 'Admin Notes']),
@@ -316,7 +316,7 @@ export default function TimesheetReview() {
   function handleExport() {
     if (filtered.length === 0) { toast.error('No shifts to export'); return }
     const FORMAT_META: Record<string, { csv: () => string; suffix: string; label: string }> = {
-      generic: { csv: buildGenericCsv, suffix: 'fieldops',   label: 'Generic FieldOps CSV' },
+      generic: { csv: buildGenericCsv, suffix: 'fieldops',   label: 'Generic Field Compliance CSV' },
       xero:    { csv: buildXeroCsv,   suffix: 'xero',        label: 'Xero Payroll CSV' },
       myob:    { csv: buildMyobCsv,   suffix: 'myob',        label: 'MYOB CSV' },
     }
@@ -576,7 +576,7 @@ export default function TimesheetReview() {
             <Label className="text-xs text-muted-foreground uppercase tracking-wide">Export Format</Label>
             <div className="space-y-2">
               {([
-                { value: 'generic', label: 'Generic CSV', desc: 'All shifts — full FieldOps columns' },
+                { value: 'generic', label: 'Generic CSV', desc: 'All shifts — full Field Compliance columns' },
                 { value: 'xero',    label: 'Xero Payroll',  desc: 'NZ Xero payroll import format (approved only)' },
                 { value: 'myob',    label: 'MYOB AccountRight / PayGlobal', desc: 'MYOB timesheet import format (approved only)' },
               ] as const).map(opt => (

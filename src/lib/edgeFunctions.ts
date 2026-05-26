@@ -484,7 +484,7 @@ async function callEdgeFunction<T = any>(
       if (!isLocked) {
         lock('Session Lockout', 'Your session is no longer active. Log back in to unlock this workspace.')
       }
-      if (options.showToast && shouldEmitSessionToast()) {
+      if (options.showToast && !isLocked && shouldEmitSessionToast()) {
         toast.error(errorMessage)
       }
       return { data: null, error: errorMessage }
@@ -654,7 +654,7 @@ async function callEdgeFunctionRoute<T = any>(
       if (!isLocked) {
         lock('Session Lockout', 'Your session is no longer active. Log back in to unlock this workspace.')
       }
-      if (showToast && shouldEmitSessionToast()) {
+      if (showToast && !isLocked && shouldEmitSessionToast()) {
         toast.error(message)
       }
       return { data: null, error: message }

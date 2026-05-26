@@ -429,16 +429,16 @@ export default function Settings() {
                 <div className="py-3 border-b">
                   <Label htmlFor="auto-logoff-minutes" className="font-medium text-sm">Auto Logoff Timeout (minutes)</Label>
                   <p className="text-xs text-muted-foreground mt-1">
-                    Recommended 10-30 minutes. A warning appears 60 seconds before lock.
+                    Recommended 15-30 minutes. A warning appears 60 seconds before lock.
                   </p>
                   <Input
                     id="auto-logoff-minutes"
                     type="number"
-                    min={5}
+                    min={15}
                     max={120}
                     disabled={!appPrefs.auto_logoff_enabled}
                     value={autoLogoffMinutes}
-                    onChange={(e) => setAutoLogoffMinutes(Number(e.target.value || 10))}
+                    onChange={(e) => setAutoLogoffMinutes(Number(e.target.value || 15))}
                     className="mt-2 w-40"
                   />
                 </div>

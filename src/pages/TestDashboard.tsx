@@ -371,8 +371,8 @@ export default function TestDashboard() {
                 <Button size="sm" variant="outline" onClick={() => setAutoLogoffEnabled(!autoLogoffEnabled)}>
                   Toggle Auto Logoff
                 </Button>
-                <Button size="sm" variant="outline" onClick={() => setInactivityMinutes(5)}>
-                  Set Timeout to 5 min
+                <Button size="sm" variant="outline" onClick={() => setInactivityMinutes(15)}>
+                  Set Timeout to 15 min
                 </Button>
               </div>
               <Button

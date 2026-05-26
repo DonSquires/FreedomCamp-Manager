@@ -537,7 +537,7 @@ export function AdminNavigationMenu() {
               className="h-7 w-7 rounded object-cover"
             />
             <span className="font-semibold text-gray-900 dark:text-white hidden sm:block text-sm">
-              FieldOps
+              Field Compliance Manager
             </span>
           </Link>
 

@@ -1,0 +1,23 @@
+{
+  "generatedAt": "2026-05-26T04:01:37.795Z",
+  "strict": true,
+  "status": "passed",
+  "reason": "ok",
+  "historyPath": "/workspaces/FreedomCamp-Manager/tools/mlops/domain-canary/history.jsonl",
+  "requiredConsecutiveGreen": 3,
+  "achievedConsecutiveGreen": 3,
+  "inspectedRuns": [
+    {
+      "status": "passed",
+      "result": "success"
+    },
+    {
+      "status": "passed",
+      "result": "success"
+    },
+    {
+      "status": "passed",
+      "result": "success"
+    }
+  ]
+}
