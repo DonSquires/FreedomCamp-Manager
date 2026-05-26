@@ -75,6 +75,8 @@ Model/runtime promotion sequence:
 Implementation note:
 
 - The canary workflow is dispatchable via `ops-mlops-domain-canary.yml`, and the promotion gate can be evaluated against a non-main branch by setting `MLOPS_CANARY_BRANCH=<branch-name>` when replaying history for recovery.
+- If the repo integration token cannot dispatch GitHub Actions, the canary must be promoted via a workflow-capable PAT or by merging the workflow to the default branch so GitHub can record run history.
+- Local canary success does not satisfy the promotion gate by itself; the gate still requires recorded GitHub run history.
 
 ## 5) Drift Detection and Retraining Cadence
 
