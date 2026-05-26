@@ -40,6 +40,7 @@ export default function OrganizationManagement() {
   const [selectedOrg, setSelectedOrg] = useState<Organization | null>(null)
   const [orgSearch, setOrgSearch] = useState('')
   const [orgTypeFilter, setOrgTypeFilter] = useState('all')
+  const [createSuccessNotice, setCreateSuccessNotice] = useState('')
   
   // Edit form state
   const [editName, setEditName] = useState('')
@@ -135,6 +136,10 @@ export default function OrganizationManagement() {
       // Derive level from type
       const levelMap: Record<string, number> = { owner: 1, service_provider: 2, client: 3, contractor: 4 }
       const level = levelMap[createOrgType] || 3
+      const parentOrgId =
+        createOrgType === 'owner'
+          ? null
+          : (createParentOrgId || user?.organization_id || null)
 
       const { error } = await (supabase
         .from('organizations') as any)
@@ -142,7 +147,7 @@ export default function OrganizationManagement() {
           name: createName.trim(),
           organization_type: createOrgType,
           organization_level: level,
-          parent_organization_id: createParentOrgId,
+          parent_organization_id: parentOrgId,
           enforcement_workflow: createWorkflow,
           overnight_verification_mode: createOvernightVerificationMode,
           contact_email: createEmail || null,
@@ -154,6 +159,7 @@ export default function OrganizationManagement() {
     },
     onSuccess: () => {
       toast.success('Organisation created successfully')
+      setCreateSuccessNotice('Organisation created successfully')
       queryClient.invalidateQueries({ queryKey: ['organizations'] })
       setShowCreateDialog(false)
       resetCreateForm()
@@ -304,6 +310,14 @@ export default function OrganizationManagement() {
           </Button>
         </div>
       </div>
+
+      {createSuccessNotice && (
+        <Card className="mb-4 border-green-200 bg-green-50/70 dark:bg-green-950/20 dark:border-green-900">
+          <CardContent className="py-3 text-sm text-green-800 dark:text-green-300">
+            {createSuccessNotice}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Organizations List */}
       <div className="space-y-4">
