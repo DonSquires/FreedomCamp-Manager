@@ -185,7 +185,6 @@ poll_runpod_job() {
     --arg warning "RunPod job accepted but did not reach terminal status within polling window." \
     '{success:true,accepted:true,id:$id,status:$status,mode:$mode,warning:$warning}'
 }
-
 to_json_file_array() {
   local csv="$1"
   if [[ -z "$csv" ]]; then
@@ -503,7 +502,6 @@ queue_code_task() {
           return 0
         fi
       fi
-
       local serverless_error
       serverless_error=$(jq -r '.error // .output?.error // ""' <<<"$response")
       if grep -qi 'Unknown action: code_task_submit' <<<"$serverless_error"; then
