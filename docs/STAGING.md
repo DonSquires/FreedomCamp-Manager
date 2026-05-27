@@ -4,6 +4,10 @@ Date: 2026-05-20 (npm/Actions cleanup pass)
 Owner: GitHub Copilot
 Status: **ALL GATES GREEN** — npm standardized; Vercel/mobile deployment updated; GH Actions deduplication in place
 
+Canonical command policy:
+- Active execution standard is npm-only.
+- Historical Bun command entries in archival sections are evidence snapshots and should be interpreted with npm equivalents for current execution.
+
 ---
 
 ## Human Emulator Org-Creation Reliability Update (2026-05-26)

@@ -21,6 +21,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(__dirname, '..')
 const OUTPUT_PATH = resolve(ROOT, 'data', 'inference-endpoint-health.json')
 const PROBE_TIMEOUT_MS = 8000
+const HARD_TIMEOUT_MS = Number.parseInt(process.env.BOB_INFERENCE_SMOKE_HARD_TIMEOUT_MS || '120000', 10)
 const PROBE_PROMPT = 'ping'
 
 /**
@@ -155,7 +156,44 @@ async function main() {
 
   console.log(`Probing ${endpoints.length} endpoint(s)…\n`)
 
-  const results = await Promise.all(endpoints.map(probeEndpoint))
+  const timedResults = Promise.race([
+    Promise.all(endpoints.map(probeEndpoint)),
+    new Promise((_, reject) => {
+      setTimeout(() => reject(new Error(`inference_smoke_hard_timeout_${HARD_TIMEOUT_MS}ms`)), HARD_TIMEOUT_MS)
+    }),
+  ])
+
+  let results
+  try {
+    results = await timedResults
+  } catch (error) {
+    const failureSummary = {
+      generatedAt: new Date().toISOString(),
+      totalEndpoints: endpoints.length,
+      healthyCount: 0,
+      degradedCount: 0,
+      downCount: endpoints.length,
+      primaryEndpoint: endpoints[0] ?? null,
+      primaryStatus: 'down',
+      recommended: null,
+      hardTimeoutMs: HARD_TIMEOUT_MS,
+      error: String(error?.message ?? error),
+      endpoints: endpoints.map((url) => ({
+        url,
+        probeUrl: buildProbeUrl(url),
+        status: 'down',
+        latencyMs: null,
+        httpStatus: null,
+        detail: 'hard-timeout',
+        checkedAt: new Date().toISOString(),
+      })),
+    }
+
+    mkdirSync(resolve(ROOT, 'data'), { recursive: true })
+    writeFileSync(OUTPUT_PATH, JSON.stringify(failureSummary, null, 2))
+    console.error(`\nInference endpoint smoke check hit hard timeout (${HARD_TIMEOUT_MS}ms).`)
+    process.exit(1)
+  }
 
   const healthy = results.filter((r) => r.status === 'healthy')
   const degraded = results.filter((r) => r.status === 'degraded')
