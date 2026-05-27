@@ -19,6 +19,7 @@ import {
 } from 'lucide-react'
 import { formatDateTime } from '@/lib/utils'
 import { PaperworkSearchAnimation } from '@/components/features/PaperworkSearchAnimation'
+import { buildPreferredMapUrlForCoordinates } from '@/lib/inhouseMapping'
 
 interface OfficerLocation {
   id: string
@@ -409,14 +410,14 @@ export default function LiveOfficerTracking() {
                       onClick={() => {
                         if (officer.gps_latitude && officer.gps_longitude) {
                           window.open(
-                            `https://www.google.com/maps?q=${officer.gps_latitude},${officer.gps_longitude}`,
+                            buildPreferredMapUrlForCoordinates(officer.gps_latitude, officer.gps_longitude),
                             '_blank'
                           )
                         }
                       }}
                     >
                       <Navigation className="h-4 w-4 mr-1" />
-                      View Map
+                      In-house Map
                     </Button>
                   </div>
                 </CardContent>

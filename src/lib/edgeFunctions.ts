@@ -289,6 +289,32 @@ function mapGrandmasterActionToMutationContract(action: string): string | null {
   return null
 }
 
+function readSupabaseAccessTokenFromStorage(): string | null {
+  if (typeof window === 'undefined') return null
+
+  const storages: Storage[] = [window.localStorage, window.sessionStorage]
+  for (const storage of storages) {
+    for (let i = 0; i < storage.length; i += 1) {
+      const key = storage.key(i)
+      if (!key || !key.startsWith('sb-') || !key.includes('-auth-token')) continue
+
+      const raw = storage.getItem(key)
+      if (!raw) continue
+
+      try {
+        const parsed = JSON.parse(raw)
+        if (typeof parsed?.access_token === 'string' && parsed.access_token.length > 20) {
+          return parsed.access_token
+        }
+      } catch {
+        // Ignore malformed auth storage values.
+      }
+    }
+  }
+
+  return null
+}
+
 /** Retrieve the current session's access token, or null if not signed in. */
 async function getValidAccessToken(): Promise<string | null> {
   try {
@@ -325,7 +351,7 @@ async function getValidAccessToken(): Promise<string | null> {
 
     return session.access_token
   } catch {
-    return null
+    return readSupabaseAccessTokenFromStorage()
   }
 }
 

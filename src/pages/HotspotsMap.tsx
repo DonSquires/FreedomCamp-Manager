@@ -22,6 +22,7 @@ import {
   Eye,
   EyeOff
 } from 'lucide-react'
+import { PRIMARY_MAP_TILE_ATTRIBUTION, PRIMARY_MAP_TILE_URL } from '@/lib/inhouseMapping'
 
 interface HotspotData {
   zone_id: string
@@ -320,8 +321,8 @@ export default function HotspotsMap() {
                 />
 
                 <TileLayer
-                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                  attribution={PRIMARY_MAP_TILE_ATTRIBUTION}
+                  url={PRIMARY_MAP_TILE_URL}
                 />
 
                 {mappedHotspots.map((hotspot) => (

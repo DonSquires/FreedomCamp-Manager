@@ -31,6 +31,181 @@ interface Organization {
   contact_phone: string | null
 }
 
+async function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(() => reject(new Error(`${label} timed out after ${Math.round(ms / 1000)}s`)), ms)
+      }),
+    ])
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId)
+  }
+}
+
+function readSupabaseAccessTokenFromStorage(): string | null {
+  if (typeof window === 'undefined') return null
+
+  const storages: Storage[] = [window.localStorage, window.sessionStorage]
+  for (const storage of storages) {
+    for (let i = 0; i < storage.length; i += 1) {
+      const key = storage.key(i)
+      if (!key || !key.startsWith('sb-') || !key.includes('-auth-token')) continue
+
+      const raw = storage.getItem(key)
+      if (!raw) continue
+
+      try {
+        const parsed = JSON.parse(raw)
+        if (typeof parsed?.access_token === 'string' && parsed.access_token.length > 20) {
+          return parsed.access_token
+        }
+      } catch {
+        // Ignore malformed auth storage values.
+      }
+    }
+  }
+
+  return null
+}
+
+async function postgrestInsertOrganization(payload: Record<string, unknown>, timeoutMs = 15000): Promise<void> {
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined
+  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    throw new Error('Supabase environment variables are missing')
+  }
+
+  let accessToken = readSupabaseAccessTokenFromStorage()
+
+  if (!accessToken) {
+    const {
+      data: { session },
+    } = await withTimeout(
+      supabase.auth.getSession(),
+      Math.min(2000, timeoutMs),
+      'Session lookup'
+    )
+
+    accessToken = session?.access_token ?? null
+  }
+
+  if (!accessToken) {
+    throw new Error('Session expired. Please sign in again')
+  }
+
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
+
+  try {
+    const response = await fetch(`${supabaseUrl}/rest/v1/organizations`, {
+      method: 'POST',
+      headers: {
+        apikey: supabaseAnonKey,
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+        Prefer: 'return=minimal',
+      },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    })
+
+    if (response.ok) return
+
+    const raw = await response.text().catch(() => '')
+    let message = 'Failed to create organisation'
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw)
+        message = parsed?.message || parsed?.error_description || parsed?.hint || raw
+      } catch {
+        message = raw
+      }
+    }
+    throw new Error(message)
+  } catch (error: any) {
+    if (error?.name === 'AbortError') {
+      throw new Error(`Organisation create timed out after ${Math.round(timeoutMs / 1000)}s`)
+    }
+    throw error
+  } finally {
+    clearTimeout(timeoutId)
+  }
+}
+
+async function postgrestFetchOrganizations(timeoutMs = 15000): Promise<Organization[]> {
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined
+  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    throw new Error('Supabase environment variables are missing')
+  }
+
+  let accessToken = readSupabaseAccessTokenFromStorage()
+
+  if (!accessToken) {
+    const {
+      data: { session },
+    } = await withTimeout(
+      supabase.auth.getSession(),
+      Math.min(2000, timeoutMs),
+      'Session lookup'
+    )
+
+    accessToken = session?.access_token ?? null
+  }
+
+  if (!accessToken) {
+    throw new Error('Session expired. Please sign in again')
+  }
+
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
+
+  try {
+    const query = new URLSearchParams({
+      select: '*',
+      order: 'organization_level.asc',
+    })
+
+    const response = await fetch(`${supabaseUrl}/rest/v1/organizations?${query.toString()}`, {
+      method: 'GET',
+      headers: {
+        apikey: supabaseAnonKey,
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      signal: controller.signal,
+    })
+
+    const raw = await response.text().catch(() => '')
+    if (!response.ok) {
+      let message = 'Failed to load organisations'
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw)
+          message = parsed?.message || parsed?.error_description || parsed?.hint || raw
+        } catch {
+          message = raw
+        }
+      }
+      throw new Error(message)
+    }
+
+    return raw ? JSON.parse(raw) as Organization[] : []
+  } catch (error: any) {
+    if (error?.name === 'AbortError') {
+      throw new Error(`Organisation list timed out after ${Math.round(timeoutMs / 1000)}s`)
+    }
+    throw error
+  } finally {
+    clearTimeout(timeoutId)
+  }
+}
+
 export default function OrganizationManagement() {
   const { user } = useAuthStore()
   const queryClient = useQueryClient()
@@ -67,15 +242,7 @@ export default function OrganizationManagement() {
   // Fetch organizations
   const { data: organizations, isLoading } = useQuery({
     queryKey: ['organizations'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('organizations')
-        .select('*')
-        .order('organization_level', { ascending: true })
-
-      if (error) throw error
-      return data as Organization[]
-    },
+    queryFn: async () => postgrestFetchOrganizations(),
   })
 
   // Fetch organization stats
@@ -141,21 +308,17 @@ export default function OrganizationManagement() {
           ? null
           : (createParentOrgId || user?.organization_id || null)
 
-      const { error } = await (supabase
-        .from('organizations') as any)
-        .insert({
-          name: createName.trim(),
-          organization_type: createOrgType,
-          organization_level: level,
-          parent_organization_id: parentOrgId,
-          enforcement_workflow: createWorkflow,
-          overnight_verification_mode: createOvernightVerificationMode,
-          contact_email: createEmail || null,
-          contact_phone: createPhone || null,
-          is_active: true,
-        })
-
-      if (error) throw error
+      await postgrestInsertOrganization({
+        name: createName.trim(),
+        organization_type: createOrgType,
+        organization_level: level,
+        parent_organization_id: parentOrgId,
+        enforcement_workflow: createWorkflow,
+        overnight_verification_mode: createOvernightVerificationMode,
+        contact_email: createEmail || null,
+        contact_phone: createPhone || null,
+        is_active: true,
+      })
     },
     onSuccess: () => {
       toast.success('Organisation created successfully')

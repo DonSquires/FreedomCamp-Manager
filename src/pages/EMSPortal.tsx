@@ -83,9 +83,9 @@ const SENIORITY_LABELS: Record<number, string> = {
 }
 
 const ACTION_LABELS: Record<string, string> = {
-  fit:              'Fit Device',
-  remove:           'Remove Device',
-  check:            'Compliance Check',
+  fit:              'Installation (Fit Device)',
+  check:            'Field Visit / Inspection',
+  remove:           'Maintenance (Remove Device)',
   escort:           'Escort / Transport',
   emergency_remove: 'Emergency Removal',
 }
@@ -205,14 +205,29 @@ export default function EMSPortal() {
 
   const createMutation = useMutation({
     mutationFn: async (data: EMSFormData) => {
-      if (!user?.id || !user?.organization_id) throw new Error('Not authenticated')
+      if (!user?.id) throw new Error('Not authenticated')
       if (!data.action) throw new Error('Please select an action')
       if (!data.start_time) throw new Error('Start time is required')
+
+      let organizationId = user.organization_id ?? null
+      if (!organizationId) {
+        const { data: profile, error: profileError } = await supabase
+          .from('user_profiles')
+          .select('organization_id')
+          .eq('id', user.id)
+          .single()
+
+        if (profileError || !profile?.organization_id) {
+          throw new Error('Unable to resolve your organization. Please try again.')
+        }
+
+        organizationId = profile.organization_id
+      }
 
       const bh = billableHours(data.start_time, data.end_time, data.attendance_date)
 
       const { error } = await supabase.from('ems_attendances').insert({
-        organization_id:        user.organization_id,
+        organization_id:        organizationId,
         officer_id:             user.id,
         attendance_date:        data.attendance_date,
         action:                 data.action,
@@ -228,7 +243,7 @@ export default function EMSPortal() {
         rate_per_hour:          data.rate_per_hour ? parseFloat(data.rate_per_hour) : null,
         billable_hours:         bh,
         notes:                  data.notes || null,
-        status:                 'submitted',
+        status:                 'draft',
       })
       if (error) throw error
     },
@@ -558,7 +573,10 @@ export default function EMSPortal() {
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
             <Button
               className="bg-red-700 hover:bg-red-800 text-white"
-              onClick={() => createMutation.mutate(form)}
+              onClick={() => {
+                toast.success('EMS attendance submitted')
+                createMutation.mutate(form)
+              }}
               disabled={createMutation.isPending}
             >
               <Zap className="h-4 w-4 mr-1.5" />

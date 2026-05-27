@@ -17,6 +17,7 @@ import {
   RefreshCw,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { buildPreferredMapUrlForCoordinates } from '@/lib/inhouseMapping'
 
 interface OfficerLocation {
   userId: string
@@ -240,13 +241,13 @@ export function GPSTracker({
                         onClick={(e) => {
                           e.stopPropagation()
                           window.open(
-                            `https://www.google.com/maps?q=${officer.latitude},${officer.longitude}`,
+                            buildPreferredMapUrlForCoordinates(officer.latitude, officer.longitude),
                             '_blank'
                           )
                         }}
                       >
                         <MapPin className="h-4 w-4 mr-2" />
-                        View on Google Maps
+                        Open in In-house Map
                       </Button>
                     </div>
                   )}
