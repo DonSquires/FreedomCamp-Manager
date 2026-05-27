@@ -32,6 +32,19 @@ else if (cleanFromQuery) localStorage.setItem('clean_rebuild_surface', 'true')
 const cleanFromStorage = localStorage.getItem('clean_rebuild_surface') === 'true'
 const useCleanSurface = enableCleanRebuildRoutes || cleanFromQuery || cleanFromStorage
 
+const recentDispatchTitles: string[] = (() => {
+  if (typeof window === 'undefined') return []
+  try {
+    const raw = window.sessionStorage.getItem('fc_recent_dispatch_titles')
+    if (!raw) return []
+    const parsed = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return []
+    return parsed.filter((item): item is string => typeof item === 'string' && item.trim().length > 0).slice(0, 8)
+  } catch {
+    return []
+  }
+})()
+
 if (import.meta.env.DEV) {
   assertRouteManifestValid(routeManifest)
 }
@@ -51,6 +64,16 @@ const appBootLoader = (
         <p className="text-sm font-semibold uppercase tracking-[0.28em] text-cyan-200">Iron Eagle Security Limited</p>
         <h1 className="text-2xl font-bold text-white">Field Compliance Manager</h1>
         <p className="text-sm text-slate-300">Preparing the Freedom Camp enforcement workspace...</p>
+        {recentDispatchTitles.length > 0 && (
+          <div className="pt-3 text-left">
+            <p className="text-xs uppercase tracking-wide text-slate-400">Recent dispatch jobs</p>
+            <div className="mt-2 space-y-1">
+              {recentDispatchTitles.map((title) => (
+                <p key={title} className="text-xs text-slate-200">{title}</p>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   </div>

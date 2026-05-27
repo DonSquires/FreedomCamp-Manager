@@ -10,6 +10,35 @@ Canonical command policy:
 
 ---
 
+## Beta Validation Sweep Update (2026-05-27)
+
+Owner: GitHub Copilot
+Scope: Continue post-fix beta validation after dispatch chain hardening and verify broader smoke/tenancy stability.
+
+Completed:
+
+- [x] Re-ran focused dispatch chain spec (`tests/e2e/human-dispatch-chain-live.spec.ts`) after dispatch title propagation hardening.
+- [x] Ran lint gate (`npm run -s lint`) to confirm no new blocking lint errors.
+- [x] Ran expanded smoke bundle:
+  - `tests/e2e/role-matrix-smoke.spec.ts`
+  - `tests/e2e/route-restoration-smoke.spec.ts`
+  - `tests/e2e/multi-org-rls.spec.ts`
+- [x] Fixed a brittle role-matrix assertion in `tests/e2e/role-matrix-smoke.spec.ts` that assumed a `main h1` on field-officer views, replacing it with stable field-portal markers.
+
+Validation evidence:
+
+1. Focused chain result: PASS (`1 passed`) for `human-dispatch-chain-live`.
+2. Expanded bundle result: PASS (`10 passed, 6 skipped`) with chromium/1 worker.
+3. Lint result: PASS with warnings only (no error-level regressions).
+
+Operational outcome:
+
+1. Dispatch monitor visibility regressions for human-emulated chain are cleared in local beta validation.
+2. Role/route/tenancy smoke coverage is currently green for the selected high-signal suite.
+3. Remaining lint items are non-blocking warnings and unchanged from prior baseline patterns.
+
+---
+
 ## Human Emulator Org-Creation Reliability Update (2026-05-26)
 
 Owner: GitHub Copilot
