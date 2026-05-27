@@ -38,6 +38,7 @@ import {
   Download,
   FileText,
 } from 'lucide-react'
+import { buildPreferredMapUrlForAddress } from '@/lib/inhouseMapping'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface NoiseAssessmentRow {
@@ -244,13 +245,13 @@ export function NoiseEvidenceBundle({
             {/* Location link */}
             {assessment.address && (
               <a
-                href={`https://maps.google.com/?q=${encodeURIComponent(assessment.address)}`}
+                href={buildPreferredMapUrlForAddress(assessment.address)}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-1.5 text-xs text-blue-700 hover:underline"
               >
                 <MapPin className="h-3.5 w-3.5 shrink-0" />
-                View location on Google Maps
+                Open location on map
                 <ExternalLink className="h-3 w-3" />
               </a>
             )}

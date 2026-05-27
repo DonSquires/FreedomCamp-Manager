@@ -36,6 +36,10 @@ import {
   FileText,
   Printer,
 } from 'lucide-react'
+import {
+  buildPreferredMapUrlForAddress,
+  buildPreferredMapUrlForCoordinates,
+} from '@/lib/inhouseMapping'
 
 interface IncidentEvidenceBundleProps {
   incidentId: string
@@ -270,19 +274,19 @@ export function IncidentEvidenceBundle({ incidentId, className = '' }: IncidentE
             {/* GPS location link */}
             {evidence.location_address && (
               <a
-                href={`https://maps.google.com/?q=${encodeURIComponent(evidence.location_address)}`}
+                href={buildPreferredMapUrlForAddress(evidence.location_address)}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-1.5 text-xs text-indigo-700 hover:underline"
               >
                 <MapPin className="h-3.5 w-3.5 shrink-0" />
-                View location on Google Maps
+                Open location on map
                 <ExternalLink className="h-3 w-3" />
               </a>
             )}
             {evidence.location_lat != null && evidence.location_lng != null && !evidence.location_address && (
               <a
-                href={`https://maps.google.com/?q=${evidence.location_lat},${evidence.location_lng}`}
+                href={buildPreferredMapUrlForCoordinates(evidence.location_lat, evidence.location_lng)}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-1.5 text-xs text-indigo-700 hover:underline"

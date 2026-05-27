@@ -7,6 +7,7 @@
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
+import { buildPreferredMapUrlForCoordinates } from '@/lib/inhouseMapping'
 import { useAuthStore } from '@/stores/authStore'
 import {
   usePatrols,
@@ -133,15 +134,18 @@ export default function PatrolScheduleManagement() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('zones')
-        .select('id, name')
+        .select('id, name, location_lat, location_lng')
         .eq('organization_id', user!.organization_id!)
-        .eq('is_active', true)
         .order('name')
       if (error) throw error
-      return data as { id: string; name: string }[]
+      return data as { id: string; name: string; location_lat: number | null; location_lng: number | null }[]
     },
     enabled: !!user?.organization_id,
   })
+
+  const zoneCoordsById = Object.fromEntries(
+    zones.map((zone) => [zone.id, { lat: zone.location_lat, lng: zone.location_lng }]),
+  )
 
   const { data: officers = [] } = useQuery({
     queryKey: ['officers_list', user?.organization_id],
@@ -180,7 +184,7 @@ export default function PatrolScheduleManagement() {
 
   // ─── Helpers ──────────────────────────────────────────────────────────────
 
-  function handleCreate() {
+  async function handleCreate() {
     if (!form.zone_id) {
       toast.error('Please select a zone')
       return
@@ -190,8 +194,34 @@ export default function PatrolScheduleManagement() {
       return
     }
 
+    toast.success('Patrol scheduled')
+
+    let zoneId = form.zone_id
+
+    if (zoneId === '__auto_zone__') {
+      if (!user?.organization_id) {
+        toast.error('Organization context is still loading. Please retry.')
+        return
+      }
+
+      const autoName = `Default Zone ${new Date().toLocaleDateString('en-NZ')}`
+      const { data: createdZone, error } = await supabase
+        .from('zones')
+        .insert({ organization_id: user.organization_id, name: autoName, is_active: true })
+        .select('id')
+        .single()
+
+      if (error || !createdZone?.id) {
+        toast.error(error?.message || 'Failed to create a default zone')
+        return
+      }
+
+      zoneId = createdZone.id
+      await queryClient.invalidateQueries({ queryKey: ['zones_list_schedule', user.organization_id] })
+    }
+
     createMutation.mutate({
-      zone_id: form.zone_id,
+      zone_id: zoneId,
       patrol_date: form.patrol_date,
       shift: form.shift,
       assigned_to: form.assigned_to || null,
@@ -208,6 +238,7 @@ export default function PatrolScheduleManagement() {
       patrol_route_id: form.patrol_route_id || null,
     }, {
       onSuccess: () => {
+        toast.success('Patrol scheduled')
         setShowCreate(false)
         setForm(emptyForm())
       },
@@ -347,10 +378,26 @@ export default function PatrolScheduleManagement() {
                       </TableCell>
                       <TableCell className="capitalize">{patrol.shift}</TableCell>
                       <TableCell>
-                        <span className="flex items-center gap-1 text-sm">
-                          <MapPin className="h-3 w-3" />
-                          {patrol.zone?.name ?? '—'}
-                        </span>
+                        <div className="flex items-center gap-2 text-sm">
+                          <span className="flex items-center gap-1">
+                            <MapPin className="h-3 w-3" />
+                            {patrol.zone?.name ?? '—'}
+                          </span>
+                          {(() => {
+                            const coords = patrol.zone_id ? zoneCoordsById[patrol.zone_id] : null
+                            if (coords?.lat == null || coords?.lng == null) return null
+                            return (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-6 px-2"
+                                onClick={() => window.open(buildPreferredMapUrlForCoordinates(coords.lat, coords.lng), '_blank', 'noopener,noreferrer')}
+                              >
+                                <MapPin className="h-3 w-3" />
+                              </Button>
+                            )
+                          })()}
+                        </div>
                       </TableCell>
                       <TableCell>
                         {patrol.officer ? (
@@ -471,6 +518,9 @@ export default function PatrolScheduleManagement() {
                   <SelectValue placeholder="Select zone" />
                 </SelectTrigger>
                 <SelectContent>
+                  {zones.length === 0 && (
+                    <SelectItem value="__auto_zone__">Auto-create default zone</SelectItem>
+                  )}
                   {zones.map(z => (
                     <SelectItem key={z.id} value={z.id}>{z.name}</SelectItem>
                   ))}

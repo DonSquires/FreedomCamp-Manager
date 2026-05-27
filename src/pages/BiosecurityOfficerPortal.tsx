@@ -30,6 +30,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Textarea } from '@/components/ui/textarea'
 import { toast } from 'sonner'
 import { formatDateTime } from '@/lib/utils'
+import { buildPreferredMapUrlForCoordinates } from '@/lib/inhouseMapping'
 import { FieldSafetyBar } from '@/components/features/FieldSafetyBar'
 import { useOperationalOrganization } from '@/hooks/useOperationalOrganization'
 import { useGeofenceOrgTransition } from '@/hooks/useGeofenceOrgTransition'
@@ -159,6 +160,14 @@ export default function BiosecurityOfficerPortal() {
   const [state, setState] = useState<AssessmentState>({ ...EMPTY_ASSESSMENT })
   const [printingId, setPrintingId] = useState<string | null>(null)
   const [printHtml, setPrintHtml] = useState<string | null>(null)
+
+  const openInHouseMapPing = (lat: number, lng: number) => {
+    window.open(
+      buildPreferredMapUrlForCoordinates(lat, lng),
+      '_blank',
+      'noopener,noreferrer',
+    )
+  }
 
   const set = (patch: Partial<AssessmentState>) => setState(prev => ({ ...prev, ...patch }))
 
@@ -653,10 +662,23 @@ export default function BiosecurityOfficerPortal() {
                   value={state.address} onChange={e => set({ address: e.target.value })} />
               </div>
               {state.gps_lat && (
-                <p className="text-xs text-emerald-700 flex items-center gap-1">
-                  <MapPin className="h-3 w-3" />
-                  GPS: {state.gps_lat.toFixed(5)}, {state.gps_lng?.toFixed(5)}
-                </p>
+                <div className="flex items-center gap-2">
+                  <p className="text-xs text-emerald-700 flex items-center gap-1">
+                    <MapPin className="h-3 w-3" />
+                    GPS: {state.gps_lat.toFixed(5)}, {state.gps_lng?.toFixed(5)}
+                  </p>
+                  {state.gps_lng != null && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2 text-xs"
+                      onClick={() => openInHouseMapPing(state.gps_lat as number, state.gps_lng as number)}
+                    >
+                      Map Ping
+                    </Button>
+                  )}
+                </div>
               )}
               {!state.gps_lat && (
                 <p className="text-xs text-gray-400">Acquiring GPS location…</p>

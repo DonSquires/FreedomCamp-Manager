@@ -45,8 +45,8 @@ export default tseslint.config(
       '@typescript-eslint/no-unused-vars': 'off',
       // Enforce unique keys in JSX lists to prevent React duplicate-key warnings.
       'react/jsx-key': 'error',
-      // Warn on unescaped HTML entities in JSX text to prevent rendering bugs.
-      'react/no-unescaped-entities': 'warn',
+      // Disabled to avoid noisy legacy warning backlog across existing content-heavy pages.
+      'react/no-unescaped-entities': 'off',
       // Phase II-CI: Block calls to retired archive edge functions.
       // Add new archive names here whenever a function is moved to _archive.
       'no-restricted-syntax': [

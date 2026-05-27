@@ -32,6 +32,7 @@ import {
 } from 'lucide-react'
 import { nzDateToUTCStart, nzDateToUTCEnd } from '@/lib/timezone'
 import { formatDateTime } from '@/lib/utils'
+import { buildPreferredMapUrlForCoordinates } from '@/lib/inhouseMapping'
 
 interface Participant {
   id: string
@@ -211,13 +212,13 @@ function OfficerContextPanel({ userId, title = 'Officer context', organizationId
                       className="mt-2"
                       onClick={() => {
                         window.open(
-                          `https://www.google.com/maps?q=${locationData.last_gps_latitude},${locationData.last_gps_longitude}`,
+                          buildPreferredMapUrlForCoordinates(locationData.last_gps_latitude, locationData.last_gps_longitude),
                           '_blank'
                         )
                       }}
                     >
                       <Navigation className="h-4 w-4 mr-2" />
-                      Open in Maps
+                      Open in In-house Map
                     </Button>
                   )}
                 </div>

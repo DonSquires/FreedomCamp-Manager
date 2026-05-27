@@ -660,6 +660,15 @@ function canAuthorTraining(user: { role?: string | null; job_title?: string | nu
 }
 
 function buildMapDirectionsUrl(from: string, to: string, mode: string) {
+  const coordinateMatch = String(to || '').trim().match(/^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$/)
+  if (coordinateMatch) {
+    const lat = Number(coordinateMatch[1])
+    const lng = Number(coordinateMatch[2])
+    if (Number.isFinite(lat) && Number.isFinite(lng)) {
+      return `${window.location.origin}/operations-map?focus=${lat.toFixed(5)},${lng.toFixed(5)}`
+    }
+  }
+
   const travelMode = mode || 'driving'
   return `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(from)}&destination=${encodeURIComponent(to)}&travelmode=${encodeURIComponent(travelMode)}`
 }

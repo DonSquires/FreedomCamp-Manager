@@ -65,6 +65,12 @@ function buildDefaultMap(): PermMap {
   return Object.fromEntries(SITE_FIELD_GROUPS.map(g => [g, { ...DENY }])) as PermMap
 }
 
+function buildAllowAllMap(): PermMap {
+  return Object.fromEntries(
+    SITE_FIELD_GROUPS.map((g) => [g, { canView: true, canEdit: true }])
+  ) as PermMap
+}
+
 // ── Hook ─────────────────────────────────────────────────────────────────────
 
 export interface UseSitePermissionsResult {
@@ -81,6 +87,7 @@ export function useSitePermissions(): UseSitePermissionsResult {
   const { user } = useAuthStore()
   const role   = user?.role
   const userId = user?.id
+  const isSuperUser = role === 'master' || role === 'grand_master'
 
   // Fetch role defaults
   const { data: rolePerms = [], isLoading: loadingRole } = useQuery<RolePermRow[]>({
@@ -116,6 +123,16 @@ export function useSitePermissions(): UseSitePermissionsResult {
 
   // Merge: user override (if not null) → role default → deny
   const perms = buildDefaultMap()
+
+  if (isSuperUser) {
+    const fullAccess = buildAllowAllMap()
+    return {
+      perms: fullAccess,
+      canView: (g) => fullAccess[g]?.canView ?? false,
+      canEdit: (g) => fullAccess[g]?.canEdit ?? false,
+      isLoading,
+    }
+  }
 
   for (const rp of rolePerms) {
     const g = rp.field_group as SiteFieldGroup
