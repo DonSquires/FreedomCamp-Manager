@@ -247,16 +247,18 @@ export default function DispatchMonitor() {
       if (error) throw error
       return (data ?? []) as Array<{ id: string; title: string | null; status: string; created_at: string }>
     },
+    enabled: !!orgId,
   })
 
   const { data: myRecentJobs = [] } = useQuery<Array<{ id: string; title: string | null; created_at: string }>>({
-    queryKey: ['dispatch-monitor-recent-created-by-me', user?.id, tick],
+    queryKey: ['dispatch-monitor-recent-created-by-me', orgId, user?.id, tick],
     queryFn: async () => {
-      if (!user?.id) return []
+      if (!user?.id || !orgId) return []
 
       const { data, error } = await (supabase as any)
         .from('dispatch_jobs')
         .select('id, title, created_at')
+        .eq('organization_id', orgId)
         .eq('created_by', user.id)
         .order('created_at', { ascending: false })
         .limit(25)
@@ -264,7 +266,7 @@ export default function DispatchMonitor() {
       if (error) throw error
       return (data ?? []) as Array<{ id: string; title: string | null; created_at: string }>
     },
-    enabled: !!user?.id,
+    enabled: !!orgId && !!user?.id,
   })
 
   const localRecentTitles = useMemo(() => {

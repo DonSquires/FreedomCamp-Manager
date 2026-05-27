@@ -649,12 +649,9 @@ export default function DispatchConsole() {
 
   function handleCreate(e: React.FormEvent) {
     e.preventDefault()
+    if (createMutation.isPending) return
     if (!form.title.trim()) { toast.error('Title is required'); return }
     const snapshot = { ...form }
-    cacheRecentDispatchTitle(snapshot.title)
-    // Close immediately so repeated create flows are not blocked if async paths lag.
-    setShowCreate(false)
-    setForm(emptyForm())
     createMutation.mutate(snapshot)
   }
 
@@ -1314,7 +1311,9 @@ export default function DispatchConsole() {
 
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setShowCreate(false)}>Cancel</Button>
-              <Button type="submit">Create Job</Button>
+              <Button type="submit" disabled={createMutation.isPending}>
+                {createMutation.isPending ? 'Creating...' : 'Create Job'}
+              </Button>
             </DialogFooter>
           </form>
         </DialogContent>
