@@ -8,6 +8,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
+import { buildPreferredMapUrlForCoordinates } from '@/lib/inhouseMapping'
 import { useAuthStore } from '@/stores/authStore'
 import { useZones } from '@/hooks/useZones'
 import { useOperationalOrganization } from '@/hooks/useOperationalOrganization'
@@ -71,7 +72,7 @@ interface OpenShift {
   status: 'open' | 'filled' | 'cancelled'
   claimed_by: string | null
   claimed_at: string | null
-  zone: { name: string } | null
+  zone: { name: string; location_lat: number | null; location_lng: number | null } | null
   claimed_by_user: { first_name: string; last_name: string } | null
   created_by_user: { first_name: string; last_name: string } | null
 }
@@ -147,7 +148,7 @@ export default function OpenShifts() {
           id, organization_id, zone_id, shift_date, shift_type,
           start_time, end_time, title, description, requirements,
           priority, status, claimed_by, claimed_at,
-          zone:zones!zone_id(name),
+          zone:zones!zone_id(name, location_lat, location_lng),
           claimed_by_user:user_profiles!claimed_by(first_name, last_name),
           created_by_user:user_profiles!created_by(first_name, last_name)
         `)
@@ -314,7 +315,25 @@ export default function OpenShifts() {
                           <div className="text-xs text-muted-foreground truncate max-w-[180px]">{s.description}</div>
                         )}
                       </TableCell>
-                      <TableCell className="text-sm">{s.zone?.name ?? <span className="text-muted-foreground">Any</span>}</TableCell>
+                      <TableCell className="text-sm">
+                        <div className="flex items-center gap-2">
+                          {s.zone?.name ? (
+                            <span>{s.zone.name}</span>
+                          ) : (
+                            <span className="text-muted-foreground">Any</span>
+                          )}
+                          {s.zone?.location_lat != null && s.zone?.location_lng != null && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-6 px-2"
+                              onClick={() => window.open(buildPreferredMapUrlForCoordinates(s.zone.location_lat, s.zone.location_lng), '_blank', 'noopener,noreferrer')}
+                            >
+                              <MapPin className="h-3 w-3" />
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
                       <TableCell className="text-sm">{new Date(s.shift_date).toLocaleDateString('en-NZ', { weekday: 'short', month: 'short', day: 'numeric' })}</TableCell>
                       <TableCell className="text-sm">
                         {s.start_time ? (

@@ -7,6 +7,7 @@ import { useState, useMemo, useCallback, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
+import { buildPreferredMapUrlForCoordinates } from '@/lib/inhouseMapping'
 import { useAuthStore } from '@/stores/authStore'
 import { useOperationalOrganization } from '@/hooks/useOperationalOrganization'
 import { useClientOrgIds } from '@/hooks/useClientOrgIds'
@@ -63,6 +64,7 @@ import {
   Calendar,
   Users,
   Clock,
+  MapPin,
   CheckCircle,
   FileText,
   X,
@@ -156,6 +158,8 @@ interface ClientSite {
 interface Zone {
   id: string
   name: string
+  location_lat: number | null
+  location_lng: number | null
 }
 
 interface PatrolRoute {
@@ -299,42 +303,60 @@ interface ShiftCardProps {
   shift: RosterShift
   siteName: string
   zoneName: string
+  mapUrl?: string
   onClick: (e?: React.MouseEvent) => void
 }
 
-function ShiftCard({ shift, siteName, zoneName, onClick }: ShiftCardProps) {
+function ShiftCard({ shift, siteName, zoneName, mapUrl, onClick }: ShiftCardProps) {
   const style = STATUS_STYLE[shift.status]
   const isCancelled = shift.status === 'cancelled'
   const label = siteName || zoneName || shift.position_title || '–'
   const timeRange = `${formatTime(shift.start_time)}–${formatTime(shift.end_time)}`
 
   return (
-    <button
-      onClick={onClick}
-      className={`
-        w-full text-left text-xs rounded border-l-4 px-2 py-1 mb-1 cursor-pointer
-        hover:brightness-95 transition-all select-none
-        ${style.border} ${shift.has_conflict ? 'bg-orange-50 border-l-orange-500' : style.bg}
-        ${isCancelled ? 'opacity-60 line-through' : ''}
-      `}
-    >
-      <ListCardRow
-        className="gap-1 rounded-none bg-transparent p-0 text-xs"
-        left={<span className="font-medium truncate leading-tight">{timeRange}</span>}
-        right={shift.has_conflict ? <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0 text-orange-500" /> : undefined}
-      />
-      <ListCardRow
-        className="mt-0.5 gap-1 rounded-none bg-transparent p-0 text-xs"
-        left={<span className="truncate text-gray-600 leading-tight">{label}</span>}
-        right={<span className={`rounded px-1 py-0 text-[10px] ${style.badge}`}>{style.label}</span>}
-      />
-      {shift.schedule_warning && (
-        <div className="mt-1 inline-flex max-w-full items-center gap-1 rounded bg-amber-100 px-1 py-0.5 text-[10px] text-amber-800">
-          <AlertTriangle className="h-3 w-3 shrink-0" />
-          <span className="truncate">{shift.schedule_warning}</span>
-        </div>
+    <div className="mb-1 flex items-start gap-1">
+      <button
+        onClick={onClick}
+        className={`
+          w-full text-left text-xs rounded border-l-4 px-2 py-1 cursor-pointer
+          hover:brightness-95 transition-all select-none
+          ${style.border} ${shift.has_conflict ? 'bg-orange-50 border-l-orange-500' : style.bg}
+          ${isCancelled ? 'opacity-60 line-through' : ''}
+        `}
+      >
+        <ListCardRow
+          className="gap-1 rounded-none bg-transparent p-0 text-xs"
+          left={<span className="font-medium truncate leading-tight">{timeRange}</span>}
+          right={shift.has_conflict ? <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0 text-orange-500" /> : undefined}
+        />
+        <ListCardRow
+          className="mt-0.5 gap-1 rounded-none bg-transparent p-0 text-xs"
+          left={<span className="truncate text-gray-600 leading-tight">{label}</span>}
+          right={<span className={`rounded px-1 py-0 text-[10px] ${style.badge}`}>{style.label}</span>}
+        />
+        {shift.schedule_warning && (
+          <div className="mt-1 inline-flex max-w-full items-center gap-1 rounded bg-amber-100 px-1 py-0.5 text-[10px] text-amber-800">
+            <AlertTriangle className="h-3 w-3 shrink-0" />
+            <span className="truncate">{shift.schedule_warning}</span>
+          </div>
+        )}
+      </button>
+      {mapUrl && (
+        <Button
+          type="button"
+          size="icon"
+          variant="ghost"
+          className="h-6 w-6 shrink-0"
+          onClick={(e) => {
+            e.stopPropagation()
+            window.open(mapUrl, '_blank', 'noopener,noreferrer')
+          }}
+          aria-label="Open shift zone map"
+        >
+          <MapPin className="h-3.5 w-3.5" />
+        </Button>
       )}
-    </button>
+    </div>
   )
 }
 
@@ -1239,7 +1261,7 @@ export default function RosterPlanner() {
     queryFn: async () => {
       let q = (supabase as any)
         .from('zones')
-        .select('id, name')
+        .select('id, name, location_lat, location_lng')
         .eq('is_active', true)
         .order('name')
 
@@ -1606,6 +1628,10 @@ export default function RosterPlanner() {
   )
   const zoneMap = useMemo(
     () => Object.fromEntries(zones.map((z) => [z.id, z.name])),
+    [zones]
+  )
+  const zoneCoordinateMap = useMemo(
+    () => Object.fromEntries(zones.map((z) => [z.id, { lat: z.location_lat, lng: z.location_lng }])),
     [zones]
   )
 
@@ -2013,16 +2039,26 @@ export default function RosterPlanner() {
                             </div>
                           ))}
                           {cellShifts.map((shift) => (
+                            (() => {
+                              const coords = shift.zone_id ? zoneCoordinateMap[shift.zone_id] : null
+                              const mapUrl =
+                                coords?.lat != null && coords?.lng != null
+                                  ? buildPreferredMapUrlForCoordinates(coords.lat, coords.lng)
+                                  : undefined
+                              return (
                             <ShiftCard
                               key={shift.id}
                               shift={shift}
                               siteName={shift.client_site_id ? siteMap[shift.client_site_id] || '' : ''}
                               zoneName={shift.zone_id ? zoneMap[shift.zone_id] || '' : ''}
+                              mapUrl={mapUrl}
                               onClick={(e) => {
                                 (e as any).stopPropagation?.()
                                 openEdit(shift)
                               }}
                             />
+                              )
+                            })()
                           ))}
                           {cellShifts.length === 0 && (
                             <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center h-full">
@@ -2064,16 +2100,26 @@ export default function RosterPlanner() {
                           }}
                         >
                           {cellShifts.map((shift) => (
+                            (() => {
+                              const coords = shift.zone_id ? zoneCoordinateMap[shift.zone_id] : null
+                              const mapUrl =
+                                coords?.lat != null && coords?.lng != null
+                                  ? buildPreferredMapUrlForCoordinates(coords.lat, coords.lng)
+                                  : undefined
+                              return (
                             <ShiftCard
                               key={shift.id}
                               shift={shift}
                               siteName={shift.client_site_id ? siteMap[shift.client_site_id] || '' : ''}
                               zoneName={shift.zone_id ? zoneMap[shift.zone_id] || '' : ''}
+                              mapUrl={mapUrl}
                               onClick={(e) => {
                                 (e as any).stopPropagation?.()
                                 openEdit(shift)
                               }}
                             />
+                              )
+                            })()
                           ))}
                           {cellShifts.length === 0 && (
                             <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center h-full">

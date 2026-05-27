@@ -29,6 +29,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
 import { toast } from 'sonner'
 import { formatDateTime } from '@/lib/utils'
+import { buildPreferredMapUrlForCoordinates } from '@/lib/inhouseMapping'
 import { useOperationalOrganization } from '@/hooks/useOperationalOrganization'
 import { useGeofenceOrgTransition } from '@/hooks/useGeofenceOrgTransition'
 import { useShiftGate } from '@/hooks/useShiftGate'
@@ -205,6 +206,14 @@ export default function SmokeComplaintOfficerPortal() {
   const [aiLoading, setAiLoading] = useState(false)
   const [gpsLoading, setGpsLoading] = useState(false)
   const [printingId, setPrintingId] = useState<string | null>(null)
+
+  const openInHouseMapPing = (lat: number, lng: number) => {
+    window.open(
+      buildPreferredMapUrlForCoordinates(lat, lng),
+      '_blank',
+      'noopener,noreferrer',
+    )
+  }
 
   // ── Queries ────────────────────────────────────────────────────────────────
 
@@ -546,7 +555,20 @@ export default function SmokeComplaintOfficerPortal() {
             {state.gps_lat ? 'GPS Captured ✓' : 'Capture GPS'}
           </Button>
           {state.gps_lat && (
-            <span className="text-xs text-muted-foreground">{state.gps_lat.toFixed(5)}, {state.gps_lng?.toFixed(5)}</span>
+            <>
+              <span className="text-xs text-muted-foreground">{state.gps_lat.toFixed(5)}, {state.gps_lng?.toFixed(5)}</span>
+              {state.gps_lng != null && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2 text-xs"
+                  onClick={() => openInHouseMapPing(state.gps_lat as number, state.gps_lng as number)}
+                >
+                  Map Ping
+                </Button>
+              )}
+            </>
           )}
         </div>
       </div>
