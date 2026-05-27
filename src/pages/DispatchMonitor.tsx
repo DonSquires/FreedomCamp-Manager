@@ -7,7 +7,7 @@
  * job type, and alarm type.  Auto-refreshes every 30 seconds.
  */
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
@@ -134,11 +134,16 @@ export default function DispatchMonitor() {
 
       // ── Phase B path: operational_cases + dispatch_events ──────────────────
       if (phaseBEnabled) {
-        const { data: cases, error } = await supabase
+        let casesQuery = supabase
           .from('operational_cases')
           .select('id, status, priority, created_at, dispatch_events(*)')
-          .eq('organization_id', orgId ?? '')
           .gte('created_at', new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString()) as any
+
+        if (orgId) {
+          casesQuery = casesQuery.eq('organization_id', orgId)
+        }
+
+        const { data: cases, error } = await casesQuery
 
         if (error) throw error
 
@@ -176,13 +181,18 @@ export default function DispatchMonitor() {
       // ── Legacy path: dispatch_jobs ─────────────────────────────────────────
 
       // Fetch all jobs for today onwards
-      const { data: jobs, error } = await runDispatchJobsQueryWithAlarmTypeFallback<any[]>((includeAlarmType) =>
-        (supabase as any)
+      const { data: jobs, error } = await runDispatchJobsQueryWithAlarmTypeFallback<any[]>((includeAlarmType) => {
+        let jobsQuery = (supabase as any)
           .from('dispatch_jobs')
           .select(includeAlarmType ? DISPATCH_MONITOR_SELECT : DISPATCH_MONITOR_SELECT.replace('alarm_type, ', ''))
-          .eq('organization_id', orgId ?? '')
           .gte('created_at', new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString())
-      )
+
+        if (orgId) {
+          jobsQuery = jobsQuery.eq('organization_id', orgId)
+        }
+
+        return jobsQuery
+      })
 
       if (error) throw error
 
@@ -219,18 +229,80 @@ export default function DispatchMonitor() {
     enabled: !!orgId,
   })
 
+  const { data: recentJobs = [] } = useQuery<Array<{ id: string; title: string | null; status: string; created_at: string }>>({
+    queryKey: ['dispatch-monitor-recent', orgId, tick],
+    queryFn: async () => {
+      let recentQuery = (supabase as any)
+        .from('dispatch_jobs')
+        .select('id, title, status, created_at')
+        .order('created_at', { ascending: false })
+        .limit(25)
+
+      if (orgId) {
+        recentQuery = recentQuery.eq('organization_id', orgId)
+      }
+
+      const { data, error } = await recentQuery
+
+      if (error) throw error
+      return (data ?? []) as Array<{ id: string; title: string | null; status: string; created_at: string }>
+    },
+  })
+
+  const { data: myRecentJobs = [] } = useQuery<Array<{ id: string; title: string | null; created_at: string }>>({
+    queryKey: ['dispatch-monitor-recent-created-by-me', user?.id, tick],
+    queryFn: async () => {
+      if (!user?.id) return []
+
+      const { data, error } = await (supabase as any)
+        .from('dispatch_jobs')
+        .select('id, title, created_at')
+        .eq('created_by', user.id)
+        .order('created_at', { ascending: false })
+        .limit(25)
+
+      if (error) throw error
+      return (data ?? []) as Array<{ id: string; title: string | null; created_at: string }>
+    },
+    enabled: !!user?.id,
+  })
+
+  const localRecentTitles = useMemo(() => {
+    if (typeof window === 'undefined') return [] as string[]
+    try {
+      const raw = window.sessionStorage.getItem('fc_recent_dispatch_titles')
+      if (!raw) return []
+      const parsed = JSON.parse(raw)
+      if (!Array.isArray(parsed)) return []
+      return parsed.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+    } catch {
+      return []
+    }
+  }, [])
+
+  const mergedRecentJobTitles = useMemo(() => {
+    const fromQuery = recentJobs.map((job) => job.title).filter((item): item is string => Boolean(item && item.trim()))
+    const fromCreatedByMe = myRecentJobs.map((job) => job.title).filter((item): item is string => Boolean(item && item.trim()))
+    return [...new Set([...localRecentTitles, ...fromCreatedByMe, ...fromQuery])].slice(0, 12)
+  }, [localRecentTitles, myRecentJobs, recentJobs])
+
   const { data: paritySnapshot, isLoading: parityLoading } = useQuery<DispatchParitySnapshot>({
     queryKey: ['dispatch-monitor-parity', orgId, tick],
     queryFn: async () => {
       const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
-      const { data: jobs, error } = await runDispatchJobsQueryWithAlarmTypeFallback<any[]>((includeAlarmType) =>
-        (supabase as any)
+      const { data: jobs, error } = await runDispatchJobsQueryWithAlarmTypeFallback<any[]>((includeAlarmType) => {
+        let jobsQuery = (supabase as any)
           .from('dispatch_jobs')
           .select(includeAlarmType ? DISPATCH_MONITOR_SELECT : DISPATCH_MONITOR_SELECT.replace('alarm_type, ', ''))
-          .eq('organization_id', orgId ?? '')
           .in('status', ['pending', 'dispatched', 'acknowledged', 'en_route', 'on_scene', 'completed'])
           .gte('created_at', since)
-      )
+
+        if (orgId) {
+          jobsQuery = jobsQuery.eq('organization_id', orgId)
+        }
+
+        return jobsQuery
+      })
 
       if (error) throw error
 
@@ -498,6 +570,20 @@ export default function DispatchMonitor() {
 
           {/* ── Filter panel (right 1/4) ───────────────────────────────────── */}
           <div className="space-y-4">
+
+            <div>
+              <p className="text-sm font-semibold mb-2">Recent Jobs:</p>
+              <div className="space-y-1.5">
+                {mergedRecentJobTitles.map((title) => (
+                  <div key={title} className="rounded-md border bg-background px-2.5 py-1.5 text-xs">
+                    {title}
+                  </div>
+                ))}
+                {mergedRecentJobTitles.length === 0 && (
+                  <p className="text-xs text-muted-foreground">No dispatch jobs found for this organization yet.</p>
+                )}
+              </div>
+            </div>
 
             <div>
               <p className="text-sm font-semibold mb-2">Filter by Job Type:</p>
