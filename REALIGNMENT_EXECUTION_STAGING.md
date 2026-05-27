@@ -34,7 +34,8 @@ cat docs/BUILD_REALIGNMENT_PLAN_2026-05-04.md | head -50
 ### Prerequisites (Already in Codespace)
 - **Git** (version control, commit/push)
 - **npm** (package manager, canonical)
-- **Node.js 18+** (for scripts)
+- **Node.js 20.x** (repo engine contract: `>=20 <21`)
+- **npm 10.x** (repo engine contract: `>=10 <11`)
 - **TypeScript** (configured in `tsconfig.json`)
 
 ### Required Tools for Phase A

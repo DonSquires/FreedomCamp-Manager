@@ -7,7 +7,7 @@ Reviewed staging entry points and directly associated docs:
 - docs/STAGING.md
 - REALIGNMENT_EXECUTION_STAGING.md
 - docs/DEPLOYMENT_GUIDE.md
-- tmp/staging-associated-docs-index.md (61 associated markdown docs indexed)
+- Associated-doc index was generated locally during review (61 markdown files) and not committed to the repository.
 
 ## Summary
 
@@ -15,9 +15,11 @@ Canonical runtime policy in this repository is npm-first and npm-only for packag
 
 ## Findings
 
-1. REALIGNMENT_EXECUTION_STAGING.md still presents Bun as required in Quick Start and tooling sections.
-2. docs/DEPLOYMENT_GUIDE.md still uses Bun validation commands in pre-deploy and post-push checks.
-3. docs/STAGING.md contains historical Bun command evidence entries mixed with npm-only governance sections.
+Findings below describe the pre-fix state observed during this review pass:
+
+1. REALIGNMENT_EXECUTION_STAGING.md previously presented Bun as required in Quick Start and tooling sections.
+2. docs/DEPLOYMENT_GUIDE.md previously used Bun validation commands in pre-deploy and post-push checks.
+3. docs/STAGING.md includes historical Bun command evidence entries mixed with npm-only governance sections.
 
 ## Resolution Applied
 

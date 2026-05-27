@@ -21,7 +21,12 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(__dirname, '..')
 const OUTPUT_PATH = resolve(ROOT, 'data', 'inference-endpoint-health.json')
 const PROBE_TIMEOUT_MS = 8000
-const HARD_TIMEOUT_MS = Number.parseInt(process.env.BOB_INFERENCE_SMOKE_HARD_TIMEOUT_MS || '120000', 10)
+const HARD_TIMEOUT_DEFAULT_MS = 120000
+const rawHardTimeout = Number(process.env.BOB_INFERENCE_SMOKE_HARD_TIMEOUT_MS || HARD_TIMEOUT_DEFAULT_MS)
+const HARD_TIMEOUT_MS =
+  Number.isFinite(rawHardTimeout) && rawHardTimeout > PROBE_TIMEOUT_MS
+    ? rawHardTimeout
+    : HARD_TIMEOUT_DEFAULT_MS
 const PROBE_PROMPT = 'ping'
 
 /**
