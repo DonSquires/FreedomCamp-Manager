@@ -59,6 +59,8 @@ function fmtCoords(lat: number | null, lng: number | null) {
 }
 
 const ALERT_STATUS_COLOURS: Record<string, string> = {
+  pending:      'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300',
+  open:         'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300',
   active:       'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300',
   acknowledged: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300',
   resolved:     'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
@@ -133,7 +135,7 @@ export default function WelfareCheckinLog() {
   // ── Derived KPIs ─────────────────────────────────────────────────────────
 
   const overdueCount        = checkins.filter(c => c.is_overdue).length
-  const activeAlerts        = alerts.filter(a => a.status === 'active').length
+  const activeAlerts        = alerts.filter(a => a.status === 'active' || a.status === 'pending' || a.status === 'open').length
   const acknowledgedAlerts  = alerts.filter(a => a.status === 'acknowledged').length
   const resolvedAlerts      = alerts.filter(a => a.status === 'resolved').length
 
@@ -321,7 +323,7 @@ export default function WelfareCheckinLog() {
                             {fmtDate(a.last_activity_at)}
                           </TableCell>
                           <TableCell>
-                            {a.status === 'active' && (
+                            {(a.status === 'active' || a.status === 'pending' || a.status === 'open') && (
                               <Button
                                 size="sm"
                                 variant="outline"
