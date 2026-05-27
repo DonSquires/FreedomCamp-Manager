@@ -244,7 +244,7 @@
     "start": "sh -c 'vite preview --host 0.0.0.0 --port ${PORT:-4173}'",
     "test": "node scripts/run-test-with-bob-assist.mjs -- playwright test",
     "test:unit": "node scripts/run-test-with-bob-assist.mjs -- vitest run",
-    "test:bob:governance": "vitest run tests/bob-governance-regression.test.ts",
+    "test:bob:governance": "vitest run tests/bob-governance-regression.test.ts --environment node",
     "test:bob:web": "node scripts/run-test-with-bob-assist.mjs -- playwright test tests/e2e/ops-bob-web.spec.ts tests/e2e/bob-offline.spec.ts",
     "test:bob:reliability": "node scripts/run-test-with-bob-assist.mjs -- playwright test tests/e2e/bob-endpoint-reliability.spec.ts --project=chromium --workers=1",
     "test:bob:mobile": "node scripts/mobile-simulation.test.mjs",
