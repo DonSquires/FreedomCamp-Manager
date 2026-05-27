@@ -42,6 +42,10 @@ export type LoginContextProfile = ResolvedProfile
 
 type DesiredRole = 'master' | 'grand_master' | 'admin' | 'admin_officer' | 'officer' | 'client_viewer' | 'client_officer' | 'client_admin'
 
+const DEFAULT_TEST_ORG_NAME =
+  readEnv('PLAYWRIGHT_TEST_ORG_NAME', 'PLAYWRIGHT_DEFAULT_TEST_ORG_NAME', 'E2E_TEST_ORG_NAME') ||
+  'Iron Eagle Security Limited'
+
 function readEnv(...names: string[]): string {
   for (const name of names) {
     const value = (process.env[name] || '').trim()
@@ -253,26 +257,27 @@ const expectedProfileConfig: Record<TestUserKey, ExpectedProfileConfig> = {
   master: {
     allowedRoles: ['master', 'grand_master'],
     requiredCapability: 'master_ops',
+    expectedOrgName: DEFAULT_TEST_ORG_NAME,
   },
   adminOrg1: {
     allowedRoles: ['admin', 'admin_officer'],
     requiredCapability: 'admin_screen',
-    expectedOrgName: readEnv('PLAYWRIGHT_ADMIN_ORG1_NAME') || 'First Security - Nelson',
+    expectedOrgName: readEnv('PLAYWRIGHT_ADMIN_ORG1_NAME') || DEFAULT_TEST_ORG_NAME,
   },
   adminOrg2: {
     allowedRoles: ['admin', 'admin_officer'],
     requiredCapability: 'admin_screen',
-    expectedOrgName: readEnv('PLAYWRIGHT_ADMIN_ORG2_NAME') || 'Nelson City Council',
+    expectedOrgName: readEnv('PLAYWRIGHT_ADMIN_ORG2_NAME') || DEFAULT_TEST_ORG_NAME,
   },
   officerOrg1: {
     allowedRoles: ['officer', 'admin_officer'],
     requiredCapability: 'field_ops',
-    expectedOrgName: readEnv('PLAYWRIGHT_OFFICER_ORG1_NAME') || 'First Security - Nelson',
+    expectedOrgName: readEnv('PLAYWRIGHT_OFFICER_ORG1_NAME') || DEFAULT_TEST_ORG_NAME,
   },
   bob: {
     allowedRoles: ['admin_officer'],
     requiredCapability: 'admin_screen',
-    expectedOrgName: readEnv('BOB_LOGIN_ORG_NAME', 'BOB_ORG_NAME') || 'First Security - Nelson [MERGED 2026-05-14]',
+    expectedOrgName: readEnv('BOB_LOGIN_ORG_NAME', 'BOB_ORG_NAME') || DEFAULT_TEST_ORG_NAME,
   },
   client: {
     allowedRoles: ['client_viewer', 'client_officer', 'client_admin', 'admin', 'admin_officer', 'officer'],
@@ -280,7 +285,7 @@ const expectedProfileConfig: Record<TestUserKey, ExpectedProfileConfig> = {
     expectedOrgName: mergeExpectedOrgNames(
       readEnv('PLAYWRIGHT_CLIENT_VIEWER_NAME'),
       readEnv('PLAYWRIGHT_CLIENT_STAFF_NAME'),
-      'Nelson City Council|First Security - Nelson'
+      DEFAULT_TEST_ORG_NAME
     ),
   },
   clientViewer: {
@@ -288,7 +293,7 @@ const expectedProfileConfig: Record<TestUserKey, ExpectedProfileConfig> = {
     requiredCapability: 'client_portal_view',
     expectedOrgName: mergeExpectedOrgNames(
       readEnv('PLAYWRIGHT_CLIENT_VIEWER_NAME'),
-      'Nelson City Council|First Security - Nelson'
+      DEFAULT_TEST_ORG_NAME
     ),
   },
   clientStaff: {
@@ -296,7 +301,7 @@ const expectedProfileConfig: Record<TestUserKey, ExpectedProfileConfig> = {
     requiredCapability: 'client_portal_manage',
     expectedOrgName: mergeExpectedOrgNames(
       readEnv('PLAYWRIGHT_CLIENT_STAFF_NAME'),
-      'Nelson City Council|First Security - Nelson'
+      DEFAULT_TEST_ORG_NAME
     ),
   },
 }
@@ -908,6 +913,17 @@ async function bootstrapBrowserSessionFromPasswordGrant(
   return { ok: true }
 }
 
+async function loginThroughUi(page: Page, credentials: TestCredentials): Promise<void> {
+  await gotoLogin(page)
+  await page.getByLabel(/^email$/i).fill(credentials.email)
+  await page.getByLabel(/^password$/i).fill(credentials.password)
+  await page.locator('button[type="submit"], button:has-text("Sign In")').first().click()
+  await page.waitForURL(
+    (url) => !url.pathname.startsWith('/login'),
+    { timeout: 20000 }
+  )
+}
+
 export async function loginWithLiveCredentialsAndResolveProfile(page: Page): Promise<LoginContextProfile | null> {
   const credentials = getApiTestCredentials()
   if (!credentials.email || !credentials.password) {
@@ -916,16 +932,8 @@ export async function loginWithLiveCredentialsAndResolveProfile(page: Page): Pro
     )
   }
 
-  await gotoLogin(page)
-  await page.getByLabel(/^email$/i).fill(credentials.email)
-  await page.getByLabel(/^password$/i).fill(credentials.password)
-  await page.locator('button[type="submit"], button:has-text("Sign In")').first().click()
-
   try {
-    await page.waitForURL(
-      (url) => !url.pathname.startsWith('/login'),
-      { timeout: 20000 }
-    )
+    await loginThroughUi(page, credentials)
   } catch {
     const errorText = await page.locator('text=/invalid|error|failed/i').first().textContent().catch(() => null)
     const suffix = errorText ? ` Visible message: ${errorText.trim()}` : ''
@@ -1001,7 +1009,7 @@ async function resolveProfileByBrowserTokenSub(page: Page): Promise<ResolvedProf
 async function ensureWorkAreaPermission(page: Page): Promise<void> {
   if (!allowProfileMutations) return
 
-  const targetOrgName = readEnv('PLAYWRIGHT_WORK_AREA_ORG', 'E2E_WORK_AREA_ORG') || 'Nelson City Council'
+  const targetOrgName = readEnv('PLAYWRIGHT_WORK_AREA_ORG', 'E2E_WORK_AREA_ORG') || DEFAULT_TEST_ORG_NAME
   const supabaseUrl = readEnv('VITE_SUPABASE_URL')
   const anonKey = readEnv('VITE_SUPABASE_ANON_KEY')
 
@@ -1104,6 +1112,11 @@ export async function loginAs(page: Page, user: TestUserKey): Promise<void> {
   const credentials = getTestUser(user)
   await ensureBootstrapTestAccount(user, credentials, { force: enforcePersonaBootstrap })
 
+  const existingProfile = await fetchResolvedProfileByEmail(credentials.email).catch(() => null)
+  if (!existingProfile) {
+    await ensureBootstrapTestAccount(user, credentials, { force: true })
+  }
+
   let lastErrorText: string | null = null
   let apiFallbackError: string | null = null
   for (let attempt = 0; attempt < 2; attempt += 1) {
@@ -1123,12 +1136,18 @@ export async function loginAs(page: Page, user: TestUserKey): Promise<void> {
         }))
       : apiFallback
 
-    const loginSucceeded = retryFallback.ok
+    let loginSucceeded = retryFallback.ok
       ? await page
         .waitForURL((url) => !url.pathname.startsWith('/login'), { timeout: 20000 })
         .then(() => true)
         .catch(() => false)
       : false
+
+    if (!loginSucceeded) {
+      loginSucceeded = await loginThroughUi(page, credentials)
+        .then(() => true)
+        .catch(() => false)
+    }
 
     if (!retryFallback.ok) {
       apiFallbackError = retryFallback.reason || 'unknown API fallback error'
