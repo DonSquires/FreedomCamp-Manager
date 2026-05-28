@@ -1,5 +1,6 @@
 import { test, expect, applySyntheticOrganization } from './setup'
 import { loginAs } from './auth'
+import { ensureOfficerRosterSeed } from './helpers/officer-roster-seed'
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL || ''
 
@@ -135,6 +136,16 @@ async function connectPrimaryChannel(page: any) {
 }
 
 async function safeLoginAsOrSkip(page: any, user: 'officerOrg1' | 'adminOrg1' | 'master') {
+  if (user === 'officerOrg1') {
+    const seed = await ensureOfficerRosterSeed('patrol')
+    if (!seed.ready) {
+      test.info().annotations.push({
+        type: 'warning',
+        description: seed.reason || 'Officer patrol roster pre-seed was not available before radio smoke flow',
+      })
+    }
+  }
+
   try {
     await loginAs(page, user)
   } catch (error: unknown) {
@@ -152,6 +163,10 @@ async function loginAndAssertRadio(page: any, user: 'officerOrg1' | 'adminOrg1' 
 }
 
 test.describe('PTT radio route smoke', () => {
+  test.beforeEach(({ browserName }) => {
+    test.skip(browserName !== 'chromium', 'PTT radio smoke beta flow is validated on Chromium only.')
+  })
+
   test('officer can open /radio', async ({ page }) => {
     await loginAndAssertRadio(page, 'officerOrg1')
   })

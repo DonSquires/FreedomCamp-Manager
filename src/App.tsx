@@ -2937,41 +2937,6 @@ export default function App() {
             }
           />
 
-          {/* Health & Safety Reports — B-64 */}
-          <Route
-            path="/health-safety-reports"
-            element={
-              <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
-                  <HealthSafetyReports />
-                </RoleRoute>
-              </ProtectedRoute>
-            }
-          />
-
-          {/* Welfare Check-in Log — B-65 */}
-          <Route
-            path="/welfare-checkins"
-            element={
-              <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
-                  <WelfareCheckinLog />
-                </RoleRoute>
-              </ProtectedRoute>
-            }
-          />
-
-          {/* Parking Permit Manager — B-66 */}
-          <Route
-            path="/parking-permits"
-            element={
-              <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
-                  <ParkingPermitManager />
-                </RoleRoute>
-              </ProtectedRoute>
-            }
-          />
         </Routes>
       </Suspense>
     </RouteErrorBoundary>

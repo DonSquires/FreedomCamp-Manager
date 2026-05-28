@@ -97,7 +97,7 @@ test.describe('Phase C1 — Site Guard / Static Guard Case Bridge', () => {
 
   // ── Scenario 1: site_guard_shifts table exists ──────────────────────────────
   test('site_guard_shifts table is queryable', async () => {
-    if (!supabaseAdmin) test.skip()
+    if (!supabaseAdmin) test.skip(true, 'SUPABASE_SERVICE_ROLE_KEY required for Phase C1 gate')
     const { error } = await supabaseAdmin!
       .from('site_guard_shifts')
       .select('id')
@@ -107,7 +107,7 @@ test.describe('Phase C1 — Site Guard / Static Guard Case Bridge', () => {
 
   // ── Scenario 2: emergency_assist_events table exists ───────────────────────
   test('emergency_assist_events table is queryable', async () => {
-    if (!supabaseAdmin) test.skip()
+    if (!supabaseAdmin) test.skip(true, 'SUPABASE_SERVICE_ROLE_KEY required for Phase C1 gate')
     const { error } = await supabaseAdmin!
       .from('emergency_assist_events')
       .select('id')
@@ -117,7 +117,7 @@ test.describe('Phase C1 — Site Guard / Static Guard Case Bridge', () => {
 
   // ── Scenario 3: shift start creates a site_guard case + shift row ───────────
   test('shift start creates operational_case with case_type=site_guard', async () => {
-    if (!supabaseAdmin) test.skip()
+    if (!supabaseAdmin) test.skip(true, 'SUPABASE_SERVICE_ROLE_KEY required for Phase C1 gate')
     const orgId = await createTestOrg('c1-shift-start')
     const { userId, profileId } = await createTestOfficer(orgId, 'shift-start')
 
@@ -162,7 +162,7 @@ test.describe('Phase C1 — Site Guard / Static Guard Case Bridge', () => {
 
   // ── Scenario 4: site_incidents can be linked to a case ─────────────────────
   test('site_incident can be created with case_id linked to site_guard case', async () => {
-    if (!supabaseAdmin) test.skip()
+    if (!supabaseAdmin) test.skip(true, 'SUPABASE_SERVICE_ROLE_KEY required for Phase C1 gate')
     const orgId = await createTestOrg('c1-incident')
     const { userId, profileId } = await createTestOfficer(orgId, 'incident')
     const caseId = await createTestCase(orgId, profileId)
@@ -192,7 +192,7 @@ test.describe('Phase C1 — Site Guard / Static Guard Case Bridge', () => {
 
   // ── Scenario 5: emergency assist creates event without closing the case ─────
   test('emergency assist event is created and case remains active', async () => {
-    if (!supabaseAdmin) test.skip()
+    if (!supabaseAdmin) test.skip(true, 'SUPABASE_SERVICE_ROLE_KEY required for Phase C1 gate')
     const orgId = await createTestOrg('c1-assist')
     const { userId, profileId } = await createTestOfficer(orgId, 'assist')
     const caseId = await createTestCase(orgId, profileId)
@@ -231,7 +231,7 @@ test.describe('Phase C1 — Site Guard / Static Guard Case Bridge', () => {
 
   // ── Scenario 6: emergency assist status reflects 'active' ──────────────────
   test('emergency assist event status is active after creation', async () => {
-    if (!supabaseAdmin) test.skip()
+    if (!supabaseAdmin) test.skip(true, 'SUPABASE_SERVICE_ROLE_KEY required for Phase C1 gate')
     const orgId = await createTestOrg('c1-assist-status')
     const { userId, profileId } = await createTestOfficer(orgId, 'assist-status')
     const caseId = await createTestCase(orgId, profileId)
@@ -262,7 +262,7 @@ test.describe('Phase C1 — Site Guard / Static Guard Case Bridge', () => {
 
   // ── Scenario 7: shift end marks case as completed ──────────────────────────
   test('ending a shift marks the case as completed', async () => {
-    if (!supabaseAdmin) test.skip()
+    if (!supabaseAdmin) test.skip(true, 'SUPABASE_SERVICE_ROLE_KEY required for Phase C1 gate')
     const orgId = await createTestOrg('c1-shift-end')
     const { userId, profileId } = await createTestOfficer(orgId, 'shift-end')
     const caseId = await createTestCase(orgId, profileId)
@@ -307,7 +307,7 @@ test.describe('Phase C1 — Site Guard / Static Guard Case Bridge', () => {
 
   // ── Scenario 8: full timeline retrieves all attached domain events ──────────
   test('full timeline returns shifts, incidents, and emergency assist events', async () => {
-    if (!supabaseAdmin) test.skip()
+    if (!supabaseAdmin) test.skip(true, 'SUPABASE_SERVICE_ROLE_KEY required for Phase C1 gate')
     const orgId = await createTestOrg('c1-timeline')
     const { userId, profileId } = await createTestOfficer(orgId, 'timeline')
     const caseId = await createTestCase(orgId, profileId)
@@ -347,7 +347,7 @@ test.describe('Phase C1 — Site Guard / Static Guard Case Bridge', () => {
 
   // ── Scenario 9: org isolation — shifts are scoped to their org ─────────────
   test('site_guard_shifts from Org A are not visible when querying Org B scope', async () => {
-    if (!supabaseAdmin) test.skip()
+    if (!supabaseAdmin) test.skip(true, 'SUPABASE_SERVICE_ROLE_KEY required for Phase C1 gate')
     const orgAId = await createTestOrg('c1-iso-A')
     const orgBId = await createTestOrg('c1-iso-B')
     const { userId: userAId, profileId: profileAId } = await createTestOfficer(orgAId, 'iso-a')
