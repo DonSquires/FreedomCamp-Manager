@@ -1185,7 +1185,7 @@ export async function loginAs(page: Page, user: TestUserKey): Promise<void> {
 
       if (rateLimited) {
         // Simple linear backoff to absorb Supabase auth throttle windows.
-        await page.waitForTimeout(500 * (attempt + 1))
+        await new Promise((resolve) => setTimeout(resolve, 500 * (attempt + 1)))
       }
 
       continue

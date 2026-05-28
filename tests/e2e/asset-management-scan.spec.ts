@@ -2,8 +2,6 @@ import { test, expect } from './setup'
 import { loginAs } from './auth'
 
 async function openEquipmentScanner(page: any) {
-  await loginAs(page, 'adminOrg1')
-
   const equipmentTab = page.getByRole('tab', { name: /Equipment/i })
 
   for (let attempt = 0; attempt < 3; attempt += 1) {
@@ -102,7 +100,6 @@ test.describe('Asset Management - Scanner Flows', () => {
     })
 
     await loginAs(page, 'adminOrg1')
-
     await openEquipmentScanner(page)
 
     const cameraToggle = page.getByRole('button', { name: /Scan with Camera|Hide Camera/i })

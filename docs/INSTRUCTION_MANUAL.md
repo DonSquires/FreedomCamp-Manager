@@ -2201,7 +2201,7 @@ Officers are auto-routed to the correct portal based on their **rostered shift s
 - **Welfare Check-ins**: Officers receive periodic welfare prompts. If not acknowledged within the configured interval, the system escalates to supervisors.
 - **Man Down Detection**: If a device detects no movement for a configurable period, an automatic Man Down alert is triggered.
 - **GPS Logging**: Officer location is logged continuously during active sessions.
-- **PTT Radio**: Push-to-Talk is available on all portals — tap the PTT button to broadcast to the org channel.
+- **PTT Radio**: Push-to-Talk availability is role/roster/channel dependent. When eligible, tap the PTT button to broadcast to the org channel; when not eligible, radio controls may be hidden or access may be redirected.
 - **Offline Queue**: Scans and actions captured without internet are queued and synced automatically when connectivity is restored.
 - **Post-Shift Feedback**: At the end of each shift, officers complete a brief feedback form.
 
