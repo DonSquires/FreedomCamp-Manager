@@ -1278,7 +1278,7 @@ export const edgeFunctions = {
       action: 'create',
       organizationId: params.organization_id,
       payload: params,
-    })
+    }, { useDirectFetch: true })
   },
 
   /**
@@ -1293,7 +1293,7 @@ export const edgeFunctions = {
       action: 'set_password',
       userId: params.user_id,
       payload: { password: params.new_password },
-    })
+    }, { useDirectFetch: true })
   },
 
   /**
@@ -1305,7 +1305,7 @@ export const edgeFunctions = {
     return callEdgeFunction('manage-user', {
       action: 'deactivate',
       userId: params.user_id,
-    })
+    }, { useDirectFetch: true })
   },
 
   /**
@@ -1317,7 +1317,7 @@ export const edgeFunctions = {
     return callEdgeFunction('manage-user', {
       action: 'disconnect_ptt',
       userId: params.user_id,
-    })
+    }, { useDirectFetch: true })
   },
 
   /**
@@ -1336,7 +1336,7 @@ export const edgeFunctions = {
         mode: params.mode ?? 'replace',
         scopes: params.scopes,
       },
-    })
+    }, { useDirectFetch: true })
   },
 
   /**
@@ -1352,7 +1352,7 @@ export const edgeFunctions = {
       payload: {
         is_active: params.is_active,
       },
-    })
+    }, { useDirectFetch: true })
   },
 
   /**
@@ -1374,7 +1374,7 @@ export const edgeFunctions = {
         extra_organization_ids: params.extra_organization_ids,
         source_module: params.source_module ?? 'access_control',
       },
-    })
+    }, { useDirectFetch: true })
   },
 
   /**
@@ -1388,7 +1388,7 @@ export const edgeFunctions = {
       action: 'upsert_client_site',
       siteId: params.site_id,
       payload: params.payload,
-    })
+    }, { useDirectFetch: true })
   },
 
   /**
@@ -1402,7 +1402,7 @@ export const edgeFunctions = {
       action: 'set_client_site_active',
       siteId: params.site_id,
       payload: { is_active: params.is_active },
-    })
+    }, { useDirectFetch: true })
   },
 
   /**
@@ -1415,7 +1415,7 @@ export const edgeFunctions = {
       action: 'delete_client_site',
       siteId: params.site_id,
       payload: {},
-    })
+    }, { useDirectFetch: true })
   },
 
   /**
@@ -1437,7 +1437,7 @@ export const edgeFunctions = {
         can_view: params.can_view,
         can_edit: params.can_edit,
       },
-    })
+    }, { useDirectFetch: true })
   },
 
   /**
@@ -1450,7 +1450,7 @@ export const edgeFunctions = {
       action: 'delete_site_role',
       role: params.role,
       payload: { role: params.role },
-    })
+    }, { useDirectFetch: true })
   },
 
   /**
@@ -1472,7 +1472,7 @@ export const edgeFunctions = {
         can_view: params.can_view,
         can_edit: params.can_edit,
       },
-    })
+    }, { useDirectFetch: true })
   },
 
   /**
@@ -1490,7 +1490,7 @@ export const edgeFunctions = {
         user_id: params.user_id,
         field_group: params.field_group,
       },
-    })
+    }, { useDirectFetch: true })
   },
 
   /**
@@ -1503,7 +1503,7 @@ export const edgeFunctions = {
       action: 'clear_site_user_permissions',
       userId: params.user_id,
       payload: { user_id: params.user_id },
-    })
+    }, { useDirectFetch: true })
   },
 
   /**

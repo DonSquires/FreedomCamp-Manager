@@ -14,6 +14,7 @@ import { useZones } from '@/hooks/useZones'
 import { useClientOrgIds } from '@/hooks/useClientOrgIds'
 import { useOrganizations } from '@/hooks/useOrganizations'
 import { useSitePermissions } from '@/hooks/useSitePermissions'
+import { useOperationalOrganization } from '@/hooks/useOperationalOrganization'
 import { forwardGeocode } from '@/lib/geocoding'
 import { AppLayout } from '@/components/features/AppLayout'
 import { Button } from '@/components/ui/button'
@@ -252,9 +253,10 @@ function siteFormFromRecord(s: ClientSite): SiteForm {
 
 export default function ClientSites() {
   const { user } = useAuthStore()
+  const { operationalOrganizationId } = useOperationalOrganization()
   const qc = useQueryClient()
   const [searchParams, setSearchParams] = useSearchParams()
-  const orgId = user?.organization_id
+  const orgId = user?.organization_id || operationalOrganizationId
   const isSuperUser = user?.role === 'master' || user?.role === 'grand_master'
 
   const [search, setSearch]           = useState('')
@@ -706,12 +708,12 @@ export default function ClientSites() {
             {canView('identity') && (
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5 col-span-2 md:col-span-1">
-                  <Label>Site Name <span className="text-destructive">*</span></Label>
-                  <Input disabled={!canEdit('identity')} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Kairākau Beach Reserve" />
+                  <Label htmlFor="site-name-input">Site Name <span className="text-destructive">*</span></Label>
+                  <Input id="site-name-input" disabled={!canEdit('identity')} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Kairākau Beach Reserve" />
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Site Code</Label>
-                  <Input disabled={!canEdit('identity')} value={form.site_code} onChange={e => setForm(f => ({ ...f, site_code: e.target.value }))} placeholder="Optional ref code" />
+                  <Label htmlFor="site-code-input">Site Code</Label>
+                  <Input id="site-code-input" disabled={!canEdit('identity')} value={form.site_code} onChange={e => setForm(f => ({ ...f, site_code: e.target.value }))} placeholder="Optional ref code" />
                 </div>
                 <div className="space-y-1.5">
                   <Label>Site Type</Label>

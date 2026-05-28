@@ -46,6 +46,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import type { Database } from '@/types/database'
+import { buildPreferredMapUrlForCoordinates } from '@/lib/inhouseMapping'
 
 type ZoneRow = Pick<
   Database['public']['Tables']['zones']['Row'],
@@ -286,7 +287,7 @@ export default function PatrolNavigation() {
     let destLat: number, destLng: number
     if (destMode === 'zone') {
       const zone = zones.find(z => z.id === selectedZoneId)
-      if (!zone?.location_lat || !zone?.location_lng) { toast.error('Select a zone with GPS coordinates'); return }
+      if (zone?.location_lat == null || zone?.location_lng == null) { toast.error('Select a zone with GPS coordinates'); return }
       destLat = zone.location_lat
       destLng = zone.location_lng
     } else {
@@ -352,7 +353,7 @@ export default function PatrolNavigation() {
 
       if (destMode === 'zone') {
         const zone = zones.find((z) => z.id === selectedZoneId)
-        if (zone?.location_lat && zone?.location_lng) {
+        if (zone?.location_lat != null && zone?.location_lng != null) {
           fallbackDestination = { lat: zone.location_lat, lng: zone.location_lng, label: zone.name }
         }
       } else {
@@ -395,7 +396,7 @@ export default function PatrolNavigation() {
       return
     }
 
-    const url = `${window.location.origin}/operations-map?focus=${lat.toFixed(5)},${lng.toFixed(5)}`
+    const url = buildPreferredMapUrlForCoordinates(lat, lng)
     navigator.clipboard.writeText(url).then(() => toast.success('In-house map target copied'))
   }
 

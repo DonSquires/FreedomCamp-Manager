@@ -1146,10 +1146,12 @@ export default function RosterPlanner() {
   const isAdmin = user?.role === 'admin' || user?.role === 'master' || user?.role === 'grand_master' || user?.role === 'admin_officer'
   const isGrandMaster = user?.role === 'grand_master'
   const activeTab = isAdmin && searchParams.get('tab') === 'users' ? 'users' : 'planner'
-  const hasOrganizationId = isGrandMaster || !!user?.organization_id
+  const hasOrganizationId = isGrandMaster || !!operationalOrganizationId
   const plannerQueriesEnabled = shouldEnableRosterPlannerQueries(activeTab, hasOrganizationId)
   const { orgIds: clientOrgIds, isLoading: clientOrgIdsLoading } = useClientOrgIds({ enabled: plannerQueriesEnabled })
   const clientScopedQueriesEnabled = shouldEnableRosterPlannerClientScopedQueries(activeTab, hasOrganizationId, clientOrgIdsLoading)
+  const effectiveOperationalOrganizationId =
+    operationalOrganizationId || (clientOrgIds !== null && clientOrgIds.length > 0 ? clientOrgIds[0] : null)
 
   const applyClientOrgScope = (query: any) => {
     // null means unrestricted scope (grand_master role)
@@ -1338,7 +1340,7 @@ export default function RosterPlanner() {
   const createMutation = useMutation({
     mutationFn: async (data: ShiftFormData) => {
       const payload = {
-        organization_id: operationalOrganizationId,
+        organization_id: effectiveOperationalOrganizationId,
         officer_id: data.officer_id || null,
         shift_date: data.shift_date,
         shift_type: data.shift_type,
@@ -1445,7 +1447,7 @@ export default function RosterPlanner() {
 
   const deputyImportMutation = useMutation({
     mutationFn: async (parsed: DeputyImportParseResult) => {
-      if (!operationalOrganizationId) throw new Error('No organization selected')
+      if (!effectiveOperationalOrganizationId) throw new Error('No organization selected')
 
       const normalizeOfficerName = (value: string) =>
         value
@@ -1514,7 +1516,7 @@ export default function RosterPlanner() {
 
         if (row.isLeave && matchedOfficer && row.scheduleStart) {
           leavePayload.push({
-            organization_id: operationalOrganizationId,
+            organization_id: effectiveOperationalOrganizationId,
             officer_id: matchedOfficer.id,
             leave_type_name: row.leaveTypeName || 'Leave',
             leave_export_code: row.leaveExportCode,
@@ -1530,7 +1532,7 @@ export default function RosterPlanner() {
 
         if (!row.isLeave && row.scheduleStart) {
           rosterPayload.push({
-            organization_id: operationalOrganizationId,
+            organization_id: effectiveOperationalOrganizationId,
             officer_id: matchedOfficer?.id ?? null,
             client_site_id: matchedSite?.id ?? null,
             shift_date: row.scheduleStart.slice(0, 10),
@@ -1554,7 +1556,7 @@ export default function RosterPlanner() {
 
         if (row.timesheetStart && matchedOfficer) {
           timesheetPayload.push({
-            organization_id: operationalOrganizationId,
+            organization_id: effectiveOperationalOrganizationId,
             officer_id: matchedOfficer.id,
             started_at: row.timesheetStart,
             ended_at: row.timesheetEnd,
@@ -1571,11 +1573,22 @@ export default function RosterPlanner() {
       }
 
       if (pendingProfileUpdates.size > 0) {
-        await Promise.all(
+        const profileUpdateResults = await Promise.allSettled(
           Array.from(pendingProfileUpdates.entries()).map(([officerId, payload]) =>
             ((supabase as any).from('user_profiles') as any).update(payload).eq('id', officerId)
           )
         )
+
+        const failedProfileUpdates = profileUpdateResults.filter((result) => {
+          if (result.status === 'rejected') return true
+          return !!result.value?.error
+        }).length
+
+        if (failedProfileUpdates > 0) {
+          warnings.push(
+            `Skipped ${failedProfileUpdates} officer profile sync update${failedProfileUpdates === 1 ? '' : 's'} due to permissions or validation.`
+          )
+        }
       }
 
       if (rosterPayload.length > 0) {
