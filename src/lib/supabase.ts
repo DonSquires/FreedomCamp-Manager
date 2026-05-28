@@ -38,27 +38,6 @@ const fallbackLock: SupabaseLock = async <T>(_name: string, _acquireTimeout: num
   return fn()
 }
 
-const browserLock: SupabaseLock = async <T>(name: string, _acquireTimeout: number, fn: () => Promise<T>) => {
-  if (typeof window === 'undefined' || !('locks' in navigator)) {
-    return fn()
-  }
-
-  const acquireTimeout = Number.isFinite(_acquireTimeout) && _acquireTimeout > 0 ? _acquireTimeout : 5000
-  const controller = new AbortController()
-  const abortTimer = setTimeout(() => controller.abort(), acquireTimeout)
-
-  try {
-    return await navigator.locks.request(name, { mode: 'exclusive', signal: controller.signal }, async () => fn())
-  } catch (error: unknown) {
-    if (error instanceof DOMException && error.name === 'AbortError') {
-      return fn()
-    }
-    throw error
-  } finally {
-    clearTimeout(abortTimer)
-  }
-}
-
 /**
  * True when both VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are present.
  * Used by the app entry-point to guard rendering when the deployment platform
@@ -82,7 +61,10 @@ export const supabase = createClient<Database>(
     auth: {
       persistSession: true,
       autoRefreshToken: true,
-      lock: typeof window === 'undefined' ? fallbackLock : browserLock,
+      // The custom navigator.locks integration has caused browser-side auth
+      // session checks and subsequent PostgREST mutations to stall in real UI
+      // workflows. Use the non-blocking fallback lock instead.
+      lock: fallbackLock,
       storage: sessionAuthStorage,
     },
     global: {

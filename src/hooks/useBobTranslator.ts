@@ -34,6 +34,19 @@ function isUsableTranslatorWsUrl(url: string): boolean {
   return true
 }
 
+function requiresTranslation(targetLanguage: string): boolean {
+  const normalized = String(targetLanguage || '').trim().toLowerCase()
+  if (!normalized) return false
+
+  return !(
+    normalized === 'en' ||
+    normalized === 'en-nz' ||
+    normalized === 'en-us' ||
+    normalized === 'en-gb' ||
+    normalized.startsWith('en-')
+  )
+}
+
 function parseConnectionState(readyState: number): 'idle' | 'connecting' | 'open' | 'closing' | 'closed' {
   if (readyState === WebSocket.CONNECTING) return 'connecting'
   if (readyState === WebSocket.OPEN) return 'open'
@@ -64,6 +77,7 @@ export function useBobTranslator({
 
   const translatorUrl = useMemo(() => {
     if (!translatorBaseUrl) return ''
+    if (!requiresTranslation(targetLanguage)) return ''
 
     const params = new URLSearchParams()
     if (workspaceId) params.set('workspace_id', workspaceId)

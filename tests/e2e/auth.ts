@@ -1218,5 +1218,18 @@ export async function loginAs(page: Page, user: TestUserKey): Promise<void> {
 
   await assertExpectedLoginProfile(page, user)
 
+  // Root postcondition: loginAs must never return while still on /login,
+  // even when role assertions are relaxed in shared-fallback environments.
+  await page
+    .waitForURL((url) => !url.pathname.startsWith('/login'), { timeout: 15000 })
+    .catch(() => undefined)
+
+  if (page.url().includes('/login')) {
+    throw new Error(
+      `loginAs(${user}) ended on /login after auth/bootstrap flow. ` +
+      `Shared fallback mode may have produced an unresolved or invalid browser session.`
+    )
+  }
+
   await page.waitForLoadState('networkidle').catch(() => undefined)
 }

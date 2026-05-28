@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { CheckCircle2, Loader2, RefreshCw, XCircle } from 'lucide-react'
 import { toast } from 'sonner'
+import { getBobManagerUrl } from '@/lib/bobManagerUrl'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { Badge } from '@/components/ui/badge'
@@ -15,14 +16,6 @@ type PendingSelfHealingLog = {
   patch_value: string | null
   status: string
   created_at: string | null
-}
-
-function getBobManagerUrl(): string | null {
-  const envUrl = String(import.meta.env.VITE_BOB_MANAGER_URL ?? '').trim()
-  if (envUrl.length > 0) {
-    return envUrl.replace(/\/$/, '')
-  }
-  return null
 }
 
 function formatDateTime(value: string | null): string {
@@ -45,12 +38,6 @@ export function BobApprovalPanel() {
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [actioningId, setActioningId] = useState<string | null>(null)
   const bobManagerUrl = useMemo(() => getBobManagerUrl(), [])
-
-  useEffect(() => {
-    if (!bobManagerUrl) {
-      console.error('Configuration Error: VITE_BOB_MANAGER_URL is missing.')
-    }
-  }, [bobManagerUrl])
 
   const activeUserName = useMemo(() => {
     const fullName = String(user?.full_name ?? '').trim()

@@ -95,6 +95,7 @@ Owner: Bob Platform Lead
 Owner: Speech and AI Lead
 
 - [x] Enforce translation/speech runtime boundaries and fallback contracts.
+- [x] Keep translation availability aligned with PTT availability (no roster/time/location restriction on access surface).
 - [x] Validate degraded-mode controls for transcript, translation, and synthetic-audio flows.
 - [x] Ensure failures do not break primary operational pathways.
 - [x] Add tests for success + degraded responses with org-scoped persistence checks.
@@ -185,6 +186,8 @@ Owner: Communications Reliability Lead
 6. Phase 0-5 (Voice-Twin Governance): 2026-07-23 to 2026-08-12
 
 **Strategic intent**: Replace peer-to-peer PTT with professional radio platform featuring selective forwarding, streaming transcription, multi-language translation, and optional voice-matched relay — while maintaining org isolation, emergency operability, and full Bob governance integration.
+
+Translation availability policy: translation follows the same operational availability expectation as PTT and must remain available any time and anywhere the radio/PTT surface is available.
 
 **Architecture foundation**: Three ADRs (SFU platform, event backbone, voice-twin governance) + schema design + 5-phase feature flag rollout.
 

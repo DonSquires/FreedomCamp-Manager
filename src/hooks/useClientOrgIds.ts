@@ -39,29 +39,35 @@ export function useClientOrgIds(options: UseClientOrgIdsOptions = {}): UseClient
   const { user } = useAuthStore()
   const role  = user?.role
   const orgId = user?.organization_id
+  const fallbackOrgId =
+    user?.organization_id ||
+    user?.employer_organization_id ||
+    user?.authorized_work_locations?.[0] ||
+    user?.extra_organization_ids?.[0] ||
+    null
 
   // Grand-masters see everything — no ID restriction needed
   const isGrandMaster = role === 'grand_master'
 
   const { data: descendantIds = [], isLoading } = useQuery<string[]>({
-    queryKey: ['org-descendant-ids', orgId],
+    queryKey: ['org-descendant-ids', fallbackOrgId],
     queryFn: async () => {
       const { data, error } = await supabase
-        .rpc('get_descendant_organizations', { org_id: orgId })
+        .rpc('get_descendant_organizations', { org_id: fallbackOrgId })
       if (error) throw error
       return (data ?? []) as string[]
     },
-    enabled: enabled && !!orgId && !isGrandMaster,
+    enabled: enabled && !!fallbackOrgId && !isGrandMaster,
     staleTime: 5 * 60 * 1000, // org tree rarely changes
   })
 
   if (isGrandMaster) return { orgIds: null, isLoading: false }
-  if (!orgId)        return { orgIds: [], isLoading: false }
+  if (!fallbackOrgId) return { orgIds: [], isLoading: false }
 
   // get_descendant_organizations() always includes the root org itself (the SQL CTE
   // seeds with WHERE id = org_id), so descendantIds will contain orgId plus all
   // children/grandchildren.  The fallback to [orgId] is only a safety net for the
   // rare edge case where the RPC returns empty (e.g. org not yet in DB).
-  const all = isLoading ? [orgId] : descendantIds
-  return { orgIds: all.length > 0 ? all : [orgId], isLoading }
+  const all = isLoading ? [fallbackOrgId] : descendantIds
+  return { orgIds: all.length > 0 ? all : [fallbackOrgId], isLoading }
 }

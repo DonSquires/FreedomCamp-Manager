@@ -314,15 +314,11 @@ export const useAuthStore = create<AuthState>()(
 
       checkSession: async () => {
         try {
-          const sessionPromise = supabase.auth.getSession()
-          const timeoutPromise = new Promise<never>((_, reject) => {
-            setTimeout(() => reject(new Error('Auth session check timed out')), 15000)
-          })
-
-          const { data: { session }, error: sessionError } = await Promise.race([
-            sessionPromise,
-            timeoutPromise,
-          ])
+          const { data: { session }, error: sessionError } = await withTimeout(
+            supabase.auth.getSession(),
+            45000,
+            'Auth session check'
+          )
 
           if (sessionError) {
             console.warn('[authStore] session check reported an auth error:', sessionError)

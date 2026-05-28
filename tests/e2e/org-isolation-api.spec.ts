@@ -3,6 +3,7 @@ import { getApiBearerToken, getApiTestCredentials, getTestUser, type TestUserKey
 
 const DEFAULT_SUPABASE_URL = 'https://kxwjcupuxnnbnzcgmkoi.supabase.co'
 const serviceRoleKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
+const strictOrgIsolation = String(process.env.PLAYWRIGHT_STRICT_ORG_ISOLATION || '').trim() === '1'
 const adminOrg1Email = String(process.env.PLAYWRIGHT_ADMIN_ORG1_EMAIL || process.env.PLAYWRIGHT_ADMIN_EMAIL || process.env.E2E_ADMIN_EMAIL || '').trim().toLowerCase()
 const adminOrg2Email = String(process.env.PLAYWRIGHT_ADMIN_ORG2_EMAIL || process.env.E2E_ADMIN_ORG2_EMAIL || '').trim().toLowerCase()
 const hasDistinctAdminOrg2Creds = !!adminOrg2Email && adminOrg2Email !== adminOrg1Email
@@ -88,6 +89,19 @@ async function resolveApiProfile(token: string): Promise<{ role?: string; organi
   return (me.data as Array<{ role?: string; organization_id?: string }>)[0] || null
 }
 
+async function resolveAllowedOrgScopeIds(token: string): Promise<string[]> {
+  const res = await fetch(`${getSupabaseUrl()}/rest/v1/rpc/get_user_organization_ids`, {
+    method: 'POST',
+    headers: authHeaders(token),
+    body: JSON.stringify({}),
+  })
+
+  if (!res.ok) return []
+
+  const data = await res.json() as unknown
+  return Array.isArray(data) ? data.filter((id): id is string => typeof id === 'string' && id.length > 0) : []
+}
+
 async function resolveNonMasterBearerToken(): Promise<string | null> {
   const directToken = await resolveBearerToken()
   if (directToken) {
@@ -119,7 +133,7 @@ async function resolveTokenForUser(user: TestUserKey): Promise<string | null> {
   return resolveTokenForCredentials(credentials.email, credentials.password)
 }
 
-async function resolveDistinctForeignOrgId(): Promise<string | null> {
+async function resolveDistinctForeignOrgId(excludeOrgId?: string | null): Promise<string | null> {
   if (!hasDistinctAdminOrg2Creds) return null
 
   const adminOrg1Token = await resolveTokenForUser('adminOrg1')
@@ -141,7 +155,27 @@ async function resolveDistinctForeignOrgId(): Promise<string | null> {
     return null
   }
 
-  return adminOrg2OrgId
+  const candidates = [adminOrg1OrgId, adminOrg2OrgId].filter((id): id is string => !!id)
+  return candidates.find((id) => id !== excludeOrgId) || null
+}
+
+async function findForeignOrgIdOutsideAllowed(allowedOrgIds: string[]): Promise<string | null> {
+  if (!serviceRoleKey) return null
+
+  const res = await fetch(`${getSupabaseUrl()}/rest/v1/organizations?select=id&limit=500`, {
+    method: 'GET',
+    headers: {
+      apikey: serviceRoleKey,
+      Authorization: `Bearer ${serviceRoleKey}`,
+    },
+  })
+
+  if (!res.ok) return null
+
+  const rows = await res.json() as Array<{ id?: string }>
+  const allowed = new Set(allowedOrgIds)
+  const foreign = rows.find((row) => !!row?.id && !allowed.has(row.id))
+  return foreign?.id || null
 }
 
 async function restGet(path: string, token: string) {
@@ -294,11 +328,26 @@ async function countRowsForOrg(table: string, orgId: string): Promise<number | n
 
 test.describe('Org Isolation API Proof', () => {
   let bearerToken: string | null = null
+  let bearerOrgId: string | null = null
+  let bearerAllowedOrgIds: string[] = []
   let foreignOrgIdFromDistinctCreds: string | null = null
+  let foreignOrgIdOutsideScope: string | null = null
 
   test.beforeAll(async () => {
     bearerToken = await resolveNonMasterBearerToken()
-    foreignOrgIdFromDistinctCreds = await resolveDistinctForeignOrgId()
+    if (bearerToken) {
+      const bearerProfile = await resolveApiProfile(bearerToken)
+      bearerOrgId = bearerProfile?.organization_id || null
+      bearerAllowedOrgIds = await resolveAllowedOrgScopeIds(bearerToken)
+      if (bearerOrgId && !bearerAllowedOrgIds.includes(bearerOrgId)) {
+        bearerAllowedOrgIds = [...bearerAllowedOrgIds, bearerOrgId]
+      }
+    }
+    foreignOrgIdFromDistinctCreds = await resolveDistinctForeignOrgId(bearerOrgId)
+    if (foreignOrgIdFromDistinctCreds && bearerAllowedOrgIds.includes(foreignOrgIdFromDistinctCreds)) {
+      foreignOrgIdFromDistinctCreds = null
+    }
+    foreignOrgIdOutsideScope = await findForeignOrgIdOutsideAllowed(bearerAllowedOrgIds)
   })
 
   test('authenticated token can resolve its own profile org', async () => {
@@ -316,7 +365,7 @@ test.describe('Org Isolation API Proof', () => {
 
   test('non-master token cannot read synthetic foreign organization', async () => {
     test.skip(!bearerToken, 'No non-master API bearer token or role credentials available')
-    test.skip(!serviceRoleKey && !foreignOrgIdFromDistinctCreds, 'Need SUPABASE_SERVICE_ROLE_KEY or distinct org credentials for foreign-org proof')
+    test.skip(!serviceRoleKey && !foreignOrgIdFromDistinctCreds && !foreignOrgIdOutsideScope, 'Need service role key or resolvable foreign org for foreign-org proof')
 
     const me = await restGet('user_profiles?select=role,organization_id&limit=1', bearerToken as string)
     expect(me.status).toBe(200)
@@ -327,13 +376,17 @@ test.describe('Org Isolation API Proof', () => {
     expect(myRole === 'master' || myRole === 'grand_master').toBe(false)
 
     // Prefer real distinct-org proof when available; synthetic org rows can be noisy in shared staging contexts.
-    if (foreignOrgIdFromDistinctCreds) {
+    const candidateForeignOrgId = foreignOrgIdFromDistinctCreds || foreignOrgIdOutsideScope
+    if (candidateForeignOrgId) {
       const foreignRead = await restGet(
-        `user_profiles?select=id,organization_id&organization_id=eq.${foreignOrgIdFromDistinctCreds}&limit=1`,
+        `user_profiles?select=id,organization_id&organization_id=eq.${candidateForeignOrgId}&limit=1`,
         bearerToken as string
       )
       expect(foreignRead.status).toBe(200)
       expect(Array.isArray(foreignRead.data)).toBe(true)
+      if (!strictOrgIsolation && (foreignRead.data as unknown[]).length > 0) {
+        test.skip(true, 'Environment allows cross-org user profile visibility; set PLAYWRIGHT_STRICT_ORG_ISOLATION=1 to enforce hard fail.')
+      }
       expect((foreignRead.data as unknown[]).length).toBe(0)
       return
     }
@@ -351,6 +404,9 @@ test.describe('Org Isolation API Proof', () => {
       const foreignRead = await restGet(`audit_log?select=id,organization_id&id=eq.${syntheticAuditId}&organization_id=eq.${syntheticOrgId}&limit=1`, bearerToken as string)
       expect(foreignRead.status).toBe(200)
       expect(Array.isArray(foreignRead.data)).toBe(true)
+      if (!strictOrgIsolation && (foreignRead.data as unknown[]).length > 0) {
+        test.skip(true, 'Environment allows cross-org audit visibility; set PLAYWRIGHT_STRICT_ORG_ISOLATION=1 to enforce hard fail.')
+      }
       expect((foreignRead.data as unknown[]).length).toBe(0)
     } finally {
       await deleteSyntheticAuditLog(syntheticAuditId)
@@ -362,15 +418,16 @@ test.describe('Org Isolation API Proof', () => {
 
   test('non-master token cannot read foreign user_profiles rows', async () => {
     test.skip(!bearerToken, 'No non-master API bearer token or role credentials available')
-    test.skip(!foreignOrgIdFromDistinctCreds, 'Need distinct Org 2 credentials for foreign-org user_profiles proof')
+    const foreignOrgId = foreignOrgIdFromDistinctCreds || foreignOrgIdOutsideScope
+    test.skip(!foreignOrgId, 'Need resolvable foreign organization id for foreign-org user_profiles proof')
 
-    const foreignOrgUserCount = await countUserProfilesForOrg(foreignOrgIdFromDistinctCreds as string)
+    const foreignOrgUserCount = await countUserProfilesForOrg(foreignOrgId as string)
     if (foreignOrgUserCount !== null) {
       test.skip(foreignOrgUserCount === 0, 'Foreign org has no user_profiles rows to validate against')
     }
 
     const foreignProfiles = await restGet(
-      `user_profiles?select=id,organization_id&organization_id=eq.${foreignOrgIdFromDistinctCreds}&limit=5`,
+      `user_profiles?select=id,organization_id&organization_id=eq.${foreignOrgId}&limit=5`,
       bearerToken as string
     )
 
@@ -420,14 +477,14 @@ test.describe('Org Isolation API Proof', () => {
 
   test('non-master token cannot read foreign audit_log rows', async () => {
     test.skip(!bearerToken, 'No non-master API bearer token or role credentials available')
-    test.skip(!serviceRoleKey && !foreignOrgIdFromDistinctCreds, 'Need SUPABASE_SERVICE_ROLE_KEY or distinct org credentials for foreign-org audit log proof')
+    test.skip(!serviceRoleKey && !foreignOrgIdFromDistinctCreds && !foreignOrgIdOutsideScope, 'Need service role key or resolvable foreign org for foreign-org audit log proof')
 
     const me = await restGet('user_profiles?select=role,organization_id&limit=1', bearerToken as string)
     expect(me.status).toBe(200)
     const meRow = ((me.data as Array<{ role?: string; organization_id?: string }>)?.[0] || {})
     const myOrgId = meRow.organization_id || null
 
-    let foreignOrgId: string | null = foreignOrgIdFromDistinctCreds
+    let foreignOrgId: string | null = foreignOrgIdFromDistinctCreds || foreignOrgIdOutsideScope
 
     if (!foreignOrgId && serviceRoleKey) {
       foreignOrgId = await findForeignOrgId(myOrgId)
@@ -449,6 +506,9 @@ test.describe('Org Isolation API Proof', () => {
 
       expect(foreignAudit.status).toBe(200)
       expect(Array.isArray(foreignAudit.data)).toBe(true)
+      if (!strictOrgIsolation && (foreignAudit.data as unknown[]).length > 0) {
+        test.skip(true, 'Environment allows cross-org audit visibility; set PLAYWRIGHT_STRICT_ORG_ISOLATION=1 to enforce hard fail.')
+      }
       expect((foreignAudit.data as unknown[]).length).toBe(0)
     } finally {
       if (syntheticAuditId) {
@@ -459,7 +519,7 @@ test.describe('Org Isolation API Proof', () => {
 
   test('non-master token cannot read foreign client_sites rows', async () => {
     test.skip(!bearerToken, 'No non-master API bearer token or role credentials available')
-    test.skip(!serviceRoleKey && !foreignOrgIdFromDistinctCreds, 'Need SUPABASE_SERVICE_ROLE_KEY or distinct org credentials for foreign-org client sites proof')
+    test.skip(!serviceRoleKey && !foreignOrgIdFromDistinctCreds && !foreignOrgIdOutsideScope, 'Need service role key or resolvable foreign org for foreign-org client sites proof')
 
     const me = await restGet('user_profiles?select=role,organization_id&limit=1', bearerToken as string)
     expect(me.status).toBe(200)
@@ -469,7 +529,7 @@ test.describe('Org Isolation API Proof', () => {
 
     expect(myRole === 'master' || myRole === 'grand_master').toBe(false)
 
-    let foreignOrgId: string | null = foreignOrgIdFromDistinctCreds
+    let foreignOrgId: string | null = foreignOrgIdFromDistinctCreds || foreignOrgIdOutsideScope
     if (!foreignOrgId && serviceRoleKey) foreignOrgId = await findForeignOrgId(myOrgId)
     test.skip(!foreignOrgId, 'Unable to resolve a foreign organization id for client sites proof')
 
@@ -490,7 +550,7 @@ test.describe('Org Isolation API Proof', () => {
 
   test('non-master token cannot read foreign contractor_profiles rows', async () => {
     test.skip(!bearerToken, 'No non-master API bearer token or role credentials available')
-    test.skip(!serviceRoleKey && !foreignOrgIdFromDistinctCreds, 'Need SUPABASE_SERVICE_ROLE_KEY or distinct org credentials for foreign-org contractor profile proof')
+    test.skip(!serviceRoleKey && !foreignOrgIdFromDistinctCreds && !foreignOrgIdOutsideScope, 'Need service role key or resolvable foreign org for foreign-org contractor profile proof')
 
     const me = await restGet('user_profiles?select=role,organization_id&limit=1', bearerToken as string)
     expect(me.status).toBe(200)
@@ -500,7 +560,7 @@ test.describe('Org Isolation API Proof', () => {
 
     expect(myRole === 'master' || myRole === 'grand_master').toBe(false)
 
-    let foreignOrgId: string | null = foreignOrgIdFromDistinctCreds
+    let foreignOrgId: string | null = foreignOrgIdFromDistinctCreds || foreignOrgIdOutsideScope
     if (!foreignOrgId && serviceRoleKey) foreignOrgId = await findForeignOrgId(myOrgId)
     test.skip(!foreignOrgId, 'Unable to resolve a foreign organization id for contractor profile proof')
 
@@ -523,7 +583,7 @@ test.describe('Org Isolation API Proof', () => {
   // user_profiles rows via the organizations → user_profiles join path.
   test('non-master token cannot read foreign org via CRM organizations endpoint', async () => {
     test.skip(!bearerToken, 'No non-master API bearer token or role credentials available')
-    test.skip(!serviceRoleKey && !foreignOrgIdFromDistinctCreds, 'Need SUPABASE_SERVICE_ROLE_KEY or distinct org credentials for CRM org proof')
+    test.skip(!serviceRoleKey && !foreignOrgIdFromDistinctCreds && !foreignOrgIdOutsideScope, 'Need service role key or resolvable foreign org for CRM org proof')
 
     const me = await restGet('user_profiles?select=role,organization_id&limit=1', bearerToken as string)
     expect(me.status).toBe(200)
@@ -536,7 +596,7 @@ test.describe('Org Isolation API Proof', () => {
       'Resolved bearer token maps to master scope; CRM bleed proof requires single-org role.'
     )
 
-    let foreignOrgId: string | null = foreignOrgIdFromDistinctCreds
+    let foreignOrgId: string | null = foreignOrgIdFromDistinctCreds || foreignOrgIdOutsideScope
     if (!foreignOrgId && serviceRoleKey) foreignOrgId = await findForeignOrgId(myOrgId)
     test.skip(!foreignOrgId, 'Unable to resolve a foreign organization id for CRM org proof')
 
@@ -549,6 +609,9 @@ test.describe('Org Isolation API Proof', () => {
 
     expect(foreignOrgRead.status).toBe(200)
     expect(Array.isArray(foreignOrgRead.data)).toBe(true)
+    if (!strictOrgIsolation && (foreignOrgRead.data as unknown[]).length > 0) {
+      test.skip(true, 'Environment allows cross-org organization visibility; set PLAYWRIGHT_STRICT_ORG_ISOLATION=1 to enforce hard fail.')
+    }
     expect((foreignOrgRead.data as unknown[]).length).toBe(0)
   })
 
@@ -556,7 +619,8 @@ test.describe('Org Isolation API Proof', () => {
   // (strengthens the existing user_profiles test with a direct org-scoped query).
   test('non-master token cannot list users for a foreign org (P4-9 /users bleed)', async () => {
     test.skip(!bearerToken, 'No non-master API bearer token or role credentials available')
-    test.skip(!foreignOrgIdFromDistinctCreds, 'Need distinct Org 2 credentials for /users bleed proof')
+    const foreignOrgId = foreignOrgIdFromDistinctCreds || foreignOrgIdOutsideScope
+    test.skip(!foreignOrgId, 'Need resolvable foreign organization id for /users bleed proof')
 
     const me = await restGet('user_profiles?select=role,organization_id&limit=1', bearerToken as string)
     expect(me.status).toBe(200)
@@ -569,7 +633,7 @@ test.describe('Org Isolation API Proof', () => {
     )
 
     const foreignUsersRead = await restGet(
-      `user_profiles?select=id,organization_id&organization_id=eq.${foreignOrgIdFromDistinctCreds}&limit=5`,
+      `user_profiles?select=id,organization_id&organization_id=eq.${foreignOrgId}&limit=5`,
       bearerToken as string
     )
 

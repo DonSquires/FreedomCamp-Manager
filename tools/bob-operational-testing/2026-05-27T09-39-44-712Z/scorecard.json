@@ -1,0 +1,127 @@
+{
+  "runId": "2026-05-27T09-39-44-712Z",
+  "startedAt": "2026-05-27T09:39:44.724Z",
+  "endedAt": "2026-05-27T09:46:24.191Z",
+  "config": {
+    "hours": 24,
+    "artifacts": [
+      "spec.md",
+      "plan.md"
+    ],
+    "functionalCmd": "npm run -s test:bob:governance",
+    "ragasCmd": ". .venv-ragas/bin/activate && python scripts/run_ragas_eval.py",
+    "trulensCmd": ". .venv-trulens/bin/activate && python scripts/run_trulens_eval.py",
+    "maxLowScoreCount": 0,
+    "maxRepeatedHallucinations": 0,
+    "maxChannelBiasGap": 4,
+    "minChannelSamples": 2,
+    "maxFallbackRate": 0.5,
+    "failOnRedTeamRevision": true,
+    "redTeamRetries": 2
+  },
+  "stages": {
+    "rag": {
+      "status": "pass",
+      "detail": "lowScoreCount=0, repeatedHallucinations=0",
+      "summarizeFailures": {
+        "exitCode": 0,
+        "lowScoreCount": 0,
+        "repeatedHallucinations": 0,
+        "rawSummary": {
+          "generatedAt": "2026-05-27T09:39:44.834Z",
+          "windowHours": 24,
+          "totalEntries": 3,
+          "lowScoreCount": 0,
+          "topFailureReasons": [],
+          "topHallucinationPatterns": [],
+          "repeatedHallucinations": [],
+          "topFlaggedArtifacts": [
+            {
+              "name": "/workspaces/FreedomCamp-Manager/plan.md",
+              "count": 1
+            },
+            {
+              "name": "/workspaces/FreedomCamp-Manager/spec.md",
+              "count": 1
+            },
+            {
+              "name": "/workspaces/FreedomCamp-Manager/src/pages/OrganizationManagement.tsx",
+              "count": 1
+            }
+          ],
+          "recommendations": [
+            "No repeated failure mode crossed the automatic threshold in this window."
+          ]
+        }
+      },
+      "external": [
+        {
+          "tool": "ragas",
+          "command": ". .venv-ragas/bin/activate && python scripts/run_ragas_eval.py",
+          "exitCode": 0,
+          "status": "pass"
+        },
+        {
+          "tool": "trulens",
+          "command": ". .venv-trulens/bin/activate && python scripts/run_trulens_eval.py",
+          "exitCode": 0,
+          "status": "pass"
+        }
+      ]
+    },
+    "redTeam": {
+      "status": "pass",
+      "detail": "all artifact reviews passed",
+      "artifacts": [
+        {
+          "artifact": "spec.md",
+          "status": "pass",
+          "exitCode": 0,
+          "decision": "approve",
+          "reviewArtifact": "/workspaces/FreedomCamp-Manager/data/dr-bob-reviews/spec.md.2026-05-27T09-42-10-805Z.json"
+        },
+        {
+          "artifact": "plan.md",
+          "status": "pass",
+          "exitCode": 0,
+          "decision": "approve",
+          "reviewArtifact": "/workspaces/FreedomCamp-Manager/data/dr-bob-reviews/plan.md.2026-05-27T09-46-23-092Z.json"
+        }
+      ]
+    },
+    "functionalBias": {
+      "status": "pass",
+      "detail": "functional command and bias checks passed",
+      "functional": {
+        "command": "npm run -s test:bob:governance",
+        "exitCode": 0,
+        "status": "pass"
+      },
+      "bias": {
+        "status": "pass",
+        "entriesCount": 5,
+        "comparableChannels": [
+          "runpod-runsync"
+        ],
+        "channelBiasGap": 0,
+        "fallbackRate": 0,
+        "channelStats": [
+          {
+            "channel": "runpod-runsync",
+            "count": 5,
+            "totalScore": 50,
+            "avgScore": 10,
+            "lowScoreCount": 0,
+            "lowScoreRate": 0
+          }
+        ]
+      }
+    }
+  },
+  "finalDecision": "pass",
+  "notes": [],
+  "artifacts": {
+    "scorecardPath": "/workspaces/FreedomCamp-Manager/tools/bob-operational-testing/2026-05-27T09-39-44-712Z/scorecard.json",
+    "reportPath": "/workspaces/FreedomCamp-Manager/tools/bob-operational-testing/2026-05-27T09-39-44-712Z/scorecard.md"
+  }
+}

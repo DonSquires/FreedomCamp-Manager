@@ -36,6 +36,7 @@ Operational outcome:
 1. Dispatch monitor visibility regressions for human-emulated chain are cleared in local beta validation.
 2. Role/route/tenancy smoke coverage is currently green for the selected high-signal suite.
 3. Remaining lint items are non-blocking warnings and unchanged from prior baseline patterns.
+4. Translation availability requirement is explicit for beta hardening: translation remains available any time/anywhere that PTT is available (no roster/time/location restriction at the access surface).
 
 ---
 

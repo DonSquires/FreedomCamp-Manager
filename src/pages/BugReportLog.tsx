@@ -24,6 +24,7 @@ import {
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 
+import { getBobManagerUrl } from '@/lib/bobManagerUrl'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { AppLayout } from '@/components/features/AppLayout'
@@ -94,14 +95,6 @@ function statusBadge(status: string | null) {
   if (status === 'resolved')   return 'bg-green-100 text-green-800'
   if (status === 'closed')     return 'bg-gray-100 text-gray-600'
   return 'bg-yellow-100 text-yellow-800'
-}
-
-function getBobManagerUrl(): string | null {
-  const envUrl = String(import.meta.env.VITE_BOB_MANAGER_URL ?? '').trim()
-  if (envUrl.length > 0) {
-    return envUrl.replace(/\/$/, '')
-  }
-  return null
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -175,10 +168,6 @@ export default function BugReportLog() {
     },
     retry: 1,
   })
-
-  if (isGrandMaster && !bobManagerUrl) {
-    console.error('Configuration Error: VITE_BOB_MANAGER_URL is missing.')
-  }
 
   // ── Resolve mutation ───────────────────────────────────────────────────────
 
