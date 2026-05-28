@@ -453,15 +453,15 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
                   : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-[#2A2A2A] dark:hover:text-gray-100'
               )}
             >
-              <span className="flex items-center gap-3">
-                <GroupIcon className={cn('h-4 w-4 shrink-0', hasActiveChild ? 'text-primary' : 'text-gray-400 dark:text-gray-500')} />
+                <span className="flex items-center gap-3">
+                  <GroupIcon className={cn('h-4 w-4 shrink-0', hasActiveChild ? 'text-primary' : 'text-gray-400 dark:text-gray-300')} />
                 <span>{group.label}</span>
               </span>
               <ChevronDown className={cn('h-3.5 w-3.5 transition-transform duration-200', isOpen && 'rotate-180')} />
             </button>
 
             {isOpen && (
-              <div className="ml-4 mt-1 space-y-1 border-l border-gray-200 dark:border-[#9E9E9E]/20 pl-3">
+              <div className="ml-4 mt-1.5 space-y-1.5 border-l border-gray-200 dark:border-[#9E9E9E]/20 pl-3.5">
                 {visibleItems.map((item) => {
                   const Icon = item.icon
                   const isActive = location.pathname === item.path
@@ -477,7 +477,7 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
                           : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-[#2A2A2A] dark:hover:text-gray-100'
                       )}
                     >
-                      <Icon className={cn('h-3.5 w-3.5 shrink-0', isActive ? 'text-primary' : 'text-gray-400 dark:text-gray-500')} />
+                      <Icon className={cn('h-3.5 w-3.5 shrink-0', isActive ? 'text-primary' : 'text-gray-400 dark:text-gray-300')} />
                       <span className="min-w-0">
                         <span className="block truncate">{item.label}</span>
                         {item.scopeHint && (
