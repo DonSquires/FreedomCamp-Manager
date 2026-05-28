@@ -89,8 +89,8 @@ const INVOICE_STATUS_STYLE: Record<string, string> = {
   partially_paid: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
   paid:      'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
   overdue:   'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
-  voided:    'bg-gray-100 text-gray-400 dark:bg-[#1E1E1E] dark:text-gray-500',
-  cancelled: 'bg-gray-100 text-gray-400 dark:bg-[#1E1E1E] dark:text-gray-500',
+  voided:    'bg-gray-100 text-gray-600 dark:bg-[#1E1E1E] dark:text-gray-300',
+  cancelled: 'bg-gray-100 text-gray-600 dark:bg-[#1E1E1E] dark:text-gray-300',
 }
 
 const CONTRACT_STATUS_STYLE: Record<string, string> = {

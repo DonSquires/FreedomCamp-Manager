@@ -85,7 +85,7 @@ function shiftHours(start: string | null, end: string | null): string {
 }
 
 const STATUS_COLOURS: Record<string, string> = {
-  draft:      'bg-gray-100 text-gray-700 dark:bg-[#1E1E1E] dark:text-gray-400',
+  draft:      'bg-gray-100 text-gray-700 dark:bg-[#1E1E1E] dark:text-gray-300',
   published:  'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
   confirmed:  'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
   cancelled:  'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300',
