@@ -14,7 +14,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
-import { AppLayout } from '@/components/features/AppLayout'
+import { OfficerShell } from '@/components/features/OfficerShell'
 import { GeofenceWarningBanner } from '@/components/features/GeofenceWarningBanner'
 import { useShiftGate } from '@/hooks/useShiftGate'
 import { Button } from '@/components/ui/button'
@@ -272,10 +272,11 @@ export default function EMSPortal() {
   // ─────────────────────────────────────────────────────────────────────────
 
   return (
-    <AppLayout
+    <OfficerShell
       title="EMS Portal"
       description="Electronic Monitoring Services"
       showBackButton
+      contentClassName="max-w-7xl"
     >
       {geofenceViolation && <GeofenceWarningBanner />}
       {/* Header strip */}
@@ -585,6 +586,6 @@ export default function EMSPortal() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </AppLayout>
+    </OfficerShell>
   )
 }

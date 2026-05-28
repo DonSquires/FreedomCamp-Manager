@@ -30,6 +30,7 @@ interface OfficerShellProps {
   title?: string
   description?: string
   showBackButton?: boolean
+  contentClassName?: string
 }
 
 /**
@@ -141,7 +142,7 @@ function OfflineQueueBadge() {
   )
 }
 
-export function OfficerShell({ children, title, description, showBackButton }: OfficerShellProps) {
+export function OfficerShell({ children, title, description, showBackButton, contentClassName }: OfficerShellProps) {
   const navigate = useNavigate()
   const { data: isOnline } = useOnlineStatus()
   const { data: queueStats } = useOfflineQueueStats()
@@ -220,7 +221,7 @@ export function OfficerShell({ children, title, description, showBackButton }: O
 
       {/* ── Main content ─────────────────────────────────────────────── */}
       <main className="flex-1 overflow-y-auto">
-        <div className="mx-auto w-full max-w-2xl px-4 py-4">
+        <div className={cn('mx-auto w-full max-w-2xl px-4 py-4', contentClassName)}>
           {children}
         </div>
       </main>
