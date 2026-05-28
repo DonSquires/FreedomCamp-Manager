@@ -13,6 +13,12 @@ When a pattern, platform, or architectural decision changes, append a dated note
 - Consequences: follow-on constraints Bob must persist
 
 ## Current Standing Decisions
+- Date: 2026-05-28
+- Decision: Officer and specialist officer portals now standardize on `OfficerShell` as the canonical shell, with configurable content width for desktop-heavy workflows.
+- Scope: `src/components/features/OfficerShell.tsx`, `src/pages/FieldOfficerPortal.tsx`, `src/pages/ParkingOfficerPortal.tsx`, `src/pages/NoiseOfficerPortal.tsx`, `src/pages/BiosecurityOfficerPortal.tsx`, `src/pages/SmokeComplaintOfficerPortal.tsx`, `src/pages/SiteGuardPortal.tsx`, `src/pages/EMSPortal.tsx`.
+- Reason: Role-shell inconsistency (`AppLayout` vs `OfficerShell`) created different mobile/desktop behavior across officer experiences and increased maintenance overhead.
+- Consequences: (1) New officer-specialist portals should use `OfficerShell` by default. (2) Desktop width tuning should be done via `contentClassName` instead of switching shells. (3) Any exception must be documented with explicit UX/operational rationale in this file.
+
 - Date: 2026-05-18
 - Decision: Production ONNX runtime defaults are now pinned to `balanced` profile based on benchmark run `26011565908`.
 - Scope: `inference-service/.env.example`, `inference-service/server.js`, `.github/workflows/ops-onnx-runtime-profile-benchmark.yml`, benchmark artifact `onnx-runtime-benchmark-26011565908`.

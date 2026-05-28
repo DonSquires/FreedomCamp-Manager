@@ -133,6 +133,13 @@ This prevents publishing updates to non-existent or incorrect EAS update branche
 
 ## Recent Deployments
 
+### Officer Shell Unification (May 2026) ✅ Deployed
+Specialist officer portals now use a single mobile-first shell for consistent behavior across officer workflows, while still supporting wide desktop layouts.
+- **Status**: Merged to `main` (PR #801)
+- **Coverage**: Field Officer, Parking, Noise, Biosecurity, Smoke Complaint, Site Guard, and EMS portals
+- **Implementation**: `OfficerShell` now supports optional `contentClassName` for per-portal width control
+- **Key files**: `src/components/features/OfficerShell.tsx`, `src/pages/FieldOfficerPortal.tsx`, `src/pages/ParkingOfficerPortal.tsx`, `src/pages/NoiseOfficerPortal.tsx`, `src/pages/BiosecurityOfficerPortal.tsx`, `src/pages/SmokeComplaintOfficerPortal.tsx`, `src/pages/SiteGuardPortal.tsx`, `src/pages/EMSPortal.tsx`
+
 ### Training Feature (May 2026) ✅ Deployed
 Pre-shift training assignment automation, competency grants, and multi-channel reminders.
 - **Status**: Fully deployed and operationally verified
