@@ -1,5 +1,9 @@
 import { createClient } from '@supabase/supabase-js'
 import type { Page } from '@playwright/test'
+import { createHash } from 'node:crypto'
+import { mkdir, open, readFile, writeFile, unlink } from 'node:fs/promises'
+import path from 'node:path'
+import { tmpdir } from 'node:os'
 import WebSocket from 'ws'
 
 export type TestUserKey =
@@ -7,6 +11,7 @@ export type TestUserKey =
   | 'adminOrg1'
   | 'adminOrg2'
   | 'officerOrg1'
+  | 'nzscv_monitor'
   | 'bob'
   | 'client'
   | 'clientViewer'
@@ -217,6 +222,12 @@ const roleCredentialConfig: Record<TestUserKey, RoleCredentialConfig> = {
     passwordVars: ['PLAYWRIGHT_OFFICER_ORG1_PASSWORD', 'PLAYWRIGHT_OFFICER_PASSWORD', 'PLAYWRIGHT_OFFICER2_PASSWORD', 'E2E_OFFICER_PASSWORD'],
     fallbackEmail: 'officer@org1.com',
   },
+  nzscv_monitor: {
+    label: 'nzscv_monitor',
+    emailVars: ['PLAYWRIGHT_NZSCV_MONITOR_EMAIL', 'E2E_NZSCV_MONITOR_EMAIL'],
+    passwordVars: ['PLAYWRIGHT_NZSCV_MONITOR_PASSWORD', 'E2E_NZSCV_MONITOR_PASSWORD'],
+    fallbackEmail: 'nzscv.monitor@test.com',
+  },
   bob: {
     label: 'bob',
     emailVars: ['BOB_LOGIN_EMAIL', 'PLAYWRIGHT_BOB_EMAIL'],
@@ -274,6 +285,11 @@ const expectedProfileConfig: Record<TestUserKey, ExpectedProfileConfig> = {
     requiredCapability: 'field_ops',
     expectedOrgName: readEnv('PLAYWRIGHT_OFFICER_ORG1_NAME') || DEFAULT_TEST_ORG_NAME,
   },
+  nzscv_monitor: {
+    allowedRoles: ['nzscv_monitor'],
+    requiredCapability: 'admin_screen',
+    expectedOrgName: readEnv('PLAYWRIGHT_NZSCV_MONITOR_ORG_NAME') || DEFAULT_TEST_ORG_NAME,
+  },
   bob: {
     allowedRoles: ['admin_officer'],
     requiredCapability: 'admin_screen',
@@ -311,6 +327,7 @@ const desiredRoleByTestUser: Record<TestUserKey, DesiredRole> = {
   adminOrg1: 'admin_officer',
   adminOrg2: 'admin_officer',
   officerOrg1: 'officer',
+  nzscv_monitor: 'nzscv_monitor',
   bob: 'admin_officer',
   client: 'client_viewer',
   clientViewer: 'client_viewer',
@@ -846,6 +863,89 @@ type SupabasePasswordGrant = {
   user?: unknown
 }
 
+type BrowserSessionPayload = {
+  storageKey: string
+  sessionPayload: {
+    access_token: string
+    refresh_token: string
+    expires_in: number
+    expires_at: number
+    token_type: string
+    user: unknown
+  }
+}
+
+const browserSessionCache = new Map<string, BrowserSessionPayload>()
+const browserSessionCacheDir = process.env.PLAYWRIGHT_BROWSER_SESSION_CACHE_DIR || path.join(tmpdir(), 'freedomcamp-playwright-auth-cache')
+
+function getBrowserSessionCacheKey(supabaseUrl: string, credentials: TestCredentials): string {
+  return [supabaseUrl.trim(), credentials.email.trim().toLowerCase(), credentials.password].join('::')
+}
+
+function getBrowserSessionCachePaths(cacheKey: string): { dataPath: string; lockPath: string } {
+  const keyHash = createHash('sha1').update(cacheKey).digest('hex')
+  return {
+    dataPath: path.join(browserSessionCacheDir, `${keyHash}.json`),
+    lockPath: path.join(browserSessionCacheDir, `${keyHash}.lock`),
+  }
+}
+
+async function readBrowserSessionFromDisk(cacheKey: string): Promise<BrowserSessionPayload | null> {
+  try {
+    const { dataPath } = getBrowserSessionCachePaths(cacheKey)
+    const raw = await readFile(dataPath, 'utf8')
+    const parsed = JSON.parse(raw) as BrowserSessionPayload
+    if (!parsed?.storageKey || !parsed?.sessionPayload?.access_token || !parsed?.sessionPayload?.refresh_token) {
+      return null
+    }
+    return parsed
+  } catch {
+    return null
+  }
+}
+
+async function writeBrowserSessionToDisk(cacheKey: string, payload: BrowserSessionPayload): Promise<void> {
+  const { dataPath } = getBrowserSessionCachePaths(cacheKey)
+  await mkdir(browserSessionCacheDir, { recursive: true })
+  await writeFile(dataPath, `${JSON.stringify(payload)}\n`, 'utf8')
+}
+
+async function waitForBrowserSessionOnDisk(cacheKey: string, timeoutMs = 15000): Promise<BrowserSessionPayload | null> {
+  const startedAt = Date.now()
+  while (Date.now() - startedAt < timeoutMs) {
+    const cached = await readBrowserSessionFromDisk(cacheKey)
+    if (cached) return cached
+    await new Promise((resolve) => setTimeout(resolve, 250))
+  }
+  return null
+}
+
+async function acquireBrowserSessionLock(cacheKey: string): Promise<Awaited<ReturnType<typeof open>> | null> {
+  const { lockPath } = getBrowserSessionCachePaths(cacheKey)
+  await mkdir(browserSessionCacheDir, { recursive: true })
+  try {
+    return await open(lockPath, 'wx')
+  } catch {
+    return null
+  }
+}
+
+async function releaseBrowserSessionLock(cacheKey: string, handle: Awaited<ReturnType<typeof open>> | null): Promise<void> {
+  const { lockPath } = getBrowserSessionCachePaths(cacheKey)
+  await handle?.close().catch(() => undefined)
+  await unlink(lockPath).catch(() => undefined)
+}
+
+async function applyBrowserSessionPayload(page: Page, payload: BrowserSessionPayload): Promise<void> {
+  await page.context().addInitScript(({ key, value }) => {
+    const encoded = JSON.stringify(value)
+    window.localStorage.setItem(key, encoded)
+    window.sessionStorage.setItem(key, encoded)
+  }, { key: payload.storageKey, value: payload.sessionPayload })
+
+  await page.goto('/', { waitUntil: 'domcontentloaded' })
+}
+
 async function bootstrapBrowserSessionFromPasswordGrant(
   page: Page,
   credentials: TestCredentials
@@ -856,61 +956,106 @@ async function bootstrapBrowserSessionFromPasswordGrant(
     return { ok: false, reason: 'VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY missing' }
   }
 
-  const tokenRes = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=password`, {
-    method: 'POST',
-    headers: {
-      apikey: anonKey,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      email: credentials.email,
-      password: credentials.password,
-    }),
-  })
+  const cacheKey = getBrowserSessionCacheKey(supabaseUrl, credentials)
+  const cachedSession = browserSessionCache.get(cacheKey)
+  if (cachedSession) {
+    await applyBrowserSessionPayload(page, cachedSession)
+    return { ok: true }
+  }
 
-  if (!tokenRes.ok) {
-    const errorText = await tokenRes.text().catch(() => '')
-    return {
-      ok: false,
-      reason: `password grant failed (${tokenRes.status}): ${errorText.slice(0, 180)}`,
+  const diskCachedSession = await readBrowserSessionFromDisk(cacheKey)
+  if (diskCachedSession) {
+    browserSessionCache.set(cacheKey, diskCachedSession)
+    await applyBrowserSessionPayload(page, diskCachedSession)
+    return { ok: true }
+  }
+
+  const lockHandle = await acquireBrowserSessionLock(cacheKey)
+  if (!lockHandle) {
+    const waitedSession = await waitForBrowserSessionOnDisk(cacheKey)
+    if (waitedSession) {
+      browserSessionCache.set(cacheKey, waitedSession)
+      await applyBrowserSessionPayload(page, waitedSession)
+      return { ok: true }
     }
   }
 
-  const grant = await tokenRes.json() as SupabasePasswordGrant
-  if (!grant.access_token || !grant.refresh_token) {
-    return { ok: false, reason: 'password grant missing access/refresh token' }
+  try {
+    if (lockHandle) {
+      const cachedAfterLock = await readBrowserSessionFromDisk(cacheKey)
+      if (cachedAfterLock) {
+        browserSessionCache.set(cacheKey, cachedAfterLock)
+        await applyBrowserSessionPayload(page, cachedAfterLock)
+        return { ok: true }
+      }
+
+      const tokenRes = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=password`, {
+        method: 'POST',
+        headers: {
+          apikey: anonKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: credentials.email,
+          password: credentials.password,
+        }),
+      })
+
+      if (!tokenRes.ok) {
+        const errorText = await tokenRes.text().catch(() => '')
+        return {
+          ok: false,
+          reason: `password grant failed (${tokenRes.status}): ${errorText.slice(0, 180)}`,
+        }
+      }
+
+      const grant = await tokenRes.json() as SupabasePasswordGrant
+      if (!grant.access_token || !grant.refresh_token) {
+        return { ok: false, reason: 'password grant missing access/refresh token' }
+      }
+
+      const projectRef = getSupabaseProjectRef(supabaseUrl)
+      if (!projectRef) {
+        return { ok: false, reason: 'unable to derive Supabase project ref from URL' }
+      }
+
+      const expiresAt =
+        typeof grant.expires_at === 'number'
+          ? grant.expires_at
+          : Math.floor(Date.now() / 1000) + (typeof grant.expires_in === 'number' ? grant.expires_in : 3600)
+
+      const storageKey = `sb-${projectRef}-auth-token`
+      const sessionPayload = {
+        access_token: grant.access_token,
+        refresh_token: grant.refresh_token,
+        expires_in: grant.expires_in ?? 3600,
+        expires_at: expiresAt,
+        token_type: grant.token_type ?? 'bearer',
+        user: grant.user ?? null,
+      }
+
+      browserSessionCache.set(cacheKey, {
+        storageKey,
+        sessionPayload,
+      })
+
+      await writeBrowserSessionToDisk(cacheKey, {
+        storageKey,
+        sessionPayload,
+      })
+
+      await applyBrowserSessionPayload(page, {
+        storageKey,
+        sessionPayload,
+      })
+
+      return { ok: true }
+    }
+
+    return { ok: false, reason: 'unable to acquire browser session lock' }
+  } finally {
+    await releaseBrowserSessionLock(cacheKey, lockHandle)
   }
-
-  const projectRef = getSupabaseProjectRef(supabaseUrl)
-  if (!projectRef) {
-    return { ok: false, reason: 'unable to derive Supabase project ref from URL' }
-  }
-
-  const expiresAt =
-    typeof grant.expires_at === 'number'
-      ? grant.expires_at
-      : Math.floor(Date.now() / 1000) + (typeof grant.expires_in === 'number' ? grant.expires_in : 3600)
-
-  const storageKey = `sb-${projectRef}-auth-token`
-  const sessionPayload = {
-    access_token: grant.access_token,
-    refresh_token: grant.refresh_token,
-    expires_in: grant.expires_in ?? 3600,
-    expires_at: expiresAt,
-    token_type: grant.token_type ?? 'bearer',
-    user: grant.user ?? null,
-  }
-
-  await page.goto('/login', { waitUntil: 'domcontentloaded' })
-
-  await page.evaluate(({ key, value }) => {
-    const encoded = JSON.stringify(value)
-    window.localStorage.setItem(key, encoded)
-    window.sessionStorage.setItem(key, encoded)
-  }, { key: storageKey, value: sessionPayload })
-
-  await page.goto('/', { waitUntil: 'domcontentloaded' })
-  return { ok: true }
 }
 
 async function loginThroughUi(page: Page, credentials: TestCredentials): Promise<void> {
@@ -1119,7 +1264,8 @@ export async function loginAs(page: Page, user: TestUserKey): Promise<void> {
 
   let lastErrorText: string | null = null
   let apiFallbackError: string | null = null
-  for (let attempt = 0; attempt < 2; attempt += 1) {
+  const maxAttempts = 3
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     const apiFallback = await bootstrapBrowserSessionFromPasswordGrant(page, credentials).catch((error: unknown) => ({
       ok: false,
       reason: error instanceof Error ? error.message : String(error),
@@ -1157,13 +1303,23 @@ export async function loginAs(page: Page, user: TestUserKey): Promise<void> {
 
     lastErrorText = await page.locator('text=/invalid|error|failed/i').first().textContent().catch(() => null)
 
-    // Retry once for transient auth/network races observed on remote browsers.
-    if (attempt === 0) {
+    const rateLimited = /over_request_rate_limit|rate\s*limit|too\s*many\s*requests|429/i.test(
+      `${apiFallbackError || ''} ${lastErrorText || ''}`
+    )
+
+    // Retry for transient auth/network races and auth API throttling.
+    if (attempt < maxAttempts - 1) {
       await page.context().clearCookies().catch(() => undefined)
       await page.evaluate(() => {
         window.localStorage.clear()
         window.sessionStorage.clear()
       }).catch(() => undefined)
+
+      if (rateLimited) {
+        // Simple linear backoff to absorb Supabase auth throttle windows.
+        await new Promise((resolve) => setTimeout(resolve, 500 * (attempt + 1)))
+      }
+
       continue
     }
 

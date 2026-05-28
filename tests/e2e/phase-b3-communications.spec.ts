@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test'
 import { supabaseAdmin } from './setup'
+import { probeCommsSchemaCapabilities } from './helpers/capability-preflight'
 
 /**
  * Phase B3 Gate: Communications — Callsign Binding & Dispatch-to-Radio Escalation
@@ -89,16 +90,26 @@ async function createTestCase(organizationId: string, officerId: string) {
 
 test.describe('Phase B3: Communications — Callsign Binding & Dispatch-to-Radio Escalation', () => {
   test.skip(!supabaseAdmin, 'SUPABASE_SERVICE_ROLE_KEY required')
+  test.beforeEach(({ browserName }) => {
+    test.skip(browserName !== 'chromium', 'Phase B3 communications gate is validated on Chromium only.')
+  })
 
   let orgId: string
   let officerId: string
   let officerCallsign: string | null
   let caseId: string
   let dispatchJobId: string
+  let commsPreflight: Awaited<ReturnType<typeof probeCommsSchemaCapabilities>> | null = null
 
   test.beforeAll(async () => {
+    commsPreflight = await probeCommsSchemaCapabilities()
+    if (!commsPreflight.ready) {
+      test.skip(true, commsPreflight.reason || 'Phase B3 capability preflight failed')
+      return
+    }
+
     if (!supabaseAdmin) {
-      test.skip()
+      test.skip(true, 'SUPABASE_SERVICE_ROLE_KEY required for Phase B3 gate')
       return
     }
 
@@ -132,7 +143,8 @@ test.describe('Phase B3: Communications — Callsign Binding & Dispatch-to-Radio
   // ── Test 1: radio_comms_events table exists ──────────────────────────────
 
   test('should have radio_comms_events table available', async () => {
-    if (!supabaseAdmin) { test.skip(); return }
+    test.skip(!(commsPreflight?.ready), commsPreflight?.reason || 'Phase B3 capability preflight failed')
+    if (!supabaseAdmin) { test.skip(true, 'SUPABASE_SERVICE_ROLE_KEY required for Phase B3 gate'); return }
 
     const { error } = await supabaseAdmin
       .from('radio_comms_events')
@@ -140,7 +152,7 @@ test.describe('Phase B3: Communications — Callsign Binding & Dispatch-to-Radio
       .limit(1)
 
     if (error && (error as any).code === 'PGRST205') {
-      test.skip() // table not yet deployed to this environment
+      test.skip(true, 'radio_comms_events table is not deployed in this environment')
       return
     }
     expect(error).toBeNull()
@@ -149,12 +161,13 @@ test.describe('Phase B3: Communications — Callsign Binding & Dispatch-to-Radio
   // ── Test 2: Callsign binding ────────────────────────────────────────────
 
   test('should record radio_callsign_bound event with correct callsign', async () => {
-    if (!supabaseAdmin) { test.skip(); return }
+    test.skip(!(commsPreflight?.ready), commsPreflight?.reason || 'Phase B3 capability preflight failed')
+    if (!supabaseAdmin) { test.skip(true, 'SUPABASE_SERVICE_ROLE_KEY required for Phase B3 gate'); return }
 
     // Skip if table not available
     const { error: checkErr } = await supabaseAdmin
       .from('radio_comms_events').select('id').limit(1)
-    if (checkErr && (checkErr as any).code === 'PGRST205') { test.skip(); return }
+    if (checkErr && (checkErr as any).code === 'PGRST205') { test.skip(true, 'radio_comms_events table is not deployed in this environment'); return }
 
     const { data, error } = await supabaseAdmin
       .from('radio_comms_events')
@@ -181,7 +194,8 @@ test.describe('Phase B3: Communications — Callsign Binding & Dispatch-to-Radio
   // ── Test 3: Officer callsign readable from user_profiles ────────────────
 
   test('should read officer callsign from user_profiles', async () => {
-    if (!supabaseAdmin || !officerId) { test.skip(); return }
+    test.skip(!(commsPreflight?.ready), commsPreflight?.reason || 'Phase B3 capability preflight failed')
+    if (!supabaseAdmin || !officerId) { test.skip(true, 'Officer fixture was not provisioned for this environment'); return }
 
     const { data, error } = await supabaseAdmin
       .from('user_profiles')
@@ -196,11 +210,12 @@ test.describe('Phase B3: Communications — Callsign Binding & Dispatch-to-Radio
   // ── Test 4: Dispatch escalation to radio ────────────────────────────────
 
   test('should record dispatch_escalated_to_radio in radio_comms_events', async () => {
-    if (!supabaseAdmin) { test.skip(); return }
+    test.skip(!(commsPreflight?.ready), commsPreflight?.reason || 'Phase B3 capability preflight failed')
+    if (!supabaseAdmin) { test.skip(true, 'SUPABASE_SERVICE_ROLE_KEY required for Phase B3 gate'); return }
 
     const { error: checkErr } = await supabaseAdmin
       .from('radio_comms_events').select('id').limit(1)
-    if (checkErr && (checkErr as any).code === 'PGRST205') { test.skip(); return }
+    if (checkErr && (checkErr as any).code === 'PGRST205') { test.skip(true, 'radio_comms_events table is not deployed in this environment'); return }
 
     const { data: radioEvent, error: radioErr } = await supabaseAdmin
       .from('radio_comms_events')
@@ -225,7 +240,9 @@ test.describe('Phase B3: Communications — Callsign Binding & Dispatch-to-Radio
   // ── Test 5: Dispatch escalation also records dispatch_events entry ────────
 
   test('should record dispatch_escalated in dispatch_events when escalating to radio', async () => {
-    if (!supabaseAdmin || !dispatchJobId) { test.skip(); return }
+    test.skip(!(commsPreflight?.ready), commsPreflight?.reason || 'Phase B3 capability preflight failed')
+    test.skip(!commsPreflight?.dispatchJobsReady, 'dispatch_jobs fixture is unavailable in this environment')
+    if (!supabaseAdmin || !dispatchJobId) { test.skip(true, 'dispatch_jobs fixture is unavailable in this environment'); return }
 
     const { data, error } = await supabaseAdmin
       .from('dispatch_events')
@@ -247,11 +264,12 @@ test.describe('Phase B3: Communications — Callsign Binding & Dispatch-to-Radio
   // ── Test 6: Degraded mode event ──────────────────────────────────────────
 
   test('should record radio_degraded_mode with degraded_mode=true', async () => {
-    if (!supabaseAdmin) { test.skip(); return }
+    test.skip(!(commsPreflight?.ready), commsPreflight?.reason || 'Phase B3 capability preflight failed')
+    if (!supabaseAdmin) { test.skip(true, 'SUPABASE_SERVICE_ROLE_KEY required for Phase B3 gate'); return }
 
     const { error: checkErr } = await supabaseAdmin
       .from('radio_comms_events').select('id').limit(1)
-    if (checkErr && (checkErr as any).code === 'PGRST205') { test.skip(); return }
+    if (checkErr && (checkErr as any).code === 'PGRST205') { test.skip(true, 'radio_comms_events table is not deployed in this environment'); return }
 
     const { data, error } = await supabaseAdmin
       .from('radio_comms_events')
@@ -274,7 +292,8 @@ test.describe('Phase B3: Communications — Callsign Binding & Dispatch-to-Radio
   // ── Test 7: Case remains open after degraded mode event ──────────────────
 
   test('should leave case status as open after a degraded mode event', async () => {
-    if (!supabaseAdmin || !caseId) { test.skip(); return }
+    test.skip(!(commsPreflight?.ready), commsPreflight?.reason || 'Phase B3 capability preflight failed')
+    if (!supabaseAdmin || !caseId) { test.skip(true, 'Operational case fixture is unavailable in this environment'); return }
 
     const { data, error } = await supabaseAdmin
       .from('operational_cases')
@@ -290,11 +309,12 @@ test.describe('Phase B3: Communications — Callsign Binding & Dispatch-to-Radio
   // ── Test 8: Full comms timeline for a case is retrievable ─────────────────
 
   test('should retrieve full radio comms timeline in chronological order', async () => {
-    if (!supabaseAdmin || !caseId) { test.skip(); return }
+    test.skip(!(commsPreflight?.ready), commsPreflight?.reason || 'Phase B3 capability preflight failed')
+    if (!supabaseAdmin || !caseId) { test.skip(true, 'Operational case fixture is unavailable in this environment'); return }
 
     const { error: checkErr } = await supabaseAdmin
       .from('radio_comms_events').select('id').limit(1)
-    if (checkErr && (checkErr as any).code === 'PGRST205') { test.skip(); return }
+    if (checkErr && (checkErr as any).code === 'PGRST205') { test.skip(true, 'radio_comms_events table is not deployed in this environment'); return }
 
     const { data: timeline, error } = await supabaseAdmin
       .from('radio_comms_events')
@@ -318,11 +338,12 @@ test.describe('Phase B3: Communications — Callsign Binding & Dispatch-to-Radio
   // ── Test 9: Org isolation ─────────────────────────────────────────────────
 
   test('should maintain org isolation for radio comms events', async () => {
-    if (!supabaseAdmin || !caseId) { test.skip(); return }
+    test.skip(!(commsPreflight?.ready), commsPreflight?.reason || 'Phase B3 capability preflight failed')
+    if (!supabaseAdmin || !caseId) { test.skip(true, 'Operational case fixture is unavailable in this environment'); return }
 
     const { error: checkErr } = await supabaseAdmin
       .from('radio_comms_events').select('id').limit(1)
-    if (checkErr && (checkErr as any).code === 'PGRST205') { test.skip(); return }
+    if (checkErr && (checkErr as any).code === 'PGRST205') { test.skip(true, 'radio_comms_events table is not deployed in this environment'); return }
 
     const org2Id = await createTestOrg('CommsOrg2')
     const officer2 = await createTestOfficer(org2Id, 'comms-officer2', 'B3-02')

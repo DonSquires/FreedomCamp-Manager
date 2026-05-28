@@ -8,6 +8,10 @@ export const WAITING_FOR_SHIFT_PATH = '/officer-home'
 
 const DIRECTOR_OFFICER_ALLOWED_PATH_PREFIXES = [
   '/field-officer',
+  '/radio',
+  '/ptt-radio',
+  '/radio-ui',
+  '/team-chat',
   '/profile',
   '/settings',
   '/notifications',

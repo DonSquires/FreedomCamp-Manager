@@ -77,6 +77,20 @@
 3. Password login now performs a local sign-out before creating a new session to prevent stale in-memory token reuse after forced browser closes.
 4. User-facing expectation remains unchanged: if stale browser artifacts cause auth drift, clear site storage and re-authenticate.
 
+### Current Cycle Amendment (2026-05-28 — Beta Validation Alignment)
+
+1. Login UX is now environment-aware: some deployments land users on a role-routed shell before showing explicit email/password fields, depending on existing browser session state and auth bootstrap mode.
+2. Session-lock behavior is treated as feature-flagged until explicitly enabled per environment; when disabled, inactivity returns users to standard auth/session guards instead of a dedicated lock screen.
+3. Specialist officer portals (for example Noise Officer and certain PTT pathways) are roster/site-permission gated. If prerequisites are missing, users are redirected to allowed surfaces (`/field-officer` or `/officer-home`) by design.
+4. PTT UI panel visibility is channel/access-context dependent; absence of full channel controls without eligible channel assignment is expected behavior, not automatically a defect.
+
+### Current Cycle Amendment (2026-05-28 — Bob and Manual Unison Governance)
+
+1. This Instruction Manual remains the canonical source for intended user-visible behavior, route outcomes, and role workflows.
+2. Bob governance and runtime execution documentation must remain aligned with this manual and be updated in the same change set when behavior changes.
+3. For any architecture-impacting, route-impacting, role-impacting, or workflow-impacting implementation, updates are required across code, this manual, and Bob governance/staging evidence docs.
+4. Any divergence between runtime behavior and this manual is treated as drift requiring remediation or an explicit documented product decision.
+
 ### Current Cycle Agentic Action Board (2026-05-18)
 
 Product Oversight To-Do (authoritative execution list):
@@ -674,13 +688,20 @@ All Star Trek rollout exit criteria are met. Root-cause analysis confirmed the e
 3. Enter your **assigned email address** and **password**.
 4. Click **Sign In**. The system requests fullscreen automatically on supported browsers for an optimised field experience.
 
+> **Environment behavior note**: In some hosted or pre-authenticated environments, users may be routed directly into a role-safe portal shell (or redirected by session guards) before a full email/password form is rendered. This is expected when an active or bootstrap session exists.
+
 > **First-time users**: If your account was created by an administrator, you will receive an invitation email with a link. Click the link and you will be placed directly into **Create Your Password** mode. Enter a password of at least 8 characters and confirm it.
 
 > **Forgot password?**: Enter your email on the login form and click **Forgot password?** — a reset link will be sent to your inbox. After clicking the link, set your new password.
 
 ### 2.2 Session Lock & Inactivity
 
-The platform automatically locks your session after a period of inactivity. You will see a lock screen requiring you to re-enter your password. Your data and open tabs are preserved — you do not need to log out and back in.
+Session lock/inactivity behavior is controlled by environment-level feature settings:
+
+1. **When session-lock is enabled**: the platform locks after inactivity and shows a lock screen requiring password re-entry; in-progress state is preserved.
+2. **When session-lock is disabled**: standard auth guards apply, and users may be redirected through normal sign-in/session recovery instead of a dedicated lock screen.
+
+Operationally, treat session-lock as a configurable control and verify current environment settings before incident escalation.
 
 ### 2.3 Portal Selection (Admin Officer role only)
 ### 2.3a Phase 1: Officer Roster Gate & Welfare Standby (Director Phase)
@@ -2187,7 +2208,7 @@ Officers are auto-routed to the correct portal based on their **rostered shift s
 - **Welfare Check-ins**: Officers receive periodic welfare prompts. If not acknowledged within the configured interval, the system escalates to supervisors.
 - **Man Down Detection**: If a device detects no movement for a configurable period, an automatic Man Down alert is triggered.
 - **GPS Logging**: Officer location is logged continuously during active sessions.
-- **PTT Radio**: Push-to-Talk is available on all portals — tap the PTT button to broadcast to the org channel.
+- **PTT Radio**: Push-to-Talk availability is role/roster/channel dependent. When eligible, tap the PTT button to broadcast to the org channel; when not eligible, radio controls may be hidden or access may be redirected.
 - **Offline Queue**: Scans and actions captured without internet are queued and synced automatically when connectivity is restored.
 - **Post-Shift Feedback**: At the end of each shift, officers complete a brief feedback form.
 
@@ -2332,6 +2353,11 @@ For council and private parking enforcement operations.
 
 **Service type**: `noise`  
 **Portal path**: `/noise-officer`
+
+**Access prerequisites (critical):**
+1. User role must include officer-level field access.
+2. Active roster/site permissions must include noise-control access for the current shift context.
+3. If prerequisites are not met, the user is redirected to allowed fallback surfaces (typically `/field-officer` or `/officer-home`).
 
 For after-hours noise control operations under the Resource Management Act 1991 (RMA).
 
@@ -3150,6 +3176,12 @@ The PTT system provides real-time radio communication between officers and super
 Officers are assigned PTT channel access via the `ptt_channel_access` array on their `user_profiles` record. Administrators configure channels via **User Management** → PTT Channel Access Control.
 
 **Channel scope**: By default, officers connect to their own organisation's PTT channel. Additional channels can be granted per-user via `ptt_channel_access`.
+
+#### Access and Visibility Prerequisites (Beta Governance)
+
+1. PTT route access is still subject to role + roster/site permission gates; users without valid assignment can be redirected to `/field-officer` or `/officer-home`.
+2. Full radio UI sections (for example channel lists and advanced controls) are only rendered when channel/access context is valid for that user.
+3. Missing channel panels in an otherwise healthy page should be treated as an access-context check first, not an automatic connectivity defect.
 
 ---
 

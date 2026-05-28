@@ -1368,16 +1368,19 @@ export default function FieldOfficerPortal() {
         navigator.serviceWorker.controller.postMessage({ type: 'WELFARE_SHIFT_END' })
       }
 
-      toast.success('Shift ended — welfare monitoring stopped')
+      // Ending a shift should not sign the officer out; keep session alive for
+      // background notifications while disabling shift-bound monitoring.
+      toast.success('Shift ended — live tracking and welfare stopped. You are still signed in.')
 
       await refetchShift()
       queryClient.invalidateQueries({ queryKey: ['officer-active-shift'] })
+      navigate('/officer-home', { replace: true })
     } catch (err: any) {
       toast.error(err?.message ?? 'Failed to end shift')
     } finally {
       setIsEndingShift(false)
     }
-  }, [activeShift, user, refetchShift, queryClient, endOfficerShift, deactivateWelfarePushSchedule])
+  }, [activeShift, user, refetchShift, queryClient, endOfficerShift, deactivateWelfarePushSchedule, navigate])
 
   const requiresShiftOrgSelection = isServiceProviderMember && accessibleOrgs.length > 1 && !shiftOrgId
   const shiftStatusLabel = activeShift ? 'Active' : rosteredShift ? 'Rostered' : 'Unrostered'

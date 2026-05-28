@@ -86,12 +86,15 @@ const adminBlockedForOfficerPaths = ['/admin', '/users', '/compliance', '/invoic
 test.describe('module-route-access: admin can reach all admin routes', () => {
   test.describe.configure({ mode: 'serial' })
 
-  for (const { path, label } of adminRoutes) {
-    test(`admin loads ${path} (${label})`, async ({ page }) => {
-      await loginAs(page, 'adminOrg1')
-      await assertRouteLoads(page, path)
-    })
-  }
+  test('admin loads all admin routes', async ({ page }) => {
+    await loginAs(page, 'adminOrg1')
+
+    for (const { path, label } of adminRoutes) {
+      await test.step(`admin loads ${path} (${label})`, async () => {
+        await assertRouteLoads(page, path)
+      })
+    }
+  })
 })
 
 // ─── Officer suite ────────────────────────────────────────────────────────────
@@ -99,16 +102,20 @@ test.describe('module-route-access: admin can reach all admin routes', () => {
 test.describe('module-route-access: officer can reach officer routes', () => {
   test.describe.configure({ mode: 'serial' })
 
-  for (const { path, label } of officerOnlyRoutes) {
-    test(`officer loads ${path} (${label})`, async ({ page }) => {
-      test.skip(
-        !isCredentialConfigured('officerOrg1'),
-        'Officer credentials not configured in this environment.',
-      )
-      await loginAs(page, 'officerOrg1')
-      await assertRouteLoads(page, path)
-    })
-  }
+  test('officer loads all officer routes', async ({ page }) => {
+    test.skip(
+      !isCredentialConfigured('officerOrg1'),
+      'Officer credentials not configured in this environment.',
+    )
+
+    await loginAs(page, 'officerOrg1')
+
+    for (const { path, label } of officerOnlyRoutes) {
+      await test.step(`officer loads ${path} (${label})`, async () => {
+        await assertRouteLoads(page, path)
+      })
+    }
+  })
 })
 
 // ─── Officer blocked from admin surfaces ─────────────────────────────────────
@@ -116,14 +123,18 @@ test.describe('module-route-access: officer can reach officer routes', () => {
 test.describe('module-route-access: officer is blocked from admin-only routes', () => {
   test.describe.configure({ mode: 'serial' })
 
-  for (const path of adminBlockedForOfficerPaths) {
-    test(`officer cannot access ${path}`, async ({ page }) => {
-      test.skip(
-        !isCredentialConfigured('officerOrg1'),
-        'Officer credentials not configured in this environment.',
-      )
-      await loginAs(page, 'officerOrg1')
-      await assertRouteBlocked(page, path)
-    })
-  }
+  test('officer cannot access admin-only routes', async ({ page }) => {
+    test.skip(
+      !isCredentialConfigured('officerOrg1'),
+      'Officer credentials not configured in this environment.',
+    )
+
+    await loginAs(page, 'officerOrg1')
+
+    for (const path of adminBlockedForOfficerPaths) {
+      await test.step(`officer cannot access ${path}`, async () => {
+        await assertRouteBlocked(page, path)
+      })
+    }
+  })
 })
