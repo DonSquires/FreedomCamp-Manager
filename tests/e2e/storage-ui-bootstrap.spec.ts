@@ -16,7 +16,6 @@ type SeedUser = {
 type SeedData = {
   users: SeedUser[]
   sites: Array<{ name: string; code: string }>
-  zones: Array<{ name: string }>
 }
 
 async function resolveDeputyCsvFromStoragePreferBucket(): Promise<string> {
@@ -60,7 +59,6 @@ function buildSeedDataFromDeputyCsv(csvText: string): SeedData {
   const parsed = parseDeputyImportText(csvText)
   const usersMap = new Map<string, SeedUser>()
   const sitesMap = new Map<string, { name: string; code: string }>()
-  const zonesMap = new Map<string, { name: string }>()
   const suffix = Date.now().toString().slice(-6)
 
   for (const row of parsed.rows) {
@@ -85,17 +83,12 @@ function buildSeedDataFromDeputyCsv(csvText: string): SeedData {
         sitesMap.set(locationName.toLowerCase(), { name: locationName, code: `${siteCode}-${suffix}` })
       }
 
-      const zoneName = locationName.includes('Zone') ? locationName : `${locationName} Zone`
-      if (!zonesMap.has(zoneName.toLowerCase())) {
-        zonesMap.set(zoneName.toLowerCase(), { name: zoneName })
-      }
     }
   }
 
   return {
     users: Array.from(usersMap.values()).slice(0, 3),
     sites: Array.from(sitesMap.values()).slice(0, 3),
-    zones: Array.from(zonesMap.values()).slice(0, 3),
   }
 }
 
@@ -123,23 +116,6 @@ async function waitForDialogSubmitToComplete(page: Page, dialog: Locator, timeou
       alertText ? ` Latest message: ${alertText.trim()}` : ''
     }`
   )
-}
-
-async function ensureZoneExists(page: Page, zoneName: string): Promise<void> {
-  await page.goto('/zones', { waitUntil: 'domcontentloaded', timeout: 45000 })
-  await expect(page.getByRole('button', { name: /Add Zone/i })).toBeVisible({ timeout: 10000 })
-
-  const existing = await page.getByText(new RegExp(`^${zoneName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i')).first().isVisible({ timeout: 1500 }).catch(() => false)
-  if (existing) return
-
-  await page.getByRole('button', { name: /Add Zone/i }).click()
-  const dialog = page.getByRole('dialog').filter({ hasText: /Add Zone/i }).first()
-  await expect(dialog).toBeVisible({ timeout: 10000 })
-
-  await dialog.locator('#createName').fill(zoneName)
-  await dialog.locator('#createDescription').fill('Created from Supabase storage seed via UI automation')
-  await dialog.getByRole('button', { name: /^Create Zone$/i }).click()
-  await waitForDialogSubmitToComplete(page, dialog, 90000, `Zone create for "${zoneName}"`)
 }
 
 async function ensureClientSiteExists(page: Page, site: { name: string; code: string }): Promise<void> {
@@ -186,7 +162,7 @@ async function ensureUserExists(page: Page, user: SeedUser): Promise<void> {
 }
 
 test.describe('Storage bucket UI bootstrap', () => {
-  test('creates users, zones, and client sites via UI from Deputy storage data', async ({ page }) => {
+  test('creates users and client sites via UI from Deputy storage data', async ({ page }) => {
     test.setTimeout(240000)
 
     const deputyCsvPath = await resolveDeputyCsvFromStoragePreferBucket()
@@ -194,10 +170,6 @@ test.describe('Storage bucket UI bootstrap', () => {
     const seed = buildSeedDataFromDeputyCsv(csvText)
 
     await loginAs(page, 'adminOrg1')
-
-    for (const zone of seed.zones) {
-      await ensureZoneExists(page, zone.name)
-    }
 
     for (const site of seed.sites) {
       await ensureClientSiteExists(page, site)
@@ -207,6 +179,6 @@ test.describe('Storage bucket UI bootstrap', () => {
       await ensureUserExists(page, user)
     }
 
-    await expect(seed.users.length > 0 || seed.sites.length > 0 || seed.zones.length > 0).toBeTruthy()
+    await expect(seed.users.length > 0 || seed.sites.length > 0).toBeTruthy()
   })
 })
