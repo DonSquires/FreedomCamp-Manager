@@ -16,7 +16,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
 import { supabase } from '@/lib/supabase'
 import { edgeFunctions } from '@/lib/edgeFunctions'
-import { AppLayout } from '@/components/features/AppLayout'
+import { OfficerShell } from '@/components/features/OfficerShell'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -956,7 +956,7 @@ export default function SmokeComplaintOfficerPortal() {
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
-    <AppLayout>
+    <OfficerShell contentClassName="max-w-7xl">
       <div className="max-w-3xl mx-auto px-4 py-6 space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -1144,6 +1144,6 @@ export default function SmokeComplaintOfficerPortal() {
           </DialogContent>
         </Dialog>
       </div>
-    </AppLayout>
+    </OfficerShell>
   )
 }

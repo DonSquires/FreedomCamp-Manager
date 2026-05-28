@@ -18,7 +18,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
 import { supabase } from '@/lib/supabase'
 import { edgeFunctions } from '@/lib/edgeFunctions'
-import { AppLayout } from '@/components/features/AppLayout'
+import { OfficerShell } from '@/components/features/OfficerShell'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -459,7 +459,7 @@ export default function BiosecurityOfficerPortal() {
   // ─── Render ───────────────────────────────────────────────────────────────
 
   return (
-    <AppLayout>
+    <OfficerShell contentClassName="max-w-7xl">
       <div className="p-4 space-y-5 max-w-2xl mx-auto">
 
         {geofenceViolation && <GeofenceWarningBanner />}
@@ -941,6 +941,6 @@ export default function BiosecurityOfficerPortal() {
           </div>
         </DialogContent>
       </Dialog>
-    </AppLayout>
+    </OfficerShell>
   )
 }

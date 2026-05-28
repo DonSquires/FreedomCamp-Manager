@@ -26,7 +26,7 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
 import { supabase } from '@/lib/supabase'
-import { AppLayout } from '@/components/features/AppLayout'
+import { OfficerShell } from '@/components/features/OfficerShell'
 import { NoiseEvidenceBundle } from '@/components/features/NoiseEvidenceBundle'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -801,7 +801,7 @@ export default function NoiseOfficerPortal() {
   }
 
   return (
-    <AppLayout>
+    <OfficerShell contentClassName="max-w-7xl">
       <div className="p-4 space-y-5 max-w-2xl mx-auto">
 
         {geofenceViolation && <GeofenceWarningBanner />}
@@ -1756,6 +1756,6 @@ export default function NoiseOfficerPortal() {
           </div>
         </DialogContent>
       </Dialog>
-    </AppLayout>
+    </OfficerShell>
   )
 }

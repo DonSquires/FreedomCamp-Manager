@@ -16,7 +16,7 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
 import { supabase } from '@/lib/supabase'
-import { AppLayout } from '@/components/features/AppLayout'
+import { OfficerShell } from '@/components/features/OfficerShell'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -464,10 +464,11 @@ export default function ParkingOfficerPortal() {
 
   // ─── Render ──────────────────────────────────────────────────
   return (
-    <AppLayout
+    <OfficerShell
       title="Parking Enforcement"
       description={`${activeSessions.length} active session${activeSessions.length !== 1 ? 's' : ''} · in-house enforcement workflow`}
       showBackButton
+      contentClassName="max-w-7xl"
     >
       {/* ── Safety bar — welfare, SOS, quick reports ──────────────── */}
       <FieldSafetyBar compact />
@@ -1193,7 +1194,7 @@ export default function ParkingOfficerPortal() {
           </DialogContent>
         </Dialog>
       )}
-    </AppLayout>
+    </OfficerShell>
   )
 }
 
