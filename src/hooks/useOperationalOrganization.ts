@@ -16,9 +16,13 @@ export function useOperationalOrganization() {
   const canUseSelectedOrganizationId =
     !!organizationId && (isGrandMaster || authorizedOrganizationIds.includes(organizationId))
 
+  // Some operational personas are authorized through work locations/extra orgs
+  // while profile org fields can be null during bootstrap or legacy records.
+  const fallbackAuthorizedOrganizationId = authorizedOrganizationIds[0] ?? null
+
   const operationalOrganizationId = canUseSelectedOrganizationId
     ? organizationId
-    : user?.employer_organization_id ?? user?.organization_id ?? null
+    : user?.employer_organization_id ?? user?.organization_id ?? fallbackAuthorizedOrganizationId
 
   return {
     operationalOrganizationId,

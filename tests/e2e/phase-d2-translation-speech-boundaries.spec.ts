@@ -1,11 +1,16 @@
 import { test, expect } from '@playwright/test'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import WebSocket from 'ws'
 import { supabaseAdmin } from './setup'
 
 type AuthFixture = {
   userId: string
   token: string
   email: string
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
 const supabaseUrl = String(process.env.VITE_SUPABASE_URL || '').trim().replace(/\/$/, '')
@@ -38,7 +43,11 @@ async function createAuthFixture(): Promise<AuthFixture> {
   })
   if (createError || !created.user) throw createError ?? new Error('create user failed')
 
-  const anonClient: SupabaseClient = createClient(supabaseUrl, anonKey)
+  const anonClient: SupabaseClient = createClient(supabaseUrl, anonKey, {
+    realtime: {
+      transport: WebSocket as unknown as typeof globalThis.WebSocket,
+    },
+  })
   const { data: signInData, error: signInError } = await anonClient.auth.signInWithPassword({
     email,
     password,
@@ -53,6 +62,23 @@ async function createAuthFixture(): Promise<AuthFixture> {
     token: signInData.session.access_token,
     email,
   }
+}
+
+async function createAuthFixtureWithRetry(): Promise<AuthFixture> {
+  let lastError: unknown
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    try {
+      return await createAuthFixture()
+    } catch (error) {
+      lastError = error
+      const message = error instanceof Error ? error.message : String(error)
+      const isRateLimit = /rate limit/i.test(message)
+      if (!isRateLimit || attempt === 3) break
+      await sleep(1_500 * (attempt + 1))
+    }
+  }
+
+  throw (lastError instanceof Error ? lastError : new Error(String(lastError || 'createAuthFixture failed')))
 }
 
 async function deleteAuthFixture(fixture?: AuthFixture) {
@@ -118,130 +144,125 @@ function errorMessage(body: Record<string, unknown> | null, rawBody: string): st
 }
 
 test.describe('Phase D2 — Translation/Speech boundaries and degraded-mode controls', () => {
+  let sharedFixture: AuthFixture | undefined
+
+  test.beforeAll(async () => {
+    test.skip(!supabaseAdmin || !supabaseUrl || !anonKey, 'Supabase URL/keys required')
+    sharedFixture = await createAuthFixtureWithRetry()
+  })
+
+  test.afterAll(async () => {
+    await deleteAuthFixture(sharedFixture)
+  })
+
   test('translate-message returns either translation contract or bounded degraded error', async () => {
     test.skip(!supabaseAdmin || !supabaseUrl || !anonKey, 'Supabase URL/keys required')
-    let fixture: AuthFixture | undefined
-    try {
-      fixture = await createAuthFixture()
-      const { response, body, rawBody } = await callAuthedFunction('translate-message', fixture.token, {
-        text: 'Unit six is en route to the northern zone',
-        target_language: 'mi-NZ',
-      })
+    if (!sharedFixture) throw new Error('shared auth fixture unavailable')
 
-      expect([200, 502, 503, 504]).toContain(response.status)
-      if (response.status === 200) {
-        expect(typeof body?.translated_text).toBe('string')
-        expect(String(body?.translated_text || '').trim().length).toBeGreaterThan(0)
-        expect(typeof body?.target_language).toBe('string')
-        expect(typeof body?.provider).toBe('string')
-        expect(typeof body?.fallback).toBe('boolean')
-      } else {
-        expect(errorMessage(body, rawBody).length).toBeGreaterThan(0)
-      }
-    } finally {
-      await deleteAuthFixture(fixture)
+    const { response, body, rawBody } = await callAuthedFunction('translate-message', sharedFixture.token, {
+      text: 'Unit six is en route to the northern zone',
+      target_language: 'mi-NZ',
+    })
+
+    expect([200, 502, 503, 504]).toContain(response.status)
+    if (response.status === 200) {
+      expect(typeof body?.translated_text).toBe('string')
+      expect(String(body?.translated_text || '').trim().length).toBeGreaterThan(0)
+      expect(typeof body?.target_language).toBe('string')
+      expect(typeof body?.provider).toBe('string')
+      expect(typeof body?.fallback).toBe('boolean')
+    } else {
+      expect(errorMessage(body, rawBody).length).toBeGreaterThan(0)
     }
   })
 
   test('synthesize-speech returns playable output contract or bounded degraded error', async () => {
     test.skip(!supabaseAdmin || !supabaseUrl || !anonKey, 'Supabase URL/keys required')
-    let fixture: AuthFixture | undefined
-    try {
-      fixture = await createAuthFixture()
-      const response = await fetch(functionUrl('synthesize-speech'), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          apikey: anonKey,
-          Authorization: `Bearer ${fixture.token}`,
-        },
-        body: JSON.stringify({
-          text: 'Synthetic relay test message',
-          style: 'bridge_lead',
-        }),
-      })
+    if (!sharedFixture) throw new Error('shared auth fixture unavailable')
 
-      expect([200, 502, 503]).toContain(response.status)
+    const response = await fetch(functionUrl('synthesize-speech'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: anonKey,
+        Authorization: `Bearer ${sharedFixture.token}`,
+      },
+      body: JSON.stringify({
+        text: 'Synthetic relay test message',
+        style: 'bridge_lead',
+      }),
+    })
 
-      if (response.status === 200) {
-        const contentType = String(response.headers.get('content-type') || '')
-        const isAudio = contentType.includes('audio/wav')
-        const isJson = contentType.includes('application/json')
-        expect(isAudio || isJson).toBe(true)
-        if (isJson) {
-          const json = parseJsonSafe(await response.text())
-          expect(json?.success).toBe(true)
-          expect(typeof json?.provider).toBe('string')
-        }
-      } else {
-        const rawBody = await response.text()
-        const body = parseJsonSafe(rawBody)
-        expect(errorMessage(body, rawBody).length).toBeGreaterThan(0)
+    expect([200, 502, 503]).toContain(response.status)
+
+    if (response.status === 200) {
+      const contentType = String(response.headers.get('content-type') || '')
+      const isAudio = contentType.includes('audio/wav')
+      const isJson = contentType.includes('application/json')
+      expect(isAudio || isJson).toBe(true)
+      if (isJson) {
+        const json = parseJsonSafe(await response.text())
+        expect(json?.success).toBe(true)
+        expect(typeof json?.provider).toBe('string')
       }
-    } finally {
-      await deleteAuthFixture(fixture)
+    } else {
+      const rawBody = await response.text()
+      const body = parseJsonSafe(rawBody)
+      expect(errorMessage(body, rawBody).length).toBeGreaterThan(0)
     }
   })
 
   test('transcribe-audio returns transcript/fallback contract or bounded degraded error', async () => {
     test.skip(!supabaseAdmin || !supabaseUrl || !anonKey, 'Supabase URL/keys required')
-    let fixture: AuthFixture | undefined
-    try {
-      fixture = await createAuthFixture()
-      const { response, body, rawBody } = await callAuthedFunction('transcribe-audio', fixture.token, {
-        audio_base64: 'UklGRiQAAABXQVZFZm10',
-        audio_mime_type: 'audio/wav',
-        language: 'en',
-      })
+    if (!sharedFixture) throw new Error('shared auth fixture unavailable')
 
-      expect([200, 400, 502, 503, 504]).toContain(response.status)
-      if (response.status === 200) {
-        const hasTranscript = typeof body?.transcript === 'string' || body?.transcript === null
-        const hasFallbackDirective = body?.client_action === 'web_speech_recognition'
-        expect(hasTranscript || hasFallbackDirective).toBe(true)
-      } else {
-        expect(errorMessage(body, rawBody).length).toBeGreaterThan(0)
-      }
-    } finally {
-      await deleteAuthFixture(fixture)
+    const { response, body, rawBody } = await callAuthedFunction('transcribe-audio', sharedFixture.token, {
+      audio_base64: 'UklGRiQAAABXQVZFZm10',
+      audio_mime_type: 'audio/wav',
+      language: 'en',
+    })
+
+    expect([200, 400, 502, 503, 504]).toContain(response.status)
+    if (response.status === 200) {
+      const hasTranscript = typeof body?.transcript === 'string' || body?.transcript === null
+      const hasFallbackDirective = body?.client_action === 'web_speech_recognition'
+      expect(hasTranscript || hasFallbackDirective).toBe(true)
+    } else {
+      expect(errorMessage(body, rawBody).length).toBeGreaterThan(0)
     }
   })
 
   test('speech-to-intent keeps response bounded and writes an audit event when router path executes', async () => {
     test.skip(!supabaseAdmin || !supabaseUrl || !anonKey, 'Supabase URL/keys required')
-    let fixture: AuthFixture | undefined
-    try {
-      fixture = await createAuthFixture()
-      const { count: beforeCount } = await supabaseAdmin!
-        .from('speech_audit_events')
-        .select('id', { count: 'exact', head: true })
-        .eq('user_id', fixture.userId)
+    if (!sharedFixture) throw new Error('shared auth fixture unavailable')
 
-      const { response, body, rawBody } = await callAuthedFunction(
-        'speech-to-intent',
-        fixture.token,
-        {
-          audio_base64: 'UklGRiQAAABXQVZFZm10',
-          language: 'en',
-        },
-        { timeoutMs: 20_000 },
-      )
+    const { count: beforeCount } = await supabaseAdmin!
+      .from('speech_audit_events')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', sharedFixture.userId)
 
-      expect([200, 502, 503, 504]).toContain(response.status)
+    const { response, body, rawBody } = await callAuthedFunction(
+      'speech-to-intent',
+      sharedFixture.token,
+      {
+        audio_base64: 'UklGRiQAAABXQVZFZm10',
+        language: 'en',
+      },
+      { timeoutMs: 20_000 },
+    )
 
-      const { count: afterCount } = await supabaseAdmin!
-        .from('speech_audit_events')
-        .select('id', { count: 'exact', head: true })
-        .eq('user_id', fixture.userId)
+    expect([200, 502, 503, 504]).toContain(response.status)
 
-      const msg = errorMessage(body, rawBody)
-      const routerNotConfigured = response.status === 503 && msg.includes('SPEECH_ROUTER_URL is not configured')
-      const shouldRequireAuditIncrement = response.status === 200 && !routerNotConfigured
-      if (shouldRequireAuditIncrement) {
-        expect(afterCount ?? 0).toBeGreaterThan((beforeCount ?? 0))
-      }
-    } finally {
-      await deleteAuthFixture(fixture)
+    const { count: afterCount } = await supabaseAdmin!
+      .from('speech_audit_events')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', sharedFixture.userId)
+
+    const msg = errorMessage(body, rawBody)
+    const routerNotConfigured = response.status === 503 && msg.includes('SPEECH_ROUTER_URL is not configured')
+    const shouldRequireAuditIncrement = response.status === 200 && !routerNotConfigured
+    if (shouldRequireAuditIncrement) {
+      expect(afterCount ?? 0).toBeGreaterThan((beforeCount ?? 0))
     }
   })
 })

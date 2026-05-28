@@ -822,10 +822,10 @@ This is the canonical Bob service-test stack. Bob must treat this as the minimum
 | Governance gate | `tests/e2e/governance-bob-regression.spec.ts` | Proposal and approval routing remains intact |
 
 Primary commands:
-- `bunx playwright test tests/e2e/bob-offline.spec.ts`
-- `bunx playwright test tests/e2e/bob-agent-conversation-ui.spec.ts`
-- `bunx playwright test tests/e2e/bob-human-emulator.spec.ts`
-- `bunx playwright test tests/e2e/governance-bob-regression.spec.ts`
+- `npx playwright test tests/e2e/bob-offline.spec.ts`
+- `npx playwright test tests/e2e/bob-agent-conversation-ui.spec.ts`
+- `npx playwright test tests/e2e/bob-human-emulator.spec.ts`
+- `npx playwright test tests/e2e/governance-bob-regression.spec.ts`
 
 #### Tier 2 — Mobile / Expo / Field Interaction Simulation
 

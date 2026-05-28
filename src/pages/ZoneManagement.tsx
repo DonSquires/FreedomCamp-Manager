@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
+import { useOperationalOrganization } from '@/hooks/useOperationalOrganization'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -73,6 +74,7 @@ interface Organization {
 export default function ZoneManagement() {
   const { user } = useAuthStore()
   const { organizationId } = useGlobalFiltersStore()
+  const { operationalOrganizationId } = useOperationalOrganization()
   const queryClient = useQueryClient()
   const [searchQuery, setSearchQuery] = useState('')
   const [showInactive, setShowInactive] = useState(false)
@@ -305,7 +307,9 @@ export default function ZoneManagement() {
   const createZoneMutation = useMutation({
     mutationFn: async () => {
       if (!createName.trim()) throw new Error('Zone name is required')
-      const orgId = user?.role === 'master' ? createOrganizationId : user?.organization_id
+      const orgId = user?.role === 'master'
+        ? createOrganizationId
+        : organizationId || operationalOrganizationId || user?.organization_id
       if (!orgId) throw new Error('Organisation is required')
 
       // Check for existing zone with same name in this org

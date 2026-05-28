@@ -721,7 +721,7 @@ export default function DispatchConsole() {
             <Button onClick={() => navigate('/dispatch-wizard')} variant="outline" size="sm" className="gap-1.5">
               <Wand2 className="h-4 w-4" /> Wizard
             </Button>
-            <Button onClick={() => setShowCreate(true)}>
+            <Button data-testid="dispatch-new-job-button" onClick={() => setShowCreate(true)}>
               <Plus className="h-4 w-4 mr-1.5" /> New Job
             </Button>
           </div>
