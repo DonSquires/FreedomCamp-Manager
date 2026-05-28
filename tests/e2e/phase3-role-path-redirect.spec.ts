@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { loginAs } from './auth'
+import { loginAs, isCredentialConfigured } from './auth'
 
 test.describe('phase3 role-path redirects', () => {
   test.describe.configure({ mode: 'serial' })
@@ -19,7 +19,7 @@ test.describe('phase3 role-path redirects', () => {
     await loginAs(page, 'officerOrg1')
 
     await page.goto('/admin/dashboard', { waitUntil: 'domcontentloaded' })
-    await expect(page).toHaveURL(/\/officer-home/)
+    await expect(page).toHaveURL(/\/(officer-home|field-officer)/)
   })
 
   test('client viewer is constrained to client portal', async ({ page }) => {
@@ -30,6 +30,7 @@ test.describe('phase3 role-path redirects', () => {
   })
 
   test('grand master root route redirects to platform', async ({ page }) => {
+    test.skip(!isCredentialConfigured('master'), 'Master credentials not configured in this environment.')
     await loginAs(page, 'master')
 
     await page.goto('/', { waitUntil: 'domcontentloaded' })

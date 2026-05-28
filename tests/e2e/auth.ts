@@ -7,6 +7,7 @@ export type TestUserKey =
   | 'adminOrg1'
   | 'adminOrg2'
   | 'officerOrg1'
+  | 'nzscv_monitor'
   | 'bob'
   | 'client'
   | 'clientViewer'
@@ -217,6 +218,12 @@ const roleCredentialConfig: Record<TestUserKey, RoleCredentialConfig> = {
     passwordVars: ['PLAYWRIGHT_OFFICER_ORG1_PASSWORD', 'PLAYWRIGHT_OFFICER_PASSWORD', 'PLAYWRIGHT_OFFICER2_PASSWORD', 'E2E_OFFICER_PASSWORD'],
     fallbackEmail: 'officer@org1.com',
   },
+  nzscv_monitor: {
+    label: 'nzscv_monitor',
+    emailVars: ['PLAYWRIGHT_NZSCV_MONITOR_EMAIL', 'E2E_NZSCV_MONITOR_EMAIL'],
+    passwordVars: ['PLAYWRIGHT_NZSCV_MONITOR_PASSWORD', 'E2E_NZSCV_MONITOR_PASSWORD'],
+    fallbackEmail: 'nzscv.monitor@test.com',
+  },
   bob: {
     label: 'bob',
     emailVars: ['BOB_LOGIN_EMAIL', 'PLAYWRIGHT_BOB_EMAIL'],
@@ -274,6 +281,11 @@ const expectedProfileConfig: Record<TestUserKey, ExpectedProfileConfig> = {
     requiredCapability: 'field_ops',
     expectedOrgName: readEnv('PLAYWRIGHT_OFFICER_ORG1_NAME') || DEFAULT_TEST_ORG_NAME,
   },
+  nzscv_monitor: {
+    allowedRoles: ['nzscv_monitor'],
+    requiredCapability: 'admin_screen',
+    expectedOrgName: readEnv('PLAYWRIGHT_NZSCV_MONITOR_ORG_NAME') || DEFAULT_TEST_ORG_NAME,
+  },
   bob: {
     allowedRoles: ['admin_officer'],
     requiredCapability: 'admin_screen',
@@ -311,6 +323,7 @@ const desiredRoleByTestUser: Record<TestUserKey, DesiredRole> = {
   adminOrg1: 'admin_officer',
   adminOrg2: 'admin_officer',
   officerOrg1: 'officer',
+  nzscv_monitor: 'nzscv_monitor',
   bob: 'admin_officer',
   client: 'client_viewer',
   clientViewer: 'client_viewer',
@@ -1119,7 +1132,8 @@ export async function loginAs(page: Page, user: TestUserKey): Promise<void> {
 
   let lastErrorText: string | null = null
   let apiFallbackError: string | null = null
-  for (let attempt = 0; attempt < 2; attempt += 1) {
+  const maxAttempts = 3
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     const apiFallback = await bootstrapBrowserSessionFromPasswordGrant(page, credentials).catch((error: unknown) => ({
       ok: false,
       reason: error instanceof Error ? error.message : String(error),
@@ -1157,13 +1171,23 @@ export async function loginAs(page: Page, user: TestUserKey): Promise<void> {
 
     lastErrorText = await page.locator('text=/invalid|error|failed/i').first().textContent().catch(() => null)
 
-    // Retry once for transient auth/network races observed on remote browsers.
-    if (attempt === 0) {
+    const rateLimited = /over_request_rate_limit|rate\s*limit|too\s*many\s*requests|429/i.test(
+      `${apiFallbackError || ''} ${lastErrorText || ''}`
+    )
+
+    // Retry for transient auth/network races and auth API throttling.
+    if (attempt < maxAttempts - 1) {
       await page.context().clearCookies().catch(() => undefined)
       await page.evaluate(() => {
         window.localStorage.clear()
         window.sessionStorage.clear()
       }).catch(() => undefined)
+
+      if (rateLimited) {
+        // Simple linear backoff to absorb Supabase auth throttle windows.
+        await page.waitForTimeout(500 * (attempt + 1))
+      }
+
       continue
     }
 
