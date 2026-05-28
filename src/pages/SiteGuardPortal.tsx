@@ -435,7 +435,9 @@ export default function SiteGuardPortal() {
       description={site?.address ?? ''}
       showBackButton
       contentClassName="max-w-7xl"
-    >      {geofenceViolation && <GeofenceWarningBanner />}      {/* ── Safety bar — always visible ──────────────────────────────────── */}
+    >
+      {geofenceViolation && <GeofenceWarningBanner />}
+      {/* ── Safety bar — always visible ──────────────────────────────────── */}
       <FieldSafetyBar
         zoneId={site?.id ?? null}
         position={null}
