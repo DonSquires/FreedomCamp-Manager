@@ -84,6 +84,13 @@
 3. Specialist officer portals (for example Noise Officer and certain PTT pathways) are roster/site-permission gated. If prerequisites are missing, users are redirected to allowed surfaces (`/field-officer` or `/officer-home`) by design.
 4. PTT UI panel visibility is channel/access-context dependent; absence of full channel controls without eligible channel assignment is expected behavior, not automatically a defect.
 
+### Current Cycle Amendment (2026-05-28 — Bob and Manual Unison Governance)
+
+1. This Instruction Manual remains the canonical source for intended user-visible behavior, route outcomes, and role workflows.
+2. Bob governance and runtime execution documentation must remain aligned with this manual and be updated in the same change set when behavior changes.
+3. For any architecture-impacting, route-impacting, role-impacting, or workflow-impacting implementation, updates are required across code, this manual, and Bob governance/staging evidence docs.
+4. Any divergence between runtime behavior and this manual is treated as drift requiring remediation or an explicit documented product decision.
+
 ### Current Cycle Agentic Action Board (2026-05-18)
 
 Product Oversight To-Do (authoritative execution list):

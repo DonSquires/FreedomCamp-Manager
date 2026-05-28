@@ -8,6 +8,12 @@ Canonical command policy:
 - Active execution standard is npm-only.
 - Historical Bun command entries in archival sections are evidence snapshots and should be interpreted with npm equivalents for current execution.
 
+Bob + Instruction Manual unison policy:
+1. `docs/INSTRUCTION_MANUAL.md` is the canonical product behavior authority.
+2. Bob operational execution must remain consistent with manual-defined behavior and documented runtime/safety contracts.
+3. Any code change that alters routes, role behavior, workflows, or operator-visible outcomes must update both manual and Bob governance/staging docs in the same change set.
+4. Any mismatch between runtime behavior and manual expectations is tracked as drift for remediation or explicit product decision.
+
 ---
 
 ## Beta Validation Sweep Update (2026-05-27)

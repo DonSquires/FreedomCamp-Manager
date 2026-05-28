@@ -256,6 +256,8 @@ function isSuccessfulRunpodPayload(payload) {
 async function smokeDirectRunsync(endpointId, apiKey, modelTag) {
   const allowPending = String(process.env.RUNPOD_SMOKE_ALLOW_PENDING || 'true').trim().toLowerCase() !== 'false';
   const requestTimeoutMs = Number(process.env.RUNPOD_SMOKE_REQUEST_TIMEOUT_MS || 90000);
+  const pollTimeoutMs = Number(process.env.RUNPOD_SMOKE_POLL_TIMEOUT_MS || 180000);
+  const pollIntervalMs = Number(process.env.RUNPOD_SMOKE_POLL_INTERVAL_MS || 3000);
   const smokeInput = {
     input: {
       action: 'chat',
@@ -311,7 +313,7 @@ async function smokeDirectRunsync(endpointId, apiKey, modelTag) {
     console.log(`RunPod smoke queued: jobId=${jobId}. Polling until terminal status...`);
     let terminalPayload = null;
     try {
-      terminalPayload = await pollRunpodStatus(endpointId, apiKey, jobId);
+      terminalPayload = await pollRunpodStatus(endpointId, apiKey, jobId, pollTimeoutMs, pollIntervalMs);
     } catch (error) {
       if (allowPending && String(error?.message || '').includes('timed out')) {
         console.warn(`RunPod smoke pending: ${error?.message || String(error)}`);
@@ -335,7 +337,11 @@ async function smokeDirectRunsync(endpointId, apiKey, modelTag) {
 }
 
 async function smokeDirectRunsyncWithCandidates(endpointId, modelTag, keyCandidates) {
-  const candidateTimeoutMs = Number(process.env.RUNPOD_SMOKE_CANDIDATE_TIMEOUT_MS || 210000);
+  const candidateTimeoutMs = Number(
+    process.env.RUNPOD_SMOKE_HARD_CAP_TIMEOUT_MS ||
+    process.env.RUNPOD_SMOKE_CANDIDATE_TIMEOUT_MS ||
+    210000,
+  );
   let lastError = null;
   for (const candidate of keyCandidates) {
     const apiKey = String(candidate?.value || '').trim();
