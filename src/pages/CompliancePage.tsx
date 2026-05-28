@@ -963,7 +963,7 @@ const TABS: { id: CompTab; label: string; icon: React.ElementType }[] = [
 ];
 
 export default function CompliancePage() {
-  const { isAuthenticated, user } = useAuthStore();
+  const { user, loading } = useAuthStore();
   const [activeTab, setActiveTab] = useState<CompTab>('overview');
   const [searchParams] = useSearchParams();
   const {
@@ -1045,7 +1045,10 @@ export default function CompliancePage() {
     }
   }, [searchParams, setDateRange, setOrganization, setZone, user?.role]);
 
-  if (!isAuthenticated || !user) return <Navigate to="/login" replace />;
+  // ProtectedRoute already enforces authentication. Guard here should avoid
+  // redirecting during brief auth-store sync transitions.
+  if (loading) return null;
+  if (!user) return <Navigate to="/login" replace />;
 
   const today = format(new Date(), 'yyyy-MM-dd');
   const effectiveDateFrom = dateFrom ?? format(subDays(new Date(), 30), 'yyyy-MM-dd');
