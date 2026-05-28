@@ -106,7 +106,7 @@ async function ensureOfficerRosteredForPatrol(page: Page, seedOfficer: SeedUser)
     .filter((token) => token.length >= 3)
   let seededOfficer = false
 
-  for (const adminUser of ['adminOrg1'] as const) {
+  for (const adminUser of ['adminOrg1', 'adminOrg2'] as const) {
     await loginAs(page, adminUser)
     await page.goto('/roster', { waitUntil: 'domcontentloaded', timeout: 45000 })
     if (page.url().includes('/login')) {
