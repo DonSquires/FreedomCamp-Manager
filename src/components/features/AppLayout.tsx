@@ -297,6 +297,17 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
     return isRouteVisibleForRole(item.path, effectiveNavRole as AppRole, routeManifest, activeFeatureFlags, runtimeRouteVisibilityMode)
   }, [activeFeatureFlags, effectiveNavRole])
 
+  const normalizePath = useCallback((path: string) => {
+    const cleanPath = path.split('?')[0].replace(/\/+$/, '')
+    return cleanPath || '/'
+  }, [])
+
+  const isPathActive = useCallback((path: string) => {
+    const current = normalizePath(location.pathname)
+    const target = normalizePath(path)
+    return current === target || (target !== '/' && current.startsWith(`${target}/`))
+  }, [location.pathname, normalizePath])
+
   const manifestNavGroups = useMemo(() => {
     const projected = projectLegacyNavGroups(routeManifest, {
       role: effectiveNavRole as AppRole | undefined,
@@ -348,17 +359,6 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
   }, [isNavItemVisible, isPathActive, manifestNavGroups])
 
   const isDirectorOfficerMode = user?.role === 'officer'
-
-  const normalizePath = useCallback((path: string) => {
-    const cleanPath = path.split('?')[0].replace(/\/+$/, '')
-    return cleanPath || '/'
-  }, [])
-
-  const isPathActive = useCallback((path: string) => {
-    const current = normalizePath(location.pathname)
-    const target = normalizePath(path)
-    return current === target || (target !== '/' && current.startsWith(`${target}/`))
-  }, [location.pathname, normalizePath])
 
   const injectedOfficerPinned: NavItem[] = useMemo(() => {
     if (!isDirectorOfficerMode || !activeClientSiteId) return []
@@ -1124,7 +1124,7 @@ export function AppLayout({ children, title, description, showBackButton, immers
         {/* Page Content */}
         {/* pb-28 md:pb-6: on mobile the fixed PTT bar + floating buttons occupy ~96px at the bottom;
             extra bottom padding prevents content from being hidden under them. */}
-        <main id="app-main-content" tabIndex={-1} className={cn('relative', immersive ? 'p-0 lg:p-0' : 'p-4 pb-28 md:pb-6 lg:p-6')}>
+        <main id="app-main-content" tabIndex={-1} className={cn('relative scroll-mt-24', immersive ? 'p-0 lg:p-0' : 'p-4 pb-28 md:pb-6 lg:p-6')}>
           {!immersive && <PublicSafetyBanner />}
           {!immersive && <JurisdictionBanner />}
           {!immersive && (user?.role === 'admin' || user?.role === 'master' || user?.role === 'grand_master') && <HealthBanner />}

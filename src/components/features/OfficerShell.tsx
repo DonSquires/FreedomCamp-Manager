@@ -227,7 +227,7 @@ export function OfficerShell({ children, title, description, showBackButton, con
       <ReconnectBanner isOnline={isOnline ?? true} />
 
       {/* ── Main content ─────────────────────────────────────────────── */}
-      <main id="officer-main-content" className="flex-1 overflow-y-auto" tabIndex={-1}>
+      <main id="officer-main-content" className="flex-1 overflow-y-auto scroll-mt-24" tabIndex={-1}>
         <div className={cn('mx-auto w-full max-w-2xl px-4 py-4', contentClassName)}>
           {children}
         </div>
