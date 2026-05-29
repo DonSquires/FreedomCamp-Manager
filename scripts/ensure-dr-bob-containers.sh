@@ -34,6 +34,22 @@ log() { echo "[dr-bob-ensure] $*"; }
 warn() { echo "[dr-bob-ensure][warn] $*"; }
 fail() { echo "[dr-bob-ensure][fail] $*"; }
 
+is_http_url() {
+  local value="${1:-}"
+  [[ "$value" == http://* || "$value" == https://* ]]
+}
+
+pick_first_http_url() {
+  local value
+  for value in "$@"; do
+    if is_http_url "$value"; then
+      printf '%s' "$value"
+      return 0
+    fi
+  done
+  return 1
+}
+
 load_env_file() {
   local file="$1"
   [[ -f "$file" ]] || return 0
@@ -76,8 +92,16 @@ CHEAP_TRANSLATION_MODEL="${CHEAP_MODE_TRANSLATION_MODEL:-$CHEAP_MODEL}"
 SENIOR_URL="${SENIOR_ARCHITECT_URL:-${SECONDARY_ASSISTANT_URL:-}}"
 SENIOR_KEY="${SENIOR_ARCHITECT_API_KEY:-${SECONDARY_ASSISTANT_API_KEY:-}}"
 OLLAMA_URL="${OLLAMA_BASE_URL:-${RUNPOD_GATEWAY_URL:-}}"
-RUNPOD_API_URL_VALUE="${RUNPOD_API_URL:-${RUNPOD_ENDPOINT_URL:-}}"
-RUNPOD_API_KEY_VALUE="${RUNPOD_API_KEY:-${RUNPOD_ENDPOINT_API_KEY:-}}"
+RUNPOD_API_URL_VALUE="$(pick_first_http_url \
+  "${RUNPOD_API_URL:-}" \
+  "${RUNPOD_ENDPOINT_URL:-}" \
+  "${RUNPOD_RUNSYNC_URL:-}" \
+  "${RUNPOD_SERVERLESS_URL:-}" \
+  "${RUNPOD_GATEWAY_URL:-}" \
+  "${INFERENCE_SERVICE_URL:-}" \
+  "${BOB_SERVICE_URL:-}" \
+  || true)"
+RUNPOD_API_KEY_VALUE="${RUNPOD_API_KEY:-${RUNPOD_ENDPOINT_API_KEY:-${DR_BOB_API:-${INFERENCE_API_KEY:-${BOB_INFERENCE_API_KEY:-}}}}}"
 
 missing=0
 
@@ -99,6 +123,10 @@ if [[ -z "$OLLAMA_URL" ]]; then
   warn "OLLAMA_BASE_URL and RUNPOD_GATEWAY_URL are both empty (chat fallback may be heuristic)"
 else
   log "Model base URL configured"
+fi
+
+if [[ -n "${RUNPOD_API_URL:-}" ]] && ! is_http_url "${RUNPOD_API_URL:-}"; then
+  warn "Ignoring malformed RUNPOD_API_URL because it is not an http(s) URL"
 fi
 
 if [[ -n "$SENIOR_URL" && -z "$SENIOR_KEY" ]]; then

@@ -61,12 +61,6 @@ export default function Login() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-
-    if (!email.trim() || !password.trim()) {
-      toast.error('Enter both email and password')
-      return
-    }
-
     setLoading(true)
 
     try {
@@ -138,7 +132,7 @@ export default function Login() {
       <div className="relative mx-auto min-h-screen max-w-6xl px-4 py-8 sm:px-6 lg:px-8 lg:py-10 flex items-center">
         <div className="w-full grid grid-cols-1 lg:grid-cols-[1.1fr_0.9fr] gap-6 lg:gap-8 items-stretch">
           {/* Left panel — brand pillar */}
-          <section className="hidden lg:block rounded-3xl border border-ie-silver/20 bg-ie-bg-surface p-6 sm:p-8 lg:p-10 shadow-[0_24px_80px_rgba(0,0,0,0.55)]">
+          <section className="rounded-3xl border border-ie-silver/20 bg-ie-bg-surface p-6 sm:p-8 lg:p-10 shadow-[0_24px_80px_rgba(0,0,0,0.55)]">
             <div className="flex items-center gap-4 mb-6">
               <div
                 className="rounded-2xl overflow-hidden shadow-md"
@@ -153,7 +147,6 @@ export default function Login() {
               <div>
                 <p className="text-[11px] uppercase tracking-[0.22em] text-ie-silver">Operations Platform</p>
                 <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-white">Field Compliance Manager</h1>
-                <p className="text-xs text-ie-silver">Field Operations Management Platform</p>
               </div>
             </div>
 
@@ -166,7 +159,7 @@ export default function Login() {
               </p>
             </div>
 
-            <div className="mt-8 grid grid-cols-1 xl:grid-cols-3 gap-3">
+            <div className="mt-8 grid grid-cols-1 sm:grid-cols-3 gap-3">
               {operationalPillars.map((pillar) => {
                 const Icon = pillar.icon
                 return (
@@ -218,7 +211,6 @@ export default function Login() {
                   <Input
                     id="new-password"
                     type="password"
-                    autoComplete="new-password"
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
                     placeholder="At least 8 characters"
@@ -235,7 +227,6 @@ export default function Login() {
                   <Input
                     id="confirm-password"
                     type="password"
-                    autoComplete="new-password"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     placeholder="Re-enter your password"
@@ -262,7 +253,6 @@ export default function Login() {
                   <Input
                     id="email"
                     type="email"
-                    autoComplete="username"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="you@example.com"
@@ -279,7 +269,6 @@ export default function Login() {
                   <Input
                     id="password"
                     type="password"
-                    autoComplete="current-password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••"
@@ -309,16 +298,7 @@ export default function Login() {
               </form>
             )}
 
-            <div className="mt-6 rounded-2xl border border-ie-silver/20 bg-ie-bg-elevated/70 px-4 py-3">
-              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-ie-silver-light">Need quick access help?</p>
-              <ul className="mt-2 space-y-1.5 text-xs text-ie-silver">
-                <li>Use your assigned organisation email address.</li>
-                <li>Use Forgot password if your password expired.</li>
-                <li>Contact your site administrator for role or access issues.</li>
-              </ul>
-            </div>
-
-            <div className="mt-4 text-center text-xs text-ie-silver border-t border-ie-silver/20 pt-4">
+            <div className="mt-7 text-center text-xs text-ie-silver border-t border-ie-silver/20 pt-4">
               <p className="inline-flex items-center gap-1.5">
                 <CheckCircle2 className="h-3.5 w-3.5" />
                 Iron Eagle Security Limited · Field Compliance Management

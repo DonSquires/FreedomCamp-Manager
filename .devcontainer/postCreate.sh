@@ -39,7 +39,7 @@ install_runpodctl() {
 
   local target=".runtime/bin/runpodctl"
   local latest_tag
-  latest_tag="$(curl -fsSL https://api.github.com/repos/runpod/runpodctl/releases/latest | grep -m1 '"tag_name"' | sed -E 's/.*"v?([^\"]+)".*/\1/')"
+  latest_tag="$(curl -fsSL https://api.github.com/repos/runpod/runpodctl/releases/latest | sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"v\?\([^\"]*\)".*/\1/p' | head -n 1)"
   if curl -fsSL "https://github.com/runpod/runpodctl/releases/download/v${latest_tag}/runpodctl-linux-${arch}" -o "$target"; then
     chmod +x "$target"
     log "Installed runpodctl ${latest_tag}"
@@ -64,7 +64,7 @@ install_railway() {
 
   local target=".runtime/bin/railway"
   local latest_tag
-  latest_tag="$(curl -fsSL https://api.github.com/repos/railwayapp/cli/releases/latest | grep -m1 '"tag_name"' | sed -E 's/.*"v?([^\"]+)".*/\1/')"
+  latest_tag="$(curl -fsSL https://api.github.com/repos/railwayapp/cli/releases/latest | sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"v\?\([^\"]*\)".*/\1/p' | head -n 1)"
   if curl -fsSL "https://github.com/railwayapp/cli/releases/download/v${latest_tag}/railway-v${latest_tag}-${arch}-unknown-linux-musl.tar.gz" -o /tmp/railway.tgz \
     && tar -xzf /tmp/railway.tgz -C /tmp \
     && cp /tmp/railway "$target"; then
@@ -86,7 +86,7 @@ install_ripgrep_and_alias() {
     esac
 
     local latest_tag
-    latest_tag="$(curl -fsSL https://api.github.com/repos/BurntSushi/ripgrep/releases/latest | grep -m1 '"tag_name"' | sed -E 's/.*"v?([^\"]+)".*/\1/')"
+    latest_tag="$(curl -fsSL https://api.github.com/repos/BurntSushi/ripgrep/releases/latest | sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^\"]*\)".*/\1/p' | head -n 1)"
     if curl -fsSL "https://github.com/BurntSushi/ripgrep/releases/download/${latest_tag}/ripgrep-${latest_tag}-${arch}-unknown-linux-musl.tar.gz" -o /tmp/rg.tgz \
       && tar -xzf /tmp/rg.tgz -C /tmp \
       && cp "/tmp/ripgrep-${latest_tag}-${arch}-unknown-linux-musl/rg" .runtime/bin/rg; then
@@ -129,6 +129,19 @@ install_browser_test_runtime() {
   log "No supported package manager found for installing browser runtime"
 }
 
+pip_install_user() {
+  if python3 -m pip install --user "$@"; then
+    return 0
+  fi
+
+  # Alpine and other PEP-668 environments can block pip writes unless explicitly allowed.
+  if python3 -m pip install --user --break-system-packages "$@"; then
+    return 0
+  fi
+
+  return 1
+}
+
 log "Ensuring project env file exists"
 cp -n .env.example .env 2>/dev/null || true
 mkdir -p .runtime/bin
@@ -150,15 +163,17 @@ else
 fi
 
 log "Installing Python dependencies for Bob"
-python3 -m pip install --user --upgrade pip
-if ! python3 -m pip install --user onnxruntime-gpu; then
+pip_install_user --upgrade pip
+if ! pip_install_user onnxruntime-gpu; then
   log "onnxruntime-gpu unavailable in this environment; falling back to onnxruntime"
-  python3 -m pip install --user onnxruntime
+  if ! pip_install_user onnxruntime; then
+    log "onnxruntime unavailable in this environment; continuing without local onnx runtime"
+  fi
 fi
-python3 -m pip install --user runpod runpod-cli requests
+pip_install_user runpod runpod-cli requests
 
 log "Installing translator pod Python dependencies"
-if ! python3 -m pip install --user faster-whisper ctranslate2 transformers; then
+if ! pip_install_user faster-whisper ctranslate2 transformers; then
   log "faster-whisper stack install failed; continuing without blocking setup"
 fi
 

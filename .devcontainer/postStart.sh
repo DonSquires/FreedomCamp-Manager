@@ -1,6 +1,20 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Ensure post-start services run on the repository-pinned Node version.
+if [[ -n "${NVM_DIR:-}" && -s "${NVM_DIR}/nvm.sh" ]]; then
+	# shellcheck source=/dev/null
+	. "${NVM_DIR}/nvm.sh"
+elif [[ -s "${HOME}/.nvm/nvm.sh" ]]; then
+	export NVM_DIR="${HOME}/.nvm"
+	# shellcheck source=/dev/null
+	. "${NVM_DIR}/nvm.sh"
+fi
+
+if command -v nvm >/dev/null 2>&1 && [[ -f ".nvmrc" ]]; then
+	nvm use >/dev/null || true
+fi
+
 LOG_FILE="${HOME}/vite-dev.log"
 PID_FILE="${HOME}/.fieldops-vite-dev.pid"
 OLLAMA_LOG_FILE="${HOME}/ollama.log"
