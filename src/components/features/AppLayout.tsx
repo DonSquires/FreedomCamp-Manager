@@ -1147,6 +1147,8 @@ export function AppLayout({ children, title, description, showBackButton, immers
             <Popover open={pttFabOpen} onOpenChange={setPttFabOpen}>
               <PopoverTrigger asChild>
                 <button
+                  type="button"
+                  aria-label="Open Push-to-Talk and team chat controls"
                   title="Push-to-Talk / Team Chat"
                   className="fixed bottom-16 right-4 z-40 flex items-center gap-2 rounded-full bg-white dark:bg-[#1E1E1E] border border-gray-200 dark:border-[#9E9E9E]/20 shadow-lg px-3 py-2 text-xs font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#2A2A2A] transition-all hover:shadow-xl group"
                 >
