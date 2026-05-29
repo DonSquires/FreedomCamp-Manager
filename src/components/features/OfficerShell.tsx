@@ -176,51 +176,54 @@ export function OfficerShell({ children, title, description, showBackButton, con
       </a>
 
       {/* ── Sticky header ───────────────────────────────────────────── */}
-      <header className="sticky top-0 z-40 flex items-center gap-3 border-b border-border bg-background/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-        {showBackButton && (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-11 w-11 shrink-0"
-            onClick={handleBack}
-            aria-label="Go back"
-          >
-            <ChevronLeft className="h-5 w-5" />
-          </Button>
-        )}
-
-        <div className="flex min-w-0 flex-1 flex-col">
-          <div className="flex items-center gap-2">
-            <Shield className="h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
-            {title && (
-              <h1 className="truncate text-base font-semibold leading-tight">
-                {title}
-              </h1>
-            )}
-            <OfflineQueueBadge />
-          </div>
-          {description && (
-            <p className="truncate text-xs text-muted-foreground">{description}</p>
+      <header className="sticky top-0 z-40 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-border bg-background/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/80 w-full">
+        <div className="flex items-center gap-3 min-w-0">
+          {showBackButton && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-11 w-11 shrink-0"
+              onClick={handleBack}
+              aria-label="Go back"
+            >
+              <ChevronLeft className="h-5 w-5" />
+            </Button>
           )}
+
+          <div className="flex min-w-0 flex-1 flex-col">
+            <div className="flex items-center gap-2 min-w-0">
+              <Shield className="h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
+              {title && (
+                <h1 className="truncate text-base font-semibold leading-tight">
+                  {title}
+                </h1>
+              )}
+              <OfflineQueueBadge />
+            </div>
+            {description && (
+              <p className="truncate text-xs text-muted-foreground">{description}</p>
+            )}
+          </div>
         </div>
 
-        {/* Offline indicator in header */}
+        <div className="flex items-center justify-end gap-3 shrink-0 ml-auto sm:ml-0 pt-1 sm:pt-0 border-t sm:border-t-0 border-slate-850/40">
           {/* Service health dot — only visible when inference/db is degraded */}
           <ServiceStatusDot />
 
           {/* Offline indicator in header */}
-        {isOnline === false && (
-          <WifiOff
-            className="h-5 w-5 shrink-0 text-amber-500"
-            aria-label="Offline"
-          />
-        )}
-        {pendingSync > 0 && isOnline === true && (
-          <AlertTriangle
-            className="h-5 w-5 shrink-0 text-amber-500"
-            aria-label={`${pendingSync} observations pending sync`}
-          />
-        )}
+          {isOnline === false && (
+            <WifiOff
+              className="h-5 w-5 shrink-0 text-amber-500"
+              aria-label="Offline"
+            />
+          )}
+          {pendingSync > 0 && isOnline === true && (
+            <AlertTriangle
+              className="h-5 w-5 shrink-0 text-amber-500"
+              aria-label={`${pendingSync} observations pending sync`}
+            />
+          )}
+        </div>
       </header>
 
       {/* ── Reconnect / offline banner ───────────────────────────────── */}
