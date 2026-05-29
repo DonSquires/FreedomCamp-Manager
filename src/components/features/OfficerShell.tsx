@@ -168,6 +168,13 @@ export function OfficerShell({ children, title, description, showBackButton, con
         nightMode && 'officer-night',
       )}
     >
+      <a
+        href="#officer-main-content"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-primary focus:px-3 focus:py-2 focus:text-sm focus:font-medium focus:text-primary-foreground"
+      >
+        Skip to main content
+      </a>
+
       {/* ── Sticky header ───────────────────────────────────────────── */}
       <header className="sticky top-0 z-40 flex items-center gap-3 border-b border-border bg-background/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/80">
         {showBackButton && (
@@ -220,7 +227,7 @@ export function OfficerShell({ children, title, description, showBackButton, con
       <ReconnectBanner isOnline={isOnline ?? true} />
 
       {/* ── Main content ─────────────────────────────────────────────── */}
-      <main className="flex-1 overflow-y-auto">
+      <main id="officer-main-content" className="flex-1 overflow-y-auto scroll-mt-24" tabIndex={-1}>
         <div className={cn('mx-auto w-full max-w-2xl px-4 py-4', contentClassName)}>
           {children}
         </div>
