@@ -823,6 +823,13 @@ export function AppLayout({ children, title, description, showBackButton, immers
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-100 via-slate-50 to-cyan-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-900">
+      <a
+        href="#app-main-content"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-red-600 focus:px-3 focus:py-2 focus:text-sm focus:font-medium focus:text-white"
+      >
+        Skip to main content
+      </a>
+
       {/* Mobile Header */}
       {!immersive && (
       <header className="lg:hidden bg-white/95 dark:bg-[#1E1E1E]/95 backdrop-blur shadow-sm sticky top-0 z-40 border-b border-gray-200/60 dark:border-[#9E9E9E]/20">
@@ -1087,7 +1094,7 @@ export function AppLayout({ children, title, description, showBackButton, immers
         {/* Page Content */}
         {/* pb-28 md:pb-6: on mobile the fixed PTT bar + floating buttons occupy ~96px at the bottom;
             extra bottom padding prevents content from being hidden under them. */}
-        <main className={cn('relative', immersive ? 'p-0 lg:p-0' : 'p-4 pb-28 md:pb-6 lg:p-6')}>
+        <main id="app-main-content" tabIndex={-1} className={cn('relative', immersive ? 'p-0 lg:p-0' : 'p-4 pb-28 md:pb-6 lg:p-6')}>
           {!immersive && <PublicSafetyBanner />}
           {!immersive && <JurisdictionBanner />}
           {!immersive && (user?.role === 'admin' || user?.role === 'master' || user?.role === 'grand_master') && <HealthBanner />}
