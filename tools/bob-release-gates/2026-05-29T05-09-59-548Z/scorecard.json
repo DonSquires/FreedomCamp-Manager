@@ -1,0 +1,43 @@
+{
+  "runId": "2026-05-29T05-09-59-548Z",
+  "startedAt": "2026-05-29T05:09:59.563Z",
+  "endedAt": "2026-05-29T05:10:04.801Z",
+  "config": {
+    "minHumanReadiness": 85,
+    "sensesTimeoutMs": 900000,
+    "drBobFiles": [
+      "plan.md",
+      "spec.md"
+    ],
+    "drBobFailOnRevision": true,
+    "sensesMode": "off",
+    "dryRun": false
+  },
+  "stages": {
+    "autonomous": {
+      "status": "pass",
+      "detail": "command exit=0"
+    },
+    "drBob": {
+      "status": "skipped",
+      "detail": "not executed",
+      "results": []
+    },
+    "human": {
+      "status": "skipped",
+      "detail": "not executed",
+      "reportPath": "",
+      "readiness": null
+    },
+    "senses": {
+      "status": "skipped",
+      "detail": "not executed",
+      "reportPath": ""
+    }
+  },
+  "finalDecision": "pass",
+  "notes": [
+    "Dr Bob gate failed. Resolve blockers or needs-revision findings before release.",
+    "Human-test gate failed. Address failing flows or increase readiness via fixes, not threshold relaxation."
+  ]
+}
