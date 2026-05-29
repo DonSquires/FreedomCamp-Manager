@@ -902,21 +902,32 @@ export function AppLayout({ children, title, description, showBackButton, immers
 
           <h1 className="font-semibold text-lg truncate">{title || 'Field Compliance Manager'}</h1>
           
-          {/* Mobile: notification bell */}
-          <button
-            type="button"
-            title="Notifications"
-            aria-label="Notifications"
-            onClick={() => navigate('/notifications')}
-            className="relative flex items-center justify-center h-11 w-11 rounded-lg hover:bg-gray-100 dark:hover:bg-[#2A2A2A] transition-colors"
-          >
-            <Bell className="h-5 w-5 text-gray-500 dark:text-gray-400" />
-            {notifCount > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 h-4 w-4 flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold leading-none">
-                {notifCount > 9 ? '9+' : notifCount}
-              </span>
-            )}
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              title="Search"
+              aria-label="Search"
+              onClick={() => navigate('/search')}
+              className="flex items-center justify-center h-11 w-11 rounded-lg hover:bg-gray-100 dark:hover:bg-[#2A2A2A] transition-colors"
+            >
+              <Search className="h-5 w-5 text-gray-500 dark:text-gray-400" />
+            </button>
+
+            <button
+              type="button"
+              title="Notifications"
+              aria-label="Notifications"
+              onClick={() => navigate('/notifications')}
+              className="relative flex items-center justify-center h-11 w-11 rounded-lg hover:bg-gray-100 dark:hover:bg-[#2A2A2A] transition-colors"
+            >
+              <Bell className="h-5 w-5 text-gray-500 dark:text-gray-400" />
+              {notifCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 h-4 w-4 flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold leading-none">
+                  {notifCount > 9 ? '9+' : notifCount}
+                </span>
+              )}
+            </button>
+          </div>
           </div>
           {user && (
             <div className="flex items-center gap-2 overflow-x-auto pb-0.5">
