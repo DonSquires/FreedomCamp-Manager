@@ -138,7 +138,7 @@ export default defineConfig({
 
   // Visual regression snapshots live alongside the spec files so they are committed to git
   snapshotDir: './tests/e2e/__snapshots__',
-  snapshotPathTemplate: '{snapshotDir}/{testFilePath}/{arg}-{projectName}{ext}',
+  snapshotPathTemplate: '{snapshotDir}/{testFileName}/{arg}-{projectName}{ext}',
 
   // Run tests in files in parallel
   fullyParallel: true,

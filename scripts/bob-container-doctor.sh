@@ -40,6 +40,22 @@ log() { echo "[bob-doctor] $*"; }
 warn() { echo "[bob-doctor][warn] $*"; }
 fail() { echo "[bob-doctor][fail] $*"; }
 
+is_http_url() {
+  local value="${1:-}"
+  [[ "$value" == http://* || "$value" == https://* ]]
+}
+
+pick_first_http_url() {
+  local value
+  for value in "$@"; do
+    if is_http_url "$value"; then
+      printf '%s' "$value"
+      return 0
+    fi
+  done
+  return 1
+}
+
 railway_api_probe() {
   local token="$1"
   local label="$2"
@@ -123,13 +139,22 @@ else
   RUNPOD_ENDPOINT_RUNSYNC_URL=""
 fi
 
-BASE_URL="${RUNPOD_GATEWAY_URL:-${RUNPOD_SERVERLESS_URL:-${RUNPOD_RUNSYNC_URL:-${RUNPOD_URL:-${RUNPOD_ENDPOINT_RUNSYNC_URL}}}}}"
-API_KEY="${RUNPOD_API_KEY:-${DR_BOB_API:-}}"
+BASE_URL="$(pick_first_http_url \
+  "${RUNPOD_API_URL:-}" \
+  "${RUNPOD_GATEWAY_URL:-}" \
+  "${RUNPOD_SERVERLESS_URL:-}" \
+  "${RUNPOD_RUNSYNC_URL:-}" \
+  "${RUNPOD_URL:-}" \
+  "${RUNPOD_ENDPOINT_RUNSYNC_URL:-}" \
+  "${BOB_SERVICE_URL:-}" \
+  "${INFERENCE_SERVICE_URL:-}" \
+  || true)"
+API_KEY="${RUNPOD_API_KEY:-${DR_BOB_API:-${RUNPOD_ENDPOINT_API_KEY:-${INFERENCE_API_KEY:-${BOB_INFERENCE_API_KEY:-}}}}}"
 BASE_URL="${BASE_URL%/}"
 
-# Prefer explicit API URL when provided. This is commonly a /run endpoint.
-if [[ -n "${RUNPOD_API_URL:-}" ]]; then
-  BASE_URL="${RUNPOD_API_URL%/}"
+# Prefer explicit API URL when provided, but only when it is actually a URL.
+if [[ -n "${RUNPOD_API_URL:-}" ]] && ! is_http_url "${RUNPOD_API_URL:-}"; then
+  warn "Ignoring malformed RUNPOD_API_URL because it is not an http(s) URL"
 fi
 
 endpoint_kind="runsync"
