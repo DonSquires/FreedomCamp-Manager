@@ -24,13 +24,22 @@ if (supabaseUrl) {
 const root = document.getElementById('root')!
 const enableCleanRebuildRoutes = import.meta.env.VITE_ENABLE_CLEAN_REBUILD_ROUTES === 'true'
 const _qp = new URLSearchParams(window.location.search)
+const devToolsFromQuery = _qp.get('dev-tools') === '1'
+const devToolsFromStorage = localStorage.getItem('dev_tools_visible') === 'true'
+const allowCleanSurfaceToggle = enableCleanRebuildRoutes || import.meta.env.DEV || devToolsFromQuery || devToolsFromStorage
 const cleanFromQuery = _qp.get('clean_rebuild') === '1'
 const clearFromQuery = _qp.get('clean_rebuild') === '0'
 // Persist/clear the tester toggle via localStorage so it survives page reloads.
 if (clearFromQuery) localStorage.removeItem('clean_rebuild_surface')
 else if (cleanFromQuery) localStorage.setItem('clean_rebuild_surface', 'true')
-const cleanFromStorage = localStorage.getItem('clean_rebuild_surface') === 'true'
+const cleanFromStorage = allowCleanSurfaceToggle && localStorage.getItem('clean_rebuild_surface') === 'true'
 const useCleanSurface = enableCleanRebuildRoutes || cleanFromQuery || cleanFromStorage
+
+// Self-heal accidental persistence: if rebuild toggles are not explicitly enabled,
+// clear the sticky flag so normal users always see the production surface.
+if (!allowCleanSurfaceToggle && localStorage.getItem('clean_rebuild_surface') === 'true') {
+  localStorage.removeItem('clean_rebuild_surface')
+}
 
 const recentDispatchTitles: string[] = (() => {
   if (typeof window === 'undefined') return []

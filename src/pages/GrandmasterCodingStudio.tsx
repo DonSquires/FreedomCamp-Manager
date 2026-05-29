@@ -463,6 +463,9 @@ export default function GrandmasterCodingStudio() {
   }, [bulletinTitle, bulletinSummary, bulletinType, loadIntelState])
 
   const trainingMarketRequests = filterTrainingMarketKnowledgeRequests(knowledgeRequests).slice(0, 6)
+  const pendingTaskCount = taskCounts.pending ?? tasks.filter((task) => task.status === 'pending').length
+  const queuedKnowledgeCount = knowledgeCounts.pending ?? knowledgeRequests.filter((request) => request.status === 'pending').length
+  const intelBulletinCount = intelState?.bulletins?.length ?? 0
 
   const loadHealth = useCallback(async () => {
     setHealthLoading(true)
@@ -486,8 +489,38 @@ export default function GrandmasterCodingStudio() {
     >
       <GlobalFilterRibbon />
 
+      <div className="space-y-5">
+        <section className="relative overflow-hidden rounded-2xl border border-red-500/30 bg-gradient-to-br from-slate-950 via-slate-900 to-red-950/60 p-5 sm:p-6 shadow-[0_20px_70px_rgba(10,10,15,0.45)]">
+          <div className="pointer-events-none absolute -right-16 -top-20 h-52 w-52 rounded-full bg-red-500/20 blur-3xl" />
+          <div className="pointer-events-none absolute -bottom-16 -left-14 h-48 w-48 rounded-full bg-cyan-400/15 blur-3xl" />
+          <div className="relative">
+            <div className="inline-flex items-center gap-2 rounded-full border border-red-300/30 bg-red-900/30 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-red-100">
+              <BrainCircuit className="h-3.5 w-3.5" />
+              Grandmaster Operations
+            </div>
+            <h2 className="mt-3 text-2xl font-semibold tracking-tight text-white sm:text-3xl">Command Bob and Copilot from one tactical workspace</h2>
+            <p className="mt-2 max-w-3xl text-sm text-slate-200/90">
+              Orchestrate code tasks, research loops, and intelligence bulletins with clear queue visibility and production-safe controls.
+            </p>
+            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <div className="rounded-xl border border-white/15 bg-white/5 px-3 py-3">
+                <p className="text-[11px] uppercase tracking-wide text-slate-300">Pending code tasks</p>
+                <p className="mt-1 text-2xl font-semibold text-white">{pendingTaskCount}</p>
+              </div>
+              <div className="rounded-xl border border-white/15 bg-white/5 px-3 py-3">
+                <p className="text-[11px] uppercase tracking-wide text-slate-300">Queued knowledge research</p>
+                <p className="mt-1 text-2xl font-semibold text-white">{queuedKnowledgeCount}</p>
+              </div>
+              <div className="rounded-xl border border-white/15 bg-white/5 px-3 py-3">
+                <p className="text-[11px] uppercase tracking-wide text-slate-300">Intel bulletins in feed</p>
+                <p className="mt-1 text-2xl font-semibold text-white">{intelBulletinCount}</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
       <Tabs defaultValue="submit" className="space-y-4">
-        <TabsList className="flex-wrap h-auto gap-1">
+        <TabsList className="h-auto w-full flex-wrap justify-start gap-1.5 rounded-2xl border border-border/70 bg-card/70 p-1.5 shadow-sm backdrop-blur">
           <TabsTrigger value="submit" className="gap-1.5">
             <Code2 className="h-3.5 w-3.5" /> Submit Task
           </TabsTrigger>
@@ -512,7 +545,7 @@ export default function GrandmasterCodingStudio() {
         </TabsList>
 
         {/* ── Submit Task ─────────────────────────────────────────────────── */}
-        <TabsContent value="submit" className="space-y-4">
+        <TabsContent value="submit" className="space-y-4 rounded-2xl border border-border/70 bg-card/55 p-4 sm:p-5 shadow-sm">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -606,7 +639,7 @@ export default function GrandmasterCodingStudio() {
         </TabsContent>
 
         {/* ── Task Queue ──────────────────────────────────────────────────── */}
-        <TabsContent value="queue" className="space-y-4">
+        <TabsContent value="queue" className="space-y-4 rounded-2xl border border-border/70 bg-card/55 p-4 sm:p-5 shadow-sm">
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div className="flex items-center gap-2">
               <Select value={queueStatus} onValueChange={(v) => setQueueStatus(v)}>
@@ -657,7 +690,7 @@ export default function GrandmasterCodingStudio() {
         </TabsContent>
 
         {/* ── Patterns & Conventions ──────────────────────────────────────── */}
-        <TabsContent value="patterns" className="space-y-4">
+        <TabsContent value="patterns" className="space-y-4 rounded-2xl border border-border/70 bg-card/55 p-4 sm:p-5 shadow-sm">
           {patternsLoading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -768,7 +801,7 @@ export default function GrandmasterCodingStudio() {
         </TabsContent>
 
         {/* ── Code Assist ─────────────────────────────────────────────────── */}
-        <TabsContent value="assist" className="space-y-4">
+        <TabsContent value="assist" className="space-y-4 rounded-2xl border border-border/70 bg-card/55 p-4 sm:p-5 shadow-sm">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -808,7 +841,7 @@ export default function GrandmasterCodingStudio() {
         </TabsContent>
 
         {/* ── Ask Bob ─────────────────────────────────────────────────────── */}
-        <TabsContent value="ask" className="space-y-4">
+        <TabsContent value="ask" className="space-y-4 rounded-2xl border border-border/70 bg-card/55 p-4 sm:p-5 shadow-sm">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -965,7 +998,7 @@ export default function GrandmasterCodingStudio() {
         </TabsContent>
 
         {/* ── Service Health ──────────────────────────────────────────────── */}
-        <TabsContent value="health" className="space-y-4">
+        <TabsContent value="health" className="space-y-4 rounded-2xl border border-border/70 bg-card/55 p-4 sm:p-5 shadow-sm">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-sm font-semibold">Bob Service Health &amp; Secrets Status</h3>
@@ -1099,7 +1132,7 @@ export default function GrandmasterCodingStudio() {
         </TabsContent>
 
         {/* ── Collaboration ───────────────────────────────────────────────── */}
-        <TabsContent value="collab" className="space-y-4">
+        <TabsContent value="collab" className="space-y-4 rounded-2xl border border-border/70 bg-card/55 p-4 sm:p-5 shadow-sm">
 
           {/* Pipeline diagram */}
           <Card>
@@ -1276,6 +1309,7 @@ export default function GrandmasterCodingStudio() {
           )}
         </TabsContent>
       </Tabs>
+      </div>
     </AppLayout>
   )
 }
