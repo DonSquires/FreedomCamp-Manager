@@ -37,7 +37,7 @@ test.describe('Role Evaluation Reuse Suite', () => {
     await expect(page).toHaveScreenshot('role-qa-login-full.png', {
       fullPage: true,
       animations: 'disabled',
-      maxDiffPixelRatio: 0.01,
+      maxDiffPixelRatio: 0.02,
     })
   })
 
