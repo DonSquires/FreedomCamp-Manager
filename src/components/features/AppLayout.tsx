@@ -333,7 +333,7 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
       if (
         group.items.some(
           (item) =>
-            location.pathname === item.path &&
+            isPathActive(item.path) &&
             isNavItemVisible(item),
         )
       ) {
@@ -345,9 +345,20 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
         })
       }
     }
-  }, [isNavItemVisible, location.pathname, manifestNavGroups])
+  }, [isNavItemVisible, isPathActive, manifestNavGroups])
 
   const isDirectorOfficerMode = user?.role === 'officer'
+
+  const normalizePath = useCallback((path: string) => {
+    const cleanPath = path.split('?')[0].replace(/\/+$/, '')
+    return cleanPath || '/'
+  }, [])
+
+  const isPathActive = useCallback((path: string) => {
+    const current = normalizePath(location.pathname)
+    const target = normalizePath(path)
+    return current === target || (target !== '/' && current.startsWith(`${target}/`))
+  }, [location.pathname, normalizePath])
 
   const injectedOfficerPinned: NavItem[] = useMemo(() => {
     if (!isDirectorOfficerMode || !activeClientSiteId) return []
@@ -398,15 +409,16 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
     : pinnedItems.filter((item) => isNavItemVisible(item))
 
   return (
-    <nav className="space-y-2">
+    <nav className="space-y-2" aria-label="Primary navigation">
       {visiblePinned.map((item) => {
         const Icon = item.icon
-        const isActive = location.pathname === item.path
+        const isActive = isPathActive(item.path)
         return (
           <Link
             key={`pinned:${item.path}`}
             to={item.path}
             onClick={onClick}
+            aria-current={isActive ? 'page' : undefined}
             className={cn(
               'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150',
               isActive
@@ -434,7 +446,8 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
         if (visibleItems.length === 0) return null
 
         const isOpen = openGroups.has(group.label)
-        const hasActiveChild = visibleItems.some(item => location.pathname === item.path)
+        const hasActiveChild = visibleItems.some((item) => isPathActive(item.path))
+        const groupId = `nav-group-${group.label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`
 
         return (
           <div
@@ -445,7 +458,10 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
             )}
           >
             <button
+              type="button"
               onClick={() => toggleGroup(group.label)}
+              aria-expanded={isOpen}
+              aria-controls={groupId}
               className={cn(
                 'flex w-full items-center justify-between px-3 py-2.5 rounded-lg text-sm font-semibold transition-all duration-150',
                 hasActiveChild
@@ -461,15 +477,16 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
             </button>
 
             {isOpen && (
-              <div className="ml-4 mt-1.5 space-y-1.5 border-l border-gray-200 dark:border-[#9E9E9E]/20 pl-3.5">
+              <div id={groupId} className="ml-4 mt-1.5 space-y-1.5 border-l border-gray-200 dark:border-[#9E9E9E]/20 pl-3.5">
                 {visibleItems.map((item) => {
                   const Icon = item.icon
-                  const isActive = location.pathname === item.path
+                  const isActive = isPathActive(item.path)
                   return (
                     <Link
                       key={`group:${group.label}:${item.path}`}
                       to={item.path}
                       onClick={onClick}
+                      aria-current={isActive ? 'page' : undefined}
                       className={cn(
                         'flex items-center gap-3 px-2.5 py-2 rounded-lg text-sm transition-all duration-150',
                         isActive
@@ -888,10 +905,10 @@ export function AppLayout({ children, title, description, showBackButton, immers
           {/* Mobile: notification bell */}
           <button
             type="button"
-            title="Alerts"
-            aria-label="Alerts"
+            title="Notifications"
+            aria-label="Notifications"
             onClick={() => navigate('/notifications')}
-            className="relative flex items-center justify-center h-9 w-9 rounded-lg hover:bg-gray-100 dark:hover:bg-[#2A2A2A] transition-colors"
+            className="relative flex items-center justify-center h-11 w-11 rounded-lg hover:bg-gray-100 dark:hover:bg-[#2A2A2A] transition-colors"
           >
             <Bell className="h-5 w-5 text-gray-500 dark:text-gray-400" />
             {notifCount > 0 && (
@@ -948,7 +965,9 @@ export function AppLayout({ children, title, description, showBackButton, immers
                 </p>
               </div>
               <button
+                type="button"
                 onClick={toggleDesktopNav}
+                aria-label="Collapse sidebar"
                 title="Collapse sidebar"
                 className="mt-0.5 shrink-0 rounded p-1 text-[#BDBDBD] hover:bg-[#2A2A2A] hover:text-white transition-colors"
               >
