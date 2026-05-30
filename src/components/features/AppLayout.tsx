@@ -175,6 +175,14 @@ function HeaderStatusPill({
   )
 }
 
+function normalizeHealthDetail(detail?: string): string | undefined {
+  if (!detail) return detail
+  if (/timed out after\s*35s|request timed out/i.test(detail)) {
+    return 'health check delayed'
+  }
+  return detail
+}
+
 interface AppLayoutProps {
   children: React.ReactNode
   title?: string
@@ -941,7 +949,7 @@ export function AppLayout({ children, title, description, showBackButton, immers
                 label="Bob"
                 state={bobStatusTone}
                 icon={<BrainCircuit className="h-3.5 w-3.5" />}
-                detail={bobHealth?.status === 'online' ? 'ready' : bobHealth?.error || 'offline'}
+                detail={normalizeHealthDetail(bobHealth?.status === 'online' ? 'ready' : bobHealth?.error || 'offline')}
               />
             </div>
           )}
@@ -1087,7 +1095,7 @@ export function AppLayout({ children, title, description, showBackButton, immers
                       label="Bob"
                       state={bobStatusTone}
                       icon={<BrainCircuit className="h-3.5 w-3.5" />}
-                      detail={bobHealth?.status === 'online' ? 'ready' : bobHealth?.error || 'offline'}
+                      detail={normalizeHealthDetail(bobHealth?.status === 'online' ? 'ready' : bobHealth?.error || 'offline')}
                     />
                   </div>
                 )}

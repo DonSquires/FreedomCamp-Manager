@@ -112,7 +112,7 @@ export function usePTTAutoConnect(): void {
   // When Bob inference service transitions to 'ready' (online), trigger a PTT
   // re-connection attempt so the radio bridge benefits from a fresh Bob session.
   const { data: bobHealth } = useQuery({
-    queryKey: ['ptt-auto-connect-bob-health'],
+    queryKey: ['app-header-bob-health'],
     queryFn: checkInferenceHealth,
     enabled: isAuthenticated,
     staleTime: 30_000,

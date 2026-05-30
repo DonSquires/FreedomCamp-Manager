@@ -969,7 +969,9 @@ export const edgeFunctions = {
    * Check health of proxy and Bob inference services.
    */
   checkServicesHealth: async () => {
-    return callEdgeFunction('check-services-health')
+    // Health polling runs passively in layout-level UI; suppress toasts to avoid
+    // repeated timeout popups when a service is temporarily slow/offline.
+    return callEdgeFunction('check-services-health', undefined, { showToast: false })
   },
 
   /**
@@ -1856,11 +1858,12 @@ export const edgeFunctions = {
    */
   createBugReport: async (params: {
     payload: Record<string, unknown>
+    showToast?: boolean
   }) => {
     return callEdgeFunction('manage-platform-feedback', {
       action: 'create_bug_report',
       payload: params.payload,
-    })
+    }, { showToast: params.showToast ?? true })
   },
 
   /**

@@ -2,7 +2,7 @@
  * xlsxExport.ts
  *
  * Utility for exporting data to Microsoft Excel (.xlsx) format.
- * Uses the `xlsx` (SheetJS) package which is already installed in this project.
+ * Uses `write-excel-file` for lightweight browser-side workbook generation.
  *
  * Usage:
  *   import { exportToXlsx, exportMultiSheetXlsx } from '@/lib/xlsxExport'
@@ -17,7 +17,10 @@
  *   ], 'weekly-report')
  */
 
-import * as XLSX from 'xlsx'
+import writeXlsxFile from 'write-excel-file'
+
+type XlsxPrimitive = string | number | boolean
+type XlsxCell = { value?: XlsxPrimitive; fontWeight?: 'bold' }
 
 export interface XlsxColumn<T = Record<string, unknown>> {
   /** Property key on the row object */
@@ -39,39 +42,42 @@ export interface XlsxSheet<T = Record<string, unknown>> {
  * Build a worksheet from rows + column definitions and apply minimal styling
  * (bold header row, auto-width columns).
  */
-function buildWorksheet<T extends Record<string, unknown>>(
+function buildWorksheetRows<T extends Record<string, unknown>>(
   rows: T[],
   columns: XlsxColumn<T>[],
-): XLSX.WorkSheet {
+): Array<Array<XlsxCell>> {
   // Header row
-  const header = columns.map((c) => c.label)
+  const header = columns.map((c) => ({ value: c.label, fontWeight: 'bold' as const }))
 
   // Data rows
   const data = rows.map((row) =>
     columns.map((col) => {
       const raw = row[col.key]
-      if (col.format) return col.format(raw, row)
-      if (raw === null || raw === undefined) return ''
-      return raw as string | number | boolean
+      if (col.format) {
+        const value = col.format(raw, row)
+        return value === null ? {} : { value: value as XlsxPrimitive }
+      }
+      if (raw === null || raw === undefined) return {}
+      return { value: raw as XlsxPrimitive }
     }),
   )
 
-  const wsData = [header, ...data]
-  const ws = XLSX.utils.aoa_to_sheet(wsData)
+  return [header, ...data]
+}
 
-  // Auto-width: measure the widest value in each column
-  const colWidths = columns.map((col, idx) => {
+function buildColumnWidths<T extends Record<string, unknown>>(
+  rows: T[],
+  columns: XlsxColumn<T>[],
+): Array<{ width?: number }> {
+  return columns.map((col) => {
     const headerLen = col.label.length
-    const maxDataLen = data.slice(1).reduce((max, rowArr) => {
-      const cell = rowArr[idx]
-      const len = cell != null ? String(cell).length : 0
-      return Math.max(max, len)
+    const maxDataLen = rows.reduce((max, row) => {
+      const raw = row[col.key]
+      const cell = col.format ? col.format(raw, row) : (raw ?? '')
+      return Math.max(max, String(cell).length)
     }, 0)
-    return { wch: Math.min(Math.max(headerLen, maxDataLen) + 2, 60) }
+    return { width: Math.min(Math.max(headerLen, maxDataLen) + 2, 60) }
   })
-  ws['!cols'] = colWidths
-
-  return ws
 }
 
 /**
@@ -85,11 +91,15 @@ export function exportToXlsx<T extends Record<string, unknown>>(
   rows: T[],
   columns: XlsxColumn<T>[],
   filename = 'export',
-): void {
-  const wb = XLSX.utils.book_new()
-  const ws = buildWorksheet(rows, columns)
-  XLSX.utils.book_append_sheet(wb, ws, 'Data')
-  XLSX.writeFile(wb, `${filename}.xlsx`)
+): Promise<void> {
+  const worksheetRows = buildWorksheetRows(rows, columns)
+  const columnWidths = buildColumnWidths(rows, columns)
+
+  return writeXlsxFile(worksheetRows, {
+    columns: columnWidths,
+    fileName: `${filename}.xlsx`,
+    sheet: 'Data',
+  })
 }
 
 /**
@@ -101,13 +111,14 @@ export function exportToXlsx<T extends Record<string, unknown>>(
 export function exportMultiSheetXlsx<T extends Record<string, unknown>>(
   sheets: XlsxSheet<T>[],
   filename = 'export',
-): void {
-  const wb = XLSX.utils.book_new()
-  for (const sheet of sheets) {
-    const ws = buildWorksheet(sheet.rows, sheet.columns)
-    // Truncate sheet name to 31 chars (Excel limit)
-    const safeName = sheet.name.slice(0, 31)
-    XLSX.utils.book_append_sheet(wb, ws, safeName)
-  }
-  XLSX.writeFile(wb, `${filename}.xlsx`)
+): Promise<void> {
+  const dataBySheet = sheets.map((sheet) => buildWorksheetRows(sheet.rows, sheet.columns))
+  const columnsBySheet = sheets.map((sheet) => buildColumnWidths(sheet.rows, sheet.columns))
+  const sheetNames = sheets.map((sheet) => sheet.name.slice(0, 31))
+
+  return writeXlsxFile(dataBySheet, {
+    columns: columnsBySheet,
+    sheets: sheetNames,
+    fileName: `${filename}.xlsx`,
+  })
 }

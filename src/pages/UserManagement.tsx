@@ -438,8 +438,8 @@ export default function UserManagement({ embedded = false }: UserManagementProps
     mutationFn: async ({ userId, newPwd }: { userId: string; newPwd: string }) => {
       const { data, error } = await withTimeout(
         edgeFunctions.setUserPassword({ user_id: userId, new_password: newPwd }),
-        30000,
-        'Request timed out after 30 seconds.',
+        45000,
+        'Request timed out after 45 seconds.',
       )
       if (error) throw new Error(error)
       return data
@@ -491,8 +491,8 @@ export default function UserManagement({ embedded = false }: UserManagementProps
 
       const { data, error } = await withTimeout(
         invocation,
-        30000,
-        'Request timed out after 30 seconds.',
+        45000,
+        'Request timed out after 45 seconds.',
       )
 
       if (error) throw new Error(error)
@@ -520,8 +520,8 @@ export default function UserManagement({ embedded = false }: UserManagementProps
     mutationFn: async ({ userId }: { userId: string }) => {
       const { data, error } = await withTimeout(
         edgeFunctions.disconnectUserPtt({ user_id: userId }),
-        30000,
-        'Request timed out after 30 seconds.',
+        45000,
+        'Request timed out after 45 seconds.',
       )
 
       if (error) throw new Error(error)
@@ -551,8 +551,8 @@ export default function UserManagement({ embedded = false }: UserManagementProps
           mode,
           scopes,
         }),
-        30000,
-        'Request timed out after 30 seconds.',
+        45000,
+        'Request timed out after 45 seconds.',
       )
 
       if (error) throw new Error(error)

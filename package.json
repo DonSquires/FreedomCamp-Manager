@@ -369,14 +369,15 @@
     "react-markdown": "^9.0.1",
     "react-resizable-panels": "^4.11.2",
     "react-router-dom": "^6.26.2",
+    "read-excel-file": "^5.8.8",
     "recharts": "^3.8.1",
     "sonner": "^1.5.0",
     "tailwind-merge": "^2.5.2",
     "tailwindcss-animate": "^1.0.7",
     "tesseract.js": "^7.0.0",
     "vaul": "^0.9.3",
+    "write-excel-file": "^2.3.10",
     "ws": "^8.18.3",
-    "xlsx": "^0.18.5",
     "zod": "^3.23.8",
     "zustand": "^5.0.0"
   },
@@ -412,5 +413,6 @@
     "typescript-eslint": "^8.0.1",
     "vite": "^8.0.14",
     "vitest": "^4.1.6"
-  }
+  },
+  "overrides": {}
 }

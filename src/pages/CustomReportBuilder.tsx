@@ -440,7 +440,7 @@ export default function CustomReportBuilder() {
   }
 
   // Export to Excel (.xlsx)
-  const exportToExcel = () => {
+  const exportToExcel = async () => {
     if (previewData.length === 0) {
       toast.error('No data to export')
       return
@@ -466,8 +466,13 @@ export default function CustomReportBuilder() {
     })
 
     const filename = `${selectedSource?.code || 'report'}-${dateFrom}-to-${dateTo}`
-    exportToXlsx(previewData as Record<string, unknown>[], columns, filename)
-    toast.success('Excel file downloaded')
+    try {
+      await exportToXlsx(previewData as Record<string, unknown>[], columns, filename)
+      toast.success('Excel file downloaded')
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Excel export failed'
+      toast.error(message)
+    }
   }
 
   // Export to PDF
