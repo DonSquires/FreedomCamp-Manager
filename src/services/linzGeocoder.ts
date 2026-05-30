@@ -7,11 +7,11 @@
 import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
-  process.env.VITE_SUPABASE_URL!,
-  process.env.VITE_SUPABASE_ANON_KEY!
+  import.meta.env.VITE_SUPABASE_URL!,
+  import.meta.env.VITE_SUPABASE_ANON_KEY!
 );
 
-const LINZ_API_KEY = process.env.VITE_LINZ_DATA_SERVICE_API_KEY;
+const LINZ_API_KEY = import.meta.env.VITE_LINZ_DATA_SERVICE_API_KEY;
 
 interface LinzFeature {
   properties: {

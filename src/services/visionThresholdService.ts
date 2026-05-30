@@ -14,8 +14,8 @@ export interface AssessmentMatrix {
   processingTime: number; // milliseconds
 }
 
-const RUNPOD_ENDPOINT = process.env.VITE_RUNPOD_SERVERLESS_ENDPOINT_URL;
-const RUNPOD_API_KEY = process.env.VITE_RUNPOD_API_KEY;
+const RUNPOD_ENDPOINT = import.meta.env.VITE_RUNPOD_SERVERLESS_ENDPOINT_URL;
+const RUNPOD_API_KEY = import.meta.env.VITE_RUNPOD_API_KEY;
 
 /**
  * Evaluates field imagery against strict compliance thresholds

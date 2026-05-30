@@ -37,7 +37,11 @@ export default function CleanPlatform() {
         // Load per-org counts
         const enriched = await Promise.all((orgData ?? []).map(async (org: any) => {
           const [userRes, obsRes] = await Promise.all([
-            supabase.from('user_profiles').select('id', { count: 'exact', head: true }).eq('organization_id', org.id).eq('is_active', true),
+            supabase
+              .from('user_profiles')
+              .select('id', { count: 'exact', head: true })
+              .eq('is_active', true)
+              .or(`organization_id.eq.${org.id},employer_organization_id.eq.${org.id}`),
             supabase.from('observations').select('observation_id', { count: 'exact', head: true }).eq('organization_id', org.id),
           ])
           return {
