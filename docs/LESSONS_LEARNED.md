@@ -13,6 +13,13 @@ Use this file to record concrete mistakes Bob and Dr Bob found during adversaria
 
 ## Current Lessons
 
+- Date: 2026-05-30
+- Trigger: Platform header repeatedly showed "Edge function request timed out after 35s" while live polling was active.
+- Mistake: Multiple independent health pollers queried the same `check-services-health` edge function concurrently, then surfaced the raw timeout string directly in UI status labels.
+- Risk: Timeout storms created noisy degraded UX, repeated edge load, and misleading incident signals even when core app routes remained usable.
+- Fix: Added client-side health-call in-flight dedupe + short TTL caching + timeout backoff in `src/lib/proxyServices.ts`, unified Bob health query keys to share React Query cache in `src/hooks/usePTTAutoConnect.ts`, and normalized timeout text in `src/components/features/AppLayout.tsx`.
+- Prevention Rule: Any background health polling must share a single request path with dedupe/cache/backoff and must never render raw transport timeout text directly to users.
+
 - Date: 2026-05-24
 - Trigger: User directive to stop non-coding auto-closures and teach Dr Bob endpoint/env/load/wiring triage.
 - Mistake: Non-coding incidents (endpoint URL mistakes, API-key-vs-URL confusion, env misconfiguration, failed-load signatures, and wrong wiring direction) could be returned as `resolve` by model output and applied too early.

@@ -30,6 +30,53 @@ interface ServicesHealthResponse {
   checked_at: string
 }
 
+const SERVICES_HEALTH_CACHE_TTL_MS = 20_000
+const SERVICES_HEALTH_ERROR_CACHE_TTL_MS = 10_000
+const SERVICES_HEALTH_TIMEOUT_BACKOFF_MS = 90_000
+
+type ServiceUrlsResult = {
+  proxyUrl: string | null
+  inferenceUrl: string | null
+  proxyHealth: ServicesHealthResponse['proxy'] | null
+  inferenceHealth: ServicesHealthResponse['inference'] | null
+  pttUrl: string | null
+  pttHealth: ServicesHealthResponse['ptt'] | null
+  pttWsUrl: string | null
+  inferenceApiKeyConfigured: boolean
+  error: string | null
+}
+
+let servicesHealthCache: ServiceUrlsResult | null = null
+let servicesHealthCacheExpiresAt = 0
+let servicesHealthInFlight: Promise<ServiceUrlsResult> | null = null
+let servicesHealthTimeoutBackoffUntil = 0
+
+function isTimeoutMessage(value: string | null | undefined): boolean {
+  if (!value) return false
+  return /timed out after\s*35s|request timed out/i.test(value)
+}
+
+function normalizeServiceHealthError(value: string | null | undefined): string {
+  if (!value) return 'Failed to get service health'
+  if (isTimeoutMessage(value)) return 'Service health check delayed'
+  return value
+}
+
+function fallbackServiceUrls(errorMessage: string): ServiceUrlsResult {
+  const previous = servicesHealthCache
+  return {
+    proxyUrl: previous?.proxyUrl ?? null,
+    inferenceUrl: previous?.inferenceUrl ?? null,
+    proxyHealth: previous?.proxyHealth ?? null,
+    inferenceHealth: previous?.inferenceHealth ?? null,
+    pttUrl: previous?.pttUrl ?? null,
+    pttHealth: previous?.pttHealth ?? null,
+    pttWsUrl: previous?.pttWsUrl ?? null,
+    inferenceApiKeyConfigured: previous?.inferenceApiKeyConfigured ?? false,
+    error: errorMessage,
+  }
+}
+
 /**
  * Get service URLs and health status from the check-services-health Edge Function.
  */
@@ -44,48 +91,70 @@ async function getServiceURLs(): Promise<{
   inferenceApiKeyConfigured: boolean
   error: string | null
 }> {
-  try {
-    const { data, error } = await edgeFunctions.checkServicesHealth()
+  const now = Date.now()
 
-    if (error) {
-      return {
-        proxyUrl: null,
-        inferenceUrl: null,
-        proxyHealth: null,
-        inferenceHealth: null,
-        pttUrl: null,
-        pttHealth: null,
-        pttWsUrl: null,
-        inferenceApiKeyConfigured: false,
-        error: error || 'Failed to get service URLs',
-      }
-    }
-
-    const response = data as ServicesHealthResponse | null
-    return {
-      proxyUrl: response?.proxy_url || null,
-      inferenceUrl: response?.inference_url || null,
-      proxyHealth: response?.proxy || null,
-      inferenceHealth: response?.inference || null,
-      pttUrl: response?.ptt_url || null,
-      pttHealth: response?.ptt || null,
-      pttWsUrl: response?.ptt_ws_url || null,
-      inferenceApiKeyConfigured: response?.inference_api_key_configured ?? false,
-      error: null,
-    }
-  } catch (error: any) {
-    return {
-      proxyUrl: null,
-      inferenceUrl: null,
-      proxyHealth: null,
-      inferenceHealth: null,
-      pttUrl: null,
-      pttHealth: null,
-      pttWsUrl: null,
-      inferenceApiKeyConfigured: false,
-      error: error.message || 'Unknown error',
-    }
+  if (servicesHealthCache && now < servicesHealthCacheExpiresAt) {
+    return servicesHealthCache
   }
+
+  if (now < servicesHealthTimeoutBackoffUntil) {
+    const result = fallbackServiceUrls('Service health check delayed')
+    servicesHealthCache = result
+    servicesHealthCacheExpiresAt = now + SERVICES_HEALTH_ERROR_CACHE_TTL_MS
+    return result
+  }
+
+  if (servicesHealthInFlight) {
+    return servicesHealthInFlight
+  }
+
+  servicesHealthInFlight = (async () => {
+    try {
+      const { data, error } = await edgeFunctions.checkServicesHealth()
+
+      if (error) {
+        const normalizedError = normalizeServiceHealthError(error || 'Failed to get service URLs')
+        if (isTimeoutMessage(error)) {
+          servicesHealthTimeoutBackoffUntil = Date.now() + SERVICES_HEALTH_TIMEOUT_BACKOFF_MS
+        }
+        const result = fallbackServiceUrls(normalizedError)
+        servicesHealthCache = result
+        servicesHealthCacheExpiresAt = Date.now() + SERVICES_HEALTH_ERROR_CACHE_TTL_MS
+        return result
+      }
+
+      const response = data as ServicesHealthResponse | null
+      const result: ServiceUrlsResult = {
+        proxyUrl: response?.proxy_url || null,
+        inferenceUrl: response?.inference_url || null,
+        proxyHealth: response?.proxy || null,
+        inferenceHealth: response?.inference || null,
+        pttUrl: response?.ptt_url || null,
+        pttHealth: response?.ptt || null,
+        pttWsUrl: response?.ptt_ws_url || null,
+        inferenceApiKeyConfigured: response?.inference_api_key_configured ?? false,
+        error: null,
+      }
+
+      servicesHealthTimeoutBackoffUntil = 0
+      servicesHealthCache = result
+      servicesHealthCacheExpiresAt = Date.now() + SERVICES_HEALTH_CACHE_TTL_MS
+      return result
+    } catch (error: any) {
+      const normalizedError = normalizeServiceHealthError(error?.message || 'Unknown error')
+      if (isTimeoutMessage(error?.message)) {
+        servicesHealthTimeoutBackoffUntil = Date.now() + SERVICES_HEALTH_TIMEOUT_BACKOFF_MS
+      }
+      const result = fallbackServiceUrls(normalizedError)
+      servicesHealthCache = result
+      servicesHealthCacheExpiresAt = Date.now() + SERVICES_HEALTH_ERROR_CACHE_TTL_MS
+      return result
+    } finally {
+      servicesHealthInFlight = null
+    }
+  })()
+
+  return servicesHealthInFlight
 }
 
 // ============================================================================
