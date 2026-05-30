@@ -13,6 +13,13 @@ Use this file to record concrete mistakes Bob and Dr Bob found during adversaria
 
 ## Current Lessons
 
+- Date: 2026-05-30
+- Trigger: Beta-readiness safety audit of Bob autonomous production promotion and webhook flows.
+- Mistake: Automation webhook auth accepted requests when `AUTOMATION_WEBHOOK_TOKEN`/`GITEA_WEBHOOK_SECRET` was unset, creating a fail-open path on automation endpoints.
+- Risk: Unauthorized callers could trigger orchestration paths (including promotion-adjacent workflows) if runtime secret configuration drifted.
+- Fix: Replaced boolean token check with fail-closed validation in backend routes; missing token config now returns 503 and invalid/missing caller token returns 401.
+- Prevention Rule: All automation and webhook auth checks must fail closed by default; missing security config is a service-misconfiguration error, never an implicit allow.
+
 - Date: 2026-05-24
 - Trigger: User directive to stop non-coding auto-closures and teach Dr Bob endpoint/env/load/wiring triage.
 - Mistake: Non-coding incidents (endpoint URL mistakes, API-key-vs-URL confusion, env misconfiguration, failed-load signatures, and wrong wiring direction) could be returned as `resolve` by model output and applied too early.
