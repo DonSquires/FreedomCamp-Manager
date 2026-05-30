@@ -72,7 +72,7 @@ export default function OpenShiftLog() {
         .order('start_time', { ascending: false, nullsFirst: false })
         .limit(500)
 
-      if (user?.role !== 'master') {
+      if (user?.role !== 'master' && user?.role !== 'grand_master') {
         if (!orgId) return []
         q = q.eq('organization_id', orgId)
       }

@@ -11,10 +11,13 @@ if (!manifestValidation.valid) {
 
 function resolveSupabaseEnv(mode: string) {
   const env = loadEnv(mode, process.cwd(), '')
+  const allowLegacyFallback = ['1', 'true', 'yes', 'on'].includes(
+    (env.VITE_ALLOW_LEGACY_SUPABASE_ENV_FALLBACK || '').toLowerCase()
+  )
 
   return {
-    supabaseUrl: env.VITE_SUPABASE_URL || env.SUPABASE_URL || '',
-    supabaseAnonKey: env.VITE_SUPABASE_ANON_KEY || env.SUPABASE_ANON_KEY || '',
+    supabaseUrl: env.VITE_SUPABASE_URL || (allowLegacyFallback ? env.SUPABASE_URL || '' : ''),
+    supabaseAnonKey: env.VITE_SUPABASE_ANON_KEY || (allowLegacyFallback ? env.SUPABASE_ANON_KEY || '' : ''),
   }
 }
 

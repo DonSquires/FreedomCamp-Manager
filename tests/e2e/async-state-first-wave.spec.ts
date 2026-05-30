@@ -13,6 +13,23 @@ import { test, expect, type Page } from '@playwright/test'
 import { loginAs } from './auth'
 
 test.use({ screenshot: 'on' })
+test.setTimeout(120000)
+
+const ADMIN_EMAIL =
+  process.env.API_TEST_EMAIL ||
+  process.env.PLAYWRIGHT_LIVE_EMAIL ||
+  process.env.PLAYWRIGHT_ADMIN_ORG1_EMAIL ||
+  process.env.PLAYWRIGHT_ADMIN_EMAIL ||
+  process.env.E2E_ADMIN_EMAIL ||
+  ''
+
+const ADMIN_PASSWORD =
+  process.env.API_TEST_PASSWORD ||
+  process.env.PLAYWRIGHT_LIVE_PASSWORD ||
+  process.env.PLAYWRIGHT_ADMIN_ORG1_PASSWORD ||
+  process.env.PLAYWRIGHT_ADMIN_PASSWORD ||
+  process.env.E2E_ADMIN_PASSWORD ||
+  ''
 
 const OFFLINE_BANNER = 'Connection lost. You are offline and some live data may be stale.'
 const EXPANDED_ASYNC_STATE_ROUTES = [
@@ -64,23 +81,52 @@ async function dispatchConnectivityEvent(page: Page, type: 'offline' | 'online')
   }, type)
 }
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+async function waitForAuthenticatedShell(page: Page, route: string) {
+  // Ensure the protected route has fully resolved auth/profile hydration
+  // before forcing offline mode, otherwise route guards can bounce to /login.
+  const routePattern = new RegExp(`${escapeRegExp(route)}(?:\\?.*)?$`)
+  await expect(page).toHaveURL(routePattern, { timeout: 15000 })
+  await expect(page.getByTestId('notification-bell')).toBeVisible({ timeout: 15000 })
+  await page.waitForFunction(() => {
+    const raw = window.sessionStorage.getItem('auth-storage')
+    if (!raw) return false
+    try {
+      const parsed = JSON.parse(raw)
+      return Boolean(parsed?.state?.user?.id)
+    } catch {
+      return false
+    }
+  }, { timeout: 15000 })
+}
+
 async function assertOfflineBanner(page: Page, route: string) {
   await page.goto(route, { waitUntil: 'domcontentloaded' })
 
-  await expect(page.locator('main')).toBeVisible({ timeout: 8000 })
-  await dispatchConnectivityEvent(page, 'offline')
+  // Some routes render without a <main> wrapper; body visibility is the stable app-ready signal.
+  await expect(page.locator('body')).toBeVisible({ timeout: 8000 })
+  await waitForAuthenticatedShell(page, route)
 
-  await expect(page.getByText(OFFLINE_BANNER)).toBeVisible({ timeout: 8000 })
+  await page.context().setOffline(true)
+  try {
+    await dispatchConnectivityEvent(page, 'offline')
 
-  // Restore online mode to verify graceful recovery.
-  await dispatchConnectivityEvent(page, 'online')
+    await expect(page.getByText(OFFLINE_BANNER)).toBeVisible({ timeout: 8000 })
 
-  await expect(page.getByText(OFFLINE_BANNER)).toBeHidden({ timeout: 8000 })
+    // Restore online mode to verify graceful recovery.
+    await page.context().setOffline(false)
+    await dispatchConnectivityEvent(page, 'online')
+
+    await expect(page.getByText(OFFLINE_BANNER)).toBeHidden({ timeout: 8000 })
+  } finally {
+    await page.context().setOffline(false)
+  }
 }
 
 test.describe('first-wave async-state offline behavior', () => {
-  test.describe.configure({ mode: 'serial' })
-
   test.beforeEach(async ({ page }) => {
     await loginAs(page, 'adminOrg1')
   })

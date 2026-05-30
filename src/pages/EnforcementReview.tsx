@@ -101,7 +101,7 @@ export default function EnforcementReview() {
   const [reviewDecision, setReviewDecision] = useState<'approved' | 'rejected' | 'escalated'>('approved')
   const [reviewNotes, setReviewNotes] = useState('')
 
-  const orgId = user?.role === 'master' ? (organizationId || undefined) : user?.organization_id
+  const orgId = (user?.role === 'master' || user?.role === 'grand_master') ? (organizationId || undefined) : user?.organization_id
 
   const { data: actions = [], isLoading } = useQuery({
     queryKey: ['enforcement-review', orgId, zoneId, startDate, endDate, statusFilter, actionTypeFilter],

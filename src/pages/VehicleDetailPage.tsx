@@ -105,7 +105,7 @@ export default function VehicleDetailPage() {
   const { organizationId, zoneId, dateFrom, dateTo } = useGlobalFiltersStore()
   const queryClient = useQueryClient()
   const effectiveOrganizationId =
-    organizationId || (user?.role !== 'master' ? user?.organization_id || null : null)
+    organizationId || (user?.role !== 'master' && user?.role !== 'grand_master' ? user?.organization_id || null : null)
   const startDate = dateFrom ? nzDateToUTCStart(dateFrom) : null
   const endDate = dateTo ? nzDateToUTCEnd(dateTo) : null
 

@@ -120,7 +120,7 @@ export default function PhotoReingest() {
     }
   }, [globalProgress, globalLiveProgress, globalResult, globalStatus, result])
 
-  const effectiveOrgId = selectedOrgId || (user?.role !== 'master' ? user?.organization_id || '' : '')
+  const effectiveOrgId = selectedOrgId || (user?.role !== 'master' && user?.role !== 'grand_master' ? user?.organization_id || '' : '')
 
   const { data: organizations } = useOrganizations()
 
@@ -361,7 +361,7 @@ export default function PhotoReingest() {
   })
 
   const handleStart = () => {
-    if (!effectiveOrgId && user?.role !== 'master') {
+    if (!effectiveOrgId && user?.role !== 'master' && user?.role !== 'grand_master') {
       toast.error('Please select an organisation')
       return
     }

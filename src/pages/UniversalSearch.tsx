@@ -41,7 +41,7 @@ export default function UniversalSearch() {
   const [query, setQuery] = useState('')
   const [submittedQuery, setSubmittedQuery] = useState('')
 
-  const orgFilter = user?.role !== 'master' ? user?.organization_id : null
+  const orgFilter = user?.role !== 'master' && user?.role !== 'grand_master' ? user?.organization_id : null
 
   const { data: results, isLoading } = useQuery({
     queryKey: ['universal-search', submittedQuery, orgFilter],

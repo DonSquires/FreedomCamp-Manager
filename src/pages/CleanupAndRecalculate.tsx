@@ -112,7 +112,7 @@ export default function CleanupAndRecalculate() {
     }
   }, [globalOp?.progress, globalOp?.liveProgress, globalOp?.result, globalOp?.status, result])
 
-  const effectiveOrgId = selectedOrgId || (user?.role !== 'master' ? user?.organization_id || '' : '')
+  const effectiveOrgId = selectedOrgId || (user?.role !== 'master' && user?.role !== 'grand_master' ? user?.organization_id || '' : '')
 
   const { data: organizations } = useOrganizations()
   const { data: zones } = useZones({
@@ -121,7 +121,7 @@ export default function CleanupAndRecalculate() {
   })
 
   useEffect(() => {
-    if (!selectedOrgId && user?.role !== 'master' && user?.organization_id) {
+    if (!selectedOrgId && user?.role !== 'master' && user?.role !== 'grand_master' && user?.organization_id) {
       setSelectedOrgId(user.organization_id)
     }
   }, [selectedOrgId, user?.organization_id, user?.role])

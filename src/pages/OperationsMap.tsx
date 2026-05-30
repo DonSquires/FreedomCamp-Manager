@@ -186,7 +186,7 @@ function ZoneCircle({ zone }: { zone: any }) {
 export default function OperationsMap() {
   const { user } = useAuthStore()
   const { organizationId: filterOrg, dateFrom, dateTo } = useGlobalFiltersStore()
-  const effectiveOrgId = user?.role === 'master' ? filterOrg || null : user?.organization_id || null
+  const effectiveOrgId = (user?.role === 'master' || user?.role === 'grand_master') ? filterOrg || null : user?.organization_id || null
 
   const [visibleLayers, setVisibleLayers] = useState<Record<string, boolean>>(
     Object.fromEntries(LAYERS.map(l => [l.id, l.defaultOn]))

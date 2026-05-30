@@ -75,7 +75,7 @@ export function useEnforcementActions(options?: {
         .order('created_at', { ascending: false })
 
       // Organization scoping
-      if (user?.role !== 'master' && user?.organization_id) {
+      if (user?.role !== 'master' && user?.role !== 'grand_master' && user?.organization_id) {
         query = query.eq('organization_id', user.organization_id)
       } else if (options?.organizationId) {
         query = query.eq('organization_id', options.organizationId)
@@ -160,7 +160,7 @@ export function useEnforcementActions(options?: {
         })
         .eq('id', id)
 
-      if (user?.role !== 'master' && user?.organization_id) {
+      if (user?.role !== 'master' && user?.role !== 'grand_master' && user?.organization_id) {
         query = query.eq('organization_id', user.organization_id)
       }
 
@@ -192,7 +192,7 @@ export function useEnforcementActions(options?: {
         })
         .eq('id', id)
 
-      if (user?.role !== 'master' && user?.organization_id) {
+      if (user?.role !== 'master' && user?.role !== 'grand_master' && user?.organization_id) {
         query = query.eq('organization_id', user.organization_id)
       }
 
@@ -223,7 +223,7 @@ export function useEnforcementActions(options?: {
         })
         .eq('id', id)
 
-      if (user?.role !== 'master' && user?.organization_id) {
+      if (user?.role !== 'master' && user?.role !== 'grand_master' && user?.organization_id) {
         query = query.eq('organization_id', user.organization_id)
       }
 

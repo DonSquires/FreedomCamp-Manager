@@ -78,7 +78,7 @@ export default function VehicleDiscrepancies() {
   const [reviewNotes, setReviewNotes] = useState('')
 
   const effectiveOrgId =
-    user?.role !== 'master' ? user?.organization_id || null : organizationId || null
+    user?.role !== 'master' && user?.role !== 'grand_master' ? user?.organization_id || null : organizationId || null
 
   // ── Main query ─────────────────────────────────────────────────────────────
   const { data: discrepancies, isLoading } = useQuery({

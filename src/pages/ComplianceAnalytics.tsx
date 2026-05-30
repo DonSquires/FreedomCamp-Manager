@@ -55,7 +55,7 @@ export default function ComplianceAnalytics() {
   const { user } = useAuthStore()
   const { organizationId, zoneId, dateFrom, dateTo } = useGlobalFiltersStore()
   const effectiveOrganizationId =
-    user?.role === 'master' ? organizationId || null : user?.organization_id || null
+    (user?.role === 'master' || user?.role === 'grand_master') ? organizationId || null : user?.organization_id || null
   const startDate = dateFrom ? nzDateToUTCStart(dateFrom) : null
   const endDate = dateTo ? nzDateToUTCEnd(dateTo) : null
   const [viewMode, setViewMode] = useState<'overview' | 'trends' | 'zones'>('overview')

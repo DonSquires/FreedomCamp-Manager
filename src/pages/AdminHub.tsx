@@ -226,7 +226,7 @@ export default function AdminHub() {
   const navigate = useNavigate()
 
   const effectiveOrgId =
-    user?.role === 'master' ? null : user?.organization_id ?? null
+    (user?.role === 'master' || user?.role === 'grand_master') ? null : user?.organization_id ?? null
 
   const { data: metrics } = useHubMetrics(effectiveOrgId)
 
@@ -414,8 +414,7 @@ export default function AdminHub() {
     },
   ]
 
-  const orgLabel = user?.role === 'master'
-    ? 'All organisations'
+  const orgLabel = (user?.role === 'master' || user?.role === 'grand_master') ? 'All organisations'
     : user?.full_name ?? user?.email ?? ''
 
   return (

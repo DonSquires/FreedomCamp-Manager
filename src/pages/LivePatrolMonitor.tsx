@@ -154,7 +154,7 @@ export default function LivePatrolMonitor() {
           .order('created_at', { ascending: false })
 
         // Organization scoping
-        if (user?.role !== 'master' && user?.organization_id) {
+        if (user?.role !== 'master' && user?.role !== 'grand_master' && user?.organization_id) {
           query = query.eq('organization_id', user.organization_id)
         } else if (organizationId) {
           query = query.eq('organization_id', organizationId)
@@ -202,7 +202,7 @@ export default function LivePatrolMonitor() {
           .in('status', ['in_progress', 'scheduled', 'completed'])
           .order('created_at', { ascending: false })
 
-        if (user?.role !== 'master' && user?.organization_id) {
+        if (user?.role !== 'master' && user?.role !== 'grand_master' && user?.organization_id) {
           query = query.eq('organization_id', user.organization_id)
         } else if (organizationId) {
           query = query.eq('organization_id', organizationId)
@@ -341,7 +341,7 @@ export default function LivePatrolMonitor() {
         .order('last_gps_update', { ascending: false })
 
       // Organization scoping
-      if (user?.role !== 'master' && user?.organization_id) {
+      if (user?.role !== 'master' && user?.role !== 'grand_master' && user?.organization_id) {
         query = query.eq('organization_id', user.organization_id)
       } else if (organizationId) {
         query = query.eq('organization_id', organizationId)

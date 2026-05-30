@@ -388,7 +388,7 @@ export default function CustomReportBuilder() {
       }
 
       // Apply org filter if user is not master
-      if (user?.role !== 'master' && user?.organization_id) {
+      if (user?.role !== 'master' && user?.role !== 'grand_master' && user?.organization_id) {
         query = query.eq('organization_id', user.organization_id)
       }
 

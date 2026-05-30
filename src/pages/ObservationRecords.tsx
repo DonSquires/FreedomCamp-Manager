@@ -105,7 +105,7 @@ export default function ObservationRecords() {
   const requestedPlate = (searchParams.get('plate') || '').trim().toUpperCase()
 
   const effectiveOrganizationId =
-    user?.role === 'master' ? organizationId || null : user?.organization_id || null
+    (user?.role === 'master' || user?.role === 'grand_master') ? organizationId || null : user?.organization_id || null
   const startDate = dateFrom ? nzDateToUTCStart(dateFrom) : null
   const endDate = dateTo ? nzDateToUTCEnd(dateTo) : null
 

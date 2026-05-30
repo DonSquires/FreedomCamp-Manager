@@ -554,7 +554,7 @@ function AccessDenied({ requiredRoles, currentRole }: { requiredRoles: string[];
 
 // Protected Route wrapper
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { user, loading, ensureLoadingResolved } = useAuthStore()
+  const { user, loading, hasSession, ensureLoadingResolved } = useAuthStore()
   const location = useLocation()
   const directorGate = useDirectorRosterGate()
   const { rosteredShift } = useRosteredShift()
@@ -580,7 +580,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   // Only block the whole app while auth is unresolved. Officer roster checks
   // should resolve inside the routed surface so logged-in users can still reach
   // the portal and its own waiting state.
-  const shouldShowLoading = loading && !user
+  const shouldShowLoading = (loading && !user) || (hasSession && !user)
 
   if (shouldShowLoading) {
     return (

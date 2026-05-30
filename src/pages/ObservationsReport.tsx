@@ -51,7 +51,7 @@ export default function ObservationsReport() {
   const [complianceFilter, setComplianceFilter] = useState('all')
   const [exporting, setExporting] = useState(false)
 
-  const orgId = user?.role === 'master' ? (organizationId || undefined) : user?.organization_id
+  const orgId = (user?.role === 'master' || user?.role === 'grand_master') ? (organizationId || undefined) : user?.organization_id
 
   const { data: observations = [], isLoading } = useQuery({
     queryKey: ['observations-report', orgId, zoneId, dateFrom, dateTo, complianceFilter],

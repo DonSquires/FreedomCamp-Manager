@@ -122,7 +122,7 @@ export function useOfficerNotifications(options: { limit?: number; unreadOnly?: 
       const alerts: OfficerAlert[] = []
 
       // Breach alerts in officer's zones
-      if (user.role !== 'master' && !operationalOrganizationId) {
+      if (user.role !== 'master' && user.role !== 'grand_master' && !operationalOrganizationId) {
         return alerts
       }
 
@@ -136,7 +136,7 @@ export function useOfficerNotifications(options: { limit?: number; unreadOnly?: 
           zone:zones(name)
         `)
 
-      if (user.role !== 'master' && operationalOrganizationId) {
+      if (user.role !== 'master' && user.role !== 'grand_master' && operationalOrganizationId) {
         breachAlertsQuery = breachAlertsQuery.eq('organization_id', operationalOrganizationId)
       }
 
@@ -239,7 +239,7 @@ export function useOfficerNotifications(options: { limit?: number; unreadOnly?: 
         .update({ status: 'acknowledged' })
         .eq('id', id)
 
-      if (user?.role !== 'master' && operationalOrganizationId) {
+      if (user?.role !== 'master' && user?.role !== 'grand_master' && operationalOrganizationId) {
         query = query.eq('organization_id', operationalOrganizationId)
       }
 
@@ -253,7 +253,7 @@ export function useOfficerNotifications(options: { limit?: number; unreadOnly?: 
         .update({ status: 'dismissed' })
         .eq('id', id)
 
-      if (user?.role !== 'master' && operationalOrganizationId) {
+      if (user?.role !== 'master' && user?.role !== 'grand_master' && operationalOrganizationId) {
         query = query.eq('organization_id', operationalOrganizationId)
       }
 
@@ -276,7 +276,7 @@ export function useOfficerAlertCount() {
 
       let count = 0
 
-      if (user.role !== 'master' && !operationalOrganizationId) {
+      if (user.role !== 'master' && user.role !== 'grand_master' && !operationalOrganizationId) {
         return 0
       }
 
@@ -285,7 +285,7 @@ export function useOfficerAlertCount() {
         .from('breach_alerts')
         .select('*', { count: 'exact', head: true })
 
-      if (user.role !== 'master' && operationalOrganizationId) {
+      if (user.role !== 'master' && user.role !== 'grand_master' && operationalOrganizationId) {
         breachCountQuery = breachCountQuery.eq('organization_id', operationalOrganizationId)
       }
 

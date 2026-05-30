@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
+import { loginAs } from './auth'
 
 /**
  * Session Lock E2E Test Suite — Instruction Manual § 2.2 Validation
@@ -23,23 +24,31 @@ import { expect, test, type Page } from '@playwright/test'
  */
 
 test.describe('Session Lock Feature — Instruction Manual § 2.1 & 2.2', () => {
-  const TEST_USER_EMAIL = process.env.TEST_USER_EMAIL || 'test@iron-eagle.co.nz'
-  const TEST_USER_PASSWORD = process.env.TEST_USER_PASSWORD || 'TestPass123!'
+  const TEST_USER_EMAIL =
+    process.env.TEST_USER_EMAIL ||
+    process.env.PLAYWRIGHT_ADMIN_ORG1_EMAIL ||
+    process.env.PLAYWRIGHT_MASTER_EMAIL ||
+    'test@iron-eagle.co.nz'
+  const TEST_USER_PASSWORD =
+    process.env.TEST_USER_PASSWORD ||
+    process.env.PLAYWRIGHT_ADMIN_ORG1_PASSWORD ||
+    process.env.PLAYWRIGHT_MASTER_PASSWORD ||
+    'TestPass123!'
   
-  test.beforeEach(async ({ page, context }) => {
-    // Configure test to use short timeout for faster test execution
-    // Default in app is 10 minutes; we'll use 5 seconds for testing
-    await context.addInitScript(() => {
-      // Pre-populate session preferences before app initializes
+  async function applyShortInactivityPreference(page: Page) {
+    // Set after authentication to avoid expiring the login bootstrap itself.
+    await page.evaluate(() => {
       window.localStorage.setItem('session-preferences-store', JSON.stringify({
         state: {
           autoLogoffEnabled: true,
-          inactivityMinutes: 0.083, // ~5 seconds for testing
+          inactivityMinutes: 0.083,
         },
         version: 0,
       }))
     })
-  })
+
+    await page.reload({ waitUntil: 'domcontentloaded' })
+  }
 
   test('§ 2.1: Sign in form is visible and functional', async ({ page }) => {
     /**
@@ -57,7 +66,7 @@ test.describe('Session Lock Feature — Instruction Manual § 2.1 & 2.2', () => 
     const loginForm = page.locator('form').first()
     const emailInput = page.locator('input[type="email"], input[inputmode="email"]').first()
     const passwordInput = page.locator('input[type="password"]').first()
-    const signInButton = page.locator('button:has-text(/Sign in|Sign In|Login/i)').first()
+    const signInButton = page.getByRole('button', { name: /Sign in|Sign In|Login/i }).first()
     
     // Log what we actually found
     console.log('✓ Login form elements found:')
@@ -78,41 +87,12 @@ test.describe('Session Lock Feature — Instruction Manual § 2.1 & 2.2', () => 
      * CHECKS: What portal the app actually routes to
      */
     
-    // Navigate to login
-    await page.goto('/')
+    // Use the shared auth helper so production runs align with validated credential bootstrap.
+    await loginAs(page, 'adminOrg1')
     
-    // Fill login form
-    const emailInput = page.locator('input[type="email"], input[inputmode="email"]').first()
-    const passwordInput = page.locator('input[type="password"]').first()
-    const signInButton = page.locator('button:has-text(/Sign in|Sign In|Login/i)').first()
-    
-    // Step 3: Enter credentials
-    await emailInput.fill(TEST_USER_EMAIL)
-    await passwordInput.fill(TEST_USER_PASSWORD)
-    
-    // Step 4: Click Sign In
-    await signInButton.click()
-    
-    // Wait for navigation and determine actual portal
-    // APP BEHAVIOR (not documented in manual): May redirect to portal selection, officer portal, or admin portal
-    const expectedURLs = [
-      /\/(field-officer|officer)/,     // Field officer portal
-      /\/admin/,                        // Admin portal
-      /\/portal/,                       // Portal selection
-      /\/officer-home/,                 // Officer home/welfare
-      /\/dashboard/,                    // Dashboard
-    ]
-    
-    let successfulURL = null
-    for (const urlPattern of expectedURLs) {
-      try {
-        await page.waitForURL(urlPattern, { timeout: 5000 })
-        successfulURL = page.url()
-        break
-      } catch {
-        // This URL pattern didn't match, try next
-      }
-    }
+    // App can land on /platform or role-specific routes; capture current route immediately
+    // to avoid long waits interacting with short inactivity test settings.
+    const successfulURL = page.url()
     
     // Determine what portal user landed on
     console.log('✓ Login successful')
@@ -136,18 +116,13 @@ test.describe('Session Lock Feature — Instruction Manual § 2.1 & 2.2', () => 
      * - If data is not preserved after unlock
      */
     
-    // Sign in first
-    await page.goto('/')
-    const emailInput = page.locator('input[type="email"], input[inputmode="email"]').first()
-    const passwordInput = page.locator('input[type="password"]').first()
-    const signInButton = page.locator('button:has-text(/Sign in|Sign In|Login/i)').first()
-    
-    await emailInput.fill(TEST_USER_EMAIL)
-    await passwordInput.fill(TEST_USER_PASSWORD)
-    await signInButton.click()
+    // Sign in using the same resilient auth path as other production E2E suites.
+    await loginAs(page, 'adminOrg1')
+
+    await applyShortInactivityPreference(page)
     
     // Wait for authenticated state
-    await page.waitForURL(/\/(field-officer|admin|portal|officer-home|dashboard)/, { timeout: 10000 })
+    await expect(page).toHaveURL(/^(?!.*\/(login|signin))(.*)$/i, { timeout: 10000 })
     
     // Record current page state
     const initialURL = page.url()
@@ -212,8 +187,8 @@ test.describe('Session Lock Feature — Instruction Manual § 2.1 & 2.2', () => 
       console.log('✓ Lock screen appeared with password field')
       
       // Verify lock screen elements per manual § 2.2
-      const unlockButton = page.locator('button:has-text(/Log Back In|Unlock|Continue/i)').first()
-      const logoutButton = page.locator('button:has-text(/Logout|Sign Out/i)').first()
+      const unlockButton = page.getByRole('button', { name: /Log Back In|Unlock|Continue/i }).first()
+      const logoutButton = page.getByRole('button', { name: /Logout|Sign Out/i }).first()
       
       const unlockVisible = await unlockButton.isVisible().catch(() => false)
       const logoutVisible = await logoutButton.isVisible().catch(() => false)
@@ -273,17 +248,12 @@ test.describe('Session Lock Feature — Instruction Manual § 2.1 & 2.2', () => 
      * VALIDATES: Session state is not lost during lock
      */
     
-    // Sign in
-    await page.goto('/')
-    const emailInput = page.locator('input[type="email"], input[inputmode="email"]').first()
-    const passwordInput = page.locator('input[type="password"]').first()
-    const signInButton = page.locator('button:has-text(/Sign in|Sign In|Login/i)').first()
+    // Sign in using shared auth helper to keep bootstrap behavior consistent.
+    await loginAs(page, 'adminOrg1')
+
+    await applyShortInactivityPreference(page)
     
-    await emailInput.fill(TEST_USER_EMAIL)
-    await passwordInput.fill(TEST_USER_PASSWORD)
-    await signInButton.click()
-    
-    await page.waitForURL(/\/(field-officer|admin|portal|officer-home|dashboard)/, { timeout: 10000 })
+    await expect(page).toHaveURL(/^(?!.*\/(login|signin))(.*)$/i, { timeout: 10000 })
     
     // Capture page state before lock
     const urlBefore = page.url()
@@ -307,7 +277,7 @@ test.describe('Session Lock Feature — Instruction Manual § 2.1 & 2.2', () => 
     if (lockVisible) {
       // If lock appears, test preservation
       await passwordField.fill(TEST_USER_PASSWORD)
-      const unlockButton = page.locator('button:has-text(/Log Back In|Unlock/i)').first()
+      const unlockButton = page.getByRole('button', { name: /Log Back In|Unlock/i }).first()
       await unlockButton.click()
       
       await passwordField.waitFor({ state: 'hidden', timeout: 5000 }).catch(() => {})
@@ -343,7 +313,7 @@ test.describe('Session Lock Feature — Instruction Manual § 2.1 & 2.2', () => 
     await page.goto('/')
     const hasEmailField = await page.locator('input[type="email"]').isVisible().catch(() => false)
     const hasPasswordField = await page.locator('input[type="password"]').isVisible().catch(() => false)
-    const hasSignInButton = await page.locator('button:has-text(/Sign In|Login/i)').isVisible().catch(() => false)
+    const hasSignInButton = await page.getByRole('button', { name: /Sign In|Login/i }).isVisible().catch(() => false)
     
     console.log(`  ✓ Email field: ${hasEmailField}`)
     console.log(`  ✓ Password field: ${hasPasswordField}`)

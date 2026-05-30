@@ -39,7 +39,7 @@ export function useVehicleAnalysis(plateNumber?: string) {
     queryFn: async () => {
       if (!plateNumber) return []
 
-      if (user?.role !== 'master' && !operationalOrganizationId) {
+      if (user?.role !== 'master' && user?.role !== 'grand_master' && !operationalOrganizationId) {
         return []
       }
 
@@ -58,7 +58,7 @@ export function useVehicleAnalysis(plateNumber?: string) {
         `)
         .eq('plate_number', plateNumber)
 
-      if (user?.role !== 'master' && operationalOrganizationId) {
+      if (user?.role !== 'master' && user?.role !== 'grand_master' && operationalOrganizationId) {
         query = query.eq('organization_id', operationalOrganizationId)
       }
 
@@ -152,7 +152,7 @@ export function useAnalyzeObservation(observationId: string | null) {
   return useMutation({
     mutationFn: async () => {
       if (!observationId) throw new Error('No observation ID')
-      if (user?.role !== 'master' && !operationalOrganizationId) {
+      if (user?.role !== 'master' && user?.role !== 'grand_master' && !operationalOrganizationId) {
         throw new Error('No organization context available')
       }
 
@@ -162,7 +162,7 @@ export function useAnalyzeObservation(observationId: string | null) {
         .select('photo, photo_url, plate_number')
         .eq('observation_id', observationId)
 
-      if (user?.role !== 'master' && operationalOrganizationId) {
+      if (user?.role !== 'master' && user?.role !== 'grand_master' && operationalOrganizationId) {
         query = query.eq('organization_id', operationalOrganizationId)
       }
 

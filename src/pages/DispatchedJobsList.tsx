@@ -139,7 +139,7 @@ export default function DispatchedJobsList() {
         .order('created_at', { ascending: false })
         .limit(500)
 
-      if (user?.role !== 'master') q = q.eq('organization_id', orgId ?? '')
+      if (user?.role !== 'master' && user?.role !== 'grand_master') q = q.eq('organization_id', orgId ?? '')
       if (showMode === 'active') q = q.in('status', ['pending', 'dispatched', 'acknowledged', 'en_route', 'on_scene'])
       if (showMode === 'all_excl_cancelled') q = q.neq('status', 'cancelled')
       if (dispatchNo) q = q.ilike('job_number', `%${dispatchNo}%`)

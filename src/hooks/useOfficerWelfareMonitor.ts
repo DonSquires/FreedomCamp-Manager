@@ -68,7 +68,7 @@ export function useOfficerWelfareMonitor(options?: {
         .order('created_at', { ascending: false })
 
       // Organization scoping
-      if (user?.role !== 'master' && user?.organization_id) {
+      if (user?.role !== 'master' && user?.role !== 'grand_master' && user?.organization_id) {
         query = query.eq('organization_id', user.organization_id)
       } else if (options?.organizationId) {
         query = query.eq('organization_id', options.organizationId)
@@ -248,7 +248,7 @@ export function useWelfareStats(options?: {
         .select('alert_type, status, escalation_level')
 
       // Organization scoping
-      if (user?.role !== 'master' && user?.organization_id) {
+      if (user?.role !== 'master' && user?.role !== 'grand_master' && user?.organization_id) {
         query = query.eq('organization_id', user.organization_id)
       }
 

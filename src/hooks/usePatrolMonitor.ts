@@ -33,7 +33,7 @@ export function useLivePatrols(options: { orgId?: string; zoneFilter?: string; d
           .in('status', ['in_progress', 'scheduled', 'completed'])
           .order('created_at', { ascending: false })
 
-        if (user?.role !== 'master' && user?.organization_id) {
+        if (user?.role !== 'master' && user?.role !== 'grand_master' && user?.organization_id) {
           query = query.eq('organization_id', user.organization_id)
         } else if (orgId) {
           query = query.eq('organization_id', orgId)
@@ -79,7 +79,7 @@ export function useLivePatrols(options: { orgId?: string; zoneFilter?: string; d
           .in('status', ['in_progress', 'scheduled', 'completed'])
           .order('created_at', { ascending: false })
 
-        if (user?.role !== 'master' && user?.organization_id) {
+        if (user?.role !== 'master' && user?.role !== 'grand_master' && user?.organization_id) {
           query = query.eq('organization_id', user.organization_id)
         } else if (orgId) {
           query = query.eq('organization_id', orgId)
@@ -189,7 +189,7 @@ export function useActiveOfficerMonitor(options: { orgId?: string; patrols?: any
         .gte('last_gps_update', twoHoursAgo)
         .order('last_gps_update', { ascending: false })
 
-      if (user?.role !== 'master' && user?.organization_id) {
+      if (user?.role !== 'master' && user?.role !== 'grand_master' && user?.organization_id) {
         query = query.eq('organization_id', user.organization_id)
       } else if (orgId) {
         query = query.eq('organization_id', orgId)

@@ -140,7 +140,7 @@ export default function ZoneManagement() {
   const { data: organizations } = useQuery({
     queryKey: ['organizations'],
     queryFn: async () => {
-      if (user?.role !== 'master') return []
+      if (user?.role !== 'master' && user?.role !== 'grand_master') return []
       
       const { data, error } = await supabase
         .from('organizations')
@@ -176,7 +176,7 @@ export default function ZoneManagement() {
       // ✅ Filter by GlobalFilterRibbon organization selector
       if (organizationId) {
         query = query.eq('organization_id', organizationId)
-      } else if (user?.role !== 'master' && user?.organization_id) {
+      } else if (user?.role !== 'master' && user?.role !== 'grand_master' && user?.organization_id) {
         query = query.eq('organization_id', user.organization_id)
       }
 
@@ -307,8 +307,7 @@ export default function ZoneManagement() {
   const createZoneMutation = useMutation({
     mutationFn: async () => {
       if (!createName.trim()) throw new Error('Zone name is required')
-      const orgId = user?.role === 'master'
-        ? createOrganizationId
+      const orgId = (user?.role === 'master' || user?.role === 'grand_master') ? createOrganizationId
         : organizationId || operationalOrganizationId || user?.organization_id
       if (!orgId) throw new Error('Organisation is required')
 
@@ -774,7 +773,7 @@ export default function ZoneManagement() {
             )}
 
             {/* ✅ Organization Display (Non-Masters) */}
-            {user?.role !== 'master' && selectedZone?.organization && (
+            {user?.role !== 'master' && user?.role !== 'grand_master' && selectedZone?.organization && (
               <div>
                 <Label>Organisation</Label>
                 <div className="flex items-center gap-2 p-2 bg-gray-50 dark:bg-[#1E1E1E] rounded-md">

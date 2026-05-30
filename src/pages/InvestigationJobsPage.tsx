@@ -106,7 +106,7 @@ export default function InvestigationJobsPage() {
 
   const selectedJobId = new URLSearchParams(location.search).get('job_id') || ''
 
-  const orgId = user?.role === 'master' ? (organizationId || undefined) : user?.organization_id
+  const orgId = (user?.role === 'master' || user?.role === 'grand_master') ? (organizationId || undefined) : user?.organization_id
 
   // Fetch jobs
   const { data: jobs = [], isLoading } = useQuery({

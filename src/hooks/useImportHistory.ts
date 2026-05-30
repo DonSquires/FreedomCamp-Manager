@@ -104,7 +104,7 @@ export function useImportHistory(options?: {
         .limit(options?.limit || 50)
 
       // Organization scoping
-      if (user?.role !== 'master' && user?.organization_id) {
+      if (user?.role !== 'master' && user?.role !== 'grand_master' && user?.organization_id) {
         query = query.eq('organization_id', user.organization_id)
       } else if (options?.organizationId) {
         query = query.eq('organization_id', options.organizationId)
@@ -164,7 +164,7 @@ export function useImportStats(options?: {
         .select('*')
 
       // Organization scoping
-      if (user?.role !== 'master' && user?.organization_id) {
+      if (user?.role !== 'master' && user?.role !== 'grand_master' && user?.organization_id) {
         query = query.eq('organization_id', user.organization_id)
       } else if (options?.organizationId) {
         query = query.eq('organization_id', options.organizationId)
@@ -229,7 +229,7 @@ export function useImportRecord(id: string | null) {
         `)
         .eq('id', id)
 
-      if (user?.role !== 'master' && user?.organization_id) {
+      if (user?.role !== 'master' && user?.role !== 'grand_master' && user?.organization_id) {
         query = query.eq('organization_id', user.organization_id)
       }
 
