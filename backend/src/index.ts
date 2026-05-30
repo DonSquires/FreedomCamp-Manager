@@ -1045,7 +1045,6 @@ const defaultAllowedOrigins = [
   'http://localhost:8081',
   'https://fcmanager.co.nz',
   'https://www.fcmanager.co.nz',
-  'https://freedomcampmanager.onspace.build',
 ];
 
 const configuredOrigins = (

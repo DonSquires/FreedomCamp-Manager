@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
-import type { Page } from '@playwright/test'
+import type { Page, Request } from '@playwright/test'
 import { createHash } from 'node:crypto'
 import { mkdir, open, readFile, writeFile, unlink } from 'node:fs/promises'
 import path from 'node:path'
@@ -58,6 +58,14 @@ function readEnv(...names: string[]): string {
   }
 
   return ''
+}
+
+function readBooleanEnv(name: string): boolean | null {
+  const raw = (process.env[name] || '').trim().toLowerCase()
+  if (!raw) return null
+  if (raw === '1' || raw === 'true' || raw === 'yes' || raw === 'on') return true
+  if (raw === '0' || raw === 'false' || raw === 'no' || raw === 'off') return false
+  return null
 }
 
 // Inline fallback credentials for when dotenv loading fails in CI/test environments
@@ -156,16 +164,18 @@ const serviceRoleSupabase = canInitServiceRoleSupabase
     })
   : null
 const enforcePersonaBootstrap = readEnv('PLAYWRIGHT_ENFORCE_PERSONA_BOOTSTRAP') === '1' || (process.env.CI === 'true' && !!serviceRoleSupabase)
+const explicitAllowProfileMutations = readBooleanEnv('PLAYWRIGHT_ALLOW_PROFILE_MUTATIONS')
+const explicitAutoSetTestRole = readBooleanEnv('PLAYWRIGHT_AUTO_SET_TEST_ROLE')
 // Profile mutations are opt-in to avoid changing persistent user settings in
 // shared/staging environments. Enable both flags in isolated test sandboxes.
 const allowProfileMutations =
-  readEnv('PLAYWRIGHT_ALLOW_PROFILE_MUTATIONS') === '1' ||
-  hasUniversalTestAccount ||
-  (process.env.CI === 'true' && !!serviceRoleSupabase)
+  explicitAllowProfileMutations ??
+  (hasUniversalTestAccount ||
+  (process.env.CI === 'true' && !!serviceRoleSupabase))
 const autoSetTestRole =
-  readEnv('PLAYWRIGHT_AUTO_SET_TEST_ROLE') === '1' ||
-  hasUniversalTestAccount ||
-  (process.env.CI === 'true' && !!serviceRoleSupabase)
+  explicitAutoSetTestRole ??
+  (hasUniversalTestAccount ||
+  (process.env.CI === 'true' && !!serviceRoleSupabase))
 
 const roleCapabilities: Record<string, string[]> = {
   grand_master: ['master_ops', 'admin_screen', 'field_ops', 'client_portal_view', 'client_portal_manage'],
@@ -1059,14 +1069,41 @@ async function bootstrapBrowserSessionFromPasswordGrant(
 }
 
 async function loginThroughUi(page: Page, credentials: TestCredentials): Promise<void> {
+  const authRequestFailures: string[] = []
+  const onRequestFailed = (request: Request) => {
+    const url = request.url()
+    if (!/\/auth\/v1\/token|\/auth\/v1\/session/i.test(url)) return
+
+    const reason = request.failure()?.errorText || 'unknown request failure'
+    authRequestFailures.push(`${request.method()} ${url} :: ${reason}`)
+  }
+
+  page.on('requestfailed', onRequestFailed)
+
   await gotoLogin(page)
   await page.getByLabel(/^email$/i).fill(credentials.email)
   await page.getByLabel(/^password$/i).fill(credentials.password)
   await page.locator('button[type="submit"], button:has-text("Sign In")').first().click()
-  await page.waitForURL(
-    (url) => !url.pathname.startsWith('/login'),
-    { timeout: 20000 }
-  )
+  try {
+    await page.waitForURL(
+      (url) => !url.pathname.startsWith('/login'),
+      { timeout: 20000 }
+    )
+  } catch (error) {
+    const dnsFailure = authRequestFailures.find((entry) => /ERR_NAME_NOT_RESOLVED|ENOTFOUND|NXDOMAIN/i.test(entry))
+    if (dnsFailure) {
+      throw new Error(`Supabase auth host is not resolvable from browser context. ${dnsFailure}`)
+    }
+
+    const transportFailure = authRequestFailures.find((entry) => /ERR_INTERNET_DISCONNECTED|ERR_CONNECTION|Failed to fetch/i.test(entry))
+    if (transportFailure) {
+      throw new Error(`Supabase auth request failed in browser context. ${transportFailure}`)
+    }
+
+    throw error
+  } finally {
+    page.off('requestfailed', onRequestFailed)
+  }
 }
 
 export async function loginWithLiveCredentialsAndResolveProfile(page: Page): Promise<LoginContextProfile | null> {
@@ -1253,6 +1290,20 @@ async function resolvePortalSelectionIfNeeded(page: Page, user: TestUserKey): Pr
   )
 }
 
+async function hasStableAuthenticatedSession(page: Page): Promise<boolean> {
+  if (page.url().includes('/login')) return false
+
+  await page.waitForLoadState('networkidle').catch(() => undefined)
+
+  if (page.url().includes('/login')) return false
+
+  const resolvedProfile =
+    await fetchResolvedProfile(page).catch(() => null) ||
+    await resolveProfileByBrowserTokenSub(page).catch(() => null)
+
+  return !!resolvedProfile
+}
+
 export async function loginAs(page: Page, user: TestUserKey): Promise<void> {
   const credentials = getTestUser(user)
   await ensureBootstrapTestAccount(user, credentials, { force: enforcePersonaBootstrap })
@@ -1282,17 +1333,25 @@ export async function loginAs(page: Page, user: TestUserKey): Promise<void> {
         }))
       : apiFallback
 
-    let loginSucceeded = retryFallback.ok
+    const bootstrapReachedNonLogin = retryFallback.ok
       ? await page
         .waitForURL((url) => !url.pathname.startsWith('/login'), { timeout: 20000 })
         .then(() => true)
         .catch(() => false)
       : false
 
+    let loginSucceeded = bootstrapReachedNonLogin
+      ? await hasStableAuthenticatedSession(page)
+      : false
+
     if (!loginSucceeded) {
       loginSucceeded = await loginThroughUi(page, credentials)
         .then(() => true)
         .catch(() => false)
+
+      if (loginSucceeded) {
+        loginSucceeded = await hasStableAuthenticatedSession(page)
+      }
     }
 
     if (!retryFallback.ok) {

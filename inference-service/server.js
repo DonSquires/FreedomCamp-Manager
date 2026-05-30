@@ -2056,7 +2056,6 @@ let supabaseJwks = null;
 // ---------------------------------------------------------------------------
 const ALLOWED_ORIGINS_ENV = (process.env.ALLOWED_ORIGINS || '').split(',').filter(Boolean);
 const DEFAULT_ORIGINS = [
-  'https://freedomcampmanager.onspace.build',
   'https://fcmanager.co.nz',
   'https://www.fcmanager.co.nz',
 ];
@@ -2077,14 +2076,6 @@ const corsOptions = {
     if (allowedOrigins.has(origin)) {
       return callback(null, true);
     }
-    
-    // Check for preview subdomain pattern
-    try {
-      const url = new URL(origin);
-      if (url.host.endsWith('.onspace.build') && url.host.startsWith('preview-react-9b4t5o-')) {
-        return callback(null, true);
-      }
-    } catch {}
     
     callback(new Error('Not allowed by CORS'));
   },
@@ -3336,7 +3327,7 @@ function generateHeuristicChatReply(message, context = {}, scope = null) {
     return 'Email: Zoho SMTP (smtp.zoho.com:465, SSL) for global send. Use App-Specific Password (not account password). Resend API (RESEND_API_KEY in Supabase secrets) for transactional email. Per-org SMTP stored encrypted in DB, retrieved via _shared/orgConfig.ts. Auth templates in supabase/templates/ (invite, recovery, confirmation, magic_link). DNS: SPF (include:zoho.com), DKIM from Zoho/Resend dashboard, DMARC. Zoho limit: ~200/day free. Use Resend for high volume. Use GET /platform/email for full knowledge.';
   }
   if ((lowered.includes('domain') || lowered.includes('dns') || lowered.includes('ssl') || lowered.includes('cors')) && !lowered.includes('ptt')) {
-    return 'Domain: fcmanager.co.nz (.co.nz via NZRS). Vercel CNAME: www.fcmanager.co.nz → cname.vercel-dns.com. A record: @ → 76.76.21.21. SSL: Let\'s Encrypt auto-managed by Vercel. Supabase redirect_urls: fcmanager.co.nz, www, *.onspace.build, *.vercel.app, localhost:5173/3000. CORS allowlist in _shared/withCors.ts (DEV_CORS=true for local). Adding new domain: (1) Supabase redirect_urls, (2) CORS allowlist, (3) DNS records, (4) SSL. Use GET /platform/domain for full knowledge.';
+    return 'Domain: fcmanager.co.nz (.co.nz via NZRS). Vercel CNAME: www.fcmanager.co.nz → cname.vercel-dns.com. A record: @ → 76.76.21.21. SSL: Let\'s Encrypt auto-managed by Vercel. Supabase redirect_urls: fcmanager.co.nz, www, *.vercel.app, localhost:5173/3000. CORS allowlist in _shared/withCors.ts (DEV_CORS=true for local). Adding new domain: (1) Supabase redirect_urls, (2) CORS allowlist, (3) DNS records, (4) SSL. Use GET /platform/domain for full knowledge.';
   }
   if (lowered.includes('hybrid') || lowered.includes('architecture') || lowered.includes('stack overview') || lowered.includes('how everything') || lowered.includes('all the pieces')) {
     return 'FieldOps hybrid stack: Web (React → Vercel) + Mobile (Expo → EAS) → Supabase BaaS (auth/DB/47 Edge Functions/Storage) + services: Bob/Ollama on RunPod, Proxy on Railway, PTT+TURN on VPS 72.61.123.97. CI/CD: 25 GitHub Actions. Plate scan: Mobile → Edge Function → Proxy → NZSCV → observation → compliance check → breach. AI: Photo → Bob ONNX → plate result. PTT: Button → Edge Function → PTT server JWT → WebSocket → WebRTC audio. Self-learning: nightly GitHub Actions → Bob /learn/pretrain. Similar: ParkPow, Genetec, Axon Field, Parking+Plus NZ. Use GET /platform/stack for full architecture overview.';

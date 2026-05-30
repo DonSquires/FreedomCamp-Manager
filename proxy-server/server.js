@@ -70,7 +70,6 @@ app.use(helmet({
 // ---------------------------------------------------------------------------
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || '').split(',').filter(Boolean);
 const DEFAULT_ORIGINS = [
-  'https://freedomcampmanager.onspace.build',
   'https://fcmanager.co.nz',
   'https://www.fcmanager.co.nz',
 ];
@@ -91,14 +90,6 @@ const corsOptions = {
     if (allowedOrigins.has(origin)) {
       return callback(null, true);
     }
-    
-    // Check for preview subdomain pattern
-    try {
-      const url = new URL(origin);
-      if (url.host.endsWith('.onspace.build') && url.host.startsWith('preview-react-9b4t5o-')) {
-        return callback(null, true);
-      }
-    } catch {}
     
     callback(new Error('Not allowed by CORS'));
   },

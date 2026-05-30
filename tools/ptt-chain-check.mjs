@@ -13,8 +13,12 @@ const env = {
   ...loadEnv('.runtime/bob.env'),
 }
 
-const SUPABASE_URL = env.VITE_SUPABASE_URL || env.SUPABASE_URL
-const ANON_KEY = env.VITE_SUPABASE_ANON_KEY || env.SUPABASE_ANON_KEY
+const allowLegacyFallback = ['1', 'true', 'yes', 'on'].includes(
+  String(env.VITE_ALLOW_LEGACY_SUPABASE_ENV_FALLBACK || '').toLowerCase()
+)
+
+const SUPABASE_URL = env.VITE_SUPABASE_URL || (allowLegacyFallback ? env.SUPABASE_URL : '')
+const ANON_KEY = env.VITE_SUPABASE_ANON_KEY || (allowLegacyFallback ? env.SUPABASE_ANON_KEY : '')
 const EMAIL = env.PLAYWRIGHT_OFFICER_EMAIL || env.PLAYWRIGHT_ADMIN_EMAIL || env.API_TEST_EMAIL
 const PASSWORD = env.PLAYWRIGHT_OFFICER_PASSWORD || env.PLAYWRIGHT_ADMIN_PASSWORD || env.API_TEST_PASSWORD
 

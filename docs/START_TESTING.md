@@ -17,10 +17,10 @@ npx playwright install
 
 ```bash
 # Connect to your Supabase database
-psql -U postgres -h db.xbfnlzmpumthnjmtqufp.supabase.co -d postgres -f supabase/seed/test-data.sql
+psql -U postgres -h db.kxwjcupuxnnbnzcgmkoi.supabase.co -d postgres -f supabase/seed/test-data.sql
 
 # Or copy/paste the SQL directly in Supabase SQL Editor:
-# https://supabase.com/dashboard/project/xbfnlzmpumthnjmtqufp/sql
+# https://supabase.com/dashboard/project/kxwjcupuxnnbnzcgmkoi/sql
 ```
 
 ### Step 3: Create Test Users in Supabase Auth
@@ -232,7 +232,7 @@ npm run dev
 **Solution:**
 ```bash
 # Re-run seed script
-psql -U postgres -h db.xbfnlzmpumthnjmtqufp.supabase.co -d postgres -f supabase/seed/test-data.sql
+psql -U postgres -h db.kxwjcupuxnnbnzcgmkoi.supabase.co -d postgres -f supabase/seed/test-data.sql
 
 # Or copy/paste SQL directly in Supabase SQL Editor
 ```
@@ -307,7 +307,7 @@ npx playwright test --project=chromium --headed
 
 **Quick Links:**
 - Playwright Docs: https://playwright.dev
-- Supabase Dashboard: https://supabase.com/dashboard/project/xbfnlzmpumthnjmtqufp
+- Supabase Dashboard: https://supabase.com/dashboard/project/kxwjcupuxnnbnzcgmkoi
 
 ---
 

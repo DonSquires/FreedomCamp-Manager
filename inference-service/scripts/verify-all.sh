@@ -11,7 +11,7 @@ set -eu
 #
 # Example:
 #   INFERENCE_URL="https://api.runpod.ai/v2/<RUNPOD_ENDPOINT_ID>/runsync" \
-#   SUPABASE_URL="https://xbfnlzmpumthnjmtqufp.supabase.co" \
+#   SUPABASE_URL="https://kxwjcupuxnnbnzcgmkoi.supabase.co" \
 #   ./scripts/verify-all.sh
 
 if [ "${INFERENCE_URL:-}" = "" ]; then

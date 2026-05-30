@@ -46,9 +46,6 @@ site_url = "https://fcmanager.co.nz"
 #  - localhost for local development
 additional_redirect_urls = [
   "https://www.fcmanager.co.nz",
-  "https://freedomcampmanager.onspace.build",
-  "https://*.onspace.build",
-  "https://*.onspace.build/**",
   "https://*.vercel.app",
   "https://*.vercel.app/**",
   "http://localhost:5173",
