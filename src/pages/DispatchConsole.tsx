@@ -626,7 +626,7 @@ export default function DispatchConsole() {
       try {
         const edgeResult = await withTimeout(
           edgeFunctions.createDispatchJob({ payload }),
-          12000,
+          45000,
           'Dispatch create'
         )
 
