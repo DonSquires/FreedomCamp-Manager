@@ -20,7 +20,8 @@ BEGIN
   LIMIT 1;
 
   IF v_owner_org_id IS NULL THEN
-    RAISE EXCEPTION 'Iron Eagle organization not found. Expected one of: Iron Eagle Security Limited, Iron Eagle Security, Iron Eagle';
+    RAISE NOTICE 'Iron Eagle organization not found — skipping owner profile seeding (expected in preview/CI environments).';
+    RETURN;
   END IF;
 
   UPDATE public.user_profiles
@@ -75,7 +76,8 @@ BEGIN
   LIMIT 1;
 
   IF owner_org_id IS NULL THEN
-    RAISE EXCEPTION 'Iron Eagle organization not found. Owner lock cannot be enforced.';
+    RAISE NOTICE 'Iron Eagle organization not found — owner profile lock skipped (expected in preview/CI environments).';
+    RETURN NEW;
   END IF;
 
   -- Keep owner role/org immutable.
