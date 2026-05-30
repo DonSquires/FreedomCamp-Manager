@@ -171,7 +171,7 @@ export function DataExportWizard({
           columns: COLUMNS_MAP[dataType],
         })
       }
-      exportMultiSheetXlsx(sheets, `fieldops-export-${datestamp}`)
+      await exportMultiSheetXlsx(sheets, `fieldops-export-${datestamp}`)
       return
     }
 

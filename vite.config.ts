@@ -82,8 +82,8 @@ export default defineConfig(({ mode }) => {
               return 'vendor-utils'
             }
 
-            if (id.includes('/xlsx/')) {
-              return 'vendor-xlsx'
+            if (id.includes('/read-excel-file/') || id.includes('/write-excel-file/') || id.includes('/jszip/')) {
+              return 'vendor-spreadsheet'
             }
 
             return undefined

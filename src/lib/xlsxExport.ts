@@ -91,11 +91,11 @@ export function exportToXlsx<T extends Record<string, unknown>>(
   rows: T[],
   columns: XlsxColumn<T>[],
   filename = 'export',
-): void {
+): Promise<void> {
   const worksheetRows = buildWorksheetRows(rows, columns)
   const columnWidths = buildColumnWidths(rows, columns)
 
-  void writeXlsxFile(worksheetRows, {
+  return writeXlsxFile(worksheetRows, {
     columns: columnWidths,
     fileName: `${filename}.xlsx`,
     sheet: 'Data',
@@ -111,12 +111,12 @@ export function exportToXlsx<T extends Record<string, unknown>>(
 export function exportMultiSheetXlsx<T extends Record<string, unknown>>(
   sheets: XlsxSheet<T>[],
   filename = 'export',
-): void {
+): Promise<void> {
   const dataBySheet = sheets.map((sheet) => buildWorksheetRows(sheet.rows, sheet.columns))
   const columnsBySheet = sheets.map((sheet) => buildColumnWidths(sheet.rows, sheet.columns))
   const sheetNames = sheets.map((sheet) => sheet.name.slice(0, 31))
 
-  void writeXlsxFile(dataBySheet, {
+  return writeXlsxFile(dataBySheet, {
     columns: columnsBySheet,
     sheets: sheetNames,
     fileName: `${filename}.xlsx`,
