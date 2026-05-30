@@ -17,7 +17,7 @@ Use this file to record concrete mistakes Bob and Dr Bob found during adversaria
 - Trigger: Broad timeout audit across user management and notice/dispatch flows after repeated "timed out" reports.
 - Mistake: Multiple pages wrapped edge-function mutations with local `Promise.race` timeouts shorter than the shared edge timeout/retry layer, causing premature UI failures before edge fallback logic completed.
 - Risk: False timeout errors, unnecessary fallback execution, duplicate retries, and noisy operator experience in high-latency periods.
-- Fix: Increased local edge-call wrappers in `src/pages/UserManagement.tsx`, `src/pages/InfringementNotices.tsx`, and `src/pages/DispatchConsole.tsx` so local timers no longer preempt shared edge handling.
+- Fix: Increased local edge-call wrappers in `src/pages/UserManagement.tsx`, `src/pages/InfringementNotices.tsx`, `src/pages/DispatchConsole.tsx`, `src/pages/PhotoReingest.tsx`, and `src/pages/TenderReferenceLibrary.tsx` so local timers no longer preempt shared edge handling.
 - Prevention Rule: Any page-level timeout around `edgeFunctions.*` must be greater than the shared edge timeout budget (or removed) to avoid double-timeout races.
 
 - Date: 2026-05-30
