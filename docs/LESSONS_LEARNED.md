@@ -14,6 +14,13 @@ Use this file to record concrete mistakes Bob and Dr Bob found during adversaria
 ## Current Lessons
 
 - Date: 2026-05-30
+- Trigger: Follow-up tree review after timeout-storm mitigation on Platform health polling.
+- Mistake: Secondary health status consumers (`OfficerShell`, `HealthBanner`, `SystemHealthIndicator`) still used `inferenceService.checkServicesHealth()` without in-flight dedupe/cache, so concurrent poll windows could still fan out duplicate edge health calls.
+- Risk: Repeated background health calls can amplify transient edge slowdowns into user-visible degradation and unnecessary load.
+- Fix: Added in-flight request dedupe plus short success TTL and error backoff cache in `src/lib/inferenceService.ts` so concurrent pollers share one request path.
+- Prevention Rule: Any shared health helper used by multiple components must include dedupe + cache/backoff and avoid per-component transport retries/toasts.
+
+- Date: 2026-05-30
 - Trigger: Platform header repeatedly showed "Edge function request timed out after 35s" while live polling was active.
 - Mistake: Multiple independent health pollers queried the same `check-services-health` edge function concurrently, then surfaced the raw timeout string directly in UI status labels.
 - Risk: Timeout storms created noisy degraded UX, repeated edge load, and misleading incident signals even when core app routes remained usable.
