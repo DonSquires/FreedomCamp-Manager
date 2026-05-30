@@ -7,7 +7,7 @@
  * and ensures both pages stay in sync with any format changes.
  */
 
-import * as XLSX from 'xlsx'
+import readXlsxFile from 'read-excel-file'
 
 export interface ScvCurrentEntry {
   plate_number: string
@@ -63,6 +63,26 @@ export const EMPTY_SCV_RESULT: ScvSyncResult = {
   breach_alerts_resolved: 0,
   canonical_scv_enriched: 0,
   errors: [],
+}
+
+function rowsToRecords(matrix: unknown[][]): Record<string, string>[] {
+  if (!matrix.length) return []
+
+  const headers = matrix[0]
+    .map((value) => String(value ?? '').trim())
+
+  const rows: Record<string, string>[] = []
+  matrix.slice(1).forEach((row) => {
+    const record: Record<string, string> = {}
+    headers.forEach((header, idx) => {
+      if (!header) return
+      const cellValue = row[idx]
+      record[header] = String(cellValue ?? '').trim()
+    })
+    rows.push(record)
+  })
+
+  return rows
 }
 
 export function mergeScvResults(
@@ -123,14 +143,9 @@ export async function loadScvCurrentEntries(): Promise<ScvCurrentEntry[]> {
     throw new Error(`Failed to fetch SCV list: HTTP ${response.status}`)
   }
 
-  const arrayBuffer = await response.arrayBuffer()
-  if (typeof XLSX.read !== 'function' || !XLSX.utils?.sheet_to_json) {
-    throw new Error('XLSX parser is not available in this build')
-  }
-
-  const workbook = XLSX.read(arrayBuffer, { type: 'array' })
-  const worksheet = workbook.Sheets[workbook.SheetNames[0]]
-  const rows = XLSX.utils.sheet_to_json<Record<string, string>>(worksheet)
+  const blob = await response.blob()
+  const matrix = await readXlsxFile(blob)
+  const rows = rowsToRecords(matrix)
 
   const entries: ScvCurrentEntry[] = []
   for (const row of rows) {
