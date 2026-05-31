@@ -25,6 +25,16 @@ describe('getEffectiveOrgId', () => {
     expect(getEffectiveOrgId(user, null)).toBeNull()
   })
 
+  it('returns selectedOrgId for grand_master users when provided', () => {
+    const user = { role: 'grand_master', organization_id: 'org-1' }
+    expect(getEffectiveOrgId(user, 'org-2')).toBe('org-2')
+  })
+
+  it('returns null for grand_master users when no org selected', () => {
+    const user = { role: 'grand_master', organization_id: 'org-1' }
+    expect(getEffectiveOrgId(user)).toBeNull()
+  })
+
   it('returns organization_id for non-master users', () => {
     const user = { role: 'admin', organization_id: 'org-1' }
     expect(getEffectiveOrgId(user)).toBe('org-1')
