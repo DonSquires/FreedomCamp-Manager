@@ -408,7 +408,7 @@ export default function UserManagement({ embedded = false }: UserManagementProps
         requires_driver_license: requiresDriverLicense,
         organization_id: organizationId || user?.organization_id || null,
         extra_organization_ids: extraOrganizationIds,
-        employer_organization_id: employerOrgId || null,
+        employer_organization_id: employerOrgId || organizationId || user?.organization_id || null,
         portal_access: portalAccess,
         authorized_work_locations: derivedAuthorizedWorkLocations,
         ptt_channel_access: createPttScopes,
@@ -2237,7 +2237,7 @@ export default function UserManagement({ embedded = false }: UserManagementProps
                 requires_driver_license: requiresDriverLicense,
                 organization_id: organizationId || null,
                 extra_organization_ids: extraOrganizationIds,
-                employer_organization_id: employerOrgId || null,
+                employer_organization_id: employerOrgId || organizationId || selectedUser?.organization_id || null,
               })}
               disabled={updateUserMutation.isPending}
             >

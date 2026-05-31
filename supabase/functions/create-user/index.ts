@@ -111,6 +111,20 @@ Deno.serve(async (req) => {
     const isFieldStyleRole = role === 'officer' || role === 'nzscv_monitor';
     const userFirstName = first_name || (isFieldStyleRole ? normalizedEmail.split('@')[0] : '');
     const userLastName = last_name || (isFieldStyleRole ? 'Officer' : '');
+    const normalizedOrganizationId = typeof organization_id === 'string' && organization_id.trim().length > 0
+      ? organization_id.trim()
+      : null;
+    const normalizedEmployerOrganizationId = typeof employer_organization_id === 'string' && employer_organization_id.trim().length > 0
+      ? employer_organization_id.trim()
+      : normalizedOrganizationId;
+
+    if (!normalizedEmployerOrganizationId) {
+      return new Response(
+        JSON.stringify({ error: 'employer_organization_id is required' }),
+        { status: 400, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
+      );
+    }
+
     const normalizedExtraOrganizationIds = Array.isArray(extra_organization_ids)
       ? extra_organization_ids.filter((id: unknown) => typeof id === 'string' && id && id !== organization_id)
       : [];
@@ -152,9 +166,9 @@ Deno.serve(async (req) => {
         first_name: userFirstName,
         last_name: userLastName,
         role,
-        organization_id: organization_id || null,
+        organization_id: normalizedOrganizationId,
         extra_organization_ids: normalizedExtraOrganizationIds,
-        employer_organization_id: employer_organization_id || null,
+        employer_organization_id: normalizedEmployerOrganizationId,
         authorized_work_locations: normalizedAuthorizedWorkLocations,
         portal_access: normalizedPortalAccess,
         ptt_channel_access: normalizedPttChannelAccess,
