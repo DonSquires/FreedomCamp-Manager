@@ -22,7 +22,7 @@ export function useOperationalOrganization() {
 
   const operationalOrganizationId = canUseSelectedOrganizationId
     ? organizationId
-    : user?.employer_organization_id ?? user?.organization_id ?? fallbackAuthorizedOrganizationId
+    : user?.organization_id ?? user?.employer_organization_id ?? fallbackAuthorizedOrganizationId
 
   return {
     operationalOrganizationId,
