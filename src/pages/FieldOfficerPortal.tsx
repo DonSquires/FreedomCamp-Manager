@@ -452,7 +452,7 @@ export default function FieldOfficerPortal() {
   const { t: ot } = useOfficerLocale()
   const { themeMode, setThemeMode } = useThemePreferencesStore()
   const isNightPatrol = themeMode === 'night-patrol'
-  const employerOrganizationId = user?.employer_organization_id || user?.organization_id || null
+  const employerOrganizationId = user?.organization_id || user?.employer_organization_id || null
   const routeTestOverride = useFieldOfficerRouteTestOverride()
   const {
     askBobBrain,

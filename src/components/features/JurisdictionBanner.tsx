@@ -20,8 +20,8 @@ export function JurisdictionBanner() {
   const pollInFlightRef = useRef(false);
 
   const explicitProviderOrgId = useMemo(
-    () => user?.employer_organization_id || user?.organization_id || null,
-    [user?.employer_organization_id, user?.organization_id],
+    () => user?.organization_id || user?.employer_organization_id || null,
+    [user?.organization_id, user?.employer_organization_id],
   );
 
   const { providerOrgId } = useProviderOrganizationContext({

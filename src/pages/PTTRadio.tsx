@@ -862,7 +862,7 @@ export default function PTTRadio() {
   const homeOrganizationId = user?.organization_id || effectiveOrgId || null
   const employerOrganizationId = user?.employer_organization_id || null
   const preferredClientOrgId = useMemo(() => resolvePreferredClientOrgId(organizationId), [organizationId])
-  const explicitProviderOrgId = employerOrganizationId || homeOrganizationId || null
+  const explicitProviderOrgId = homeOrganizationId || employerOrganizationId || null
   const { providerOrgId } = useProviderOrganizationContext({
     explicitProviderOrgId,
     preferredClientOrgId,
