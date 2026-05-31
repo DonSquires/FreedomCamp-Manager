@@ -222,9 +222,10 @@ Deno.serve(async (req) => {
           email,
           role,
           organization_id: organizationId,
+          employer_organization_id: organizationId,
           is_active: true,
         })
-        .select('id,email,role,organization_id,is_active')
+        .select('id,email,role,organization_id,employer_organization_id,is_active')
         .single()
 
       if (profileError) {

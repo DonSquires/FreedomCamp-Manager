@@ -29,6 +29,7 @@ import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
 import { useBobBrain } from '@/hooks/useBobBrain'
 import { useHybridWorkspaceHandshake } from '@/hooks/useHybridWorkspaceHandshake'
+import { useProviderOrganizationContext } from '@/hooks/useProviderOrganizationContext'
 import { useBobTranslator } from '@/hooks/useBobTranslator'
 import { usePTTTranslationPrefs } from '@/hooks/usePTTTranslationPrefs'
 import {
@@ -860,8 +861,13 @@ export default function PTTRadio() {
   )
   const homeOrganizationId = user?.organization_id || effectiveOrgId || null
   const employerOrganizationId = user?.employer_organization_id || null
-  const providerOrgId = employerOrganizationId || homeOrganizationId || null
   const preferredClientOrgId = useMemo(() => resolvePreferredClientOrgId(organizationId), [organizationId])
+  const explicitProviderOrgId = employerOrganizationId || homeOrganizationId || null
+  const { providerOrgId } = useProviderOrganizationContext({
+    explicitProviderOrgId,
+    preferredClientOrgId,
+    enabled: !!user,
+  })
   const delegatedBySelection = Boolean(
     preferredClientOrgId &&
     preferredClientOrgId !== homeOrganizationId &&
