@@ -14,7 +14,7 @@ function permissionsForRole(role: string | undefined): OrganizationPermissions {
 
 export function useOrganization(): OrganizationContextValue {
   const { user } = useAuthStore()
-  const orgId = user?.organization_id ?? null
+  const orgId = user?.role === 'grand_master' ? null : (user?.organization_id ?? null)
 
   const { data } = useQuery({
     queryKey: ['organization', orgId],

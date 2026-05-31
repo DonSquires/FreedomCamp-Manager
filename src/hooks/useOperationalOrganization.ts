@@ -5,6 +5,7 @@ export function useOperationalOrganization() {
   const user = useAuthStore((state) => state.user)
   const { organizationId, organizationName } = useGlobalFiltersStore()
   const isMasterLevel = user?.role === 'master' || user?.role === 'grand_master'
+  const isGrandMaster = user?.role === 'grand_master'
 
   const authorizedOrganizationIds = Array.from(new Set([
     ...(user?.organization_id ? [user.organization_id] : []),
@@ -22,7 +23,9 @@ export function useOperationalOrganization() {
 
   const operationalOrganizationId = canUseSelectedOrganizationId
     ? organizationId
-    : user?.organization_id ?? user?.employer_organization_id ?? fallbackAuthorizedOrganizationId
+    : isGrandMaster
+      ? null
+      : user?.organization_id ?? user?.employer_organization_id ?? fallbackAuthorizedOrganizationId
 
   return {
     operationalOrganizationId,
