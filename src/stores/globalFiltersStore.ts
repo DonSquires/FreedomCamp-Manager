@@ -15,10 +15,15 @@ interface GlobalFiltersState {
   zoneId: string | null
   zoneName: string | null
 
+  // Last authenticated user that wrote this filter context.
+  // Used to prevent cross-user stale filters in shared browsers.
+  lastUserId: string | null
+
   // Actions
   setDateRange: (from: string | null, to: string | null, preset?: GlobalFiltersState['datePreset']) => void
   setOrganization: (id: string | null, name: string | null) => void
   setZone: (id: string | null, name: string | null) => void
+  syncForUser: (userId: string | null) => void
   clearFilters: () => void
 
   // Quick date setters
@@ -77,6 +82,7 @@ export const useGlobalFiltersStore = create<GlobalFiltersState>()(
       organizationName: null,
       zoneId: null,
       zoneName: null,
+      lastUserId: null,
 
       setDateRange: (from, to, preset = 'custom') =>
         set({
@@ -90,6 +96,31 @@ export const useGlobalFiltersStore = create<GlobalFiltersState>()(
 
       setZone: (id, name) => 
         set({ zoneId: id, zoneName: name }),
+
+      syncForUser: (userId) =>
+        set((state) => {
+          // First load for a user: bind filters to that user id.
+          if (state.lastUserId === null && userId) {
+            return { lastUserId: userId }
+          }
+
+          // Same user keeps their own saved filters.
+          if (state.lastUserId === userId) {
+            return state
+          }
+
+          // Different user (or signed out): clear stale scoped filters.
+          return {
+            dateFrom: null,
+            dateTo: null,
+            datePreset: null,
+            organizationId: null,
+            organizationName: null,
+            zoneId: null,
+            zoneName: null,
+            lastUserId: userId,
+          }
+        }),
 
       clearFilters: () => 
         set({ 
