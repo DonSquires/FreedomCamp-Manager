@@ -175,37 +175,45 @@ function OverviewTab({
   const { data: stats } = useComplianceStats({ orgId, dateFrom, dateTo, zoneId });
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-      <KPI
-        label="Total Observations"
-        value={stats?.total_observations}
-        icon={Eye}
-        color="bg-blue-500"
-        sub={`${dateFrom} → ${dateTo}`}
-      />
-      <KPI
-        label="Breaches"
-        value={stats?.breach_count}
-        icon={XCircle}
-        color="bg-red-500"
-        trend={stats?.breach_count ? 'up' : null}
-        sub="Non-compliant observations"
-      />
-      <KPI
-        label="Compliance Rate"
-        value={stats ? `${stats.compliance_rate}%` : undefined}
-        icon={Shield}
-        color={
-          stats && stats.compliance_rate >= 80 ? 'bg-green-500' : 'bg-orange-500'
-        }
-      />
-      <KPI
-        label="Flagged Vehicles"
-        value={stats?.flagged_vehicles}
-        icon={AlertTriangle}
-        color="bg-orange-500"
-        sub={`${stats?.homeless_vehicles ?? '…'} homeless tracked`}
-      />
+    <div className="space-y-3">
+      {stats && stats.total_observations === 0 && (
+        <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800 dark:border-blue-900/60 dark:bg-blue-950/30 dark:text-blue-200">
+          No compliance observations were found for this organization and date window ({dateFrom} to {dateTo}).
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <KPI
+          label="Total Observations"
+          value={stats?.total_observations}
+          icon={Eye}
+          color="bg-blue-500"
+          sub={`${dateFrom} → ${dateTo}`}
+        />
+        <KPI
+          label="Breaches"
+          value={stats?.breach_count}
+          icon={XCircle}
+          color="bg-red-500"
+          trend={stats?.breach_count ? 'up' : null}
+          sub="Non-compliant observations"
+        />
+        <KPI
+          label="Compliance Rate"
+          value={stats ? `${stats.compliance_rate}%` : undefined}
+          icon={Shield}
+          color={
+            stats && stats.compliance_rate >= 80 ? 'bg-green-500' : 'bg-orange-500'
+          }
+        />
+        <KPI
+          label="Flagged Vehicles"
+          value={stats?.flagged_vehicles}
+          icon={AlertTriangle}
+          color="bg-orange-500"
+          sub={`${stats?.homeless_vehicles ?? '…'} homeless tracked`}
+        />
+      </div>
     </div>
   );
 }
@@ -1058,7 +1066,7 @@ export default function CompliancePage() {
   // switch orgs).  Fall back to the user's own organization_id so queries
   // are always scoped and not reliant solely on RLS.
   const effectiveOrgId: string | null =
-    organizationId ?? (user.role !== 'master' ? user.organization_id : null);
+    organizationId ?? (user.role !== 'master' && user.role !== 'grand_master' ? user.organization_id : null);
 
   // Officers see a read-only view of their own organization's compliance data.
   const isOfficer = user.role === 'officer';

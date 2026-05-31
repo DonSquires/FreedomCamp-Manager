@@ -37,8 +37,7 @@ export function useAuditLogs(options?: {
   limit?: number
 }) {
   const { user } = useAuthStore()
-  const effectiveOrgId = user?.role === 'master'
-    ? options?.organizationId || null
+  const effectiveOrgId = (user?.role === 'master' || user?.role === 'grand_master') ? options?.organizationId || null
     : user?.organization_id || null
 
   const query = useQuery({
@@ -170,7 +169,7 @@ export function useEntityHistory(entityType: string, entityId: string | null) {
         .eq('entity_type', entityType)
         .eq('entity_id', entityId)
 
-      if (user?.role !== 'master' && user?.organization_id) {
+      if (user?.role !== 'master' && user?.role !== 'grand_master' && user?.organization_id) {
         query = query.eq('organization_id', user.organization_id)
       }
 
@@ -198,8 +197,7 @@ export function useAuditStats(options?: {
   return useQuery({
     queryKey: ['audit-stats', options],
     queryFn: async () => {
-      const effectiveStatsOrgId = user?.role === 'master'
-        ? options?.organizationId || null
+      const effectiveStatsOrgId = (user?.role === 'master' || user?.role === 'grand_master') ? options?.organizationId || null
         : user?.organization_id || null
 
       let query = (supabase

@@ -3,7 +3,8 @@ import type { Database } from '@/types/database'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || ''
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
-const envFallbackNote = '(VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY, or legacy SUPABASE_URL / SUPABASE_ANON_KEY via build-time fallback)'
+const envFallbackNote = '(VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY)'
+const DEPRECATED_SUPABASE_PROJECT_REFS = new Set(['xbfnlzmpumthnjmtqufp'])
 
 const memoryStorage = new Map<string, string>()
 
@@ -43,14 +44,32 @@ const fallbackLock: SupabaseLock = async <T>(_name: string, _acquireTimeout: num
  * Used by the app entry-point to guard rendering when the deployment platform
  * has not yet had its environment variables configured.
  */
-export const supabaseConfigured = !!(supabaseUrl && supabaseAnonKey)
+const supabaseProjectRef = (() => {
+  try {
+    const hostname = new URL(supabaseUrl).hostname.toLowerCase()
+    if (!hostname.endsWith('.supabase.co')) return ''
+    return hostname.replace('.supabase.co', '')
+  } catch {
+    return ''
+  }
+})()
+
+const hasDeprecatedProjectRef = DEPRECATED_SUPABASE_PROJECT_REFS.has(supabaseProjectRef)
+const hasValidSupabaseHost = /^https:\/\/[a-z0-9-]+\.supabase\.co$/i.test(supabaseUrl)
+
+export const supabaseConfigured = !!(supabaseUrl && supabaseAnonKey && hasValidSupabaseHost && !hasDeprecatedProjectRef)
 
 if (!supabaseConfigured) {
+  const deprecatedProjectHint = hasDeprecatedProjectRef
+    ? ` Detected deprecated Supabase project ref: ${supabaseProjectRef}.`
+    : ''
+
   console.warn(
     '[Field Compliance Manager] Supabase env vars are not set. ' +
     `Configure ${envFallbackNote} in your deployment platform ` +
     '(Environment Variables dashboard, or GitHub Secrets for the CI workflow). ' +
-    'The application will not function until they are provided.'
+    'The application will not function until they are provided.' +
+    deprecatedProjectHint
   )
 }
 

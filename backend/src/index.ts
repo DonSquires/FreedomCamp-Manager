@@ -551,14 +551,44 @@ function optionalAnyEnv(names: string[]): string | undefined {
   return names.map((name) => process.env[name]).find(Boolean);
 }
 
-function hasAutomationToken(req: Request): boolean {
+function getAutomationTokenConfigStatus() {
+  const automationWebhookTokenConfigured = Boolean(String(process.env.AUTOMATION_WEBHOOK_TOKEN ?? '').trim())
+  const giteaWebhookSecretConfigured = Boolean(String(process.env.GITEA_WEBHOOK_SECRET ?? '').trim())
+  return {
+    configured: automationWebhookTokenConfigured || giteaWebhookSecretConfigured,
+    automation_webhook_token: automationWebhookTokenConfigured,
+    gitea_webhook_secret: giteaWebhookSecretConfigured,
+  }
+}
+
+function validateAutomationToken(req: Request): { ok: boolean; status: number; reason: string } {
   const expected = String(process.env.AUTOMATION_WEBHOOK_TOKEN ?? process.env.GITEA_WEBHOOK_SECRET ?? '').trim();
   if (!expected) {
-    return true;
+    return {
+      ok: false,
+      status: 503,
+      reason: 'Automation webhook token is not configured.',
+    };
   }
 
   const provided = String(req.headers['x-automation-token'] ?? '').trim();
-  return provided.length > 0 && provided === expected;
+  if (!provided) {
+    return {
+      ok: false,
+      status: 401,
+      reason: 'Missing automation webhook token.',
+    };
+  }
+
+  if (!secureCompareHeaderValue(provided, expected)) {
+    return {
+      ok: false,
+      status: 401,
+      reason: 'Unauthorized automation webhook token.',
+    };
+  }
+
+  return { ok: true, status: 200, reason: 'OK' };
 }
 
 function secureCompareHeaderValue(provided: string, expected: string): boolean {
@@ -1015,7 +1045,6 @@ const defaultAllowedOrigins = [
   'http://localhost:8081',
   'https://fcmanager.co.nz',
   'https://www.fcmanager.co.nz',
-  'https://freedomcampmanager.onspace.build',
 ];
 
 const configuredOrigins = (
@@ -1441,6 +1470,7 @@ async function persistMobileOtaReviewRecord(args: {
 }
 
 app.get('/health', (_req: Request, res: Response) => {
+  const automationTokenConfig = getAutomationTokenConfigStatus()
   res.status(200).json({
     ok: true,
     service: 'fieldops-backend',
@@ -1449,6 +1479,9 @@ app.get('/health', (_req: Request, res: Response) => {
     checks: {
       supabase_url: Boolean(SUPABASE_URL),
       supabase_service_role_key: Boolean(SUPABASE_SERVICE_ROLE_KEY),
+      automation_token_configured: automationTokenConfig.configured,
+      automation_webhook_token: automationTokenConfig.automation_webhook_token,
+      gitea_webhook_secret: automationTokenConfig.gitea_webhook_secret,
     },
   });
 });
@@ -5683,8 +5716,9 @@ app.post('/api/automation/deep-system-audit', requireAdminAuth, async (req: Requ
 //    Receives webhook-driven Playwright gate outcomes and writes them into
 //    self_healing_logs for approval panel visibility.
 app.post('/api/automation/playwright-result', async (req: Request, res: Response) => {
-  if (!hasAutomationToken(req)) {
-    res.status(401).json({ error: 'Unauthorized automation webhook token.' });
+  const automationToken = validateAutomationToken(req);
+  if (!automationToken.ok) {
+    res.status(automationToken.status).json({ error: automationToken.reason });
     return;
   }
 
@@ -6014,8 +6048,9 @@ app.post('/api/automation/playwright-result', async (req: Request, res: Response
 });
 
 app.post('/api/automation/bug-report-ingested', async (req: Request, res: Response) => {
-  if (!hasAutomationToken(req)) {
-    res.status(401).json({ error: 'Unauthorized automation webhook token.' });
+  const automationToken = validateAutomationToken(req);
+  if (!automationToken.ok) {
+    res.status(automationToken.status).json({ error: automationToken.reason });
     return;
   }
 
@@ -6038,8 +6073,9 @@ app.post('/api/automation/bug-report-ingested', async (req: Request, res: Respon
 // ── POST /api/cron/patrol ───────────────────────────────────────────────────
 //    Proactive initiative sweep endpoint intended for scheduler/cron triggers.
 app.post('/api/cron/patrol', async (req: Request, res: Response): Promise<void> => {
-  if (!hasAutomationToken(req)) {
-    res.status(401).json({ error: 'Unauthorized automation webhook token.' });
+  const automationToken = validateAutomationToken(req);
+  if (!automationToken.ok) {
+    res.status(automationToken.status).json({ error: automationToken.reason });
     return;
   }
 
@@ -6190,6 +6226,14 @@ app.post('/api/cron/patrol', async (req: Request, res: Response): Promise<void> 
 const PORT = process.env.PORT ?? 3000;
 const server = app.listen(PORT, () => {
   console.log(`[FieldOps Backend] Listening on port ${PORT}`);
+
+  const automationTokenConfig = getAutomationTokenConfigStatus()
+  if (!automationTokenConfig.configured) {
+    console.warn(
+      '[FieldOps Backend] Automation webhook auth is not fully configured. ' +
+      'Set AUTOMATION_WEBHOOK_TOKEN or GITEA_WEBHOOK_SECRET to enable protected automation routes.',
+    )
+  }
 });
 
 const drBobBugReportPollHandle = setInterval(() => {

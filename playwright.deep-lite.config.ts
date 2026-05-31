@@ -23,7 +23,7 @@ export default defineConfig({
   timeout: 90000,
   reporter: [['list']],
   use: {
-    baseURL: process.env.PLAYWRIGHT_BASE_URL || process.env.DEFAULT_PLAYWRIGHT_BASE_URL || 'https://freedomcampmanager.onspace.build',
+    baseURL: process.env.PLAYWRIGHT_BASE_URL || process.env.DEFAULT_PLAYWRIGHT_BASE_URL || 'https://fcmanager.co.nz',
     ignoreHTTPSErrors,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',

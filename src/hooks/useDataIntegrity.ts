@@ -25,7 +25,7 @@ export function useDataIntegrityChecks(options: UseDataIntegrityChecksOptions) {
   return useQuery({
     queryKey: ['data-integrity', organizationId, user?.organization_id, user?.role],
     queryFn: async () => {
-      const orgFilter = organizationId || (user?.role === 'master' ? null : user?.organization_id)
+      const orgFilter = organizationId || ((user?.role === 'master' || user?.role === 'grand_master') ? null : user?.organization_id)
 
       const checks: IntegrityCheck[] = []
 

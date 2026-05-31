@@ -215,7 +215,6 @@ export default function Login() {
                   <Input
                     id="new-password"
                     type="password"
-                    autoComplete="new-password"
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
                     placeholder="At least 8 characters"
@@ -232,7 +231,6 @@ export default function Login() {
                   <Input
                     id="confirm-password"
                     type="password"
-                    autoComplete="new-password"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     placeholder="Re-enter your password"
@@ -259,7 +257,6 @@ export default function Login() {
                   <Input
                     id="email"
                     type="email"
-                    autoComplete="username"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="you@example.com"
@@ -276,7 +273,6 @@ export default function Login() {
                   <Input
                     id="password"
                     type="password"
-                    autoComplete="current-password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••"

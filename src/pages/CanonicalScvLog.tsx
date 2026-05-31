@@ -61,7 +61,7 @@ export default function CanonicalScvLog() {
     queryFn: async () => {
       // For non-master users scope by plates seen in their org's observations
       let plates: string[] | null = null
-      if (user?.role !== 'master' && orgId) {
+      if (user?.role !== 'master' && user?.role !== 'grand_master' && orgId) {
         const { data: obs, error: obsErr } = await supabase
           .from('observations')
           .select('plate_number')

@@ -221,7 +221,7 @@ export default function AdminPortal() {
   } = useBobBrain()
 
   const effectiveOrganizationId =
-    user?.role === 'master' ? organizationId || null : user?.organization_id || null
+    (user?.role === 'master' || user?.role === 'grand_master') ? organizationId || null : user?.organization_id || null
 
   const normalizeFilterDate = (value: string | null): string | null => {
     if (!value) return null
@@ -963,7 +963,7 @@ export default function AdminPortal() {
   }, [navigate, pendingGovernanceAction, user])
 
   const openGovernanceRoute = useCallback((route: string, label: string) => {
-    if (user?.role !== 'master') {
+    if (user?.role !== 'master' && user?.role !== 'grand_master') {
       navigate(route)
       return
     }
@@ -1055,7 +1055,7 @@ export default function AdminPortal() {
   return (
     <AppLayout
       title="Command Centre"
-      description={user?.role === 'master' ? 'All systems · All organisations' : `All systems · ${user?.full_name ?? user?.email ?? ''}`}
+      description={(user?.role === 'master' || user?.role === 'grand_master') ? 'All systems · All organisations' : `All systems · ${user?.full_name ?? user?.email ?? ''}`}
     >
       <GlobalFilterRibbon />
 
@@ -1225,7 +1225,7 @@ export default function AdminPortal() {
                   hasTrackedFirstActionRef.current = true
                   trackTimeToFirstAction({
                     pageLoadTime: pageLoadTimeRef.current,
-                    surface: user?.role === 'master' ? 'master' : 'admin',
+                    surface: (user?.role === 'master' || user?.role === 'grand_master') ? 'master' : 'admin',
                     action: queuePrimaryAction === 'breaches' ? 'review_breach_queue' : 'view_patrol_map',
                     organizationId: user?.organization_id,
                     performedBy: user?.id,

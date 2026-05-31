@@ -21,8 +21,6 @@ function getAllowedInviteHostPatterns(): string[] {
   const fallbackValues = [
     BRAND_SITE_URL,
     'https://www.fcmanager.co.nz',
-    'https://freedomcampmanager.onspace.build',
-    'https://*.onspace.build/**',
     'https://*.vercel.app/**',
     'http://localhost:5173',
   ];

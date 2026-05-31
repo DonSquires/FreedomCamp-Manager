@@ -33,8 +33,6 @@ const SUPABASE_KNOWLEDGE = {
     redirect_urls: [
       'https://fcmanager.co.nz',
       'https://www.fcmanager.co.nz',
-      'https://freedomcampmanager.onspace.build',
-      'https://*.onspace.build',
       'https://*.vercel.app',
       'http://localhost:5173',
       'http://localhost:3000',
@@ -365,8 +363,6 @@ const DOMAIN_DNS_KNOWLEDGE = {
   domains_in_use: {
     'fcmanager.co.nz': 'Frontend (Vercel). DNS CNAME to Vercel. Also Supabase site_url for auth.',
     'www.fcmanager.co.nz': 'Alias for main domain. Also in Supabase redirect_urls.',
-    'freedomcampmanager.onspace.build': 'Onspace.ai hosted preview build. Also in Supabase redirect_urls.',
-    '*.onspace.build': 'Wildcard for Onspace ephemeral preview builds.',
     '*.vercel.app': 'Vercel preview deployments (auto-generated per PR).',
     '*.railway.app': 'Railway proxy-server only (auto-assigned). Bob is on RunPod, PTT is on VPS 72.61.123.97.',
     'kxwjcupuxnnbnzcgmkoi.supabase.co': 'Supabase project URL. All Edge Functions and API calls go here.',
@@ -385,8 +381,8 @@ const DOMAIN_DNS_KNOWLEDGE = {
     propagation: 'DNS changes propagate in minutes to hours. Use dig or nslookup to verify.',
   },
   cors_allowlist: {
-    supabase_edge_functions: ['https://fcmanager.co.nz', 'https://www.fcmanager.co.nz', 'https://*.onspace.build'],
-    ptt_server: ['https://freedomcampmanager.onspace.build', 'https://fcmanager.co.nz', 'https://www.fcmanager.co.nz', 'https://preview-react-9b4t5o-*.onspace.build'],
+    supabase_edge_functions: ['https://fcmanager.co.nz', 'https://www.fcmanager.co.nz', 'https://*.vercel.app'],
+    ptt_server: ['https://fcmanager.co.nz', 'https://www.fcmanager.co.nz', 'https://*.vercel.app'],
     vercel_csp: 'connect-src: self *.supabase.co wss://*.supabase.co *.railway.app',
   },
   common_issues: [

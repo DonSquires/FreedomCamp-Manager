@@ -53,7 +53,7 @@ export default function AuditLog() {
 
   // Only allow admin/admin_officer/master to access audit log
   const isAuthorized = user?.role === 'admin' || user?.role === 'admin_officer' || user?.role === 'master'
-  const effectiveOrgId = user?.role === 'master' ? organizationId || null : user?.organization_id || null
+  const effectiveOrgId = (user?.role === 'master' || user?.role === 'grand_master') ? organizationId || null : user?.organization_id || null
 
   // Fetch audit log entries
   const { data: entries, isLoading } = useQuery({

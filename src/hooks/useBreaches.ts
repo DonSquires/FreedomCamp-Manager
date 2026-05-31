@@ -270,7 +270,7 @@ export function useBreach(breachId: string) {
         `)
         .eq('id', breachId)
 
-      if (user?.role !== 'master' && operationalOrganizationId) {
+      if (user?.role !== 'master' && user?.role !== 'grand_master' && operationalOrganizationId) {
         query = query.eq('organization_id', operationalOrganizationId)
       }
 
@@ -302,7 +302,7 @@ export function useResolveBreach() {
         })
         .eq('id', breachId)
 
-      if (user?.role !== 'master' && operationalOrganizationId) {
+      if (user?.role !== 'master' && user?.role !== 'grand_master' && operationalOrganizationId) {
         query = query.eq('organization_id', operationalOrganizationId)
       }
 
@@ -332,7 +332,7 @@ export function useNotifyBreach() {
         .update({ status: 'acknowledged' })
         .eq('id', breachId)
 
-      if (user?.role !== 'master' && operationalOrganizationId) {
+      if (user?.role !== 'master' && user?.role !== 'grand_master' && operationalOrganizationId) {
         query = query.eq('organization_id', operationalOrganizationId)
       }
 

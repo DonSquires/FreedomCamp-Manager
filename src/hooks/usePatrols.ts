@@ -136,7 +136,7 @@ export function useStartPatrol() {
         })
         .eq('id', patrolId)
 
-      if (user?.role !== 'master' && user?.organization_id) {
+      if (user?.role !== 'master' && user?.role !== 'grand_master' && user?.organization_id) {
         query = query.eq('organization_id', user.organization_id)
       }
 
@@ -175,7 +175,7 @@ export function useCompletePatrol() {
         })
         .eq('id', patrolId)
 
-      if (user?.role !== 'master' && user?.organization_id) {
+      if (user?.role !== 'master' && user?.role !== 'grand_master' && user?.organization_id) {
         query = query.eq('organization_id', user.organization_id)
       }
 
@@ -316,7 +316,7 @@ export function useCancelPatrol() {
         .update({ status: 'cancelled' })
         .eq('id', patrolId)
 
-      if (user?.role !== 'master' && user?.organization_id) {
+      if (user?.role !== 'master' && user?.role !== 'grand_master' && user?.organization_id) {
         query = query.eq('organization_id', user.organization_id)
       }
 

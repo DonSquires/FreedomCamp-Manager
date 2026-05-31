@@ -79,7 +79,7 @@ export function useFlaggedVehicles(options?: {
       }
 
       // Organization scoping
-      if (user?.role !== 'master' && user?.organization_id) {
+      if (user?.role !== 'master' && user?.role !== 'grand_master' && user?.organization_id) {
         query = query.eq('organization_id', user.organization_id)
       } else if (options?.organizationId) {
         query = query.eq('organization_id', options.organizationId)

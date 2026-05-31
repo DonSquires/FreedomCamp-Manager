@@ -14,7 +14,7 @@ interface ParcelBoundaryResult {
   error?: string;
 }
 
-const LINZ_API_KEY = process.env.VITE_LINZ_DATA_SERVICE_API_KEY;
+const LINZ_API_KEY = import.meta.env.VITE_LINZ_DATA_SERVICE_API_KEY;
 
 /**
  * Performs point-in-polygon spatial calculation against LINZ Primary Parcels

@@ -92,7 +92,7 @@ export default function IncidentReports() {
       const applyFilters = (baseQuery: any) => {
         let query = baseQuery.order('created_at', { ascending: false })
 
-        if (user?.role !== 'master' && user?.organization_id) {
+        if (user?.role !== 'master' && user?.role !== 'grand_master' && user?.organization_id) {
           query = query.eq('organization_id', user.organization_id)
         } else if (organizationId) {
           query = query.eq('organization_id', organizationId)

@@ -31,7 +31,7 @@ export function useVehicleProfilePhoto(plateNumber?: string) {
     queryFn: async () => {
       if (!plateNumber) return null
 
-      if (user?.role !== 'master' && !operationalOrganizationId) {
+      if (user?.role !== 'master' && user?.role !== 'grand_master' && !operationalOrganizationId) {
         return null
       }
 
@@ -61,7 +61,7 @@ export function useVehicleProfilePhoto(plateNumber?: string) {
         .eq('plate_number', plateNumber)
         .not('photo_url', 'is', null)
 
-      if (user?.role !== 'master' && operationalOrganizationId) {
+      if (user?.role !== 'master' && user?.role !== 'grand_master' && operationalOrganizationId) {
         countQuery = countQuery.eq('organization_id', operationalOrganizationId)
       }
 
@@ -133,14 +133,14 @@ export function useVehicleProfilePhoto(plateNumber?: string) {
     queryFn: async () => {
       if (!plateNumber) return []
 
-      if (user?.role !== 'master' && !operationalOrganizationId) {
+      if (user?.role !== 'master' && user?.role !== 'grand_master' && !operationalOrganizationId) {
         return []
       }
 
       let query = supabase.from('observations')
         .select('photo, photo_url, recorded_at, embedding_quality, gps_accuracy')
         .eq('plate_number', plateNumber)
-      if (user?.role !== 'master' && operationalOrganizationId) {
+      if (user?.role !== 'master' && user?.role !== 'grand_master' && operationalOrganizationId) {
         query = query.eq('organization_id', operationalOrganizationId)
       }
 

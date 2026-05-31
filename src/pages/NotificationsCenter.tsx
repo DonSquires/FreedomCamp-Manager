@@ -107,7 +107,7 @@ export default function NotificationsCenter() {
   const { organizationId } = useGlobalFiltersStore()
   const queryClient = useQueryClient()
 
-  const orgId = user?.role === 'master' ? (organizationId || undefined) : user?.organization_id
+  const orgId = (user?.role === 'master' || user?.role === 'grand_master') ? (organizationId || undefined) : user?.organization_id
   const isAdmin = ['admin', 'admin_officer', 'master'].includes(user?.role ?? '')
 
   const [unreadOnly, setUnreadOnly] = useState(false)

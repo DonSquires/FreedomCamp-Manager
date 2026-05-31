@@ -83,7 +83,7 @@ export function usePlateScans(options?: {
         .order('scanned_at', { ascending: false })
 
       // Organization scoping
-      if (user?.role !== 'master' && user?.organization_id) {
+      if (user?.role !== 'master' && user?.role !== 'grand_master' && user?.organization_id) {
         query = query.eq('organization_id', user.organization_id)
       } else if (options?.organizationId) {
         query = query.eq('organization_id', options.organizationId)
@@ -173,7 +173,7 @@ export function usePlateScans(options?: {
         .eq('id', id)
 
       // Enforce tenant scope on write operations for non-master users.
-      if (user?.role !== 'master' && user?.organization_id) {
+      if (user?.role !== 'master' && user?.role !== 'grand_master' && user?.organization_id) {
         query = query.eq('organization_id', user.organization_id)
       }
 
@@ -199,7 +199,7 @@ export function usePlateScans(options?: {
         .eq('id', id)
 
       // Enforce tenant scope on write operations for non-master users.
-      if (user?.role !== 'master' && user?.organization_id) {
+      if (user?.role !== 'master' && user?.role !== 'grand_master' && user?.organization_id) {
         query = query.eq('organization_id', user.organization_id)
       }
 

@@ -172,7 +172,7 @@ export default function Disputes() {
         .order('submitted_at', { ascending: false })
         .limit(200)
 
-      if (user?.role !== 'master' && user?.organization_id) {
+      if (user?.role !== 'master' && user?.role !== 'grand_master' && user?.organization_id) {
         q = q.eq('organization_id', user.organization_id)
       }
       if (statusFilter !== 'all') {

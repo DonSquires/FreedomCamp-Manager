@@ -94,7 +94,7 @@ export default function PersonRecords() {
   const [viewTarget, setViewTarget] = useState<Person | null>(null)
   const [form, setForm] = useState(BLANK_FORM)
 
-  const orgId = user?.role === 'master' ? (organizationId || undefined) : user?.organization_id
+  const orgId = (user?.role === 'master' || user?.role === 'grand_master') ? (organizationId || undefined) : user?.organization_id
 
   const { data: persons = [], isLoading } = useQuery({
     queryKey: ['person-records', orgId, search],

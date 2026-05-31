@@ -51,7 +51,7 @@ export default function DataCleanupUtility() {
   const { data: cleanupStats, isLoading } = useQuery({
     queryKey: ['cleanup-stats', organizationId],
     queryFn: async () => {
-      const orgFilter = organizationId || (user?.role === 'master' ? null : user?.organization_id)
+      const orgFilter = organizationId || ((user?.role === 'master' || user?.role === 'grand_master') ? null : user?.organization_id)
 
       // Duplicate observations (same plate, zone, within 5 minutes)
       const dupQuery = (supabase as any).rpc('get_duplicate_observations', {

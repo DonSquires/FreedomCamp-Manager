@@ -61,7 +61,7 @@ export default function CanonicalHomelessLog() {
     queryFn: async () => {
       // For non-master users scope by plates seen in org
       let plates: string[] | null = null
-      if (user?.role !== 'master' && orgId) {
+      if (user?.role !== 'master' && user?.role !== 'grand_master' && orgId) {
         const { data: obs, error: obsErr } = await supabase
           .from('observations')
           .select('plate_number')

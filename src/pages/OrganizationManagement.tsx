@@ -31,6 +31,26 @@ interface Organization {
   contact_phone: string | null
 }
 
+const SYNTHETIC_ORG_NAME_PATTERNS = [
+  /^sp e2e org-/i,
+  /^sp e2e probe\b/i,
+  /^diag-org-/i,
+  /^autonomous-test-org-/i,
+  /^c2\b/i,
+  /^d3 duplicate\b/i,
+  /^testing bob\b/i,
+]
+
+function isSyntheticOrganization(org: Pick<Organization, 'name' | 'contact_email'>): boolean {
+  const orgName = String(org.name || '').trim()
+  if (SYNTHETIC_ORG_NAME_PATTERNS.some((pattern) => pattern.test(orgName))) {
+    return true
+  }
+
+  const contactEmail = String(org.contact_email || '').trim().toLowerCase()
+  return contactEmail.endsWith('@example.com') || contactEmail.includes('+e2e@')
+}
+
 async function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
   let timeoutId: ReturnType<typeof setTimeout> | undefined
   try {
@@ -215,6 +235,7 @@ export default function OrganizationManagement() {
   const [selectedOrg, setSelectedOrg] = useState<Organization | null>(null)
   const [orgSearch, setOrgSearch] = useState('')
   const [orgTypeFilter, setOrgTypeFilter] = useState('all')
+  const [showSyntheticOrgs, setShowSyntheticOrgs] = useState(false)
   const [createSuccessNotice, setCreateSuccessNotice] = useState('')
   
   // Edit form state
@@ -252,7 +273,11 @@ export default function OrganizationManagement() {
       const stats = await Promise.all(
         (organizations || []).map(async (org) => {
           const [userCount, zoneCount] = await Promise.all([
-            supabase.from('user_profiles').select('id', { count: 'exact', head: true }).eq('organization_id', org.id),
+            supabase
+              .from('user_profiles')
+              .select('id', { count: 'exact', head: true })
+              .eq('is_active', true)
+              .or(`organization_id.eq.${org.id},employer_organization_id.eq.${org.id}`),
             supabase.from('zones').select('id', { count: 'exact', head: true }).eq('organization_id', org.id),
           ])
 
@@ -271,6 +296,9 @@ export default function OrganizationManagement() {
     },
     enabled: !!organizations,
   })
+
+  const visibleOrganizations = (organizations || []).filter((org) => showSyntheticOrgs || !isSyntheticOrganization(org))
+  const hiddenSyntheticCount = (organizations || []).length - visibleOrganizations.length
 
   // Update organization mutation
   const updateOrgMutation = useMutation({
@@ -474,6 +502,24 @@ export default function OrganizationManagement() {
         </div>
       </div>
 
+      <div className="mb-4 flex flex-col gap-2 rounded-lg border bg-muted/30 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="text-sm text-muted-foreground">
+          {showSyntheticOrgs
+            ? 'Showing synthetic and E2E organisations alongside production data.'
+            : hiddenSyntheticCount > 0
+              ? `Hiding ${hiddenSyntheticCount} synthetic/E2E organisations from the default view.`
+              : 'No synthetic or E2E organisations detected in the current result set.'}
+        </div>
+        <div className="flex items-center gap-2">
+          <Label htmlFor="show-synthetic-orgs" className="text-sm">Show test fixtures</Label>
+          <Switch
+            id="show-synthetic-orgs"
+            checked={showSyntheticOrgs}
+            onCheckedChange={setShowSyntheticOrgs}
+          />
+        </div>
+      </div>
+
       {createSuccessNotice && (
         <Card className="mb-4 border-green-200 bg-green-50/70 dark:bg-green-950/20 dark:border-green-900">
           <CardContent className="py-3 text-sm text-green-800 dark:text-green-300">
@@ -486,8 +532,8 @@ export default function OrganizationManagement() {
       <div className="space-y-4">
         {isLoading ? (
           <PaperworkSearchAnimation size="sm" text="Loading organisations…" />
-        ) : organizations && organizations.length > 0 ? (
-          organizations
+        ) : visibleOrganizations.length > 0 ? (
+          visibleOrganizations
             .filter((org) => {
               const matchesSearch = !orgSearch ||
                 org.name.toLowerCase().includes(orgSearch.toLowerCase())
@@ -665,7 +711,7 @@ export default function OrganizationManagement() {
                       <div className="mt-3">
                         <p className="text-xs text-muted-foreground font-medium mb-2">Client Organisations</p>
                         <div className="space-y-1">
-                          {organizations?.filter(client =>
+                          {visibleOrganizations.filter(client =>
                             client.parent_organization_id === org.id &&
                             (client.organization_type === 'client' || client.organization_type === 'contractor')
                           ).map(client => (
@@ -684,7 +730,7 @@ export default function OrganizationManagement() {
                               <ChevronRight className="h-4 w-4 text-gray-400" />
                             </div>
                           ))}
-                          {organizations?.filter(client =>
+                          {visibleOrganizations.filter(client =>
                             client.parent_organization_id === org.id
                           ).length === 0 && (
                             <p className="text-sm text-muted-foreground italic">No client organisations</p>

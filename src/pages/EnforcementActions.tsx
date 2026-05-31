@@ -74,7 +74,7 @@ export default function EnforcementActions() {
   const { user } = useAuthStore()
   const { organizationId, zoneId, dateFrom, dateTo } = useGlobalFiltersStore()
   const effectiveOrganizationId =
-    user?.role !== 'master' ? user?.organization_id || null : organizationId || null
+    user?.role !== 'master' && user?.role !== 'grand_master' ? user?.organization_id || null : organizationId || null
   const startDate = dateFrom ? nzDateToUTCStart(dateFrom) : null
   const endDate = dateTo ? nzDateToUTCEnd(dateTo) : null
   const [searchQuery, setSearchQuery] = useState('')

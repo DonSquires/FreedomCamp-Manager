@@ -14,6 +14,13 @@ Use this file to record concrete mistakes Bob and Dr Bob found during adversaria
 ## Current Lessons
 
 - Date: 2026-05-30
+- Trigger: Beta-readiness safety audit of Bob autonomous production promotion and webhook flows.
+- Mistake: Automation webhook auth accepted requests when `AUTOMATION_WEBHOOK_TOKEN`/`GITEA_WEBHOOK_SECRET` was unset, creating a fail-open path on automation endpoints.
+- Risk: Unauthorized callers could trigger orchestration paths (including promotion-adjacent workflows) if runtime secret configuration drifted.
+- Fix: Replaced boolean token check with fail-closed validation in backend routes; missing token config now returns 503 and invalid/missing caller token returns 401.
+- Prevention Rule: All automation and webhook auth checks must fail closed by default; missing security config is a service-misconfiguration error, never an implicit allow.
+
+- Date: 2026-05-30
 - Trigger: Broad timeout audit across user management and notice/dispatch flows after repeated "timed out" reports.
 - Mistake: Multiple pages wrapped edge-function mutations with local `Promise.race` timeouts shorter than the shared edge timeout/retry layer, causing premature UI failures before edge fallback logic completed.
 - Risk: False timeout errors, unnecessary fallback execution, duplicate retries, and noisy operator experience in high-latency periods.

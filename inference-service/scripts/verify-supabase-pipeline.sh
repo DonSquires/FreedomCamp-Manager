@@ -11,7 +11,7 @@ set -eu
 
 if [ "${SUPABASE_URL:-}" = "" ]; then
   echo "ERROR: SUPABASE_URL is required"
-  echo "Example: SUPABASE_URL=https://xbfnlzmpumthnjmtqufp.supabase.co ./scripts/verify-supabase-pipeline.sh"
+  echo "Example: SUPABASE_URL=https://kxwjcupuxnnbnzcgmkoi.supabase.co ./scripts/verify-supabase-pipeline.sh"
   exit 1
 fi
 

@@ -90,7 +90,7 @@ export default function EnforcementCommandCenter() {
     return window.localStorage.getItem('fc_enforcement_dense_mode') === 'true'
   })
   const effectiveOrganizationId =
-    user?.role !== 'master' ? user?.organization_id || null : organizationId || null
+    user?.role !== 'master' && user?.role !== 'grand_master' ? user?.organization_id || null : organizationId || null
   const startDate = dateFrom ? nzDateToUTCStart(dateFrom) : null
   const endDate = dateTo ? nzDateToUTCEnd(dateTo) : null
   const todayNz = new Date().toLocaleDateString('en-CA', { timeZone: 'Pacific/Auckland' })
@@ -319,7 +319,7 @@ export default function EnforcementCommandCenter() {
         .eq('status', 'in_progress')
         .order('created_at', { ascending: false })
 
-      if (user?.role !== 'master' && user?.organization_id) {
+      if (user?.role !== 'master' && user?.role !== 'grand_master' && user?.organization_id) {
         query = query.eq('organization_id', user.organization_id)
       } else if (organizationId) {
         query = query.eq('organization_id', organizationId)

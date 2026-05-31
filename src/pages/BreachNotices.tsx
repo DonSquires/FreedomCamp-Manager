@@ -69,7 +69,7 @@ export default function BreachNotices() {
   const [resolveStatus, setResolveStatus] = useState<'resolved' | 'dismissed'>('resolved')
   const [isResolveOpen, setIsResolveOpen] = useState(false)
 
-  const orgId = user?.role === 'master' ? (organizationId || undefined) : user?.organization_id
+  const orgId = (user?.role === 'master' || user?.role === 'grand_master') ? (organizationId || undefined) : user?.organization_id
 
   const { data: notices = [], isLoading } = useQuery({
     queryKey: ['breach-notices', orgId, zoneId, startDate, endDate, statusFilter, breachTypeFilter],

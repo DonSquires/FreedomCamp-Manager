@@ -453,6 +453,20 @@ export default function DispatchMonitor() {
           </Button>
         </div>
 
+        {!isLoading && stats &&
+          stats.active === 0 &&
+          stats.closed_cancelled === 0 &&
+          stats.duress === 0 &&
+          stats.auto_dispatched === 0 &&
+          stats.not_dispatched === 0 &&
+          stats.not_acknowledged === 0 &&
+          stats.over_response_time === 0 &&
+          stats.ready_to_close === 0 && (
+            <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800 dark:border-blue-900/60 dark:bg-blue-950/30 dark:text-blue-200">
+              No dispatch jobs found in today&apos;s window for the current organization scope. Try adjusting filters or confirm recent dispatch activity is being ingested.
+            </div>
+          )}
+
         <div className="grid grid-cols-1 xl:grid-cols-4 gap-4">
           <Card className="border-blue-200 dark:border-blue-900">
             <CardContent className="p-4 space-y-2">

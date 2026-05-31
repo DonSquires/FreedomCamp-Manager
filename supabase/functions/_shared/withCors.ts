@@ -3,7 +3,7 @@
  * 
  * Provides consistent CORS handling across all functions with:
  * - Strict origin allowlist (production domains)
- * - Preview subdomain pattern matching (ephemeral Onspace builds)
+ * - Preview subdomain pattern matching (ephemeral Vercel builds)
  * - Dev mode toggle via DEV_CORS env var (allows wildcard *)
  * - Automatic preflight handling
  * - Error response wrapping with CORS headers
@@ -23,13 +23,8 @@ type OriginMatcher = (origin: string | null) => string | null;
 
 // Exact production domains (strict allowlist)
 const ALLOWED_ORIGINS_EXACT = new Set<string>([
-  'https://freedomcampmanager.onspace.build',  // Hosted app build
   'https://fcmanager.co.nz',                   // Production domain
   'https://www.fcmanager.co.nz',               // Production domain (www)
-  'https://onspace.ai',                        // Production domain
-  'https://www.onspace.ai',                    // Production domain (www)
-  'https://app.onspace.ai',                    // App subdomain
-  'https://react-9b4t5o.onspace.build',        // Static build
   'http://localhost:5173',                      // Local dev
   'http://localhost:3000',                      // Local dev (alternate port)
   'http://127.0.0.1:5173',                      // Local dev (IP host)
@@ -38,22 +33,12 @@ const ALLOWED_ORIGINS_EXACT = new Set<string>([
 
 /**
  * Check if origin matches ephemeral preview subdomain pattern
- * Preview builds generate: preview-react-9b4t5o-<random>.onspace.build
+ * Preview builds generate hosted subdomains on Vercel.
  */
 function isAllowedPreview(origin: string): boolean {
   try {
     const u = new URL(origin);
     const host = u.host;
-
-    // Allow all hosted preview deployments under the controlled onspace.build domain.
-    if (host.endsWith('.onspace.build')) {
-      return true;
-    }
-
-    // Allow hosted production app variants under onspace.ai.
-    if (host === 'onspace.ai' || host.endsWith('.onspace.ai')) {
-      return true;
-    }
 
     // Allow Vercel preview/prod deployments for this project.
     if (host.endsWith('.vercel.app')) {

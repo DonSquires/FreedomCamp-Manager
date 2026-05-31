@@ -106,7 +106,7 @@ const KNOWLEDGE_PACKS = {
     summary: 'Complete Supabase knowledge: Auth, PostgreSQL, Edge Functions, Storage, Realtime, RLS, migrations, secrets, and common issues.',
     key_points: [
       'Project ref: kxwjcupuxnnbnzcgmkoi. URL: https://kxwjcupuxnnbnzcgmkoi.supabase.co. Region: AWS ap-southeast-2 (Sydney). PostgreSQL 17.',
-      'Auth: JWT expiry 3600s. Refresh token rotation on. Redirect URLs: fcmanager.co.nz, *.onspace.build, *.vercel.app, localhost:5173. Email templates in supabase/templates/.',
+      'Auth: JWT expiry 3600s. Refresh token rotation on. Redirect URLs: fcmanager.co.nz, *.vercel.app, localhost:5173. Email templates in supabase/templates/.',
       'RLS on every table: policies use auth.uid() + organization_id. Anon key respects RLS (frontend). Service role bypasses RLS (Edge Functions only).',
       'Edge Functions: 47 functions in supabase/functions/<name>/index.ts. Deno runtime. Must handle OPTIONS preflight. CORS via _shared/withCors.ts. Deploy secrets via Dashboard → Settings → Edge Functions.',
       'Migrations: 70+ SQL files in supabase/migrations/ (YYYYMMDD_* prefix). Apply: supabase db push. Types: supabase gen types typescript → src/types/database.ts.',
@@ -192,7 +192,7 @@ const KNOWLEDGE_PACKS = {
     summary: 'Domain fcmanager.co.nz, DNS records, SSL, CORS allowlists, Supabase redirect_urls, and multi-domain management.',
     key_points: [
       'Primary domain: fcmanager.co.nz (.co.nz via NZRS). Vercel frontend. Supabase site_url = https://fcmanager.co.nz.',
-      'Supabase redirect_urls: fcmanager.co.nz, www.fcmanager.co.nz, freedomcampmanager.onspace.build, *.onspace.build, *.vercel.app, localhost:5173/3000.',
+      'Supabase redirect_urls: fcmanager.co.nz, www.fcmanager.co.nz, *.vercel.app, localhost:5173/3000.',
       'SSL: automatic Let\'s Encrypt on Vercel (auto-renewal). HSTS enforced. Railway auto-TLS on *.railway.app.',
       'DNS for Vercel: CNAME www.fcmanager.co.nz → cname.vercel-dns.com. A record @ → 76.76.21.21.',
       'DNS for email: SPF TXT (include:zoho.com include:sendgrid.net), DKIM from Zoho/Resend, DMARC (v=DMARC1; p=quarantine).',

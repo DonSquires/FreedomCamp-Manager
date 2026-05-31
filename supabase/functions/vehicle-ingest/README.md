@@ -54,7 +54,7 @@ This Edge Function provides a unified vehicle scanning pipeline that:
 ### Required
 
 ```bash
-SUPABASE_URL=https://xbfnlzmpumthnjmtqufp.supabase.co
+SUPABASE_URL=https://kxwjcupuxnnbnzcgmkoi.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=***
 ```
 
@@ -157,7 +157,7 @@ supabase functions deploy vehicle-ingest
 ### Test ALPR Path
 
 ```bash
-curl -X POST https://xbfnlzmpumthnjmtqufp.supabase.co/functions/v1/vehicle-ingest \
+curl -X POST https://kxwjcupuxnnbnzcgmkoi.supabase.co/functions/v1/vehicle-ingest \
   -H "Authorization: Bearer YOUR_ANON_KEY" \
   -H "Content-Type: application/json" \
   -d '{

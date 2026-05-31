@@ -86,7 +86,7 @@ const REDIS_EMERGENCY_TTL_SECONDS = parseInt(process.env.PTT_REDIS_EMERGENCY_TTL
 const REDIS_FORCE_DISCONNECT_TTL_SECONDS = parseInt(process.env.PTT_REDIS_FORCE_DISCONNECT_TTL_SECONDS || '3600', 10);
 const PREVIEW_HOST_REGEX =
   process.env.PTT_ALLOWED_PREVIEW_ORIGIN_REGEX ||
-  '^preview-[a-z0-9-]+\\.onspace\\.build$';
+  '^.*\\.vercel\\.app$';
 const PTT_PROTOCOL_VERSION = '2.0.0';
 const INTEROP_PROFILE = 'fieldops-ptt-interop-v1';
 const SUPPORTED_WS_PROTOCOLS = ['ptt.v2', 'ptt.v1'];
@@ -617,7 +617,6 @@ function verifyChannelToken(token) {
 // ---------------------------------------------------------------------------
 const ALLOWED_ORIGINS_ENV = (process.env.ALLOWED_ORIGINS || '').split(',').filter(Boolean);
 const DEFAULT_ORIGINS = [
-  'https://freedomcampmanager.onspace.build',
   'https://fcmanager.co.nz',
   'https://www.fcmanager.co.nz',
 ];
@@ -639,7 +638,7 @@ try {
 function isAllowedPreviewOrigin(origin) {
   try {
     const url = new URL(origin);
-    if (!url.host.endsWith('.onspace.build')) return false;
+    if (!url.host.endsWith('.vercel.app')) return false;
     if (!previewHostPattern) return false;
     return previewHostPattern.test(url.host);
   } catch {

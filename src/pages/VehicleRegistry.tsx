@@ -768,7 +768,7 @@ export default function VehicleRegistry() {
   const { organizationId, zoneId, dateFrom, dateTo } = useGlobalFiltersStore()
 
   const effectiveOrganizationId =
-    organizationId || (user?.role !== 'master' ? user?.organization_id || null : null)
+    organizationId || (user?.role !== 'master' && user?.role !== 'grand_master' ? user?.organization_id || null : null)
 
   return (
     <AppLayout>

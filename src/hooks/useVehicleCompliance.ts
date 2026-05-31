@@ -91,7 +91,7 @@ export function useVehicleCompliance(plateNumber?: string, options?: {
         .order('recorded_at', { ascending: false })
 
       // Organization scoping
-      if (user?.role !== 'master' && user?.organization_id) {
+      if (user?.role !== 'master' && user?.role !== 'grand_master' && user?.organization_id) {
         query = query.eq('organization_id', user.organization_id)
       }
 
@@ -151,7 +151,7 @@ export function useVehicleCompliance(plateNumber?: string, options?: {
         .order('recorded_at', { ascending: true })
 
       // Organization scoping
-      if (user?.role !== 'master' && user?.organization_id) {
+      if (user?.role !== 'master' && user?.role !== 'grand_master' && user?.organization_id) {
         query = query.eq('organization_id', user.organization_id)
       }
 
@@ -193,7 +193,7 @@ export function useVehicleCompliance(plateNumber?: string, options?: {
         .select('photo_url')
         .eq('observation_id', observationId)
 
-      if (user?.role !== 'master' && user?.organization_id) {
+      if (user?.role !== 'master' && user?.role !== 'grand_master' && user?.organization_id) {
         query = query.eq('organization_id', user.organization_id)
       }
 

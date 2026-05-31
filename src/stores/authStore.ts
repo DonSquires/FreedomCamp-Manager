@@ -59,7 +59,7 @@ function clearClientAuthArtifacts() {
 
 function clearInvalidAuthState(set: (partial: Partial<AuthState>) => void) {
   clearClientAuthArtifacts()
-  set({ user: null, isAuthenticated: false, loading: false })
+  set({ user: null, isAuthenticated: false, hasSession: false, loading: false })
   useSessionLockStore.getState().unlock()
   useGlobalFiltersStore.getState().syncForUser(null)
 }
@@ -67,6 +67,7 @@ function clearInvalidAuthState(set: (partial: Partial<AuthState>) => void) {
 function softResolveAuthLoading(set: (partial: Partial<AuthState> | ((state: AuthState) => Partial<AuthState>)) => void, sessionUserId?: string) {
   set((state) => ({
     loading: false,
+    hasSession: sessionUserId ? true : state.hasSession,
     isAuthenticated: sessionUserId ? state.user?.id === sessionUserId || state.isAuthenticated : state.isAuthenticated,
   }))
 }
@@ -116,6 +117,7 @@ interface AuthUser {
 interface AuthState {
   user: AuthUser | null
   isAuthenticated: boolean
+  hasSession: boolean
   loading: boolean
   ensureLoadingResolved: () => void
   login: (email: string, password: string) => Promise<void>
@@ -130,6 +132,7 @@ export const useAuthStore = create<AuthState>()(
     (set) => ({
       user: null,
       isAuthenticated: false,
+      hasSession: false,
       loading: true,
 
       ensureLoadingResolved: () => {
@@ -153,6 +156,8 @@ export const useAuthStore = create<AuthState>()(
               return
             }
 
+            set({ hasSession: true })
+
             const { profile, error: profileError } = await fetchProfileWithRetry(session.user.id)
 
             if (profileError) {
@@ -162,7 +167,8 @@ export const useAuthStore = create<AuthState>()(
             }
 
             if (!profile) {
-              clearInvalidAuthState(set)
+              console.warn('[authStore] profile missing on auth change; preserving active session and retrying on next check.')
+              softResolveAuthLoading(set, session.user.id)
               return
             }
 
@@ -189,7 +195,7 @@ export const useAuthStore = create<AuthState>()(
               set({ user: authUser, isAuthenticated: true, loading: false })
               useGlobalFiltersStore.getState().syncForUser(authUser.id)
             } else {
-              set({ user: null, isAuthenticated: false, loading: false })
+              set({ user: null, isAuthenticated: false, hasSession: true, loading: false })
             }
           } catch (err) {
             console.warn('[authStore] onAuthStateChange handler error:', err)
@@ -256,6 +262,7 @@ export const useAuthStore = create<AuthState>()(
         }
 
         set({ user: authUser, isAuthenticated: true })
+        set({ hasSession: true })
         useSessionLockStore.getState().unlock()
         useGlobalFiltersStore.getState().syncForUser(authUser.id)
       },
@@ -297,6 +304,7 @@ export const useAuthStore = create<AuthState>()(
         }
 
         set({ user: authUser, isAuthenticated: true, loading: false })
+        set({ hasSession: true })
         useSessionLockStore.getState().unlock()
         useGlobalFiltersStore.getState().syncForUser(authUser.id)
       },
@@ -311,7 +319,7 @@ export const useAuthStore = create<AuthState>()(
           console.warn('[authStore] signOut failed, clearing local auth state anyway:', error)
         }
         clearClientAuthArtifacts()
-        set({ user: null, isAuthenticated: false, loading: false })
+        set({ user: null, isAuthenticated: false, hasSession: false, loading: false })
         useSessionLockStore.getState().unlock()
         useGlobalFiltersStore.getState().syncForUser(null)
       },
@@ -334,6 +342,8 @@ export const useAuthStore = create<AuthState>()(
             clearInvalidAuthState(set)
             return
           }
+
+          set({ hasSession: true })
 
           // Fetch user profile
           const { profile, error: profileError } = await fetchProfileWithRetry(session.user.id)
@@ -363,7 +373,8 @@ export const useAuthStore = create<AuthState>()(
             set({ user: authUser, isAuthenticated: true, loading: false })
             useGlobalFiltersStore.getState().syncForUser(authUser.id)
           } else {
-            clearInvalidAuthState(set)
+            console.warn('[authStore] session exists but profile is missing; preserving session and waiting for next refresh.')
+            softResolveAuthLoading(set, session.user.id)
           }
         } catch (error) {
           console.warn('[authStore] checkSession failed:', error)
