@@ -72,6 +72,13 @@ const normalizeDateString = (value: string | null): string | null => {
   return null
 }
 
+const normalizeId = (value: string | null | undefined): string | null => {
+  if (!value) return null
+  const trimmed = value.trim()
+  if (!trimmed) return null
+  return trimmed
+}
+
 export const useGlobalFiltersStore = create<GlobalFiltersState>()(
   persist(
     (set) => ({
@@ -91,11 +98,11 @@ export const useGlobalFiltersStore = create<GlobalFiltersState>()(
           datePreset: preset,
         }),
 
-      setOrganization: (id, name) => 
-        set({ organizationId: id, organizationName: name }),
+      setOrganization: (id, name) =>
+        set({ organizationId: normalizeId(id), organizationName: name }),
 
-      setZone: (id, name) => 
-        set({ zoneId: id, zoneName: name }),
+      setZone: (id, name) =>
+        set({ zoneId: normalizeId(id), zoneName: name }),
 
       syncForUser: (userId) =>
         set((state) => {
@@ -169,7 +176,7 @@ export const useGlobalFiltersStore = create<GlobalFiltersState>()(
     }),
     {
       name: 'global-filters-storage',
-      version: 2,
+      version: 3,
       migrate: (persistedState: unknown) => {
         const state = (persistedState ?? {}) as Partial<GlobalFiltersState>
 
@@ -177,6 +184,12 @@ export const useGlobalFiltersStore = create<GlobalFiltersState>()(
           ...state,
           dateFrom: normalizeDateString(state.dateFrom ?? null),
           dateTo: normalizeDateString(state.dateTo ?? null),
+          // Reset scoped filters on migration so stale org/zone ids do not
+          // silently blank elevated-role pages after auth/schema changes.
+          organizationId: null,
+          organizationName: null,
+          zoneId: null,
+          zoneName: null,
         }
       },
     }
