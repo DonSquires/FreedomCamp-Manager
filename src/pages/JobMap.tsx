@@ -5,7 +5,7 @@
  * - Color-coded markers by job type
  * - Click to open job details popup
  * - Acknowledge / En Route actions
- * - Google Maps directions link
+ * - In-house map directions link (with external fallback support)
  */
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
@@ -44,6 +44,11 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDateTime } from '@/lib/utils'
+import {
+  PRIMARY_MAP_TILE_ATTRIBUTION,
+  PRIMARY_MAP_TILE_URL,
+  buildPreferredMapUrlForCoordinates,
+} from '@/lib/inhouseMapping'
 import 'leaflet/dist/leaflet.css'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -287,11 +292,10 @@ export default function JobMap() {
     },
   })
   
-  // ── Open Google Maps Directions ─────────────────────────────────────────────
+  // ── Open In-house Map Directions ────────────────────────────────────────────
   
-  const openDirections = useCallback((lat: number, lng: number, address?: string | null) => {
-    const destination = address ? encodeURIComponent(address) : `${lat},${lng}`
-    const url = `https://www.google.com/maps/dir/?api=1&destination=${destination}`
+  const openDirections = useCallback((lat: number, lng: number) => {
+    const url = buildPreferredMapUrlForCoordinates(lat, lng)
     window.open(url, '_blank')
   }, [])
   
@@ -465,8 +469,8 @@ export default function JobMap() {
                 >
                   <JurisdictionMapViewport />
                   <TileLayer
-                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                    attribution={PRIMARY_MAP_TILE_ATTRIBUTION}
+                    url={PRIMARY_MAP_TILE_URL}
                   />
                   <MapViewportController jobs={jobsWithGPS} selectedJob={selectedJobId} />
                   
@@ -598,15 +602,15 @@ export default function JobMap() {
                                   </Button>
                                 )}
                                 
-                                {/* Google Maps Directions */}
+                                {/* In-house map directions */}
                                 <Button
                                   size="sm"
                                   variant="outline"
                                   className="w-full"
-                                  onClick={() => openDirections(job.gps_lat!, job.gps_lng!, job.address)}
+                                  onClick={() => openDirections(job.gps_lat!, job.gps_lng!)}
                                 >
                                   <Navigation className="h-4 w-4 mr-1.5" />
-                                  Get Directions
+                                  Open In-house Map
                                   <ExternalLink className="h-3 w-3 ml-1.5 opacity-50" />
                                 </Button>
                               </div>

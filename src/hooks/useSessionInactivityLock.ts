@@ -6,6 +6,7 @@ import { useSessionPreferencesStore } from '@/stores/sessionPreferencesStore'
 const WARNING_SECONDS = 60
 const WARNING_MS = WARNING_SECONDS * 1000
 const STAY_ACTIVE_EVENT = 'session:stay-active'
+const MIN_INACTIVITY_MINUTES = 15
 
 export function signalSessionActivity(): void {
   if (typeof window === 'undefined') return
@@ -25,7 +26,11 @@ export function useSessionInactivityLock() {
       return
     }
 
-    const timeoutMs = Math.max(inactivityMinutes * 60 * 1000, WARNING_MS + 1000)
+    const sanitizedInactivityMinutes = Math.max(
+      MIN_INACTIVITY_MINUTES,
+      Number.isFinite(inactivityMinutes) ? Math.floor(inactivityMinutes) : MIN_INACTIVITY_MINUTES,
+    )
+    const timeoutMs = Math.max(sanitizedInactivityMinutes * 60 * 1000, WARNING_MS + 1000)
     const warningDelay = Math.max(timeoutMs - WARNING_MS, 1000)
 
     const clearTimers = () => {

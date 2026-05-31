@@ -3,18 +3,18 @@
  *
  * In-app turn-by-turn navigation for patrol officers.
  *
- * Uses the OSRM public routing API (router.project-osrm.org) to calculate a
+ * Uses the in-house mapping gateway route planner to calculate a
  * driving route from the officer's current GPS position (or a manual origin)
- * to a destination zone or custom address.
+ * to a destination zone or custom coordinates.
  *
  * Features:
  *   - GPS location acquisition (browser Geolocation API)
  *   - Destination picker: active patrol zone OR custom lat/lng
- *   - OSRM route fetch with step-by-step instructions
+ *   - In-house route fetch with step-by-step guidance
  *   - Route summary: distance (km) + duration (min)
  *   - Step list with manoeuvre icons and distance per step
- *   - Copy route link (Google Maps fallback)
- *   - Graceful offline / OSRM error handling
+ *   - Copy in-house route target
+ *   - Graceful offline / gateway error handling with local deterministic fallback
  */
 
 import { useState, useCallback } from 'react'
@@ -46,15 +46,16 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import type { Database } from '@/types/database'
+import { buildPreferredMapUrlForCoordinates } from '@/lib/inhouseMapping'
 
 type ZoneRow = Pick<
   Database['public']['Tables']['zones']['Row'],
   'id' | 'name' | 'location_lat' | 'location_lng'
 >
 
-// ─── OSRM types ───────────────────────────────────────────────────────────────
+// ─── In-house route types ─────────────────────────────────────────────────────
 
-interface OsrmStep {
+interface RouteStep {
   distance: number          // metres
   duration: number          // seconds
   name: string
@@ -64,21 +65,43 @@ interface OsrmStep {
   }
 }
 
-interface OsrmRoute {
+interface NavigationRoute {
   distance: number  // metres total
   duration: number  // seconds total
-  legs: Array<{ steps: OsrmStep[] }>
+  legs: Array<{ steps: RouteStep[] }>
 }
 
-interface OsrmResponse {
-  code: string
-  routes?: OsrmRoute[]
-  message?: string
+interface InHouseWaypoint {
+  lat: number
+  lng: number
+  label?: string
+}
+
+interface InHouseRoutePlanResponse {
+  status?: string
+  provider?: string
+  orderedWaypoints?: InHouseWaypoint[]
+  route?: {
+    estimatedDistanceKm?: number
+    legs?: Array<{
+      from?: InHouseWaypoint
+      to?: InHouseWaypoint
+      distanceKm?: number
+    }>
+  }
+  support?: {
+    google?: {
+      estimatedDriveDurationMin?: number
+      note?: string
+    }
+  }
+  error?: string
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const OSRM_BASE = 'https://router.project-osrm.org/route/v1/driving'
+const INHOUSE_ROUTE_PLAN_BASE = (import.meta.env.VITE_MAPPING_GATEWAY_URL as string | undefined)?.trim() || '/mapping-gateway'
+const INHOUSE_AVG_SPEED_KMH = 45
 
 function formatDist(m: number): string {
   return m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.round(m)} m`
@@ -102,6 +125,85 @@ function maneuverIcon(type: string, modifier?: string): string {
   return '↑'
 }
 
+function estimateDurationSeconds(distanceMeters: number): number {
+  const distanceKm = distanceMeters / 1000
+  const hours = distanceKm / INHOUSE_AVG_SPEED_KMH
+  return Math.max(60, Math.round(hours * 3600))
+}
+
+function buildLocalFallbackRoute(origin: InHouseWaypoint, destination: InHouseWaypoint): NavigationRoute {
+  const dLat = destination.lat - origin.lat
+  const dLng = destination.lng - origin.lng
+  const distanceMeters = Math.max(1, Math.round(Math.sqrt((dLat * dLat) + (dLng * dLng)) * 111_000))
+  const duration = estimateDurationSeconds(distanceMeters)
+
+  return {
+    distance: distanceMeters,
+    duration,
+    legs: [{
+      steps: [
+        {
+          distance: distanceMeters,
+          duration,
+          name: destination.label || `${destination.lat.toFixed(5)}, ${destination.lng.toFixed(5)}`,
+          maneuver: { type: 'depart' },
+        },
+        {
+          distance: 0,
+          duration: 0,
+          name: destination.label || 'Destination',
+          maneuver: { type: 'arrive' },
+        },
+      ],
+    }],
+  }
+}
+
+function normalizeInHouseRoute(payload: InHouseRoutePlanResponse): NavigationRoute | null {
+  const waypoints = payload.orderedWaypoints ?? []
+  if (waypoints.length < 2) return null
+
+  const rawLegs = payload.route?.legs ?? []
+  const steps: RouteStep[] = rawLegs.map((leg, index) => {
+    const distanceMeters = Math.max(1, Math.round((leg.distanceKm ?? 0) * 1000))
+    const estimatedDuration = estimateDurationSeconds(distanceMeters)
+    const targetLabel = leg.to?.label || `${leg.to?.lat?.toFixed?.(5) ?? ''}, ${leg.to?.lng?.toFixed?.(5) ?? ''}`
+
+    return {
+      distance: distanceMeters,
+      duration: estimatedDuration,
+      name: targetLabel,
+      maneuver: { type: index === 0 ? 'depart' : 'turn' },
+    }
+  })
+
+  if (steps.length === 0) {
+    return null
+  }
+
+  const estimatedDistanceMeters = Math.max(1, Math.round((payload.route?.estimatedDistanceKm ?? 0) * 1000))
+  const supportDurationSeconds = payload.support?.google?.estimatedDriveDurationMin
+    ? Math.max(60, Math.round(payload.support.google.estimatedDriveDurationMin * 60))
+    : null
+  const totalDurationSeconds = supportDurationSeconds ?? steps.reduce((sum, step) => sum + step.duration, 0)
+
+  return {
+    distance: estimatedDistanceMeters,
+    duration: totalDurationSeconds,
+    legs: [{
+      steps: [
+        ...steps,
+        {
+          distance: 0,
+          duration: 0,
+          name: waypoints[waypoints.length - 1]?.label || 'Destination',
+          maneuver: { type: 'arrive' },
+        },
+      ],
+    }],
+  }
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function PatrolNavigation() {
@@ -120,9 +222,10 @@ export default function PatrolNavigation() {
   const [customDest, setCustomDest] = useState('')  // "lat,lng"
 
   // Route
-  const [route, setRoute] = useState<OsrmRoute | null>(null)
+  const [route, setRoute] = useState<NavigationRoute | null>(null)
   const [routeError, setRouteError] = useState<string | null>(null)
   const [routeLoading, setRouteLoading] = useState(false)
+  const [routeProvider, setRouteProvider] = useState('')
 
   // ── Zone data ──────────────────────────────────────────────────────────────
   const { data: zones = [] } = useQuery<ZoneRow[]>({
@@ -165,6 +268,7 @@ export default function PatrolNavigation() {
   async function calculateRoute() {
     setRouteError(null)
     setRoute(null)
+    setRouteProvider('')
 
     // Resolve origin
     let originLat: number, originLng: number
@@ -183,7 +287,7 @@ export default function PatrolNavigation() {
     let destLat: number, destLng: number
     if (destMode === 'zone') {
       const zone = zones.find(z => z.id === selectedZoneId)
-      if (!zone?.location_lat || !zone?.location_lng) { toast.error('Select a zone with GPS coordinates'); return }
+      if (zone?.location_lat == null || zone?.location_lng == null) { toast.error('Select a zone with GPS coordinates'); return }
       destLat = zone.location_lat
       destLng = zone.location_lng
     } else {
@@ -195,26 +299,105 @@ export default function PatrolNavigation() {
 
     setRouteLoading(true)
     try {
-      const url = `${OSRM_BASE}/${originLng},${originLat};${destLng},${destLat}?overview=false&steps=true`
-      const resp = await fetch(url)
-      const data: OsrmResponse = await resp.json()
-      if (data.code !== 'Ok' || !data.routes?.length) {
-        setRouteError(data.message ?? 'No route found')
-      } else {
-        setRoute(data.routes[0])
+      const origin: InHouseWaypoint = {
+        lat: originLat,
+        lng: originLng,
+        label: 'Current position',
       }
+      const destination: InHouseWaypoint = {
+        lat: destLat,
+        lng: destLng,
+        label: destMode === 'zone'
+          ? (zones.find((z) => z.id === selectedZoneId)?.name || 'Patrol zone')
+          : 'Custom destination',
+      }
+
+      const routePlanUrl = `${INHOUSE_ROUTE_PLAN_BASE.replace(/\/+$/, '')}/route-plan`
+      const response = await fetch(routePlanUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          waypoints: [origin, destination],
+          includeTraffic: true,
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error('In-house mapping gateway request failed')
+      }
+
+      const payload = (await response.json()) as InHouseRoutePlanResponse
+      const normalized = normalizeInHouseRoute(payload)
+
+      if (!normalized) {
+        throw new Error(payload.error || 'No route returned by in-house mapping gateway')
+      }
+
+      setRoute(normalized)
+      setRouteProvider(payload.provider || 'in_house_mapping_gateway')
     } catch {
-      setRouteError('Failed to reach routing service. Check your network connection.')
+      // Deterministic in-app fallback to keep patrol navigation operational if the gateway is unavailable.
+      let fallbackOrigin: InHouseWaypoint | null = null
+      let fallbackDestination: InHouseWaypoint | null = null
+
+      if (originMode === 'gps' && gpsCoords) {
+        fallbackOrigin = { lat: gpsCoords.lat, lng: gpsCoords.lng, label: 'Current position' }
+      } else if (originMode === 'manual') {
+        const [lat, lng] = manualOrigin.split(',').map(Number)
+        if (!isNaN(lat) && !isNaN(lng)) {
+          fallbackOrigin = { lat, lng, label: 'Manual origin' }
+        }
+      }
+
+      if (destMode === 'zone') {
+        const zone = zones.find((z) => z.id === selectedZoneId)
+        if (zone?.location_lat != null && zone?.location_lng != null) {
+          fallbackDestination = { lat: zone.location_lat, lng: zone.location_lng, label: zone.name }
+        }
+      } else {
+        const [lat, lng] = customDest.split(',').map(Number)
+        if (!isNaN(lat) && !isNaN(lng)) {
+          fallbackDestination = { lat, lng, label: 'Custom destination' }
+        }
+      }
+
+      if (fallbackOrigin && fallbackDestination) {
+        setRoute(buildLocalFallbackRoute(fallbackOrigin, fallbackDestination))
+        setRouteProvider('inbuilt-patrol-route-engine')
+        toast.warning('Using in-app fallback routing while gateway is unavailable')
+      } else {
+        setRouteError('Failed to calculate route using in-house mapping. Check connectivity and coordinates.')
+      }
     } finally {
       setRouteLoading(false)
     }
   }
 
-  function copyGoogleMapsLink() {
-    const destZone = zones.find(z => z.id === selectedZoneId)
-    if (!destZone?.location_lat) { toast.error('No destination selected'); return }
-    const url = `https://www.google.com/maps/dir/?api=1&destination=${destZone.location_lat},${destZone.location_lng}&travelmode=driving`
-    navigator.clipboard.writeText(url).then(() => toast.success('Google Maps link copied'))
+  function copyInHouseMapTarget() {
+    let lat: number | null = null
+    let lng: number | null = null
+
+    if (destMode === 'zone') {
+      const destZone = zones.find((z) => z.id === selectedZoneId)
+      lat = destZone?.location_lat ?? null
+      lng = destZone?.location_lng ?? null
+    } else {
+      const [parsedLat, parsedLng] = customDest.split(',').map(Number)
+      if (!isNaN(parsedLat) && !isNaN(parsedLng)) {
+        lat = parsedLat
+        lng = parsedLng
+      }
+    }
+
+    if (lat == null || lng == null) {
+      toast.error('No destination selected')
+      return
+    }
+
+    const url = buildPreferredMapUrlForCoordinates(lat, lng)
+    navigator.clipboard.writeText(url).then(() => toast.success('In-house map target copied'))
   }
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -353,8 +536,8 @@ export default function PatrolNavigation() {
               <RotateCcw className="h-4 w-4" />
             </Button>
           )}
-          {destMode === 'zone' && selectedZoneId && (
-            <Button variant="outline" onClick={copyGoogleMapsLink} title="Copy Google Maps link">
+          {((destMode === 'zone' && selectedZoneId) || (destMode === 'custom' && customDest.trim().length > 0)) && (
+            <Button variant="outline" onClick={copyInHouseMapTarget} title="Copy in-house map target">
               <Copy className="h-4 w-4" />
             </Button>
           )}
@@ -383,6 +566,12 @@ export default function PatrolNavigation() {
                   <p className="text-2xl font-bold">{formatDuration(route.duration)}</p>
                   <p className="text-xs text-muted-foreground">Estimated drive time</p>
                 </div>
+                {routeProvider && (
+                  <div>
+                    <p className="text-sm font-semibold">In-house map provider</p>
+                    <p className="text-xs text-muted-foreground font-mono">{routeProvider}</p>
+                  </div>
+                )}
               </CardContent>
             </Card>
 

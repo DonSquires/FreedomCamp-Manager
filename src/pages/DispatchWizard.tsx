@@ -49,11 +49,11 @@ const JOB_TYPE_OPTIONS: { value: string; label: string; group: string }[] = [
   { value: 'open',                 label: 'Open',                   group: 'Access' },
   { value: 'escort',               label: 'Escort',                 group: 'Security' },
   { value: 'cash_in_transit',      label: 'Cash In Transit',        group: 'Security' },
-  { value: 'welfare_check',        label: 'Welfare Check',          group: 'FieldOps' },
-  { value: 'noise_complaint',      label: 'Noise Complaint',        group: 'FieldOps' },
-  { value: 'freedom_camping',      label: 'Freedom Camping',        group: 'FieldOps' },
-  { value: 'parking',              label: 'Parking',                group: 'FieldOps' },
-  { value: 'general',              label: 'General',                group: 'FieldOps' },
+  { value: 'welfare_check',        label: 'Welfare Check',          group: 'Field Compliance' },
+  { value: 'noise_complaint',      label: 'Noise Complaint',        group: 'Field Compliance' },
+  { value: 'freedom_camping',      label: 'Freedom Camping',        group: 'Field Compliance' },
+  { value: 'parking',              label: 'Parking',                group: 'Field Compliance' },
+  { value: 'general',              label: 'General',                group: 'Field Compliance' },
 ]
 
 const ALARM_TYPE_OPTIONS = [
@@ -379,7 +379,7 @@ export default function DispatchWizard() {
                   <Select value={state.job_type} onValueChange={v => setState(s => ({ ...s, job_type: v, alarm_type: '' }))}>
                     <SelectTrigger><SelectValue placeholder="Select job type…" /></SelectTrigger>
                     <SelectContent>
-                      {(['Alarm', 'Patrol', 'Keys', 'Access', 'Security', 'FieldOps'] as const).map(grp => {
+                      {(['Alarm', 'Patrol', 'Keys', 'Access', 'Security', 'Field Compliance'] as const).map(grp => {
                         const items = JOB_TYPE_OPTIONS.filter(o => o.group === grp)
                         if (!items.length) return null
                         return (

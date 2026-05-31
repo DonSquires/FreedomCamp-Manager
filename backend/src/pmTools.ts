@@ -11,33 +11,46 @@ function requireEnv(name: string): string {
 }
 
 function resolveRepoConfig() {
-  const baseUrl = String(process.env.GITEA_URL ?? process.env.GITEA_BASE_URL ?? '').trim();
-  const token = String(
-    process.env.GITEA_ADMIN_TOKEN ?? process.env.GITEA_TOKEN ?? process.env.GITEA_API_TOKEN ?? '',
+  const giteaBase = String(process.env.GITEA_URL ?? process.env.GITEA_BASE_URL ?? process.env.GITEA_API_URL ?? '').trim();
+  const giteaToken = String(
+    process.env.GITEA_ADMIN_TOKEN ?? process.env.GITEA_TOKEN ?? process.env.GITEA_API_TOKEN ?? process.env.GITEA_ACCESS_TOKEN ?? '',
   ).trim();
-  const owner = String(process.env.GITEA_OWNER ?? '').trim();
-  const repo = String(process.env.GITEA_REPO ?? '').trim();
+  const githubApiUrl = String(process.env.GITHUB_API_URL ?? '').trim();
+  const githubServerUrl = String(process.env.GITHUB_SERVER_URL ?? '').trim();
+  const githubToken = String(process.env.GITHUB_TOKEN ?? process.env.GH_TOKEN ?? process.env.BOB_WORKER_GITHUB_TOKEN ?? '').trim();
+  const usingGitea = Boolean(giteaBase && giteaToken);
+
+  const baseUrl = usingGitea
+    ? giteaBase
+    : (githubApiUrl || (githubServerUrl ? (githubServerUrl.includes('github.com') ? 'https://api.github.com' : `${githubServerUrl.replace(/\/+$/, '')}/api/v3`) : ''));
+
+  const token = usingGitea ? giteaToken : githubToken;
+
+  const repoPair = String(process.env.GITEA_REPOSITORY ?? process.env.GITHUB_REPOSITORY ?? '').trim();
+  const [pairOwner, pairRepo] = repoPair.includes('/') ? repoPair.split('/', 2) : ['', ''];
+  const owner = String(process.env.GITEA_OWNER ?? pairOwner ?? '').trim();
+  const repo = String(process.env.GITEA_REPO ?? pairRepo ?? '').trim();
   const baseBranch = String(process.env.GITEA_BASE_BRANCH ?? 'main').trim();
 
   if (!baseUrl) {
-    throw new Error('Missing GITEA_URL (or GITEA_BASE_URL).');
+    throw new Error('Missing repository API base URL (GITEA_BASE_URL/GITEA_URL or GITHUB_API_URL).');
   }
   if (!token) {
-    throw new Error('Missing GITEA_ADMIN_TOKEN (or GITEA_TOKEN / GITEA_API_TOKEN).');
+    throw new Error('Missing repository API token (GITEA_TOKEN family or GITHUB_TOKEN).');
   }
   if (!owner || !repo) {
-    throw new Error('Missing GITEA_OWNER and/or GITEA_REPO.');
+    throw new Error('Missing repository owner/repo (GITEA_OWNER/GITEA_REPO or GITHUB_REPOSITORY).');
   }
 
-  return { baseUrl, token, owner, repo, baseBranch };
+  return { baseUrl, token, owner, repo, baseBranch, usingGitea };
 }
 
 function getGiteaClient(): AxiosInstance {
-  const { baseUrl, token } = resolveRepoConfig();
+  const { baseUrl, token, usingGitea } = resolveRepoConfig();
   return axios.create({
-    baseURL: baseUrl.replace(/\/$/, ''),
+    baseURL: usingGitea && !baseUrl.endsWith('/api/v1') ? `${baseUrl.replace(/\/$/, '')}/api/v1` : baseUrl.replace(/\/$/, ''),
     headers: {
-      Authorization: `token ${token}`,
+      Authorization: usingGitea ? `token ${token}` : `Bearer ${token}`,
       'Content-Type': 'application/json',
       Accept: 'application/json',
     },

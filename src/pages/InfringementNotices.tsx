@@ -365,7 +365,7 @@ export default function InfringementNotices() {
 
       const { data, error } = await withTimeout(
         edgeFunctions.generateInfringement(body),
-        30000,
+        45000,
         'Notice generation timed out. Please retry.',
       )
       if (error) throw new Error(error)
@@ -437,7 +437,7 @@ export default function InfringementNotices() {
     try {
       const { data, error } = await withTimeout(
         edgeFunctions.renderInfringementNotice({ notice_id: noticeId }),
-        25000,
+        45000,
         'Ticket render timed out. Please try again.',
       )
       if (error) throw new Error(error)

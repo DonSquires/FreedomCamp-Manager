@@ -24,7 +24,7 @@ npm run dev                   # http://localhost:5173
 ```
 
 For the original full from-zero baseline, use [docs/NEW_PROJECT_SETUP.md](docs/NEW_PROJECT_SETUP.md).
-For browser-only deployment steps, use [ONLINE_DEPLOYMENT_GUIDE.md](ONLINE_DEPLOYMENT_GUIDE.md).
+For production deployment steps, use [docs/DEPLOYMENT_GUIDE.md](docs/DEPLOYMENT_GUIDE.md).
 For Bob RunPod setup and daily Codespaces operations, use [README_RUNPOD.md](README_RUNPOD.md).
 
 ## Governance Gates & Authorization Enforcement
@@ -47,21 +47,19 @@ npm run data:check:transportation-endpoints   # Vehicle/ALPR endpoints
 
 ## Mobile Deployment Guardrails (EAS)
 
-The GitHub Actions workflow [`.github/workflows/deploy-mobile.yml`](.github/workflows/deploy-mobile.yml) supports safe manual dispatch and CI-triggered builds.
+This section is currently historical documentation.
 
-Release manager runbook: [docs/MOBILE_DEPLOY_WORKFLOW_DISPATCH_CHECKLIST.md](docs/MOBILE_DEPLOY_WORKFLOW_DISPATCH_CHECKLIST.md)
+The workflow files previously referenced here are not present in the current `.github/workflows/` directory snapshot:
+- `.github/workflows/deploy-mobile.yml`
+- `.github/workflows/mobile-preflight.yml`
+- `.github/workflows/mobile-preflight-self-test.yml`
 
-Reusable preflight workflow: [.github/workflows/mobile-preflight.yml](.github/workflows/mobile-preflight.yml)
-Preflight self-test workflow: [.github/workflows/mobile-preflight-self-test.yml](.github/workflows/mobile-preflight-self-test.yml)
-
-The main deploy workflow [.github/workflows/deploy-mobile.yml](.github/workflows/deploy-mobile.yml) now delegates input/secret/routing validation to this reusable preflight to keep policy logic centralized.
+Do not treat the mobile workflow instructions below as executable until those workflow files are restored.
 
 ### Mobile Policy Layer
 
-- Canonical validation: [.github/workflows/mobile-preflight.yml](.github/workflows/mobile-preflight.yml)
-- Self-test coverage: [.github/workflows/mobile-preflight-self-test.yml](.github/workflows/mobile-preflight-self-test.yml)
 - Release dispatch runbook: [docs/MOBILE_DEPLOY_WORKFLOW_DISPATCH_CHECKLIST.md](docs/MOBILE_DEPLOY_WORKFLOW_DISPATCH_CHECKLIST.md)
-- Deploy entrypoint: [.github/workflows/deploy-mobile.yml](.github/workflows/deploy-mobile.yml)
+- Current repo state: no checked-in mobile deploy workflow is available.
 
 ### Valid profiles and expected outputs
 
@@ -97,31 +95,7 @@ Each workflow run now emits a summary decision outcome in GitHub Actions:
 
 ### Reusable preflight usage
 
-Run manually from Actions by triggering **Mobile Deploy Preflight**, or call it from another workflow:
-
-```yaml
-jobs:
-  mobile-preflight:
-    uses: ./.github/workflows/mobile-preflight.yml
-    with:
-      mobile_platform: android
-      mobile_profile: staging
-      dry_run: true
-      fail_on_missing: true
-    secrets: inherit
-```
-
-Workflow-call outputs exposed by preflight:
-
-- `decision_outcome`
-- `missing_secrets`
-- `platform`
-- `profile`
-- `ota_branch`
-
-CI safety test:
-
-- The self-test workflow [`.github/workflows/mobile-preflight-self-test.yml`](.github/workflows/mobile-preflight-self-test.yml) runs dry-run validation cases plus one negative case to protect policy logic from regressions.
+Historical note only: the reusable preflight and self-test workflows referenced in older rollout notes are not checked into the current repository snapshot.
 
 ### OTA update branch mapping
 
@@ -132,6 +106,13 @@ CI safety test:
 This prevents publishing updates to non-existent or incorrect EAS update branches.
 
 ## Recent Deployments
+
+### Officer Shell Unification (May 2026) ✅ Deployed
+Specialist officer portals now use a single mobile-first shell for consistent behavior across officer workflows, while still supporting wide desktop layouts.
+- **Status**: Merged to `main` (PR #801)
+- **Coverage**: Field Officer, Parking, Noise, Biosecurity, Smoke Complaint, Site Guard, and EMS portals
+- **Implementation**: `OfficerShell` now supports optional `contentClassName` for per-portal width control
+- **Key files**: `src/components/features/OfficerShell.tsx`, `src/pages/FieldOfficerPortal.tsx`, `src/pages/ParkingOfficerPortal.tsx`, `src/pages/NoiseOfficerPortal.tsx`, `src/pages/BiosecurityOfficerPortal.tsx`, `src/pages/SmokeComplaintOfficerPortal.tsx`, `src/pages/SiteGuardPortal.tsx`, `src/pages/EMSPortal.tsx`
 
 ### Training Feature (May 2026) ✅ Deployed
 Pre-shift training assignment automation, competency grants, and multi-channel reminders.
@@ -189,11 +170,16 @@ a full guide including step-by-step recovery and prevention tips.
 
 ## Deployment with Vercel — CI/CD Secret Setup
 
-The repository ships a GitHub Actions workflow
-(`.github/workflows/deploy-vercel.yml`) that builds and deploys the web admin
-portal to Vercel on every push to `main`.  The workflow requires **three
-repository secrets** to authenticate with the Vercel CLI.  Without them the
-deployment step is skipped and you will see errors such as:
+The README previously referenced `.github/workflows/deploy-vercel.yml`, but that
+workflow file is not present in the current repository snapshot.
+
+Current observed state:
+- Vercel GitHub integration is active for pull request previews.
+- Production web deployment should be treated as Vercel-managed on merge to `main` unless a checked-in GitHub Actions deploy workflow is restored.
+
+If you restore a GitHub Actions based Vercel deploy flow later, the following
+secret guidance remains applicable. Without those credentials the deployment
+step would be skipped and you would see errors such as:
 
 ```
 Error: No existing credentials found. Please run `vercel login` or pass
@@ -249,9 +235,8 @@ VERCEL_PROJECT_ID) — deployment skipped.
    - **Name:** `VERCEL_ORG_ID` — **Value:** your team/account ID from Step 2.
    - **Name:** `VERCEL_PROJECT_ID` — **Value:** your project ID from Step 2.
 
-After saving all three secrets, push a commit to `main` (or manually trigger
-the workflow from **Actions → Deploy to Vercel → Run workflow**) to verify
-that the deployment succeeds.
+After saving all three secrets, merge a commit to `main` or verify that Vercel's
+GitHub integration is linked to this repository and project.
 
 ### Step 4 — Set build environment variables (optional)
 
@@ -287,7 +272,7 @@ Vercel's integration handles the deployment independently.
 - [docs/CAPABILITY_OVERVIEW.md](docs/CAPABILITY_OVERVIEW.md) — full platform capability guide for service providers and clients (start here if you are evaluating the platform)
 - [docs/NEW_PROJECT_SETUP.md](docs/NEW_PROJECT_SETUP.md) — original baseline plan for full new-project provisioning
 - [docs/DEPLOYMENT_GUIDE.md](docs/DEPLOYMENT_GUIDE.md) — operational companion for rollout checks and drift recovery
-- [ONLINE_DEPLOYMENT_GUIDE.md](ONLINE_DEPLOYMENT_GUIDE.md) — browser-only deployment walkthrough (Supabase + Vercel + Railway)
+- [docs/DEPLOYMENT_GUIDE.md](docs/DEPLOYMENT_GUIDE.md) — production deployment walkthrough (Supabase + Vercel + Railway)
 - [`docs/JURISDICTION_BOUNDARY_SETUP.md`](docs/JURISDICTION_BOUNDARY_SETUP.md) —
   bulk setup for NZ jurisdiction boundaries (GeoBoundaries/Stats NZ source)
 - [Vercel token management](https://vercel.com/account/tokens)

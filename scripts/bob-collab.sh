@@ -13,9 +13,9 @@ set +a
 #   ask      - Ask Bob a direct question via /chat
 #   plan     - Ask Bob for analysis + implementation plan
 #   research - Ask Bob for a web-research brief + implementation mapping
-#   queue    - Queue a coding task for Bob via /code/task
+#   queue    - Queue a coding task for Bob (REST /code/task or serverless runsync action)
 #   hybrid   - Ask Bob for plan, then queue task in one command
-#   queue-run  - Queue a coding task, then trigger ops-bob-code-task workflow
+#   queue-run  - Queue a coding task, then trigger ops-bob-code-task workflow (if present)
 #   hybrid-run - Ask Bob for plan, queue task, then trigger workflow
 #
 # Required env vars:
@@ -129,6 +129,62 @@ normalize_runsync_url() {
   fi
 }
 
+is_runpod_serverless_url() {
+  local url="$1"
+  [[ "$url" =~ ^https://api\.runpod\.ai/v2/[^/]+(/runsync)?$ ]]
+}
+
+runpod_status_url() {
+  local runsync_url="$1"
+  local job_id="$2"
+  local base
+  base="${runsync_url%/}"
+  base="${base%/runsync}"
+  echo "$base/status/$job_id"
+}
+
+poll_runpod_job() {
+  local runsync_url="$1"
+  local job_id="$2"
+  local attempts="${3:-40}"
+  local interval_seconds="${4:-3}"
+  local url
+  url=$(runpod_status_url "$runsync_url" "$job_id")
+
+  for _ in $(seq 1 "$attempts"); do
+    local out
+    local status
+
+    out=$(curl -sS --max-time 25 \
+      -H "Authorization: Bearer $API_KEY" \
+      -H "x-inference-api-key: $API_KEY" \
+      "$url" 2>/dev/null || true)
+
+    if ! is_json "$out"; then
+      sleep "$interval_seconds"
+      continue
+    fi
+
+    status=$(jq -r '.status // ""' <<<"$out")
+    case "$status" in
+      COMPLETED|FAILED|CANCELLED|TIMED_OUT)
+        echo "$out"
+        return 0
+        ;;
+      *)
+        ;;
+    esac
+
+    sleep "$interval_seconds"
+  done
+
+  jq -n \
+    --arg id "$job_id" \
+    --arg status "IN_QUEUE" \
+    --arg mode "serverless-pending" \
+    --arg warning "RunPod job accepted but did not reach terminal status within polling window." \
+    '{success:true,accepted:true,id:$id,status:$status,mode:$mode,warning:$warning}'
+}
 to_json_file_array() {
   local csv="$1"
   if [[ -z "$csv" ]]; then
@@ -410,9 +466,83 @@ queue_code_task() {
     --arg requested_by "copilot-bob-collab" \
     '{task: $task, priority: (if $priority == "high" then "high" else "normal" end), target_files: $target_files, requested_by: $requested_by}')
 
+  local normalized_base="${BASE_URL%/}"
+  if is_runpod_serverless_url "$normalized_base"; then
+    local runsync_url
+    runsync_url=$(normalize_runsync_url "$normalized_base")
+
+    local runsync_payload
+    runsync_payload=$(jq -n \
+      --arg task "$task" \
+      --arg priority "$priority" \
+      --argjson target_files "$files_json" \
+      --arg requested_by "copilot-bob-collab" \
+      '{input:{action:"code_task_submit",task:$task,priority:(if $priority == "high" then "high" else "normal" end),target_files:$target_files,requested_by:$requested_by}}')
+
+    local response
+    response=$(curl -sS --max-time 60 \
+      -X POST "$runsync_url" \
+      -H 'Content-Type: application/json' \
+      -H "Authorization: Bearer $API_KEY" \
+      -H "x-inference-api-key: $API_KEY" \
+      -d "$runsync_payload" 2>/dev/null || true)
+
+    if is_json "$response"; then
+      local queued_status
+      queued_status=$(jq -r '.status // ""' <<<"$response")
+      if [[ "$queued_status" == "IN_QUEUE" || "$queued_status" == "IN_PROGRESS" ]]; then
+        local job_id
+        local poll_attempts
+        local poll_interval
+        job_id=$(jq -r '.id // ""' <<<"$response")
+        poll_attempts="${BOB_QUEUE_POLL_ATTEMPTS:-40}"
+        poll_interval="${BOB_QUEUE_POLL_INTERVAL_SECONDS:-3}"
+        if [[ -n "$job_id" ]]; then
+          poll_runpod_job "$runsync_url" "$job_id" "$poll_attempts" "$poll_interval" | jq .
+          return 0
+        fi
+      fi
+      local serverless_error
+      serverless_error=$(jq -r '.error // .output?.error // ""' <<<"$response")
+      if grep -qi 'Unknown action: code_task_submit' <<<"$serverless_error"; then
+        local fallback_prompt
+        fallback_prompt=$(cat <<EOF
+You are Doctor Bob. The runtime endpoint is serverless-only and does not expose code_task_submit queue actions.
+Create an execution-ready code-change brief for this task so Copilot can apply it immediately.
+Return strictly:
+1) Root-cause summary
+2) Minimal patch plan (file-by-file)
+3) Acceptance checks (exact commands)
+Task: $task
+Priority: $priority
+Target files: ${files_csv:-none specified}
+EOF
+)
+
+        local fallback_text
+        fallback_text=$(call_chat "$fallback_prompt")
+
+        jq -n \
+          --arg status "fallback" \
+          --arg mode "serverless-chat" \
+          --arg warning "Serverless endpoint rejected code_task_submit; generated Bob execution brief instead." \
+          --arg error "$serverless_error" \
+          --arg brief "$fallback_text" \
+          '{success:false,status:$status,mode:$mode,warning:$warning,error:$error,brief:$brief}'
+        return 0
+      fi
+      jq . <<<"$response"
+      return 0
+    fi
+
+    echo "$response"
+    return 0
+  fi
+
   curl -sS --max-time 60 \
-    -X POST "$BASE_URL/code/task" \
+    -X POST "$normalized_base/code/task" \
     -H 'Content-Type: application/json' \
+    -H "Authorization: Bearer $API_KEY" \
     -H "x-inference-api-key: $API_KEY" \
     -d "$payload" \
     | jq
@@ -428,6 +558,11 @@ trigger_bob_code_task_workflow() {
 
   if ! gh auth status >/dev/null 2>&1 && [[ -z "${GH_TOKEN:-}" ]]; then
     echo "⚠️  gh is not authenticated and GH_TOKEN is not set; task is queued but workflow was not triggered." >&2
+    return 0
+  fi
+
+  if ! gh workflow view ops-bob-code-task.yml >/dev/null 2>&1; then
+    echo "⚠️  ops-bob-code-task.yml does not exist in this repo; task queued without workflow trigger." >&2
     return 0
   fi
 

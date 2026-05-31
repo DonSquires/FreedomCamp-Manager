@@ -537,7 +537,7 @@ export function AdminNavigationMenu() {
               className="h-7 w-7 rounded object-cover"
             />
             <span className="font-semibold text-gray-900 dark:text-white hidden sm:block text-sm">
-              FieldOps
+              Field Compliance Manager
             </span>
           </Link>
 
@@ -587,7 +587,7 @@ export function AdminNavigationMenu() {
                 <div className={MORE_DROPDOWN_CLS}>
                   {resolvedMoreGroups.map((group) => (
                     <div key={group.label} className="min-w-0">
-                      <div className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide px-2 py-1 mt-1">
+                      <div className="text-xs font-semibold text-gray-400 dark:text-gray-300 uppercase tracking-wide px-2 py-1 mt-1">
                         {group.label}
                       </div>
                       {group.links.map(({ to, label, icon: Icon }) => (
@@ -614,7 +614,7 @@ export function AdminNavigationMenu() {
           {/* User + logout */}
           <div className="flex items-center gap-2 ml-auto shrink-0">
             {user && (
-              <span className="text-xs text-gray-500 dark:text-gray-400 hidden lg:block max-w-[160px] truncate">
+              <span className="text-xs text-gray-500 dark:text-gray-300 hidden lg:block max-w-[160px] truncate">
                 {user.email}
               </span>
             )}

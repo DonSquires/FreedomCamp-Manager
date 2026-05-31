@@ -135,11 +135,26 @@ function json400(message: string, req: Request): Response {
 }
 
 function normalizeBaseUrl(raw?: string | null): string {
-  return String(raw ?? '').trim().replace(/\/+$/, '')
+  return String(raw ?? '').trim().replace(/\/+$/, '').replace(/\/(?:runsync|run)\/?$/i, '')
 }
 
 function isRunpodServerlessBaseUrl(url: string): boolean {
   return /https:\/\/api\.runpod\.ai\/v2\//i.test(String(url || ''))
+}
+
+function unknownActionMessage(data: any): string {
+  const candidates = [
+    data?.error,
+    data?.message,
+    data?.output?.error,
+    data?.output?.message,
+  ]
+  for (const value of candidates) {
+    if (typeof value === 'string' && /Unknown action:/i.test(value)) {
+      return value
+    }
+  }
+  return ''
 }
 
 async function runpodGraphql(apiKey: string, query: string) {
@@ -407,6 +422,23 @@ Deno.serve(async (req: Request) => {
       return { ok: resp.ok, status: resp.status, data: tryParse(text) }
     }
 
+    async function bobRunsync(action: string, payload: Record<string, unknown> = {}) {
+      const resp = await fetch(`${inferenceUrl}/runsync`, {
+        method: 'POST',
+        headers: bobHeaders,
+        body: JSON.stringify({
+          input: {
+            action,
+            ...payload,
+          },
+        }),
+      })
+      const text = await resp.text()
+      return { ok: resp.ok, status: resp.status, data: tryParse(text) }
+    }
+
+    const useRunpodServerlessRouting = isRunpodServerlessBaseUrl(inferenceUrl)
+
     // ── Route by action ──────────────────────────────────────────────────────
 
     if (action === 'code_task_submit') {
@@ -414,62 +446,214 @@ Deno.serve(async (req: Request) => {
       if (!task || typeof task !== 'string' || !task.trim()) {
         return json400('task must be a non-empty string describing what to build or fix', req)
       }
-      const result = await bobPost('/code/task', {
+      const payload = {
         task: task.trim(),
         context: context || undefined,
         target_files: Array.isArray(target_files) ? target_files : [],
         priority: priority === 'high' ? 'high' : 'normal',
         requested_by: user.email ?? user.id,
-      })
+      }
+      let result = useRunpodServerlessRouting
+        ? await bobRunsync('code_task_submit', payload)
+        : await bobPost('/code/task', payload)
+
+      if (useRunpodServerlessRouting) {
+        const unknownAction = unknownActionMessage(result.data)
+        if (unknownAction) {
+          const brief = await bobRunsync('plan', {
+            objective: `Create a concise execution-ready code-change plan for this task: ${payload.task}`,
+            task: payload.task,
+          })
+
+          result = {
+            ok: true,
+            status: 200,
+            data: {
+              success: false,
+              status: 'fallback',
+              mode: 'serverless-plan',
+              warning: 'Serverless endpoint does not support code_task_submit; generated a Bob execution plan instead.',
+              error: unknownAction,
+              plan: brief.data,
+              requested_task: payload,
+            },
+          }
+        }
+      }
       return proxyResponse(result, req)
     }
 
     if (action === 'code_tasks_list') {
-      const statusParam = body?.status ? `?status=${encodeURIComponent(String(body.status))}` : ''
-      const result = await bobGet(`/code/tasks${statusParam}`)
+      let result = useRunpodServerlessRouting
+        ? await bobRunsync('code_tasks_list', {
+            status: body?.status ? String(body.status) : undefined,
+          })
+        : await bobGet(`/code/tasks${body?.status ? `?status=${encodeURIComponent(String(body.status))}` : ''}`)
+
+      if (useRunpodServerlessRouting && unknownActionMessage(result.data)) {
+        result = {
+          ok: true,
+          status: 200,
+          data: {
+            success: true,
+            mode: 'serverless-no-queue',
+            tasks: [],
+            warning: 'Serverless endpoint does not expose queue list actions.',
+          },
+        }
+      }
       return proxyResponse(result, req)
     }
 
     if (action === 'code_task_get') {
       const { task_id } = body
       if (!task_id) return json400('task_id is required', req)
-      const result = await bobGet(`/code/tasks/${encodeURIComponent(String(task_id))}`)
+      let result = useRunpodServerlessRouting
+        ? await bobRunsync('code_task_get', { task_id: String(task_id) })
+        : await bobGet(`/code/tasks/${encodeURIComponent(String(task_id))}`)
+
+      if (useRunpodServerlessRouting && unknownActionMessage(result.data)) {
+        result = {
+          ok: true,
+          status: 200,
+          data: {
+            success: false,
+            mode: 'serverless-no-queue',
+            warning: 'Serverless endpoint does not expose queue get actions.',
+            task_id: String(task_id),
+          },
+        }
+      }
       return proxyResponse(result, req)
     }
 
     if (action === 'code_task_skip') {
       const { task_id } = body
       if (!task_id) return json400('task_id is required', req)
-      const result = await bobPost(`/code/tasks/${encodeURIComponent(String(task_id))}/skip`, {})
+      let result = useRunpodServerlessRouting
+        ? await bobRunsync('code_task_skip', { task_id: String(task_id) })
+        : await bobPost(`/code/tasks/${encodeURIComponent(String(task_id))}/skip`, {})
+
+      if (useRunpodServerlessRouting && unknownActionMessage(result.data)) {
+        result = {
+          ok: true,
+          status: 200,
+          data: {
+            success: false,
+            mode: 'serverless-no-queue',
+            warning: 'Serverless endpoint does not expose queue skip actions.',
+            task_id: String(task_id),
+          },
+        }
+      }
       return proxyResponse(result, req)
     }
 
     if (action === 'code_task_delete') {
       const { task_id } = body
       if (!task_id) return json400('task_id is required', req)
-      const result = await bobDelete(`/code/tasks/${encodeURIComponent(String(task_id))}`)
+      let result = useRunpodServerlessRouting
+        ? await bobRunsync('code_task_delete', { task_id: String(task_id) })
+        : await bobDelete(`/code/tasks/${encodeURIComponent(String(task_id))}`)
+
+      if (useRunpodServerlessRouting && unknownActionMessage(result.data)) {
+        result = {
+          ok: true,
+          status: 200,
+          data: {
+            success: false,
+            mode: 'serverless-no-queue',
+            warning: 'Serverless endpoint does not expose queue delete actions.',
+            task_id: String(task_id),
+          },
+        }
+      }
       return proxyResponse(result, req)
     }
 
     if (action === 'code_patterns') {
-      const result = await bobGet('/code/patterns')
+      let result = useRunpodServerlessRouting
+        ? await bobRunsync('code_patterns')
+        : await bobGet('/code/patterns')
+
+      if (useRunpodServerlessRouting && unknownActionMessage(result.data)) {
+        result = {
+          ok: true,
+          status: 200,
+          data: {
+            success: true,
+            mode: 'serverless-fallback',
+            patterns: [],
+            warning: 'Serverless endpoint does not expose code_patterns action.',
+          },
+        }
+      }
       return proxyResponse(result, req)
     }
 
     if (action === 'code_conventions') {
-      const result = await bobGet('/code/conventions')
+      let result = useRunpodServerlessRouting
+        ? await bobRunsync('code_conventions')
+        : await bobGet('/code/conventions')
+
+      if (useRunpodServerlessRouting && unknownActionMessage(result.data)) {
+        result = {
+          ok: true,
+          status: 200,
+          data: {
+            success: true,
+            mode: 'serverless-fallback',
+            conventions: [],
+            warning: 'Serverless endpoint does not expose code_conventions action.',
+          },
+        }
+      }
       return proxyResponse(result, req)
     }
 
     if (action === 'code_tech_stack') {
-      const result = await bobGet('/code/tech-stack')
+      let result = useRunpodServerlessRouting
+        ? await bobRunsync('code_tech_stack')
+        : await bobGet('/code/tech-stack')
+
+      if (useRunpodServerlessRouting && unknownActionMessage(result.data)) {
+        result = {
+          ok: true,
+          status: 200,
+          data: {
+            success: true,
+            mode: 'serverless-fallback',
+            tech_stack: [],
+            warning: 'Serverless endpoint does not expose code_tech_stack action.',
+          },
+        }
+      }
       return proxyResponse(result, req)
     }
 
     if (action === 'code_assist') {
       const { question } = body
       if (!question || typeof question !== 'string') return json400('question is required', req)
-      const result = await bobPost('/code/assist', { question: question.trim() })
+      let result = useRunpodServerlessRouting
+        ? await bobRunsync('code_assist', { question: question.trim() })
+        : await bobPost('/code/assist', { question: question.trim() })
+
+      if (useRunpodServerlessRouting && unknownActionMessage(result.data)) {
+        const chatFallback = await bobRunsync('chat', {
+          message: `Provide concise coding assistance for this question: ${question.trim()}`,
+        })
+        result = {
+          ok: true,
+          status: 200,
+          data: {
+            success: false,
+            status: 'fallback',
+            mode: 'serverless-chat',
+            warning: 'Serverless endpoint does not expose code_assist action; used chat fallback.',
+            response: chatFallback.data,
+          },
+        }
+      }
       return proxyResponse(result, req)
     }
 

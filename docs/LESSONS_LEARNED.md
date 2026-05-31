@@ -13,6 +13,27 @@ Use this file to record concrete mistakes Bob and Dr Bob found during adversaria
 
 ## Current Lessons
 
+- Date: 2026-05-30
+- Trigger: Broad timeout audit across user management and notice/dispatch flows after repeated "timed out" reports.
+- Mistake: Multiple pages wrapped edge-function mutations with local `Promise.race` timeouts shorter than the shared edge timeout/retry layer, causing premature UI failures before edge fallback logic completed.
+- Risk: False timeout errors, unnecessary fallback execution, duplicate retries, and noisy operator experience in high-latency periods.
+- Fix: Increased local edge-call wrappers in `src/pages/UserManagement.tsx`, `src/pages/InfringementNotices.tsx`, `src/pages/DispatchConsole.tsx`, `src/pages/PhotoReingest.tsx`, and `src/pages/TenderReferenceLibrary.tsx` so local timers no longer preempt shared edge handling.
+- Prevention Rule: Any page-level timeout around `edgeFunctions.*` must be greater than the shared edge timeout budget (or removed) to avoid double-timeout races.
+
+- Date: 2026-05-30
+- Trigger: Follow-up tree review after timeout-storm mitigation on Platform health polling.
+- Mistake: Secondary health status consumers (`OfficerShell`, `HealthBanner`, `SystemHealthIndicator`) still used `inferenceService.checkServicesHealth()` without in-flight dedupe/cache, so concurrent poll windows could still fan out duplicate edge health calls.
+- Risk: Repeated background health calls can amplify transient edge slowdowns into user-visible degradation and unnecessary load.
+- Fix: Added in-flight request dedupe plus short success TTL and error backoff cache in `src/lib/inferenceService.ts` so concurrent pollers share one request path.
+- Prevention Rule: Any shared health helper used by multiple components must include dedupe + cache/backoff and avoid per-component transport retries/toasts.
+
+- Date: 2026-05-30
+- Trigger: Platform header repeatedly showed "Edge function request timed out after 35s" while live polling was active.
+- Mistake: Multiple independent health pollers queried the same `check-services-health` edge function concurrently, then surfaced the raw timeout string directly in UI status labels.
+- Risk: Timeout storms created noisy degraded UX, repeated edge load, and misleading incident signals even when core app routes remained usable.
+- Fix: Added client-side health-call in-flight dedupe + short TTL caching + timeout backoff in `src/lib/proxyServices.ts`, unified Bob health query keys to share React Query cache in `src/hooks/usePTTAutoConnect.ts`, and normalized timeout text in `src/components/features/AppLayout.tsx`.
+- Prevention Rule: Any background health polling must share a single request path with dedupe/cache/backoff and must never render raw transport timeout text directly to users.
+
 - Date: 2026-05-24
 - Trigger: User directive to stop non-coding auto-closures and teach Dr Bob endpoint/env/load/wiring triage.
 - Mistake: Non-coding incidents (endpoint URL mistakes, API-key-vs-URL confusion, env misconfiguration, failed-load signatures, and wrong wiring direction) could be returned as `resolve` by model output and applied too early.

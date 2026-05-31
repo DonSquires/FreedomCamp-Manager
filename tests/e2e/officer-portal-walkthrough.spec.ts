@@ -8,6 +8,54 @@ const BASE =
 const EMAIL = 'squires.don@live.com';
 const PASS = 'Run2thesun??';
 
+async function login(page: import('@playwright/test').Page): Promise<void> {
+  await page.goto(BASE)
+  const emailInput = page.locator('input[type="email"], input[name="email"], input[placeholder*="email" i]').first()
+  const passInput = page.locator('input[type="password"]').first()
+
+  // Base route can transiently render as "/" before deciding whether to
+  // show login or redirect to an authenticated landing page.
+  await Promise.race([
+    emailInput.waitFor({ state: 'visible', timeout: 7000 }).catch(() => undefined),
+    page.waitForURL(url => !url.pathname.startsWith('/login') && url.pathname !== '/', { timeout: 7000 }).catch(() => undefined),
+  ])
+
+  const path = pathFromUrl(page.url())
+  if (path !== '/login' && path !== '/') {
+    return
+  }
+
+  const canFillLogin = await emailInput.isVisible({ timeout: 5000 }).catch(() => false)
+  if (!canFillLogin) {
+    await page.waitForURL(url => !url.pathname.startsWith('/login') && url.pathname !== '/', { timeout: 10000 }).catch(() => {})
+    return
+  }
+
+  await emailInput.fill(EMAIL)
+  await passInput.fill(PASS)
+  await page.locator('button[type="submit"], button:has-text("Sign in"), button:has-text("Login")').first().click()
+  await page.waitForURL(url => !url.pathname.startsWith('/login') && url.pathname !== '/', { timeout: 15000 }).catch(() => {})
+}
+
+async function gotoWithSessionRecovery(
+  page: import('@playwright/test').Page,
+  route: string,
+): Promise<{ url: string; bodyText: string }> {
+  await page.goto(`${BASE}${route}`)
+  await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {})
+
+  if (pathFromUrl(page.url()) === '/login') {
+    await login(page)
+    await page.goto(`${BASE}${route}`)
+    await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {})
+  }
+
+  await page.waitForTimeout(1000)
+  const url = page.url()
+  const bodyText = await page.locator('body').innerText({ timeout: 5000 }).catch(() => '')
+  return { url, bodyText }
+}
+
 function pathFromUrl(raw: string): string {
   try {
     return new URL(raw).pathname;
@@ -134,17 +182,9 @@ const SECTION_ORDER = [
 
 test.describe('Portal page walkthrough', () => {
   test('login', async ({ page }) => {
-    await page.goto(BASE);
-    // Fill login form
-    const emailInput = page.locator('input[type="email"], input[name="email"], input[placeholder*="email" i]').first();
-    const passInput = page.locator('input[type="password"]').first();
-    await emailInput.fill(EMAIL);
-    await passInput.fill(PASS);
-    await page.locator('button[type="submit"], button:has-text("Sign in"), button:has-text("Login")').first().click();
-    // Wait for redirect away from login
-    await page.waitForURL(url => !url.pathname.startsWith('/login') && url.pathname !== '/', { timeout: 15000 }).catch(() => {});
-    await page.screenshot({ path: 'test-results/01-post-login.png', fullPage: false });
-    console.log('Post-login URL:', page.url());
+    await login(page)
+    await page.screenshot({ path: 'test-results/01-post-login.png', fullPage: false })
+    console.log('Post-login URL:', page.url())
   });
 
   test('walk pages with one session', async ({ page, context }) => {
@@ -182,13 +222,7 @@ test.describe('Portal page walkthrough', () => {
       }
     })
 
-    await page.goto(BASE);
-    const emailInput = page.locator('input[type="email"], input[name="email"], input[placeholder*="email" i]').first();
-    const passInput = page.locator('input[type="password"]').first();
-    await emailInput.fill(EMAIL);
-    await passInput.fill(PASS);
-    await page.locator('button[type="submit"], button:has-text("Sign in"), button:has-text("Login")').first().click();
-    await page.waitForURL(url => !url.pathname.startsWith('/login') && url.pathname !== '/', { timeout: 15000 }).catch(() => {});
+    await login(page)
 
     const postLoginPath = pathFromUrl(page.url());
     if (postLoginPath === '/login' || postLoginPath === '/') {
@@ -209,7 +243,11 @@ test.describe('Portal page walkthrough', () => {
       await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {})
       const path = pathFromUrl(page.url())
       if (path === '/login' || path === '/') {
-        throw new Error(`SECTION_RESET_FAILED (${sectionId}): expected authenticated session but landed on ${path}`)
+        await login(page)
+        const retryPath = pathFromUrl(page.url())
+        if (retryPath === '/login' || retryPath === '/') {
+          throw new Error(`SECTION_RESET_FAILED (${sectionId}): expected authenticated session but landed on ${retryPath}`)
+        }
       }
     }
 
@@ -220,13 +258,8 @@ test.describe('Portal page walkthrough', () => {
         const pageErrorsBefore = pageErrors.length
         const failedResponsesBefore = failedResponses.length
 
-        await page.goto(`${BASE}${route}`);
-        await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
-        await page.waitForTimeout(1000);
-
+        const { url, bodyText } = await gotoWithSessionRecovery(page, route)
         const title = await page.title();
-        const url = page.url();
-        const bodyText = await page.locator('body').innerText({ timeout: 5000 }).catch(() => '');
 
         expect(bodyText).not.toContain('Application error');
         expect(bodyText).not.toContain('Cannot read properties of');

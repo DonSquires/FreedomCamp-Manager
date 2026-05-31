@@ -1,13 +1,13 @@
-let xlsxModulePromise: Promise<typeof import('xlsx')> | null = null
+let readExcelFileModulePromise: Promise<typeof import('read-excel-file')> | null = null
 let mammothModulePromise: Promise<typeof import('mammoth')> | null = null
 let pdfjsModulePromise: Promise<typeof import('pdfjs-dist')> | null = null
 let tesseractModulePromise: Promise<typeof import('tesseract.js')> | null = null
 
-async function getXlsxModule() {
-  if (!xlsxModulePromise) {
-    xlsxModulePromise = import('xlsx')
+async function getReadExcelFileModule() {
+  if (!readExcelFileModulePromise) {
+    readExcelFileModulePromise = import('read-excel-file')
   }
-  return xlsxModulePromise
+  return readExcelFileModulePromise
 }
 
 async function getMammothModule() {
@@ -96,13 +96,39 @@ export async function extractDocumentData(file: File, options: ExtractionOptions
     }
   }
 
-  if (['xls', 'xlsx'].includes(extension)) {
-    const XLSX = await getXlsxModule()
-    const buffer = await file.arrayBuffer()
-    const workbook = XLSX.read(buffer, { type: 'array' })
-    const sheetName = workbook.SheetNames[0]
-    const worksheet = workbook.Sheets[sheetName]
-    const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(worksheet, { defval: '' })
+  if (extension === 'xls') {
+    return {
+      text: '',
+      headers: [],
+      strategy: 'stage-only',
+      rationale: 'Legacy XLS parsing is disabled in browser for security hardening. Convert to XLSX or CSV before upload.',
+    }
+  }
+
+  if (extension === 'xlsx') {
+    const readExcelFileModule = await getReadExcelFileModule()
+    const matrix = await readExcelFileModule.default(file)
+    if (!matrix.length) {
+      return {
+        text: '',
+        headers: [],
+        strategy: 'limited',
+        rationale: 'Spreadsheet had no worksheet content to parse.',
+      }
+    }
+
+    const headerNames = matrix[0]
+      .map((value) => String(value ?? '').trim())
+      .filter(Boolean)
+
+    const rows: Record<string, unknown>[] = matrix.slice(1).map((row) => {
+      const mapped: Record<string, unknown> = {}
+      headerNames.forEach((header, idx) => {
+        mapped[header] = row[idx] ?? ''
+      })
+      return mapped
+    })
+
     const headers = rows[0] ? Object.keys(rows[0]) : []
     const text = rows
       .slice(0, 20)

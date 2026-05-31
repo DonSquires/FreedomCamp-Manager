@@ -577,7 +577,12 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     return window.sessionStorage.getItem('adminOfficerPortalChoice') === 'selected'
   }
 
-  if (loading || directorGate.isLoading) {
+  // Only block the whole app while auth is unresolved. Officer roster checks
+  // should resolve inside the routed surface so logged-in users can still reach
+  // the portal and its own waiting state.
+  const shouldShowLoading = loading && !user
+
+  if (shouldShowLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center space-y-4">
@@ -2932,41 +2937,6 @@ export default function App() {
             }
           />
 
-          {/* Health & Safety Reports — B-64 */}
-          <Route
-            path="/health-safety-reports"
-            element={
-              <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
-                  <HealthSafetyReports />
-                </RoleRoute>
-              </ProtectedRoute>
-            }
-          />
-
-          {/* Welfare Check-in Log — B-65 */}
-          <Route
-            path="/welfare-checkins"
-            element={
-              <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
-                  <WelfareCheckinLog />
-                </RoleRoute>
-              </ProtectedRoute>
-            }
-          />
-
-          {/* Parking Permit Manager — B-66 */}
-          <Route
-            path="/parking-permits"
-            element={
-              <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
-                  <ParkingPermitManager />
-                </RoleRoute>
-              </ProtectedRoute>
-            }
-          />
         </Routes>
       </Suspense>
     </RouteErrorBoundary>

@@ -63,7 +63,9 @@ test.describe('Role Matrix Smoke', () => {
     if (page.url().includes('/officer-home')) {
       await expect(page.getByText(/Team Chat|Browse Open Shifts|Request Ad-hoc Shift/i).first()).toBeVisible({ timeout: 10000 })
     } else {
-      await expect(page.locator('main h1').first()).toBeVisible({ timeout: 10000 })
+      // Field-officer screens can render without a main h1 depending on roster state;
+      // assert stable portal markers instead of strict heading structure.
+      await expect(page.getByText(/Start patrol to begin enforcement operations|Checking your shift access|Officer AI Copilot/i).first()).toBeVisible({ timeout: 10000 })
     }
     await bobAssessPage(page, testInfo, 'officerOrg1-field-portal')
   })

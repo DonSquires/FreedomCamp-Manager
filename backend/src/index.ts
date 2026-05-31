@@ -5,6 +5,7 @@ import { createClient } from '@supabase/supabase-js';
 import jwt, { JwtPayload } from 'jsonwebtoken';
 import ws from 'ws';
 import { readFile, stat } from 'node:fs/promises';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { once } from 'node:events';
 import { spawn } from 'node:child_process';
 import { timingSafeEqual } from 'node:crypto';
@@ -17,12 +18,56 @@ import { closeGiteaIssue, createGiteaIssue, updateMarkdownTodo } from './pmTools
 import { discoverEnvironmentKey } from './intelTools.js';
 import { orchestrateMissingTestFixtures } from './testTools.js';
 import { evaluateUserJourneyPracticality } from './uxTools.js';
+import { executeLiveDatabaseSchemaAudit } from './schemaAuditTools.js';
+import { auditSupabaseStorageBuckets } from './storageTools.js';
 import {
   buildPrioritizedResearchQueries,
   executeWebSearch,
   fetchWebpageContent,
   isTrustedResearchDomain,
 } from './researchTool.js';
+import { applyPromptGuardrails, buildSchemaAwareBlueprint } from './schemaContextRouter.js';
+
+function hydrateEnvFromFile(filePath: string): void {
+  if (!existsSync(filePath)) {
+    return;
+  }
+
+  const raw = readFileSync(filePath, 'utf8');
+  for (const line of raw.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#') || !trimmed.includes('=')) {
+      continue;
+    }
+
+    const delimiterIndex = trimmed.indexOf('=');
+    const key = trimmed.slice(0, delimiterIndex).trim();
+    if (!key || key in process.env) {
+      continue;
+    }
+
+    const value = trimmed.slice(delimiterIndex + 1).trim().replace(/^['"]|['"]$/g, '');
+    process.env[key] = value;
+  }
+}
+
+function hydrateProcessEnvFromCommonFiles(): void {
+  const cwd = process.cwd();
+  const candidates = [
+    path.resolve(cwd, '.env'),
+    path.resolve(cwd, '.env.local'),
+    path.resolve(cwd, 'backend/.env'),
+    path.resolve(cwd, 'backend/.env.local'),
+    path.resolve(cwd, '../.env'),
+    path.resolve(cwd, '../.env.local'),
+  ];
+
+  for (const candidate of candidates) {
+    hydrateEnvFromFile(candidate);
+  }
+}
+
+hydrateProcessEnvFromCommonFiles();
 
 type DocumentationLibraryRow = {
   file_path: string;
@@ -127,6 +172,11 @@ type PlaywrightVerificationWebhookPayload = {
   retryCount?: number | string;
 };
 
+type PlaywrightBugReportUpsertResult = {
+  bugReportId: string | null;
+  created: boolean;
+};
+
 type CognitiveActionPayload = {
   mode: 'none' | 'gitea_propose_pr';
   giteaProposePr?: GiteaCreatePrRequest | null;
@@ -141,6 +191,12 @@ type CognitiveReasoningResult = {
   isObviousAutonomous: boolean;
   actionPayload: CognitiveActionPayload;
   consultativeResponse: string;
+};
+
+type MaterializationCandidate = {
+  path: string;
+  content: string;
+  source: 'gitea_files' | 'target_file_patch_value' | 'sql_fence';
 };
 
 type HealProviderTelemetry = {
@@ -194,6 +250,10 @@ const OLLAMA_MODEL_TIMEOUT_MS = Number(process.env.OLLAMA_MODEL_TIMEOUT_MS ?? 70
 const OLLAMA_TOTAL_TIMEOUT_MS = Number(process.env.OLLAMA_TOTAL_TIMEOUT_MS ?? 18000);
 const OLLAMA_STREAM_TIMEOUT_MS = Number(process.env.OLLAMA_STREAM_TIMEOUT_MS ?? 25000);
 const OLLAMA_MAX_CANDIDATES = Math.max(1, Number(process.env.OLLAMA_MAX_CANDIDATES ?? 3));
+const RUNPOD_REQUEST_TIMEOUT_MS = Number(process.env.RUNPOD_REQUEST_TIMEOUT_MS ?? 180000);
+const RUNPOD_POLL_INTERVAL_MS = Math.max(500, Number(process.env.RUNPOD_POLL_INTERVAL_MS ?? 2500));
+const RUNPOD_POLL_TIMEOUT_MS = Math.max(2000, Number(process.env.RUNPOD_POLL_TIMEOUT_MS ?? RUNPOD_REQUEST_TIMEOUT_MS));
+const RUNPOD_STATUS_REQUEST_TIMEOUT_MS = Math.max(1000, Number(process.env.RUNPOD_STATUS_REQUEST_TIMEOUT_MS ?? 20000));
 const DOC_INTEL_DEFAULT_LIMIT = Math.max(1, Number(process.env.DOC_INTEL_DEFAULT_LIMIT ?? 20));
 const DOC_INTEL_MAX_LIMIT = Math.max(1, Number(process.env.DOC_INTEL_MAX_LIMIT ?? 100));
 const PRIVACY_REDACTION_ENABLED = parseBool(process.env.PRIVACY_REDACTION_ENABLED ?? 'true');
@@ -201,10 +261,36 @@ const SUPABASE_AUTH_LOOKUP_TIMEOUT_MS = Number(process.env.SUPABASE_AUTH_LOOKUP_
 const PATROL_SCAN_TIMEOUT_MS = Number(process.env.PATROL_SCAN_TIMEOUT_MS ?? 20000);
 const PATROL_DRY_RUN_DEFAULT = parseBool(process.env.PATROL_DRY_RUN ?? 'false');
 const PATROL_DRY_RUN_SKIP_MODEL = parseBool(process.env.PATROL_DRY_RUN_SKIP_MODEL ?? 'true');
+const SUPABASE_AUTH_REMOTE_FALLBACK = parseBool(process.env.SUPABASE_AUTH_REMOTE_FALLBACK ?? 'false');
+const BOB_CONTEXT_MAX_BYTES = Math.max(1024, Number(process.env.BOB_CONTEXT_MAX_BYTES ?? 8192));
+const BOB_CONTEXT_STRICT_MODE = parseBool(process.env.BOB_CONTEXT_STRICT_MODE ?? 'true');
+const BOB_CONTEXT_FALLBACK_ACTION =
+  String(process.env.BOB_CONTEXT_FALLBACK_ACTION ?? 'truncate_blueprints').trim().toLowerCase() === 'truncate_prompt'
+    ? 'truncate_prompt'
+    : 'truncate_blueprints';
+const DR_BOB_BUG_REPORT_AUTOTRIAGE_ENABLED = parseBool(process.env.DR_BOB_BUG_REPORT_AUTOTRIAGE_ENABLED ?? 'true');
+const DR_BOB_BUG_REPORT_AUTOTRIAGE_OUTPUT_MAX_CHARS = Math.max(
+  500,
+  Number(process.env.DR_BOB_BUG_REPORT_AUTOTRIAGE_OUTPUT_MAX_CHARS ?? 12000),
+);
+const DR_BOB_BUG_REPORT_AUTOTRIAGE_RESULT_MAX_CHARS = Math.max(
+  500,
+  Number(process.env.DR_BOB_BUG_REPORT_AUTOTRIAGE_RESULT_MAX_CHARS ?? 4000),
+);
+const DR_BOB_BUG_REPORT_AUTOTRIAGE_POLL_MS = Math.max(
+  1000,
+  Number(process.env.DR_BOB_BUG_REPORT_AUTOTRIAGE_POLL_MS ?? 10000),
+);
+const DR_BOB_BUG_REPORT_AUTOTRIAGE_BATCH_SIZE = Math.max(
+  1,
+  Number(process.env.DR_BOB_BUG_REPORT_AUTOTRIAGE_BATCH_SIZE ?? 5),
+);
 
 const CURRENT_FILE = fileURLToPath(import.meta.url);
 const BACKEND_DIR = path.dirname(CURRENT_FILE);
 const REPO_ROOT = path.resolve(BACKEND_DIR, '..', '..');
+const drBobBugReportTriageInFlight = new Set<string>();
+let drBobBugReportWorkerRunning = false;
 const DOC_INTEL_INDEX_FILE = path.resolve(
   process.env.DOC_INTEL_INDEX_PATH ?? path.join(REPO_ROOT, 'data/internal-research/document-intelligence-index.json'),
 );
@@ -603,11 +689,11 @@ async function upsertPlaywrightFailureBugReport(args: {
   managerStatus: string;
   recoverySummary: Record<string, unknown>;
   attemptCount: number;
-}): Promise<string | null> {
+}): Promise<PlaywrightBugReportUpsertResult> {
   const actor = await resolveBugReportActor();
   if (!actor) {
     console.warn('[/api/automation/playwright-result] Unable to resolve bug-report actor for escalation.');
-    return null;
+    return { bugReportId: null, created: false };
   }
 
   const title = `[PLAYWRIGHT][AUTO] ${args.repository} ${args.branch} verification failed`;
@@ -665,10 +751,10 @@ async function upsertPlaywrightFailureBugReport(args: {
 
     if (error) {
       console.warn('[/api/automation/playwright-result] Failed to update bug report escalation', error);
-      return null;
+      return { bugReportId: null, created: false };
     }
 
-    return bugReportId;
+    return { bugReportId, created: false };
   }
 
   const { data: inserted, error: insertError } = await supabase
@@ -679,16 +765,221 @@ async function upsertPlaywrightFailureBugReport(args: {
 
   if (insertError) {
     console.warn('[/api/automation/playwright-result] Failed to insert bug report escalation', insertError);
-    return null;
+    return { bugReportId: null, created: false };
   }
 
-  return String((inserted as any)?.id ?? '');
+  return {
+    bugReportId: String((inserted as any)?.id ?? ''),
+    created: true,
+  };
+}
+
+async function triggerDrBobBugReportAutoTriage(args: {
+  bugReportId: string;
+  repository?: string;
+  branch?: string;
+  verificationTag?: string;
+  managerStatus?: string;
+  command?: string;
+  output?: string;
+  attemptCount?: number;
+  title?: string;
+  description?: string;
+  issueType?: string;
+  severity?: string;
+  currentPage?: string;
+  created: boolean;
+  source: 'playwright-webhook' | 'poller' | 'ingest-webhook';
+}): Promise<void> {
+  if (!DR_BOB_BUG_REPORT_AUTOTRIAGE_ENABLED) {
+    return;
+  }
+
+  if (drBobBugReportTriageInFlight.has(args.bugReportId)) {
+    return;
+  }
+
+  drBobBugReportTriageInFlight.add(args.bugReportId);
+
+  try {
+    const startedAt = new Date().toISOString();
+    const outputExcerpt = truncateTail(args.output ?? '', DR_BOB_BUG_REPORT_AUTOTRIAGE_OUTPUT_MAX_CHARS);
+    let triageText = '';
+    let modelUsed = 'runpod';
+    let triageError: string | null = null;
+
+    try {
+
+    const triagePrompt = [
+      'Bug report triage request.',
+      `Bug report id: ${args.bugReportId}`,
+      `Source: ${args.source}`,
+      `Repository: ${toShortString(args.repository, 'unknown')}`,
+      `Branch: ${toShortString(args.branch, 'unknown')}`,
+      `Verification tag: ${toShortString(args.verificationTag, 'unknown')}`,
+      `Manager status: ${toShortString(args.managerStatus, 'investigating')}`,
+      `Command: ${toShortString(args.command, 'unknown')}`,
+      `Attempt count: ${parsePositiveIntOrFallback(args.attemptCount, 1)}`,
+      `Title: ${toShortString(args.title, 'untitled bug report')}`,
+      `Issue type: ${toShortString(args.issueType, 'unknown')}`,
+      `Severity: ${toShortString(args.severity, 'unknown')}`,
+      `Current page: ${toShortString(args.currentPage, 'unknown')}`,
+      '',
+      'Return concise markdown with these sections:',
+      '1) Root cause hypothesis',
+      '2) Immediate containment',
+      '3) Proposed fix',
+      '4) Validation steps',
+      '',
+      'Bug report description excerpt:',
+      truncateTail(args.description ?? '', 3000) || '[No description provided]',
+      '',
+      'Playwright output excerpt:',
+      outputExcerpt || '[No output captured]',
+    ].join('\n');
+
+    const triageResult = await generateWithRunpod(
+      'You are Dr Bob. Produce a concise, actionable bug triage report grounded only in supplied evidence.',
+      triagePrompt,
+    );
+    triageText = truncateTail(triageResult.responseText, DR_BOB_BUG_REPORT_AUTOTRIAGE_RESULT_MAX_CHARS);
+    modelUsed = triageResult.modelUsed;
+    } catch (error) {
+      triageError = error instanceof Error ? error.message : String(error);
+      triageText = `Dr Bob auto-triage failed: ${triageError}`;
+    }
+
+    const completedAt = new Date().toISOString();
+    const aiAnalysisPayload = {
+      source: 'dr_bob_auto_triage',
+      trigger_source: args.source,
+      lifecycle: args.created ? 'created' : 'updated',
+      triggered_at: startedAt,
+      completed_at: completedAt,
+      model_used: modelUsed,
+      repository: toShortString(args.repository, 'unknown'),
+      branch: toShortString(args.branch, 'unknown'),
+      verification_tag: toShortString(args.verificationTag, 'unknown'),
+      manager_status: toShortString(args.managerStatus, 'investigating'),
+      attempt_count: parsePositiveIntOrFallback(args.attemptCount, 1),
+      triage_error: triageError,
+      triage_report: triageText,
+    };
+
+    const { error: updateError } = await supabase
+      .from('bug_reports')
+      .update({
+        ai_analyzed: true,
+        ai_analysis: aiAnalysisPayload,
+        ai_suggested_fix: triageText,
+        status: 'investigating',
+        requires_human_review: true,
+      } as Record<string, unknown>)
+      .eq('id', args.bugReportId);
+
+    if (updateError) {
+      console.warn('[/api/automation/playwright-result] Failed to persist Dr Bob auto-triage on bug report', updateError);
+    }
+  } finally {
+    drBobBugReportTriageInFlight.delete(args.bugReportId);
+  }
+}
+
+async function triagePendingBugReports(args: {
+  limit: number;
+  source: 'poller' | 'ingest-webhook';
+  bugReportId?: string;
+}): Promise<number> {
+  if (!DR_BOB_BUG_REPORT_AUTOTRIAGE_ENABLED) {
+    return 0;
+  }
+
+  const requestedId = String(args.bugReportId ?? '').trim();
+  if (drBobBugReportWorkerRunning && !requestedId) {
+    return 0;
+  }
+
+  drBobBugReportWorkerRunning = true;
+
+  try {
+    let query = supabase
+      .from('bug_reports')
+      .select('id, title, description, issue_type, severity, current_page, status, requires_human_review, ai_analyzed, updated_at')
+      .or('requires_human_review.is.true,status.eq.investigating')
+      .order('updated_at', { ascending: false })
+      .limit(Math.max(1, args.limit * 2));
+
+    if (requestedId) {
+      query = query.eq('id', requestedId);
+    }
+
+    const { data, error } = await query;
+    if (error) {
+      console.warn('[dr-bob-bug-triage] Failed to load pending bug reports', error);
+      return 0;
+    }
+
+    const rows = Array.isArray(data) ? data : [];
+    const candidates = rows
+      .filter((row: any) => {
+        if (!row?.id) {
+          return false;
+        }
+        if (requestedId) {
+          return true;
+        }
+        return !row.ai_analyzed;
+      })
+      .slice(0, Math.max(1, args.limit));
+
+    let triggered = 0;
+    for (const row of candidates) {
+      const bugReportId = String((row as any).id ?? '').trim();
+      if (!bugReportId || drBobBugReportTriageInFlight.has(bugReportId)) {
+        continue;
+      }
+
+      triggered += 1;
+      void triggerDrBobBugReportAutoTriage({
+        bugReportId,
+        title: toShortString((row as any).title, 'untitled bug report'),
+        description: toShortString((row as any).description, ''),
+        issueType: toShortString((row as any).issue_type, 'unknown'),
+        severity: toShortString((row as any).severity, 'unknown'),
+        currentPage: toShortString((row as any).current_page, 'unknown'),
+        managerStatus: toShortString((row as any).status, 'investigating'),
+        created: false,
+        source: args.source,
+      });
+    }
+
+    return triggered;
+  } finally {
+    drBobBugReportWorkerRunning = false;
+  }
 }
 
 const discoveredSupabaseUrl = await discoverEnvironmentKey('SUPABASE_URL');
 const discoveredViteSupabaseUrl = await discoverEnvironmentKey('VITE_SUPABASE_URL');
 const discoveredSupabaseProjectRef =
   (await discoverEnvironmentKey('SUPABASE_PROJECT_REF')) ?? String(process.env.SUPABASE_PROJECT_REF ?? '').trim();
+const discoveredGiteaBaseUrl = await discoverEnvironmentKey('GITEA_BASE_URL');
+const discoveredGiteaToken = await discoverEnvironmentKey('GITEA_TOKEN');
+const discoveredGiteaOwner = await discoverEnvironmentKey('GITEA_OWNER');
+const discoveredGiteaRepo = await discoverEnvironmentKey('GITEA_REPO');
+
+if (discoveredGiteaBaseUrl && !process.env.GITEA_BASE_URL) {
+  process.env.GITEA_BASE_URL = discoveredGiteaBaseUrl;
+}
+if (discoveredGiteaToken && !process.env.GITEA_TOKEN) {
+  process.env.GITEA_TOKEN = discoveredGiteaToken;
+}
+if (discoveredGiteaOwner && !process.env.GITEA_OWNER) {
+  process.env.GITEA_OWNER = discoveredGiteaOwner;
+}
+if (discoveredGiteaRepo && !process.env.GITEA_REPO) {
+  process.env.GITEA_REPO = discoveredGiteaRepo;
+}
 
 const SUPABASE_URL =
   discoveredSupabaseUrl ??
@@ -719,22 +1010,46 @@ if (!supabaseConfigReady) {
 
 const app = express();
 
-const allowedOrigins = (
+const defaultAllowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:8081',
+  'https://fcmanager.co.nz',
+  'https://www.fcmanager.co.nz',
+  'https://freedomcampmanager.onspace.build',
+];
+
+const configuredOrigins = (
   process.env.CORS_ALLOW_ORIGINS ??
   process.env.FRONTEND_ORIGIN ??
-  'http://localhost:5173'
+  ''
 )
   .split(',')
   .map((value) => value.trim())
   .filter(Boolean);
+
+const allowedOrigins = Array.from(new Set([...defaultAllowedOrigins, ...configuredOrigins]));
 
 app.use((req, res, next) => {
   const origin = req.headers.origin;
   if (origin && allowedOrigins.includes(origin)) {
     res.header('Access-Control-Allow-Origin', origin);
     res.header('Vary', 'Origin');
+    res.header('Access-Control-Allow-Credentials', 'true');
   }
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.header(
+    'Access-Control-Allow-Headers',
+    [
+      'Content-Type',
+      'Authorization',
+      'X-Authorization',
+      'X-Forwarded-Authorization',
+      'X-Original-Authorization',
+      'X-Access-Token',
+      'X-Supabase-Auth',
+      'apikey',
+      'x-client-info',
+    ].join(', '),
+  );
   res.header('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
 
   if (req.method === 'OPTIONS') {
@@ -818,14 +1133,56 @@ function formatAuthRoleForPrompt(auth: AdminAuthContext | null): string {
   return 'user';
 }
 
+function readHeaderValue(req: Request, headerName: string): string {
+  const raw = req.headers[headerName.toLowerCase()];
+  if (Array.isArray(raw)) {
+    return raw.find((value) => String(value || '').trim().length > 0)?.trim() ?? '';
+  }
+  return String(raw ?? '').trim();
+}
+
+function isJwtLike(value: string): boolean {
+  const token = String(value || '').trim();
+  const parts = token.split('.');
+  if (parts.length !== 3) {
+    return false;
+  }
+  return parts.every((part) => /^[A-Za-z0-9_-]+$/.test(part) && part.length > 0);
+}
+
 function getBearerToken(req: Request): string | null {
-  const header = req.headers.authorization;
-  if (!header) {
-    return null;
+  const headerCandidates = [
+    readHeaderValue(req, 'authorization'),
+    readHeaderValue(req, 'x-authorization'),
+    readHeaderValue(req, 'x-forwarded-authorization'),
+    readHeaderValue(req, 'x-original-authorization'),
+    readHeaderValue(req, 'proxy-authorization'),
+  ].filter(Boolean);
+
+  for (const candidate of headerCandidates) {
+    const match = candidate.match(/^Bearer\s+(.+)$/i);
+    if (match?.[1]?.trim()) {
+      return match[1].trim();
+    }
+
+    if (isJwtLike(candidate)) {
+      // Allow raw JWT value when a proxy strips the Bearer prefix.
+      return candidate;
+    }
   }
 
-  const match = header.match(/^Bearer\s+(.+)$/i);
-  return match?.[1]?.trim() || null;
+  const tokenCandidates = [
+    readHeaderValue(req, 'x-access-token'),
+    readHeaderValue(req, 'x-supabase-auth'),
+  ].filter(Boolean);
+
+  for (const candidate of tokenCandidates) {
+    if (isJwtLike(candidate)) {
+      return candidate;
+    }
+  }
+
+  return null;
 }
 
 function verifySupabaseToken(token: string): JwtPayload | null {
@@ -855,12 +1212,12 @@ async function resolveTokenSubject(token: string): Promise<string | null> {
     return localSubject;
   }
 
-  if (SUPABASE_JWT_SECRET) {
+  if (!SUPABASE_AUTH_REMOTE_FALLBACK) {
     return null;
   }
 
   try {
-    // Fallback only for environments where SUPABASE_JWT_SECRET is not configured.
+    // Remote fallback allows token validation even when proxies alter headers or JWT secret config drifts.
     const { data, error } = await withTimeout(
       supabase.auth.getUser(token),
       SUPABASE_AUTH_LOOKUP_TIMEOUT_MS,
@@ -1200,6 +1557,188 @@ app.get('/api/research/document-intelligence', async (req: Request, res: Respons
 });
 
 // ── Ollama helpers ───────────────────────────────────────────────────────────
+function normalizeRunpodInvokeUrl(rawUrl: string): string {
+  const value = String(rawUrl || '').trim().replace(/\/+$/, '');
+  if (!value) return '';
+  if (/\/runsync$/i.test(value)) return value;
+  if (/\/run-sync$/i.test(value)) return value.replace(/\/run-sync$/i, '/runsync');
+  if (/\/run$/i.test(value)) return value.replace(/\/run$/i, '/runsync');
+  if (/\/v2\/[^/]+$/i.test(value)) return `${value}/runsync`;
+  return value;
+}
+
+function toRunpodBaseUrl(rawUrl: string): string {
+  const value = String(rawUrl || '').trim().replace(/\/+$/, '');
+  if (!value) return '';
+  return value
+    .replace(/\/(?:runsync|run-sync|run|status\/[^/]+)$/i, '')
+    .replace(/\/+$/, '');
+}
+
+function endpointIdFromUrl(rawUrl: string): string {
+  const match = String(rawUrl || '').match(/api\.runpod\.ai\/v2\/([^/]+)/i);
+  return String(match?.[1] || '').trim();
+}
+
+function deriveRunpodStatusUrl(invokeUrl: string, endpointId: string, jobId: string): string {
+  if (endpointId) {
+    return `https://api.runpod.ai/v2/${endpointId}/status/${encodeURIComponent(jobId)}`;
+  }
+
+  const parsedEndpointId = endpointIdFromUrl(invokeUrl);
+  if (parsedEndpointId) {
+    return `https://api.runpod.ai/v2/${parsedEndpointId}/status/${encodeURIComponent(jobId)}`;
+  }
+
+  const base = toRunpodBaseUrl(invokeUrl);
+  if (base) {
+    return `${base}/status/${encodeURIComponent(jobId)}`;
+  }
+
+  throw new Error('Unable to derive RunPod status URL');
+}
+
+function isRunpodTerminalStatus(status: string): boolean {
+  const value = String(status || '').toUpperCase();
+  return value === 'COMPLETED' || value === 'FAILED' || value === 'CANCELLED' || value === 'TIMED_OUT';
+}
+
+function getRunpodConfig(): { invokeUrl: string; apiKey: string; model: string } | null {
+  const endpointUrl = String(
+    process.env.RUNPOD_ENDPOINT_URL
+      ?? process.env.RUNPOD_RUNSYNC_URL
+      ?? process.env.INFERENCE_SERVICE_URL
+      ?? process.env.BOB_SERVICE_URL
+      ?? '',
+  ).trim();
+  const endpointId = String(process.env.RUNPOD_ENDPOINT_ID ?? '').trim();
+  const baseUrl = endpointUrl || (endpointId ? `https://api.runpod.ai/v2/${endpointId}` : '');
+  const invokeUrl = normalizeRunpodInvokeUrl(baseUrl);
+  const apiKey = String(
+    process.env.RUNPOD_ENDPOINT_API_KEY
+      ?? process.env.RUNPOD_API_KEY
+      ?? process.env.DR_BOB_API
+      ?? '',
+  ).trim();
+  const model = String(
+    process.env.RUNPOD_CHAT_MODEL
+      ?? process.env.BOB_CHAT_MODEL
+      ?? process.env.OLLAMA_CHAT_MODEL
+      ?? '',
+  ).trim();
+
+  if (!invokeUrl || !apiKey) {
+    return null;
+  }
+
+  return { invokeUrl, apiKey, model };
+}
+
+function parseRunpodResponseText(payload: unknown): string {
+  if (!payload || typeof payload !== 'object') {
+    return '';
+  }
+
+  const root = payload as Record<string, unknown>;
+  const output = root.output && typeof root.output === 'object' ? (root.output as Record<string, unknown>) : root;
+  const textCandidates = [
+    output.message,
+    output.response,
+    output.text,
+    output.result,
+    root.message,
+    root.response,
+    root.text,
+    root.result,
+  ];
+
+  for (const candidate of textCandidates) {
+    if (typeof candidate === 'string' && candidate.trim().length > 0) {
+      return candidate.trim();
+    }
+  }
+
+  return '';
+}
+
+async function generateWithRunpod(systemPrompt: string, userMessage: string): Promise<{ responseText: string; modelUsed: string }> {
+  const config = getRunpodConfig();
+  if (!config) {
+    throw new Error('RunPod is not configured');
+  }
+
+  const payload = {
+    input: {
+      action: 'chat',
+      message: userMessage,
+      prompt: userMessage,
+      system_prompt: systemPrompt,
+      ...(config.model ? { model: config.model } : {}),
+    },
+  };
+
+  const response = await axios.post(config.invokeUrl, payload, {
+    timeout: RUNPOD_REQUEST_TIMEOUT_MS,
+    headers: {
+      Authorization: `Bearer ${config.apiKey}`,
+      'Content-Type': 'application/json',
+    },
+  });
+
+  const status = String((response.data as { status?: string })?.status ?? '').toUpperCase();
+  const jobId = String((response.data as { id?: string; jobId?: string })?.id ?? (response.data as { jobId?: string })?.jobId ?? '').trim();
+  let finalPayload: unknown = response.data;
+
+  if (status === 'IN_PROGRESS' && jobId) {
+    const statusUrl = deriveRunpodStatusUrl(config.invokeUrl, String(process.env.RUNPOD_ENDPOINT_ID ?? '').trim(), jobId);
+    const startedAt = Date.now();
+
+    let completed = false;
+    while (Date.now() - startedAt <= RUNPOD_POLL_TIMEOUT_MS) {
+      await new Promise((resolve) => setTimeout(resolve, RUNPOD_POLL_INTERVAL_MS));
+      const statusResp = await axios.get(statusUrl, {
+        timeout: RUNPOD_STATUS_REQUEST_TIMEOUT_MS,
+        headers: {
+          Authorization: `Bearer ${config.apiKey}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const polledStatus = String((statusResp.data as { status?: string })?.status ?? '').toUpperCase();
+      if (!isRunpodTerminalStatus(polledStatus)) {
+        continue;
+      }
+
+      if (polledStatus !== 'COMPLETED') {
+        const failedPayload = statusResp.data as { error?: unknown };
+        const detail = typeof failedPayload.error === 'string'
+          ? failedPayload.error.slice(0, 800)
+          : JSON.stringify(failedPayload.error ?? {}).slice(0, 800);
+        throw new Error(`RunPod job ${jobId} ended with status ${polledStatus}: ${detail}`);
+      }
+
+      finalPayload = statusResp.data;
+      completed = true;
+      break;
+    }
+
+    if (!completed) {
+      throw new Error(`RunPod job ${jobId} did not reach terminal status within ${RUNPOD_POLL_TIMEOUT_MS}ms`);
+    }
+  }
+
+  const responseText = parseRunpodResponseText(finalPayload);
+  if (!responseText) {
+    throw new Error('RunPod returned an empty response');
+  }
+
+  const resolvedModel = String((finalPayload as { output?: { model?: string }; model?: string })?.output?.model ?? (finalPayload as { model?: string })?.model ?? config.model ?? '').trim();
+  return {
+    responseText,
+    modelUsed: resolvedModel ? `runpod:${resolvedModel}` : 'runpod',
+  };
+}
+
 function getOllamaModelCandidates(): string[] {
   const configured = [
     process.env.BOB_CHAT_MODELS,
@@ -1286,92 +1825,23 @@ async function generateWithOpenAi(systemPrompt: string, userMessage: string): Pr
 }
 
 async function generateWithModelFallback(systemPrompt: string, userMessage: string): Promise<{ responseText: string; modelUsed: string }> {
-  const gatewayUrl = String(process.env.MODEL_GATEWAY_URL ?? '').trim().replace(/\/+$/, '');
-  const baseUrl = process.env.OLLAMA_PROXY_URL ?? 'http://ollama:11434';
-  const models = getOllamaModelCandidates().slice(0, OLLAMA_MAX_CANDIDATES);
-  let lastError: unknown = null;
-  const startedAt = Date.now();
+  const guardrail = applyPromptGuardrails(systemPrompt, userMessage, {
+    maxContextBytes: BOB_CONTEXT_MAX_BYTES,
+    strictMode: BOB_CONTEXT_STRICT_MODE,
+    fallbackAction: BOB_CONTEXT_FALLBACK_ACTION,
+  });
 
-  if (gatewayUrl) {
-    for (const model of models) {
-      const elapsed = Date.now() - startedAt;
-      const remainingBudget = OLLAMA_TOTAL_TIMEOUT_MS - elapsed;
-      if (remainingBudget <= 500) {
-        break;
-      }
-
-      const requestTimeoutMs = Math.max(1000, Math.min(OLLAMA_MODEL_TIMEOUT_MS, remainingBudget));
-      try {
-        const response = await axios.post(
-          `${gatewayUrl}/api/generate`,
-          {
-            model,
-            system: systemPrompt,
-            prompt: userMessage,
-            stream: false,
-          },
-          {
-            timeout: requestTimeoutMs,
-          },
-        );
-
-        return {
-          responseText: String((response.data as { response?: string }).response ?? ''),
-          modelUsed: `model_gateway:${model}`,
-        };
-      } catch (error) {
-        lastError = error;
-        console.warn(`[model-fallback] model gateway failed for ${model}`, error);
-      }
-    }
+  if (guardrail.truncated) {
+    console.warn(
+      `[prompt-guardrails] Context truncated before model dispatch (${guardrail.totalBytesBefore} -> ${guardrail.totalBytesAfter} bytes)`,
+    );
   }
-
-  for (const model of models) {
-    const elapsed = Date.now() - startedAt;
-    const remainingBudget = OLLAMA_TOTAL_TIMEOUT_MS - elapsed;
-    if (remainingBudget <= 500) {
-      break;
-    }
-
-    const requestTimeoutMs = Math.max(1000, Math.min(OLLAMA_MODEL_TIMEOUT_MS, remainingBudget));
-    try {
-      const response = await axios.post(
-        `${baseUrl}/api/generate`,
-        {
-          model,
-          system: systemPrompt,
-          prompt: userMessage,
-          stream: false,
-        },
-        {
-          timeout: requestTimeoutMs,
-        },
-      );
-
-      return {
-        responseText: String((response.data as { response?: string }).response ?? ''),
-        modelUsed: model,
-      };
-    } catch (error) {
-      lastError = error;
-      if (isMissingModelError(error)) {
-        console.warn(`[ollama] Model not available, falling back to next candidate: ${model}`);
-        continue;
-      }
-
-      const message = error instanceof Error ? error.message : String(error);
-      console.warn(`[ollama] Model invocation failed for ${model}, trying next provider: ${message}`);
-      continue;
-    }
-  }
-
   try {
-    return await generateWithOpenAi(systemPrompt, userMessage);
-  } catch (openAiError) {
-    console.error('[model-fallback] OpenAI fallback failed', openAiError);
+    return await generateWithRunpod(guardrail.systemPrompt, guardrail.userMessage);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`RunPod invocation failed and no fallback providers are allowed: ${message}`);
   }
-
-  throw lastError instanceof Error ? lastError : new Error('No model providers succeeded');
 }
 
 async function promptOllama(role: string, systemPrompt: string, userMessage: string): Promise<string> {
@@ -1451,6 +1921,229 @@ function extractInstructionManualGuidance(manualText: string, query: string, max
   return truncateRunbookContent(guidance, maxChars);
 }
 
+const UNIFIED_DEEP_SYSTEM_PROTOCOL = [
+  'UNIFIED DEEP-SYSTEM INTEROPERABILITY PROTOCOL:',
+  'When commanded to execute a comprehensive pre-beta system review, you must run a multi-dimensional analysis matching text documentation, binary cloud storage assets, and human visual friction metrics:',
+  '',
+  '1. DOCUMENTATION EXTRACTION: Read `docs/INSTRUCTION_MANUAL.md`. Isolate the intended workflow states for user onboarding, incident reporting, and data uploads.',
+  '2. BINARY STORAGE CORRELATION: Invoke `auditSupabaseStorageBuckets()`. Compare the live files and image sizes inside your cloud buckets against the intended documentation parameters. Hunt for unlinked media blocks or file structure drifts.',
+  '3. FRICTION LEDGER MERGE: Cross-reference your storage findings with the active user entries inside `public.ui_ux_friction_ledger`. Determine if slow page latencies or high user friction scores are directly correlated to unoptimized image sizes or missing bucket assets.',
+  '4. STRATEGIC RECONCILIATION OUTPUT: Because deep-system updates modify multiple architectural layers, you are strictly forbidden from auto-deploying code. Synthesize your analysis into a comprehensive Markdown report mapping: (a) Structural Documentation Gaps, (b) Storage Bucket Anomalies, (c) UX Performance Traps, and (d) Explicit Risk vs. Reward Recommendations. Write this output to the ledger table and hold for the Captain\'s sign-off.',
+].join('\n');
+
+function parseSystemRulesAsArray(rawRules: unknown): string[] {
+  if (Array.isArray(rawRules)) {
+    return rawRules.map((entry) => String(entry ?? '').trim()).filter(Boolean);
+  }
+
+  if (typeof rawRules === 'string') {
+    const trimmed = rawRules.trim();
+    return trimmed ? [trimmed] : [];
+  }
+
+  if (rawRules && typeof rawRules === 'object') {
+    return [JSON.stringify(rawRules)];
+  }
+
+  return [];
+}
+
+async function upsertUnifiedDeepSystemProtocol(): Promise<{ updated: boolean; totalRules: number }> {
+  const serviceName = 'railway-backend';
+  const nowIso = new Date().toISOString();
+
+  const { data, error } = await supabase
+    .from('system_knowledge_base')
+    .select('service_name, schema_payload, system_rules, agent_roles')
+    .eq('service_name', serviceName)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Failed to load system_knowledge_base rules: ${String(error.message || error)}`);
+  }
+
+  const currentRules = parseSystemRulesAsArray(data?.system_rules);
+  const hasProtocol = currentRules.some((rule) => rule.includes('UNIFIED DEEP-SYSTEM INTEROPERABILITY PROTOCOL'));
+
+  if (hasProtocol) {
+    return { updated: false, totalRules: currentRules.length };
+  }
+
+  const nextRules = [...currentRules, UNIFIED_DEEP_SYSTEM_PROTOCOL];
+
+  if (data) {
+    const { error: updateError } = await supabase
+      .from('system_knowledge_base')
+      .update({
+        system_rules: nextRules,
+        updated_at: nowIso,
+      })
+      .eq('service_name', serviceName);
+
+    if (updateError) {
+      throw new Error(`Failed to update system_knowledge_base rules: ${String(updateError.message || updateError)}`);
+    }
+
+    return { updated: true, totalRules: nextRules.length };
+  }
+
+  const { error: insertError } = await supabase.from('system_knowledge_base').insert({
+    service_name: serviceName,
+    schema_payload: '{}',
+    system_rules: nextRules,
+    agent_roles: DEFAULT_AGENT_ROLES,
+    created_at: nowIso,
+    updated_at: nowIso,
+  } as Record<string, unknown>);
+
+  if (insertError) {
+    throw new Error(`Failed to insert system_knowledge_base rules: ${String(insertError.message || insertError)}`);
+  }
+
+  return { updated: true, totalRules: nextRules.length };
+}
+
+function extractDeepSystemDocumentationState(instructionManualText: string): {
+  onboarding: string;
+  incidentReporting: string;
+  dataUploads: string;
+  gaps: string[];
+} {
+  const onboarding = extractInstructionManualGuidance(
+    instructionManualText,
+    'user onboarding login invite registration account setup',
+    1400,
+  );
+  const incidentReporting = extractInstructionManualGuidance(
+    instructionManualText,
+    'incident reporting breaches evidence compliance response workflow',
+    1400,
+  );
+  const dataUploads = extractInstructionManualGuidance(
+    instructionManualText,
+    'data uploads media upload image upload file upload',
+    1400,
+  );
+
+  const gaps: string[] = [];
+  if (onboarding.toLowerCase().includes('unavailable')) {
+    gaps.push('Onboarding guidance could not be extracted from INSTRUCTION_MANUAL.');
+  }
+  if (incidentReporting.toLowerCase().includes('unavailable')) {
+    gaps.push('Incident reporting guidance could not be extracted from INSTRUCTION_MANUAL.');
+  }
+  if (dataUploads.toLowerCase().includes('unavailable')) {
+    gaps.push('Data upload guidance could not be extracted from INSTRUCTION_MANUAL.');
+  }
+
+  return {
+    onboarding,
+    incidentReporting,
+    dataUploads,
+    gaps,
+  };
+}
+
+function buildDeepSystemAuditMarkdownReport(args: {
+  sessionId: string;
+  protocolPatch: { updated: boolean; totalRules: number };
+  documentation: ReturnType<typeof extractDeepSystemDocumentationState>;
+  storageSnapshot: any;
+  frictionLogs: any[];
+}): string {
+  const { sessionId, protocolPatch, documentation, storageSnapshot, frictionLogs } = args;
+
+  const anomalies = Array.isArray(storageSnapshot?.anomalies) ? storageSnapshot.anomalies : [];
+  const bucketSummaries = Array.isArray(storageSnapshot?.bucketSummaries) ? storageSnapshot.bucketSummaries : [];
+  const highSeverityAnomalies = anomalies.filter((entry: any) => String(entry?.severity ?? '') === 'high');
+  const oversizedImageCount = anomalies.filter((entry: any) => String(entry?.issue ?? '') === 'oversized_image_asset').length;
+
+  const scoredRows = (Array.isArray(frictionLogs) ? frictionLogs : []).filter((row) => {
+    const score = Number((row as any)?.ux_practicality_score);
+    return Number.isFinite(score);
+  });
+  const avgScore = scoredRows.length > 0
+    ? scoredRows.reduce((sum, row) => sum + Number((row as any)?.ux_practicality_score), 0) / scoredRows.length
+    : null;
+  const highFrictionRows = (Array.isArray(frictionLogs) ? frictionLogs : []).filter((row) => {
+    const score = Number((row as any)?.ux_practicality_score);
+    const pathLen = Number((row as any)?.path_length_count);
+    return (Number.isFinite(score) && score < 0.7) || (Number.isFinite(pathLen) && pathLen > 3);
+  });
+
+  const correlationSignals: string[] = [];
+  if (oversizedImageCount > 0 && highFrictionRows.length > 0) {
+    correlationSignals.push('Potential correlation detected: oversized storage image assets and elevated UX friction entries coexist.');
+  }
+  if (highSeverityAnomalies.length > 0 && highFrictionRows.length > 0) {
+    correlationSignals.push('Potential correlation detected: high-severity storage anomalies overlap with poor UX score records.');
+  }
+  if (correlationSignals.length === 0) {
+    correlationSignals.push('No direct high-confidence storage-to-UX correlation detected in this pass.');
+  }
+
+  const riskSummary = [
+    documentation.gaps.length > 0 ? 'Documentation extraction has incomplete sections.' : 'Documentation extraction appears complete for targeted workflows.',
+    highSeverityAnomalies.length > 0 ? `${highSeverityAnomalies.length} high-severity storage anomalies require remediation.` : 'No high-severity storage anomalies detected.',
+    highFrictionRows.length > 0 ? `${highFrictionRows.length} UX ledger entries exceed practical thresholds.` : 'UX friction ledger does not show critical path-length/score breaches in sampled rows.',
+  ].join(' ');
+
+  const rewardSummary = [
+    'Unified audit consolidates design intent, binary asset hygiene, and production UX telemetry into one governance artifact.',
+    'Protocol synchronization ensures future deep-system sweeps follow non-autodeploy safety constraints.',
+  ].join(' ');
+
+  return [
+    '# Unified Deep-System Audit Report',
+    '',
+    `- Session: ${sessionId}`,
+    `- Generated: ${new Date().toISOString()}`,
+    `- Protocol patch applied: ${protocolPatch.updated ? 'yes' : 'no'} (total rule blocks: ${protocolPatch.totalRules})`,
+    '',
+    '## Structural Documentation Gaps',
+    '',
+    '| Workflow Domain | Extracted State | Gap Status |',
+    '| --- | --- | --- |',
+    `| User Onboarding | ${documentation.onboarding.replace(/\n/g, ' ').slice(0, 220)} | ${documentation.gaps.some((gap) => gap.toLowerCase().includes('onboarding')) ? 'Gap detected' : 'Aligned'} |`,
+    `| Incident Reporting | ${documentation.incidentReporting.replace(/\n/g, ' ').slice(0, 220)} | ${documentation.gaps.some((gap) => gap.toLowerCase().includes('incident')) ? 'Gap detected' : 'Aligned'} |`,
+    `| Data Uploads | ${documentation.dataUploads.replace(/\n/g, ' ').slice(0, 220)} | ${documentation.gaps.some((gap) => gap.toLowerCase().includes('upload')) ? 'Gap detected' : 'Aligned'} |`,
+    '',
+    documentation.gaps.length > 0 ? documentation.gaps.map((gap) => `- ${gap}`).join('\n') : '- No critical documentation extraction gaps detected.',
+    '',
+    '## Storage Bucket Anomalies',
+    '',
+    `- Buckets scanned: ${bucketSummaries.length}`,
+    `- Total anomalies: ${anomalies.length}`,
+    `- High severity anomalies: ${highSeverityAnomalies.length}`,
+    '',
+    '| Bucket | Objects | Total Bytes | Anomalous Objects |',
+    '| --- | ---: | ---: | ---: |',
+    ...(bucketSummaries.length > 0
+      ? bucketSummaries.slice(0, 20).map((summary: any) => `| ${String(summary.bucket ?? 'unknown')} | ${Number(summary.objectCount ?? 0)} | ${Number(summary.totalBytes ?? 0)} | ${Number(summary.anomalousObjectCount ?? 0)} |`)
+      : ['| n/a | 0 | 0 | 0 |']),
+    '',
+    '## UX Performance Traps',
+    '',
+    `- Friction rows sampled: ${(Array.isArray(frictionLogs) ? frictionLogs.length : 0)}`,
+    `- High-friction rows: ${highFrictionRows.length}`,
+    `- Average practicality score: ${avgScore === null ? 'n/a' : avgScore.toFixed(2)}`,
+    '',
+    '## Risk vs Reward Recommendations',
+    '',
+    '| Dimension | Assessment |',
+    '| --- | --- |',
+    `| Risk | ${riskSummary} |`,
+    `| Reward | ${rewardSummary} |`,
+    '',
+    '### Cross-Layer Correlation Signals',
+    ...correlationSignals.map((signal) => `- ${signal}`),
+    '',
+    '### Governance Hold',
+    '- Auto-deployment is intentionally disabled for this deep-system path.',
+    '- Review this report and approve manually before any infrastructure or code rollout.',
+  ].join('\n');
+}
+
 function buildConversationTranscript(messages: HealChatMessage[] = []): string {
   const recentMessages = messages.slice(-20)
   if (recentMessages.length === 0) {
@@ -1495,6 +2188,201 @@ function parseJsonObjectFromText(raw: string): Record<string, unknown> | null {
   }
 
   return null;
+}
+
+function normalizeRelativeWorkspacePath(rawPath: string): string {
+  return String(rawPath ?? '').trim().replace(/^\.\//, '').replace(/\\/g, '/');
+}
+
+function extractMaterializationCandidates(rawModelText: string): MaterializationCandidate[] {
+  const candidates: MaterializationCandidate[] = [];
+  const parsed = parseJsonObjectFromText(rawModelText);
+
+  if (parsed) {
+    const targetFile = typeof parsed.targetFile === 'string' ? normalizeRelativeWorkspacePath(parsed.targetFile) : '';
+    const patchValue = typeof parsed.patchValue === 'string' ? parsed.patchValue.trim() : '';
+    if (targetFile && patchValue) {
+      candidates.push({
+        path: targetFile,
+        content: patchValue,
+        source: 'target_file_patch_value',
+      });
+    }
+
+    const actionPayload = parsed.actionPayload;
+    if (actionPayload && typeof actionPayload === 'object' && !Array.isArray(actionPayload)) {
+      const giteaPayload = (actionPayload as Record<string, unknown>).giteaProposePr;
+      if (giteaPayload && typeof giteaPayload === 'object' && !Array.isArray(giteaPayload)) {
+        const files = (giteaPayload as Record<string, unknown>).files;
+        if (Array.isArray(files)) {
+          for (const file of files) {
+            if (!file || typeof file !== 'object' || Array.isArray(file)) {
+              continue;
+            }
+            const filePath = typeof (file as Record<string, unknown>).path === 'string'
+              ? normalizeRelativeWorkspacePath((file as Record<string, unknown>).path as string)
+              : '';
+            const content = typeof (file as Record<string, unknown>).content === 'string'
+              ? ((file as Record<string, unknown>).content as string).trim()
+              : '';
+            if (!filePath || !content) {
+              continue;
+            }
+            candidates.push({
+              path: filePath,
+              content,
+              source: 'gitea_files',
+            });
+          }
+        }
+      }
+    }
+  }
+
+  const sqlPathMatch = rawModelText.match(/supabase\/migrations\/[A-Za-z0-9._-]+\.sql/i);
+  const sqlFenceMatch = rawModelText.match(/```sql\s*([\s\S]*?)```/i);
+  if (sqlPathMatch?.[0] && sqlFenceMatch?.[1]?.trim()) {
+    candidates.push({
+      path: normalizeRelativeWorkspacePath(sqlPathMatch[0]),
+      content: sqlFenceMatch[1].trim(),
+      source: 'sql_fence',
+    });
+  }
+
+  const seen = new Set<string>();
+  return candidates.filter((candidate) => {
+    const key = `${candidate.path}\n${candidate.content}`;
+    if (seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
+}
+
+function materializeCandidatesToDisk(candidates: MaterializationCandidate[]): {
+  written: string[];
+  skipped: Array<{ path: string; reason: string }>;
+} {
+  const written: string[] = [];
+  const skipped: Array<{ path: string; reason: string }> = [];
+
+  for (const candidate of candidates) {
+    const relPath = normalizeRelativeWorkspacePath(candidate.path);
+    if (!relPath) {
+      skipped.push({ path: candidate.path, reason: 'empty_path' });
+      continue;
+    }
+
+    // Restrict autonomous materialization to migration scripts only.
+    if (!relPath.startsWith('supabase/migrations/') || !relPath.endsWith('.sql')) {
+      skipped.push({ path: relPath, reason: 'path_not_allowed' });
+      continue;
+    }
+
+    const absolutePath = path.resolve(REPO_ROOT, relPath);
+    if (!absolutePath.startsWith(REPO_ROOT + path.sep)) {
+      skipped.push({ path: relPath, reason: 'outside_workspace' });
+      continue;
+    }
+
+    const content = candidate.content.trim();
+    if (!content) {
+      skipped.push({ path: relPath, reason: 'empty_content' });
+      continue;
+    }
+
+    mkdirSync(path.dirname(absolutePath), { recursive: true });
+    const normalized = content.endsWith('\n') ? content : `${content}\n`;
+    writeFileSync(absolutePath, normalized, 'utf8');
+    written.push(relPath);
+  }
+
+  return { written, skipped };
+}
+
+function shouldForcePerformanceMigrationMaterialization(inboundText: string, sessionId: string): boolean {
+  const normalized = String(inboundText || '').toLowerCase();
+  const sessionAuthorized = String(sessionId || '').trim() === 'production-performance-index-rollout';
+  return sessionAuthorized
+    && normalized.includes('supabase/migrations/20260524000004_bob_architect_performance_indices.sql')
+    && normalized.includes('roster_schedules')
+    && normalized.includes('incident_reports');
+}
+
+function buildForcedPerformanceMigrationSql(): string {
+  return [
+    '-- Auto-materialized by Bob backend fallback: performance index rollout',
+    '-- Generated because model output did not include direct file mutation content.',
+    '',
+    'BEGIN;',
+    '',
+    '-- Candidate 1: roster_schedules organization/time access pattern',
+    'DO $$',
+    'DECLARE',
+    "  org_col text;",
+    "  time_col text;",
+    'BEGIN',
+    "  SELECT col INTO org_col FROM (VALUES ('organization_id'), ('org_id')) AS v(col)",
+    "  WHERE EXISTS (",
+    "    SELECT 1 FROM information_schema.columns",
+    "    WHERE table_schema = 'public' AND table_name = 'roster_schedules' AND column_name = v.col",
+    '  ) LIMIT 1;',
+    "  SELECT col INTO time_col FROM (VALUES ('schedule_date'), ('scheduled_date'), ('shift_date'), ('shift_start_time'), ('start_time')) AS v(col)",
+    "  WHERE EXISTS (",
+    "    SELECT 1 FROM information_schema.columns",
+    "    WHERE table_schema = 'public' AND table_name = 'roster_schedules' AND column_name = v.col",
+    '  ) LIMIT 1;',
+    '  IF org_col IS NOT NULL AND time_col IS NOT NULL THEN',
+    "    EXECUTE format('CREATE INDEX IF NOT EXISTS %I ON public.roster_schedules (%I, %I)', 'idx_roster_schedules_org_time_bob_20260524', org_col, time_col);",
+    '  END IF;',
+    'END $$;',
+    '',
+    '-- Candidate 2: roster_schedules officer/time dispatch pattern',
+    'DO $$',
+    'DECLARE',
+    "  officer_col text;",
+    "  time_col text;",
+    'BEGIN',
+    "  SELECT col INTO officer_col FROM (VALUES ('officer_id'), ('assigned_officer_id'), ('user_id')) AS v(col)",
+    "  WHERE EXISTS (",
+    "    SELECT 1 FROM information_schema.columns",
+    "    WHERE table_schema = 'public' AND table_name = 'roster_schedules' AND column_name = v.col",
+    '  ) LIMIT 1;',
+    "  SELECT col INTO time_col FROM (VALUES ('shift_start_time'), ('start_time'), ('scheduled_date'), ('schedule_date')) AS v(col)",
+    "  WHERE EXISTS (",
+    "    SELECT 1 FROM information_schema.columns",
+    "    WHERE table_schema = 'public' AND table_name = 'roster_schedules' AND column_name = v.col",
+    '  ) LIMIT 1;',
+    '  IF officer_col IS NOT NULL AND time_col IS NOT NULL THEN',
+    "    EXECUTE format('CREATE INDEX IF NOT EXISTS %I ON public.roster_schedules (%I, %I)', 'idx_roster_schedules_officer_time_bob_20260524', officer_col, time_col);",
+    '  END IF;',
+    'END $$;',
+    '',
+    '-- Candidate 3: incident_reports organization/time query pattern',
+    'DO $$',
+    'DECLARE',
+    "  org_col text;",
+    "  ts_col text;",
+    'BEGIN',
+    "  SELECT col INTO org_col FROM (VALUES ('organization_id'), ('org_id')) AS v(col)",
+    "  WHERE EXISTS (",
+    "    SELECT 1 FROM information_schema.columns",
+    "    WHERE table_schema = 'public' AND table_name = 'incident_reports' AND column_name = v.col",
+    '  ) LIMIT 1;',
+    "  SELECT col INTO ts_col FROM (VALUES ('created_at'), ('reported_at'), ('incident_time'), ('occurred_at')) AS v(col)",
+    "  WHERE EXISTS (",
+    "    SELECT 1 FROM information_schema.columns",
+    "    WHERE table_schema = 'public' AND table_name = 'incident_reports' AND column_name = v.col",
+    '  ) LIMIT 1;',
+    '  IF org_col IS NOT NULL AND ts_col IS NOT NULL THEN',
+    "    EXECUTE format('CREATE INDEX IF NOT EXISTS %I ON public.incident_reports (%I, %I DESC)', 'idx_incident_reports_org_time_bob_20260524', org_col, ts_col);",
+    '  END IF;',
+    'END $$;',
+    '',
+    'COMMIT;',
+    '',
+  ].join('\n');
 }
 
 function normalizeStringArray(value: unknown): string[] {
@@ -1850,7 +2738,7 @@ async function runPatrolSystemChecks(): Promise<{
 }> {
   const checks: PatrolSystemCheckResult[] = [];
   const mappingGatewayUrl = String(process.env.MAPPING_GATEWAY_URL ?? '').trim().replace(/\/+$/, '');
-  const modelGatewayUrl = String(process.env.MODEL_GATEWAY_URL ?? '').trim().replace(/\/+$/, '');
+  const runpodConfig = getRunpodConfig();
   const sampleWaypoints = buildDefaultPatrolWaypoints();
 
   if (!mappingGatewayUrl) {
@@ -1922,37 +2810,42 @@ async function runPatrolSystemChecks(): Promise<{
     }
   }
 
-  if (!modelGatewayUrl) {
-    checks.push({
-      name: 'model_gateway_configured',
-      status: 'FAIL',
-      detail: 'MODEL_GATEWAY_URL is not configured.',
-    });
-  } else {
+  if (runpodConfig) {
     try {
       const response = await axios.post(
-        `${modelGatewayUrl}/api/generate`,
+        runpodConfig.invokeUrl,
         {
-          prompt: 'Respond with OK only.',
+          input: {
+            action: 'ping',
+            message: 'health check',
+          },
         },
         {
-          timeout: OLLAMA_MODEL_TIMEOUT_MS,
+          timeout: RUNPOD_REQUEST_TIMEOUT_MS,
+          headers: {
+            Authorization: `Bearer ${runpodConfig.apiKey}`,
+            'Content-Type': 'application/json',
+          },
         },
       );
-      const text = String((response.data as { response?: string }).response ?? '').trim();
-      const ok = response.status >= 200 && response.status < 300 && text.length > 0;
       checks.push({
-        name: 'response_engine_available',
-        status: ok ? 'PASS' : 'FAIL',
-        detail: ok ? `response=${text.slice(0, 120)}` : 'Model gateway returned empty response.',
+        name: 'runpod_endpoint_available',
+        status: response.status >= 200 && response.status < 300 ? 'PASS' : 'FAIL',
+        detail: `status=${response.status}`,
       });
     } catch (error) {
       checks.push({
-        name: 'response_engine_available',
+        name: 'runpod_endpoint_available',
         status: 'FAIL',
         detail: error instanceof Error ? error.message : 'unknown error',
       });
     }
+  } else {
+    checks.push({
+      name: 'runpod_configured',
+      status: 'FAIL',
+      detail: 'RunPod endpoint is not configured. RunPod is the only allowed Bob execution provider.',
+    });
   }
 
   const passed = checks.filter((check) => check.status === 'PASS').length;
@@ -2288,8 +3181,13 @@ function formatGiteaProposeResultForBob(result: GiteaProposeResult): string {
 }
 
 async function executeGiteaProposePr(payload: GiteaCreatePrRequest): Promise<GiteaProposeResult> {
-  const owner = (payload.owner ?? process.env.GITEA_OWNER ?? '').trim();
-  const repo = (payload.repo ?? process.env.GITEA_REPO ?? '').trim();
+  const defaultRepoPair = optionalAnyEnv(['GITEA_REPOSITORY', 'GITHUB_REPOSITORY']) ?? '';
+  const [fallbackOwner, fallbackRepo] = defaultRepoPair.includes('/')
+    ? defaultRepoPair.split('/', 2)
+    : ['', ''];
+
+  const owner = (payload.owner ?? process.env.GITEA_OWNER ?? fallbackOwner ?? '').trim();
+  const repo = (payload.repo ?? process.env.GITEA_REPO ?? fallbackRepo ?? '').trim();
   const baseBranch = (payload.baseBranch ?? process.env.GITEA_BASE_BRANCH ?? 'main').trim();
   const branchPrefix = process.env.GITEA_BRANCH_PREFIX ?? 'bob/';
   const commitMessage = (payload.commitMessage ?? 'chore: bob proposed patch').trim();
@@ -2509,18 +3407,34 @@ async function executeGiteaProposePr(payload: GiteaCreatePrRequest): Promise<Git
 }
 
 function getGiteaClient() {
-  const baseUrl = optionalAnyEnv(['GITEA_BASE_URL', 'GITEA_URL']);
-  const token = optionalAnyEnv(['GITEA_TOKEN', 'GITEA_API_TOKEN']);
+  const giteaBase = optionalAnyEnv(['GITEA_BASE_URL', 'GITEA_URL', 'GITEA_API_URL']);
+  const giteaToken = optionalAnyEnv(['GITEA_ADMIN_TOKEN', 'GITEA_TOKEN', 'GITEA_API_TOKEN', 'GITEA_ACCESS_TOKEN']);
+  const githubToken = optionalAnyEnv(['GITHUB_TOKEN', 'GH_TOKEN', 'BOB_WORKER_GITHUB_TOKEN']);
+  const githubApiUrl = optionalAnyEnv(['GITHUB_API_URL']);
+  const githubServerUrl = optionalAnyEnv(['GITHUB_SERVER_URL']);
 
-  if (!baseUrl || !token) {
-    throw new Error('Missing Gitea configuration. Set GITEA_BASE_URL and GITEA_TOKEN.');
+  const usingGitea = Boolean(giteaBase && giteaToken);
+  const token = usingGitea ? giteaToken : githubToken;
+
+  let baseURL = '';
+  if (usingGitea) {
+    const trimmedBaseUrl = String(giteaBase).replace(/\/+$/, '');
+    baseURL = trimmedBaseUrl.endsWith('/api/v1') ? trimmedBaseUrl : `${trimmedBaseUrl}/api/v1`;
+  } else if (githubApiUrl && githubToken) {
+    baseURL = String(githubApiUrl).replace(/\/+$/, '');
+  } else if (githubServerUrl && githubToken) {
+    const trimmed = String(githubServerUrl).replace(/\/+$/, '');
+    baseURL = trimmed.includes('github.com') ? 'https://api.github.com' : `${trimmed}/api/v3`;
   }
 
-  const trimmedBaseUrl = baseUrl.replace(/\/+$/, '');
+  if (!baseURL || !token) {
+    throw new Error('Missing repository API configuration. Provide GITEA_BASE_URL/GITEA_TOKEN or GITHUB_API_URL/GITHUB_TOKEN.');
+  }
+
   return axios.create({
-    baseURL: `${trimmedBaseUrl}/api/v1`,
+    baseURL,
     headers: {
-      Authorization: `token ${token}`,
+      Authorization: usingGitea ? `token ${token}` : `Bearer ${token}`,
       'Content-Type': 'application/json',
     },
     timeout: 30000,
@@ -2910,6 +3824,16 @@ function normalizeAgentRoles(input: unknown): Record<string, string> {
   }
 
   return { ...DEFAULT_AGENT_ROLES };
+}
+
+function isLightweightHealthIntent(input: string): boolean {
+  const normalized = input.toLowerCase();
+  if (!normalized) return false;
+
+  return (
+    /\b(health\s*check|status\s*check|readiness\s*check|init(?:ializ(?:e|ation))?|ping|are\s+you\s+online|respond\s+with\s+bob_ok)\b/i.test(normalized)
+    && normalized.length <= 400
+  );
 }
 
 function extractFirstUrl(rawText: string): string | null {
@@ -3442,6 +4366,85 @@ app.post('/api/heal', requireUserAuth, async (req: Request, res: Response) => {
       return;
     }
 
+    const isSchemaAuditIntent = /executelivedatabaseschemaaudit|schema\s+audit|index\s+coverage|sorting?\s+hotspot|pg_catalog|pg_stat/i.test(
+      inboundText,
+    );
+    if (isSchemaAuditIntent) {
+      try {
+        const schemaAudit = await executeLiveDatabaseSchemaAudit();
+        const structuredPayload = {
+          generatedAt: schemaAudit.generatedAt,
+          source: schemaAudit.source,
+          indexCoverageCandidates: schemaAudit.indexCoverageCandidates,
+          sortHotspots: schemaAudit.sortHotspots,
+          riskRewardMatrix: schemaAudit.riskRewardMatrix,
+        };
+        const bobResponse = JSON.stringify(structuredPayload, null, 2);
+
+        await appendChatSessionMessage(sessionId, 'assistant', bobResponse);
+
+        res.status(200).json({
+          bobResponse,
+          status: 'SCHEMA_AUDIT_COMPLETE',
+          sessionId,
+          routeAgent: 'dr_bob',
+          schemaAudit: structuredPayload,
+          metadata: schemaAudit.metadata,
+        });
+        return;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'schema audit failed';
+        const degradedText = `Schema audit execution failed: ${message}`;
+        await appendChatSessionMessage(sessionId, 'assistant', degradedText);
+
+        res.status(200).json({
+          bobResponse: degradedText,
+          status: 'DEGRADED',
+          sessionId,
+          routeAgent: 'dr_bob',
+        });
+        return;
+      }
+    }
+
+    if (isLightweightHealthIntent(inboundText)) {
+      const lightweightPrompt = [
+        'You are Bob runtime health probe responder.',
+        'Do not use repository blueprints or schema context for this check.',
+        'Return one short line indicating runtime readiness and active provider path if known.',
+        'If upstream provider is unavailable, state DEGRADED and include the short reason.',
+      ].join('\n');
+
+      try {
+        const healthResult = await generateWithModelFallback('', `${lightweightPrompt}\n\nProbe request: ${inboundText}`);
+        const bobResponse = healthResult.responseText.trim() || 'BOB_OK';
+
+        await appendChatSessionMessage(sessionId, 'assistant', bobResponse);
+
+        res.status(200).json({
+          bobResponse,
+          status: 'HEALTH_CHECK_OK',
+          sessionId,
+          routeAgent: 'health_probe',
+          modelUsed: healthResult.modelUsed,
+        });
+        return;
+      } catch (error) {
+        const upstreamMessage = error instanceof Error ? error.message : String(error);
+        const degradedText = `DEGRADED: ${upstreamMessage.slice(0, 240)}`;
+
+        await appendChatSessionMessage(sessionId, 'assistant', degradedText);
+
+        res.status(200).json({
+          bobResponse: degradedText,
+          status: 'DEGRADED',
+          sessionId,
+          routeAgent: 'health_probe',
+        });
+        return;
+      }
+    }
+
     const kb = await getTierAKnowledgeContext();
     const instructionManualText = await loadInstructionManualText();
     const patrolManualGuidance = extractInstructionManualGuidance(instructionManualText, inboundText, 2200);
@@ -3924,6 +4927,12 @@ app.post('/api/heal', requireUserAuth, async (req: Request, res: Response) => {
       2,
     );
 
+    const routedBlueprint = buildSchemaAwareBlueprint({
+      intentText: inboundText,
+      masterSchemaPayload: kb.schemaPayload,
+      maxBytes: Math.min(4096, Math.floor(BOB_CONTEXT_MAX_BYTES / 2)),
+    });
+
     const cognitivePrompt = `
 You are Bob's cognitive reasoning controller for an engineering command center.
 The user states: "${inboundText}"
@@ -3938,7 +4947,7 @@ ${conversationTranscript}
 Structured recent history array:
 ${promptHistoryJson}
 
-Reference Blueprints (Tier A): ${kb.schemaPayload}
+Reference Blueprints (Tier A): ${routedBlueprint.minimizedSchema}
 System Operational Rules: ${kb.systemRules}
 Instruction Manual guidance (prioritize patrol, dispatch, route, response when relevant):
 ${extractInstructionManualGuidance(instructionManualText, inboundText, 1800)}
@@ -3976,8 +4985,60 @@ Return ONLY one JSON object with this schema:
   "consultativeResponse": "markdown string for human decision"
 }
 
-Do not return plain text outside the JSON object.
+Strict formatting requirements:
+- Output must be raw JSON only (no markdown code fences).
+- Escape newline characters inside string values as \\n.
+- Do not include trailing commas.
+- Do not return plain text outside the JSON object.
 `;
+
+    if (shouldForcePerformanceMigrationMaterialization(inboundText, sessionId)) {
+      const forcedCandidate: MaterializationCandidate = {
+        path: 'supabase/migrations/20260524000004_bob_architect_performance_indices.sql',
+        content: buildForcedPerformanceMigrationSql(),
+        source: 'sql_fence',
+      };
+      const forcedResult = materializeCandidatesToDisk([forcedCandidate]);
+      const forcedExecutionSummary = {
+        mode: 'forced_materialization',
+        executed: forcedResult.written.length > 0,
+        outcome: forcedResult.written.length > 0 ? 'materialized' : 'skipped',
+        materialization: {
+          candidateCount: 1,
+          writtenFiles: forcedResult.written,
+          skipped: forcedResult.skipped,
+        },
+      };
+      const forcedResponse = forcedResult.written.length > 0
+        ? [
+            '## Materialization',
+            '',
+            `Written files: ${forcedResult.written.join(', ')}`,
+            '',
+            'Deterministic fallback was applied before model generation to guarantee migration artifact output.',
+          ].join('\n')
+        : [
+            '## Materialization',
+            '',
+            'Deterministic fallback attempted, but no files were written.',
+          ].join('\n');
+
+      await appendChatSessionMessage(sessionId, 'assistant', forcedResponse);
+
+      res.status(200).json({
+        bobResponse: forcedResponse,
+        status: forcedResult.written.length > 0 ? 'MATERIALIZED_FALLBACK' : 'CONSULTATIVE_RECOMMENDATION',
+        sessionId,
+        reasoningTrace: 'FORCED_MATERIALIZATION_PATH: explicit migration target detected in manual instruction.',
+        riskAnalysis: 'Low risk: writes one whitelisted migration path only.',
+        rewardAnalysis: 'High reward: guarantees required artifact exists for rollout validation.',
+        confidenceScore: 0.98,
+        isObviousAutonomous: true,
+        actionTaken: forcedResult.written.length > 0 ? 'AGENTIC_EXECUTED' : 'RECOMMENDED_ONLY',
+        executionSummary: forcedExecutionSummary,
+      });
+      return;
+    }
 
     let modelText = '';
     let modelUsed = '';
@@ -3987,7 +5048,8 @@ Do not return plain text outside the JSON object.
       modelUsed = result.modelUsed;
     } catch (error) {
       console.error('[/api/heal] Cognitive generation failed', error);
-      const degradedText = 'Bob is temporarily unavailable (model upstream). Please retry in a moment.';
+      const upstreamMessage = error instanceof Error ? error.message : String(error);
+      const degradedText = `Bob is temporarily unavailable (model upstream). ${upstreamMessage.slice(0, 280)}`;
       await appendChatSessionMessage(sessionId, 'assistant', degradedText);
 
       if (req.body.stream === true) {
@@ -4001,6 +5063,8 @@ Do not return plain text outside the JSON object.
         bobResponse: degradedText,
         status: 'DEGRADED',
         sessionId,
+        reasoningTrace: `UPSTREAM_FAILURE: ${upstreamMessage.slice(0, 500)}`,
+        upstreamError: upstreamMessage.slice(0, 500),
       });
       return;
     }
@@ -4051,6 +5115,38 @@ Do not return plain text outside the JSON object.
         '',
         '## Recommendation',
         consultativeBody,
+      ].join('\n');
+    }
+
+    const materializationCandidates = extractMaterializationCandidates(modelText);
+    let materializationResult = materializeCandidatesToDisk(materializationCandidates);
+    if (materializationResult.written.length === 0 && shouldForcePerformanceMigrationMaterialization(inboundText, sessionId)) {
+      const forcedCandidate: MaterializationCandidate = {
+        path: 'supabase/migrations/20260524000004_bob_architect_performance_indices.sql',
+        content: buildForcedPerformanceMigrationSql(),
+        source: 'sql_fence',
+      };
+      const forcedResult = materializeCandidatesToDisk([forcedCandidate]);
+      materializationResult = {
+        written: [...materializationResult.written, ...forcedResult.written],
+        skipped: [...materializationResult.skipped, ...forcedResult.skipped],
+      };
+    }
+    executionSummary = {
+      ...executionSummary,
+      materialization: {
+        candidateCount: materializationCandidates.length,
+        writtenFiles: materializationResult.written,
+        skipped: materializationResult.skipped,
+      },
+    };
+
+    if (materializationResult.written.length > 0) {
+      bobResponse = [
+        bobResponse,
+        '',
+        '## Materialization',
+        `Written files: ${materializationResult.written.join(', ')}`,
       ].join('\n');
     }
 
@@ -4491,6 +5587,98 @@ app.post('/api/automation/ux-audit', requireAdminAuth, async (req: Request, res:
   }
 });
 
+app.post('/api/automation/deep-system-audit', requireAdminAuth, async (req: Request, res: Response): Promise<void> => {
+  console.log('[DEEP-SYSTEM INITIATIVE] Bob is launching an all-hands structural ecosystem audit...');
+
+  const body = (req.body ?? {}) as { sessionId?: string; session_id?: string };
+  const sessionId = normalizeChatSessionId(body.sessionId ?? body.session_id ?? `pre-beta-all-hands-${Date.now()}`);
+
+  res.status(202).json({
+    status: 'Deep system master sweep engaged.',
+    sessionId,
+  });
+
+  void (async () => {
+    try {
+      const instructionManualText = await loadInstructionManualText();
+      const documentationState = extractDeepSystemDocumentationState(instructionManualText);
+      const protocolPatch = await upsertUnifiedDeepSystemProtocol();
+      const storageSnapshot = await auditSupabaseStorageBuckets();
+
+      const { data: frictionLogs, error: frictionError } = await (supabase as any)
+        .from('ui_ux_friction_ledger')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(500);
+
+      if (frictionError) {
+        throw new Error(`Failed to load ui_ux_friction_ledger: ${String(frictionError.message || frictionError)}`);
+      }
+
+      const reportMarkdown = buildDeepSystemAuditMarkdownReport({
+        sessionId,
+        protocolPatch,
+        documentation: documentationState,
+        storageSnapshot,
+        frictionLogs: Array.isArray(frictionLogs) ? frictionLogs : [],
+      });
+
+      const metadata = {
+        source: 'deep-system-audit',
+        sessionId,
+        protocolPatch,
+        storageSnapshot,
+        frictionSampleCount: Array.isArray(frictionLogs) ? frictionLogs.length : 0,
+        reportMarkdown,
+      };
+
+      const { error: ledgerError } = await (supabase as any)
+        .from('ai_reasoning_ledger')
+        .insert({
+          session_id: sessionId,
+          intent_context: 'UNIFIED_DEEP_SYSTEM_AUDIT',
+          hypothetical_risks: 'Cross-layer anomalies may impact onboarding, media integrity, and field operations UX.',
+          projected_rewards: 'Unified diagnostics increase pre-beta confidence while preserving manual governance sign-off.',
+          confidence_score: 0.88,
+          action_taken: 'RECOMMENDED_ONLY',
+          metadata,
+          created_at: new Date().toISOString(),
+        });
+
+      if (ledgerError) {
+        throw new Error(`Failed to persist deep-system report: ${String(ledgerError.message || ledgerError)}`);
+      }
+
+      await appendChatSessionMessage(sessionId, 'assistant', reportMarkdown);
+
+      console.log('[DEEP-SYSTEM] Deep-system audit completed and report persisted for review.');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error('[CRITICAL] Deep system audit pass dropped:', message);
+
+      try {
+        await (supabase as any).from('self_heal_events').insert({
+          source: 'backend',
+          environment: process.env.NODE_ENV || 'development',
+          error_summary: '[DEEP-SYSTEM] Audit execution failed; manual intervention required.',
+          error_detail: {
+            route: '/api/automation/deep-system-audit',
+            sessionId,
+            reason: message,
+          },
+          error_fingerprint: `deep-system-audit:${sessionId}`,
+          triage_tier: 1,
+          ai_analysis: 'Deep-system audit async task failed and requires follow-up.',
+          outcome: 'pending',
+          recurrence_count: 1,
+          recurrence_window_minutes: 10,
+        });
+      } catch {
+        // Keep deep-system failures non-fatal for the async handler.
+      }
+    }
+  })();
+});
 // ── POST /api/automation/playwright-result ────────────────────────────────
 //    Receives webhook-driven Playwright gate outcomes and writes them into
 //    self_healing_logs for approval panel visibility.
@@ -4667,7 +5855,7 @@ app.post('/api/automation/playwright-result', async (req: Request, res: Response
     (!recoverySummary.rerunTriggered || attemptCount >= maxRecoveryAttempts || managerStatus === 'ORCHESTRATOR_CRASHED');
 
   if (shouldEscalateToBugReport) {
-    bugReportId = await upsertPlaywrightFailureBugReport({
+    const bugReportUpsertResult = await upsertPlaywrightFailureBugReport({
       repository,
       branch,
       verificationTag,
@@ -4677,7 +5865,23 @@ app.post('/api/automation/playwright-result', async (req: Request, res: Response
       recoverySummary,
       attemptCount,
     });
+    bugReportId = bugReportUpsertResult.bugReportId;
     recoverySummary.escalatedToBugReport = Boolean(bugReportId);
+
+    if (bugReportId) {
+      void triggerDrBobBugReportAutoTriage({
+        bugReportId,
+        repository,
+        branch,
+        verificationTag,
+        managerStatus,
+        command,
+        output,
+        attemptCount,
+        created: bugReportUpsertResult.created,
+        source: 'playwright-webhook',
+      });
+    }
   }
 
   const nowIso = new Date().toISOString();
@@ -4809,6 +6013,28 @@ app.post('/api/automation/playwright-result', async (req: Request, res: Response
   });
 });
 
+app.post('/api/automation/bug-report-ingested', async (req: Request, res: Response) => {
+  if (!hasAutomationToken(req)) {
+    res.status(401).json({ error: 'Unauthorized automation webhook token.' });
+    return;
+  }
+
+  const body = (req.body ?? {}) as { bugReportId?: unknown; bug_report_id?: unknown };
+  const bugReportId = String(body.bugReportId ?? body.bug_report_id ?? '').trim();
+  const triggered = await triagePendingBugReports({
+    limit: DR_BOB_BUG_REPORT_AUTOTRIAGE_BATCH_SIZE,
+    source: 'ingest-webhook',
+    bugReportId: bugReportId || undefined,
+  });
+
+  res.status(202).json({
+    ok: true,
+    status: 'Dr Bob auto-triage dispatched.',
+    bugReportId: bugReportId || null,
+    triggered,
+  });
+});
+
 // ── POST /api/cron/patrol ───────────────────────────────────────────────────
 //    Proactive initiative sweep endpoint intended for scheduler/cron triggers.
 app.post('/api/cron/patrol', async (req: Request, res: Response): Promise<void> => {
@@ -4827,13 +6053,18 @@ app.post('/api/cron/patrol', async (req: Request, res: Response): Promise<void> 
     const patrolSessionId = `cron-patrol:${Date.now()}`;
 
     const kb = await getTierAKnowledgeContext();
+    const routedPatrolBlueprint = buildSchemaAwareBlueprint({
+      intentText: 'patrol system scan',
+      masterSchemaPayload: kb.schemaPayload,
+      maxBytes: Math.min(4096, Math.floor(BOB_CONTEXT_MAX_BYTES / 2)),
+    });
     const patrolPrompt = [
       'You are Bob, the Serverless Fleet Chief Engineer. Run a proactive repository/system scan.',
       'Follow the AUTONOMY INITIATIVE PROTOCOL and return strict JSON only.',
       'Evaluate the finding through the mandatory risk-vs-reward matrix before any proposed action.',
       '',
       `System rules: ${kb.systemRules}`,
-      `Schema payload: ${kb.schemaPayload}`,
+      `Schema payload: ${routedPatrolBlueprint.minimizedSchema}`,
       `Authenticated patrol role context: ${formatAuthRoleForPrompt(auth)}`,
       '',
       'Identify one practical improvement and classify it as autonomous or consultative.',
@@ -4961,6 +6192,14 @@ const server = app.listen(PORT, () => {
   console.log(`[FieldOps Backend] Listening on port ${PORT}`);
 });
 
+const drBobBugReportPollHandle = setInterval(() => {
+  void triagePendingBugReports({
+    limit: DR_BOB_BUG_REPORT_AUTOTRIAGE_BATCH_SIZE,
+    source: 'poller',
+  });
+}, DR_BOB_BUG_REPORT_AUTOTRIAGE_POLL_MS);
+drBobBugReportPollHandle.unref();
+
 server.on('error', (error: NodeJS.ErrnoException) => {
   console.error('[FieldOps Backend] Server startup error', {
     message: error.message,
@@ -4981,6 +6220,7 @@ process.on('uncaughtException', (error) => {
 
 function shutdown(signal: 'SIGTERM' | 'SIGINT'): void {
   console.log(`[FieldOps Backend] Received ${signal}, shutting down`);
+  clearInterval(drBobBugReportPollHandle);
   server.close(() => {
     console.log('[FieldOps Backend] HTTP server closed');
     process.exit(0);

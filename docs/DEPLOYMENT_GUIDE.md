@@ -28,10 +28,10 @@ avoid launching duplicate Vite dev servers).
 Before deploying, ensure all requirements are met:
 
 ### 1. Code Quality
-- [ ] All TypeScript errors resolved (`bun run build` succeeds)
+- [ ] All TypeScript errors resolved (`npm run build` succeeds)
 - [ ] No console errors in development mode
 - [ ] ESLint passes with no warnings
-- [ ] Bob governance regression passes (`bun run test:bob:governance`)
+- [ ] Bob governance regression passes (`npm run test:bob:governance`)
 - [ ] All unused imports removed
 - [ ] Phase 8 smoke tests pass
 
@@ -122,7 +122,7 @@ Then run smoke tests for:
 1. Scan ingest and observation writes
 2. Breach alert generation
 3. Photo recovery views and functions (if enabled)
-4. Bob governance regression (`bun run test:bob:governance`) after deploying Bob edge functions
+4. Bob governance regression (`npm run test:bob:governance`) after deploying Bob edge functions
 
 ### Live Schema Verification Runbook (DBA)
 
@@ -160,8 +160,7 @@ SQL
 4. Re-run build/lint after type updates:
 
 ```bash
-export PATH="$HOME/.bun/bin:$PATH"
-bun run lint && bun run build
+npm run lint && npm run build
 ```
 
 5. Optional local guard before pushing migration changes:
@@ -201,7 +200,7 @@ scripts/check-migration-integrity.sh
    ```
    - Select your project directory
    - Link to existing project or create new one
-   - Set build command: `bun run build`
+   - Set build command: `npm run build`
    - Set output directory: `dist`
 
 4. **Set Environment Variables**
@@ -264,7 +263,7 @@ See `docs/RAILWAY_DEPLOYMENT_GUIDE.md` for full instructions (including GitHub d
 
 1. **Build Production Bundle**
    ```bash
-   bun run build
+   npm run build
    ```
 
 2. **Install Netlify CLI**
@@ -306,7 +305,7 @@ See `docs/RAILWAY_DEPLOYMENT_GUIDE.md` for full instructions (including GitHub d
 
 1. **Build Production Bundle**
    ```bash
-   bun run build
+   npm run build
    ```
 
 2. **Serve with Nginx**

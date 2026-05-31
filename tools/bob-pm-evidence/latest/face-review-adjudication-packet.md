@@ -1,6 +1,6 @@
 # Face Review Adjudication Packet
 
-Generated: 2026-05-23T11:05:58.462Z
+Generated: 2026-05-27T09:25:50.197Z
 
 - Review status: adjudication-packet-attached-case-samples-pending
 - Face log surface: src/pages/FaceRecordLog.tsx

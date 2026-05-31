@@ -72,7 +72,7 @@ export default function OfficerWelfareAlertsLog() {
 
   const statuses = [...new Set(rows.map(r => r.status).filter(Boolean))].sort()
   const types = [...new Set(rows.map(r => r.alert_type).filter(Boolean))].sort()
-  const openCount = rows.filter(r => r.status === 'open').length
+  const activeCount = rows.filter(r => r.status === 'pending' || r.status === 'open').length
   const resolvedCount = rows.filter(r => r.status === 'resolved').length
   const escalatedCount = rows.filter(r => (r.escalation_level ?? 0) > 0).length
 
@@ -95,7 +95,7 @@ export default function OfficerWelfareAlertsLog() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
             { label: 'Total Alerts', value: rows.length, colour: 'text-gray-700' },
-            { label: 'Open', value: openCount, colour: 'text-red-700' },
+            { label: 'Active', value: activeCount, colour: 'text-red-700' },
             { label: 'Resolved', value: resolvedCount, colour: 'text-green-700' },
             { label: 'Escalated', value: escalatedCount, colour: 'text-amber-700' },
           ].map(kpi => (
@@ -151,7 +151,7 @@ export default function OfficerWelfareAlertsLog() {
                     </TableCell>
                     <TableCell className="text-sm">{row.alert_type}</TableCell>
                     <TableCell>
-                      <Badge className={row.status === 'resolved' ? 'bg-green-100 text-green-800' : row.status === 'open' ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800'}>
+                      <Badge className={row.status === 'resolved' ? 'bg-green-100 text-green-800' : row.status === 'pending' || row.status === 'open' ? 'bg-red-100 text-red-800' : row.status === 'acknowledged' ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-800'}>
                         {row.status ?? 'unknown'}
                       </Badge>
                     </TableCell>

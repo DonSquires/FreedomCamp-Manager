@@ -15,13 +15,13 @@
 git clone https://github.com/DonSquires/FreedomCamp-Manager.git
 cd FreedomCamp-Manager
 
-# Install dependencies (requires bun)
-bun install
+# Install dependencies (npm-only policy)
+npm install
 
 # Verify environment
-bun run build  # Should succeed with no errors
-bun run lint   # Should pass ESLint
-bun run test:bob:governance  # Bob governance contract must stay green
+npm run build  # Should succeed with no errors
+npm run lint   # Should pass ESLint
+npm run test:bob:governance  # Bob governance contract must stay green
 
 # Check current realignment status
 cat docs/BUILD_REALIGNMENT_PLAN_2026-05-04.md | head -50
@@ -33,28 +33,33 @@ cat docs/BUILD_REALIGNMENT_PLAN_2026-05-04.md | head -50
 
 ### Prerequisites (Already in Codespace)
 - **Git** (version control, commit/push)
-- **Bun** (package manager, already in use)
-- **Node.js 18+** (for scripts)
+- **npm** (package manager, canonical)
+- **Node.js 20.x** (repo engine contract: `>=20 <21`)
+- **npm 10.x** (repo engine contract: `>=10 <11`)
 - **TypeScript** (configured in `tsconfig.json`)
 
 ### Required Tools for Phase A
 
 | Tool | Purpose | Installation | Verification |
 |------|---------|--------------|--------------|
-| **bun** | Build, test, dev server | Pre-installed | `bun --version` |
-| **Playwright** | E2E testing | `bun install -D @playwright/test` | `bunx playwright --version` |
-| **Supabase CLI** | Database migrations | `bun add -g supabase-cli` or `npm i -g supabase-cli` | `supabase --version` |
-| **ESLint 9** | Linting (flat config) | Already in `package.json` | `bun run lint` |
+| **npm** | Build, test, dev server | Pre-installed | `npm --version` |
+| **Playwright** | E2E testing | `npm install --save-dev @playwright/test` | `npx playwright --version` |
+| **Supabase CLI** | Database migrations | `npm i -g supabase-cli` | `supabase --version` |
+| **ESLint 9** | Linting (flat config) | Already in `package.json` | `npm run lint` |
 | **TypeScript 5.5+** | Type checking | Already in `package.json` | `tsc --version` |
 
 ### Install All Phase A Tools (One Command)
 ```bash
 cd /workspaces/FreedomCamp-Manager
-bun install
-bun add -D @playwright/test vitest @vitest/ui
+npm install
+npm install --save-dev @playwright/test vitest @vitest/ui
 npm install -g supabase-cli 2>/dev/null || echo "Supabase CLI optional for Phase A"
-bun run build  # Verify all tools work
+npm run build  # Verify all tools work
 ```
+
+Normalization note:
+- This guide now follows npm-only execution.
+- Any remaining Bun commands in historical sections are archival records and should be run using npm equivalents.
 
 ---
 
@@ -113,7 +118,7 @@ bun run build  # Verify all tools work
    - [Bullet of what was done]
    - [Bullet of what was done]
 
-  Tests: [bun run build] ✅ [bun run lint] ✅ [bun run test:bob:governance] ✅
+  Tests: [npm run build] ✅ [npm run lint] ✅ [npm run test:bob:governance] ✅
    Docs updated: docs/BUILD_REALIGNMENT_PLAN_2026-05-04.md
    "
    

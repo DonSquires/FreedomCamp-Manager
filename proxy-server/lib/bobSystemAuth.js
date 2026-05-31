@@ -34,15 +34,67 @@ const state = {
   lastFailureAt: null,
   lastRefreshAt: null,
   refreshFailures: 0,
+  credentialSource: {
+    email: null,
+    password: null,
+  },
 };
 
 let supabase = null;
 
+function firstNonEmptyEnv(names) {
+  for (const name of names) {
+    const value = String(process.env[name] || '').trim();
+    if (value) {
+      return value;
+    }
+  }
+  return '';
+}
+
+function firstResolvedEnv(names) {
+  for (const name of names) {
+    const value = String(process.env[name] || '').trim();
+    if (value) {
+      return { value, source: name };
+    }
+  }
+
+  return { value: '', source: null };
+}
 function getConfig() {
-  const supabaseUrl = String(process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '').trim().replace(/\/+$/, '');
-  const supabaseKey = String(process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
-  const email = String(process.env.BOB_SYSTEM_EMAIL || '').trim().toLowerCase();
-  const password = String(process.env.BOB_SYSTEM_PASSWORD || '').trim();
+  const supabaseUrl = firstNonEmptyEnv([
+    'SUPABASE_URL',
+    'VITE_SUPABASE_URL',
+    'SUPABASE_PROJECT_URL',
+  ]).replace(/\/+$/, '');
+
+  const supabaseKey = firstNonEmptyEnv([
+    'SUPABASE_ANON_KEY',
+    'VITE_SUPABASE_ANON_KEY',
+    'SUPABASE_SERVICE_ROLE_KEY',
+    'SERVICE_ROLE_KEY',
+    'SB_SERVICE_KEY',
+  ]);
+
+  const isProduction = String(process.env.NODE_ENV || '').toLowerCase() === 'production';
+  const allowLegacyAliases = !isProduction || String(process.env.BOB_SYSTEM_ALLOW_LEGACY_ALIASES || '').trim() === '1';
+  const email = firstNonEmptyEnv([
+    'BOB_SYSTEM_EMAIL',
+    'BOB_LOGIN_EMAIL',
+    'PLAYWRIGHT_MASTER_EMAIL',
+    'TEST_OWNER_EMAIL',
+    'API_TEST_EMAIL',
+  ]).toLowerCase();
+
+  const password = firstNonEmptyEnv([
+    'BOB_SYSTEM_PASSWORD',
+    'BOB_LOGIN_PASSWORD',
+    'PLAYWRIGHT_MASTER_PASSWORD',
+    'TEST_OWNER_PASSWORD',
+    'API_TEST_PASSWORD',
+  ]);
+
   const refreshBufferSeconds = Math.max(30, Number(process.env.BOB_SYSTEM_REFRESH_BUFFER_SECONDS || 120));
 
   return {
@@ -50,9 +102,48 @@ function getConfig() {
     supabaseKey,
     email,
     password,
+    isProduction,
+    allowLegacyAliases,
     refreshBufferSeconds,
     configured: Boolean(supabaseUrl && supabaseKey && email && password),
   };
+}
+
+function credentialCandidates(cfg) {
+  const canonicalPair = {
+    email: firstResolvedEnv(['BOB_SYSTEM_EMAIL']),
+    password: firstResolvedEnv(['BOB_SYSTEM_PASSWORD']),
+  };
+
+  const legacyPairs = cfg.allowLegacyAliases
+    ? [
+      ['BOB_LOGIN_EMAIL', 'BOB_LOGIN_PASSWORD'],
+      ['PLAYWRIGHT_MASTER_EMAIL', 'PLAYWRIGHT_MASTER_PASSWORD'],
+      ['TEST_OWNER_EMAIL', 'TEST_OWNER_PASSWORD'],
+      ['API_TEST_EMAIL', 'API_TEST_PASSWORD'],
+    ]
+      .map(([emailName, passwordName]) => ({
+        email: firstResolvedEnv([emailName]),
+        password: firstResolvedEnv([passwordName]),
+      }))
+      .filter((pair) => pair.email.value && pair.password.value)
+    : [];
+
+  const candidates = [];
+  if (canonicalPair.email.value && canonicalPair.password.value) {
+    candidates.push(canonicalPair);
+  }
+
+  for (const pair of legacyPairs) {
+    const duplicateCanonical =
+      pair.email.value.toLowerCase() === String(canonicalPair.email.value || '').toLowerCase() &&
+      pair.password.value === String(canonicalPair.password.value || '');
+    if (!duplicateCanonical) {
+      candidates.push(pair);
+    }
+  }
+
+  return candidates;
 }
 
 function clearTimer() {
@@ -133,7 +224,9 @@ function recordFailure(error) {
 async function signInWithPassword() {
   const cfg = getConfig();
   if (!cfg.configured) {
-    throw new Error('Missing Supabase/Bob system login env variables.');
+    throw new Error(
+      'Missing Supabase/Bob system login env variables. Required: SUPABASE_URL + key and Bob credentials (BOB_SYSTEM_EMAIL + BOB_SYSTEM_PASSWORD; legacy aliases require BOB_SYSTEM_ALLOW_LEGACY_ALIASES=1 in production).'
+    );
   }
 
   ensureWebSocketSupport();
@@ -147,22 +240,45 @@ async function signInWithPassword() {
     });
   }
 
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email: cfg.email,
-    password: cfg.password,
-  });
+  const candidates = credentialCandidates(cfg);
+  const failures = [];
 
-  if (error) {
-    throw new Error(`signInWithPassword failed: ${error.message}`);
+  if (candidates.length === 0) {
+    throw new Error(
+      'No Bob system credential candidates found. Set BOB_SYSTEM_EMAIL + BOB_SYSTEM_PASSWORD, or enable legacy aliases with BOB_SYSTEM_ALLOW_LEGACY_ALIASES=1 where appropriate.'
+    );
   }
 
-  if (!data?.session) {
-    throw new Error('Supabase sign-in succeeded but no session was returned.');
+  for (const candidate of candidates) {
+    const email = String(candidate.email.value || '').toLowerCase();
+    const password = String(candidate.password.value || '');
+    const sourceHint = [candidate.email.source, candidate.password.source].filter(Boolean).join(' / ') || 'unknown env source';
+
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (error) {
+      failures.push(`source=${sourceHint}: ${error.message}`);
+      continue;
+    }
+
+    if (!data?.session) {
+      failures.push(`source=${sourceHint}: no session returned`);
+      continue;
+    }
+
+    state.credentialSource = {
+      email: candidate.email.source,
+      password: candidate.password.source,
+    };
+    applySession(data.session, email);
+    state.refreshFailures = 0;
+    return data.session;
   }
 
-  applySession(data.session, cfg.email);
-  state.refreshFailures = 0;
-  return data.session;
+  throw new Error(`signInWithPassword failed: ${failures.join(' | ')}`);
 }
 
 async function rotateSession() {
@@ -201,7 +317,7 @@ async function initBobSystemAuth() {
 
   if (!cfg.configured) {
     state.ready = false;
-    state.lastError = 'BOB_SYSTEM_EMAIL/BOB_SYSTEM_PASSWORD not configured.';
+    state.lastError = 'Bob system credentials are not configured (BOB_SYSTEM_* or fallback aliases).';
     return false;
   }
 
@@ -225,11 +341,23 @@ function getBobSystemAccessToken() {
   return state.accessToken;
 }
 
-function getBobSystemAuthStatus() {
+function getBobSystemAuthStatus(options = {}) {
+  const includeSensitive = Boolean(options.includeSensitive);
+
   return {
     configured: state.configured,
     ready: state.ready,
     email: state.email,
+    ...(includeSensitive
+      ? {
+          credentials_source: {
+            email: state.credentialSource.email,
+            password: state.credentialSource.password,
+            allow_legacy_aliases: getConfig().allowLegacyAliases,
+            node_env: getConfig().isProduction ? 'production' : (process.env.NODE_ENV || 'development'),
+          },
+        }
+      : {}),
     user_id: state.userId,
     expires_at: state.expiresAtMs ? new Date(state.expiresAtMs).toISOString() : null,
     last_refresh_at: state.lastRefreshAt,
@@ -238,9 +366,9 @@ function getBobSystemAuthStatus() {
     last_failure_kind: state.lastFailureKind,
     last_failure_at: state.lastFailureAt,
     self_heal_hint: state.lastFailureKind === 'credentials'
-      ? 'Rotate or correct BOB_SYSTEM_EMAIL / BOB_SYSTEM_PASSWORD, then restart the proxy so Bob can re-authenticate.'
+      ? 'Rotate or correct Bob auth credentials (BOB_SYSTEM_* preferred), then restart the proxy so Bob can re-authenticate.'
       : state.lastFailureKind === 'configuration'
-        ? 'Set BOB_SYSTEM_EMAIL and BOB_SYSTEM_PASSWORD before restarting the proxy.'
+        ? 'Set Bob auth credentials before restarting the proxy. Preferred: BOB_SYSTEM_EMAIL + BOB_SYSTEM_PASSWORD.'
         : null,
   };
 }

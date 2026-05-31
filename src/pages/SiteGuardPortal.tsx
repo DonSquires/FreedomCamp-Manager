@@ -21,7 +21,7 @@ import { useSearchParams, useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
 import { supabase } from '@/lib/supabase'
-import { AppLayout } from '@/components/features/AppLayout'
+import { OfficerShell } from '@/components/features/OfficerShell'
 import { FieldSafetyBar } from '@/components/features/FieldSafetyBar'
 import { GeofenceWarningBanner } from '@/components/features/GeofenceWarningBanner'
 import { useShiftGate } from '@/hooks/useShiftGate'
@@ -388,7 +388,7 @@ export default function SiteGuardPortal() {
 
   if (!clientSiteId) {
     return (
-      <AppLayout title="Site Guard" showBackButton>
+      <OfficerShell title="Site Guard" showBackButton contentClassName="max-w-7xl">
         <div className="flex flex-col items-center justify-center py-20 text-center">
           <Building2 className="h-12 w-12 text-gray-300 mb-4" />
           <p className="text-gray-500">No site selected.</p>
@@ -396,24 +396,24 @@ export default function SiteGuardPortal() {
             Go to Field Portal
           </Button>
         </div>
-      </AppLayout>
+      </OfficerShell>
     )
   }
 
   if (isDirectorOfficerMode && (gateLoading || rosteredShiftLoading || siteToolPermissions.isLoading)) {
     return (
-      <AppLayout title="Site Guard" showBackButton>
+      <OfficerShell title="Site Guard" showBackButton contentClassName="max-w-7xl">
         <div className="flex flex-col items-center justify-center py-20 text-center">
           <Clock className="h-12 w-12 text-gray-300 mb-4" />
           <p className="text-gray-500">Validating rostered site access…</p>
         </div>
-      </AppLayout>
+      </OfficerShell>
     )
   }
 
   if (isDirectorOfficerMode && !directorSiteGuardAllowed) {
     return (
-      <AppLayout title="Site Guard" showBackButton>
+      <OfficerShell title="Site Guard" showBackButton contentClassName="max-w-7xl">
         <div className="flex flex-col items-center justify-center py-20 text-center">
           <ShieldAlert className="h-12 w-12 text-red-300 mb-4" />
           <p className="text-gray-700 font-medium">Access restricted to your active rostered site.</p>
@@ -422,7 +422,7 @@ export default function SiteGuardPortal() {
             Return to Field Portal
           </Button>
         </div>
-      </AppLayout>
+      </OfficerShell>
     )
   }
 
@@ -430,11 +430,14 @@ export default function SiteGuardPortal() {
   const fenceLabel  = isInsideFence ? 'Inside Site' : distanceToSite != null ? `${Math.round(distanceToSite)} m away` : 'Locating…'
 
   return (
-    <AppLayout
+    <OfficerShell
       title={site?.name ?? 'Site Guard'}
       description={site?.address ?? ''}
       showBackButton
-    >      {geofenceViolation && <GeofenceWarningBanner />}      {/* ── Safety bar — always visible ──────────────────────────────────── */}
+      contentClassName="max-w-7xl"
+    >
+      {geofenceViolation && <GeofenceWarningBanner />}
+      {/* ── Safety bar — always visible ──────────────────────────────────── */}
       <FieldSafetyBar
         zoneId={site?.id ?? null}
         position={null}
@@ -945,6 +948,6 @@ export default function SiteGuardPortal() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </AppLayout>
+    </OfficerShell>
   )
 }

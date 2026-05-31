@@ -17,6 +17,18 @@ import { findBobSchemaEntitiesForText, getBobSchemaRegistrySummary } from './bob
 
 const ACCESS_TOKEN_REFRESH_BUFFER_MS = 60_000
 const EDGE_FUNCTION_TIMEOUT_MS = 35_000
+const SESSION_TOAST_COOLDOWN_MS = 15_000
+
+let lastSessionToastAtMs = 0
+
+function shouldEmitSessionToast(): boolean {
+  const now = Date.now()
+  if (now - lastSessionToastAtMs < SESSION_TOAST_COOLDOWN_MS) {
+    return false
+  }
+  lastSessionToastAtMs = now
+  return true
+}
 
 async function withTimeout<T>(promise: Promise<T>, ms: number, timeoutMessage: string): Promise<T> {
   return await new Promise<T>((resolve, reject) => {
@@ -277,6 +289,32 @@ function mapGrandmasterActionToMutationContract(action: string): string | null {
   return null
 }
 
+function readSupabaseAccessTokenFromStorage(): string | null {
+  if (typeof window === 'undefined') return null
+
+  const storages: Storage[] = [window.localStorage, window.sessionStorage]
+  for (const storage of storages) {
+    for (let i = 0; i < storage.length; i += 1) {
+      const key = storage.key(i)
+      if (!key || !key.startsWith('sb-') || !key.includes('-auth-token')) continue
+
+      const raw = storage.getItem(key)
+      if (!raw) continue
+
+      try {
+        const parsed = JSON.parse(raw)
+        if (typeof parsed?.access_token === 'string' && parsed.access_token.length > 20) {
+          return parsed.access_token
+        }
+      } catch {
+        // Ignore malformed auth storage values.
+      }
+    }
+  }
+
+  return null
+}
+
 /** Retrieve the current session's access token, or null if not signed in. */
 async function getValidAccessToken(): Promise<string | null> {
   try {
@@ -313,7 +351,7 @@ async function getValidAccessToken(): Promise<string | null> {
 
     return session.access_token
   } catch {
-    return null
+    return readSupabaseAccessTokenFromStorage()
   }
 }
 
@@ -468,8 +506,11 @@ async function callEdgeFunction<T = any>(
     const accessToken = await getValidAccessToken()
     if (!accessToken) {
       const errorMessage = 'No active session found. Please sign in again and retry.'
-      lock('Session Lockout', 'Your session is no longer active. Log back in to unlock this workspace.')
-      if (options.showToast) {
+      const { isLocked } = useSessionLockStore.getState()
+      if (!isLocked) {
+        lock('Session Lockout', 'Your session is no longer active. Log back in to unlock this workspace.')
+      }
+      if (options.showToast && !isLocked && shouldEmitSessionToast()) {
         toast.error(errorMessage)
       }
       return { data: null, error: errorMessage }
@@ -582,8 +623,11 @@ async function callEdgeFunction<T = any>(
         }
 
         const authErrorMessage = 'Session expired during request. Please retry once or sign in again.'
-        lock('Session Timed Out', 'Your session expired while this task was running. Log back in to continue safely.')
-        if (options.showToast) {
+        const { isLocked } = useSessionLockStore.getState()
+        if (!isLocked) {
+          lock('Session Timed Out', 'Your session expired while this task was running. Log back in to continue safely.')
+        }
+        if (options.showToast && shouldEmitSessionToast()) {
           toast.error(authErrorMessage)
         }
         return { data: null, error: authErrorMessage }
@@ -601,9 +645,12 @@ async function callEdgeFunction<T = any>(
   } catch (error: any) {
     const errorMessage = await getErrorMessage(error)
     if (errorMessage.toLowerCase().includes('session')) {
-      lock('Session Lockout', 'Your session could not be refreshed. Log back in to unlock this workspace.')
+      const { isLocked } = useSessionLockStore.getState()
+      if (!isLocked) {
+        lock('Session Lockout', 'Your session could not be refreshed. Log back in to unlock this workspace.')
+      }
     }
-    if (options.showToast) {
+    if (options.showToast && (!errorMessage.toLowerCase().includes('session') || shouldEmitSessionToast())) {
       toast.error(errorMessage)
     }
     return { data: null, error: errorMessage }
@@ -628,7 +675,15 @@ async function callEdgeFunctionRoute<T = any>(
   try {
     const accessToken = await getValidAccessToken()
     if (!accessToken) {
-      return { data: null, error: 'No active session found. Please sign in again and retry.' }
+      const message = 'No active session found. Please sign in again and retry.'
+      const { isLocked, lock } = useSessionLockStore.getState()
+      if (!isLocked) {
+        lock('Session Lockout', 'Your session is no longer active. Log back in to unlock this workspace.')
+      }
+      if (showToast && !isLocked && shouldEmitSessionToast()) {
+        toast.error(message)
+      }
+      return { data: null, error: message }
     }
 
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined
@@ -914,7 +969,9 @@ export const edgeFunctions = {
    * Check health of proxy and Bob inference services.
    */
   checkServicesHealth: async () => {
-    return callEdgeFunction('check-services-health')
+    // Health polling runs passively in layout-level UI; suppress toasts to avoid
+    // repeated timeout popups when a service is temporarily slow/offline.
+    return callEdgeFunction('check-services-health', undefined, { showToast: false })
   },
 
   /**
@@ -1223,7 +1280,7 @@ export const edgeFunctions = {
       action: 'create',
       organizationId: params.organization_id,
       payload: params,
-    })
+    }, { useDirectFetch: true })
   },
 
   /**
@@ -1238,7 +1295,7 @@ export const edgeFunctions = {
       action: 'set_password',
       userId: params.user_id,
       payload: { password: params.new_password },
-    })
+    }, { useDirectFetch: true })
   },
 
   /**
@@ -1250,7 +1307,7 @@ export const edgeFunctions = {
     return callEdgeFunction('manage-user', {
       action: 'deactivate',
       userId: params.user_id,
-    })
+    }, { useDirectFetch: true })
   },
 
   /**
@@ -1262,7 +1319,7 @@ export const edgeFunctions = {
     return callEdgeFunction('manage-user', {
       action: 'disconnect_ptt',
       userId: params.user_id,
-    })
+    }, { useDirectFetch: true })
   },
 
   /**
@@ -1281,7 +1338,7 @@ export const edgeFunctions = {
         mode: params.mode ?? 'replace',
         scopes: params.scopes,
       },
-    })
+    }, { useDirectFetch: true })
   },
 
   /**
@@ -1297,7 +1354,7 @@ export const edgeFunctions = {
       payload: {
         is_active: params.is_active,
       },
-    })
+    }, { useDirectFetch: true })
   },
 
   /**
@@ -1319,7 +1376,7 @@ export const edgeFunctions = {
         extra_organization_ids: params.extra_organization_ids,
         source_module: params.source_module ?? 'access_control',
       },
-    })
+    }, { useDirectFetch: true })
   },
 
   /**
@@ -1333,7 +1390,7 @@ export const edgeFunctions = {
       action: 'upsert_client_site',
       siteId: params.site_id,
       payload: params.payload,
-    })
+    }, { useDirectFetch: true })
   },
 
   /**
@@ -1347,7 +1404,7 @@ export const edgeFunctions = {
       action: 'set_client_site_active',
       siteId: params.site_id,
       payload: { is_active: params.is_active },
-    })
+    }, { useDirectFetch: true })
   },
 
   /**
@@ -1360,7 +1417,7 @@ export const edgeFunctions = {
       action: 'delete_client_site',
       siteId: params.site_id,
       payload: {},
-    })
+    }, { useDirectFetch: true })
   },
 
   /**
@@ -1382,7 +1439,7 @@ export const edgeFunctions = {
         can_view: params.can_view,
         can_edit: params.can_edit,
       },
-    })
+    }, { useDirectFetch: true })
   },
 
   /**
@@ -1395,7 +1452,7 @@ export const edgeFunctions = {
       action: 'delete_site_role',
       role: params.role,
       payload: { role: params.role },
-    })
+    }, { useDirectFetch: true })
   },
 
   /**
@@ -1417,7 +1474,7 @@ export const edgeFunctions = {
         can_view: params.can_view,
         can_edit: params.can_edit,
       },
-    })
+    }, { useDirectFetch: true })
   },
 
   /**
@@ -1435,7 +1492,7 @@ export const edgeFunctions = {
         user_id: params.user_id,
         field_group: params.field_group,
       },
-    })
+    }, { useDirectFetch: true })
   },
 
   /**
@@ -1448,7 +1505,7 @@ export const edgeFunctions = {
       action: 'clear_site_user_permissions',
       userId: params.user_id,
       payload: { user_id: params.user_id },
-    })
+    }, { useDirectFetch: true })
   },
 
   /**
@@ -1801,11 +1858,12 @@ export const edgeFunctions = {
    */
   createBugReport: async (params: {
     payload: Record<string, unknown>
+    showToast?: boolean
   }) => {
     return callEdgeFunction('manage-platform-feedback', {
       action: 'create_bug_report',
       payload: params.payload,
-    })
+    }, { showToast: params.showToast ?? true })
   },
 
   /**

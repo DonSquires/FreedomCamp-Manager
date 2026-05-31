@@ -62,7 +62,7 @@ const STATUS_COLOURS: Record<string, string> = {
   in_progress: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
   reviewed:    'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
   remediated:  'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300',
-  dismissed:   'bg-gray-100 text-gray-700 dark:bg-[#1E1E1E] dark:text-gray-400',
+  dismissed:   'bg-gray-100 text-gray-700 dark:bg-[#1E1E1E] dark:text-gray-300',
 }
 
 // ─── Component ───────────────────────────────────────────────────────────────

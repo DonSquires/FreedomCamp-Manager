@@ -20,7 +20,7 @@ import { useBobActionApproval } from '@/hooks/useBobActionApproval'
 import { listPendingBobActionProposals, type BobActionProposalRow } from '@/hooks/useBobApprovalD1'
 import { usePTTStore } from '@/stores/pttStore'
 import { supabase } from '@/lib/supabase'
-import { BrainCircuit, Camera, CheckCircle2, ChevronDown, ClipboardList, Copy, FlaskConical, Loader2, MapPinned, Mic, MicOff, Paintbrush2, Play, Plus, Radio, Route, Send, Volume2, VolumeX, Wrench, Github, ShieldAlert, PhoneOff, SignalHigh, Stethoscope, XCircle } from 'lucide-react'
+import { BrainCircuit, Camera, CheckCircle2, ChevronDown, ClipboardList, Copy, FlaskConical, Loader2, MapPinned, Mic, MicOff, Paintbrush2, Play, Plus, Radio, Route, Send, Volume2, VolumeX, Wrench, GitBranch, ShieldAlert, PhoneOff, SignalHigh, Stethoscope, XCircle } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import { toast } from 'sonner'
 import { edgeFunctions } from '@/lib/edgeFunctions'
@@ -660,6 +660,15 @@ function canAuthorTraining(user: { role?: string | null; job_title?: string | nu
 }
 
 function buildMapDirectionsUrl(from: string, to: string, mode: string) {
+  const coordinateMatch = String(to || '').trim().match(/^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$/)
+  if (coordinateMatch) {
+    const lat = Number(coordinateMatch[1])
+    const lng = Number(coordinateMatch[2])
+    if (Number.isFinite(lat) && Number.isFinite(lng)) {
+      return `${window.location.origin}/operations-map?focus=${lat.toFixed(5)},${lng.toFixed(5)}`
+    }
+  }
+
   const travelMode = mode || 'driving'
   return `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(from)}&destination=${encodeURIComponent(to)}&travelmode=${encodeURIComponent(travelMode)}`
 }
@@ -2350,7 +2359,7 @@ export default function BobAssistantStudio() {
             messages: [
               {
                 role: 'system',
-                content: 'You extract organization setup details for FieldOps Manager. Return strict JSON only with keys organizationName, organizationType, organizationLevel, parentOrganizationName, address, contactEmail, contactPhone, isActive, notes, childSiteNames, childZoneNames, childGeofenceNames, missingFields, followUpQuestions. If a field is unknown, set it to an empty string or empty array and add the field name to missingFields plus a short followUpQuestion.',
+                content: 'You extract organization setup details for Field Compliance Manager. Return strict JSON only with keys organizationName, organizationType, organizationLevel, parentOrganizationName, address, contactEmail, contactPhone, isActive, notes, childSiteNames, childZoneNames, childGeofenceNames, missingFields, followUpQuestions. If a field is unknown, set it to an empty string or empty array and add the field name to missingFields plus a short followUpQuestion.',
               },
               {
                 role: 'user',
@@ -5451,7 +5460,7 @@ export default function BobAssistantStudio() {
                   }}
                   disabled={!codeTaskResult.trim()}
                 >
-                  <Github className="h-4 w-4 mr-1" /> Copy for GitHub/Copilot
+                  <GitBranch className="h-4 w-4 mr-1" /> Copy for GitHub/Copilot
                 </Button>
               </div>
 

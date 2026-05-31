@@ -25,6 +25,7 @@ function parseArgs(argv) {
     humanReportRoot: 'tools/human-test-engine/reports',
     drBobFiles: ['plan.md', 'spec.md'],
     minHumanReadiness: 85,
+    sensesTimeoutMs: 900000,
     skipAutonomous: false,
     skipDrBob: false,
     skipHuman: false,
@@ -64,6 +65,12 @@ function parseArgs(argv) {
     } else if (t.startsWith('--min-human-readiness=')) {
       const n = Number.parseInt(t.slice('--min-human-readiness='.length), 10)
       if (Number.isFinite(n)) args.minHumanReadiness = n
+    } else if (t === '--senses-timeout-ms') {
+      const n = Number.parseInt(String(argv[i + 1] || ''), 10)
+      if (Number.isFinite(n) && n > 0) args.sensesTimeoutMs = n
+    } else if (t.startsWith('--senses-timeout-ms=')) {
+      const n = Number.parseInt(t.slice('--senses-timeout-ms='.length), 10)
+      if (Number.isFinite(n) && n > 0) args.sensesTimeoutMs = n
     } else if (t === '--dr-bob-fail-on-revision') {
       args.drBobFailOnRevision = String(argv[i + 1] || 'true').trim().toLowerCase() !== 'false'
     } else if (t.startsWith('--dr-bob-fail-on-revision=')) {
@@ -74,7 +81,7 @@ function parseArgs(argv) {
   return args
 }
 
-async function runShell(command, cwd) {
+async function runShell(command, cwd, timeoutMs = 0) {
   return await new Promise((resolve) => {
     const child = spawn(command, {
       cwd,
@@ -83,11 +90,24 @@ async function runShell(command, cwd) {
       stdio: 'inherit',
     })
 
+    let timedOut = false
+    let timeoutId = null
+    if (timeoutMs > 0) {
+      timeoutId = setTimeout(() => {
+        timedOut = true
+        child.kill('SIGTERM')
+      }, timeoutMs)
+    }
+
     child.on('close', (code) => {
-      resolve({ exitCode: code ?? 1 })
+      if (timeoutId) clearTimeout(timeoutId)
+      resolve({ exitCode: timedOut ? 124 : code ?? 1, timedOut })
     })
 
-    child.on('error', () => resolve({ exitCode: 1 }))
+    child.on('error', () => {
+      if (timeoutId) clearTimeout(timeoutId)
+      resolve({ exitCode: 1, timedOut: false })
+    })
   })
 }
 
@@ -148,7 +168,7 @@ async function main() {
   const args = parseArgs(process.argv.slice(2))
 
   if (args.help) {
-    console.log('Bob All-in-One Release Gate\n\nUsage:\n  node scripts/bob-release-gate-all-in-one.mjs [--out tools/bob-release-gates] [--dr-bob-files plan.md,spec.md] [--min-human-readiness 85] [--senses-mode off|mock|auto|strict] [--dry-run]\n\nGates:\n  1) Autonomous profile load pass\n  2) Dr Bob review pass for required artifacts\n  3) Human-test engine pass with minimum readiness\n  4) Optional senses smoke pass with artifact output\n')
+    console.log('Bob All-in-One Release Gate\n\nUsage:\n  node scripts/bob-release-gate-all-in-one.mjs [--out tools/bob-release-gates] [--dr-bob-files plan.md,spec.md] [--min-human-readiness 85] [--senses-mode off|mock|auto|strict] [--senses-timeout-ms 900000] [--dry-run]\n\nGates:\n  1) Autonomous profile load pass\n  2) Dr Bob review pass for required artifacts\n  3) Human-test engine pass with minimum readiness\n  4) Optional senses smoke pass with artifact output\n')
     process.exit(0)
   }
 
@@ -164,6 +184,7 @@ async function main() {
     endedAt: null,
     config: {
       minHumanReadiness: args.minHumanReadiness,
+      sensesTimeoutMs: args.sensesTimeoutMs,
       drBobFiles: args.drBobFiles,
       drBobFailOnRevision: args.drBobFailOnRevision,
       sensesMode: args.sensesMode,
@@ -283,7 +304,7 @@ async function main() {
     } else {
       const required = String(args.sensesMode).toLowerCase() === 'strict' ? 'screen,camera,audio' : 'screen'
       const command = `${args.sensesCmd} --mode ${args.sensesMode} --required ${required} --out-dir "${outDir}"`
-      const r = await runShell(command, repoRoot)
+      const r = await runShell(command, repoRoot, args.sensesTimeoutMs)
       const reportPath = path.join(outDir, 'senses-report.json')
       let decision = 'fail'
       if (await exists(reportPath)) {
@@ -294,7 +315,7 @@ async function main() {
       const passes = r.exitCode === 0 && decision === 'pass'
       scorecard.stages.senses = {
         status: passes ? 'pass' : 'fail',
-        detail: `command exit=${r.exitCode}, decision=${decision}, mode=${args.sensesMode}`,
+        detail: `command exit=${r.exitCode}, decision=${decision}, mode=${args.sensesMode}, timeoutMs=${args.sensesTimeoutMs}, timedOut=${r.timedOut === true}`,
         reportPath,
       }
     }

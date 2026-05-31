@@ -299,11 +299,11 @@ function BreachesTab({
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-red-50 dark:bg-red-950/20 text-left">
-                  <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-400">Plate</th>
-                  <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-400">Zone</th>
-                  <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-400">Breach Type</th>
-                  {statusFilter && <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-400">Status</th>}
-                  <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-400">Recorded</th>
+                  <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-200">Plate</th>
+                  <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-200">Zone</th>
+                  <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-200">Breach Type</th>
+                  {statusFilter && <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-200">Status</th>}
+                  <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-200">Recorded</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
@@ -312,7 +312,7 @@ function BreachesTab({
                     <td className="px-4 py-3 font-mono font-bold text-red-700 dark:text-red-400">
                       {b.plate_number ?? '—'}
                     </td>
-                    <td className="px-4 py-3 text-gray-600 dark:text-gray-400">
+                    <td className="px-4 py-3 text-gray-600 dark:text-gray-200">
                       <span className="flex items-center gap-1">
                         <MapPin className="w-3 h-3 shrink-0" />
                         {(b.zones as any)?.name ?? '—'}
@@ -324,7 +324,7 @@ function BreachesTab({
                         {BREACH_LABELS[b.breach_type ?? ''] ?? b.breach_type?.replace(/_/g, ' ') ?? 'Unknown'}
                       </span>
                       {b.breach_reason && (
-                        <p className="text-xs text-gray-400 mt-0.5 max-w-xs truncate" title={b.breach_reason}>
+                        <p className="text-xs text-gray-500 dark:text-gray-300 mt-0.5 max-w-xs truncate" title={b.breach_reason}>
                           {b.breach_reason}
                         </p>
                       )}
@@ -336,7 +336,7 @@ function BreachesTab({
                         </span>
                       </td>
                     )}
-                    <td className="px-4 py-3 text-xs text-gray-400 whitespace-nowrap">
+                    <td className="px-4 py-3 text-xs text-gray-500 dark:text-gray-300 whitespace-nowrap">
                       <span title={format(new Date(b.recorded_at), 'PPPp')}>
                         {formatDistanceToNow(new Date(b.recorded_at), { addSuffix: true })}
                       </span>
@@ -350,7 +350,7 @@ function BreachesTab({
 
         {totalPages > 1 && (
           <div className="px-5 py-3 border-t border-gray-100 dark:border-gray-800 flex items-center justify-between">
-            <span className="text-xs text-gray-400">
+            <span className="text-xs text-gray-500 dark:text-gray-300">
               Page {page + 1} of {totalPages}
             </span>
             <div className="flex gap-2">
@@ -963,7 +963,7 @@ const TABS: { id: CompTab; label: string; icon: React.ElementType }[] = [
 ];
 
 export default function CompliancePage() {
-  const { isAuthenticated, user } = useAuthStore();
+  const { user, loading } = useAuthStore();
   const [activeTab, setActiveTab] = useState<CompTab>('overview');
   const [searchParams] = useSearchParams();
   const {
@@ -1045,7 +1045,10 @@ export default function CompliancePage() {
     }
   }, [searchParams, setDateRange, setOrganization, setZone, user?.role]);
 
-  if (!isAuthenticated || !user) return <Navigate to="/login" replace />;
+  // ProtectedRoute already enforces authentication. Guard here should avoid
+  // redirecting during brief auth-store sync transitions.
+  if (loading) return null;
+  if (!user) return <Navigate to="/login" replace />;
 
   const today = format(new Date(), 'yyyy-MM-dd');
   const effectiveDateFrom = dateFrom ?? format(subDays(new Date(), 30), 'yyyy-MM-dd');

@@ -14,6 +14,7 @@ import { useZones } from '@/hooks/useZones'
 import { useClientOrgIds } from '@/hooks/useClientOrgIds'
 import { useOrganizations } from '@/hooks/useOrganizations'
 import { useSitePermissions } from '@/hooks/useSitePermissions'
+import { useOperationalOrganization } from '@/hooks/useOperationalOrganization'
 import { forwardGeocode } from '@/lib/geocoding'
 import { AppLayout } from '@/components/features/AppLayout'
 import { Button } from '@/components/ui/button'
@@ -37,6 +38,115 @@ import {
   Edit, ToggleLeft, ToggleRight,
 } from 'lucide-react'
 import { toast } from 'sonner'
+
+interface OrgOption {
+  id: string
+  name: string
+}
+
+async function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(() => reject(new Error(`${label} timed out after ${Math.round(ms / 1000)}s`)), ms)
+      }),
+    ])
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId)
+  }
+}
+
+function readSupabaseAccessTokenFromStorage(): string | null {
+  if (typeof window === 'undefined') return null
+
+  const storages: Storage[] = [window.localStorage, window.sessionStorage]
+  for (const storage of storages) {
+    for (let i = 0; i < storage.length; i += 1) {
+      const key = storage.key(i)
+      if (!key || !key.startsWith('sb-') || !key.includes('-auth-token')) continue
+
+      const raw = storage.getItem(key)
+      if (!raw) continue
+
+      try {
+        const parsed = JSON.parse(raw)
+        if (typeof parsed?.access_token === 'string' && parsed.access_token.length > 20) {
+          return parsed.access_token
+        }
+      } catch {
+        // Ignore malformed auth storage values.
+      }
+    }
+  }
+
+  return null
+}
+
+async function fetchPostgrest<T>(pathWithQuery: string, timeoutMs = 15000): Promise<T> {
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined
+  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    throw new Error('Supabase environment variables are missing')
+  }
+
+  let accessToken = readSupabaseAccessTokenFromStorage()
+  if (!accessToken) {
+    const {
+      data: { session },
+    } = await withTimeout(
+      supabase.auth.getSession(),
+      Math.min(2000, timeoutMs),
+      'Session lookup'
+    )
+
+    accessToken = session?.access_token ?? null
+  }
+
+  if (!accessToken) {
+    throw new Error('Session expired. Please sign in again')
+  }
+
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
+
+  try {
+    const response = await fetch(`${supabaseUrl}${pathWithQuery}`, {
+      method: 'GET',
+      headers: {
+        apikey: supabaseAnonKey,
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      signal: controller.signal,
+    })
+
+    const raw = await response.text().catch(() => '')
+    if (!response.ok) {
+      let message = 'Failed to load data'
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw)
+          message = parsed?.message || parsed?.error_description || parsed?.hint || raw
+        } catch {
+          message = raw
+        }
+      }
+      throw new Error(message)
+    }
+
+    return raw ? JSON.parse(raw) as T : ([] as unknown as T)
+  } catch (error: any) {
+    if (error?.name === 'AbortError') {
+      throw new Error(`Request timed out after ${Math.round(timeoutMs / 1000)}s`)
+    }
+    throw error
+  } finally {
+    clearTimeout(timeoutId)
+  }
+}
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -143,9 +253,10 @@ function siteFormFromRecord(s: ClientSite): SiteForm {
 
 export default function ClientSites() {
   const { user } = useAuthStore()
+  const { operationalOrganizationId } = useOperationalOrganization()
   const qc = useQueryClient()
   const [searchParams, setSearchParams] = useSearchParams()
-  const orgId = user?.organization_id
+  const orgId = user?.organization_id || operationalOrganizationId
   const isSuperUser = user?.role === 'master' || user?.role === 'grand_master'
 
   const [search, setSearch]           = useState('')
@@ -158,12 +269,25 @@ export default function ClientSites() {
   const [viewSite, setViewSite]       = useState<ClientSite | null>(null)
 
   const { orgIds, isLoading: orgIdsLoading } = useClientOrgIds()
-  const { data: organizations = [] } = useOrganizations()
+  const { data: organizations = [] } = useQuery<OrgOption[]>({
+    queryKey: ['organizations', 'client-sites-picker'],
+    queryFn: async () => {
+      const query = new URLSearchParams({
+        select: 'id,name',
+        is_active: 'eq.true',
+        order: 'name.asc',
+      })
+
+      return fetchPostgrest<OrgOption[]>(`/rest/v1/organizations?${query.toString()}`)
+    },
+    enabled: !!orgId,
+  })
   const zoneOrganizationId = dialogMode === 'edit'
     ? (editTarget?.organization_id || selectedOrgId || orgId)
     : (selectedOrgId || orgId)
   const { data: zones = [] } = useZones({ organizationId: zoneOrganizationId })
-  const { canView, canEdit } = useSitePermissions()
+  const { canView, canEdit, isLoading: permissionsLoading } = useSitePermissions()
+  const canManageIdentity = isSuperUser || permissionsLoading || canEdit('identity')
 
   const availableOrganizations = organizations.filter((org) => {
     if (orgIds === null) return true
@@ -194,21 +318,22 @@ export default function ClientSites() {
   const { data: sites = [], isLoading } = useQuery<ClientSite[]>({
     queryKey: ['client-sites', orgId, orgIds, selectedOrgId, showInactive, typeFilter],
     queryFn: async () => {
-      let q = (supabase as any)
-        .from('client_sites')
-        .select('*, zone:zones!zone_id(name)')
-        .order('name')
+      const query = new URLSearchParams({
+        select: '*,zone:zones!zone_id(name)',
+        order: 'name.asc',
+      })
+
+      if (!showInactive) query.set('is_active', 'eq.true')
+      if (typeFilter !== 'all') query.set('site_type', `eq.${typeFilter}`)
+
       if (selectedOrgId) {
-        q = q.eq('organization_id', selectedOrgId)
+        query.set('organization_id', `eq.${selectedOrgId}`)
       } else if (orgIds !== null) {
-        // orgIds === null means master/grand_master (unrestricted)
-        q = q.in('organization_id', orgIds)
+        if (orgIds.length === 0) return []
+        query.set('organization_id', `in.(${orgIds.join(',')})`)
       }
-      if (!showInactive) q = q.eq('is_active', true)
-      if (typeFilter !== 'all') q = q.eq('site_type', typeFilter)
-      const { data, error } = await q
-      if (error) throw error
-      return (data ?? []) as unknown as ClientSite[]
+
+      return fetchPostgrest<ClientSite[]>(`/rest/v1/client_sites?${query.toString()}`)
     },
     enabled: !!orgId && !orgIdsLoading,
   })
@@ -355,10 +480,15 @@ export default function ClientSites() {
         })
       }
 
-      return { geocodeSource, resolvedZoneId }
+      return { geocodeSource, resolvedZoneId, siteName: f.name.trim() }
     },
     onSuccess: (result) => {
-      toast.success(dialogMode === 'create' ? 'Site created' : 'Site updated')
+      const displayName = result?.siteName || 'Site'
+      if (dialogMode === 'create') {
+        toast.success(`Site created: ${displayName}`)
+      } else {
+        toast.success(`Site updated: ${displayName}`)
+      }
       if (result?.geocodeSource) {
         toast.success(`Address lookup resolved geofence coordinates (${result.geocodeSource})`)
       }
@@ -412,7 +542,7 @@ export default function ClientSites() {
               Service location registry — link sites to dispatch jobs, zones and patrols
             </p>
           </div>
-          {canEdit('identity') && (
+          {canManageIdentity && (
             <Button onClick={openCreate}><Plus className="h-4 w-4 mr-2" /> Add Site</Button>
           )}
         </div>
@@ -490,7 +620,7 @@ export default function ClientSites() {
                   {canView('financial') && <TableHead>Pay / Charge</TableHead>}
                   {canView('accounting') && <TableHead>M365</TableHead>}
                   <TableHead>Status</TableHead>
-                  {canEdit('identity') && <TableHead className="text-right">Actions</TableHead>}
+                  {canManageIdentity && <TableHead className="text-right">Actions</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -545,7 +675,7 @@ export default function ClientSites() {
                         {s.is_active ? 'Active' : 'Inactive'}
                       </Badge>
                     </TableCell>
-                    {canEdit('identity') && (
+                    {canManageIdentity && (
                       <TableCell className="text-right" onClick={e => e.stopPropagation()}>
                         <div className="flex justify-end gap-1">
                           <Button size="sm" variant="ghost" onClick={() => openEdit(s)}>
@@ -578,12 +708,12 @@ export default function ClientSites() {
             {canView('identity') && (
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5 col-span-2 md:col-span-1">
-                  <Label>Site Name <span className="text-destructive">*</span></Label>
-                  <Input disabled={!canEdit('identity')} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Kairākau Beach Reserve" />
+                  <Label htmlFor="site-name-input">Site Name <span className="text-destructive">*</span></Label>
+                  <Input id="site-name-input" disabled={!canEdit('identity')} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Kairākau Beach Reserve" />
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Site Code</Label>
-                  <Input disabled={!canEdit('identity')} value={form.site_code} onChange={e => setForm(f => ({ ...f, site_code: e.target.value }))} placeholder="Optional ref code" />
+                  <Label htmlFor="site-code-input">Site Code</Label>
+                  <Input id="site-code-input" disabled={!canEdit('identity')} value={form.site_code} onChange={e => setForm(f => ({ ...f, site_code: e.target.value }))} placeholder="Optional ref code" />
                 </div>
                 <div className="space-y-1.5">
                   <Label>Site Type</Label>
@@ -822,7 +952,7 @@ export default function ClientSites() {
               )}
             </div>
             <DialogFooter>
-              {canEdit('identity') && (
+              {canManageIdentity && (
                 <Button variant="outline" onClick={() => { setViewSite(null); openEdit(viewSite) }}>
                   <Edit className="h-4 w-4 mr-1.5" /> Edit
                 </Button>

@@ -28,13 +28,13 @@ const TEST_EMAIL_PREFIX = `e2e-test-user-${Date.now()}`
 
 async function navigateToUsers(page: any) {
   await page.goto('/users', { waitUntil: 'networkidle' })
-  await expect(page.locator('h1, h2').filter({ visible: true }).first()).toBeVisible({ timeout: 12000 })
+  await expect(page.getByRole('heading', { name: /user management/i }).first()).toBeVisible({ timeout: 15000 })
+  await expect(page.getByRole('button', { name: /^Create User$/i }).first()).toBeVisible({ timeout: 15000 })
 }
 
 async function openCreateDialog(page: any) {
-  // The button text is recognisable as the only UserPlus-style CTA in the header area
-  const createBtn = page.getByRole('button', { name: /create.*user|new.*user|add.*user/i }).first()
-  await expect(createBtn).toBeVisible({ timeout: 10000 })
+  const createBtn = page.getByRole('button', { name: /^Create User$/i }).first()
+  await expect(createBtn).toBeVisible({ timeout: 15000 })
   await createBtn.click()
 
   const dialog = page.getByRole('dialog').first()

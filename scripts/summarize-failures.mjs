@@ -4,6 +4,8 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
+import { createClient } from '@supabase/supabase-js';
+import { loadLocalEnv } from './load-local-env.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -38,7 +40,15 @@ function formatList(items, fallback = 'none') {
   return items.map((item) => `${item.name} (${item.count})`).join(', ');
 }
 
-async function loadEntries(hours) {
+function firstNonEmptyEnv(...names) {
+  for (const name of names) {
+    const value = String(process.env[name] || '').trim();
+    if (value) return value;
+  }
+  return '';
+}
+
+async function loadEntriesFromJsonl(hours) {
   const cutoff = Date.now() - hours * 60 * 60 * 1000;
   try {
     const raw = await fs.readFile(logPath, 'utf8');
@@ -63,7 +73,75 @@ async function loadEntries(hours) {
   }
 }
 
+async function loadEntriesFromDb(hours) {
+  const supabaseUrl = firstNonEmptyEnv('SUPABASE_URL', 'VITE_SUPABASE_URL');
+  const serviceRoleKey = firstNonEmptyEnv('SUPABASE_SERVICE_ROLE_KEY');
+  const orgId = firstNonEmptyEnv('BOB_ORG_ID', 'ORG_ID', 'DEFAULT_ORG_ID');
+  if (!supabaseUrl || !serviceRoleKey || !orgId) {
+    return [];
+  }
+
+  const cutoffIso = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
+  const supabase = createClient(supabaseUrl, serviceRoleKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+      detectSessionInUrl: false,
+    },
+  });
+
+  try {
+    const { data, error } = await (supabase.from('bob_learning_log'))
+      .select('created_at,score,feedback,lesson_key,lesson_detail')
+      .eq('organization_id', orgId)
+      .gte('created_at', cutoffIso)
+      .order('created_at', { ascending: false })
+      .limit(2000);
+
+    if (error || !Array.isArray(data)) {
+      return [];
+    }
+
+    return data.map((row) => {
+      const score01 = Number(row?.score);
+      const score10 = Number.isFinite(score01)
+        ? Math.max(0, Math.min(10, Math.round(score01 * 10)))
+        : 10;
+
+      const feedback = String(row?.feedback || '').trim();
+      const failureReasons = feedback
+        ? feedback.split(';').map((reason) => reason.trim()).filter(Boolean)
+        : [];
+
+      const sourceFile = String(row?.lesson_detail?.source_file || '').trim();
+      return {
+        timestamp: row?.created_at,
+        target: 'Bob',
+        channel: String(row?.lesson_detail?.channel || '').trim() || 'db-learning-log',
+        score: score10,
+        failureReasons,
+        hallucinatedModules: [],
+        responsePreview: String(row?.lesson_key || '').trim() || 'lesson',
+        metadata: {
+          sourceFile: sourceFile || null,
+        },
+      };
+    });
+  } catch {
+    return [];
+  }
+}
+
+async function loadEntries(hours) {
+  const dbEntries = await loadEntriesFromDb(hours);
+  if (dbEntries.length > 0) {
+    return dbEntries;
+  }
+  return loadEntriesFromJsonl(hours);
+}
+
 async function main() {
+  loadLocalEnv();
   const { hours } = parseArgs();
   const entries = await loadEntries(Number.isFinite(hours) && hours > 0 ? hours : 24);
 

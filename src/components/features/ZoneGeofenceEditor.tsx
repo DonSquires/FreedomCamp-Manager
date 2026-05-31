@@ -21,6 +21,7 @@ import {
   ZoomOut
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { PRIMARY_MAP_TILE_ATTRIBUTION, PRIMARY_MAP_TILE_URL } from '@/lib/inhouseMapping'
 
 interface Coordinate {
   lat: number
@@ -337,8 +338,8 @@ export function ZoneGeofenceEditor({
                 focusKey={focusKey}
               />
               <TileLayer
-                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                attribution={PRIMARY_MAP_TILE_ATTRIBUTION}
+                url={PRIMARY_MAP_TILE_URL}
               />
               <MapClickHandler onClick={handleMapClick} />
 

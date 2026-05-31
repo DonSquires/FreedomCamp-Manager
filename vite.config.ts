@@ -1,5 +1,5 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react-swc'
+import { defineConfig, loadEnv } from 'vite'
+import react from '@vitejs/plugin-react'
 import path from 'path'
 import { routeManifest } from './src/navigation/routeManifest'
 import { validateRouteManifest } from './src/navigation/routeManifestValidator'
@@ -9,70 +9,87 @@ if (!manifestValidation.valid) {
   throw new Error(`Route manifest preflight failed:\n${manifestValidation.errors.join('\n')}`)
 }
 
+function resolveSupabaseEnv(mode: string) {
+  const env = loadEnv(mode, process.cwd(), '')
+
+  return {
+    supabaseUrl: env.VITE_SUPABASE_URL || env.SUPABASE_URL || '',
+    supabaseAnonKey: env.VITE_SUPABASE_ANON_KEY || env.SUPABASE_ANON_KEY || '',
+  }
+}
+
 // https://vitejs.dev/config/
-export default defineConfig({
-  plugins: [react()],
-  resolve: {
-    alias: {
-      '@': path.resolve(__dirname, './src'),
+export default defineConfig(({ mode }) => {
+  const { supabaseUrl, supabaseAnonKey } = resolveSupabaseEnv(mode)
+
+  return {
+    plugins: [react()],
+    define: {
+      'import.meta.env.VITE_SUPABASE_URL': JSON.stringify(supabaseUrl),
+      'import.meta.env.VITE_SUPABASE_ANON_KEY': JSON.stringify(supabaseAnonKey),
     },
-  },
-  build: {
-    // Raise the warning threshold slightly for large pages (maps, charts).
-    // Pages are already split by React.lazy so per-chunk sizes are acceptable.
-    chunkSizeWarningLimit: 600,
-    rollupOptions: {
-      output: {
-        // Split heavy vendor libraries into named chunks so browsers can
-        // cache them independently and only re-download what actually changed.
-        manualChunks: {
-          // React core — almost never changes
-          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
-          // Supabase client
-          'vendor-supabase': ['@supabase/supabase-js'],
-          // TanStack Query
-          'vendor-query': ['@tanstack/react-query'],
-          // Mapping libraries (leaflet is large)
-          'vendor-maps': ['leaflet', 'react-leaflet', 'react-leaflet-cluster'],
-          // Charts
-          'vendor-charts': ['recharts'],
-          // Form / validation
-          'vendor-forms': ['react-hook-form', '@hookform/resolvers', 'zod'],
-          // Radix UI primitives (combined to avoid hundreds of tiny chunks)
-          'vendor-radix': [
-            '@radix-ui/react-accordion',
-            '@radix-ui/react-alert-dialog',
-            '@radix-ui/react-avatar',
-            '@radix-ui/react-checkbox',
-            '@radix-ui/react-collapsible',
-            '@radix-ui/react-context-menu',
-            '@radix-ui/react-dialog',
-            '@radix-ui/react-dropdown-menu',
-            '@radix-ui/react-hover-card',
-            '@radix-ui/react-label',
-            '@radix-ui/react-menubar',
-            '@radix-ui/react-navigation-menu',
-            '@radix-ui/react-popover',
-            '@radix-ui/react-progress',
-            '@radix-ui/react-radio-group',
-            '@radix-ui/react-scroll-area',
-            '@radix-ui/react-select',
-            '@radix-ui/react-separator',
-            '@radix-ui/react-slider',
-            '@radix-ui/react-slot',
-            '@radix-ui/react-switch',
-            '@radix-ui/react-tabs',
-            '@radix-ui/react-toast',
-            '@radix-ui/react-toggle',
-            '@radix-ui/react-toggle-group',
-            '@radix-ui/react-tooltip',
-          ],
-          // Misc utilities
-          'vendor-utils': ['date-fns', 'date-fns-tz', 'clsx', 'tailwind-merge', 'class-variance-authority'],
-          // Spreadsheet export (large — only loaded on data-export routes)
-          'vendor-xlsx': ['xlsx'],
+    resolve: {
+      alias: {
+        '@': path.resolve(__dirname, './src'),
+      },
+    },
+    build: {
+      // Raise the warning threshold slightly for large pages (maps, charts).
+      // Pages are already split by React.lazy so per-chunk sizes are acceptable.
+      chunkSizeWarningLimit: 600,
+      rollupOptions: {
+        output: {
+          // Split heavy vendor libraries into named chunks so browsers can
+          // cache them independently and only re-download what actually changed.
+          manualChunks(id) {
+            if (!id.includes('node_modules')) return undefined
+
+            if (id.includes('/react/') || id.includes('/react-dom/') || id.includes('/react-router-dom/')) {
+              return 'vendor-react'
+            }
+
+            if (id.includes('/@supabase/supabase-js/')) {
+              return 'vendor-supabase'
+            }
+
+            if (id.includes('/@tanstack/react-query/')) {
+              return 'vendor-query'
+            }
+
+            if (id.includes('/leaflet/') || id.includes('/react-leaflet/') || id.includes('/react-leaflet-cluster/')) {
+              return 'vendor-maps'
+            }
+
+            if (id.includes('/recharts/')) {
+              return 'vendor-charts'
+            }
+
+            if (id.includes('/react-hook-form/') || id.includes('/@hookform/resolvers/') || id.includes('/zod/')) {
+              return 'vendor-forms'
+            }
+
+            if (id.includes('/@radix-ui/')) {
+              return 'vendor-radix'
+            }
+
+            if (
+              id.includes('/date-fns/') ||
+              id.includes('/date-fns-tz/') ||
+              id.includes('/clsx/') ||
+              id.includes('/tailwind-merge/') ||
+              id.includes('/class-variance-authority/')
+            ) {
+              return 'vendor-utils'
+            }
+
+            if (id.includes('/read-excel-file/') || id.includes('/write-excel-file/') || id.includes('/jszip/')) {
+              return 'vendor-spreadsheet'
+            }
+
+            return undefined
+          },
         },
       },
     },
-  },
+  }
 })

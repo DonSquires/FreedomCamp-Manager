@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-05-22T03:19:57.551Z",
+  "generatedAt": "2026-05-28T09:43:30.322Z",
   "source": "src/App.tsx",
-  "routeCount": 293,
+  "routeCount": 295,
   "unresolvedRouteCount": 0,
   "missingFileCount": 0,
   "unresolvedRoutes": [],
@@ -706,6 +706,15 @@
       "importPath": "@/pages/ComplianceAnalytics",
       "resolvedPath": "src/pages/ComplianceAnalytics.tsx",
       "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/analytics",
+      "componentName": "Navigate",
+      "importPath": "",
+      "resolvedPath": "",
+      "isRedirect": true,
       "importResolved": true,
       "fileExists": true
     },
@@ -1467,6 +1476,15 @@
     },
     {
       "path": "/dispatch",
+      "componentName": "DispatchConsole",
+      "importPath": "@/pages/DispatchConsole",
+      "resolvedPath": "src/pages/DispatchConsole.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/dispatch-console",
       "componentName": "DispatchConsole",
       "importPath": "@/pages/DispatchConsole",
       "resolvedPath": "src/pages/DispatchConsole.tsx",

@@ -158,18 +158,63 @@ const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 app.use(cors(corsOptions));
 app.use(express.json());
 
+function firstNonEmptyEnv(names, fallback = '') {
+  for (const name of names) {
+    const value = String(process.env[name] || '').trim();
+    if (value) {
+      return value;
+    }
+  }
+  return fallback;
+}
+
 // Environment variables validation
-const NZSCV_API_KEY = process.env.NZSCV_API_KEY;
-const NZSCV_ID_KEY = process.env.NZSCV_ID_KEY;
-const NZSCV_BASE_URL = process.env.NZSCV_BASE_URL || 'https://www.nzscv.co.nz';
+function firstResolvedEnv(names, fallback = '') {
+  for (const name of names) {
+    const value = String(process.env[name] || '').trim();
+    if (value) {
+      return { value, source: name };
+    }
+  }
+
+  return { value: fallback, source: fallback ? '(default)' : null };
+}
+
+const NZSCV_API_KEY_RESOLVED = firstResolvedEnv([
+  'NZSCV_API_KEY',
+  'PGDB_AUTHORIZATION',
+  'NZSCV_AUTHORIZATION',
+]);
+const NZSCV_API_KEY = NZSCV_API_KEY_RESOLVED.value;
+const NZSCV_ID_KEY_RESOLVED = firstResolvedEnv([
+  'NZSCV_ID_KEY',
+  'PGDB_IDENTIFIER',
+  'NZSCV_IDENTIFIER',
+]);
+const NZSCV_ID_KEY = NZSCV_ID_KEY_RESOLVED.value;
+const NZSCV_BASE_URL_RESOLVED = firstResolvedEnv(['NZSCV_BASE_URL'], 'https://www.nzscv.co.nz');
+const NZSCV_BASE_URL = NZSCV_BASE_URL_RESOLVED.value;
 // NZSCV_ENDPOINT_URL overrides the full endpoint URL — set this to match the target
 // environment (test or production). See proxy-server/.env.example for the correct values.
-const NZSCV_ENDPOINT_URL = process.env.NZSCV_ENDPOINT_URL ||
+const NZSCV_ENDPOINT_URL_RESOLVED = firstResolvedEnv(['NZSCV_ENDPOINT_URL']);
+const NZSCV_ENDPOINT_URL = NZSCV_ENDPOINT_URL_RESOLVED.value ||
   `${NZSCV_BASE_URL}/api/rest/scv/v1/vehicleregistrationinfo`;
-const NZSCV_METHOD = (process.env.NZSCV_METHOD || '').toUpperCase();
-const MOTORWEB_API_KEY = process.env.MOTORWEB_API_KEY;
-const MOTORWEB_ID_KEY = process.env.MOTORWEB_ID_KEY;
-const MOTORWEB_BASE_URL = process.env.MOTORWEB_BASE_URL || 'https://robot.motorweb.co.nz';
+const NZSCV_METHOD = firstNonEmptyEnv(['NZSCV_METHOD']).toUpperCase();
+
+const MOTORWEB_API_KEY_RESOLVED = firstResolvedEnv([
+  'MOTORWEB_API_KEY',
+  'MOTORWEB_KEY',
+  'MW_API_KEY',
+]);
+const MOTORWEB_API_KEY = MOTORWEB_API_KEY_RESOLVED.value;
+const MOTORWEB_ID_KEY_RESOLVED = firstResolvedEnv([
+  'MOTORWEB_ID_KEY',
+  'MOTORWEB_IDENTIFIER',
+  'MW_ID_KEY',
+]);
+const MOTORWEB_ID_KEY = MOTORWEB_ID_KEY_RESOLVED.value;
+const MOTORWEB_BASE_URL_RESOLVED = firstResolvedEnv(['MOTORWEB_BASE_URL'], 'https://robot.motorweb.co.nz');
+const MOTORWEB_BASE_URL = MOTORWEB_BASE_URL_RESOLVED.value;
 const PROXY_SECRET = process.env.PROXY_SECRET; // Secret to authenticate your Edge Functions
 const SMTP_HOST = process.env.SMTP_HOST;
 const SMTP_PORT = parseInt(process.env.SMTP_PORT || '465', 10);
@@ -197,8 +242,15 @@ const DEFAULT_INTEL_ORG_ID =
   process.env.DEFAULT_ORG_ID ||
   '';
 
-if (!MOTORWEB_API_KEY || !MOTORWEB_ID_KEY) {
-  console.warn('⚠️  WARNING: MotorWeb API credentials not configured (enrichment will fail)');
+const nzscvConfigured = Boolean(NZSCV_API_KEY && NZSCV_ID_KEY);
+const motorwebConfigured = Boolean(MOTORWEB_API_KEY && MOTORWEB_ID_KEY);
+
+if (!nzscvConfigured) {
+  console.warn('⚠️  WARNING: NZSCV API credentials not fully configured (requires both key + identifier).');
+}
+
+if (!motorwebConfigured) {
+  console.warn('⚠️  WARNING: MotorWeb API credentials not fully configured (requires both key + identifier).');
 }
 
 if (!PROXY_SECRET) {
@@ -223,7 +275,7 @@ app.get('/health', (req, res) => {
     status: 'ok', 
     timestamp: new Date().toISOString(),
     service: 'NZSCV Proxy Server',
-    bob_system_auth: getBobSystemAuthStatus(),
+    bob_system_auth: getBobSystemAuthStatus({ includeSensitive: false }),
   });
 });
 
@@ -235,7 +287,7 @@ app.get('/api/bob/system-auth/status', rateLimitMiddleware, (req, res) => {
 
   return res.status(200).json({
     success: true,
-    bob_system_auth: getBobSystemAuthStatus(),
+    bob_system_auth: getBobSystemAuthStatus({ includeSensitive: true }),
   });
 });
 
@@ -1211,6 +1263,11 @@ app.post('/api/disputes/submit', disputeRateLimitMiddleware, async (req, res) =>
 
 // Rate limiting info endpoint (optional)
 app.get('/api/info', (req, res) => {
+  const authResult = checkProxyAuth(req);
+  if (authResult) {
+    return res.status(authResult.status).json(authResult.body);
+  }
+
   res.json({
     service: 'NZSCV & MotorWeb Proxy Server',
     version: '1.1.0',
@@ -1228,8 +1285,8 @@ app.get('/api/info', (req, res) => {
       maxHitsPerSecond: 1,
       note: 'Both NZSCV and MotorWeb enforce 1 request/second limit'
     },
-    motorwebConfigured: !!(MOTORWEB_API_KEY && MOTORWEB_ID_KEY),
-    nzscvConfigured: !!(NZSCV_API_KEY && NZSCV_ID_KEY),
+    motorwebConfigured,
+    nzscvConfigured,
     nzscvEndpoint: NZSCV_ENDPOINT_URL,
   });
 });
@@ -1242,10 +1299,21 @@ app.listen(PORT, '0.0.0.0', () => {
   ╠═══════════════════════════════════════╣
   ║   Port: ${PORT.toString().padEnd(29)}║
   ║   Environment: ${(process.env.NODE_ENV || 'development').padEnd(22)}║
-  ║   NZSCV: ${(NZSCV_API_KEY ? '✓ Configured' : '✗ Not configured').padEnd(26)}║
-  ║   MotorWeb: ${(MOTORWEB_API_KEY ? '✓ Configured' : '✗ Not configured').padEnd(23)}║
+  ║   NZSCV: ${(nzscvConfigured ? '✓ Configured' : '✗ Not configured').padEnd(26)}║
+  ║   MotorWeb: ${(motorwebConfigured ? '✓ Configured' : '✗ Not configured').padEnd(23)}║
   ╚═══════════════════════════════════════╝
   `);
+
+  if (NZSCV_API_KEY_RESOLVED.source || NZSCV_ID_KEY_RESOLVED.source || MOTORWEB_API_KEY_RESOLVED.source || MOTORWEB_ID_KEY_RESOLVED.source) {
+    console.log('[init] Vehicle integration env sources:', {
+      nzscvApiKey: NZSCV_API_KEY_RESOLVED.source,
+      nzscvIdKey: NZSCV_ID_KEY_RESOLVED.source,
+      nzscvEndpoint: NZSCV_ENDPOINT_URL_RESOLVED.source || '(derived)',
+      motorwebApiKey: MOTORWEB_API_KEY_RESOLVED.source,
+      motorwebIdKey: MOTORWEB_ID_KEY_RESOLVED.source,
+      motorwebBaseUrl: MOTORWEB_BASE_URL_RESOLVED.source,
+    });
+  }
 
   initBobSystemAuth()
     .then((ready) => {

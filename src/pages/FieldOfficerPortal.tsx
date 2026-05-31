@@ -12,7 +12,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
-import { AppLayout } from '@/components/features/AppLayout'
+import { OfficerShell } from '@/components/features/OfficerShell'
 import { Skeleton } from '@/components/ui/skeleton'
 import { OfficerLanguageSelector } from '@/components/features/OfficerLanguageSelector'
 import { useOfficerLocale } from '@/hooks/useOfficerLocale'
@@ -1368,16 +1368,19 @@ export default function FieldOfficerPortal() {
         navigator.serviceWorker.controller.postMessage({ type: 'WELFARE_SHIFT_END' })
       }
 
-      toast.success('Shift ended — welfare monitoring stopped')
+      // Ending a shift should not sign the officer out; keep session alive for
+      // background notifications while disabling shift-bound monitoring.
+      toast.success('Shift ended — live tracking and welfare stopped. You are still signed in.')
 
       await refetchShift()
       queryClient.invalidateQueries({ queryKey: ['officer-active-shift'] })
+      navigate('/officer-home', { replace: true })
     } catch (err: any) {
       toast.error(err?.message ?? 'Failed to end shift')
     } finally {
       setIsEndingShift(false)
     }
-  }, [activeShift, user, refetchShift, queryClient, endOfficerShift, deactivateWelfarePushSchedule])
+  }, [activeShift, user, refetchShift, queryClient, endOfficerShift, deactivateWelfarePushSchedule, navigate])
 
   const requiresShiftOrgSelection = isServiceProviderMember && accessibleOrgs.length > 1 && !shiftOrgId
   const shiftStatusLabel = activeShift ? 'Active' : rosteredShift ? 'Rostered' : 'Unrostered'
@@ -1851,10 +1854,10 @@ export default function FieldOfficerPortal() {
 
 
   return (
-    <AppLayout
+    <OfficerShell
       title="Field Officer Portal"
       description={`Welcome, ${user?.full_name || 'Officer'}${followUpCount > 0 ? ` · ${followUpCount} follow-up${followUpCount > 1 ? 's' : ''} assigned` : ''}`}
-      immersive
+      contentClassName="max-w-7xl"
     >
         {/* Geofence violation warning — shown when officer drifts out of assigned zone */}
         {geofenceViolation && <GeofenceWarningBanner zoneName={zoneName} />}
@@ -4263,6 +4266,6 @@ export default function FieldOfficerPortal() {
           </div>
         </DialogContent>
       </Dialog>
-    </AppLayout>
+    </OfficerShell>
   )
 }

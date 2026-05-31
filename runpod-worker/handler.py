@@ -287,6 +287,8 @@ def load_training_memory():
 
 TRAINING_MEMORY = load_training_memory()
 RUNTIME_TRAINING_NOTES = []
+CODE_TASK_QUEUE = []
+MAX_CODE_TASK_QUEUE = 200
 
 
 def _resolve_user_id(inp):
@@ -451,6 +453,27 @@ def remember_training_note(message):
     RUNTIME_TRAINING_NOTES.append(note[:800])
     del RUNTIME_TRAINING_NOTES[:-MAX_RUNTIME_NOTES]
     return len(RUNTIME_TRAINING_NOTES)
+
+
+def build_code_task_id(task_text):
+    seed = f"{task_text}|{time.time()}"
+    digest = hashlib.sha1(seed.encode("utf-8")).hexdigest()[:10]
+    return f"srvtask_{digest}"
+
+
+def find_code_task(task_id):
+    for task in CODE_TASK_QUEUE:
+        if str(task.get("id") or "") == str(task_id or ""):
+            return task
+    return None
+
+
+def list_code_tasks(status=None):
+    tasks = list(reversed(CODE_TASK_QUEUE))
+    normalized_status = str(status or "").strip().lower()
+    if normalized_status:
+        tasks = [task for task in tasks if str(task.get("status") or "").lower() == normalized_status]
+    return tasks
 
 
 def contains_any(text, phrases):
@@ -973,6 +996,101 @@ def handler(job):
             "training_memory_loaded": True,
             "runtime_training_notes": note_count,
             "provider": "worker-memory",
+        }
+
+    if action == "code_task_submit":
+        task_text = str(inp.get("task") or "").strip()
+        if not task_text:
+            return {"success": False, "error": "task required"}
+
+        priority = str(inp.get("priority") or "normal").strip().lower()
+        if priority not in {"high", "normal"}:
+            priority = "normal"
+
+        requested_by = str(inp.get("requested_by") or "serverless-worker").strip() or "serverless-worker"
+        target_files = inp.get("target_files") if isinstance(inp.get("target_files"), list) else []
+        context = inp.get("context") if isinstance(inp.get("context"), dict) else None
+        created_at = datetime_now_iso()
+
+        task = {
+            "id": build_code_task_id(task_text),
+            "task": task_text,
+            "priority": priority,
+            "requested_by": requested_by,
+            "target_files": target_files,
+            "context": context,
+            "status": "pending",
+            "created_at": created_at,
+            "updated_at": created_at,
+            "mode": "serverless-in-memory",
+        }
+
+        CODE_TASK_QUEUE.append(task)
+        del CODE_TASK_QUEUE[:-MAX_CODE_TASK_QUEUE]
+
+        return {
+            "success": True,
+            "status": "queued",
+            "task": task,
+            "queue_size": len(CODE_TASK_QUEUE),
+            "provider": "serverless-code-task-queue",
+        }
+
+    if action == "code_tasks_list":
+        status = inp.get("status")
+        tasks = list_code_tasks(status)
+        return {
+            "success": True,
+            "tasks": tasks,
+            "count": len(tasks),
+            "provider": "serverless-code-task-queue",
+        }
+
+    if action == "code_task_get":
+        task_id = str(inp.get("task_id") or "").strip()
+        if not task_id:
+            return {"success": False, "error": "task_id required"}
+        task = find_code_task(task_id)
+        if not task:
+            return {"success": False, "error": "task not found", "task_id": task_id}
+        return {
+            "success": True,
+            "task": task,
+            "provider": "serverless-code-task-queue",
+        }
+
+    if action == "code_task_skip":
+        task_id = str(inp.get("task_id") or "").strip()
+        if not task_id:
+            return {"success": False, "error": "task_id required"}
+        task = find_code_task(task_id)
+        if not task:
+            return {"success": False, "error": "task not found", "task_id": task_id}
+
+        task["status"] = "skipped"
+        task["updated_at"] = datetime_now_iso()
+        return {
+            "success": True,
+            "status": "skipped",
+            "task": task,
+            "provider": "serverless-code-task-queue",
+        }
+
+    if action == "code_task_delete":
+        task_id = str(inp.get("task_id") or "").strip()
+        if not task_id:
+            return {"success": False, "error": "task_id required"}
+
+        before = len(CODE_TASK_QUEUE)
+        CODE_TASK_QUEUE[:] = [task for task in CODE_TASK_QUEUE if str(task.get("id") or "") != task_id]
+        deleted = len(CODE_TASK_QUEUE) < before
+        if not deleted:
+            return {"success": False, "error": "task not found", "task_id": task_id}
+        return {
+            "success": True,
+            "status": "deleted",
+            "task_id": task_id,
+            "provider": "serverless-code-task-queue",
         }
 
     if action == "chat":

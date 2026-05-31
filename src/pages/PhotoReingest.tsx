@@ -200,7 +200,7 @@ export default function PhotoReingest() {
           notes: observation.officer_notes ?? undefined,
           idempotencyKey: `reingest-update-${observation.observation_id}-${Date.now()}`,
         }),
-        30_000,
+        45_000,
         `vehicle-ingest fallback for ${observation.observation_id}`,
       )
 

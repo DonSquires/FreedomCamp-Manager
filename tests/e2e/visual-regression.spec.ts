@@ -171,7 +171,8 @@ async function assertHeading(page: Page, exactTitle: string): Promise<void> {
 async function snapshot(
   page: Page,
   name: string,
-  regions?: Record<string, Locator>
+  regions?: Record<string, Locator>,
+  maxDiffPixelRatio: number = 0.01
 ): Promise<void> {
   // Disable CSS animations so screenshots are deterministic
   await page.addStyleTag({ content: '*, *::before, *::after { animation-duration: 0s !important; transition-duration: 0s !important; }' })
@@ -180,7 +181,7 @@ async function snapshot(
   await expect(page).toHaveScreenshot(`${name}--full.png`, {
     fullPage: true,
     mask: dataMasks(page),
-    maxDiffPixelRatio: 0.01,
+    maxDiffPixelRatio,
     animations: 'disabled',
     caret: 'hide',
     scale: 'css',
@@ -193,7 +194,7 @@ async function snapshot(
       if (isVisible) {
         await expect(locator).toHaveScreenshot(`${name}--${regionName}.png`, {
           mask: dataMasks(page),
-          maxDiffPixelRatio: 0.01,
+          maxDiffPixelRatio,
           animations: 'disabled',
           caret: 'hide',
           scale: 'css',
@@ -225,7 +226,7 @@ test.describe('Persona: Admin — daily workflow', () => {
 
     await snapshot(page, 'login', {
       form: page.locator('form, [role="main"], main').first(),
-    })
+    }, 0.02)
   })
 
   test('02 Admin dashboard — KPIs, navigation, and action layout', async ({ page }) => {

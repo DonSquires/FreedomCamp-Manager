@@ -280,15 +280,18 @@ export default function OfficerHomePage() {
         navigator.serviceWorker.controller.postMessage({ type: 'WELFARE_SHIFT_END' })
       }
 
-      toast.success('Shift ended — welfare monitoring stopped')
+      // End shift must not log out the officer. Keep the app session active so
+      // non-welfare notifications can still be delivered while backgrounded.
+      toast.success('Shift ended — live tracking and welfare stopped. You are still signed in.')
       queryClient.invalidateQueries({ queryKey: ['officer-active-shift-gate'] })
       queryClient.invalidateQueries({ queryKey: ['officer-active-shift'] })
+      navigate('/officer-home', { replace: true })
     } catch (err: any) {
       toast.error(err?.message ?? 'Failed to end shift')
     } finally {
       setIsEndingShift(false)
     }
-  }, [activeShiftId, user, queryClient])
+  }, [activeShiftId, user, queryClient, navigate])
 
   // ── Ad-hoc shift request ──────────────────────────────────────────────────
   const requestAdhocMutation = useMutation({

@@ -207,7 +207,7 @@ export default function Sidebar({ open = true, onOpenChange }: SidebarProps) {
       >
         {/* Logo */}
         <div className="mb-6 mt-12 lg:mt-0">
-          <h1 className="text-xl font-bold">FieldOps</h1>
+          <h1 className="text-xl font-bold">Field Compliance</h1>
           <p className="text-xs text-gray-500">Manager</p>
         </div>
 

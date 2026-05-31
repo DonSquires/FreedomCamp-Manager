@@ -52,6 +52,7 @@ const NOISE_PATTERNS = [
   /PTT: WebSocket error \{"isTrusted":true\}/i,
   /Notification permission denied/i,
   /Nominatim geocoding failed: TypeError: Failed to fetch/i,
+  /Edge function request timed out after \d+s/i,
 ]
 
 function isNoise(message: string): boolean {
@@ -130,6 +131,7 @@ export function useAutoErrorReporter() {
 
       try {
         const createResult = await edgeFunctions.createBugReport({
+          showToast: false,
           payload: {
             title: `Auto-detected: ${recent[0].message.slice(0, 100)}`,
             description:

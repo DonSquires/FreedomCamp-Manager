@@ -1,6 +1,6 @@
 # ALPR Local Image Inventory
 
-Generated: 2026-05-23T11:05:58.308Z
+Generated: 2026-05-27T09:25:50.173Z
 
 - Scope: repo-local-image-anchors
 - Status: local-reference-attached

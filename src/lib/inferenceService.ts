@@ -9,10 +9,17 @@
 import { supabase } from './supabase'
 import { edgeFunctions } from './edgeFunctions'
 
+type ServicesHealth = { proxy: boolean; inference: boolean }
+
 // Dev-only URL hints (not used in production — Edge Function secrets take priority)
 const PROXY_SERVER_URL = import.meta.env.VITE_PROXY_SERVER_URL
 const INFERENCE_SERVICE_URL = import.meta.env.VITE_INFERENCE_SERVICE_URL
 const INFERENCE_API_KEY = import.meta.env.VITE_INFERENCE_API_KEY
+const SERVICES_HEALTH_CACHE_TTL_MS = 20_000
+const SERVICES_HEALTH_ERROR_BACKOFF_MS = 45_000
+
+let servicesHealthCache: { value: ServicesHealth; expiresAt: number } | null = null
+let servicesHealthInFlight: Promise<ServicesHealth> | null = null
 
 /**
  * Check NZSCV (Self-Contained Vehicle) status via proxy server
@@ -79,32 +86,74 @@ export async function selectBestVehiclePhoto(photoUrls: string[]) {
  * Calls the check-services-health Edge Function which has access to service URLs.
  */
 export async function checkServicesHealth() {
-  try {
-    const { data, error } = await edgeFunctions.checkServicesHealth()
+  const now = Date.now()
 
-    if (error) {
-      console.error('Services health check failed:', error)
-      return { proxy: false, inference: false }
-    }
-
-    // Proxy is optional in RunPod-first deployments. Treat "not configured"
-    // as neutral so global health doesn't stay amber when proxy isn't used.
-    const proxyStatus = String(data?.proxy?.status || '').toLowerCase()
-    const proxyError = String(data?.proxy?.error || '').toLowerCase()
-    const proxyNotConfigured =
-      proxyStatus === 'not_configured' ||
-      proxyError.includes('not configured') ||
-      proxyError.includes('proxy_server_url')
-    const proxyOk =
-      proxyNotConfigured ||
-      proxyStatus === 'ok' ||
-      proxyStatus === 'healthy'
-    const inferenceOk = data?.inference?.status === 'ok' || data?.inference?.status === 'healthy'
-    return { proxy: proxyOk, inference: inferenceOk }
-  } catch (error) {
-    console.error('Services health check error:', error)
-    return { proxy: false, inference: false }
+  if (servicesHealthCache && servicesHealthCache.expiresAt > now) {
+    return servicesHealthCache.value
   }
+
+  if (servicesHealthInFlight) {
+    return servicesHealthInFlight
+  }
+
+  servicesHealthInFlight = (async () => {
+    try {
+      const { data, error } = await edgeFunctions.checkServicesHealth()
+
+      if (error) {
+        const msg = String(error).toLowerCase()
+        const isTransientEdgeFailure =
+          msg.includes('timed out') ||
+          msg.includes('unable to reach the edge function') ||
+          msg.includes('failed to fetch')
+
+        if (!msg.includes('no active session') && !isTransientEdgeFailure) {
+          console.error('Services health check failed:', error)
+        }
+
+        const fallback = { proxy: false, inference: false }
+        servicesHealthCache = {
+          value: fallback,
+          expiresAt: Date.now() + SERVICES_HEALTH_ERROR_BACKOFF_MS,
+        }
+        return fallback
+      }
+
+      // Proxy is optional in RunPod-first deployments. Treat "not configured"
+      // as neutral so global health doesn't stay amber when proxy isn't used.
+      const proxyStatus = String(data?.proxy?.status || '').toLowerCase()
+      const proxyError = String(data?.proxy?.error || '').toLowerCase()
+      const proxyNotConfigured =
+        proxyStatus === 'not_configured' ||
+        proxyError.includes('not configured') ||
+        proxyError.includes('proxy_server_url')
+      const proxyOk =
+        proxyNotConfigured ||
+        proxyStatus === 'ok' ||
+        proxyStatus === 'healthy'
+      const inferenceOk = data?.inference?.status === 'ok' || data?.inference?.status === 'healthy'
+      const result = { proxy: proxyOk, inference: inferenceOk }
+
+      servicesHealthCache = {
+        value: result,
+        expiresAt: Date.now() + SERVICES_HEALTH_CACHE_TTL_MS,
+      }
+
+      return result
+    } catch (error) {
+      console.error('Services health check error:', error)
+      const fallback = { proxy: false, inference: false }
+      servicesHealthCache = {
+        value: fallback,
+        expiresAt: Date.now() + SERVICES_HEALTH_ERROR_BACKOFF_MS,
+      }
+      return fallback
+    } finally {
+      servicesHealthInFlight = null
+    }
+  })()
+
+  return servicesHealthInFlight
 }
 
 /**

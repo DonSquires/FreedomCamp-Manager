@@ -354,7 +354,7 @@ export default function TenderReferenceLibrary() {
             uploaded_by: user.id,
           },
         }),
-        20000,
+        45000,
         'Saving reference record',
       )
 

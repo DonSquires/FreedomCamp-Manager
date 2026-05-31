@@ -6,52 +6,6 @@ Status: **ALL GATES GREEN** — npm standardized; Vercel/mobile deployment updat
 
 ---
 
-## Authentication Session Reliability Update (2026-05-24)
-
-Owner: GitHub Copilot  
-Scope: Resolve stale-login and blank-screen behavior caused by invalid persisted auth state.
-
-Completed:
-
-- [x] Added centralized invalid-auth cleanup path in `src/stores/authStore.ts`.
-- [x] Updated auth listener/session-check failure branches to clear invalid persisted auth state instead of preserving stale local user state.
-- [x] Added local sign-out before fresh password login to prevent stale in-memory Supabase session reuse.
-- [x] Verified compile safety with `npm run typecheck` (PASS).
-
-Operational outcome:
-
-1. Login failures caused by stale/invalid session artifacts now force deterministic re-auth instead of leaving the app in a pseudo-authenticated state.
-2. Session/profile read failures no longer keep users marked authenticated from stale local state.
-3. Troubleshooting guidance in the instruction manual remains valid and now matches runtime behavior.
-
----
-
-## Autonomous Self-Heal Scheduler Alignment (2026-05-24)
-
-Owner: GitHub Copilot  
-Scope: Align runtime automation with instruction-manual self-heal contract.
-
-Completed:
-
-- [x] Updated `scripts/run-autonomous-learning-cycle.sh` to include runtime self-heal watchdog execution (`scripts/run-ci-self-heal-cycle.mjs`) inside the daily cycle.
-- [x] Kept schedule at once daily via cron default (`15 2 * * *`) in `scripts/manage-autonomous-cron.sh`.
-- [x] Added daemon fallback behavior when `crontab` install is blocked, using `scripts/manage-autonomous-daemon.sh` with `BOB_AUTONOMOUS_INTERVAL_MINUTES=1440`.
-- [x] Confirmed active fallback runtime in this environment:
-  - `crond: running`
-  - autonomous daemon running at 1440-minute interval
-
-Evidence:
-
-1. Cron install path blocked by container permission (`crontab: must be suid to work properly`).
-2. Fallback cron entry generated:
-  - `tmp/bob-autonomous-cron.entry`
-3. Active runtime scheduler logs:
-  - `logs/bob-autonomous-cycle.log`
-4. Self-heal cycle output includes watchdog status:
-  - `self_heal_status=green`
-
----
-
 ## Runtime Governance + Mapping Verification Update (2026-05-24)
 
 Owner: GitHub Copilot  

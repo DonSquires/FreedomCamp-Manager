@@ -6,7 +6,7 @@ import { supabase } from '../lib/supabase'
 async function ensureNotificationChannel(): Promise<void> {
   if (Platform.OS !== 'android') return
   await Notifications.setNotificationChannelAsync('default', {
-    name: 'FieldOps Alerts',
+    name: 'Field Compliance Alerts',
     importance: Notifications.AndroidImportance.HIGH,
     vibrationPattern: [0, 250, 250, 250],
     lightColor: '#1d4ed8',
@@ -94,13 +94,20 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   login: async (email: string, password: string) => {
     set({ loading: true })
 
+    await supabase.auth.signOut({ scope: 'global' }).catch(() => undefined)
+    await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined)
+
     const { data, error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) throw error
+
+    const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession()
+    if (refreshError) throw refreshError
+    const authUserId = refreshed.session?.user.id ?? data.user.id
 
     const { data: profile, error: profileError } = await supabase
       .from('user_profiles')
       .select('id, email, role, organization_id, first_name, last_name')
-      .eq('id', data.user.id)
+      .eq('id', authUserId)
       .single()
 
     if (profileError) throw profileError
@@ -146,6 +153,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   logout: async () => {
     try {
+      await supabase.auth.signOut({ scope: 'global' })
       await supabase.auth.signOut({ scope: 'local' })
     } catch {
       // Keep local logout resilient even if sign-out has issues.

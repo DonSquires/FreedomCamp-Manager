@@ -33,6 +33,7 @@ import {
 import { formatDateTime } from '@/lib/utils'
 import { nzDateToUTCStart, nzDateToUTCEnd } from '@/lib/timezone'
 import { getObservationPhotoUrl } from '@/lib/photoUtils'
+import { PRIMARY_MAP_TILE_ATTRIBUTION, PRIMARY_MAP_TILE_URL } from '@/lib/inhouseMapping'
 
 interface Observation {
   observation_id: string
@@ -324,8 +325,8 @@ export default function ObservationsView() {
                       focusKey={focusKey}
                     />
                     <TileLayer
-                      attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-                      url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                      attribution={PRIMARY_MAP_TILE_ATTRIBUTION}
+                      url={PRIMARY_MAP_TILE_URL}
                     />
 
                     {heatmapMode ? (

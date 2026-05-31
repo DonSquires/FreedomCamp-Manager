@@ -5,7 +5,8 @@ const app = express();
 app.use(express.json({ limit: '2mb' }));
 
 const PORT = Number(process.env.PORT || 3000);
-const REQUEST_TIMEOUT_MS = Number(process.env.MODEL_GATEWAY_TIMEOUT_MS || 90000);
+const REQUEST_TIMEOUT_MS = Number(process.env.MODEL_GATEWAY_TIMEOUT_MS || 180000);
+const SERVER_TIMEOUT_MS = Number(process.env.MODEL_GATEWAY_SERVER_TIMEOUT_MS || REQUEST_TIMEOUT_MS);
 
 function resolveRunpodInvokeUrl() {
   const explicit = String(process.env.RUNPOD_ENDPOINT_URL || process.env.RUNPOD_RUNSYNC_URL || '').trim().replace(/\/+$/, '');
@@ -292,6 +293,10 @@ app.post('/v1/chat/completions', async (req, res) => {
   });
 });
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`[model-gateway] listening on :${PORT}`);
 });
+
+server.requestTimeout = SERVER_TIMEOUT_MS;
+server.headersTimeout = SERVER_TIMEOUT_MS + 10000;
+server.keepAliveTimeout = Math.min(60000, SERVER_TIMEOUT_MS);

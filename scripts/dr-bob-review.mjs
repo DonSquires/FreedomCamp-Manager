@@ -5,6 +5,7 @@ import path from 'node:path';
 import process from 'node:process';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { createClient } from '@supabase/supabase-js';
 import { recordScoredResponse } from './bob-response-log.mjs';
 import { recordDrBobEscalation } from './dr-bob-escalation-log.mjs';
 import { loadLocalEnv } from './load-local-env.mjs';
@@ -89,6 +90,24 @@ function resolveDrBobApiKey() {
   return '';
 }
 
+function firstNonEmptyEnv(...names) {
+  for (const name of names) {
+    const value = String(process.env[name] || '').trim();
+    if (value) return value;
+  }
+  return '';
+}
+
+function buildScoreMetadata(artifactPath) {
+  return {
+    sourceFile: artifactPath,
+    organizationId: firstNonEmptyEnv('BOB_ORG_ID', 'ORG_ID', 'DEFAULT_ORG_ID'),
+    userId: firstNonEmptyEnv('BOB_USER_ID', 'SYNTHETIC_MONITOR_USER_ID', 'USER_ID'),
+    conversationId: firstNonEmptyEnv('BOB_CONVERSATION_ID'),
+    messageId: firstNonEmptyEnv('BOB_MESSAGE_ID'),
+  };
+}
+
 function getArg(name, fallback = '') {
   const flag = `--${name}`;
   const args = process.argv.slice(2);
@@ -109,6 +128,71 @@ function getNumberArg(name, fallback = 0) {
   const raw = String(getArg(name, String(fallback))).trim();
   const parsed = Number.parseInt(raw, 10);
   return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+async function loadRecentLowScoreLessons(options = {}) {
+  const hours = Math.max(1, Number(options.hours || 24));
+  const limit = Math.max(1, Number(options.limit || 8));
+
+  const supabaseUrl = firstNonEmptyEnv('SUPABASE_URL', 'VITE_SUPABASE_URL');
+  const serviceRoleKey = firstNonEmptyEnv('SUPABASE_SERVICE_ROLE_KEY');
+  const orgId = firstNonEmptyEnv('BOB_ORG_ID', 'ORG_ID', 'DEFAULT_ORG_ID');
+
+  if (!supabaseUrl || !serviceRoleKey || !orgId) {
+    return [];
+  }
+
+  const cutoffIso = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
+  const supabase = createClient(supabaseUrl, serviceRoleKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+      detectSessionInUrl: false,
+    },
+  });
+
+  try {
+    const { data, error } = await (supabase.from('bob_learning_log'))
+      .select('lesson_key,score,feedback,lesson_detail,created_at')
+      .eq('organization_id', orgId)
+      .lt('score', 0.7)
+      .gte('created_at', cutoffIso)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    if (error || !Array.isArray(data)) {
+      return [];
+    }
+
+    return data
+      .map((row) => {
+        const lessonKey = String(row?.lesson_key || '').trim() || 'unknown_lesson';
+        const score = Number(row?.score);
+        const scoreText = Number.isFinite(score) ? score.toFixed(2) : 'n/a';
+        const feedback = String(row?.feedback || '').trim();
+        const detailSource = String(row?.lesson_detail?.source_file || '').trim();
+        return {
+          lessonKey,
+          scoreText,
+          feedback: feedback || 'No feedback captured.',
+          source: detailSource || 'unknown-source',
+        };
+      })
+      .filter((row) => row.lessonKey);
+  } catch {
+    return [];
+  }
+}
+
+function buildRecentLessonsBlock(lessons) {
+  if (!Array.isArray(lessons) || lessons.length === 0) {
+    return '';
+  }
+
+  const lines = lessons.map((lesson) => (
+    `- [${lesson.lessonKey}] score=${lesson.scoreText}; feedback=${lesson.feedback}; source=${lesson.source}`
+  ));
+  return lines.join('\n');
 }
 
 function extractPositionalFileArg() {
@@ -167,18 +251,54 @@ function isReviewShape(value) {
   );
 }
 
+function toReadableCheck(item) {
+  if (item === null || item === undefined) return '';
+  if (typeof item === 'string') return item.trim();
+  if (typeof item === 'number' || typeof item === 'boolean') return String(item);
+
+  if (Array.isArray(item)) {
+    return item
+      .map((entry) => toReadableCheck(entry))
+      .filter(Boolean)
+      .join(' | ')
+      .trim();
+  }
+
+  if (typeof item === 'object') {
+    const preferred = [
+      item.description,
+      item.title,
+      item.name,
+      item.check,
+      item.message,
+      item.requiredAction,
+      item.status,
+    ]
+      .map((value) => toReadableCheck(value))
+      .filter(Boolean);
+
+    if (preferred.length > 0) return preferred.join(' | ').trim();
+
+    const entries = Object.entries(item)
+      .map(([key, value]) => {
+        const normalized = toReadableCheck(value);
+        return normalized ? `${key}: ${normalized}` : '';
+      })
+      .filter(Boolean);
+
+    return entries.join(' | ').trim();
+  }
+
+  return '';
+}
+
 function normalizeCanonicalReviewShape(value) {
   if (!value || typeof value !== 'object' || !Array.isArray(value.findings)) return null;
 
   const verificationChecks = Array.isArray(value.verificationChecks)
-    ? value.verificationChecks.map((item) => {
-        if (item && typeof item === 'object') {
-          return String(item.description || item.title || item.status || '').trim();
-        }
-        return String(item || '').trim();
-      }).filter(Boolean)
+    ? value.verificationChecks.map((item) => toReadableCheck(item)).filter(Boolean)
     : Array.isArray(value.exitCriteria)
-      ? value.exitCriteria.map((item) => String(item || '').trim()).filter(Boolean)
+      ? value.exitCriteria.map((item) => toReadableCheck(item)).filter(Boolean)
       : [];
 
   const findings = value.findings.map((finding) => {
@@ -213,11 +333,11 @@ function normalizeAlternateReviewShape(value) {
 
   const verificationSource = value.verificationChecks || value.exitCriteria;
   const verificationChecks = Array.isArray(verificationSource)
-    ? verificationSource.map((item) => String(item || '').trim()).filter(Boolean)
+    ? verificationSource.map((item) => toReadableCheck(item)).filter(Boolean)
     : verificationSource && typeof verificationSource === 'object'
-      ? Object.values(verificationSource).map((item) => String(item || '').trim()).filter(Boolean)
+      ? Object.values(verificationSource).map((item) => toReadableCheck(item)).filter(Boolean)
       : typeof verificationSource === 'string'
-        ? [verificationSource.trim()].filter(Boolean)
+        ? [toReadableCheck(verificationSource)].filter(Boolean)
         : [];
 
   const findings = Object.entries(findingsObject)
@@ -661,7 +781,7 @@ async function sendViaLocalOllama(message) {
   }
 }
 
-function buildReviewPrompt({ artifactType, artifactPath, artifactText, systemState, diagnosticProtocol, failOnRevision }) {
+function buildReviewPrompt({ artifactType, artifactPath, artifactText, systemState, diagnosticProtocol, failOnRevision, recentLessonsBlock = '' }) {
   const normalizedProtocol = String(diagnosticProtocol || '').trim();
   return [
     'Dr Bob adversarial architecture review.',
@@ -680,6 +800,8 @@ function buildReviewPrompt({ artifactType, artifactPath, artifactText, systemSta
     `Artifact type: ${artifactType}`,
     `Artifact path: ${artifactPath}`,
     `Fail on revision mode: ${failOnRevision ? 'true' : 'false'}`,
+    recentLessonsBlock ? 'Recent low-score lessons from bob_learning_log (apply these lessons and avoid repeating failure patterns):' : '',
+    recentLessonsBlock ? recentLessonsBlock : '',
     normalizedProtocol ? 'Diagnostic protocol (authoritative):' : '',
     normalizedProtocol ? normalizedProtocol : '',
     'Current grounded system state JSON:',
@@ -757,6 +879,12 @@ export async function runDrBobReview(options = {}) {
     diagnosticProtocol = '';
   }
 
+  const recentLessons = await loadRecentLowScoreLessons({
+    hours: Number(process.env.DR_BOB_LESSON_WINDOW_HOURS || 24),
+    limit: Number(process.env.DR_BOB_LESSON_LIMIT || 8),
+  });
+  const recentLessonsBlock = buildRecentLessonsBlock(recentLessons);
+
   const basePrompt = buildReviewPrompt({
     artifactType,
     artifactPath,
@@ -764,6 +892,7 @@ export async function runDrBobReview(options = {}) {
     systemState,
     diagnosticProtocol,
     failOnRevision,
+    recentLessonsBlock,
   });
 
   let delivery = null;
@@ -787,7 +916,7 @@ export async function runDrBobReview(options = {}) {
           prompt: finalPrompt,
           response: `${delivery.text}\nFallback (${ollamaDelivery.channel}): ${ollamaDelivery.text}`,
           delivery,
-          metadata: { sourceFile: artifactPath },
+          metadata: buildScoreMetadata(artifactPath),
         });
         throw new Error(`Dr Bob review failed (runpod=${delivery.status}, ollama=${ollamaDelivery.status}): ${delivery.text.slice(0, 200)} | ${ollamaDelivery.text.slice(0, 200)}`);
       }
@@ -904,7 +1033,7 @@ export async function runDrBobReview(options = {}) {
     response: JSON.stringify(review),
     delivery,
     metadata: {
-      sourceFile: artifactPath,
+      ...buildScoreMetadata(artifactPath),
       reviewDecision: review.decision,
       qualityGateFailed: !structured,
       attemptDiagnostics,

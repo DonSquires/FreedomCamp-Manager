@@ -7,6 +7,7 @@ import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
 import CameraCapture from '@/components/CameraCapture'
 import { parseBobCommand, processEvidenceCapture } from '@/services/bobIntentParser'
 import { edgeFunctions } from '@/lib/edgeFunctions'
+import { getBobManagerUrl } from '@/lib/bobManagerUrl'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
@@ -88,14 +89,6 @@ function buildBobHistory(messages: ChatThreadMessage[]) {
   }))
 }
 
-function getBobManagerUrl(): string | null {
-  const envUrl = String(import.meta.env.VITE_BOB_MANAGER_URL ?? '').trim()
-  if (envUrl.length > 0) {
-    return envUrl.replace(/\/$/, '')
-  }
-  return null
-}
-
 async function blobToBase64(blob: Blob): Promise<string> {
   const arrayBuffer = await blob.arrayBuffer()
   const bytes = new Uint8Array(arrayBuffer)
@@ -141,12 +134,6 @@ export default function ChatStudio() {
   )
 
   const bobManagerUrl = useMemo(() => getBobManagerUrl(), [])
-
-  useEffect(() => {
-    if (!bobManagerUrl) {
-      console.error('Configuration Error: VITE_BOB_MANAGER_URL is missing.')
-    }
-  }, [bobManagerUrl])
 
   const { data: members = [] } = useQuery<Participant[]>({
     queryKey: ['chat-studio-members', effectiveOrgId],

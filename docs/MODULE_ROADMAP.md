@@ -258,6 +258,24 @@ New routes added:
 - `/ems-attendances-log` — EMS Attendance Log (B-83); role gate: admin, admin_officer, master; nav group: Roster & Workforce; table: ems_attendances; status/date/action filters; billable hours KPI; Approve action
 - `/parking-sessions-log` — Parking Session Log (B-84); role gate: admin, admin_officer, master; nav group: Specialist Portals; table: parking_sessions; violation/plate/zone/date filters; avg dwell KPI; photo links; expandable tyre valve positions
 
+## Route Coverage Alignment Addendum (2026-05-28)
+
+Routes below are explicitly documented to keep route-map coverage aligned with the live router inventory.
+
+- `/login` — public authentication entry route.
+- `/privacy-curtain` — role gate: admin, admin_officer, master; privacy control workspace.
+- `/analytics` — authenticated redirect route (legacy analytics alias), retained for compatibility.
+- `/radio-ui` — authenticated compatibility route for radio console UI shell.
+- `/officer-allowances` — role gate: admin, admin_officer, master; officer allowance management.
+- `/travel-allowances` — role gate: admin, admin_officer, master; travel allowance and reimbursement workflow.
+- `/admin/canonical-records` — role gate: admin, admin_officer, master; canonical records administration surface.
+- `/patrol-chain-audits` — role gate: admin, admin_officer, master, grand_master; patrol chain audit and traceability view.
+- `/leave-management` — role gate: admin, admin_officer, master, officer; leave and absence management workflow.
+
+Router integrity note:
+
+- Duplicate declarations for `/health-safety-reports`, `/welfare-checkins`, and `/parking-permits` were removed from `src/App.tsx` so each path is declared once.
+
 ## Sprint 25 Addendum (2026-05-06) — B-85/B-86/B-87
 
 New routes added:

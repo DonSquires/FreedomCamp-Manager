@@ -24,13 +24,35 @@ if (supabaseUrl) {
 const root = document.getElementById('root')!
 const enableCleanRebuildRoutes = import.meta.env.VITE_ENABLE_CLEAN_REBUILD_ROUTES === 'true'
 const _qp = new URLSearchParams(window.location.search)
+const devToolsFromQuery = _qp.get('dev-tools') === '1'
+const devToolsFromStorage = localStorage.getItem('dev_tools_visible') === 'true'
+const allowCleanSurfaceToggle = enableCleanRebuildRoutes || import.meta.env.DEV || devToolsFromQuery || devToolsFromStorage
 const cleanFromQuery = _qp.get('clean_rebuild') === '1'
 const clearFromQuery = _qp.get('clean_rebuild') === '0'
 // Persist/clear the tester toggle via localStorage so it survives page reloads.
 if (clearFromQuery) localStorage.removeItem('clean_rebuild_surface')
 else if (cleanFromQuery) localStorage.setItem('clean_rebuild_surface', 'true')
-const cleanFromStorage = localStorage.getItem('clean_rebuild_surface') === 'true'
+const cleanFromStorage = allowCleanSurfaceToggle && localStorage.getItem('clean_rebuild_surface') === 'true'
 const useCleanSurface = enableCleanRebuildRoutes || cleanFromQuery || cleanFromStorage
+
+// Self-heal accidental persistence: if rebuild toggles are not explicitly enabled,
+// clear the sticky flag so normal users always see the production surface.
+if (!allowCleanSurfaceToggle && localStorage.getItem('clean_rebuild_surface') === 'true') {
+  localStorage.removeItem('clean_rebuild_surface')
+}
+
+const recentDispatchTitles: string[] = (() => {
+  if (typeof window === 'undefined') return []
+  try {
+    const raw = window.sessionStorage.getItem('fc_recent_dispatch_titles')
+    if (!raw) return []
+    const parsed = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return []
+    return parsed.filter((item): item is string => typeof item === 'string' && item.trim().length > 0).slice(0, 8)
+  } catch {
+    return []
+  }
+})()
 
 if (import.meta.env.DEV) {
   assertRouteManifestValid(routeManifest)
@@ -51,6 +73,16 @@ const appBootLoader = (
         <p className="text-sm font-semibold uppercase tracking-[0.28em] text-cyan-200">Iron Eagle Security Limited</p>
         <h1 className="text-2xl font-bold text-white">Field Compliance Manager</h1>
         <p className="text-sm text-slate-300">Preparing the Freedom Camp enforcement workspace...</p>
+        {recentDispatchTitles.length > 0 && (
+          <div className="pt-3 text-left">
+            <p className="text-xs uppercase tracking-wide text-slate-400">Recent dispatch jobs</p>
+            <div className="mt-2 space-y-1">
+              {recentDispatchTitles.map((title) => (
+                <p key={title} className="text-xs text-slate-200">{title}</p>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   </div>
@@ -85,6 +117,7 @@ if (!supabaseConfigured) {
         }}>
           <div>{'VITE_SUPABASE_URL=https://kxwjcupuxnnbnzcgmkoi.supabase.co'}</div>
           <div>VITE_SUPABASE_ANON_KEY=eyJhbGci...</div>
+          <div style={{ color: '#94a3b8', marginTop: '0.5rem' }}>Legacy support: SUPABASE_URL / SUPABASE_ANON_KEY are accepted at build time.</div>
         </div>
         <p style={{ color: '#64748b', fontSize: '0.875rem' }}>
           Find these values in the Supabase Dashboard → Settings → API.

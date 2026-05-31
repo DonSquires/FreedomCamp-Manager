@@ -30,7 +30,6 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { MapContainer, TileLayer, CircleMarker, Marker, Popup, useMap } from 'react-leaflet'
 import L from 'leaflet'
-import MarkerClusterGroup from 'react-leaflet-cluster'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
@@ -69,6 +68,10 @@ import {
   ChevronRight,
 } from 'lucide-react'
 import { formatDateTime } from '@/lib/utils'
+import {
+  PRIMARY_MAP_TILE_ATTRIBUTION,
+  PRIMARY_MAP_TILE_URL,
+} from '@/lib/inhouseMapping'
 import 'leaflet/dist/leaflet.css'
 
 // ─── NZ default centre (Nelson) ──────────────────────────────────────────────
@@ -99,7 +102,7 @@ const LAYERS: LayerDef[] = [
   { id: 'incidents',     label: 'Incidents',           icon: Shield,      colour: '#4f46e5', defaultOn: false, description: 'Incident records' },
   { id: 'voi',           label: 'Vehicle of Interest', icon: Car,         colour: '#ca8a04', defaultOn: false, description: 'Flagged vehicles with last scan location' },
   { id: 'poi',           label: 'Person of Interest',  icon: User,        colour: '#db2777', defaultOn: false, description: 'Persons of interest with last known location' },
-  { id: 'traffic',       label: 'Traffic Overlay',     icon: Zap,         colour: '#f59e0b', defaultOn: false, description: 'Road traffic conditions (HERE Maps / OpenStreetMap)' },
+  { id: 'traffic',       label: 'Traffic Overlay',     icon: Zap,         colour: '#f59e0b', defaultOn: false, description: 'Road traffic conditions (in-house/HERE with fallback support)' },
 ]
 
 // ─── HERE Maps / traffic tile configuration (B-34) ───────────────────────────
@@ -113,11 +116,11 @@ const HERE_API_KEY = import.meta.env.VITE_HERE_MAPS_API_KEY as string | undefine
 // HERE Maps traffic flow tile URL template
 const HERE_TRAFFIC_URL = HERE_API_KEY
   ? `https://traffic.maps.ls.hereapi.com/maptile/2.1/traffictile/newest/normal.day/{z}/{x}/{y}/256/png8?apiKey=${HERE_API_KEY}`
-  : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png' // fallback: standard OSM (traffic overlay unavailable without key)
+  : PRIMARY_MAP_TILE_URL
 
 const HERE_TRAFFIC_ATTRIBUTION = HERE_API_KEY
   ? '&copy; <a href="https://www.here.com">HERE Maps</a> traffic data'
-  : '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+  : PRIMARY_MAP_TILE_ATTRIBUTION
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 // haversineKm imported from @/lib/geo
@@ -298,7 +301,7 @@ export default function OperationsMap() {
   })
 
   // Welfare alerts
-  const { data: welfareAlerts = [] } = useQuery({
+  const { data: welfareAlerts = [], refetch: refetchWelfareAlerts } = useQuery({
     queryKey: ['ops-map-welfare', effectiveOrgId, tick],
     queryFn: async () => {
       let q = (supabase as any)
@@ -309,9 +312,15 @@ export default function OperationsMap() {
       const { data } = await q.order('alert_sent_at', { ascending: false }).limit(50)
       return (data ?? []).filter((w: any) => w.gps_latitude && w.gps_longitude)
     },
-    enabled: visibleLayers.welfare,
+    enabled: true,
     refetchInterval: autoRefresh ? 30_000 : false,
   })
+
+  useEffect(() => {
+    // Route-change query cancellation can abort the first map fetch; refetch after mount
+    // so emergency escalation state is populated deterministically.
+    void refetchWelfareAlerts()
+  }, [refetchWelfareAlerts, effectiveOrgId, tick])
 
   const activeEmergencyAlert = useMemo(() => {
     return welfareAlerts.find((w: any) => {
@@ -668,8 +677,8 @@ export default function OperationsMap() {
               zoomControl={true}
             >
               <TileLayer
-                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                url={PRIMARY_MAP_TILE_URL}
+                attribution={PRIMARY_MAP_TILE_ATTRIBUTION}
               />
 
               {/* B-34: Traffic overlay TileLayer (HERE Maps when API key present) */}
@@ -765,7 +774,7 @@ export default function OperationsMap() {
 
               {/* ── Breach Alerts ─────────────────────────────────────────── */}
               {visibleLayers.breaches && (
-                <MarkerClusterGroup chunkedLoading>
+                <>
                   {breachAlerts.map((b: any) => (
                     <CircleMarker
                       key={b.id}
@@ -784,7 +793,7 @@ export default function OperationsMap() {
                       </Popup>
                     </CircleMarker>
                   ))}
-                </MarkerClusterGroup>
+                </>
               )}
 
               {/* ── Noise Control Jobs ────────────────────────────────────── */}

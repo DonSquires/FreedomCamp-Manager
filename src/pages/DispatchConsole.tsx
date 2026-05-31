@@ -153,6 +153,9 @@ const PRIORITY_CONFIG: Record<string, { label: string; className: string }> = {
 const JOB_TYPE_LABELS: Record<string, string> = {
   // WILSAR core types
   alarm_response:       'Alarm Response',
+  noise_complaint:      'Noise Complaint',
+  biosecurity_inspection: 'Biosecurity Inspection',
+  freedom_camping:      'Freedom Camping',
   permanent_patrol:     'Permanent Patrol',
   casual_patrol:        'Casual Patrol',
   escort:               'Escort',
@@ -170,8 +173,6 @@ const JOB_TYPE_LABELS: Record<string, string> = {
   // FieldOps-native types
   patrol:               'Patrol',
   welfare_check:        'Welfare Check',
-  noise_complaint:      'Noise Complaint',
-  freedom_camping:      'Freedom Camping',
   parking:              'Parking',
   medical:              'Medical',
   fire:                 'Fire',
@@ -179,7 +180,6 @@ const JOB_TYPE_LABELS: Record<string, string> = {
   lock_unlock:          'Lock/Unlock',
   property_check:       'Property Check',
   vandalism:            'Vandalism',
-  biosecurity_inspection: 'Biosecurity Inspection',
   smoke_complaint_ooh:    'Smoke Complaint (OOH)',
   general:              'General',
   other:                'Other',
@@ -226,6 +226,150 @@ function emptyForm(): JobForm {
     job_type: 'general', alarm_type: '', priority: 'normal', title: '', description: '',
     address: '', caller_name: '', caller_phone: '', client_site_id: '', zone_id: '', response_sla_minutes: 60,
   }
+}
+
+async function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(() => reject(new Error(`${label} timed out after ${Math.round(ms / 1000)}s`)), ms)
+      }),
+    ])
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId)
+  }
+}
+
+function readSupabaseAccessTokenFromStorage(): string | null {
+  if (typeof window === 'undefined') return null
+
+  const storages: Storage[] = [window.localStorage, window.sessionStorage]
+  for (const storage of storages) {
+    for (let i = 0; i < storage.length; i += 1) {
+      const key = storage.key(i)
+      if (!key || !key.startsWith('sb-') || !key.includes('-auth-token')) continue
+
+      const raw = storage.getItem(key)
+      if (!raw) continue
+
+      try {
+        const parsed = JSON.parse(raw)
+        if (typeof parsed?.access_token === 'string' && parsed.access_token.length > 20) {
+          return parsed.access_token
+        }
+      } catch {
+        // Ignore malformed auth storage values.
+      }
+    }
+  }
+
+  return null
+}
+
+function cacheRecentDispatchTitle(title: string) {
+  if (typeof window === 'undefined') return
+
+  const normalized = title.trim()
+  if (!normalized) return
+
+  const key = 'fc_recent_dispatch_titles'
+  let existing: string[] = []
+
+  try {
+    const raw = window.sessionStorage.getItem(key)
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      if (Array.isArray(parsed)) {
+        existing = parsed.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+      }
+    }
+  } catch {
+    existing = []
+  }
+
+  const next = [normalized, ...existing.filter((item) => item !== normalized)].slice(0, 25)
+  window.sessionStorage.setItem(key, JSON.stringify(next))
+}
+
+async function postgrestCreateDispatchJob(payload: Record<string, unknown>, timeoutMs = 12000): Promise<void> {
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined
+  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    throw new Error('Supabase environment variables are missing')
+  }
+
+  let accessToken = readSupabaseAccessTokenFromStorage()
+  if (!accessToken) {
+    const {
+      data: { session },
+    } = await withTimeout(supabase.auth.getSession(), 3000, 'Session lookup')
+    accessToken = session?.access_token ?? null
+  }
+
+  if (!accessToken) {
+    throw new Error('Session expired. Please sign in again')
+  }
+
+  const tryInsert = async (bodyPayload: Record<string, unknown>): Promise<{ ok: boolean; message?: string }> => {
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
+
+    try {
+      const response = await fetch(`${supabaseUrl}/rest/v1/dispatch_jobs`, {
+        method: 'POST',
+        headers: {
+          apikey: supabaseAnonKey,
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+          Prefer: 'return=minimal',
+        },
+        body: JSON.stringify(bodyPayload),
+        signal: controller.signal,
+      })
+
+      if (response.ok) return { ok: true }
+
+      const raw = await response.text().catch(() => '')
+      if (!raw) return { ok: false, message: 'Failed to create job' }
+
+      try {
+        const parsed = JSON.parse(raw)
+        return {
+          ok: false,
+          message: parsed?.message || parsed?.error_description || parsed?.hint || raw,
+        }
+      } catch {
+        return { ok: false, message: raw }
+      }
+    } catch (error: any) {
+      if (error?.name === 'AbortError') {
+        throw new Error(`Dispatch create timed out after ${Math.round(timeoutMs / 1000)}s`)
+      }
+      throw error
+    } finally {
+      clearTimeout(timeoutId)
+    }
+  }
+
+  const initial = await tryInsert(payload)
+  if (initial.ok) return
+
+  const message = (initial.message || '').toLowerCase()
+  const alarmTypeMissing =
+    message.includes("'alarm_type' column of 'dispatch_jobs'") ||
+    message.includes('dispatch_jobs.alarm_type')
+
+  if (alarmTypeMissing && 'alarm_type' in payload) {
+    const { alarm_type: _unused, ...fallbackPayload } = payload
+    const fallback = await tryInsert(fallbackPayload)
+    if (fallback.ok) return
+    throw new Error(fallback.message || 'Failed to create job')
+  }
+
+  throw new Error(initial.message || 'Failed to create job')
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -459,25 +603,43 @@ export default function DispatchConsole() {
   // ── Create job mutation ─────────────────────────────────────────────────────
   const createMutation = useMutation({
     mutationFn: async (f: JobForm) => {
-      await edgeFunctions.createDispatchJob({
-        payload: {
-          organization_id:      orgId,
-          job_type:             f.job_type,
-          alarm_type:           f.alarm_type || null,
-          priority:             f.priority,
-          title:                f.title,
-          description:          f.description || null,
-          address:              f.address || null,
-          caller_name:          f.caller_name || null,
-          caller_phone:         f.caller_phone || null,
-          client_site_id:       f.client_site_id || null,
-          zone_id:              f.zone_id || null,
-          response_sla_minutes: f.response_sla_minutes,
-        },
-      })
+      const effectiveOrgId = orgId || useAuthStore.getState().user?.organization_id
+      if (!effectiveOrgId) {
+        throw new Error('Organization context is still loading. Please retry in a moment.')
+      }
+
+      const payload = {
+        organization_id:      effectiveOrgId,
+        job_type:             f.job_type,
+        alarm_type:           f.alarm_type || null,
+        priority:             f.priority,
+        title:                f.title,
+        description:          f.description || null,
+        address:              f.address || null,
+        caller_name:          f.caller_name || null,
+        caller_phone:         f.caller_phone || null,
+        client_site_id:       f.client_site_id || null,
+        zone_id:              f.zone_id || null,
+        response_sla_minutes: f.response_sla_minutes,
+      }
+
+      try {
+        const edgeResult = await withTimeout(
+          edgeFunctions.createDispatchJob({ payload }),
+          45000,
+          'Dispatch create'
+        )
+
+        if (edgeResult?.error) {
+          throw new Error(edgeResult.error)
+        }
+      } catch {
+        await postgrestCreateDispatchJob(payload)
+      }
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       toast.success('Job created')
+      cacheRecentDispatchTitle(variables.title)
       qc.invalidateQueries({ queryKey: ['dispatch-jobs'] })
       setShowCreate(false)
       setForm(emptyForm())
@@ -487,8 +649,10 @@ export default function DispatchConsole() {
 
   function handleCreate(e: React.FormEvent) {
     e.preventDefault()
+    if (createMutation.isPending) return
     if (!form.title.trim()) { toast.error('Title is required'); return }
-    createMutation.mutate(form)
+    const snapshot = { ...form }
+    createMutation.mutate(snapshot)
   }
 
   // Pre-compute nearest on-shift officer with GPS for the selected job
@@ -557,7 +721,7 @@ export default function DispatchConsole() {
             <Button onClick={() => navigate('/dispatch-wizard')} variant="outline" size="sm" className="gap-1.5">
               <Wand2 className="h-4 w-4" /> Wizard
             </Button>
-            <Button onClick={() => setShowCreate(true)}>
+            <Button data-testid="dispatch-new-job-button" onClick={() => setShowCreate(true)}>
               <Plus className="h-4 w-4 mr-1.5" /> New Job
             </Button>
           </div>
@@ -1147,7 +1311,9 @@ export default function DispatchConsole() {
 
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setShowCreate(false)}>Cancel</Button>
-              <Button type="submit" disabled={createMutation.isPending}>Create Job</Button>
+              <Button type="submit" disabled={createMutation.isPending}>
+                {createMutation.isPending ? 'Creating...' : 'Create Job'}
+              </Button>
             </DialogFooter>
           </form>
         </DialogContent>

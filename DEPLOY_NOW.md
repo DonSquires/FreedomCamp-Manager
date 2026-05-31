@@ -101,8 +101,8 @@ git fetch origin v2026-05-10-prod
 git checkout v2026-05-10-prod
 
 # Install and build
-bun install
-bun run build
+npm install
+npm run build
 
 # Stop old service
 systemctl stop fieldops-manager || pm2 stop fieldops-manager
@@ -233,7 +233,7 @@ After deployment, verify these items:
 | **Vercel** | `vercel --prod` |
 | **Railway** | `railway up --environment production` |
 | **Docker** | `docker build ... && docker push ... && kubectl set image ...` |
-| **Self-Hosted** | `git checkout v2026-05-10-prod && bun install && bun run build && systemctl restart` |
+| **Self-Hosted** | `git checkout v2026-05-10-prod && npm install && npm run build && systemctl restart` |
 
 ---
 

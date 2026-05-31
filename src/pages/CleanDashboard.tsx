@@ -158,7 +158,7 @@ function KPICard({ title, value, icon: Icon, color, sub }: KPIProps) {
   return (
     <div className="bg-white dark:bg-[#1A1A1A] rounded-xl border border-gray-200 dark:border-[#9E9E9E]/20 p-5 shadow-sm">
       <div className="flex items-center justify-between mb-3">
-        <span className="text-sm font-medium text-gray-500 dark:text-gray-400">{title}</span>
+        <span className="text-sm font-medium text-gray-500 dark:text-gray-300">{title}</span>
         <div className={cn('p-2 rounded-lg', color)}>
           <Icon className="w-4 h-4 text-white" />
         </div>
@@ -418,13 +418,13 @@ function ObservationsTab() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-gray-50 dark:bg-[#1E1E1E]/50 text-left">
-                  <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-400">Plate</th>
-                  <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-400 hidden md:table-cell">Vehicle</th>
-                  <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-400">Zone</th>
-                  <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-400 hidden lg:table-cell">Officer</th>
-                  <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-400">Status</th>
-                  <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-400 hidden sm:table-cell">Nights</th>
-                  <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-400">Recorded</th>
+                  <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-300">Plate</th>
+                  <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-300 hidden md:table-cell">Vehicle</th>
+                  <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-300">Zone</th>
+                  <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-300 hidden lg:table-cell">Officer</th>
+                  <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-300">Status</th>
+                  <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-300 hidden sm:table-cell">Nights</th>
+                  <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-300">Recorded</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
@@ -433,15 +433,15 @@ function ObservationsTab() {
                     <td className="px-4 py-3 font-mono font-bold text-gray-900 dark:text-white">
                       {obs.plate_number}
                     </td>
-                    <td className="px-4 py-3 text-gray-600 dark:text-gray-400 hidden md:table-cell">
+                    <td className="px-4 py-3 text-gray-600 dark:text-gray-300 hidden md:table-cell">
                       {[obs.vehicle_year, obs.vehicle_make, obs.vehicle_model, obs.vehicle_color]
                         .filter(Boolean)
                         .join(' ') || '—'}
                     </td>
-                    <td className="px-4 py-3 text-gray-600 dark:text-gray-400">
+                    <td className="px-4 py-3 text-gray-600 dark:text-gray-300">
                       {obs.zones?.name ?? '—'}
                     </td>
-                    <td className="px-4 py-3 text-gray-600 dark:text-gray-400 hidden lg:table-cell">
+                    <td className="px-4 py-3 text-gray-600 dark:text-gray-300 hidden lg:table-cell">
                       {obs.user_profiles
                         ? `${obs.user_profiles.first_name} ${obs.user_profiles.last_name}`
                         : '—'}
@@ -578,13 +578,13 @@ function VehiclesTab() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-gray-50 dark:bg-[#1E1E1E]/50 text-left">
-                  <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-400">Photo</th>
-                  <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-400">Plate</th>
-                  <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-400 hidden md:table-cell">Vehicle</th>
-                  <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-400 text-center">Observations</th>
-                  <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-400">Flags</th>
-                  <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-400 hidden lg:table-cell">First Seen</th>
-                  <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-400 hidden lg:table-cell">Last Seen</th>
+                  <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-300">Photo</th>
+                  <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-300">Plate</th>
+                  <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-300 hidden md:table-cell">Vehicle</th>
+                  <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-300 text-center">Observations</th>
+                  <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-300">Flags</th>
+                  <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-300 hidden lg:table-cell">First Seen</th>
+                  <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-300 hidden lg:table-cell">Last Seen</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
@@ -602,7 +602,7 @@ function VehiclesTab() {
                     <td className="px-4 py-3 font-mono font-bold text-gray-900 dark:text-white">
                       {v.plate_number}
                     </td>
-                    <td className="px-4 py-3 text-gray-600 dark:text-gray-400 hidden md:table-cell">
+                    <td className="px-4 py-3 text-gray-600 dark:text-gray-300 hidden md:table-cell">
                       {[v.vehicle_make, v.vehicle_model, v.vehicle_color].filter(Boolean).join(' ') || '—'}
                     </td>
                     <td className="px-4 py-3 text-center">
@@ -721,7 +721,7 @@ function ZonesTab() {
 
   return (
     <div className="space-y-4">
-      <div className="text-sm text-gray-500 dark:text-gray-400">
+      <div className="text-sm text-gray-500 dark:text-gray-300">
         {zones?.length ?? '…'} zones configured across all organisations
       </div>
 
@@ -756,7 +756,7 @@ function ZonesTab() {
                       'shrink-0 text-xs px-2 py-0.5 rounded-full font-medium',
                       zone.is_active
                         ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
-                        : 'bg-gray-100 text-gray-500 dark:bg-[#1E1E1E] dark:text-gray-400'
+                        : 'bg-gray-100 text-gray-500 dark:bg-[#1E1E1E] dark:text-gray-300'
                     )}
                   >
                     {zone.is_active ? 'Active' : 'Inactive'}
@@ -775,7 +775,7 @@ function ZonesTab() {
                       Self-contained required
                     </span>
                   )}
-                  <span className="text-xs bg-gray-50 dark:bg-[#1E1E1E] text-gray-600 dark:text-gray-400 px-2 py-0.5 rounded-full border border-gray-200 dark:border-[#9E9E9E]/20">
+                  <span className="text-xs bg-gray-50 dark:bg-[#1E1E1E] text-gray-600 dark:text-gray-300 px-2 py-0.5 rounded-full border border-gray-200 dark:border-[#9E9E9E]/20">
                     {zone.nights_per_month}n/mo · {zone.max_consecutive_nights}consec
                   </span>
                 </div>
@@ -852,7 +852,7 @@ function UsersTab() {
 
   return (
     <div className="space-y-4">
-      <div className="text-sm text-gray-500 dark:text-gray-400">
+      <div className="text-sm text-gray-500 dark:text-gray-300">
         {users?.length ?? '…'} user profiles
       </div>
 
@@ -866,10 +866,10 @@ function UsersTab() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-gray-50 dark:bg-[#1E1E1E]/50 text-left">
-                  <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-400">Name</th>
-                  <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-400">Role</th>
-                  <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-400 hidden md:table-cell">Organisation</th>
-                  <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-400 text-center">Scans</th>
+                  <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-300">Name</th>
+                  <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-300">Role</th>
+                  <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-300 hidden md:table-cell">Organisation</th>
+                  <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-300 text-center">Scans</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
@@ -883,7 +883,7 @@ function UsersTab() {
                         {u.role}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-gray-500 dark:text-gray-400 hidden md:table-cell">
+                    <td className="px-4 py-3 text-gray-500 dark:text-gray-300 hidden md:table-cell">
                       {u.organizations?.name ?? '—'}
                     </td>
                     <td className="px-4 py-3 text-center">
@@ -940,7 +940,7 @@ function OrganisationsTab() {
 
   return (
     <div className="space-y-4">
-      <div className="text-sm text-gray-500 dark:text-gray-400">
+      <div className="text-sm text-gray-500 dark:text-gray-300">
         {orgs?.length ?? '…'} organisations
       </div>
 
@@ -1132,7 +1132,7 @@ export default function CleanDashboard() {
           <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2 pb-1">
             <div>
               <p className="text-sm font-semibold text-gray-900 dark:text-white">{activeTabMeta.title}</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">{activeTabMeta.description}</p>
+              <p className="text-xs text-gray-500 dark:text-gray-300">{activeTabMeta.description}</p>
             </div>
             <div className="text-xs text-gray-400">
               Synced {format(new Date(), 'p')}
@@ -1153,7 +1153,7 @@ export default function CleanDashboard() {
                   'flex items-center gap-1.5 px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors',
                   activeTab === id
                     ? 'border-blue-600 text-blue-600 dark:text-blue-400'
-                    : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300'
+                    : 'border-transparent text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300'
                 )}
               >
                 <Icon className="w-4 h-4" />

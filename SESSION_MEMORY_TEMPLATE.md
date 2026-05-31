@@ -33,7 +33,7 @@ What will be completed by session end? (1–2 items max)
 **Started**: [HH:MM UTC]  
 **Status**: [Not Started / In Progress / Complete]  
 **Blocker**: [If blocked, describe issue]  
-**Test Command**: [bun test OR bunx playwright test OR other]  
+**Test Command**: [npm test OR npx playwright test OR other]  
 
 **Work Log**:
 - [HH:MM] Started task
@@ -112,7 +112,7 @@ List commits:
 ### Next Session Prerequisites
 
 - [ ] Pull latest main: `git pull origin main`
-- [ ] Verify build: `bun run build`
+- [ ] Verify build: `npm run build`
 - [ ] Review blockers from this session (see Blocker Analysis above)
 - [ ] Check Slack #realignment-kickoff for any overnight updates
 

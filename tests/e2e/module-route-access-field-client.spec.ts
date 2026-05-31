@@ -85,6 +85,7 @@ test.describe('client_viewer – restricted to client portal', () => {
 
 test.describe('nzscv_monitor – restricted access', () => {
   test('nzscv_monitor is BLOCKED from /admin (general)', async ({ page }) => {
+    test.skip(!isCredentialConfigured('nzscv_monitor'), 'NZSCV monitor credentials not configured in this environment.')
     await loginAs(page, 'nzscv_monitor')
     await assertRouteBlocked(page, '/admin')
   })

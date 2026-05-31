@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadLocalEnv } from './load-local-env.mjs';
@@ -11,6 +11,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '..');
 
 const DEFAULT_OUTPUT = resolve(ROOT, 'tools', 'mlops', 'domain-canary', 'latest.json');
+const DEFAULT_HISTORY = resolve(ROOT, 'tools', 'mlops', 'domain-canary', 'history.jsonl');
 const DEFAULT_TIMEOUT_MS = 25_000;
 const DEFAULT_RETRIES = 2;
 const STRICT = String(process.env.MLOPS_CANARY_STRICT || 'false').trim().toLowerCase() === 'true';
@@ -254,11 +255,18 @@ function writeReport(outputPath, report) {
   writeFileSync(outputPath, JSON.stringify(report, null, 2));
 }
 
+function appendHistory(historyPath, report) {
+  mkdirSync(dirname(historyPath), { recursive: true });
+  appendFileSync(historyPath, `${JSON.stringify(report)}\n`);
+}
+
 async function main() {
   const outputArg = argValue('--out');
+  const historyArg = argValue('--history');
   const timeoutArg = Number.parseInt(argValue('--timeoutMs') || '', 10);
   const retryArg = Number.parseInt(argValue('--retries') || '', 10);
   const outputPath = outputArg ? resolve(ROOT, outputArg) : DEFAULT_OUTPUT;
+  const historyPath = historyArg ? resolve(ROOT, historyArg) : DEFAULT_HISTORY;
   const timeoutMs = Number.isFinite(timeoutArg) && timeoutArg > 0
     ? timeoutArg
     : Number.parseInt(String(process.env.MLOPS_CANARY_TIMEOUT_MS || DEFAULT_TIMEOUT_MS), 10) || DEFAULT_TIMEOUT_MS;
@@ -359,6 +367,7 @@ async function main() {
   };
 
   writeReport(outputPath, report);
+  appendHistory(historyPath, report);
 
   console.log(`Domain canary endpoint: ${endpoint}`);
   console.log(`Passed: ${passedCount}/${domainResults.length}`);

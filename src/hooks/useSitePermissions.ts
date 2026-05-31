@@ -65,6 +65,25 @@ function buildDefaultMap(): PermMap {
   return Object.fromEntries(SITE_FIELD_GROUPS.map(g => [g, { ...DENY }])) as PermMap
 }
 
+function buildAllowAllMap(): PermMap {
+  return Object.fromEntries(
+    SITE_FIELD_GROUPS.map((g) => [g, { canView: true, canEdit: true }])
+  ) as PermMap
+}
+
+function buildAdminOfficerFallbackMap(): PermMap {
+  return {
+    identity: { canView: true, canEdit: true },
+    location: { canView: true, canEdit: true },
+    operational: { canView: true, canEdit: true },
+    contacts: { canView: true, canEdit: true },
+    sla: { canView: true, canEdit: true },
+    notes: { canView: true, canEdit: true },
+    financial: { canView: true, canEdit: false },
+    accounting: { canView: false, canEdit: false },
+  }
+}
+
 // ── Hook ─────────────────────────────────────────────────────────────────────
 
 export interface UseSitePermissionsResult {
@@ -81,9 +100,10 @@ export function useSitePermissions(): UseSitePermissionsResult {
   const { user } = useAuthStore()
   const role   = user?.role
   const userId = user?.id
+  const isSuperUser = role === 'master' || role === 'grand_master'
 
   // Fetch role defaults
-  const { data: rolePerms = [], isLoading: loadingRole } = useQuery<RolePermRow[]>({
+  const { data: rolePerms = [], isLoading: loadingRole, error: roleError } = useQuery<RolePermRow[]>({
     queryKey: ['site-role-permissions', role],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -98,7 +118,7 @@ export function useSitePermissions(): UseSitePermissionsResult {
   })
 
   // Fetch per-user overrides
-  const { data: userPerms = [], isLoading: loadingUser } = useQuery<UserPermRow[]>({
+  const { data: userPerms = [], isLoading: loadingUser, error: userError } = useQuery<UserPermRow[]>({
     queryKey: ['site-user-permissions', userId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -116,6 +136,40 @@ export function useSitePermissions(): UseSitePermissionsResult {
 
   // Merge: user override (if not null) → role default → deny
   const perms = buildDefaultMap()
+
+  if (isSuperUser) {
+    const fullAccess = buildAllowAllMap()
+    return {
+      perms: fullAccess,
+      canView: (g) => fullAccess[g]?.canView ?? false,
+      canEdit: (g) => fullAccess[g]?.canEdit ?? false,
+      isLoading,
+    }
+  }
+
+  const permissionLookupFailed = !!roleError || !!userError
+  const hasSeededRoleMatrix = rolePerms.length > 0
+  const hasUserOverrides = userPerms.length > 0
+
+  if (role === 'admin' && (permissionLookupFailed || (!hasSeededRoleMatrix && !hasUserOverrides))) {
+    const fullAccess = buildAllowAllMap()
+    return {
+      perms: fullAccess,
+      canView: (g) => fullAccess[g]?.canView ?? false,
+      canEdit: (g) => fullAccess[g]?.canEdit ?? false,
+      isLoading,
+    }
+  }
+
+  if (role === 'admin_officer' && (permissionLookupFailed || (!hasSeededRoleMatrix && !hasUserOverrides))) {
+    const fallback = buildAdminOfficerFallbackMap()
+    return {
+      perms: fallback,
+      canView: (g) => fallback[g]?.canView ?? false,
+      canEdit: (g) => fallback[g]?.canEdit ?? false,
+      isLoading,
+    }
+  }
 
   for (const rp of rolePerms) {
     const g = rp.field_group as SiteFieldGroup

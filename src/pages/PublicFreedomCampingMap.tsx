@@ -17,6 +17,7 @@ import { supabase } from '@/lib/supabase'
 import { tpl } from '@/lib/publicLocale'
 import { usePublicLocale } from '@/hooks/usePublicLocale'
 import type { Locale } from '@/lib/publicLocale'
+import { buildPreferredMapUrlForCoordinates } from '@/lib/inhouseMapping'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
@@ -305,7 +306,7 @@ export default function PublicFreedomCampingMap() {
                   {/* GPS link */}
                   {zone.location_lat != null && zone.location_lng != null && (
                     <a
-                      href={`https://maps.google.com/?q=${zone.location_lat},${zone.location_lng}`}
+                      href={buildPreferredMapUrlForCoordinates(zone.location_lat, zone.location_lng)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-1.5 text-xs text-green-700 hover:underline"

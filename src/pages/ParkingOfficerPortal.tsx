@@ -16,7 +16,7 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
 import { supabase } from '@/lib/supabase'
-import { AppLayout } from '@/components/features/AppLayout'
+import { OfficerShell } from '@/components/features/OfficerShell'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -27,6 +27,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { toast } from 'sonner'
 import { formatDateTime } from '@/lib/utils'
+import { buildPreferredMapUrlForCoordinates } from '@/lib/inhouseMapping'
 import { FieldSafetyBar } from '@/components/features/FieldSafetyBar'
 import { VOILookup } from '@/components/features/VOILookup'
 import { ParkingPhotoCapture } from '@/components/features/ParkingPhotoCapture'
@@ -453,12 +454,21 @@ export default function ParkingOfficerPortal() {
     return 'active'
   }
 
+  const openInHouseMapPing = (lat: number, lng: number) => {
+    window.open(
+      buildPreferredMapUrlForCoordinates(lat, lng),
+      '_blank',
+      'noopener,noreferrer',
+    )
+  }
+
   // ─── Render ──────────────────────────────────────────────────
   return (
-    <AppLayout
+    <OfficerShell
       title="Parking Enforcement"
       description={`${activeSessions.length} active session${activeSessions.length !== 1 ? 's' : ''} · in-house enforcement workflow`}
       showBackButton
+      contentClassName="max-w-7xl"
     >
       {/* ── Safety bar — welfare, SOS, quick reports ──────────────── */}
       <FieldSafetyBar compact />
@@ -614,6 +624,16 @@ export default function ParkingOfficerPortal() {
                             {status === 'expired' ? 'Issue Notice' : 'Recheck'}
                             <ChevronRight className="h-3 w-3 ml-1" />
                           </Button>
+                          {s.gps_lat != null && s.gps_lng != null && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="px-2"
+                              onClick={() => openInHouseMapPing(s.gps_lat as number, s.gps_lng as number)}
+                            >
+                              <MapPin className="h-3 w-3" />
+                            </Button>
+                          )}
                         </div>
                       </div>
                     )
@@ -683,6 +703,17 @@ export default function ParkingOfficerPortal() {
               <div className="flex items-center gap-1.5 text-xs text-green-700 bg-green-50 border border-green-200 rounded px-2 py-1.5">
                 <MapPin className="h-3.5 w-3.5 flex-shrink-0" />
                 GPS recorded: {chalkForm.gps_lat?.toFixed(5)}, {chalkForm.gps_lng?.toFixed(5)}
+                {chalkForm.gps_lat != null && chalkForm.gps_lng != null && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 px-2 text-[11px]"
+                    onClick={() => openInHouseMapPing(chalkForm.gps_lat as number, chalkForm.gps_lng as number)}
+                  >
+                    Map Ping
+                  </Button>
+                )}
               </div>
             )}
 
@@ -910,6 +941,17 @@ export default function ParkingOfficerPortal() {
                 <p><strong>Zone:</strong> {(recheckResult.session as any).parking_zones?.name ?? 'Unknown'}</p>
                 <p><strong>Chalked at:</strong> {formatDateTime(recheckResult.session.entry_time)}</p>
                 <p><strong>Valve (chalked):</strong> {recheckResult.session.entry_tyre_valve_pos ?? 'Not recorded'}</p>
+                {recheckResult.session.gps_lat != null && recheckResult.session.gps_lng != null && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-7 px-2 text-xs"
+                    onClick={() => openInHouseMapPing(recheckResult.session.gps_lat as number, recheckResult.session.gps_lng as number)}
+                  >
+                    <MapPin className="h-3 w-3 mr-1" /> Map Ping
+                  </Button>
+                )}
                 {recheckResult.session.vehicle_make && (
                   <p>
                     <strong>Vehicle:</strong>{' '}
@@ -1152,7 +1194,7 @@ export default function ParkingOfficerPortal() {
           </DialogContent>
         </Dialog>
       )}
-    </AppLayout>
+    </OfficerShell>
   )
 }
 

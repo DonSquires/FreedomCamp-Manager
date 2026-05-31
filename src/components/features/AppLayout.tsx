@@ -175,6 +175,14 @@ function HeaderStatusPill({
   )
 }
 
+function normalizeHealthDetail(detail?: string): string | undefined {
+  if (!detail) return detail
+  if (/timed out after\s*35s|request timed out/i.test(detail)) {
+    return 'health check delayed'
+  }
+  return detail
+}
+
 interface AppLayoutProps {
   children: React.ReactNode
   title?: string
@@ -297,6 +305,17 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
     return isRouteVisibleForRole(item.path, effectiveNavRole as AppRole, routeManifest, activeFeatureFlags, runtimeRouteVisibilityMode)
   }, [activeFeatureFlags, effectiveNavRole])
 
+  const normalizePath = useCallback((path: string) => {
+    const cleanPath = path.split('?')[0].replace(/\/+$/, '')
+    return cleanPath || '/'
+  }, [])
+
+  const isPathActive = useCallback((path: string) => {
+    const current = normalizePath(location.pathname)
+    const target = normalizePath(path)
+    return current === target || (target !== '/' && current.startsWith(`${target}/`))
+  }, [location.pathname, normalizePath])
+
   const manifestNavGroups = useMemo(() => {
     const projected = projectLegacyNavGroups(routeManifest, {
       role: effectiveNavRole as AppRole | undefined,
@@ -333,7 +352,7 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
       if (
         group.items.some(
           (item) =>
-            location.pathname === item.path &&
+            isPathActive(item.path) &&
             isNavItemVisible(item),
         )
       ) {
@@ -345,7 +364,7 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
         })
       }
     }
-  }, [isNavItemVisible, location.pathname, manifestNavGroups])
+  }, [isNavItemVisible, isPathActive, manifestNavGroups])
 
   const isDirectorOfficerMode = user?.role === 'officer'
 
@@ -398,15 +417,16 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
     : pinnedItems.filter((item) => isNavItemVisible(item))
 
   return (
-    <nav className="space-y-2">
+    <nav className="space-y-2" aria-label="Primary navigation">
       {visiblePinned.map((item) => {
         const Icon = item.icon
-        const isActive = location.pathname === item.path
+        const isActive = isPathActive(item.path)
         return (
           <Link
             key={`pinned:${item.path}`}
             to={item.path}
             onClick={onClick}
+            aria-current={isActive ? 'page' : undefined}
             className={cn(
               'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150',
               isActive
@@ -434,7 +454,8 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
         if (visibleItems.length === 0) return null
 
         const isOpen = openGroups.has(group.label)
-        const hasActiveChild = visibleItems.some(item => location.pathname === item.path)
+        const hasActiveChild = visibleItems.some((item) => isPathActive(item.path))
+        const groupId = `nav-group-${group.label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`
 
         return (
           <div
@@ -445,7 +466,10 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
             )}
           >
             <button
+              type="button"
               onClick={() => toggleGroup(group.label)}
+              aria-expanded={isOpen}
+              aria-controls={groupId}
               className={cn(
                 'flex w-full items-center justify-between px-3 py-2.5 rounded-lg text-sm font-semibold transition-all duration-150',
                 hasActiveChild
@@ -453,23 +477,24 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
                   : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-[#2A2A2A] dark:hover:text-gray-100'
               )}
             >
-              <span className="flex items-center gap-3">
-                <GroupIcon className={cn('h-4 w-4 shrink-0', hasActiveChild ? 'text-primary' : 'text-gray-400 dark:text-gray-500')} />
+                <span className="flex items-center gap-3">
+                  <GroupIcon className={cn('h-4 w-4 shrink-0', hasActiveChild ? 'text-primary' : 'text-gray-400 dark:text-gray-300')} />
                 <span>{group.label}</span>
               </span>
               <ChevronDown className={cn('h-3.5 w-3.5 transition-transform duration-200', isOpen && 'rotate-180')} />
             </button>
 
             {isOpen && (
-              <div className="ml-4 mt-1 space-y-1 border-l border-gray-200 dark:border-[#9E9E9E]/20 pl-3">
+              <div id={groupId} className="ml-4 mt-1.5 space-y-1.5 border-l border-gray-200 dark:border-[#9E9E9E]/20 pl-3.5">
                 {visibleItems.map((item) => {
                   const Icon = item.icon
-                  const isActive = location.pathname === item.path
+                  const isActive = isPathActive(item.path)
                   return (
                     <Link
                       key={`group:${group.label}:${item.path}`}
                       to={item.path}
                       onClick={onClick}
+                      aria-current={isActive ? 'page' : undefined}
                       className={cn(
                         'flex items-center gap-3 px-2.5 py-2 rounded-lg text-sm transition-all duration-150',
                         isActive
@@ -477,7 +502,7 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
                           : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-[#2A2A2A] dark:hover:text-gray-100'
                       )}
                     >
-                      <Icon className={cn('h-3.5 w-3.5 shrink-0', isActive ? 'text-primary' : 'text-gray-400 dark:text-gray-500')} />
+                      <Icon className={cn('h-3.5 w-3.5 shrink-0', isActive ? 'text-primary' : 'text-gray-400 dark:text-gray-300')} />
                       <span className="min-w-0">
                         <span className="block truncate">{item.label}</span>
                         {item.scopeHint && (
@@ -823,6 +848,13 @@ export function AppLayout({ children, title, description, showBackButton, immers
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-100 via-slate-50 to-cyan-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-900">
+      <a
+        href="#app-main-content"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-red-600 focus:px-3 focus:py-2 focus:text-sm focus:font-medium focus:text-white"
+      >
+        Skip to main content
+      </a>
+
       {/* Mobile Header */}
       {!immersive && (
       <header className="lg:hidden bg-white/95 dark:bg-[#1E1E1E]/95 backdrop-blur shadow-sm sticky top-0 z-40 border-b border-gray-200/60 dark:border-[#9E9E9E]/20">
@@ -838,7 +870,7 @@ export function AppLayout({ children, title, description, showBackButton, immers
               <SheetContent side="left" className="w-64 p-0">
                 <div className="flex flex-col h-full">
                   <div className="p-4 border-b dark:border-[#9E9E9E]/20">
-                    <h2 className="font-semibold text-lg">FieldOps</h2>
+                    <h2 className="font-semibold text-lg">Field Compliance Manager</h2>
                     <p className="text-sm text-gray-600 dark:text-gray-400">
                       {user?.full_name}
                     </p>
@@ -876,23 +908,34 @@ export function AppLayout({ children, title, description, showBackButton, immers
             )}
           </div>
 
-          <h1 className="font-semibold text-lg truncate">{title || 'FieldOps'}</h1>
+          <h1 className="font-semibold text-lg truncate">{title || 'Field Compliance Manager'}</h1>
           
-          {/* Mobile: notification bell */}
-          <button
-            type="button"
-            title="Alerts"
-            aria-label="Alerts"
-            onClick={() => navigate('/notifications')}
-            className="relative flex items-center justify-center h-9 w-9 rounded-lg hover:bg-gray-100 dark:hover:bg-[#2A2A2A] transition-colors"
-          >
-            <Bell className="h-5 w-5 text-gray-500 dark:text-gray-400" />
-            {notifCount > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 h-4 w-4 flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold leading-none">
-                {notifCount > 9 ? '9+' : notifCount}
-              </span>
-            )}
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              title="Search"
+              aria-label="Search"
+              onClick={() => navigate('/search')}
+              className="flex items-center justify-center h-11 w-11 rounded-lg hover:bg-gray-100 dark:hover:bg-[#2A2A2A] transition-colors"
+            >
+              <Search className="h-5 w-5 text-gray-500 dark:text-gray-400" />
+            </button>
+
+            <button
+              type="button"
+              title="Notifications"
+              aria-label="Notifications"
+              onClick={() => navigate('/notifications')}
+              className="relative flex items-center justify-center h-11 w-11 rounded-lg hover:bg-gray-100 dark:hover:bg-[#2A2A2A] transition-colors"
+            >
+              <Bell className="h-5 w-5 text-gray-500 dark:text-gray-400" />
+              {notifCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 h-4 w-4 flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold leading-none">
+                  {notifCount > 9 ? '9+' : notifCount}
+                </span>
+              )}
+            </button>
+          </div>
           </div>
           {user && (
             <div className="flex items-center gap-2 overflow-x-auto pb-0.5">
@@ -906,7 +949,7 @@ export function AppLayout({ children, title, description, showBackButton, immers
                 label="Bob"
                 state={bobStatusTone}
                 icon={<BrainCircuit className="h-3.5 w-3.5" />}
-                detail={bobHealth?.status === 'online' ? 'ready' : bobHealth?.error || 'offline'}
+                detail={normalizeHealthDetail(bobHealth?.status === 'online' ? 'ready' : bobHealth?.error || 'offline')}
               />
             </div>
           )}
@@ -925,7 +968,7 @@ export function AppLayout({ children, title, description, showBackButton, immers
           <div className="p-5 border-b dark:border-[#9E9E9E]/20 bg-[#121212] dark:bg-[#1E1E1E]">
             <div className="flex items-start justify-between">
               <div className="min-w-0">
-                <h2 className="font-bold text-xl text-white">FieldOps</h2>
+                <h2 className="font-bold text-xl text-white">Field Compliance Manager</h2>
                 <p className="text-sm text-[#BDBDBD] mt-0.5 truncate">
                   {user?.full_name}
                 </p>
@@ -941,7 +984,9 @@ export function AppLayout({ children, title, description, showBackButton, immers
                 </p>
               </div>
               <button
+                type="button"
                 onClick={toggleDesktopNav}
+                aria-label="Collapse sidebar"
                 title="Collapse sidebar"
                 className="mt-0.5 shrink-0 rounded p-1 text-[#BDBDBD] hover:bg-[#2A2A2A] hover:text-white transition-colors"
               >
@@ -1050,7 +1095,7 @@ export function AppLayout({ children, title, description, showBackButton, immers
                       label="Bob"
                       state={bobStatusTone}
                       icon={<BrainCircuit className="h-3.5 w-3.5" />}
-                      detail={bobHealth?.status === 'online' ? 'ready' : bobHealth?.error || 'offline'}
+                      detail={normalizeHealthDetail(bobHealth?.status === 'online' ? 'ready' : bobHealth?.error || 'offline')}
                     />
                   </div>
                 )}
@@ -1087,7 +1132,7 @@ export function AppLayout({ children, title, description, showBackButton, immers
         {/* Page Content */}
         {/* pb-28 md:pb-6: on mobile the fixed PTT bar + floating buttons occupy ~96px at the bottom;
             extra bottom padding prevents content from being hidden under them. */}
-        <main className={cn('relative', immersive ? 'p-0 lg:p-0' : 'p-4 pb-28 md:pb-6 lg:p-6')}>
+        <main id="app-main-content" tabIndex={-1} className={cn('relative scroll-mt-24', immersive ? 'p-0 lg:p-0' : 'p-4 pb-28 md:pb-6 lg:p-6')}>
           {!immersive && <PublicSafetyBanner />}
           {!immersive && <JurisdictionBanner />}
           {!immersive && (user?.role === 'admin' || user?.role === 'master' || user?.role === 'grand_master') && <HealthBanner />}
@@ -1096,7 +1141,7 @@ export function AppLayout({ children, title, description, showBackButton, immers
               Connection lost. You are offline and some live data may be stale.
             </div>
           )}
-          {!immersive && !isOffline && activeFetchCount > 0 && (
+          {!immersive && !isOffline && !isLocked && activeFetchCount > 0 && (
             <div className="mb-3 inline-flex items-center gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 dark:border-blue-800 dark:bg-blue-900/20 dark:text-blue-300">
               <RefreshCw className="h-3.5 w-3.5 animate-spin" />
               Refreshing live data in the background
@@ -1110,6 +1155,8 @@ export function AppLayout({ children, title, description, showBackButton, immers
             <Popover open={pttFabOpen} onOpenChange={setPttFabOpen}>
               <PopoverTrigger asChild>
                 <button
+                  type="button"
+                  aria-label="Open Push-to-Talk and team chat controls"
                   title="Push-to-Talk / Team Chat"
                   className="fixed bottom-16 right-4 z-40 flex items-center gap-2 rounded-full bg-white dark:bg-[#1E1E1E] border border-gray-200 dark:border-[#9E9E9E]/20 shadow-lg px-3 py-2 text-xs font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#2A2A2A] transition-all hover:shadow-xl group"
                 >
@@ -1437,13 +1484,20 @@ export function AppLayout({ children, title, description, showBackButton, immers
                     Log back in from this screen to continue where you left off, or sign out completely.
                   </p>
 
-                  <div className="space-y-2">
+                  <form
+                    className="space-y-2"
+                    onSubmit={(e) => {
+                      e.preventDefault()
+                      handleUnlockSession()
+                    }}
+                  >
                     <label htmlFor="unlock-password" className="text-sm font-medium text-slate-700">
                       Password for {user?.email}
                     </label>
                     <Input
                       id="unlock-password"
                       type="password"
+                      autoComplete="current-password"
                       value={reLoginPassword}
                       onChange={(e) => setReLoginPassword(e.target.value)}
                       placeholder="Enter password to unlock"
@@ -1455,7 +1509,7 @@ export function AppLayout({ children, title, description, showBackButton, immers
                         }
                       }}
                     />
-                  </div>
+                  </form>
 
                   <div className="flex flex-col sm:flex-row gap-2 pt-2">
                     <Button className="flex-1" onClick={handleUnlockSession} disabled={unlocking}>

@@ -33,6 +33,53 @@ function setStoredThreads(threads: MessageThread[]) {
   localStorage.setItem(THREAD_STORE_KEY, JSON.stringify(threads))
 }
 
+function normalizeThreadType(value: string): MessageThread['thread_type'] {
+  if (value === 'direct' || value === 'channel' || value === 'incident' || value === 'broadcast') {
+    return value
+  }
+  return 'direct'
+}
+
+function upsertThreadForMessage(message: TextMessage) {
+  const threads = getStoredThreads()
+  const idx = threads.findIndex((thread) => thread.id === message.target_id)
+
+  if (idx >= 0) {
+    const existing = threads[idx]
+    const nextThread: MessageThread = {
+      ...existing,
+      last_message: message,
+      message_count: (existing.message_count || 0) + 1,
+      unread_count: 0,
+      updated_at: message.created_at,
+    }
+    threads.splice(idx, 1)
+    threads.unshift(nextThread)
+    setStoredThreads(threads)
+    return
+  }
+
+  if (!message.target_id) {
+    return
+  }
+
+  const fallbackThread: MessageThread = {
+    id: message.target_id,
+    organization_id: message.organization_id,
+    thread_type: normalizeThreadType(message.message_type),
+    thread_id: message.target_id,
+    thread_name: 'Conversation',
+    participant_ids: [message.sender_id],
+    last_message: message,
+    message_count: 1,
+    unread_count: 0,
+    created_at: message.created_at,
+    updated_at: message.created_at,
+  }
+
+  setStoredThreads([fallbackThread, ...threads])
+}
+
 export const messagingService = {
   /**
    * Send a text message
@@ -60,6 +107,7 @@ export const messagingService = {
     const messages = getStoredMessages()
     messages.unshift(message)
     setStoredMessages(messages)
+    upsertThreadForMessage(message)
 
     return message
   },
@@ -135,6 +183,21 @@ export const messagingService = {
       messageIds.includes(m.id) ? { ...m, read_at: now, updated_at: now } : m,
     )
     setStoredMessages(updated)
+
+    const affectedThreadIds = new Set(
+      updated
+        .filter((message) => messageIds.includes(message.id) && typeof message.target_id === 'string')
+        .map((message) => message.target_id as string),
+    )
+
+    if (affectedThreadIds.size > 0) {
+      const threads = getStoredThreads().map((thread) =>
+        affectedThreadIds.has(thread.id)
+          ? { ...thread, unread_count: 0, updated_at: now }
+          : thread,
+      )
+      setStoredThreads(threads)
+    }
   },
 
   /**
