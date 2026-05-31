@@ -81,6 +81,19 @@ serve(async (req: Request) => {
     return json(403, { error: 'Profile missing organization context' })
   }
 
+  const requestedOrgId = String(req.headers.get('x-org-id') ?? '').trim()
+  let effectiveOrgId = profile.organization_id
+  if (requestedOrgId && requestedOrgId !== profile.organization_id) {
+    const { data: allowedOrgIds, error: allowedOrgIdsError } = await supabase
+      .rpc('get_user_organization_ids')
+
+    if (allowedOrgIdsError || !Array.isArray(allowedOrgIds) || !allowedOrgIds.includes(requestedOrgId)) {
+      return json(403, { error: 'x-org-id is outside your organization scope' })
+    }
+
+    effectiveOrgId = requestedOrgId
+  }
+
   let body: { channelId?: string; sessionId?: string; reason?: string; bobProposalId?: string }
   try {
     body = await req.json()
@@ -99,7 +112,7 @@ serve(async (req: Request) => {
   // Phase 0-1 scaffold: relay to external floor coordinator when configured.
   if (!RADIO_FLOOR_PROVIDER_URL || !RADIO_PROXY_SECRET) {
     await logFloorEvent(supabase, {
-      orgId: profile.organization_id,
+      orgId: effectiveOrgId,
       channelId,
       sessionId,
       status: 'rejected',
@@ -129,7 +142,7 @@ serve(async (req: Request) => {
       headers: {
         'Content-Type': 'application/json',
         'x-proxy-secret': RADIO_PROXY_SECRET,
-        'x-org-id': req.headers.get('x-org-id') ?? '',
+        'x-org-id': effectiveOrgId,
       },
       body: JSON.stringify({
         channelId,
@@ -141,7 +154,7 @@ serve(async (req: Request) => {
     const payload = await upstream.json().catch(() => ({ error: 'Invalid upstream response' }))
     if (!upstream.ok) {
       await logFloorEvent(supabase, {
-        orgId: profile.organization_id,
+        orgId: effectiveOrgId,
         channelId,
         sessionId,
         status: 'rejected',
@@ -163,7 +176,7 @@ serve(async (req: Request) => {
     }
 
     await logFloorEvent(supabase, {
-      orgId: profile.organization_id,
+      orgId: effectiveOrgId,
       channelId,
       sessionId,
       status: 'granted',
