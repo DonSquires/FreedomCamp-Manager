@@ -91,6 +91,17 @@ export function GlobalFilterRibbon({
     staleTime: 5 * 60 * 1000,
   })
 
+  // If a persisted org filter is no longer in the current user's allowed org
+  // list, clear it so pages do not render as empty with an invalid scope.
+  useEffect(() => {
+    if (!canSwitchOrg || !organizationId || !organizations) return
+    const orgStillValid = organizations.some((o) => o.id === organizationId)
+    if (!orgStillValid) {
+      setOrganization(null, null)
+      setZone(null, null)
+    }
+  }, [canSwitchOrg, organizationId, organizations, setOrganization, setZone])
+
   // Fetch zones
   const { data: zones } = useQuery({
     queryKey: ['zones-filter', effectiveOrganizationId],
