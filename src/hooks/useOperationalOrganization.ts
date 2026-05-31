@@ -4,7 +4,7 @@ import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
 export function useOperationalOrganization() {
   const user = useAuthStore((state) => state.user)
   const { organizationId, organizationName } = useGlobalFiltersStore()
-  const isGrandMaster = user?.role === 'grand_master'
+  const isMasterLevel = user?.role === 'master' || user?.role === 'grand_master'
 
   const authorizedOrganizationIds = Array.from(new Set([
     ...(user?.organization_id ? [user.organization_id] : []),
@@ -14,7 +14,7 @@ export function useOperationalOrganization() {
   ]))
 
   const canUseSelectedOrganizationId =
-    !!organizationId && (isGrandMaster || authorizedOrganizationIds.includes(organizationId))
+    !!organizationId && (isMasterLevel || authorizedOrganizationIds.includes(organizationId))
 
   // Some operational personas are authorized through work locations/extra orgs
   // while profile org fields can be null during bootstrap or legacy records.
@@ -28,6 +28,6 @@ export function useOperationalOrganization() {
     operationalOrganizationId,
     operationalOrganizationName: organizationName,
     authorizedOrganizationIds,
-    hasOperationalOrganization: isGrandMaster || !!operationalOrganizationId,
+    hasOperationalOrganization: isMasterLevel || !!operationalOrganizationId,
   }
 }

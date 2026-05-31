@@ -4,6 +4,7 @@ import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/authStore';
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore';
 import { useHybridWorkspaceHandshake } from '@/hooks/useHybridWorkspaceHandshake';
+import { useProviderOrganizationContext } from '@/hooks/useProviderOrganizationContext';
 
 type GeoPoint = {
   latitude: number;
@@ -18,10 +19,16 @@ export function JurisdictionBanner() {
   const [gpsAvailable, setGpsAvailable] = useState(true);
   const pollInFlightRef = useRef(false);
 
-  const providerOrgId = useMemo(
+  const explicitProviderOrgId = useMemo(
     () => user?.employer_organization_id || user?.organization_id || null,
     [user?.employer_organization_id, user?.organization_id],
   );
+
+  const { providerOrgId } = useProviderOrganizationContext({
+    explicitProviderOrgId,
+    preferredClientOrgId,
+    enabled: !!user,
+  });
 
   useEffect(() => {
     if (!user || !navigator?.geolocation) {
