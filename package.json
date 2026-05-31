@@ -4,7 +4,7 @@
   "type": "module",
   "packageManager": "npm@10.8.2",
   "engines": {
-    "node": ">=22 <25",
+    "node": ">=22 <23",
     "npm": ">=10 <11"
   },
   "scripts": {
@@ -127,8 +127,6 @@
     "bob:jurisdiction": "node scripts/jurisdiction-router.mjs",
     "bob:spatial": "node scripts/spatial-intelligence-engine.mjs",
     "bob:import:clients": "node scripts/import-client-geofences.mjs",
-    "bob:enrich:deputy-users": "node scripts/enrich-deputy-user-profiles.mjs",
-    "bob:enrich:deputy-users:apply": "node scripts/enrich-deputy-user-profiles.mjs --apply",
     "bob:roster:context": "node scripts/roster-context-adapter.mjs officer-001",
     "bob:spatial:api": "node scripts/spatial-context-api.mjs",
     "bob:test:boundary": "node scripts/geo-boundary-transition-test.mjs",
@@ -380,7 +378,6 @@
     "vaul": "^0.9.3",
     "write-excel-file": "^2.3.10",
     "ws": "^8.18.3",
-    "xlsx": "^0.18.5",
     "zod": "^3.23.8",
     "zustand": "^5.0.0"
   },
