@@ -23,10 +23,10 @@ UPDATE public.user_profiles up
 SET
   employer_organization_id = up.organization_id,
   updated_at = now()
-FROM public.organizations org
-JOIN public.organizations emp
-  ON emp.id = up.employer_organization_id
+FROM public.organizations org,
+     public.organizations emp
 WHERE org.id = up.organization_id
+  AND emp.id = up.employer_organization_id
   AND org.organization_type = 'service_provider'
   AND emp.organization_type = 'client'
   AND org.parent_organization_id = emp.id
