@@ -91,6 +91,19 @@ serve(async (req: Request) => {
     return json(403, { error: 'Profile missing organization context' })
   }
 
+  const requestedOrgId = String(req.headers.get('x-org-id') ?? '').trim()
+  let effectiveOrgId = profile.organization_id
+  if (requestedOrgId && requestedOrgId !== profile.organization_id) {
+    const { data: allowedOrgIds, error: allowedOrgIdsError } = await supabase
+      .rpc('get_user_organization_ids')
+
+    if (allowedOrgIdsError || !Array.isArray(allowedOrgIds) || !allowedOrgIds.includes(requestedOrgId)) {
+      return json(403, { error: 'x-org-id is outside your organization scope' })
+    }
+
+    effectiveOrgId = requestedOrgId
+  }
+
   if (!SUPERVISOR_ROLES.has(profile.role)) {
     return json(403, { error: 'Emergency override requires supervisor role' })
   }
@@ -120,7 +133,7 @@ serve(async (req: Request) => {
 
   if (REQUIRE_BOB_APPROVAL && !bobProposalId) {
     await logOverrideEvent(supabase, {
-      orgId: profile.organization_id,
+      orgId: effectiveOrgId,
       channelId,
       sessionId,
       status: 'rejected',
@@ -141,9 +154,44 @@ serve(async (req: Request) => {
     })
   }
 
+  if (REQUIRE_BOB_APPROVAL && bobProposalId) {
+    const { data: proposal, error: proposalError } = await supabase
+      .from('bob_action_proposals')
+      .select('id,organization_id,status')
+      .eq('id', bobProposalId)
+      .maybeSingle()
+
+    if (
+      proposalError ||
+      !proposal ||
+      proposal.organization_id !== effectiveOrgId ||
+      proposal.status !== 'approved'
+    ) {
+      await logOverrideEvent(supabase, {
+        orgId: effectiveOrgId,
+        channelId,
+        sessionId,
+        status: 'rejected',
+        speakerId: targetSpeakerId,
+        operatorId: authData.user.id,
+        reason,
+        bobProposalId,
+        details: {
+          failure: 'invalid_or_unapproved_bob_proposal',
+          gate: 'phase-d-d1',
+        },
+      })
+
+      return json(412, {
+        error: 'Bob proposal must be approved for this organization',
+        gate: 'phase-d-d1',
+      })
+    }
+  }
+
   if (!RADIO_FLOOR_PROVIDER_URL || !RADIO_PROXY_SECRET) {
     await logOverrideEvent(supabase, {
-      orgId: profile.organization_id,
+      orgId: effectiveOrgId,
       channelId,
       sessionId,
       status: 'rejected',
@@ -173,7 +221,7 @@ serve(async (req: Request) => {
       headers: {
         'Content-Type': 'application/json',
         'x-proxy-secret': RADIO_PROXY_SECRET,
-        'x-org-id': req.headers.get('x-org-id') ?? '',
+        'x-org-id': effectiveOrgId,
       },
       body: JSON.stringify({
         channelId,
@@ -188,7 +236,7 @@ serve(async (req: Request) => {
     const payload = await upstream.json().catch(() => ({ error: 'Invalid upstream response' }))
     if (!upstream.ok) {
       await logOverrideEvent(supabase, {
-        orgId: profile.organization_id,
+        orgId: effectiveOrgId,
         channelId,
         sessionId,
         status: 'rejected',
@@ -210,7 +258,7 @@ serve(async (req: Request) => {
     }
 
     await logOverrideEvent(supabase, {
-      orgId: profile.organization_id,
+      orgId: effectiveOrgId,
       channelId,
       sessionId,
       status: 'granted',
@@ -235,7 +283,7 @@ serve(async (req: Request) => {
     })
   } catch (error) {
     await logOverrideEvent(supabase, {
-      orgId: profile.organization_id,
+      orgId: effectiveOrgId,
       channelId,
       sessionId,
       status: 'rejected',
