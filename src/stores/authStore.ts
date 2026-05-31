@@ -61,6 +61,7 @@ function clearInvalidAuthState(set: (partial: Partial<AuthState>) => void) {
   clearClientAuthArtifacts()
   set({ user: null, isAuthenticated: false, loading: false })
   useSessionLockStore.getState().unlock()
+  useGlobalFiltersStore.getState().syncForUser(null)
 }
 
 function softResolveAuthLoading(set: (partial: Partial<AuthState> | ((state: AuthState) => Partial<AuthState>)) => void, sessionUserId?: string) {
@@ -186,6 +187,7 @@ export const useAuthStore = create<AuthState>()(
             // the user is already authenticated.
             if (authUser?.id) {
               set({ user: authUser, isAuthenticated: true, loading: false })
+              useGlobalFiltersStore.getState().syncForUser(authUser.id)
             } else {
               set({ user: null, isAuthenticated: false, loading: false })
             }
@@ -255,6 +257,7 @@ export const useAuthStore = create<AuthState>()(
 
         set({ user: authUser, isAuthenticated: true })
         useSessionLockStore.getState().unlock()
+        useGlobalFiltersStore.getState().syncForUser(authUser.id)
       },
 
       // Re-authenticates from the session lock screen without triggering the
@@ -295,6 +298,7 @@ export const useAuthStore = create<AuthState>()(
 
         set({ user: authUser, isAuthenticated: true, loading: false })
         useSessionLockStore.getState().unlock()
+        useGlobalFiltersStore.getState().syncForUser(authUser.id)
       },
 
       logout: async () => {
@@ -309,7 +313,7 @@ export const useAuthStore = create<AuthState>()(
         clearClientAuthArtifacts()
         set({ user: null, isAuthenticated: false, loading: false })
         useSessionLockStore.getState().unlock()
-        useGlobalFiltersStore.getState().clearFilters()
+        useGlobalFiltersStore.getState().syncForUser(null)
       },
 
       checkSession: async () => {
@@ -357,6 +361,7 @@ export const useAuthStore = create<AuthState>()(
               ptt_channel_access: (profile as any).ptt_channel_access ?? null,
             }
             set({ user: authUser, isAuthenticated: true, loading: false })
+            useGlobalFiltersStore.getState().syncForUser(authUser.id)
           } else {
             clearInvalidAuthState(set)
           }
