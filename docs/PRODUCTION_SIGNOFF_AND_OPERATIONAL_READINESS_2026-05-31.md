@@ -1,0 +1,66 @@
+# Production Sign-Off and Operational Readiness
+
+Date: 2026-05-31
+Scope: Bob + QA/PM joint production gate review against instruction manual and Bob governance documentation.
+Decision: AMBER (operationally stable, final green blocked by lint warning policy and documented human approval evidence).
+
+## Governing Sources
+
+- docs/INSTRUCTION_MANUAL.md
+- docs/DEPLOYMENT_GUIDE.md
+- BOB_INSTRUCTIONS.md
+- docs/BOB_WORKFLOW_RULES.md
+- docs/INSTRUCTION_MANUAL_QA_PM_AUDIT_2026-05-31.md
+- docs/INSTRUCTION_MANUAL_QA_PM_SUBSECTION_AUDIT_2026-05-31.md
+
+## Gate Results (Current Production Worktree)
+
+1. Build gate (`npm run build`): PASS
+- Vite build completed successfully.
+
+2. Bob governance regression (`npm run test:bob:governance`): PASS
+- 6/6 tests passed.
+
+3. Lint gate (`npm run lint`): PARTIAL
+- 0 errors, 90 warnings (`react/no-unescaped-entities`).
+- Deployment guide states no warnings for strict gate, so this blocks full green sign-off.
+
+## Live Data and Runtime Evidence
+
+1. Observation pipeline status:
+- completed: 246
+- failed: 64148
+- pending: 0
+- processing: 0
+
+2. Failed reason distribution:
+- backlog_cleared_no_actual_photo_url: 64148
+
+3. Queue helper health:
+- RPC `get_pending_observations` HTTP 200, response `[]`.
+- Confirms helper is callable and queue is empty.
+
+4. Inference endpoint probe:
+- `functions/v1/analyze-vehicle-photo` reachable; returned HTTP 400 for invalid payload (`Missing plateNumber or photoUrl`), which confirms endpoint is alive and validating inputs.
+
+## Manual and Bob Governance Position
+
+1. MAN-8-301 (Database and Migrations): CLOSED and verified live.
+2. Bob governance required release order (build -> lint) has been executed.
+3. Human approval evidence is still required by Bob workflow rules before declaring production sign-off complete.
+
+## Remaining Blockers to Green
+
+1. Resolve or explicitly waive the 90 lint warnings under release policy.
+2. Record explicit human dashboard approval evidence for production sign-off.
+
+## Team Ownership (Bob Included)
+
+- Bob: governance authority and final policy alignment checks.
+- QA/PM: release evidence, manual parity tracking, blocker closure.
+- Platform/Frontend: lint warning remediation or approved waiver process.
+
+## Final Status
+
+Operational posture is stable and MAN-8-301 remediation is verified in live data.
+Production sign-off remains AMBER until lint warning policy and human approval evidence gates are closed.
