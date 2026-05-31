@@ -67,7 +67,7 @@ const BLANK_NOTICE: Partial<TrespassNotice> = {
 
 export default function PointsOfInterest() {
   const { user } = useAuthStore()
-  const isAdmin = user?.role === 'admin' || user?.role === 'admin_officer' || user?.role === 'master'
+  const isAdmin = user?.role === 'admin' || user?.role === 'admin_officer' || user?.role === 'master' || user?.role === 'grand_master'
 
   const [tab, setTab] = useState('persons')
   const [search, setSearch] = useState('')

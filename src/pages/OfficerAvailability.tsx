@@ -832,7 +832,7 @@ function OfficerDetailDrilldown({ officer, onBack, organizationId }: { officer: 
 
 export default function OfficerAvailability() {
   const { user } = useAuthStore()
-  const isAdmin = user?.role === 'admin' || user?.role === 'admin_officer' || user?.role === 'master'
+  const isAdmin = user?.role === 'admin' || user?.role === 'admin_officer' || user?.role === 'master' || user?.role === 'grand_master'
 
   return (
     <AppLayout>

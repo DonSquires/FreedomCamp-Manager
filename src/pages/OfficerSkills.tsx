@@ -413,7 +413,7 @@ export default function OfficerSkills() {
   const queryClient = useQueryClient()
 
   const organizationId: string = user?.organization_id ?? ''
-  const isAdmin = user?.role === 'admin' || user?.role === 'master'
+  const isAdmin = user?.role === 'admin' || user?.role === 'master' || user?.role === 'grand_master'
 
   const [tab, setTab] = useState<'skills' | 'licences' | 'classroom'>(() => {
     const search = new URLSearchParams(location.search)

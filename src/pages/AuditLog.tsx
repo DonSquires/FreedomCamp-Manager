@@ -51,8 +51,8 @@ export default function AuditLog() {
   const [entityFilter, setEntityFilter] = useState<string>('all')
   const [selectedEntry, setSelectedEntry] = useState<AuditLogEntry | null>(null)
 
-  // Only allow admin/admin_officer/master to access audit log
-  const isAuthorized = user?.role === 'admin' || user?.role === 'admin_officer' || user?.role === 'master'
+  // Only allow admin/admin_officer/master/grand_master to access audit log
+  const isAuthorized = user?.role === 'admin' || user?.role === 'admin_officer' || user?.role === 'master' || user?.role === 'grand_master'
   const effectiveOrgId = (user?.role === 'master' || user?.role === 'grand_master') ? organizationId || null : user?.organization_id || null
 
   // Fetch audit log entries

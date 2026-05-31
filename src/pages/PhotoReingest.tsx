@@ -426,7 +426,7 @@ export default function PhotoReingest() {
                 disabled={isRunning}
                 className="w-full mt-2 px-3 py-2 border rounded-md"
               >
-                {user?.role === 'master' && <option value="">All organisations</option>}
+                {(user?.role === 'master' || user?.role === 'grand_master') && <option value="">All organisations</option>}
                 {organizations?.map((org) => (
                   <option key={org.id} value={org.id}>
                     {org.name}
