@@ -13,6 +13,7 @@ type HybridWorkspaceHandshakeParams = {
 
 type HybridWorkspaceHandshakeResult = {
   handshake_active?: boolean | null;
+  handshake_reason?: string | null;
   matched?: boolean | null;
   conflict?: boolean | null;
   reason?: string | null;
