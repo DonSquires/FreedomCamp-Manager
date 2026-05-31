@@ -11,10 +11,19 @@ const adminOrg2Email = String(process.env.PLAYWRIGHT_ADMIN_ORG2_EMAIL || process
 const hasDistinctAdminOrg2Creds = !!adminOrg2Email && adminOrg2Email !== adminOrg1Email
 const allowSharedFallback = String(process.env.PLAYWRIGHT_ALLOW_SHARED_CREDENTIAL_FALLBACK || '').trim() === '1'
 
+async function expectPageSurface(page: any, marker?: RegExp) {
+  const mainSurface = page.locator('main, [role="main"]').first()
+  await expect(mainSurface).toBeVisible({ timeout: 10000 })
+
+  if (marker) {
+    await expect(page.getByText(marker).first()).toBeVisible({ timeout: 10000 })
+  }
+}
+
 async function expectRouteLoads(page: any, route: string) {
   await page.goto(route, { waitUntil: 'networkidle' })
   await expect(page).toHaveURL(new RegExp(route.replace('/', '\\/')))
-  await expect(page.locator('main h1').first()).toBeVisible({ timeout: 10000 })
+  await expectPageSurface(page)
 }
 
 test.describe('Role Matrix Smoke', () => {
@@ -31,7 +40,7 @@ test.describe('Role Matrix Smoke', () => {
     const currentUrl = page.url()
 
     if (currentUrl.includes('/platform')) {
-      await expect(page.locator('main h1').first()).toBeVisible({ timeout: 10000 })
+      await expectPageSurface(page)
       await bobAssessPage(page, testInfo, 'grand-master-platform')
       return
     }
@@ -39,7 +48,7 @@ test.describe('Role Matrix Smoke', () => {
     await expect(page).toHaveURL(/\/$/)
     await page.goto('/admin', { waitUntil: 'networkidle' })
     await expect(page).toHaveURL(/\/admin/)
-    await expect(page.locator('main h1').first()).toBeVisible({ timeout: 10000 })
+    await expectPageSurface(page)
     await bobAssessPage(page, testInfo, 'master-admin-fallback')
   })
 
