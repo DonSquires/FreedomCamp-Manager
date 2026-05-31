@@ -114,6 +114,37 @@ interface AuthUser {
   ptt_channel_access: string[] | null
 }
 
+function sanitizeGlobalFiltersForUser(authUser: AuthUser) {
+  const filters = useGlobalFiltersStore.getState()
+  filters.syncForUser(authUser.id)
+
+  const selectedOrganizationId = filters.organizationId
+  const selectedZoneId = filters.zoneId
+  const isMasterLevel = authUser.role === 'master' || authUser.role === 'grand_master'
+
+  // A persisted zone without an organization can silently over-filter many
+  // pages, especially after org tree or profile changes.
+  if (selectedZoneId && !selectedOrganizationId) {
+    filters.setZone(null, null)
+  }
+
+  if (!selectedOrganizationId || isMasterLevel) {
+    return
+  }
+
+  const allowedOrganizationIds = new Set([
+    ...(authUser.organization_id ? [authUser.organization_id] : []),
+    ...(authUser.employer_organization_id ? [authUser.employer_organization_id] : []),
+    ...(authUser.authorized_work_locations ?? []),
+    ...(authUser.extra_organization_ids ?? []),
+  ])
+
+  if (!allowedOrganizationIds.has(selectedOrganizationId)) {
+    filters.setOrganization(null, null)
+    filters.setZone(null, null)
+  }
+}
+
 interface AuthState {
   user: AuthUser | null
   isAuthenticated: boolean
@@ -193,7 +224,7 @@ export const useAuthStore = create<AuthState>()(
             // the user is already authenticated.
             if (authUser?.id) {
               set({ user: authUser, isAuthenticated: true, loading: false })
-              useGlobalFiltersStore.getState().syncForUser(authUser.id)
+              sanitizeGlobalFiltersForUser(authUser)
             } else {
               set({ user: null, isAuthenticated: false, hasSession: true, loading: false })
             }
@@ -264,7 +295,7 @@ export const useAuthStore = create<AuthState>()(
         set({ user: authUser, isAuthenticated: true })
         set({ hasSession: true })
         useSessionLockStore.getState().unlock()
-        useGlobalFiltersStore.getState().syncForUser(authUser.id)
+        sanitizeGlobalFiltersForUser(authUser)
       },
 
       // Re-authenticates from the session lock screen without triggering the
@@ -306,7 +337,7 @@ export const useAuthStore = create<AuthState>()(
         set({ user: authUser, isAuthenticated: true, loading: false })
         set({ hasSession: true })
         useSessionLockStore.getState().unlock()
-        useGlobalFiltersStore.getState().syncForUser(authUser.id)
+        sanitizeGlobalFiltersForUser(authUser)
       },
 
       logout: async () => {
@@ -371,7 +402,7 @@ export const useAuthStore = create<AuthState>()(
               ptt_channel_access: (profile as any).ptt_channel_access ?? null,
             }
             set({ user: authUser, isAuthenticated: true, loading: false })
-            useGlobalFiltersStore.getState().syncForUser(authUser.id)
+            sanitizeGlobalFiltersForUser(authUser)
           } else {
             console.warn('[authStore] session exists but profile is missing; preserving session and waiting for next refresh.')
             softResolveAuthLoading(set, session.user.id)
