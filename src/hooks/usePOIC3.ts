@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
+import { validateNoticeIssuancePayload } from '@/lib/noticeWorkflow'
 
 const sb = supabase as any
 
@@ -93,7 +94,22 @@ export function useIssueTrespassNoticeOnCase() {
       issuedBy: string
       noticeType?: string
       trespassReason?: string
+      issuerRole?: string
     }) => {
+      const issuanceValidation = validateNoticeIssuancePayload({
+        noticeClass: 'trespass',
+        legalBasis: 'Trespass Act 1980',
+        issuerId: input.issuedBy,
+        issuerRole: input.issuerRole || 'officer',
+        policyReference: 'trespass.notice.default',
+        evidenceRefs: [input.caseId],
+        serviceProof: {
+          method: 'in_person',
+          servedAt: new Date().toISOString(),
+          servedBy: input.issuedBy,
+        },
+      })
+      if (!issuanceValidation.ok) throw new Error(issuanceValidation.errors[0] || 'Missing trespass issuance data')
       const { data, error } = await sb
         .from('trespass_notices')
         .insert({

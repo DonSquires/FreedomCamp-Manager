@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { useOperationalCases } from '@/hooks/useOperationalCases'
 import { Clock, ExternalLink, MapPin, Radio } from 'lucide-react'
 import { formatDateTime } from '@/lib/utils'
-import { SPECIALTY_TYPE_META, getSpecialtyPortalPath, SpecialtyType } from '@/lib/officerPortalRouting'
+import { buildSpecialtyPortalLink, getSpecialtyMeta, SpecialtyType } from '@/lib/officerPortalRouting'
 
 export default function FieldOfficerDispatch() {
   const navigate = useNavigate()
@@ -16,9 +16,9 @@ export default function FieldOfficerDispatch() {
   })
 
   function openSpecialtyPortal(caseId: string, specialtyType: string) {
-    const path = getSpecialtyPortalPath(specialtyType as SpecialtyType)
+    const path = buildSpecialtyPortalLink({ specialtyType }, { dispatch: caseId })
     if (path) {
-      navigate(`${path}&dispatch=${caseId}`)
+      navigate(path)
     }
   }
 
@@ -55,7 +55,7 @@ export default function FieldOfficerDispatch() {
 
         {cases.map((c) => {
           const specialtyType = (c as any).specialty_type as SpecialtyType | null
-          const specialtyMeta = specialtyType ? SPECIALTY_TYPE_META[specialtyType] : null
+          const specialtyMeta = getSpecialtyMeta(specialtyType)
 
           return (
             <Card key={c.id} data-testid="case-card" className="border-l-4 border-l-blue-400">
