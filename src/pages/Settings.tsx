@@ -220,19 +220,32 @@ export default function Settings() {
 
     const normalizedPrinterName = printerName.trim()
     const normalizedPrinterId = printerId.trim()
-    if (requirePrinterForNotices && !normalizedPrinterName) {
+    if (requirePrinterForNotices && !assignedNoticePrinter && !normalizedPrinterName) {
       toast.error('Assign a portable or fixed printer before enabling printer-required notice printing.')
       return
     }
 
     setRequireAssignedPrinterForNotices(requirePrinterForNotices)
     if (normalizedPrinterName) {
+      const randomFallback = (() => {
+        if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
+          const bytes = new Uint8Array(8)
+          crypto.getRandomValues(bytes)
+          return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('')
+        }
+        return `${Date.now().toString(36)}`
+      })()
+      const idSuffix = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+        ? crypto.randomUUID()
+        : randomFallback
+      const generatedPrinterId = normalizedPrinterId ||
+        `${normalizedPrinterName.toLowerCase().replace(/[\s/]+/g, '-')}-${idSuffix}`
       setAssignedNoticePrinter({
-        id: normalizedPrinterId || normalizedPrinterName.toLowerCase().replace(/[\s/]+/g, '-'),
+        id: generatedPrinterId,
         name: normalizedPrinterName,
         printerType,
       })
-    } else {
+    } else if (!requirePrinterForNotices) {
       clearAssignedNoticePrinter()
     }
 

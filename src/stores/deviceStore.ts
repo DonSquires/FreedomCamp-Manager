@@ -217,6 +217,16 @@ export const useDeviceStore = create<DeviceState>()(
       name: 'device-state',
       storage: createJSONStorage(() => localStorage),
       version: 2,
+      migrate: (persistedState: any, version) => {
+        if (version < 2) {
+          return {
+            ...persistedState,
+            assignedNoticePrinter: persistedState?.assignedNoticePrinter ?? null,
+            requireAssignedPrinterForNotices: persistedState?.requireAssignedPrinterForNotices ?? false,
+          }
+        }
+        return persistedState as DeviceState
+      },
       // Only persist user preferences, not runtime state
       partialize: (state) => ({
         blePanicEnabled: state.blePanicEnabled,

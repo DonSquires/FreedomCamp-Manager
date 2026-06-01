@@ -1,4 +1,5 @@
 import { resolveCanonicalSpecialty } from '@/lib/specialtyRegistry'
+import { NOTICE_DECISION_RIGHTS_MATRIX, type NoticeDecisionAction } from '@/lib/noticeDecisionRights'
 
 export type EnterpriseRole =
   | 'client_admin'
@@ -10,21 +11,9 @@ export type EnterpriseRole =
   | 'master'
   | string
 
-export type NoticeDecisionAction = 'edit' | 'approve' | 'issue' | 'escalate' | 'cancel' | 'enforce' | 'revoke'
-
-const DECISION_RIGHTS_MATRIX: Record<NoticeDecisionAction, readonly string[]> = {
-  edit: ['officer', 'admin_officer', 'admin', 'master'],
-  approve: ['client_admin', 'client_officer', 'admin', 'master'],
-  issue: ['officer', 'admin_officer', 'admin', 'master'],
-  escalate: ['client_admin', 'client_officer', 'admin_officer', 'admin', 'master'],
-  cancel: ['client_admin', 'client_officer', 'admin', 'master'],
-  enforce: ['client_admin', 'client_officer', 'admin_officer', 'admin', 'master'],
-  revoke: ['client_admin', 'client_officer', 'admin', 'master'],
-}
-
 export function canEnterpriseRolePerform(action: NoticeDecisionAction, role: EnterpriseRole): boolean {
   const normalizedRole = role.trim().toLowerCase()
-  return DECISION_RIGHTS_MATRIX[action]?.includes(normalizedRole) ?? false
+  return NOTICE_DECISION_RIGHTS_MATRIX[action]?.includes(normalizedRole) ?? false
 }
 
 export interface SpecialtyBillingEntitlement {
@@ -61,7 +50,9 @@ export function buildSpecialtyInvoiceLineDrafts(
   const entitlementBySpecialty = new Map(
     entitlements
       .filter((entitlement) => entitlement.enabled && entitlement.billable && entitlement.unitPriceCents > 0)
-      .map((entitlement) => [resolveCanonicalSpecialty(entitlement.specialtyKey) ?? entitlement.specialtyKey, entitlement] as const),
+      .map((entitlement) =>
+        [resolveCanonicalSpecialty(entitlement.specialtyKey) ?? entitlement.specialtyKey, entitlement] as const,
+      ),
   )
 
   return serviceExecutions.flatMap((execution) => {
@@ -103,11 +94,12 @@ export function validatePublicIntakeSubmission(submission: PublicIntakeSubmissio
   if (!submission.description.trim()) errors.push('Description is required')
   if (!submission.jurisdictionId.trim()) errors.push('Jurisdiction is required')
 
-  if (submission.category === 'waiver' && submission.evidenceRefs.length < 1) {
-    errors.push('Waiver requests require supporting evidence')
-  }
-  if (submission.category === 'complaint' && submission.evidenceRefs.length < 1) {
-    errors.push('Complaints require at least one evidence item')
+  if (submission.evidenceRefs.length < 1) {
+    if (submission.category === 'waiver') {
+      errors.push('Waiver requests require supporting evidence')
+    } else if (submission.category === 'complaint') {
+      errors.push('Complaints require at least one evidence item')
+    }
   }
 
   return errors
@@ -131,6 +123,11 @@ export interface ComplaintTicketQualification {
   nextEligibleAt?: string
 }
 
+function parseTimestamp(value: string): number | null {
+  const parsed = Date.parse(value)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
 export function evaluateComplaintTicketQualification(
   input: ComplaintTicketQualificationInput,
   config: JurisdictionRuleConfig,
@@ -140,6 +137,10 @@ export function evaluateComplaintTicketQualification(
   }
 
   if (input.intakeType !== 'noise') {
+    return { dispatchable: true, reasonCode: 'dispatchable_now' }
+  }
+
+  if (config.minimumNoiseCallsBeforeDispatch <= 1) {
     return { dispatchable: true, reasonCode: 'dispatchable_now' }
   }
 
@@ -153,13 +154,19 @@ export function evaluateComplaintTicketQualification(
     return { dispatchable: false, reasonCode: 'requires_followup_call' }
   }
 
-  const elapsedMs = Date.parse(input.reportedAt) - Date.parse(latestPriorCall)
+  const reportedAtMs = parseTimestamp(input.reportedAt)
+  const latestPriorCallMs = parseTimestamp(latestPriorCall)
+  if (reportedAtMs === null || latestPriorCallMs === null) {
+    return { dispatchable: false, reasonCode: 'invalid_call_timestamps' }
+  }
+
+  const elapsedMs = reportedAtMs - latestPriorCallMs
   const requiredMs = config.holdMinutesBetweenNoiseCalls * 60 * 1000
   if (elapsedMs < requiredMs) {
     return {
       dispatchable: false,
       reasonCode: 'followup_call_too_soon',
-      nextEligibleAt: new Date(Date.parse(latestPriorCall) + requiredMs).toISOString(),
+      nextEligibleAt: new Date(latestPriorCallMs + requiredMs).toISOString(),
     }
   }
 
@@ -225,14 +232,22 @@ export interface SlaEvidencePack {
   approvalTraceability: WorkflowAuditEvent[]
 }
 
+export function calculateElapsedMinutes(startedAt: string, endedAt: string): number {
+  const start = parseTimestamp(startedAt)
+  const end = parseTimestamp(endedAt)
+  if (start === null || end === null) return 0
+  return Math.max(0, Math.round((end - start) / 60000))
+}
+
 export function buildSlaEvidencePack(
   openedAt: string,
   resolvedAt: string,
   targetResolutionMinutes: number,
   auditTrail: WorkflowAuditEvent[],
 ): SlaEvidencePack {
-  const resolutionMinutes = Math.max(0, Math.round((Date.parse(resolvedAt) - Date.parse(openedAt)) / 60000))
-  const approvalTraceability = auditTrail.filter((event) => event.action.includes('approve') || event.action.includes('client_signoff'))
+  const resolutionMinutes = calculateElapsedMinutes(openedAt, resolvedAt)
+  const approvalActions = new Set(['approve', 'client_signoff_approve', 'client_signoff'])
+  const approvalTraceability = auditTrail.filter((event) => approvalActions.has(event.action))
 
   return {
     resolutionMinutes,

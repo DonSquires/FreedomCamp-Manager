@@ -1,3 +1,5 @@
+import { NOTICE_DECISION_RIGHTS_MATRIX, type NoticeDecisionAction } from '@/lib/noticeDecisionRights'
+
 export type NoticeClass = 'warning' | 'infringement' | 'notice_to_vacate' | 'trespass' | 'noise'
 
 export type CanonicalNoticeStatus =
@@ -17,8 +19,6 @@ export type CanonicalNoticeStatus =
   | 'voided'
 
 export type NoticeRole = string | null | undefined
-
-export type NoticeDecisionAction = 'edit' | 'approve' | 'issue' | 'escalate' | 'cancel' | 'enforce' | 'revoke'
 
 export type ServiceMethod =
   | 'hand'
@@ -117,14 +117,16 @@ const CLIENT_CHECKPOINT_STATUSES = new Set<CanonicalNoticeStatus>([
   'seized',
 ])
 
-const DECISION_RIGHTS_MATRIX: Record<NoticeDecisionAction, readonly string[]> = {
-  edit: ['officer', 'admin_officer', 'admin', 'master'],
-  approve: ['client_admin', 'client_officer', 'admin', 'master'],
-  issue: ['officer', 'admin_officer', 'admin', 'master'],
-  escalate: ['admin_officer', 'admin', 'master'],
-  cancel: ['client_admin', 'client_officer', 'admin', 'master'],
-  enforce: ['admin_officer', 'admin', 'master'],
-  revoke: ['client_admin', 'admin', 'master'],
+function shouldBypassClientApproval(
+  toStatus: CanonicalNoticeStatus,
+  actorRole: NoticeRole,
+  context: NoticeTransitionContext,
+): boolean {
+  return (
+    toStatus === 'issued' &&
+    context.isOnSiteOfficerIssuance === true &&
+    canRolePerformNoticeAction('issue', actorRole).ok
+  )
 }
 
 const STATUS_ALIASES: Record<string, CanonicalNoticeStatus> = {
@@ -266,13 +268,7 @@ export function canTransitionNoticeStatus(
   }
 
   if (context.requiresClientApproval && CLIENT_CHECKPOINT_STATUSES.has(to) && !context.clientApproved) {
-    const role = normalizeRole(actorRole)
-    const canOnSiteIssue =
-      to === 'issued' &&
-      context.isOnSiteOfficerIssuance === true &&
-      ['officer', 'admin_officer', 'admin', 'master'].includes(role)
-
-    if (!canOnSiteIssue) {
+    if (!shouldBypassClientApproval(to, actorRole, context)) {
       return { ok: false, reason: 'Client approval is required for this transition' }
     }
   }
@@ -297,7 +293,7 @@ export function canRolePerformNoticeAction(
   actorRole: NoticeRole,
 ): { ok: boolean; reason?: string } {
   const role = normalizeRole(actorRole)
-  const allowedRoles = DECISION_RIGHTS_MATRIX[action]
+  const allowedRoles = NOTICE_DECISION_RIGHTS_MATRIX[action]
   if (allowedRoles.includes(role)) {
     return { ok: true }
   }
@@ -315,6 +311,7 @@ export function createNoticeAmendmentVersion(
   const fieldDiff: NoticeFieldChange[] = []
 
   const trackedFields: Array<keyof NoticeSnapshot> = [
+    // `id` and `noticeClass` are intentionally excluded as immutable identity fields.
     'status',
     'title',
     'legalBasis',
