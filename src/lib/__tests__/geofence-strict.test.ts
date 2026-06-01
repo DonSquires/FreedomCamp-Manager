@@ -24,9 +24,11 @@ if (!canRun) {
   )
 }
 
-const supabase = createClient(supabaseUrl, supabaseKey, {
-  auth: { autoRefreshToken: false, persistSession: false },
-})
+const supabase = canRun
+  ? createClient(supabaseUrl, supabaseKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    })
+  : null
 
 const describeIf = canRun ? describe : describe.skip
 
