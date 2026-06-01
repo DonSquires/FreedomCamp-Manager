@@ -1,10 +1,11 @@
 /**
  * CRMModule – Zoho-style CRM hub
  *
- * Accounts tab:  All organisations (clients + contractors) with search,
- *                type filter and status filter.  Clicking a contractor
- *                opens ContractorAccountPage; clicking a client opens
- *                the existing OrganizationProfile page.
+ * Accounts tab:  All CRM-facing organisations (owners, service providers,
+ *                clients, and contractors) with search, type filter and
+ *                status filter. Clicking a contractor opens
+ *                ContractorAccountPage; all other org types open the
+ *                existing client-style organization detail page.
  *
  * Contacts tab:  People (user_profiles) linked to those organisations —
  *                contact name, role, phone, email.
@@ -134,7 +135,7 @@ export default function CRMModule() {
             service_agreement_signed, guard_rate_per_hour
           )
         `)
-        .in('organization_type', ['client', 'contractor'])
+        .in('organization_type', ['owner', 'service_provider', 'client', 'contractor'])
 
       if (orgIds !== null) {
         q = q.in('id', orgIds)
@@ -237,6 +238,8 @@ export default function CRMModule() {
     )
   })
 
+  const ownerCount = accounts.filter(a => a.organization_type === 'owner').length
+  const serviceProviderCount = accounts.filter(a => a.organization_type === 'service_provider').length
   const contractorCount = accounts.filter(a => a.organization_type === 'contractor').length
   const clientCount     = accounts.filter(a => a.organization_type === 'client').length
   const activeAccountCount = accounts.filter((account) => account.is_active).length
@@ -246,7 +249,7 @@ export default function CRMModule() {
     {
       label: 'Accounts',
       value: accounts.length,
-      detail: `${clientCount} clients · ${contractorCount} contractors`,
+      detail: `${ownerCount} owners · ${serviceProviderCount} providers · ${clientCount} clients · ${contractorCount} contractors`,
       icon: Building2,
     },
     {
@@ -300,12 +303,12 @@ export default function CRMModule() {
         <CardContent className="p-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <p className="text-sm font-medium text-slate-900">CRM workspace</p>
-            <p className="text-sm text-gray-500">Use CRM as the account hub, then move into site and access administration without losing org context. Client accounts are organization records with type "client".</p>
+            <p className="text-sm text-gray-500">Use CRM as the account hub for owner, service-provider, client, and contractor organizations, then move into site and access administration without losing org context.</p>
           </div>
           <div className="flex flex-wrap gap-2">
             {canCreateClientOrganizations && (
               <Button size="sm" variant="default" className="gap-1.5" onClick={() => navigate('/organizations')}>
-                <Building2 className="h-4 w-4" /> New Client Organisation
+                <Building2 className="h-4 w-4" /> New Organisation
               </Button>
             )}
             <Button size="sm" variant="outline" className="gap-1.5" onClick={() => navigate('/client-sites')}>
@@ -339,7 +342,7 @@ export default function CRMModule() {
               </span>
             </TabsTrigger>
           </TabsList>
-          <div className="text-xs text-gray-400">Accounts remain the canonical entry point for sites, access, and contractor readiness.</div>
+          <div className="text-xs text-gray-400">Accounts remain the canonical entry point for CRM hierarchy, sites, access, and contractor readiness.</div>
         </div>
 
         {/* ── Accounts tab ────────────────────────────────────────────────── */}
@@ -366,6 +369,12 @@ export default function CRMModule() {
                 </SelectItem>
                 <SelectItem value="client">
                   Clients ({clientCount})
+                </SelectItem>
+                <SelectItem value="service_provider">
+                  Service Providers ({serviceProviderCount})
+                </SelectItem>
+                <SelectItem value="owner">
+                  Owners ({ownerCount})
                 </SelectItem>
                 <SelectItem value="contractor">
                   Contractors ({contractorCount})

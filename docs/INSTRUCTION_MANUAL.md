@@ -1882,12 +1882,13 @@ Sidebar → Business → **CRM** (or go directly to `/crm`)
 **Layout:** Two tabs — **Accounts** and **Contacts**.
 
 **Accounts tab:**
-- Shows all organisations in the system typed as `client` or `contractor` with: name, type, parent organisation, active status, insurance status, and H&S policy status.
-- Use the **type filter** at the top to switch between Clients and Contractors.
+- Shows all CRM-managed organisations in the system typed as `owner`, `service_provider`, `client`, or `contractor` with: name, type, parent organisation, active status, and compliance signals where relevant.
+- Use the **type filter** at the top to switch between Owners, Service Providers, Clients, and Contractors.
 - Use the **search bar** to find by name.
 - Click any row to open the account detail page:
   - **Client account** → opens `OrganizationProfile` page with enforcement metrics, site list, and contact details
   - **Contractor account** → opens `ContractorAccountPage` with service agreement status, insurance expiry, H&S policy expiry, guard hourly rate, and compliance certifications
+  - **Owner / Service Provider account** → opens the organization detail workspace so hierarchy, sites, zones, and LOI alignment stay visible from CRM
 
 **Contacts tab:**
 - All user profiles linked to client and contractor organisations
@@ -1904,7 +1905,7 @@ Sidebar → Business → **CRM** (or go directly to `/crm`)
 **Model decision (canonical):**
 - There is one tenancy entity: `organizations`.
 - A "client" is an organization where `organization_type = client`.
-- CRM is the operational account workspace; organisation creation happens in `/organizations`.
+- CRM is the operational account workspace for all account-bearing organizations (`owner`, `service_provider`, `client`, `contractor`); organisation creation happens in `/organizations`.
 
 ###### Human Workflow: Client Setup to Patrol Operations
 
