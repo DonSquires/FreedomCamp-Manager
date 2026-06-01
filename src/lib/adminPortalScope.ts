@@ -6,10 +6,10 @@ type AdminPortalScopeUser = {
   extra_organization_ids?: string[] | null
 }
 
-const isNonEmptyString = (value: unknown): value is string =>
+const isNonEmptyString = (value: string | null | undefined): value is string =>
   typeof value === 'string' && value.trim().length > 0
 
-const firstNonEmpty = (...values: Array<unknown>): string | null => {
+const firstNonEmpty = (...values: Array<string | null | undefined>): string | null => {
   for (const value of values) {
     if (isNonEmptyString(value)) return value
   }
