@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { edgeFunctions } from '@/lib/edgeFunctions'
 import { useAuthStore } from '@/stores/authStore'
+import { useDeviceStore } from '@/stores/deviceStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
 import { AppLayout } from '@/components/features/AppLayout'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
@@ -98,6 +99,7 @@ const DELIVERY_OPTIONS = [
 
 export default function NoticeToVacate() {
   const { user } = useAuthStore()
+  const { assignedNoticePrinter, requireAssignedPrinterForNotices } = useDeviceStore()
   const { organizationId, zoneId, dateFrom, dateTo } = useGlobalFiltersStore()
   const queryClient = useQueryClient()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -150,6 +152,11 @@ export default function NoticeToVacate() {
       return
     }
 
+    if (mode === 'print' && requireAssignedPrinterForNotices && !assignedNoticePrinter) {
+      toast.error('Assign a portable or fixed printer in Settings before printing notices.')
+      return
+    }
+
     const previewWindow = window.open('', '_blank')
     if (!previewWindow) {
       toast.error('Chrome blocked the print window. Allow popups for this site and try again.')
@@ -163,6 +170,9 @@ export default function NoticeToVacate() {
     const finishOpen = () => {
       previewWindow.focus()
       if (mode === 'print') {
+        if (assignedNoticePrinter) {
+          toast.info(`Sending print job to assigned ${assignedNoticePrinter.printerType} printer: ${assignedNoticePrinter.name}`)
+        }
         window.setTimeout(() => {
           previewWindow.focus()
           previewWindow.print()

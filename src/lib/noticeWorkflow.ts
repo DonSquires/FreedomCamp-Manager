@@ -1,3 +1,5 @@
+import { NOTICE_DECISION_RIGHTS_MATRIX, type NoticeDecisionAction } from '@/lib/noticeDecisionRights'
+
 export type NoticeClass = 'warning' | 'infringement' | 'notice_to_vacate' | 'trespass' | 'noise'
 
 export type CanonicalNoticeStatus =
@@ -50,6 +52,61 @@ export interface CanonicalNoticeIssuancePayload {
   serviceProof: NoticeServiceProof
 }
 
+export interface NoticeTransitionContext {
+  /**
+   * Enables enterprise client-governed checkpoints before high-impact transitions.
+   */
+  requiresClientApproval?: boolean
+  /**
+   * Set true once a client admin/officer has approved the intended transition.
+   */
+  clientApproved?: boolean
+  /**
+   * Field officers can still issue immediate notices during on-site visits.
+   */
+  isOnSiteOfficerIssuance?: boolean
+}
+
+export interface NoticeSnapshot {
+  id: string
+  noticeClass: NoticeClass
+  status: CanonicalNoticeStatus
+  title: string
+  legalBasis: string
+  amountCents?: number | null
+  templateVersion?: string | null
+  notes?: string | null
+}
+
+export interface NoticeAmendmentVersion {
+  version: number
+  amendedAt: string
+  amendedBy: string
+  reasonCode: string
+  notice: NoticeSnapshot
+}
+
+export interface NoticeFieldChange {
+  field: keyof NoticeSnapshot
+  from: string | number | null | undefined
+  to: string | number | null | undefined
+}
+
+export interface NoticeAmendmentResult {
+  nextVersion: NoticeAmendmentVersion
+  fieldDiff: NoticeFieldChange[]
+}
+
+const IMMUTABLE_NOTICE_SNAPSHOT_FIELDS = new Set<keyof NoticeSnapshot>(['id', 'noticeClass'])
+const TRACKED_NOTICE_FIELD_REGISTRY = {
+  status: true,
+  title: true,
+  legalBasis: true,
+  amountCents: true,
+  templateVersion: true,
+  notes: true,
+} satisfies Record<Exclude<keyof NoticeSnapshot, 'id' | 'noticeClass'>, true>
+
 const TERMINAL_STATUSES = new Set<CanonicalNoticeStatus>([
   'paid',
   'complied',
@@ -59,6 +116,29 @@ const TERMINAL_STATUSES = new Set<CanonicalNoticeStatus>([
   'voided',
   'seized',
 ])
+
+const CLIENT_CHECKPOINT_STATUSES = new Set<CanonicalNoticeStatus>([
+  'issued',
+  'withdrawn',
+  'cancelled',
+  'voided',
+  'escalated',
+  'court_referred',
+  'seized',
+])
+
+function shouldBypassClientApproval(
+  toStatus: CanonicalNoticeStatus,
+  actorRole: NoticeRole,
+  context: NoticeTransitionContext,
+): boolean {
+  // On-site officers can issue immediately to preserve urgent frontline enforcement flow.
+  return (
+    toStatus === 'issued' &&
+    context.isOnSiteOfficerIssuance === true &&
+    canRolePerformNoticeAction('issue', actorRole).ok
+  )
+}
 
 const STATUS_ALIASES: Record<string, CanonicalNoticeStatus> = {
   draft: 'draft',
@@ -184,6 +264,7 @@ export function canTransitionNoticeStatus(
   fromStatus: string | null | undefined,
   toStatus: string | null | undefined,
   actorRole: NoticeRole,
+  context: NoticeTransitionContext = {},
 ): { ok: boolean; reason?: string } {
   const from = normalizeNoticeStatus(fromStatus)
   const to = normalizeNoticeStatus(toStatus)
@@ -195,6 +276,12 @@ export function canTransitionNoticeStatus(
   const allowed = NOTICE_LIFECYCLE[noticeClass][from] ?? []
   if (!allowed.includes(to)) {
     return { ok: false, reason: `Transition ${from} → ${to} is not allowed` }
+  }
+
+  if (context.requiresClientApproval && CLIENT_CHECKPOINT_STATUSES.has(to) && !context.clientApproved) {
+    if (!shouldBypassClientApproval(to, actorRole, context)) {
+      return { ok: false, reason: 'Client approval is required for this transition' }
+    }
   }
 
   if (to === 'escalated' || to === 'court_referred') {
@@ -210,6 +297,52 @@ export function canTransitionNoticeStatus(
   }
 
   return { ok: true }
+}
+
+export function canRolePerformNoticeAction(
+  action: NoticeDecisionAction,
+  actorRole: NoticeRole,
+): { ok: boolean; reason?: string } {
+  const role = normalizeRole(actorRole)
+  const allowedRoles = NOTICE_DECISION_RIGHTS_MATRIX[action]
+  if (allowedRoles.includes(role)) {
+    return { ok: true }
+  }
+  return { ok: false, reason: `Role ${role || 'unknown'} cannot ${action} notices` }
+}
+
+export function createNoticeAmendmentVersion(
+  previousVersion: NoticeAmendmentVersion | null,
+  updatedNotice: NoticeSnapshot,
+  actorId: string,
+  reasonCode: string,
+  amendedAt: string = new Date().toISOString(),
+): NoticeAmendmentResult {
+  const priorSnapshot = previousVersion?.notice ?? null
+  const fieldDiff: NoticeFieldChange[] = []
+
+  const trackedFields = Object.keys(TRACKED_NOTICE_FIELD_REGISTRY).filter(
+    (field): field is keyof NoticeSnapshot => !IMMUTABLE_NOTICE_SNAPSHOT_FIELDS.has(field as keyof NoticeSnapshot),
+  )
+
+  for (const field of trackedFields) {
+    const before = priorSnapshot?.[field]
+    const after = updatedNotice[field]
+    if (before !== after) {
+      fieldDiff.push({ field, from: before, to: after })
+    }
+  }
+
+  return {
+    nextVersion: {
+      version: (previousVersion?.version ?? 0) + 1,
+      amendedAt,
+      amendedBy: actorId,
+      reasonCode,
+      notice: { ...updatedNotice },
+    },
+    fieldDiff,
+  }
 }
 
 export function validateNoticeIssuancePayload(payload: CanonicalNoticeIssuancePayload): { ok: boolean; errors: string[] } {

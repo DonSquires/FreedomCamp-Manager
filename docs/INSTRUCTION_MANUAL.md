@@ -1188,6 +1188,11 @@ Vehicle Scan → Compliant?
 
 **Infringement Notices (`/infringement-notices`)**
 
+Governance model:
+- Client decision rights are enforced for high-impact transitions (withdraw/void/escalate/enforce) and all transitions are audit-traced.
+- Field officers can still issue an on-site notice immediately when required by the live scene outcome.
+- Notice amendments are versioned with immutable field-level change history.
+
 **To issue an Infringement Notice:**
 1. Navigate to Sidebar → Compliance → **Infringements** (`/infringement-notices`).
 2. Click **+ Issue Notice** in the top-right.
@@ -1195,6 +1200,7 @@ Vehicle Scan → Compliant?
 4. Fill in offence description, legal basis (default: `FCA 2011 s.20`), fine amount ($200 default), service method (hand delivery, post, vehicle), and officer details.
 5. Click **Issue Notice** — a unique notice number is generated (format: `INF-YYYYMMDD-XXXX`).
 6. Click **Print** for a print-ready HTML document, or **Email** to send directly to the registered address.
+   - If your organisation has enabled **Required Assigned Printer**, you must first set a portable or fixed printer in **Settings → Application → Assigned Notice Printer**.
 
 **To search existing notices:**
 - Use the search bar at the top of the Infringement Notices page to search by plate number, notice number, or address.
@@ -2267,7 +2273,7 @@ This is the primary patrol portal for freedom camping enforcement under the Free
    - **Warning**: Issue a verbal/written warning (recorded in the system).
    - **Notice to Vacate (NTV)**: Tap **Issue NTV** to generate a notice.
    - **Infringement Notice**: If prior warning exists, tap **Issue Infringement**.
-   - **Print Ticket**: Print a physical notice if a Bluetooth printer is connected.
+   - **Print Ticket**: Print a physical notice using the assigned portable/fixed printer profile from officer login settings.
 
 #### Bulk Scan Session
 
@@ -2401,6 +2407,9 @@ Noise control officers receive jobs via the Dispatch Console. Supervisors and ad
 
 #### Noise Enforcement Decision Path
 
+Jurisdiction recall gate:
+- For councils configured with a repeat-call threshold, noise complaints are dispatch-eligible only after the configured second-call hold (example: call #2 at least 15 minutes after call #1).
+
 ```
 First contact at address?
   YES → Verbal warning first
@@ -2424,6 +2433,7 @@ First contact at address?
    - Legal basis (auto-populated: AN = `RMA s.326(1)(a)`, END = `RMA s.327`)
    - Comply-by period: AN = 24 hours (default), DN = immediate, END = 72 hours
 3. Click **Issue Notice** — the notice is saved. Click **Print** to produce the printed document.
+   - If printer assignment is mandatory in your tenant, configure **Assigned Notice Printer** in Settings before printing.
 4. Hand the notice to the occupant or affix it to the property entrance.
 
 **Equipment Seizure (END only):**  
