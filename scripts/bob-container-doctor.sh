@@ -178,40 +178,27 @@ fi
 
 log "Checking RunPod endpoint health (kind=$endpoint_kind)"
 if [[ "$endpoint_kind" == "runsync" ]]; then
-  PING_PAYLOAD='{"input":{"action":"ping"}}'
-  PING_HTTP="$(curl -sS -m 30 -o /tmp/bob-ping.json -w '%{http_code}' \
-    -X POST "$RUNPOD_PROBE_URL" \
-    -H 'Content-Type: application/json' \
-    -H "Authorization: Bearer $API_KEY" \
-    -d "$PING_PAYLOAD" || true)"
-
-  if [[ "$PING_HTTP" != "200" ]]; then
-    fail "RunPod ping failed at $BASE_URL (HTTP $PING_HTTP)"
+  log "Running RunPod ping with queue-aware polling"
+  if ! RUNPOD_ENDPOINT_API_KEY="$API_KEY" RUNPOD_ENDPOINT_URL="$RUNPOD_PROBE_URL" RUNPOD_ENDPOINT_ID="${RUNPOD_ENDPOINT_ID:-}" \
+    node "$SCRIPT_DIR/invoke-runpod-endpoint.mjs" \
+      --payload '{"input":{"action":"ping"}}' \
+      --poll true --timeoutMs 300000 --intervalMs 3000 --requestTimeoutMs 180000 > /tmp/bob-ping.json 2>&1; then
+    fail "RunPod ping failed at $BASE_URL"
     cat /tmp/bob-ping.json 2>/dev/null || true
     exit 1
   fi
-
-  PING_STATUS="$(jq -r '.status // "unknown"' /tmp/bob-ping.json 2>/dev/null || echo unknown)"
-  PING_MESSAGE="$(jq -r '.output.message // .message // "unknown"' /tmp/bob-ping.json 2>/dev/null || echo unknown)"
-  log "RunPod ping OK: status=$PING_STATUS message=$PING_MESSAGE"
+  log "RunPod ping OK"
 
   log "Checking RunPod chat action"
-  CHAT_PAYLOAD='{"input":{"action":"chat","messages":[{"role":"user","content":"Container doctor ping. Reply with one short line."}]}}'
-  CHAT_HTTP="$(curl -sS -m 45 -o /tmp/bob-chat.json -w '%{http_code}' \
-    -X POST "$RUNPOD_PROBE_URL" \
-    -H 'Content-Type: application/json' \
-    -H "Authorization: Bearer $API_KEY" \
-    -d "$CHAT_PAYLOAD" || true)"
-
-  if [[ "$CHAT_HTTP" != "200" ]]; then
-    fail "RunPod chat action failed at $BASE_URL (HTTP $CHAT_HTTP)"
+  if ! RUNPOD_ENDPOINT_API_KEY="$API_KEY" RUNPOD_ENDPOINT_URL="$RUNPOD_PROBE_URL" RUNPOD_ENDPOINT_ID="${RUNPOD_ENDPOINT_ID:-}" \
+    node "$SCRIPT_DIR/invoke-runpod-endpoint.mjs" \
+      --payload '{"input":{"action":"chat","message":"Container doctor ping. Reply with one short line.","messages":[{"role":"user","content":"Container doctor ping. Reply with one short line."}]}}' \
+      --poll true --timeoutMs 300000 --intervalMs 3000 --requestTimeoutMs 180000 > /tmp/bob-chat.json 2>&1; then
+    fail "RunPod chat action failed at $BASE_URL"
     cat /tmp/bob-chat.json 2>/dev/null || true
     exit 1
   fi
-
-  CHAT_PROVIDER="$(jq -r '.output.provider // .provider // "unknown"' /tmp/bob-chat.json 2>/dev/null || echo unknown)"
-  CHAT_SUCCESS="$(jq -r '.output.success // .success // "unknown"' /tmp/bob-chat.json 2>/dev/null || echo unknown)"
-  log "Chat OK: provider=$CHAT_PROVIDER success=$CHAT_SUCCESS"
+  log "Chat OK"
 else
   log "Using async /run endpoint probe with polling"
   if ! RUNPOD_ENDPOINT_API_KEY="$API_KEY" RUNPOD_ENDPOINT_URL="$BASE_URL" \

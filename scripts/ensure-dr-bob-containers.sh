@@ -101,6 +101,9 @@ RUNPOD_API_URL_VALUE="$(pick_first_http_url \
   "${INFERENCE_SERVICE_URL:-}" \
   "${BOB_SERVICE_URL:-}" \
   || true)"
+if [[ -z "$RUNPOD_API_URL_VALUE" && -n "${RUNPOD_ENDPOINT_ID:-}" ]]; then
+  RUNPOD_API_URL_VALUE="https://api.runpod.ai/v2/${RUNPOD_ENDPOINT_ID}/runsync"
+fi
 RUNPOD_API_KEY_VALUE="${RUNPOD_API_KEY:-${RUNPOD_ENDPOINT_API_KEY:-${DR_BOB_API:-${INFERENCE_API_KEY:-${BOB_INFERENCE_API_KEY:-}}}}}"
 
 missing=0
