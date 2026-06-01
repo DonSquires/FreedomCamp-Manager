@@ -286,7 +286,8 @@ export default function InfringementNotices() {
       const { data } = await q
       return (data || []) as unknown as BreachAlertOption[]
     },
-    enabled: !!effectiveOrganizationId,
+    // No org-ID gate: queryFn applies it conditionally; elevated roles without a
+    // selected org should still see unscoped breach options under their RLS grants.
   })
 
   // ── Zones for the form ────────────────────────────────────────────────────
@@ -304,7 +305,7 @@ export default function InfringementNotices() {
       const { data } = await q
       return data || []
     },
-    enabled: !!effectiveOrganizationId,
+    // No org-ID gate: same reasoning as breach-options above.
   })
 
   // ── Status update mutation ────────────────────────────────────────────────

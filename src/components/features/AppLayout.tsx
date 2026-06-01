@@ -13,7 +13,7 @@ import { PTTBar } from '@/components/features/PTTBar'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { useNotificationCount } from '@/hooks/useNotifications'
 import { useSessionPreferencesStore } from '@/stores/sessionPreferencesStore'
-import { useThemePreferencesStore } from '@/stores/themePreferencesStore'
+import { useThemePreferencesStore, THEME_STORAGE_KEY } from '@/stores/themePreferencesStore'
 import { PublicSafetyBanner } from '@/components/features/PublicSafetyBanner'
 import { Button } from '@/components/ui/button'
 import { HealthBanner } from '@/components/features/HealthBanner'
@@ -560,7 +560,21 @@ export function AppLayout({ children, title, description, showBackButton, immers
   } = useSessionLockStore()
   const { autoLogoffEnabled } = useSessionPreferencesStore()
   const { themeMode } = useThemePreferencesStore()
-  const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark' | 'high-contrast' | 'night-patrol'>('light')
+  const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark' | 'high-contrast' | 'night-patrol'>(() => {
+    // Initialise from persisted preference so the badge renders correctly before the
+    // useEffect fires; avoids a brief flash where the badge shows "Light" even when
+    // the user has saved "Dark".
+    try {
+      const raw = typeof window !== 'undefined' ? localStorage.getItem(THEME_STORAGE_KEY) : null
+      const parsed = raw ? JSON.parse(raw) : null
+      const mode = parsed?.state?.themeMode
+      if (mode === 'dark' || mode === 'high-contrast' || mode === 'night-patrol') return mode
+      if (mode === 'system' && typeof window !== 'undefined') {
+        return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+      }
+    } catch { /* ignore */ }
+    return 'dark'
+  })
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const location = useLocation()
