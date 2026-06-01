@@ -89,6 +89,9 @@ data/internal-code-executor/
 tools/agentic-ui-reports/
 tools/human-test-engine/reports/
 docs/BOB_BRAIN_DUMP.md
+artifacts/
+tools/runtime-audit/time-restrictions-*.json
+tools/runtime-audit/time-restrictions-*.md
 
 # Temporary data exports and analysis output files
 tmp/
