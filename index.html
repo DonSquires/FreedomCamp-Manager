@@ -4,6 +4,31 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Field Compliance Manager</title>
+    <!-- Anti-FOUC: apply the saved (or default dark) theme class to <html> before
+         any CSS or JS renders, preventing a white flash on hard refresh. -->
+    <script>
+      (function () {
+        try {
+          var raw = localStorage.getItem('theme-preferences-storage')
+          var mode = raw ? JSON.parse(raw).state?.themeMode : 'dark'
+          var html = document.documentElement
+          html.classList.remove('dark', 'high-contrast', 'night-patrol')
+          if (mode === 'dark' || mode === 'night-patrol' || !mode) {
+            html.classList.add('dark')
+          } else if (mode === 'high-contrast') {
+            html.classList.add('high-contrast')
+          } else if (mode === 'system') {
+            if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+              html.classList.add('dark')
+            }
+          }
+          if (mode === 'night-patrol') html.classList.add('night-patrol')
+        } catch (e) {
+          // Fallback: Iron Eagle canonical dark theme
+          document.documentElement.classList.add('dark')
+        }
+      })()
+    </script>
     <meta name="description" content="Integrated field compliance management for real-time site monitoring, compliance reporting, and asset coordination" />
     <meta name="keywords" content="field operations, workflow automation, field data collection, operational compliance, site auditing, patrol management" />
     <meta name="color-scheme" content="light dark" />

@@ -11,7 +11,7 @@ interface ThemePreferencesState {
 export const useThemePreferencesStore = create<ThemePreferencesState>()(
   persist(
     (set) => ({
-      themeMode: 'system',
+      themeMode: 'dark',
       setThemeMode: (mode) => set({ themeMode: mode }),
     }),
     {

@@ -560,7 +560,21 @@ export function AppLayout({ children, title, description, showBackButton, immers
   } = useSessionLockStore()
   const { autoLogoffEnabled } = useSessionPreferencesStore()
   const { themeMode } = useThemePreferencesStore()
-  const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark' | 'high-contrast' | 'night-patrol'>('light')
+  const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark' | 'high-contrast' | 'night-patrol'>(() => {
+    // Initialise from persisted preference so the badge renders correctly before the
+    // useEffect fires; avoids a brief flash where the badge shows "Light" even when
+    // the user has saved "Dark".
+    try {
+      const raw = typeof window !== 'undefined' ? localStorage.getItem('theme-preferences-storage') : null
+      const parsed = raw ? JSON.parse(raw) : null
+      const mode = parsed?.state?.themeMode
+      if (mode === 'dark' || mode === 'high-contrast' || mode === 'night-patrol') return mode
+      if (mode === 'system' && typeof window !== 'undefined') {
+        return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+      }
+    } catch { /* ignore */ }
+    return 'dark'
+  })
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const location = useLocation()
