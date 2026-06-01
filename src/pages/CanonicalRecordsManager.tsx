@@ -910,8 +910,8 @@ function ObservationsTab() {
 
 export default function CanonicalRecordsManager() {
   const { user } = useAuthStore()
-  const isMaster = user?.role === 'master'
-  const isAdmin = ['admin', 'admin_officer', 'master'].includes(user?.role ?? '')
+  const isMaster = user?.role === 'master' || user?.role === 'grand_master'
+  const isAdmin = ['admin', 'admin_officer', 'master', 'grand_master'].includes(user?.role ?? '')
 
   return (
     <AppLayout title="Canonical Records" description="View and manage canonical SCV, homeless, vehicle and observation records">

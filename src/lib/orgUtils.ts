@@ -6,7 +6,7 @@
  * across components.
  *
  * Rules:
- *  - master users: use the globally-selected org (from global filters store or
+ *  - master / grand_master users: use the globally-selected org (from global filters store or
  *    a component-level selection). Returns null if none selected (shows all).
  *  - all other users: always scoped to their own organisation_id.
  */
@@ -21,7 +21,7 @@ interface UserLike {
  *
  * @param user - The authenticated user (or null if not logged in).
  * @param selectedOrgId - The org ID selected via global filters / org selector.
- *   Only honoured for master users. Pass `undefined` or `null` if no selection.
+ *   Only honoured for master/grand_master users. Pass `undefined` or `null` if no selection.
  * @returns The effective org ID, or `null` to indicate "no filter / show all".
  */
 export function getEffectiveOrgId(
@@ -29,6 +29,6 @@ export function getEffectiveOrgId(
   selectedOrgId?: string | null,
 ): string | null {
   if (!user) return null
-  if (user.role === 'master') return selectedOrgId ?? null
+  if (user.role === 'master' || user.role === 'grand_master') return selectedOrgId ?? null
   return user.organization_id ?? null
 }

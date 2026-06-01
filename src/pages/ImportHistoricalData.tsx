@@ -92,7 +92,7 @@ export default function ImportHistoricalData() {
   //  - all other users use their own organization
   const orgId = getEffectiveOrgId(user, globalOrgId)
 
-  const isMaster = user?.role === 'master'
+  const isMaster = user?.role === 'master' || user?.role === 'grand_master'
   const missingMasterOrg = isMaster && !orgId
 
   // Fetch batches

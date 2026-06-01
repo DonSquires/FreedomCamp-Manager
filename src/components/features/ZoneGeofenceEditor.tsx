@@ -138,7 +138,7 @@ export function ZoneGeofenceEditor({
   const { user } = useAuthStore()
   const { organizationId } = useGlobalFiltersStore()
   const effectiveOrganizationId =
-    user?.role === 'master' ? organizationId || null : user?.organization_id || null
+    (user?.role === 'master' || user?.role === 'grand_master') ? organizationId || null : user?.organization_id || null
 
   const parsedInitial = parseInitialGeometry(initialGeometry)
   const [geometryType, setGeometryType] = useState<'circle' | 'polygon'>(

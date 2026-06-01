@@ -176,7 +176,7 @@ function useAccessPermissions() {
 
 export default function AccessPermissionsPage() {
   const { user } = useAuthStore()
-  const isAdmin = user?.role === 'admin' || user?.role === 'admin_officer' || user?.role === 'master'
+  const isAdmin = user?.role === 'admin' || user?.role === 'admin_officer' || user?.role === 'master' || user?.role === 'grand_master'
 
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('all')

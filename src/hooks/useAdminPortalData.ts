@@ -116,6 +116,14 @@ export function useAdminPrimaryDashboard(options: UseAdminPrimaryDashboardOption
     queryKey: ['admin-primary-dashboard', organizationId, zoneId, dateFrom, dateTo],
     queryFn: async () => {
       const diagnostics: string[] = []
+      const nowIso = new Date().toISOString()
+
+      // Keep dashboard reads bounded so UI can render even when summary RPCs are unavailable.
+      // 30d and 5000 rows are enough for trend cards without scanning the full observations table.
+      const defaultWindowStart = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+      const trendStartBound = startDate ?? defaultWindowStart
+      const trendEndBound = endDate ?? nowIso
+      const fallbackRowCap = 5000
 
       // ── Helper: apply org / zone / date filters to any query ──────────────
       const applyFilters = (q: any) => {
@@ -231,54 +239,54 @@ export function useAdminPrimaryDashboard(options: UseAdminPrimaryDashboardOption
       if (!summaryRes.error && summaryRes.data && summaryRes.data[0]) {
         activeVehicles = Number(summaryRes.data[0].unique_vehicles) || 0
       } else {
+        diagnostics.push(
+          `observation_summary_rpc_missing: ${summaryRes.error?.message || 'unknown rpc error'} (using bounded fallback)`
+        )
         const uniquePlates = new Set<string>()
-        const pageSize = 1000
-        let offset = 0
-        while (true) {
-          let vehicleQuery = supabase
-            .from('observations')
-            .select('plate_number')
-            .not('plate_number', 'is', null)
-            .order('recorded_at', { ascending: false })
-            .range(offset, offset + pageSize - 1)
-          if (organizationId) vehicleQuery = vehicleQuery.eq('organization_id', organizationId)
-          if (zoneId)         vehicleQuery = vehicleQuery.eq('zone_id', zoneId)
-          if (startDate)      vehicleQuery = vehicleQuery.gte('recorded_at', startDate)
-          if (endDate)        vehicleQuery = vehicleQuery.lte('recorded_at', endDate)
-          const { data: vehicleRows, error: vehicleErr } = await vehicleQuery
-          if (vehicleErr) { diagnostics.push(`active_vehicles_fallback: ${vehicleErr.message || 'unknown error'}`); break }
-          const rows = vehicleRows ?? []
-          rows.forEach((r: any) => {
-            if (r?.plate_number) uniquePlates.add(String(r.plate_number).trim().toUpperCase())
-          })
-          if (rows.length < pageSize) break
-          offset += pageSize
+        let vehicleQuery = supabase
+          .from('observations')
+          .select('plate_number')
+          .not('plate_number', 'is', null)
+          .order('recorded_at', { ascending: false })
+          .gte('recorded_at', trendStartBound)
+          .lte('recorded_at', trendEndBound)
+          .limit(fallbackRowCap)
+        if (organizationId) vehicleQuery = vehicleQuery.eq('organization_id', organizationId)
+        if (zoneId)         vehicleQuery = vehicleQuery.eq('zone_id', zoneId)
+        const { data: vehicleRows, error: vehicleErr } = await vehicleQuery
+        if (vehicleErr) {
+          diagnostics.push(`active_vehicles_fallback: ${vehicleErr.message || 'unknown error'}`)
+        }
+        const rows = vehicleRows ?? []
+        rows.forEach((r: any) => {
+          if (r?.plate_number) uniquePlates.add(String(r.plate_number).trim().toUpperCase())
+        })
+        if (rows.length >= fallbackRowCap) {
+          diagnostics.push(`active_vehicles_fallback: capped at ${fallbackRowCap} rows`)
         }
         activeVehicles = uniquePlates.size
       }
 
       // Trend data rows (for chart)
       const trendRows: Array<{ plate_number: string | null; is_compliant: boolean | null; recorded_at: string }> = []
-      const trendPageSize = 1000
-      const trendMaxRows = 100000
-      let trendOffset = 0
-      while (trendOffset < trendMaxRows) {
-        const trendPageQuery = applyFilters(
-          supabase
-            .from('observations')
-            .select('plate_number, is_compliant, recorded_at')
-            .order('recorded_at', { ascending: true })
-            .range(trendOffset, trendOffset + trendPageSize - 1)
-        )
-        const { data: trendPageRows, error: trendErr } = await trendPageQuery
-        if (trendErr) { diagnostics.push(`observations_trend: ${trendErr.message || 'unknown error'}`); break }
-        const rows = (trendPageRows ?? []) as Array<{ plate_number: string | null; is_compliant: boolean | null; recorded_at: string }>
-        trendRows.push(...rows)
-        if (rows.length < trendPageSize) break
-        trendOffset += trendPageSize
+      let trendQuery = supabase
+        .from('observations')
+        .select('plate_number, is_compliant, recorded_at')
+        .order('recorded_at', { ascending: true })
+        .gte('recorded_at', trendStartBound)
+        .lte('recorded_at', trendEndBound)
+        .limit(fallbackRowCap)
+      if (organizationId) trendQuery = trendQuery.eq('organization_id', organizationId)
+      if (zoneId)         trendQuery = trendQuery.eq('zone_id', zoneId)
+
+      const { data: trendPageRows, error: trendErr } = await trendQuery
+      if (trendErr) {
+        diagnostics.push(`observations_trend: ${trendErr.message || 'unknown error'}`)
+      } else {
+        trendRows.push(...((trendPageRows ?? []) as Array<{ plate_number: string | null; is_compliant: boolean | null; recorded_at: string }>))
       }
-      if (trendRows.length >= trendMaxRows) {
-        diagnostics.push(`observations_trend: capped at ${trendMaxRows} rows for dashboard performance`)
+      if (trendRows.length >= fallbackRowCap) {
+        diagnostics.push(`observations_trend: capped at ${fallbackRowCap} rows for dashboard performance`)
       }
 
       // Homeless plates

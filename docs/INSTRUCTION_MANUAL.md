@@ -2908,6 +2908,11 @@ supabase db push --linked
 | `organizations` | All orgs (owner, service_provider, client, contractor) |
 | `zones` | Enforcement zones with geofence polygons |
 | `vehicles` | Vehicle master records |
+
+Observation record browsing is intentionally paginated and searchable now. The
+records page only fetches a small page at a time and uses a popup dialog for a
+full record view, which keeps the browser from loading the entire observations
+table at once.
 | `patrols` | Patrol session records |
 | `breach_records` | Breach records with status workflow |
 | `infringement_notices` | Issued notices |

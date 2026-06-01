@@ -90,7 +90,7 @@ function fmtDate(ts: string | null) {
 export default function VoiceProfilesConsent() {
   const { user } = useAuthStore()
   const orgId = user?.organization_id
-  const isAdmin = user?.role === 'admin' || user?.role === 'admin_officer' || user?.role === 'master'
+  const isAdmin = user?.role === 'admin' || user?.role === 'admin_officer' || user?.role === 'master' || user?.role === 'grand_master'
   const qc = useQueryClient()
 
   const [activeTab, setActiveTab] = useState('profiles')

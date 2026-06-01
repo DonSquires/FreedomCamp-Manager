@@ -111,7 +111,7 @@ function blankNotice(): Partial<TrespassNotice> {
 
 export default function TrespassNoticesPage() {
   const { user } = useAuthStore()
-  const isAdmin = user?.role === 'admin' || user?.role === 'admin_officer' || user?.role === 'master'
+  const isAdmin = user?.role === 'admin' || user?.role === 'admin_officer' || user?.role === 'master' || user?.role === 'grand_master'
 
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
