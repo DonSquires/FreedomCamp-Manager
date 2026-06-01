@@ -316,7 +316,7 @@
     "@ai-sdk/openai": "^3.0.65",
     "@aws-sdk/client-s3": "^3.1051.0",
     "@aws-sdk/util-stream-node": "^3.370.0",
-    "@hookform/resolvers": "^3.9.0",
+    "@hookform/resolvers": "^5.4.0",
     "@napi-rs/canvas": "^1.0.0",
     "@radix-ui/react-accordion": "^1.2.0",
     "@radix-ui/react-alert-dialog": "^1.1.1",
