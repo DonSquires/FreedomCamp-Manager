@@ -232,6 +232,12 @@ export interface SlaEvidencePack {
   approvalTraceability: WorkflowAuditEvent[]
 }
 
+/**
+ * Track both current and legacy approval events for SLA traceability.
+ * For SLA evidence, all listed approval actions are treated as equivalent approval checkpoints.
+ * New client-governed approvals should emit `client_signoff_approve`.
+ * `client_signoff` remains included for backward compatibility with historical audit entries emitted before migration.
+ */
 const APPROVAL_ACTIONS = new Set<WorkflowAuditEvent['action']>([
   'approve',
   'client_signoff_approve',

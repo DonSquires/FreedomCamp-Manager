@@ -98,6 +98,14 @@ export interface NoticeAmendmentResult {
 }
 
 const IMMUTABLE_NOTICE_SNAPSHOT_FIELDS = new Set<keyof NoticeSnapshot>(['id', 'noticeClass'])
+const TRACKED_NOTICE_FIELD_REGISTRY = {
+  status: true,
+  title: true,
+  legalBasis: true,
+  amountCents: true,
+  templateVersion: true,
+  notes: true,
+} satisfies Record<Exclude<keyof NoticeSnapshot, 'id' | 'noticeClass'>, true>
 
 const TERMINAL_STATUSES = new Set<CanonicalNoticeStatus>([
   'paid',
@@ -124,6 +132,7 @@ function shouldBypassClientApproval(
   actorRole: NoticeRole,
   context: NoticeTransitionContext,
 ): boolean {
+  // On-site officers can issue immediately to preserve urgent frontline enforcement flow.
   return (
     toStatus === 'issued' &&
     context.isOnSiteOfficerIssuance === true &&
@@ -312,12 +321,9 @@ export function createNoticeAmendmentVersion(
   const priorSnapshot = previousVersion?.notice ?? null
   const fieldDiff: NoticeFieldChange[] = []
 
-  const trackedFields = Array.from(
-    new Set([
-      ...(Object.keys(priorSnapshot ?? {}) as Array<keyof NoticeSnapshot>),
-      ...(Object.keys(updatedNotice) as Array<keyof NoticeSnapshot>),
-    ]),
-  ).filter((field) => !IMMUTABLE_NOTICE_SNAPSHOT_FIELDS.has(field))
+  const trackedFields = Object.keys(TRACKED_NOTICE_FIELD_REGISTRY).filter(
+    (field): field is keyof NoticeSnapshot => !IMMUTABLE_NOTICE_SNAPSHOT_FIELDS.has(field as keyof NoticeSnapshot),
+  )
 
   for (const field of trackedFields) {
     const before = priorSnapshot?.[field]

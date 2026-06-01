@@ -47,6 +47,8 @@ interface AppPreferences {
   gps_tracking_enabled: boolean
 }
 
+let printerIdFallbackCounter = 0
+
 function generatePrinterIdSuffix(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID()
@@ -58,13 +60,19 @@ function generatePrinterIdSuffix(): string {
     return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('')
   }
 
-  return Date.now().toString(36)
+  const highResolutionSuffix = typeof performance !== 'undefined' && typeof performance.now === 'function'
+    ? Math.floor(performance.now() * 1000).toString(36)
+    : `${Date.now().toString(36)}-${(printerIdFallbackCounter += 1).toString(36)}`
+  return `${Date.now().toString(36)}-${highResolutionSuffix}`
 }
 
 function resolveAssignedPrinterId(printerName: string, explicitPrinterId: string): string {
   if (explicitPrinterId) return explicitPrinterId
-  const slug = printerName.toLowerCase().replace(/[\s/]+/g, '-')
-  return `${slug}-${generatePrinterIdSuffix()}`
+  const normalizedName = printerName.trim().toLowerCase()
+  const slug = normalizedName.replace(/[\s/]+/g, '-')
+  const base = slug || 'printer'
+  // Keep IDs readable while the random suffix avoids collisions across similarly named printers.
+  return `${base}-${generatePrinterIdSuffix()}`
 }
 
 export default function Settings() {
