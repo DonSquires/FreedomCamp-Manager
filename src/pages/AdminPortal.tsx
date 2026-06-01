@@ -273,12 +273,13 @@ export default function AdminPortal() {
     }
   }, [queryClient, effectiveOrganizationId, zoneId, dateFrom, dateTo])
 
+  // No `enabled` gate here: the hook applies org filter conditionally when organizationId
+  // is present, so master/grand_master without a selected org correctly see cross-org data.
   const { data: recentHistoricalObservations = [] } = useAdminRecentHistoricalObservations({
     organizationId: effectiveOrganizationId,
     zoneId,
     startDate,
     endDate,
-    enabled: !!effectiveOrganizationId,
   })
 
   // Welfare alerts — Welfare First inspired: surface officer safety issues immediately
