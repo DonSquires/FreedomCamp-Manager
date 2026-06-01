@@ -4,6 +4,7 @@ import { useAuthStore } from '@/stores/authStore'
 import { toast } from 'sonner'
 import { useOperationalOrganization } from '@/hooks/useOperationalOrganization'
 import { trackPatrolComplete } from '@/lib/croMetrics'
+import { usePOIVOIFlag } from '@/hooks/usePOIVOIFlag'
 
 interface Patrol {
   id: string
@@ -157,13 +158,19 @@ export function useStartPatrol() {
 export function useCompletePatrol() {
   const queryClient = useQueryClient()
   const { user } = useAuthStore()
+  const { flagPOI, flagVOI } = usePOIVOIFlag()
 
   return useMutation({
-    mutationFn: async ({ patrolId, vehiclesChecked, breachesFound }: {
+    mutationFn: async (input: {
       patrolId: string
       vehiclesChecked: number
       breachesFound: number
+      poiFullName?: string | null
+      voiPlateNumber?: string | null
+      flagReason?: string | null
+      flagNotes?: string | null
     }) => {
+      const { patrolId, vehiclesChecked, breachesFound } = input
       let query = supabase
         .from('patrols')
         .update({ 
@@ -193,6 +200,32 @@ export function useCompletePatrol() {
         vehiclesChecked: variables.vehiclesChecked,
         breachesFound: variables.breachesFound,
       })
+
+      if (variables.poiFullName?.trim()) {
+        flagPOI.mutate({
+          full_name: variables.poiFullName.trim(),
+          reason: variables.flagReason ?? 'Flagged during patrol completion',
+          notes: variables.flagNotes ?? null,
+          patrol_id: variables.patrolId,
+        }, {
+          onError: (error: any) => {
+            toast.error(error?.message || 'Patrol completed, but POI flagging failed')
+          },
+        })
+      }
+
+      if (variables.voiPlateNumber?.trim()) {
+        flagVOI.mutate({
+          plate_number: variables.voiPlateNumber.trim().toUpperCase(),
+          reason: variables.flagReason ?? 'Flagged during patrol completion',
+          notes: variables.flagNotes ?? null,
+          patrol_id: variables.patrolId,
+        }, {
+          onError: (error: any) => {
+            toast.error(error?.message || 'Patrol completed, but VOI flagging failed')
+          },
+        })
+      }
     },
     onError: (error: any) => {
       toast.error(error.message || 'Failed to complete patrol')

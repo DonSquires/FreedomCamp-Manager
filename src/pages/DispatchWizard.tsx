@@ -12,6 +12,7 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { insertDispatchJobWithAlarmTypeFallback } from '@/lib/dispatchJobs'
+import { haversineKm, estimateEtaMinutes, formatEta, formatDistance } from '@/lib/geo'
 import { useAuthStore } from '@/stores/authStore'
 import { useClientOrgIds } from '@/hooks/useClientOrgIds'
 import { AppLayout } from '@/components/features/AppLayout'
@@ -127,6 +128,24 @@ interface SiteKeySet {
   }> | null
 }
 
+interface WizardOfficer {
+  id: string
+  first_name: string
+  last_name: string
+  phone: string | null
+  role: string
+  is_on_shift: boolean
+  call_sign: string | null
+  active_patrol_count: number
+  rostered_route: {
+    route_name?: string | null
+    jurisdiction_label?: string | null
+    allow_cross_jurisdiction?: boolean | null
+  } | null
+  last_gps_latitude: number | null
+  last_gps_longitude: number | null
+}
+
 function emptyState(): WizardState {
   return {
     client_site_id: '', client_site_name: '', client_site_code: '', client_site_address: '',
@@ -179,7 +198,7 @@ export default function DispatchWizard() {
     queryFn: async () => {
       let query = (supabase as any)
         .from('client_sites')
-        .select('id, name, address, city, contact_phone')
+        .select('id, name, address, city, contact_phone, gps_lat, gps_lng')
         .eq('is_active', true)
         .order('name')
 
@@ -192,7 +211,7 @@ export default function DispatchWizard() {
     enabled: !!orgId && !clientOrgIdsLoading,
   })
 
-  const { data: officers = [] } = useQuery({
+  const { data: officers = [] } = useQuery<WizardOfficer[]>({
     queryKey: ['wizard-officers', orgId],
     queryFn: async () => {
       // Officers currently on shift
@@ -226,6 +245,7 @@ export default function DispatchWizard() {
         .from('user_profiles')
         .select(`
           id, first_name, last_name, phone, role,
+          last_gps_latitude, last_gps_longitude,
           current_patrol:patrols!assigned_to(id, status, patrol_route:patrol_routes!patrol_route_id(route_name))
         `)
         .eq('organization_id', orgId ?? '')
@@ -242,6 +262,35 @@ export default function DispatchWizard() {
     },
     enabled: !!orgId,
   })
+
+  const selectedSite = useMemo(() => {
+    return clientSites.find((site: any) => site.id === state.client_site_id) ?? null
+  }, [clientSites, state.client_site_id])
+
+  const nearestOfficerSuggestion = useMemo(() => {
+    if (!selectedSite?.gps_lat || !selectedSite?.gps_lng) return null
+
+    const ranked = officers
+      .filter((officer) => (
+        officer.is_on_shift
+        && officer.last_gps_latitude !== null
+        && officer.last_gps_latitude !== undefined
+        && officer.last_gps_longitude !== null
+        && officer.last_gps_longitude !== undefined
+      ))
+      .map((officer) => {
+        const distanceKm = haversineKm(
+          officer.last_gps_latitude as number,
+          officer.last_gps_longitude as number,
+          selectedSite.gps_lat,
+          selectedSite.gps_lng,
+        )
+        return { officer, distanceKm }
+      })
+      .sort((a, b) => a.distanceKm - b.distanceKm || a.officer.active_patrol_count - b.officer.active_patrol_count)
+
+    return ranked[0] ?? null
+  }, [officers, selectedSite])
 
   const { data: siteKeySets = [] } = useQuery({
     queryKey: ['wizard-site-keysets', orgId, state.client_site_id],
@@ -532,6 +581,33 @@ export default function DispatchWizard() {
             {step === 2 && (
               <div className="space-y-3">
                 <p className="text-sm text-muted-foreground">Select an available officer. You can dispatch without assigning — the job will sit as Pending.</p>
+                {nearestOfficerSuggestion && (
+                  <div className="rounded-md border border-blue-300 bg-blue-50 dark:bg-blue-950/20 px-3 py-2 text-xs text-blue-800 dark:text-blue-200">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-semibold">Nearest officer suggestion:</span>
+                      <span className="font-medium">{nearestOfficerSuggestion.officer.first_name} {nearestOfficerSuggestion.officer.last_name}</span>
+                      <span>{formatDistance(nearestOfficerSuggestion.distanceKm)}</span>
+                      <span>· {formatEta(estimateEtaMinutes(nearestOfficerSuggestion.distanceKm))}</span>
+                      {nearestOfficerSuggestion.officer.active_patrol_count > 0 && (
+                        <span>· {nearestOfficerSuggestion.officer.active_patrol_count} active</span>
+                      )}
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-6 text-[11px] ml-auto"
+                        onClick={() => setState((s) => ({
+                          ...s,
+                          assigned_to: nearestOfficerSuggestion.officer.id,
+                          officer_name: `${nearestOfficerSuggestion.officer.first_name} ${nearestOfficerSuggestion.officer.last_name}`,
+                          call_sign: nearestOfficerSuggestion.officer.call_sign ?? '',
+                        }))}
+                      >
+                        Use nearest
+                      </Button>
+                    </div>
+                  </div>
+                )}
                 <div className="space-y-2 max-h-80 overflow-y-auto">
                   <button
                     onClick={() => setState(s => ({ ...s, assigned_to: '', officer_name: '', call_sign: '' }))}
