@@ -232,6 +232,12 @@ export interface SlaEvidencePack {
   approvalTraceability: WorkflowAuditEvent[]
 }
 
+const APPROVAL_ACTIONS = new Set<WorkflowAuditEvent['action']>([
+  'approve',
+  'client_signoff_approve',
+  'client_signoff',
+])
+
 export function calculateElapsedMinutes(startedAt: string, endedAt: string): number {
   const start = parseTimestamp(startedAt)
   const end = parseTimestamp(endedAt)
@@ -246,8 +252,7 @@ export function buildSlaEvidencePack(
   auditTrail: WorkflowAuditEvent[],
 ): SlaEvidencePack {
   const resolutionMinutes = calculateElapsedMinutes(openedAt, resolvedAt)
-  const approvalActions = new Set(['approve', 'client_signoff_approve', 'client_signoff'])
-  const approvalTraceability = auditTrail.filter((event) => approvalActions.has(event.action))
+  const approvalTraceability = auditTrail.filter((event) => APPROVAL_ACTIONS.has(event.action))
 
   return {
     resolutionMinutes,

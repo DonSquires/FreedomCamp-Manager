@@ -97,6 +97,8 @@ export interface NoticeAmendmentResult {
   fieldDiff: NoticeFieldChange[]
 }
 
+const IMMUTABLE_NOTICE_SNAPSHOT_FIELDS = new Set<keyof NoticeSnapshot>(['id', 'noticeClass'])
+
 const TERMINAL_STATUSES = new Set<CanonicalNoticeStatus>([
   'paid',
   'complied',
@@ -310,15 +312,12 @@ export function createNoticeAmendmentVersion(
   const priorSnapshot = previousVersion?.notice ?? null
   const fieldDiff: NoticeFieldChange[] = []
 
-  const trackedFields: Array<keyof NoticeSnapshot> = [
-    // `id` and `noticeClass` are intentionally excluded as immutable identity fields.
-    'status',
-    'title',
-    'legalBasis',
-    'amountCents',
-    'templateVersion',
-    'notes',
-  ]
+  const trackedFields = Array.from(
+    new Set([
+      ...(Object.keys(priorSnapshot ?? {}) as Array<keyof NoticeSnapshot>),
+      ...(Object.keys(updatedNotice) as Array<keyof NoticeSnapshot>),
+    ]),
+  ).filter((field) => !IMMUTABLE_NOTICE_SNAPSHOT_FIELDS.has(field))
 
   for (const field of trackedFields) {
     const before = priorSnapshot?.[field]

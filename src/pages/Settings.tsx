@@ -47,6 +47,26 @@ interface AppPreferences {
   gps_tracking_enabled: boolean
 }
 
+function generatePrinterIdSuffix(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+
+  if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
+    const bytes = new Uint8Array(8)
+    crypto.getRandomValues(bytes)
+    return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('')
+  }
+
+  return Date.now().toString(36)
+}
+
+function resolveAssignedPrinterId(printerName: string, explicitPrinterId: string): string {
+  if (explicitPrinterId) return explicitPrinterId
+  const slug = printerName.toLowerCase().replace(/[\s/]+/g, '-')
+  return `${slug}-${generatePrinterIdSuffix()}`
+}
+
 export default function Settings() {
   const { user } = useAuthStore()
   const {
@@ -227,19 +247,7 @@ export default function Settings() {
 
     setRequireAssignedPrinterForNotices(requirePrinterForNotices)
     if (normalizedPrinterName) {
-      const randomFallback = (() => {
-        if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
-          const bytes = new Uint8Array(8)
-          crypto.getRandomValues(bytes)
-          return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('')
-        }
-        return `${Date.now().toString(36)}`
-      })()
-      const idSuffix = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
-        ? crypto.randomUUID()
-        : randomFallback
-      const generatedPrinterId = normalizedPrinterId ||
-        `${normalizedPrinterName.toLowerCase().replace(/[\s/]+/g, '-')}-${idSuffix}`
+      const generatedPrinterId = resolveAssignedPrinterId(normalizedPrinterName, normalizedPrinterId)
       setAssignedNoticePrinter({
         id: generatedPrinterId,
         name: normalizedPrinterName,
