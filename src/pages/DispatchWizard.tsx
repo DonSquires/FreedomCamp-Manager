@@ -203,6 +203,25 @@ export default function DispatchWizard() {
         .is('ended_at', null)
       const onShiftIds = (shiftData ?? []).map((s: any) => s.officer_id)
 
+      // Today's roster assignments (for rostered route + jurisdiction context)
+      const todayIso = new Date().toISOString().split('T')[0]
+      const { data: rosterData } = await (supabase as any)
+        .from('roster_assignments')
+        .select(`
+          officer_id,
+          patrol_route:patrol_routes!patrol_route_id(
+            id, route_name, jurisdiction_label, allow_cross_jurisdiction,
+            jurisdiction_organization_ids
+          )
+        `)
+        .eq('organization_id', orgId ?? '')
+        .eq('specific_date', todayIso)
+        .in('assignment_status', ['scheduled', 'confirmed'])
+      const rosterByOfficer: Record<string, any> = {}
+      for (const r of rosterData ?? []) {
+        if (r.officer_id) rosterByOfficer[r.officer_id] = r.patrol_route
+      }
+
       const { data, error } = await (supabase as any)
         .from('user_profiles')
         .select(`
@@ -218,6 +237,7 @@ export default function DispatchWizard() {
         is_on_shift: onShiftIds.includes(o.id),
         call_sign: o.current_patrol?.[0]?.patrol_route?.route_name ?? null,
         active_patrol_count: (o.current_patrol ?? []).filter((p: any) => p.status === 'in_progress').length,
+        rostered_route: rosterByOfficer[o.id] ?? null,
       }))
     },
     enabled: !!orgId,
@@ -564,6 +584,23 @@ export default function DispatchWizard() {
                             </span>
                           )}
                         />
+                      )}
+                      {o.rostered_route && (
+                        <div className="flex flex-wrap gap-1 mt-1.5">
+                          <Badge variant="outline" className="text-[10px] border-indigo-500 text-indigo-400">
+                            🗺 {o.rostered_route.route_name}
+                          </Badge>
+                          {o.rostered_route.jurisdiction_label && (
+                            <Badge variant="outline" className="text-[10px] border-blue-500 text-blue-400">
+                              📍 {o.rostered_route.jurisdiction_label}
+                            </Badge>
+                          )}
+                          {o.rostered_route.allow_cross_jurisdiction && (
+                            <Badge variant="outline" className="text-[10px] border-amber-500 text-amber-400">
+                              🔗 Cross-jurisdiction
+                            </Badge>
+                          )}
+                        </div>
                       )}
                     </button>
                   ))}
