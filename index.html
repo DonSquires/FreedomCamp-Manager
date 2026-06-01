@@ -5,28 +5,39 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Field Compliance Manager</title>
     <!-- Anti-FOUC: apply the saved (or default dark) theme class to <html> before
-         any CSS or JS renders, preventing a white flash on hard refresh. -->
+         any CSS or JS renders, preventing a white flash on hard refresh.
+         IMPORTANT: the localStorage key 'theme-preferences-storage' must match
+         the 'name' option in useThemePreferencesStore (src/stores/themePreferencesStore.ts). -->
     <script>
       (function () {
+        var THEME_STORAGE_KEY = 'theme-preferences-storage'
+        var mode = 'dark' // Iron Eagle canonical default
         try {
-          var raw = localStorage.getItem('theme-preferences-storage')
-          var mode = raw ? JSON.parse(raw).state?.themeMode : 'dark'
-          var html = document.documentElement
-          html.classList.remove('dark', 'high-contrast', 'night-patrol')
-          if (mode === 'dark' || mode === 'night-patrol' || !mode) {
-            html.classList.add('dark')
-          } else if (mode === 'high-contrast') {
-            html.classList.add('high-contrast')
-          } else if (mode === 'system') {
-            if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-              html.classList.add('dark')
+          var raw = localStorage.getItem(THEME_STORAGE_KEY)
+          if (raw) {
+            try {
+              var parsed = JSON.parse(raw)
+              var saved = parsed && parsed.state && parsed.state.themeMode
+              if (saved) mode = saved
+            } catch (_parseErr) {
+              // Corrupted storage — use the canonical dark default
             }
           }
-          if (mode === 'night-patrol') html.classList.add('night-patrol')
-        } catch (e) {
-          // Fallback: Iron Eagle canonical dark theme
-          document.documentElement.classList.add('dark')
+        } catch (_storageErr) {
+          // Private-browsing or storage unavailable — use canonical dark default
         }
+        var html = document.documentElement
+        html.classList.remove('dark', 'high-contrast', 'night-patrol')
+        if (mode === 'dark' || mode === 'night-patrol') {
+          html.classList.add('dark')
+        } else if (mode === 'high-contrast') {
+          html.classList.add('high-contrast')
+        } else if (mode === 'system') {
+          if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            html.classList.add('dark')
+          }
+        }
+        if (mode === 'night-patrol') html.classList.add('night-patrol')
       })()
     </script>
     <meta name="description" content="Integrated field compliance management for real-time site monitoring, compliance reporting, and asset coordination" />
