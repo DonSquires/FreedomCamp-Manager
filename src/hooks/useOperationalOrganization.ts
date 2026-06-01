@@ -1,5 +1,6 @@
 import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
+import { resolveUserOrganizationId } from '@/lib/adminPortalScope'
 
 export function useOperationalOrganization() {
   const user = useAuthStore((state) => state.user)
@@ -25,7 +26,7 @@ export function useOperationalOrganization() {
     ? organizationId
     : isGrandMaster
       ? null
-      : user?.organization_id ?? user?.employer_organization_id ?? fallbackAuthorizedOrganizationId
+      : resolveUserOrganizationId(user) ?? fallbackAuthorizedOrganizationId
 
   return {
     operationalOrganizationId,
