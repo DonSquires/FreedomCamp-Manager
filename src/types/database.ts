@@ -2765,6 +2765,9 @@ export type Database = {
           priority: string
           response_sla_minutes: number | null
           sla_breached: boolean
+          specialty_type: string | null
+          job_mode: string
+          patrol_id: string | null
           status: string
           title: string
           updated_at: string
@@ -2803,6 +2806,9 @@ export type Database = {
           priority?: string
           response_sla_minutes?: number | null
           sla_breached?: boolean
+          specialty_type?: string | null
+          job_mode?: string
+          patrol_id?: string | null
           status?: string
           title: string
           updated_at?: string
@@ -2841,6 +2847,9 @@ export type Database = {
           priority?: string
           response_sla_minutes?: number | null
           sla_breached?: boolean
+          specialty_type?: string | null
+          job_mode?: string
+          patrol_id?: string | null
           status?: string
           title?: string
           updated_at?: string
@@ -8484,6 +8493,9 @@ export type Database = {
           scheduled_start_time: string | null
           shift: string | null
           shift_id: string | null
+          specialty_type: string | null
+          route_distance_km: number | null
+          actual_distance_km: number | null
           started_at: string | null
           status: string | null
           updated_at: string | null
@@ -8518,6 +8530,9 @@ export type Database = {
           scheduled_start_time?: string | null
           shift?: string | null
           shift_id?: string | null
+          specialty_type?: string | null
+          route_distance_km?: number | null
+          actual_distance_km?: number | null
           started_at?: string | null
           status?: string | null
           updated_at?: string | null
@@ -8552,6 +8567,9 @@ export type Database = {
           scheduled_start_time?: string | null
           shift?: string | null
           shift_id?: string | null
+          specialty_type?: string | null
+          route_distance_km?: number | null
+          actual_distance_km?: number | null
           started_at?: string | null
           status?: string | null
           updated_at?: string | null

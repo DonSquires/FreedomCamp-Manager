@@ -33,6 +33,8 @@ import {
   TrendingUp,
   Timer,
   CalendarDays,
+  ShieldAlert,
+  Route,
 } from 'lucide-react'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -152,6 +154,32 @@ export default function PatrolKPIDashboard() {
                 icon={<CalendarDays className="h-5 w-5 text-blue-600" />}
                 label="Avg Site Visit"
                 value={`${kpis.avg_site_visit_minutes} min`}
+              />
+            </div>
+
+            {/* ── SLA & Km efficiency cards ─── */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <KPICard
+                icon={<ShieldAlert className={`h-5 w-5 ${kpis.sla_breach_count > 0 ? 'text-red-600' : 'text-green-600'}`} />}
+                label="SLA Compliance"
+                value={`${kpis.sla_compliance_rate}%`}
+                sub={kpis.sla_breach_count > 0 ? `${kpis.sla_breach_count} breach${kpis.sla_breach_count !== 1 ? 'es' : ''}` : 'No breaches'}
+              />
+              <KPICard
+                icon={<Route className="h-5 w-5 text-indigo-600" />}
+                label="Km Efficiency"
+                value={kpis.avg_km_efficiency !== null ? `${Math.round(kpis.avg_km_efficiency * 100)}%` : 'N/A'}
+                sub={kpis.total_route_km > 0 ? `${kpis.total_route_km} km planned` : undefined}
+              />
+              <KPICard
+                icon={<Route className="h-5 w-5 text-teal-600" />}
+                label="Route Km (Planned)"
+                value={`${kpis.total_route_km} km`}
+              />
+              <KPICard
+                icon={<Route className="h-5 w-5 text-orange-600" />}
+                label="Actual Km Driven"
+                value={`${kpis.total_actual_km} km`}
               />
             </div>
 

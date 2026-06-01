@@ -75,6 +75,19 @@ const ALARM_JOB_TYPES = ['alarm_response', 'first_line_one_guard', 'first_line_t
 
 const STEPS = ['Select Site', 'Job Type', 'Assign Officer', 'Confirm & Dispatch']
 
+// ── Specialty types for field compliance jobs ──────────────────────────────
+
+const SPECIALTY_JOB_TYPES: { value: string; label: string; description: string }[] = [
+  { value: 'freedom_camping',  label: 'Freedom Camping',  description: 'Inspect and enforce freedom camping rules' },
+  { value: 'parking_warden',   label: 'Parking Warden',   description: 'Issue infringement notices, enforce parking zones' },
+  { value: 'excessive_smoke',  label: 'Excessive Smoke',  description: 'Assess and action excessive smoke complaint' },
+  { value: 'noise_control',    label: 'Noise Control',    description: 'Investigate noise complaint, issue notices' },
+  { value: 'biosecurity',      label: 'Biosecurity',      description: 'Biosecurity inspection and threat response' },
+  { value: 'general',          label: 'General Field',    description: 'General field compliance task' },
+]
+
+const FIELD_COMPLIANCE_JOB_TYPES = ['welfare_check', 'noise_complaint', 'freedom_camping', 'parking', 'general']
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 interface WizardState {
@@ -91,6 +104,8 @@ interface WizardState {
   description: string
   caller_name: string
   caller_phone: string
+  specialty_type: string
+  job_mode: 'patrol_embed' | 'dispatch_oneoff'
   // Step 3
   assigned_to: string
   officer_name: string
@@ -117,6 +132,7 @@ function emptyState(): WizardState {
     client_site_id: '', client_site_name: '', client_site_code: '', client_site_address: '',
     job_type: '', alarm_type: '', priority: 'normal', title: '', description: '',
     caller_name: '', caller_phone: '',
+    specialty_type: '', job_mode: 'dispatch_oneoff',
     assigned_to: '', officer_name: '', call_sign: '',
   }
 }
@@ -275,6 +291,8 @@ export default function DispatchWizard() {
           status:           state.assigned_to ? 'dispatched' : 'pending',
           dispatched_at:    state.assigned_to ? new Date().toISOString() : null,
           dispatched_by:    state.assigned_to ? user?.id : null,
+          specialty_type:   state.specialty_type || null,
+          job_mode:         state.specialty_type ? state.job_mode : 'dispatch_oneoff',
           response_sla_minutes: 60,
         }, 'id, job_number')
       if (error) throw error
@@ -402,6 +420,47 @@ export default function DispatchWizard() {
                         {ALARM_TYPE_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
                       </SelectContent>
                     </Select>
+                  </div>
+                )}
+
+                {FIELD_COMPLIANCE_JOB_TYPES.includes(state.job_type) && (
+                  <div className="space-y-2">
+                    <Label>Specialty Type <span className="text-muted-foreground text-xs">(optional — for field compliance dispatch)</span></Label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {SPECIALTY_JOB_TYPES.map(s => (
+                        <button
+                          key={s.value}
+                          type="button"
+                          onClick={() => setState(st => ({
+                            ...st,
+                            specialty_type: st.specialty_type === s.value ? '' : s.value,
+                          }))}
+                          className={`text-left p-2.5 rounded-md border text-sm transition-all ${
+                            state.specialty_type === s.value
+                              ? 'border-blue-600 bg-blue-600/10 text-blue-300'
+                              : 'border-border hover:border-blue-400'
+                          }`}
+                        >
+                          <div className="font-medium">{s.label}</div>
+                          <div className="text-xs text-muted-foreground mt-0.5">{s.description}</div>
+                        </button>
+                      ))}
+                    </div>
+                    {state.specialty_type && (
+                      <div className="space-y-1.5">
+                        <Label>Job Mode</Label>
+                        <Select
+                          value={state.job_mode}
+                          onValueChange={v => setState(s => ({ ...s, job_mode: v as 'patrol_embed' | 'dispatch_oneoff' }))}
+                        >
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="dispatch_oneoff">One-off Dispatch Task</SelectItem>
+                            <SelectItem value="patrol_embed">Side-Patrol (embed in patrol)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
                   </div>
                 )}
 
