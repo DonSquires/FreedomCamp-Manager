@@ -1651,13 +1651,13 @@ export default function UserManagement({ embedded = false }: UserManagementProps
             <Button
               variant="secondary"
               onClick={() => inviteUserMutation.mutate()}
-              disabled={!normalizedEmail || !isEmailValid || !firstName || !lastName || inviteUserMutation.isPending}
+              disabled={!normalizedEmail || !isEmailValid || !firstName || !lastName || !role || inviteUserMutation.isPending}
             >
               {inviteUserMutation.isPending ? 'Sending Invite...' : 'Send Invite'}
             </Button>
             <Button 
               onClick={() => createUserMutation.mutate()}
-              disabled={!normalizedEmail || !isEmailValid || !firstName || !lastName || !password || !confirmPassword || createUserMutation.isPending || inviteUserMutation.isPending}
+              disabled={!normalizedEmail || !isEmailValid || !firstName || !lastName || !password || !confirmPassword || createUserMutation.isPending}
             >
               {createUserMutation.isPending ? 'Creating...' : 'Create User'}
             </Button>

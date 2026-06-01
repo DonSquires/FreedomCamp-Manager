@@ -44,6 +44,7 @@ const ADMIN_LANDING_ROLES = new Set(['master', 'admin', 'admin_officer', 'manage
 const SPECIALTY_ACCESS_ROLES = new Set([
   'master',
   'admin',
+  'systems_administrator',
   'admin_officer',
   'manager',
   'supervisor',
@@ -63,6 +64,7 @@ export const resolvePortalRole = (role: RoleLike): string | null => {
 export const getHomePathForRole = (role: RoleLike): string => {
   const resolved = resolvePortalRole(role)
   if (!resolved) return '/dashboard'
+  if (resolved === 'systems_administrator') return '/access-control'
   if (FIELD_OPERATION_ROLES.has(resolved)) return '/roster-planner'
   if (ANALYTICS_LANDING_ROLES.has(resolved)) return '/strategic-intelligence'
   if (ADMIN_LANDING_ROLES.has(resolved)) return '/admin-portal'
@@ -78,4 +80,6 @@ export const canAccessSpecialtyFunctions = (role: RoleLike): boolean => {
 }
 
 export const canShowSpecialtyQuickLink = (role: RoleLike, hasRosteredShift: boolean): boolean =>
+  // Specialty quick access is only shown when the officer is currently unrostered;
+  // rostered users should follow shift-specific portals from their assignment flow.
   canAccessSpecialtyFunctions(role) && !hasRosteredShift

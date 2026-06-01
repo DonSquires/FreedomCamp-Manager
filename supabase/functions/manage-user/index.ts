@@ -245,14 +245,14 @@ Deno.serve(async (req) => {
       const firstName = String(body.payload?.first_name ?? '').trim()
       const lastName = String(body.payload?.last_name ?? '').trim()
 
-      if (!email || !role || !organizationId) {
-        return new Response(JSON.stringify({ error: 'email, role, and organizationId are required' }), {
+      if (!email || !role || !organizationId || !firstName || !lastName) {
+        return new Response(JSON.stringify({ error: 'email, first_name, last_name, role, and organization_id are required' }), {
           status: 400,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         })
       }
 
-      if (caller.role !== 'grand_master' && caller.organization_id !== organizationId) {
+      if (!['grand_master', 'systems_administrator'].includes(caller.role) && caller.organization_id !== organizationId) {
         return new Response(JSON.stringify({ error: 'Cannot invite users to another organization' }), {
           status: 403,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
