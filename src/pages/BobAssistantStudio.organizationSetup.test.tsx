@@ -1017,6 +1017,14 @@ describe('BobAssistantStudio organization setup flow', () => {
       expect(approvalExecuteMock).toHaveBeenCalled()
     })
 
+    const createdClientOrgWrite = dbOperationLog.find((entry) =>
+      entry.table === 'organizations'
+      && entry.operation === 'insert'
+      && entry.args[0]?.name === 'Nelson City Council'
+      && entry.args[0]?.organization_type === 'client',
+    )
+    expect(createdClientOrgWrite).toBeTruthy()
+
     const staticWrites = dbOperationLog.filter((entry) =>
       entry.table === 'client_sites'
       && (entry.operation === 'update' || entry.operation === 'insert')

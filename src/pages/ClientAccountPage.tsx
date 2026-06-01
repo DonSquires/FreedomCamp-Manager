@@ -127,6 +127,7 @@ const SITE_TYPE_LABELS: Record<string, string> = {
   general:        'General',
   freedom_camping:'Freedom Camping',
   guarding:       'Guarding Post',
+  patrol:         'Patrol Site',
   parking:        'Parking',
   noise_control:  'Noise Control',
   event:          'Event Site',

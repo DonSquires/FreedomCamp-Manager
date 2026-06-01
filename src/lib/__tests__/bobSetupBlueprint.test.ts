@@ -83,6 +83,7 @@ describe('bobSetupBlueprint', () => {
 
   it('infers site types from service text', () => {
     expect(inferSiteType(['Noise control patrol'])).toBe('noise_control')
+    expect(inferSiteType(['Night patrol route checks'])).toBe('patrol')
     expect(inferSiteType(['Static security guards'])).toBe('guarding')
   })
 

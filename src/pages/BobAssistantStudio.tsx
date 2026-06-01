@@ -4192,6 +4192,62 @@ export default function BobAssistantStudio() {
       }
     }
 
+    const normalizedRequestedClientName = requestedClientName.toLowerCase()
+    if (!matchedClientOrgId && normalizedRequestedClientName) {
+      const { data: globalClientCandidates, error: globalClientCandidatesError } = await (supabase as any)
+        .from('organizations')
+        .select('id, name, organization_type')
+        .ilike('name', `%${requestedClientName}%`)
+        .eq('is_active', true)
+        .limit(10)
+
+      if (globalClientCandidatesError) throw globalClientCandidatesError
+
+      const matchingClientOrgs = ((globalClientCandidates ?? []) as any[])
+        .filter((org) => String(org.id || '') !== providerOrgId)
+
+      const exactClientMatch = matchingClientOrgs.find((org) =>
+        String(org.name || '').trim().toLowerCase() === normalizedRequestedClientName
+        && org.organization_type === 'client')
+      const fuzzyClientMatch = matchingClientOrgs.find((org) =>
+        String(org.name || '').trim().toLowerCase().includes(normalizedRequestedClientName)
+        && org.organization_type === 'client')
+      const exactAnyMatch = matchingClientOrgs.find((org) =>
+        String(org.name || '').trim().toLowerCase() === normalizedRequestedClientName)
+
+      matchedClientOrgId = exactClientMatch?.id ?? fuzzyClientMatch?.id ?? exactAnyMatch?.id ?? null
+    }
+
+    let createdClientOrganization = false
+    if (!matchedClientOrgId && normalizedRequestedClientName) {
+      const { data: providerOrg, error: providerOrgError } = await (supabase as any)
+        .from('organizations')
+        .select('name')
+        .eq('id', providerOrgId)
+        .maybeSingle()
+
+      if (providerOrgError) throw providerOrgError
+
+      const providerName = String(providerOrg?.name || '').trim().toLowerCase()
+      if (!providerName || providerName !== normalizedRequestedClientName) {
+        const { data: createdClientOrg, error: createdClientOrgError } = await (supabase as any)
+          .from('organizations')
+          .insert({
+            name: requestedClientName,
+            organization_type: 'client',
+            organization_level: 3,
+            parent_organization_id: providerOrgId,
+            is_active: true,
+          })
+          .select('id')
+          .single()
+
+        if (createdClientOrgError) throw createdClientOrgError
+        matchedClientOrgId = createdClientOrg?.id ?? null
+        createdClientOrganization = !!matchedClientOrgId
+      }
+    }
+
     const fallbackPatrolZone = resolvePatrolZoneFallback(pendingPatrolSetupBlueprint)
 
     let basePatrolZoneId: string | null = null
@@ -4435,13 +4491,15 @@ export default function BobAssistantStudio() {
     }
 
     await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['organizations'] }),
+      queryClient.invalidateQueries({ queryKey: ['crm_accounts'] }),
       queryClient.invalidateQueries({ queryKey: ['client-sites'] }),
       queryClient.invalidateQueries({ queryKey: ['zones'] }),
       queryClient.invalidateQueries({ queryKey: ['patrols'] }),
       queryClient.invalidateQueries({ queryKey: ['patrol-stats'] }),
     ])
 
-    toast.success(`Patrol setup draft applied: provider patrol zone in service provider org, ${createdSites} client site(s) created, ${updatedSites} updated, ${createdZones} client geofence zone(s) created${attachedPatrolId ? createdPatrolSchedule ? ', 1 provider patrol schedule created' : ', attached to active provider patrol' : ''}`)
+    toast.success(`Patrol setup draft applied: provider patrol zone in service provider org, ${createdClientOrganization ? '1 client organization created, ' : ''}${createdSites} client site(s) created, ${updatedSites} updated, ${createdZones} client geofence zone(s) created${attachedPatrolId ? createdPatrolSchedule ? ', 1 provider patrol schedule created' : ', attached to active provider patrol' : ''}`)
   }
 
   const executeCreateHistoricalPatrolImportDraft = async () => {
