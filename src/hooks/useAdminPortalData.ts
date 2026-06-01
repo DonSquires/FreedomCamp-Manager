@@ -116,7 +116,32 @@ export function useAdminPrimaryDashboard(options: UseAdminPrimaryDashboardOption
     queryKey: ['admin-primary-dashboard', organizationId, zoneId, dateFrom, dateTo],
     queryFn: async () => {
       const diagnostics: string[] = []
+      const DASHBOARD_QUERY_TIMEOUT_MS = 12000
       const nowIso = new Date().toISOString()
+
+      const runBoundedQuery = async (label: string, query: Promise<any> | any, timeoutMs = DASHBOARD_QUERY_TIMEOUT_MS) => {
+        try {
+          const result = await Promise.race([
+            Promise.resolve(query),
+            new Promise<any>((resolve) => {
+              setTimeout(() => {
+                resolve({
+                  data: null,
+                  count: 0,
+                  error: { message: `${label} timed out after ${timeoutMs}ms` },
+                })
+              }, timeoutMs)
+            }),
+          ])
+          return result
+        } catch (error: any) {
+          return {
+            data: null,
+            count: 0,
+            error: { message: error?.message || `${label} failed` },
+          }
+        }
+      }
 
       // Keep dashboard reads bounded so UI can render even when summary RPCs are unavailable.
       // 30d and 5000 rows are enough for trend cards without scanning the full observations table.
@@ -210,23 +235,17 @@ export function useAdminPrimaryDashboard(options: UseAdminPrimaryDashboardOption
         .in('status', HOMELESS_UI_STATUSES)
 
       // Fire all independent queries in parallel
-      const [
-        totalObsRes,
-        compliantRes,
-        summaryRes,
-        breachesRes,
-        investigationsRes,
-        activeOfficersRes,
-        checksTodayRes,
-        infringementsRes,
-        disputesRes,
-        homelessRecordsRes,
-        canonicalHomelessRes,
-      ] = await Promise.all([
-        totalObsQ, compliantQ, summaryQ, breachesQ, investigationsQ,
-        activeOfficersQ, checksTodayQ, infringementsQ, disputesQ,
-        homelessRecordsQ, canonicalHomelessQ,
-      ])
+      const totalObsRes = await runBoundedQuery('observations_total', totalObsQ)
+      const compliantRes = await runBoundedQuery('observations_compliant', compliantQ)
+      const summaryRes = await runBoundedQuery('observation_summary_rpc', summaryQ)
+      const breachesRes = await runBoundedQuery('breach_alerts_active', breachesQ)
+      const investigationsRes = await runBoundedQuery('investigation_jobs_active', investigationsQ)
+      const activeOfficersRes = await runBoundedQuery('active_officers', activeOfficersQ)
+      const checksTodayRes = await runBoundedQuery('checks_today', checksTodayQ)
+      const infringementsRes = await runBoundedQuery('infringements_issued', infringementsQ)
+      const disputesRes = await runBoundedQuery('disputes_pending', disputesQ)
+      const homelessRecordsRes = await runBoundedQuery('homeless_records_trend', homelessRecordsQ)
+      const canonicalHomelessRes = await runBoundedQuery('canonical_homeless_trend', canonicalHomelessQ)
 
       if (totalObsRes.error) diagnostics.push(`observations_total: ${totalObsRes.error.message || 'unknown error'}`)
       const totalObservations = totalObsRes.count
@@ -253,7 +272,9 @@ export function useAdminPrimaryDashboard(options: UseAdminPrimaryDashboardOption
           .limit(fallbackRowCap)
         if (organizationId) vehicleQuery = vehicleQuery.eq('organization_id', organizationId)
         if (zoneId)         vehicleQuery = vehicleQuery.eq('zone_id', zoneId)
-        const { data: vehicleRows, error: vehicleErr } = await vehicleQuery
+        const vehicleRes = await runBoundedQuery('active_vehicles_fallback', vehicleQuery)
+        const vehicleRows = vehicleRes?.data
+        const vehicleErr = vehicleRes?.error
         if (vehicleErr) {
           diagnostics.push(`active_vehicles_fallback: ${vehicleErr.message || 'unknown error'}`)
         }
@@ -279,7 +300,9 @@ export function useAdminPrimaryDashboard(options: UseAdminPrimaryDashboardOption
       if (organizationId) trendQuery = trendQuery.eq('organization_id', organizationId)
       if (zoneId)         trendQuery = trendQuery.eq('zone_id', zoneId)
 
-      const { data: trendPageRows, error: trendErr } = await trendQuery
+      const trendRes = await runBoundedQuery('observations_trend', trendQuery)
+      const trendPageRows = trendRes?.data
+      const trendErr = trendRes?.error
       if (trendErr) {
         diagnostics.push(`observations_trend: ${trendErr.message || 'unknown error'}`)
       } else {
@@ -342,7 +365,9 @@ export function useAdminPrimaryDashboard(options: UseAdminPrimaryDashboardOption
         .select('id', { count: 'exact', head: true })
         .in('status', ['received', 'under_review', 'info_requested'])
       if (organizationId) openDisputeIntakeQuery = openDisputeIntakeQuery.eq('organization_id', organizationId)
-      const { count: openDisputeIntake, error: disputeIntakeErr } = await openDisputeIntakeQuery
+      const openDisputeIntakeRes = await runBoundedQuery('open_dispute_intake', openDisputeIntakeQuery)
+      const openDisputeIntake = openDisputeIntakeRes?.count
+      const disputeIntakeErr = openDisputeIntakeRes?.error
       if (disputeIntakeErr) diagnostics.push(`open_dispute_intake: ${disputeIntakeErr.message || 'unknown error'}`)
 
       // Vehicle discrepancies requiring review
@@ -351,19 +376,26 @@ export function useAdminPrimaryDashboard(options: UseAdminPrimaryDashboardOption
         .eq('requires_review', true)
         .is('reviewed_at', null)
       if (organizationId) discrepanciesPendingQuery = discrepanciesPendingQuery.eq('organization_id', organizationId)
-      const { count: discrepanciesPending, error: discrepanciesErr } = await discrepanciesPendingQuery
+      const discrepanciesRes = await runBoundedQuery('discrepancies_pending', discrepanciesPendingQuery)
+      const discrepanciesPending = discrepanciesRes?.count
+      const discrepanciesErr = discrepanciesRes?.error
       if (discrepanciesErr) diagnostics.push(`discrepancies_pending: ${discrepanciesErr.message || 'unknown error'}`)
 
       // SCV certifications expiring within 30 days
       const thirtyDaysFromNow = new Date()
       thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30)
-      const { count: scvExpiringSoon, error: scvErr } = await supabase
+      const scvRes = await runBoundedQuery(
+        'scv_expiring_soon',
+        supabase
         .from('canonical_scv')
         .select('plate_number', { count: 'exact', head: true })
         .eq('is_self_contained', true)
         .not('certificate_expiry', 'is', null)
         .lte('certificate_expiry', thirtyDaysFromNow.toISOString())
         .gt('certificate_expiry', new Date().toISOString())
+      )
+      const scvExpiringSoon = scvRes?.count
+      const scvErr = scvRes?.error
       if (scvErr) diagnostics.push(`scv_expiring_soon: ${scvErr.message || 'unknown error'}`)
 
       // Active trespass notices
@@ -372,7 +404,9 @@ export function useAdminPrimaryDashboard(options: UseAdminPrimaryDashboardOption
         .select('id', { count: 'exact', head: true })
         .eq('status', 'active')
       if (organizationId) activeTrespassQ = activeTrespassQ.eq('organization_id', organizationId)
-      const { count: activeTrespassCount, error: trespassErr } = await activeTrespassQ
+      const trespassRes = await runBoundedQuery('active_trespass_notices', activeTrespassQ)
+      const activeTrespassCount = trespassRes?.count
+      const trespassErr = trespassRes?.error
       if (trespassErr) diagnostics.push(`active_trespass_notices: ${trespassErr.message || 'unknown error'}`)
 
       // Radio transmissions today
@@ -381,20 +415,27 @@ export function useAdminPrimaryDashboard(options: UseAdminPrimaryDashboardOption
         .select('id', { count: 'exact', head: true })
         .gte('started_at', todayStart)
       if (organizationId) radioTodayQ = radioTodayQ.eq('org_id', organizationId)
-      const { count: radioTransmissionsToday, error: radioErr } = await radioTodayQ
+      const radioRes = await runBoundedQuery('radio_transmissions_today', radioTodayQ)
+      const radioTransmissionsToday = radioRes?.count
+      const radioErr = radioRes?.error
       if (radioErr) diagnostics.push(`radio_transmissions_today: ${radioErr.message || 'unknown error'}`)
 
       // Homeless-exempt breach count
       let homelessExemptBreachCount = 0
       const homelessPlateList = Array.from(homelessExemptPlates)
       if (homelessPlateList.length > 0) {
-        const { count: exemptCount, error: exemptErr } = await applyFilters(
+        const exemptRes = await runBoundedQuery(
+          'homeless_exempt_breaches',
+          applyFilters(
           supabase
             .from('observations')
             .select('observation_id', { count: 'exact', head: true })
             .eq('is_compliant', false)
             .in('plate_number', homelessPlateList)
+          )
         )
+        const exemptCount = exemptRes?.count
+        const exemptErr = exemptRes?.error
         if (exemptErr) diagnostics.push(`homeless_exempt_breaches: ${exemptErr.message || 'unknown error'}`)
         homelessExemptBreachCount = exemptCount ?? 0
       }
