@@ -17,7 +17,7 @@
  *   ], 'weekly-report')
  */
 
-import writeXlsxFile from 'write-excel-file'
+import writeXlsxFile from 'write-excel-file/browser'
 
 type XlsxPrimitive = string | number | boolean
 type XlsxCell = { value?: XlsxPrimitive; fontWeight?: 'bold' }
@@ -97,9 +97,8 @@ export function exportToXlsx<T extends Record<string, unknown>>(
 
   return writeXlsxFile(worksheetRows, {
     columns: columnWidths,
-    fileName: `${filename}.xlsx`,
     sheet: 'Data',
-  })
+  }).toFile(`${filename}.xlsx`)
 }
 
 /**
@@ -112,13 +111,11 @@ export function exportMultiSheetXlsx<T extends Record<string, unknown>>(
   sheets: XlsxSheet<T>[],
   filename = 'export',
 ): Promise<void> {
-  const dataBySheet = sheets.map((sheet) => buildWorksheetRows(sheet.rows, sheet.columns))
-  const columnsBySheet = sheets.map((sheet) => buildColumnWidths(sheet.rows, sheet.columns))
-  const sheetNames = sheets.map((sheet) => sheet.name.slice(0, 31))
+  const sheetList = sheets.map((sheet) => ({
+    data: buildWorksheetRows(sheet.rows, sheet.columns),
+    columns: buildColumnWidths(sheet.rows, sheet.columns),
+    sheet: sheet.name.slice(0, 31),
+  }))
 
-  return writeXlsxFile(dataBySheet, {
-    columns: columnsBySheet,
-    sheets: sheetNames,
-    fileName: `${filename}.xlsx`,
-  })
+  return writeXlsxFile(sheetList).toFile(`${filename}.xlsx`)
 }
