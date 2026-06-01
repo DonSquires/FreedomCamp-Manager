@@ -3,6 +3,7 @@ export type AppShell = 'officer' | 'admin' | 'master' | 'shared'
 export type AppRole =
   | 'master'
   | 'admin'
+  | 'systems_administrator'
   | 'officer'
   | 'admin_officer'
   | 'nzscv_monitor'
@@ -51,7 +52,7 @@ export const routeManifest: RouteManifestEntry[] = [
     routeId: 'auth.login',
     path: '/login',
     shell: 'shared',
-    rolesAllowed: ['master', 'admin', 'officer', 'admin_officer', 'nzscv_monitor', 'grand_master', 'client_viewer'],
+    rolesAllowed: ['master', 'admin', 'systems_administrator', 'officer', 'admin_officer', 'nzscv_monitor', 'grand_master', 'client_viewer'],
     navGroup: null,
     navLabel: null,
     visibilityMode: 'production',
@@ -63,7 +64,7 @@ export const routeManifest: RouteManifestEntry[] = [
     routeId: 'root.admin-hub',
     path: '/',
     shell: 'admin',
-    rolesAllowed: ['admin', 'admin_officer', 'master', 'grand_master'],
+    rolesAllowed: ['admin', 'systems_administrator', 'admin_officer', 'master', 'grand_master'],
     navGroup: 'Core',
     navLabel: 'Admin Hub',
     visibilityMode: 'production',
@@ -352,7 +353,7 @@ export const routeManifest: RouteManifestEntry[] = [
     routeId: 'admin.canonical-records',
     path: '/admin/canonical-records',
     shell: 'admin',
-    rolesAllowed: ['admin', 'master', 'grand_master'],
+    rolesAllowed: ['admin', 'systems_administrator', 'master', 'grand_master'],
     navGroup: 'Management',
     navLabel: 'Canonical Records',
     visibilityMode: 'production',
@@ -364,7 +365,7 @@ export const routeManifest: RouteManifestEntry[] = [
     routeId: 'admin.zones',
     path: '/zones',
     shell: 'admin',
-    rolesAllowed: ['admin', 'admin_officer', 'master', 'grand_master'],
+    rolesAllowed: ['admin', 'systems_administrator', 'admin_officer', 'master', 'grand_master'],
     navGroup: 'Management',
     navLabel: 'Zones',
     visibilityMode: 'production',
@@ -472,7 +473,7 @@ export const routeManifest: RouteManifestEntry[] = [
     routeId: 'admin.users',
     path: '/users',
     shell: 'admin',
-    rolesAllowed: ['admin', 'master', 'grand_master'],
+    rolesAllowed: ['admin', 'systems_administrator', 'master', 'grand_master'],
     navGroup: 'Management',
     navLabel: 'Users',
     visibilityMode: 'production',
@@ -1181,7 +1182,7 @@ export const routeManifest: RouteManifestEntry[] = [
     routeId: 'master.access-control',
     path: '/access-control',
     shell: 'master',
-    rolesAllowed: ['admin', 'admin_officer', 'master', 'grand_master'],
+    rolesAllowed: ['admin', 'systems_administrator', 'admin_officer', 'master', 'grand_master'],
     permissionArea: 'users',
     navGroup: 'Platform',
     navLabel: 'Access Control',

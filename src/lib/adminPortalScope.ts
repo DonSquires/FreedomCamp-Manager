@@ -23,6 +23,10 @@ export function resolveAdminPortalOrganizationId(
   const isMasterScope = user?.role === 'master' || user?.role === 'grand_master'
   if (isMasterScope) return firstNonEmpty(selectedOrganizationId)
 
+  return resolveUserOrganizationId(user)
+}
+
+export function resolveUserOrganizationId(user: AdminPortalScopeUser | null | undefined): string | null {
   return firstNonEmpty(
     user?.organization_id,
     user?.employer_organization_id,

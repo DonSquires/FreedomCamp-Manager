@@ -98,7 +98,7 @@ async function withTimeout<T>(promise: Promise<T>, ms: number, label: string): P
 interface AuthUser {
   id: string
   email: string
-  role: 'master' | 'admin' | 'officer' | 'admin_officer' | 'nzscv_monitor' | 'grand_master' | 'client_viewer' | 'client_officer' | 'client_admin'
+  role: UserRole
   organization_id: string | null
   employer_organization_id: string | null
   full_name: string | null
@@ -112,6 +112,37 @@ interface AuthUser {
   extra_organization_ids: string[]
   /** Optional per-officer PTT scopes beyond the default org channel */
   ptt_channel_access: string[] | null
+}
+
+export type UserRole =
+  | 'master'
+  | 'admin'
+  | 'systems_administrator'
+  | 'officer'
+  | 'admin_officer'
+  | 'manager'
+  | 'supervisor'
+  | 'field_officer'
+  | 'viewer'
+  | 'support'
+  | 'contractor'
+  | 'regional_manager'
+  | 'dispatcher'
+  | 'dispatch'
+  | 'command_center'
+  | 'client_admin'
+  | 'client_user'
+  | 'financial_officer'
+  | 'intel_supervisor'
+  | 'analyst'
+  | 'nzscv_monitor'
+  | 'grand_master'
+  | 'client_viewer'
+  | 'client_officer'
+
+export const hasRole = (role: UserRole | null | undefined, roles: UserRole[]): boolean => {
+  if (!role) return false
+  return roles.includes(role)
 }
 
 function sanitizeGlobalFiltersForUser(authUser: AuthUser) {

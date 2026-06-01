@@ -1284,6 +1284,31 @@ export const edgeFunctions = {
   },
 
   /**
+   * Invite user and send setup email (no admin-set password required).
+   */
+  inviteUser: async (params: {
+    email: string
+    first_name: string
+    last_name: string
+    role: string
+    organization_id?: string | null
+    extra_organization_ids?: string[]
+    employer_organization_id?: string
+    phone?: string
+    job_title?: string | null
+    requires_driver_license?: boolean
+    portal_access?: string[]
+    authorized_work_locations?: string[]
+    ptt_channel_access?: string[]
+  }) => {
+    return callEdgeFunction('manage-user', {
+      action: 'invite',
+      organizationId: params.organization_id,
+      payload: params,
+    }, { useDirectFetch: true })
+  },
+
+  /**
    * Set or reset a user's password (admin/master only).
    * Re-pointed from deprecated `set-user-password` to consolidated `manage-user`.
    */

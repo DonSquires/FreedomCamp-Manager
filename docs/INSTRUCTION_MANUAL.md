@@ -91,6 +91,19 @@
 3. For any architecture-impacting, route-impacting, role-impacting, or workflow-impacting implementation, updates are required across code, this manual, and Bob governance/staging evidence docs.
 4. Any divergence between runtime behavior and this manual is treated as drift requiring remediation or an explicit documented product decision.
 
+### Current Cycle Amendment (2026-06-01 — Access, Roster, Invite, and PTT Parity)
+
+1. Officer landing remains roster-first via **Officer Home** (`/officer-home`), and non-rostered officers with approved specialty access are shown a direct **Specialty Functions** quick action into the approved specialist workflow entry point.
+2. User onboarding now supports both paths in User Management: **Create User** (admin-set password) and **Send Invite** (user sets password from secure invite email).
+3. A dedicated role/persona is supported: **systems_administrator** (display: Systems Administrator). This role is authorized for user/access governance surfaces required to manage access templates and levels.
+4. Invite email content must stay aligned with enforced policy language: role + organization + roster + specialty + PTT gating are all security controls, and invite expiry remains 24 hours.
+5. Organization scoping for admin/operational screens must use the shared fallback chain helper (primary org → employer org → authorized locations → extra orgs) instead of ad-hoc variants.
+6. **Parity checklist (mandatory on every change touching roles/org/PTT/specialty/user access):**
+   - Update enforced app behavior (routes, guards, role checks, org scoping, PTT/specialty gates).
+   - Update invitation/onboarding messaging if user-facing access behavior changed.
+   - Update this instruction manual in the same change set.
+   - Validate with lint/build and security/code review gates before merge.
+
 ### Current Cycle Agentic Action Board (2026-05-18)
 
 Product Oversight To-Do (authoritative execution list):

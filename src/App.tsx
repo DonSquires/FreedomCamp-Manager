@@ -990,6 +990,8 @@ export default function App() {
                   <Navigate to="/admin/nzscv" replace />
                 ) : user?.role === 'grand_master' ? (
                   <Navigate to="/platform" replace />
+                ) : user?.role === 'systems_administrator' ? (
+                  <Navigate to="/access-control" replace />
                 ) : user?.role === 'admin' || user?.role === 'master' ? (
                   <Navigate to="/admin/dashboard" replace />
                 ) : (
@@ -1132,7 +1134,7 @@ export default function App() {
             path="/users"
             element={
               <ProtectedRoute>
-                <AreaRoute allowedRoles={['admin', 'admin_officer', 'master']} area="users">
+                <AreaRoute allowedRoles={['admin', 'systems_administrator', 'admin_officer', 'master']} area="users">
                   <UserManagement />
                 </AreaRoute>
               </ProtectedRoute>
@@ -1143,7 +1145,7 @@ export default function App() {
             path="/access-control"
             element={
               <ProtectedRoute>
-                <AreaRoute allowedRoles={['admin', 'admin_officer', 'master', 'grand_master']} area="users">
+                <AreaRoute allowedRoles={['admin', 'systems_administrator', 'admin_officer', 'master', 'grand_master']} area="users">
                   <GovernanceMutationGate
                     actionLabel="Access Control"
                     impactPreview="May alter role permissions and user access boundaries across multiple modules."
