@@ -5,7 +5,7 @@ import { createClient } from '@supabase/supabase-js'
 import { loadLocalEnv } from './load-local-env.mjs'
 
 const HELP_TEXT = `
-Validate onboarding readiness for newly introduced clients, sites, zones, and locations.
+Validate onboarding readiness for newly introduced CRM organizations, sites, zones, and locations.
 
 Usage:
   node scripts/validate-entity-onboarding-readiness.mjs [options]
@@ -65,6 +65,11 @@ function hasText(value) {
 
 function normalizeOrgType(value) {
   return String(value || '').trim().toLowerCase()
+}
+
+function isCrmAccountOrg(org) {
+  const type = normalizeOrgType(org?.organization_type)
+  return type === 'owner' || type === 'service_provider' || type === 'client' || type === 'contractor' || type === 'operator'
 }
 
 function isClientLikeOrg(org) {
@@ -194,7 +199,7 @@ async function main() {
   const sites = await fetchTable(
     supabase,
     'client_sites',
-    'id,name,organization_id,zone_id,is_active,site_type,gps_lat,gps_lng,address,city,created_at',
+    'id,name,organization_id,zone_id,loi_id,is_active,site_type,gps_lat,gps_lng,address,city,created_at',
     '',
   )
   const zones = await fetchTable(
@@ -239,6 +244,7 @@ async function main() {
 
   const filteredOrgs = organizations.filter((org) => {
     if (!orgIds.has(org.id)) return false
+    if (!isCrmAccountOrg(org)) return false
     if (args.scope === 'all') return true
     return createdWithin(org.created_at, sinceIso)
   })
@@ -248,11 +254,22 @@ async function main() {
       pushFinding('blocker', 'ORG_INACTIVE', 'organization', org.id, `Organization ${org.name} is inactive.`)
     }
 
+    if (org.parent_organization_id) {
+      const parent = orgMap.get(org.parent_organization_id)
+      if (!parent) {
+        pushFinding('blocker', 'ORG_PARENT_NOT_FOUND', 'organization', org.id, `Organization ${org.name} references missing parent organization ${org.parent_organization_id}.`)
+      } else if (!isTruthy(parent.is_active)) {
+        pushFinding('warning', 'ORG_PARENT_INACTIVE', 'organization', org.id, `Organization ${org.name} is linked to inactive parent organization ${parent.name}.`)
+      }
+    }
+
     if (isClientLikeOrg(org) && Number(org.organization_level || 0) > 1 && !org.parent_organization_id) {
       pushFinding('warning', 'ORG_PARENT_RECOMMENDED', 'organization', org.id, `Organization ${org.name} has no parent organization configured.`)
     }
 
-    if (!isClientLikeOrg(org)) continue
+    if (normalizeOrgType(org.organization_type) === 'service_provider' && !org.parent_organization_id) {
+      pushFinding('blocker', 'ORG_SERVICE_PROVIDER_PARENT_REQUIRED', 'organization', org.id, `Service provider ${org.name} must be linked to its app owner or platform owner via parent_organization_id.`)
+    }
 
     const orgModules = (modulesByOrg.get(org.id) || []).filter((m) => isTruthy(m.is_active))
     const activeKeys = new Set(orgModules.map((m) => String(m.module_key || '').trim()))
@@ -261,9 +278,11 @@ async function main() {
       pushFinding('blocker', 'ORG_MODULE_CRM_MISSING', 'organization', org.id, `Organization ${org.name} is missing active crm module subscription.`)
     }
 
-    if (!activeKeys.has('reporting')) {
+    if (isClientLikeOrg(org) && !activeKeys.has('reporting')) {
       pushFinding('blocker', 'ORG_MODULE_REPORTING_MISSING', 'organization', org.id, `Organization ${org.name} is missing active reporting module subscription.`)
     }
+
+    if (!isClientLikeOrg(org)) continue
 
     const orgAgreements = (agreementsByOrg.get(org.id) || []).filter((a) => {
       const activeStatus = String(a.status || '').toLowerCase() === 'active'
@@ -333,6 +352,17 @@ async function main() {
       }
     }
 
+    if (!site.loi_id) {
+      pushFinding('blocker', 'SITE_LOI_MISSING', 'client_site', site.id, `Site ${site.name || site.id} is missing loi_id.`)
+    } else {
+      const loi = loiMap.get(site.loi_id)
+      if (!loi) {
+        pushFinding('blocker', 'SITE_LOI_NOT_FOUND', 'client_site', site.id, `Site ${site.name || site.id} references missing LOI ${site.loi_id}.`)
+      } else if (loi.organization_id !== site.organization_id) {
+        pushFinding('blocker', 'SITE_LOI_ORG_MISMATCH', 'client_site', site.id, `Site ${site.name || site.id} LOI organization does not match site organization.`)
+      }
+    }
+
     if (!hasLatLng(site.gps_lat, site.gps_lng) && !hasText(site.address) && !hasText(site.city)) {
       pushFinding('warning', 'SITE_LOCATION_MISSING', 'client_site', site.id, `Site ${site.name || site.id} is missing GPS and address context.`)
     }
@@ -358,7 +388,9 @@ async function main() {
       pushFinding('warning', 'ZONE_SPATIAL_DATA_MISSING', 'zone', zone.id, `Zone ${zone.name || zone.id} is missing geometry and location coordinates.`)
     }
 
-    if (zone.loi_id) {
+    if (!zone.loi_id) {
+      pushFinding('blocker', 'ZONE_LOI_MISSING', 'zone', zone.id, `Zone ${zone.name || zone.id} is missing loi_id.`)
+    } else {
       const loi = loiMap.get(zone.loi_id)
       if (!loi) {
         pushFinding('blocker', 'ZONE_LOI_NOT_FOUND', 'zone', zone.id, `Zone ${zone.name || zone.id} references missing LOI ${zone.loi_id}.`)

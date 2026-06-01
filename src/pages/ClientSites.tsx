@@ -203,7 +203,7 @@ interface SiteForm {
 
 const SITE_TYPE_LABELS: Record<string, string> = {
   general: 'General', freedom_camping: 'Freedom Camping', guarding: 'Guarding Post',
-  parking: 'Parking', noise_control: 'Noise Control', event: 'Event Site', infrastructure: 'Infrastructure',
+  patrol: 'Patrol Site', parking: 'Parking', noise_control: 'Noise Control', event: 'Event Site', infrastructure: 'Infrastructure',
   research: 'Research', bus_hub: 'Bus Hub', government: 'Government', commercial: 'Commercial',
 }
 

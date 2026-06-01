@@ -7,19 +7,32 @@
  * Note: Requires migrations 20260714000001 and 20260714000002 to be deployed.
  */
 
-import { describe, it, expect, beforeAll, afterAll } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import { createClient } from '@supabase/supabase-js'
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL || ''
-const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || ''
+const supabaseKey =
+  process.env.SUPABASE_SERVICE_ROLE_KEY ||
+  process.env.VITE_SUPABASE_SERVICE_ROLE_KEY ||
+  ''
 
-if (!supabaseUrl || !supabaseKey) {
-  throw new Error('VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY required for geofence-strict tests')
+const canRun = Boolean(supabaseUrl && supabaseKey)
+
+if (!canRun) {
+  console.warn(
+    'Skipping geofence-strict tests: VITE_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required',
+  )
 }
 
-const supabase = createClient(supabaseUrl, supabaseKey)
+const supabase = canRun
+  ? createClient(supabaseUrl, supabaseKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    })
+  : null
 
-describe('Strict Geofence Enforcement RPCs', () => {
+const describeIf = canRun ? describe : describe.skip
+
+describeIf('Strict Geofence Enforcement RPCs', () => {
   /**
    * Test 1: is_point_inside_zone with circle radius
    * 

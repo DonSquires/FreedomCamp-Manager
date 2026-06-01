@@ -1824,6 +1824,7 @@ export type Database = {
           id: string
           invoice_frequency: string | null
           is_active: boolean
+          loi_id: string | null
           m365_contract_ref: string | null
           m365_cost_centre: string | null
           m365_customer_id: string | null
@@ -1863,6 +1864,7 @@ export type Database = {
           id?: string
           invoice_frequency?: string | null
           is_active?: boolean
+          loi_id?: string | null
           m365_contract_ref?: string | null
           m365_cost_centre?: string | null
           m365_customer_id?: string | null
@@ -1902,6 +1904,7 @@ export type Database = {
           id?: string
           invoice_frequency?: string | null
           is_active?: boolean
+          loi_id?: string | null
           m365_contract_ref?: string | null
           m365_cost_centre?: string | null
           m365_customer_id?: string | null
@@ -1937,6 +1940,13 @@ export type Database = {
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_sites_loi_id_fkey"
+            columns: ["loi_id"]
+            isOneToOne: false
+            referencedRelation: "locations_of_interest"
             referencedColumns: ["id"]
           },
           {

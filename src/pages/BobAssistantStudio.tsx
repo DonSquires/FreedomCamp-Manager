@@ -4192,6 +4192,82 @@ export default function BobAssistantStudio() {
       }
     }
 
+    const sanitizedRequestedClientName = requestedClientName.trim()
+    const normalizedRequestedClientName = sanitizedRequestedClientName.toLowerCase()
+    const escapedRequestedClientNamePattern = sanitizedRequestedClientName.replace(/[%_]/g, (match) => `\\${match}`)
+    if (!matchedClientOrgId && normalizedRequestedClientName) {
+      type CandidateOrganization = { id: string; name: string | null; organization_type: string | null }
+      const { data: exactNameCandidate, error: exactNameCandidatesError } = await (supabase as any)
+        .from('organizations')
+        .select('id, name, organization_type')
+        .eq('name', sanitizedRequestedClientName)
+        .eq('is_active', true)
+        .maybeSingle()
+
+      if (exactNameCandidatesError) throw exactNameCandidatesError
+
+      let globalClientCandidates = exactNameCandidate ? [exactNameCandidate as CandidateOrganization] : []
+      if (globalClientCandidates.length === 0) {
+        const { data: fuzzyNameCandidates, error: fuzzyNameCandidatesError } = await (supabase as any)
+          .from('organizations')
+          .select('id, name, organization_type')
+          .ilike('name', `%${escapedRequestedClientNamePattern}%`)
+          .eq('is_active', true)
+          .limit(10)
+
+        if (fuzzyNameCandidatesError) throw fuzzyNameCandidatesError
+        globalClientCandidates = (fuzzyNameCandidates ?? []) as CandidateOrganization[]
+      }
+
+      const matchingClientOrgs = globalClientCandidates
+        .map((org) => ({ ...org, normalizedName: String(org.name || '').trim().toLowerCase() }))
+        .filter((org) => org.id !== providerOrgId)
+
+      const exactClientMatch = matchingClientOrgs.find((org) =>
+        org.normalizedName === normalizedRequestedClientName
+        && org.organization_type === 'client')
+      const fuzzyClientMatch = matchingClientOrgs.find((org) =>
+        org.normalizedName.includes(normalizedRequestedClientName)
+        && org.organization_type === 'client')
+      const exactAnyMatch = matchingClientOrgs.find((org) =>
+        org.normalizedName === normalizedRequestedClientName)
+
+      matchedClientOrgId = exactClientMatch?.id ?? fuzzyClientMatch?.id ?? exactAnyMatch?.id ?? null
+    }
+
+    let createdClientOrganization = false
+    if (!matchedClientOrgId && normalizedRequestedClientName) {
+      const { data: providerOrg, error: providerOrgError } = await (supabase as any)
+        .from('organizations')
+        .select('name')
+        .eq('id', providerOrgId)
+        .maybeSingle()
+
+      if (providerOrgError) throw providerOrgError
+
+      const providerName = String(providerOrg?.name || '').trim().toLowerCase()
+      const providerMatchesRequestedClient = providerName === normalizedRequestedClientName
+      // Avoid writing a duplicate client row when the requested client name is
+      // effectively the provider organization.
+      if (!providerMatchesRequestedClient) {
+        const { data: createdClientOrg, error: createdClientOrgError } = await (supabase as any)
+          .from('organizations')
+          .insert({
+            name: sanitizedRequestedClientName,
+            organization_type: 'client',
+            organization_level: 3,
+            parent_organization_id: providerOrgId,
+            is_active: true,
+          })
+          .select('id')
+          .single()
+
+        if (createdClientOrgError) throw createdClientOrgError
+        matchedClientOrgId = createdClientOrg?.id ?? null
+        createdClientOrganization = !!matchedClientOrgId
+      }
+    }
+
     const fallbackPatrolZone = resolvePatrolZoneFallback(pendingPatrolSetupBlueprint)
 
     let basePatrolZoneId: string | null = null
@@ -4435,13 +4511,15 @@ export default function BobAssistantStudio() {
     }
 
     await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['organizations'] }),
+      queryClient.invalidateQueries({ queryKey: ['crm_accounts'] }),
       queryClient.invalidateQueries({ queryKey: ['client-sites'] }),
       queryClient.invalidateQueries({ queryKey: ['zones'] }),
       queryClient.invalidateQueries({ queryKey: ['patrols'] }),
       queryClient.invalidateQueries({ queryKey: ['patrol-stats'] }),
     ])
 
-    toast.success(`Patrol setup draft applied: provider patrol zone in service provider org, ${createdSites} client site(s) created, ${updatedSites} updated, ${createdZones} client geofence zone(s) created${attachedPatrolId ? createdPatrolSchedule ? ', 1 provider patrol schedule created' : ', attached to active provider patrol' : ''}`)
+    toast.success(`Patrol setup draft applied: provider patrol zone in service provider org, ${createdClientOrganization ? '1 client organization created, ' : ''}${createdSites} client site(s) created, ${updatedSites} updated, ${createdZones} client geofence zone(s) created${attachedPatrolId ? createdPatrolSchedule ? ', 1 provider patrol schedule created' : ', attached to active provider patrol' : ''}`)
   }
 
   const executeCreateHistoricalPatrolImportDraft = async () => {

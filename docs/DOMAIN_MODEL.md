@@ -97,14 +97,12 @@ record is being created, the client organization must already exist in CRM and
 must be selected before the site can be saved.
 
 ```
-client_sites.loi_id → locations_of_interest (planned future migration)
+client_sites.loi_id → locations_of_interest
 ```
 
-**Currently** `client_sites` stores its own `address`, `gps_lat`, `gps_lng`
-fields.  A future migration will:
-1. Create an LOI for each site from those fields.
-2. Set `client_sites.loi_id` to the new LOI.
-3. Deprecate the inline address columns.
+**Current state**: `client_sites` still stores its own `address`, `gps_lat`, and
+`gps_lng` fields for compatibility, but active sites are expected to be linked to
+their canonical LOI through `client_sites.loi_id`.
 
 ---
 

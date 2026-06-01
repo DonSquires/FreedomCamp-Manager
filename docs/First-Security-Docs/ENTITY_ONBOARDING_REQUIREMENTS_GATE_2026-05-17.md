@@ -3,7 +3,7 @@
 ## Purpose
 
 This gate enforces baseline production requirements whenever new entities are introduced:
-- client organizations
+- CRM organizations (`owner`, `service_provider`, `client`, `contractor`)
 - client sites
 - zones
 - locations of interest (LOI)
@@ -12,11 +12,15 @@ The intent is to stop partially configured entities from entering live workflows
 
 ## Enforced Checks
 
-### Organization Checks (client/operator)
+### Organization Checks (CRM organizations)
 
 Required:
 - organization is active
 - active `crm` module subscription exists (`org_module_subscriptions`)
+- service providers must have `parent_organization_id` set to their app owner or platform owner
+- if `parent_organization_id` is set, the referenced parent organization must exist
+
+Required for client/operator organizations:
 - active `reporting` module subscription exists (`org_module_subscriptions`)
 - signed active service agreement exists (`service_agreements.is_signed = true`)
 
@@ -61,8 +65,11 @@ Recommended:
 Required:
 - `site_type` is set
 - `zone_id` is set
+- `loi_id` is set
 - referenced `zone_id` exists
 - site organization matches zone organization
+- referenced `loi_id` exists
+- site organization matches LOI organization
 
 Recommended:
 - GPS (`gps_lat`,`gps_lng`) or address context (`address`/`city`) is present
@@ -71,8 +78,9 @@ Recommended:
 
 Required:
 - zone has name
-- if `loi_id` is set, referenced LOI exists
-- if `loi_id` is set, LOI organization matches zone organization
+- `loi_id` is set
+- referenced `loi_id` exists
+- LOI organization matches zone organization
 
 Recommended:
 - geometry or point coordinates are present (`geometry` or `location_lat`,`location_lng`)

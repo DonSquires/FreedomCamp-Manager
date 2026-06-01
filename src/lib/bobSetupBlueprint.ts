@@ -904,6 +904,7 @@ export function inferSiteType(serviceCoverage: string[]): string {
   const joined = serviceCoverage.join(' ').toLowerCase()
   if (joined.includes('noise')) return 'noise_control'
   if (joined.includes('parking')) return 'parking'
+  if (joined.includes('patrol')) return 'patrol'
   if (joined.includes('guard')) return 'guarding'
   if (joined.includes('freedom')) return 'freedom_camping'
   return 'general'

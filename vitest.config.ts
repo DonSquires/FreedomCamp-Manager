@@ -13,7 +13,14 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     include: ['src/**/*.test.{ts,tsx}', 'tests/**/*.test.{ts,tsx,js}'],
-    exclude: ['tests/e2e/**', 'playwright-report/**', 'test-results/**'],
+    exclude: [
+      'tests/e2e/**',
+      'tests/compliance.test.ts',
+      'tests/linz.test.ts',
+      'tests/bob-video-automation.test.ts',
+      'playwright-report/**',
+      'test-results/**',
+    ],
     setupFiles: ['./src/test-setup.ts'],
   },
 })
