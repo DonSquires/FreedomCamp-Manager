@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { User, MapPin, Clock, Car, AlertTriangle, CheckSquare, XCircle, Zap } from 'lucide-react'
-import { SPECIALTY_TYPE_META, getSpecialtyPortalPath, type SpecialtyType } from '@/lib/officerPortalRouting'
+import { buildSpecialtyPortalLink, getSpecialtyMeta, type SpecialtyType } from '@/lib/officerPortalRouting'
 
 interface PatrolCardProps {
   patrol: {
@@ -46,14 +46,12 @@ function formatDuration(startedAt: string, endedAt?: string): string {
 
 export function PatrolCard({ patrol, onViewDetails, onEndPatrol, onStartPatrol, compact = false }: PatrolCardProps) {
   const navigate = useNavigate()
-  const specialtyMeta = patrol.specialty_type
-    ? SPECIALTY_TYPE_META[patrol.specialty_type as SpecialtyType]
-    : null
+  const specialtyMeta = getSpecialtyMeta(patrol.specialty_type as SpecialtyType | null)
 
   function handleStart() {
-    const path = getSpecialtyPortalPath(patrol.specialty_type)
+    const path = buildSpecialtyPortalLink({ specialtyType: patrol.specialty_type }, { patrol: patrol.id })
     if (path) {
-      navigate(`${path}&patrol=${patrol.id}`)
+      navigate(path)
     } else if (onStartPatrol) {
       onStartPatrol(patrol.id)
     }
@@ -141,7 +139,12 @@ export function PatrolCard({ patrol, onViewDetails, onEndPatrol, onStartPatrol, 
                 variant="outline"
                 size="sm"
                 className="flex-1"
-                onClick={() => navigate(`${specialtyMeta.portalPath}&patrol=${patrol.id}`)}
+                onClick={() =>
+                  navigate(
+                    buildSpecialtyPortalLink({ specialtyType: patrol.specialty_type }, { patrol: patrol.id })
+                    || specialtyMeta.portalPath,
+                  )
+                }
               >
                 <Zap className="h-4 w-4 mr-1" />
                 Open {specialtyMeta.label}
@@ -164,4 +167,3 @@ export function PatrolCard({ patrol, onViewDetails, onEndPatrol, onStartPatrol, 
     </Card>
   )
 }
-

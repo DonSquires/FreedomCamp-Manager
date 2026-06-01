@@ -40,6 +40,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { toast } from 'sonner'
 import { formatDateTime } from '@/lib/utils'
 import { edgeFunctions } from '@/lib/edgeFunctions'
+import { validateNoticeIssuancePayload } from '@/lib/noticeWorkflow'
 import { FieldSafetyBar } from '@/components/features/FieldSafetyBar'
 import { useOperationalOrganization } from '@/hooks/useOperationalOrganization'
 import { useGeofenceOrgTransition } from '@/hooks/useGeofenceOrgTransition'
@@ -575,6 +576,22 @@ export default function NoiseOfficerPortal() {
   const issueNoticeMutation = useMutation({
     mutationFn: async () => {
       if (!orgId || !user?.id || !selectedJob) throw new Error('No job selected')
+      const issuanceValidation = validateNoticeIssuancePayload({
+        noticeClass: 'noise',
+        legalBasis: noticeForm.rma_section || 'Resource Management Act 1991',
+        issuerId: user.id,
+        issuerRole: user.role || 'officer',
+        policyReference: 'noise.notice.default',
+        evidenceRefs: [selectedJob.id, completedAssessmentId].filter((value): value is string => Boolean(value)),
+        serviceProof: {
+          method: 'hand',
+          servedAt: new Date().toISOString(),
+          servedBy: user.id,
+          recipientName: noticeForm.recipient_name || 'Occupant',
+          recipientAddress: selectedJob.address,
+        },
+      })
+      if (!issuanceValidation.ok) throw new Error(issuanceValidation.errors[0] || 'Missing notice issuance data')
       const { data: noticeNumData, error: noticeNumError } = await supabase.rpc('next_noise_notice_number', { p_org_id: orgId })
       if (noticeNumError) throw noticeNumError
       const noticeNumber: string = noticeNumData
