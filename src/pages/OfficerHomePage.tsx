@@ -23,7 +23,7 @@ import { useStartOfficerShift } from '@/hooks/useFieldOfficerMutations'
 import { PatrolChainAuditPrompt } from '@/components/features/PatrolChainAuditPrompt'
 import { recordChainAudit } from '@/lib/keyAudits'
 import { useKeyAuditEnabled } from '@/hooks/useKeyAuditEnabled'
-import { SERVICE_TYPE_PORTAL, getOfficerPortalPath } from '@/lib/officerPortalRouting'
+import { SERVICE_TYPE_PORTAL, canShowSpecialtyQuickLink, getOfficerPortalPath } from '@/lib/officerPortalRouting'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
@@ -56,6 +56,7 @@ import {
   CheckCircle,
   PlayCircle,
   CalendarCheck2,
+  Briefcase,
   XCircle,
 } from 'lucide-react'
 import { PTTBar } from '@/components/features/PTTBar'
@@ -401,6 +402,7 @@ export default function OfficerHomePage() {
   }, [navigate, operationalOrganizationId, queryClient, rosterPortalPath, rosteredShift, siteToolPermissions.alpr, siteToolPermissions.noise, siteToolPermissions.siteGuard, startOfficerShift, user])
 
   const today = format(nzNow(), 'EEEE d MMMM yyyy')
+  const showSpecialtyQuickLink = canShowSpecialtyQuickLink(user?.role, Boolean(rosteredShift))
 
   return (
     <OfficerShell
@@ -606,6 +608,24 @@ export default function OfficerHomePage() {
 
         {/* ── Action tiles ─────────────────────────────────────────────────── */}
         <div className="w-full grid gap-3">
+          {showSpecialtyQuickLink && (
+            <button
+              onClick={() => navigate('/field-officer')}
+              className="w-full min-h-14 flex items-center justify-between bg-white rounded-xl border border-gray-200 shadow-sm p-4 hover:bg-gray-50 dark:bg-[#1A1A1A] dark:border-[#9E9E9E]/20 dark:hover:bg-[#2A2A2A] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+            >
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-lg bg-violet-100 dark:bg-violet-950/50 flex items-center justify-center">
+                  <Briefcase className="h-5 w-5 text-violet-600 dark:text-violet-300" />
+                </div>
+                <div className="text-left">
+                  <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">Specialty Functions</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Open approved specialty tools without a rostered shift</p>
+                </div>
+              </div>
+              <ChevronRight className="h-4 w-4 text-gray-400 dark:text-gray-500" />
+            </button>
+          )}
+
           {/* Team Chat — always available */}
           <button
             onClick={() => navigate('/team-chat')}

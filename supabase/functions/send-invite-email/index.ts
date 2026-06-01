@@ -110,26 +110,26 @@ function buildInviteEmail(params: { firstName?: string; inviteUrl: string }) {
               </tr>
             </table>
             <div style="margin-top:24px;color:#ffffff;font-size:30px;font-weight:700;line-height:1.2;">Field Compliance Manager</div>
-            <div style="margin-top:8px;color:#cbd5e1;font-size:15px;line-height:1.5;">Secure compliance operations, reporting, and enforcement workflows for field teams.</div>
+            <div style="margin-top:8px;color:#cbd5e1;font-size:15px;line-height:1.5;">Roster-first operations, specialty workflows, and secure field coordination.</div>
           </td>
         </tr>
         <tr>
           <td style="padding:36px 32px 20px;">
             <p style="font-size:18px;color:#0f172a;margin:0 0 16px;font-weight:600;">${greeting}</p>
             <p style="font-size:15px;color:#334155;margin:0 0 16px;line-height:1.7;">
-              You have been invited to join <strong>Field Compliance Manager</strong>. Use the secure link below to set your password and access the platform.
+              You have been invited to join <strong>Field Compliance Manager</strong>. Use the secure link below to set your password and activate access.
             </p>
             <table width="100%" cellpadding="0" cellspacing="0" style="margin:24px 0 0;background:#f8fafc;border:1px solid #dbeafe;border-radius:16px;">
               <tr>
                 <td style="padding:20px 22px;">
                   <div style="font-size:12px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:#2563eb;">Security Check</div>
-                  <div style="margin-top:8px;font-size:14px;line-height:1.6;color:#334155;">Open this link only if it uses <strong>HTTPS</strong> and the approved Field Compliance Manager domain <strong>${inviteHost}</strong>.</div>
+                  <div style="margin-top:8px;font-size:14px;line-height:1.6;color:#334155;">Open this link only if it uses <strong>HTTPS</strong> and the approved Field Compliance Manager domain <strong>${inviteHost}</strong>. Access after sign-in is enforced by role, organisation scope, roster status, and approved specialty permissions.</div>
                 </td>
               </tr>
             </table>
             <p style="text-align:center;margin:28px 0;">
               <a href="${safeInviteUrl}" style="background:linear-gradient(135deg,#1e3a5f 0%,#2563eb 100%);color:#ffffff;text-decoration:none;padding:16px 30px;border-radius:999px;font-size:15px;font-weight:700;display:inline-block;box-shadow:0 12px 24px rgba(37,99,235,0.24);">
-                Accept Invitation &amp; Set Password
+                Accept Invite &amp; Set Password
               </a>
             </p>
             <table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 24px;background:#fff7ed;border:1px solid #fdba74;border-radius:14px;">

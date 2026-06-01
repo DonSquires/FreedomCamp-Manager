@@ -5,7 +5,7 @@
 
 import { useState, useMemo, useCallback, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { buildPreferredMapUrlForCoordinates } from '@/lib/inhouseMapping'
 import { useAuthStore } from '@/stores/authStore'
@@ -16,6 +16,7 @@ import {
   shouldEnableRosterPlannerClientScopedQueries,
   shouldEnableRosterPlannerQueries,
 } from '@/pages/rosterPlannerQueryGuards'
+import { canShowSpecialtyQuickLink } from '@/lib/officerPortalRouting'
 import { AppLayout } from '@/components/features/AppLayout'
 import UserManagement from '@/pages/UserManagement'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
@@ -67,6 +68,7 @@ import {
   MapPin,
   CheckCircle,
   FileText,
+  ShieldCheck,
   X,
   RefreshCw,
   Loader2,
@@ -1172,6 +1174,7 @@ function ShiftDialog({
 export default function RosterPlanner() {
   const { user } = useAuthStore()
   const { operationalOrganizationId } = useOperationalOrganization()
+  const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const queryClient = useQueryClient()
   const isAdmin = user?.role === 'admin' || user?.role === 'master' || user?.role === 'grand_master' || user?.role === 'admin_officer'
@@ -1364,6 +1367,13 @@ export default function RosterPlanner() {
     },
     enabled: clientScopedQueriesEnabled,
   })
+
+  const hasRosteredShift = useMemo(
+    () => !!user?.id && shifts.some((shift) => shift.officer_id === user.id),
+    [shifts, user?.id],
+  )
+
+  const showSpecialtyQuickLink = canShowSpecialtyQuickLink(user?.role, hasRosteredShift)
 
   // ─── Mutations ─────────────────────────────────────────────────────────────
 
@@ -1866,6 +1876,17 @@ export default function RosterPlanner() {
                     Workforce
                   </button>
                 </div>
+              )}
+              {showSpecialtyQuickLink && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => navigate('/field-officer')}
+                  className="border-violet-300 text-violet-700 hover:bg-violet-50"
+                >
+                  <ShieldCheck className="w-4 h-4 mr-1" />
+                  Specialty Functions
+                </Button>
               )}
               <Button
                 variant="outline"

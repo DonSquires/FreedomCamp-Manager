@@ -2,7 +2,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3'
 import { getCorsHeaders } from '../_shared/withCors.ts'
 
 interface ManageUserRequest {
-  action: 'create' | 'update' | 'update_access' | 'set_password' | 'deactivate' | 'disconnect_ptt' | 'set_ptt_channel_access'
+  action: 'create' | 'invite' | 'update' | 'update_access' | 'set_password' | 'deactivate' | 'disconnect_ptt' | 'set_ptt_channel_access'
   userId?: string
   organizationId?: string
   payload?: Record<string, unknown>
@@ -170,7 +170,7 @@ Deno.serve(async (req) => {
       .eq('id', userId)
       .single()
 
-    const isAdminLike = caller && ['admin', 'admin_officer', 'master', 'grand_master'].includes(caller.role)
+    const isAdminLike = caller && ['admin', 'systems_administrator', 'admin_officer', 'master', 'grand_master'].includes(caller.role)
     if (!isAdminLike) {
       return new Response(JSON.stringify({ error: 'Forbidden' }), {
         status: 403,
@@ -234,6 +234,98 @@ Deno.serve(async (req) => {
       }
 
       return new Response(JSON.stringify({ ok: true, data: profile }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    if (body.action === 'invite') {
+      const email = String(body.payload?.email ?? '').trim().toLowerCase()
+      const role = String(body.payload?.role ?? '')
+      const organizationId = String(body.organizationId ?? body.payload?.organization_id ?? '')
+      const firstName = String(body.payload?.first_name ?? '').trim()
+      const lastName = String(body.payload?.last_name ?? '').trim()
+
+      if (!email || !role || !organizationId || !firstName || !lastName) {
+        return new Response(JSON.stringify({ error: 'email, first_name, last_name, role, and organization_id are required' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+
+      if (!['grand_master', 'systems_administrator'].includes(caller.role) && caller.organization_id !== organizationId) {
+        return new Response(JSON.stringify({ error: 'Cannot invite users to another organization' }), {
+          status: 403,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+
+      const siteUrl = Deno.env.get('SITE_URL') || Deno.env.get('APP_URL') || 'https://fcmanager.co.nz'
+      const redirectTo = `${normalizeBaseUrl(siteUrl)}/login`
+
+      const { data: linkData, error: linkError } = await adminClient.auth.admin.generateLink({
+        type: 'invite',
+        email,
+        options: { redirectTo },
+      })
+      if (linkError) throw new Error(linkError.message)
+
+      const invitedUserId = String((linkData as any)?.user?.id ?? '')
+      const inviteUrl = String((linkData as any)?.properties?.action_link ?? '')
+      if (!invitedUserId || !inviteUrl) {
+        throw new Error('Failed to generate invite link')
+      }
+
+      const payload = body.payload ?? {}
+      const { data: profile, error: profileError } = await adminClient
+        .from('user_profiles')
+        .upsert({
+          id: invitedUserId,
+          email,
+          role,
+          first_name: firstName || null,
+          last_name: lastName || null,
+          phone: typeof payload.phone === 'string' ? payload.phone : null,
+          job_title: typeof payload.job_title === 'string' ? payload.job_title : null,
+          requires_driver_license: payload.requires_driver_license === true,
+          organization_id: organizationId,
+          employer_organization_id:
+            typeof payload.employer_organization_id === 'string' && payload.employer_organization_id.trim()
+              ? payload.employer_organization_id
+              : organizationId,
+          portal_access: normalizePortalAccess(payload.portal_access),
+          authorized_work_locations: normalizeUuidList(payload.authorized_work_locations),
+          extra_organization_ids: normalizeUuidList(payload.extra_organization_ids),
+          ptt_channel_access: normalizeScopeList(payload.ptt_channel_access),
+          is_active: true,
+          updated_at: new Date().toISOString(),
+        })
+        .select('id,email,role,organization_id,employer_organization_id,is_active')
+        .single()
+
+      if (profileError || !profile) {
+        throw new Error(profileError?.message ?? 'Failed to create invite profile')
+      }
+
+      const emailResponse = await fetch(`${supabaseUrl}/functions/v1/send-invite-email`, {
+        method: 'POST',
+        headers: {
+          Authorization: 'Bearer ' + serviceRoleKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email,
+          first_name: firstName || undefined,
+          invite_url: inviteUrl,
+          organization_id: organizationId,
+        }),
+      })
+
+      if (!emailResponse.ok) {
+        const message = await emailResponse.text().catch(() => '')
+        throw new Error(message || 'Failed to send invite email')
+      }
+
+      return new Response(JSON.stringify({ ok: true, data: profile, invited: true }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }

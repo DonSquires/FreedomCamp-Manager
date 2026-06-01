@@ -1,6 +1,7 @@
 export type SessionRole =
   | 'master'
   | 'admin'
+  | 'systems_administrator'
   | 'officer'
   | 'admin_officer'
   | 'nzscv_monitor'
@@ -45,6 +46,8 @@ export function getDefaultRouteForRole(role?: string | null): string {
       return '/officer-home'
     case 'admin_officer':
       return '/portal-selection'
+    case 'systems_administrator':
+      return '/access-control'
     case 'admin':
     case 'master':
       return '/admin/dashboard'
