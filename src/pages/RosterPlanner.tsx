@@ -1846,7 +1846,7 @@ export default function RosterPlanner() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => navigate('/specialty-functions')}
+                  onClick={() => navigate('/field-officer')}
                   className="border-violet-300 text-violet-700 hover:bg-violet-50"
                 >
                   <ShieldCheck className="w-4 h-4 mr-1" />

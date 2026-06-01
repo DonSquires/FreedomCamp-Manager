@@ -63,11 +63,14 @@ const PERMISSIONS: Permission[] = [
   { id: 'view_audit_log', name: 'View Audit Log', description: 'Can view audit trail', category: 'Reports' },
 ]
 
-const ROLES = ['master', 'admin', 'admin_officer', 'officer']
+const ROLES = ['master', 'admin', 'systems_administrator', 'admin_officer', 'officer']
 
 const DEFAULT_PERMISSIONS: RolePermissions = {
   master: PERMISSIONS.map(p => p.id), // All permissions
   admin: PERMISSIONS.filter(p => !['delete_users', 'delete_enforcement'].includes(p.id)).map(p => p.id),
+  systems_administrator: PERMISSIONS.filter(p =>
+    ['view_users', 'create_users', 'edit_users', 'view_audit_log'].includes(p.id)
+  ).map(p => p.id),
   admin_officer: PERMISSIONS.filter(p => !['delete_users', 'delete_enforcement'].includes(p.id)).map(p => p.id), // Same as admin
   officer: PERMISSIONS.filter(p => 
     ['view_observations', 'create_observations', 'view_vehicles', 'view_breaches', 'view_zones'].includes(p.id)
@@ -128,6 +131,7 @@ export function RolePermissionMatrix({
     const colors: Record<string, string> = {
       master: 'bg-purple-600',
       admin: 'bg-blue-600',
+      systems_administrator: 'bg-slate-700',
       admin_officer: 'bg-indigo-600',
       officer: 'bg-green-600',
     }

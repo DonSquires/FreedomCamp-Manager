@@ -180,7 +180,7 @@ export default function UserManagement({ embedded = false }: UserManagementProps
   }
 
   // Check user role
-  const isAdmin = user?.role === 'admin' || user?.role === 'admin_officer' || user?.role === 'master' || user?.role === 'grand_master'
+  const isAdmin = user?.role === 'admin' || user?.role === 'systems_administrator' || user?.role === 'admin_officer' || user?.role === 'master' || user?.role === 'grand_master'
   const isMaster = user?.role === 'master' || user?.role === 'grand_master'
 
   // Fetch all active organizations for dropdowns
@@ -430,6 +430,46 @@ export default function UserManagement({ embedded = false }: UserManagementProps
     },
     onError: (error: any) => {
       toast.error(error.message || 'Failed to create user')
+    },
+  })
+
+  const inviteUserMutation = useMutation({
+    mutationFn: async () => {
+      if (!emailRegex.test(email.trim())) {
+        throw new Error('Enter a valid email address (for example user@example.com)')
+      }
+      const payload = {
+        email: email.trim(),
+        role,
+        first_name: firstName,
+        last_name: lastName,
+        phone,
+        job_title: jobTitle || null,
+        requires_driver_license: requiresDriverLicense,
+        organization_id: organizationId || user?.organization_id || null,
+        extra_organization_ids: extraOrganizationIds,
+        employer_organization_id: employerOrgId || organizationId || user?.organization_id || null,
+        portal_access: portalAccess,
+        authorized_work_locations: derivedAuthorizedWorkLocations,
+        ptt_channel_access: createPttScopes,
+      }
+
+      const { data, error } = await withTimeout(
+        edgeFunctions.inviteUser(payload),
+        60000,
+        'Request timed out after 60 seconds.',
+      )
+      if (error) throw new Error(error)
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] })
+      setShowCreateDialog(false)
+      resetForm()
+      toast.success('Invite sent successfully')
+    },
+    onError: (error: any) => {
+      toast.error(error.message || 'Failed to send invite')
     },
   })
 
@@ -1038,6 +1078,7 @@ export default function UserManagement({ embedded = false }: UserManagementProps
                   <SelectItem value="nzscv_monitor">NZSCV Monitors</SelectItem>
                   <SelectItem value="admin_officer">Admin Officers</SelectItem>
                   <SelectItem value="admin">Admins</SelectItem>
+                  <SelectItem value="systems_administrator">Systems Administrators</SelectItem>
                   <SelectItem value="master">Masters</SelectItem>
                   <SelectItem value="grand_master">Grand Masters</SelectItem>
                   <SelectItem value="client_viewer">Client Viewers</SelectItem>
@@ -1315,7 +1356,7 @@ export default function UserManagement({ embedded = false }: UserManagementProps
           <DialogHeader>
             <DialogTitle>Create New User</DialogTitle>
             <DialogDescription>
-              Create a user account with a password. The user can sign in immediately.
+              Create a user account with a password, or send an invite so the user sets their own password.
             </DialogDescription>
           </DialogHeader>
           <div className="overflow-y-auto flex-1 pr-1">
@@ -1362,6 +1403,7 @@ export default function UserManagement({ embedded = false }: UserManagementProps
                       <SelectItem value="nzscv_monitor">NZSCV Monitor</SelectItem>
                       <SelectItem value="admin_officer">Admin Officer</SelectItem>
                       <SelectItem value="admin">Admin</SelectItem>
+                      <SelectItem value="systems_administrator">Systems Administrator</SelectItem>
                       <SelectItem value="client_officer">Client Officer</SelectItem>
                       <SelectItem value="client_admin">Client Admin</SelectItem>
                       <SelectItem value="client_viewer">Client Viewer</SelectItem>
@@ -1395,6 +1437,7 @@ export default function UserManagement({ embedded = false }: UserManagementProps
                       <SelectItem value="Dispatch Team">Dispatch Team</SelectItem>
                       <SelectItem value="Welfare Team">Welfare Team</SelectItem>
                       <SelectItem value="Supervisor">Supervisor</SelectItem>
+                      <SelectItem value="Systems Administrator">Systems Administrator</SelectItem>
                       <SelectItem value="Field Services Officer">Field Services Officer 🚗</SelectItem>
                       <SelectItem value="Patrol Officer">Patrol Officer 🚗</SelectItem>
                       <SelectItem value="Static Guard - Permanent">Static Guard – Permanent</SelectItem>
@@ -1605,9 +1648,16 @@ export default function UserManagement({ embedded = false }: UserManagementProps
             <Button variant="outline" onClick={() => setShowCreateDialog(false)}>
               Cancel
             </Button>
+            <Button
+              variant="secondary"
+              onClick={() => inviteUserMutation.mutate()}
+              disabled={!normalizedEmail || !isEmailValid || !firstName || !lastName || inviteUserMutation.isPending}
+            >
+              {inviteUserMutation.isPending ? 'Sending Invite...' : 'Send Invite'}
+            </Button>
             <Button 
               onClick={() => createUserMutation.mutate()}
-              disabled={!normalizedEmail || !isEmailValid || !firstName || !lastName || !password || !confirmPassword || createUserMutation.isPending}
+              disabled={!normalizedEmail || !isEmailValid || !firstName || !lastName || !password || !confirmPassword || createUserMutation.isPending || inviteUserMutation.isPending}
             >
               {createUserMutation.isPending ? 'Creating...' : 'Create User'}
             </Button>
@@ -1712,6 +1762,12 @@ export default function UserManagement({ embedded = false }: UserManagementProps
                     <div className="flex flex-col items-start">
                       <span className="font-medium text-gray-900 dark:text-gray-100">Admin Officer</span>
                       <span className="text-xs text-gray-500">Dual role - field + admin access</span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="systems_administrator">
+                    <div className="flex flex-col items-start">
+                      <span className="font-medium text-gray-900 dark:text-gray-100">Systems Administrator</span>
+                      <span className="text-xs text-gray-500">Template and access-level administration</span>
                     </div>
                   </SelectItem>
                   <SelectItem value="admin">
@@ -1981,6 +2037,7 @@ export default function UserManagement({ embedded = false }: UserManagementProps
                 <SelectContent>
                   <SelectItem value="officer">Officer</SelectItem>
                   <SelectItem value="admin_officer">Admin Officer</SelectItem>
+                  <SelectItem value="systems_administrator">Systems Administrator</SelectItem>
                   <SelectItem value="admin">Admin</SelectItem>
                   <SelectItem value="client_officer">Client Officer</SelectItem>
                   <SelectItem value="client_admin">Client Admin</SelectItem>
@@ -2015,6 +2072,7 @@ export default function UserManagement({ embedded = false }: UserManagementProps
                   <SelectItem value="Dispatch Team">Dispatch Team</SelectItem>
                   <SelectItem value="Welfare Team">Welfare Team</SelectItem>
                   <SelectItem value="Supervisor">Supervisor</SelectItem>
+                  <SelectItem value="Systems Administrator">Systems Administrator</SelectItem>
                   <SelectItem value="Field Services Officer">Field Services Officer 🚗</SelectItem>
                   <SelectItem value="Patrol Officer">Patrol Officer 🚗</SelectItem>
                   <SelectItem value="Static Guard - Permanent">Static Guard – Permanent</SelectItem>
