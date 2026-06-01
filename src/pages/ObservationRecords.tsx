@@ -12,14 +12,16 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { formatDateTime } from '@/lib/utils'
 import { nzDateToUTCStart, nzDateToUTCEnd } from '@/lib/timezone'
 import { getObservationPhotoUrl } from '@/lib/photoUtils'
-import { Car, Search, RefreshCw, Image as ImageIcon, Camera, Loader2, MapPin, Calendar, Clock, AlertTriangle, Shield, Flag } from 'lucide-react'
+import { Car, Search, RefreshCw, Image as ImageIcon, Camera, Loader2, MapPin, Calendar, Clock, AlertTriangle, Shield, Flag, Eye } from 'lucide-react'
 import { toast } from 'sonner'
 
 const PHOTO_SYNC_LIMIT = 500
 const PHOTO_SYNC_WINDOW_MINUTES = 120
+const OBSERVATION_PAGE_SIZE = 250
 
 interface ObservationRow {
   id: string
@@ -101,8 +103,11 @@ export default function ObservationRecords() {
   const { user } = useAuthStore()
   const { organizationId, zoneId, dateFrom, dateTo } = useGlobalFiltersStore()
   const [searchPlate, setSearchPlate] = useState('')
+  const [page, setPage] = useState(1)
   const [selectedPlate, setSelectedPlate] = useState<string | null>(null)
+  const [selectedRecord, setSelectedRecord] = useState<ObservationRow | null>(null)
   const requestedPlate = (searchParams.get('plate') || '').trim().toUpperCase()
+  const normalizedSearchPlate = searchPlate.trim().toUpperCase()
 
   const effectiveOrganizationId =
     (user?.role === 'master' || user?.role === 'grand_master') ? organizationId || null : user?.organization_id || null
@@ -110,21 +115,31 @@ export default function ObservationRecords() {
   const endDate = dateTo ? nzDateToUTCEnd(dateTo) : null
 
   const {
-    data: rawObservations = [],
+    data: observationData = { rows: [], totalCount: 0 },
     isLoading: observationsLoading,
     isError: observationsIsError,
     error: observationsError,
     refetch,
   } = useQuery({
-    queryKey: ['observation-records-observations', effectiveOrganizationId, zoneId, dateFrom, dateTo],
+    queryKey: ['observation-records-observations', effectiveOrganizationId, zoneId, dateFrom, dateTo, normalizedSearchPlate, page],
     queryFn: async () => {
       const applyFilters = (query: any) => {
         if (effectiveOrganizationId) query = query.eq('organization_id', effectiveOrganizationId)
         if (zoneId) query = query.eq('zone_id', zoneId)
         if (startDate) query = query.gte('recorded_at', startDate)
         if (endDate) query = query.lte('recorded_at', endDate)
+        if (normalizedSearchPlate) query = query.ilike('plate_number', `%${normalizedSearchPlate}%`)
         return query
       }
+
+      const offset = (page - 1) * OBSERVATION_PAGE_SIZE
+      const end = offset + OBSERVATION_PAGE_SIZE - 1
+
+      // Count first so the UI can paginate instead of loading the full table.
+      let countQuery = (supabase.from('observations') as any).select('observation_id', { count: 'exact', head: true })
+      countQuery = applyFilters(countQuery)
+      const { count: totalCount, error: countError } = await countQuery
+      if (countError) throw countError
 
       const extraCols = ', breach_type, breach_reason, nights_stayed_this_month'
       const zoneJoin = ', zone:zones!vehicle_observations_v2_zone_id_fkey(name)'
@@ -139,15 +154,16 @@ export default function ObservationRecords() {
         let primaryQuery = (supabase.from('observations') as any)
           .select(selectClause)
           .order('recorded_at', { ascending: false })
-          .limit(2500)
+          .range(offset, end)
 
         primaryQuery = applyFilters(primaryQuery)
         const primary = await primaryQuery
         if (!primary.error) {
-          return ((primary.data || []) as any[]).map((row: any) => ({
+          const rows = ((primary.data || []) as any[]).map((row: any) => ({
             ...row,
             id: row.observation_id,
           })) as ObservationRow[]
+          return { rows, totalCount: totalCount || 0 }
         }
       }
 
@@ -161,7 +177,7 @@ export default function ObservationRecords() {
         let fallbackQuery = (supabase.from('observations') as any)
           .select(selectClause)
           .order('recorded_at', { ascending: false })
-          .limit(2500)
+          .range(offset, end)
 
         fallbackQuery = applyFilters(fallbackQuery)
         fallback = await fallbackQuery
@@ -181,13 +197,18 @@ export default function ObservationRecords() {
         }
       }
 
-      return rawRows.map((row) => ({
+      const rows = rawRows.map((row) => ({
         ...row,
         id: row.observation_id,
         zone: row.zone_id ? { name: zoneNameById.get(row.zone_id) || 'Unknown zone' } : null,
       })) as ObservationRow[]
+      return { rows, totalCount: totalCount || 0 }
     },
   })
+
+  const rawObservations = observationData.rows
+  const totalObservationCount = observationData.totalCount
+  const totalPages = Math.max(1, Math.ceil(totalObservationCount / OBSERVATION_PAGE_SIZE))
 
   const observations = useMemo(() => {
     if (!rawObservations || rawObservations.length === 0) return [] as ObservationRow[]
@@ -245,6 +266,14 @@ export default function ObservationRecords() {
       setSearchPlate(requestedPlate)
     }
   }, [requestedPlate])
+
+  useEffect(() => {
+    setPage(1)
+  }, [effectiveOrganizationId, zoneId, dateFrom, dateTo, normalizedSearchPlate])
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages)
+  }, [page, totalPages])
 
   useEffect(() => {
     if (plateRecords.length === 0) {
@@ -374,6 +403,7 @@ export default function ObservationRecords() {
           <CardContent className="pt-4">
             <p className="text-xs text-muted-foreground">Observations in filter</p>
             <p className="text-2xl font-bold">{observations.length}</p>
+            <p className="text-xs text-muted-foreground mt-1">of {totalObservationCount} matching records</p>
             {duplicateCount > 0 && (
               <p className="text-xs text-muted-foreground mt-1">{duplicateCount} duplicates removed</p>
             )}
@@ -486,6 +516,30 @@ export default function ObservationRecords() {
         >
           Back to Breaches
         </Button>
+      </div>
+
+      <div className="flex items-center justify-between mb-4 text-sm">
+        <p className="text-muted-foreground">
+          Page {page} of {totalPages} • {totalObservationCount} total matching records
+        </p>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={page <= 1 || observationsLoading}
+            onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+          >
+            Previous
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={page >= totalPages || observationsLoading}
+            onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+          >
+            Next
+          </Button>
+        </div>
       </div>
 
       {observationsIsError ? (
@@ -605,101 +659,67 @@ export default function ObservationRecords() {
               {selectedRows.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Select a canonical vehicle to view observations.</p>
               ) : (
-                <div className="space-y-3 max-h-[65vh] overflow-y-auto">
+                <div className="space-y-3">
                   <p className="text-xs text-muted-foreground">{selectedRows.length} observation{selectedRows.length !== 1 ? 's' : ''}</p>
-                  {selectedRows.map((obs) => {
-                    const photoUrl = getObservationPhotoUrl(obs)
-                    return (
-                      <Card key={obs.id || observationDedupKey(obs)} className="border">
-                        <CardContent className="p-3">
-                          <div className="flex items-start gap-3">
-                            {/* Photo */}
-                            <div className="w-28 h-20 rounded border overflow-hidden shrink-0 bg-muted">
-                              {photoUrl ? (
-                                <button
-                                  type="button"
-                                  onClick={() => window.open(photoUrl, '_blank')}
-                                  className="block w-full h-full hover:opacity-90"
-                                >
-                                  <img
-                                    src={photoUrl}
-                                    alt={`Observation ${obs.id}`}
-                                    className="w-full h-full object-cover"
-                                    loading="lazy"
-                                    onError={(e) => {
-                                      ;(e.target as HTMLImageElement).style.display = 'none'
-                                    }}
-                                  />
-                                </button>
-                              ) : (
-                                <div className="w-full h-full flex items-center justify-center text-muted-foreground text-xs">
-                                  <span className="inline-flex items-center gap-1">
-                                    <ImageIcon className="h-3 w-3" />
-                                    No Photo
-                                  </span>
+                  <div className="max-h-[65vh] overflow-auto rounded-md border">
+                    <table className="w-full text-sm">
+                      <thead className="sticky top-0 bg-muted/80 backdrop-blur">
+                        <tr className="text-left border-b">
+                          <th className="px-3 py-2 font-medium">Photo</th>
+                          <th className="px-3 py-2 font-medium">Recorded</th>
+                          <th className="px-3 py-2 font-medium">Zone</th>
+                          <th className="px-3 py-2 font-medium">Status</th>
+                          <th className="px-3 py-2 font-medium">Breach Type</th>
+                          <th className="px-3 py-2 font-medium">Notes</th>
+                          <th className="px-3 py-2 font-medium text-right">Record</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {selectedRows.map((obs) => {
+                          const photoUrl = getObservationPhotoUrl(obs)
+                          return (
+                            <tr key={obs.id || observationDedupKey(obs)} className="border-b align-top">
+                              <td className="px-3 py-2">
+                                <div className="h-12 w-16 rounded border overflow-hidden bg-muted">
+                                  {photoUrl ? (
+                                    <img
+                                      src={photoUrl}
+                                      alt={`Observation ${obs.id}`}
+                                      className="h-full w-full object-cover"
+                                      loading="lazy"
+                                    />
+                                  ) : (
+                                    <div className="h-full w-full flex items-center justify-center text-muted-foreground text-[10px]">
+                                      No Photo
+                                    </div>
+                                  )}
                                 </div>
-                              )}
-                            </div>
-
-                            {/* Observation details */}
-                            <div className="flex-1 min-w-0 space-y-1">
-                              {/* Status badges */}
-                              <div className="flex items-center gap-2 flex-wrap">
+                              </td>
+                              <td className="px-3 py-2 whitespace-nowrap">{formatDateTime(obs.recorded_at)}</td>
+                              <td className="px-3 py-2 whitespace-nowrap">{obs.zone?.name || 'Unknown zone'}</td>
+                              <td className="px-3 py-2">
                                 <Badge variant={obs.is_compliant ? 'default' : 'destructive'}>
                                   {obs.is_compliant ? 'Compliant' : 'Breach'}
                                 </Badge>
-                                {obs.breach_type && !obs.is_compliant && (
-                                  <span className="text-xs text-red-500 flex items-center gap-1">
-                                    <AlertTriangle className="h-3 w-3" />
-                                    {toTitleCase(obs.breach_type)}
-                                  </span>
-                                )}
-                              </div>
-
-                              {/* Breach reason */}
-                              {obs.breach_reason && !obs.is_compliant && (
-                                <p className="text-xs text-muted-foreground">{obs.breach_reason}</p>
-                              )}
-
-                              {/* Metadata row */}
-                              <div className="text-xs text-muted-foreground flex flex-wrap gap-x-3 gap-y-1">
-                                <span className="flex items-center gap-1">
-                                  <Calendar className="h-3 w-3" />
-                                  {formatDateTime(obs.recorded_at)}
-                                </span>
-                                {obs.zone?.name && (
-                                  <span className="flex items-center gap-1">
-                                    <MapPin className="h-3 w-3" />
-                                    {obs.zone.name}
-                                  </span>
-                                )}
-                                {obs.nights_stayed_this_month != null && obs.nights_stayed_this_month > 0 && (
-                                  <span className="flex items-center gap-1">
-                                    <Clock className="h-3 w-3" />
-                                    {obs.nights_stayed_this_month} night{obs.nights_stayed_this_month !== 1 ? 's' : ''} this month
-                                  </span>
-                                )}
-                              </div>
-
-                              {/* GPS */}
-                              {obs.gps_latitude && obs.gps_longitude && (
-                                <p className="text-xs text-muted-foreground">
-                                  GPS: {Number(obs.gps_latitude).toFixed(5)}, {Number(obs.gps_longitude).toFixed(5)}
-                                </p>
-                              )}
-
-                              {/* Officer notes */}
-                              {obs.officer_notes && obs.officer_notes !== '-' && (
-                                <div className="mt-1 p-2 bg-muted rounded text-xs">
-                                  <span className="text-muted-foreground">Notes: </span>{obs.officer_notes}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    )
-                  })}
+                              </td>
+                              <td className="px-3 py-2 whitespace-nowrap">
+                                {obs.breach_type && !obs.is_compliant ? toTitleCase(obs.breach_type) : '-'}
+                              </td>
+                              <td className="px-3 py-2 max-w-[260px] truncate" title={obs.officer_notes || ''}>
+                                {obs.officer_notes && obs.officer_notes !== '-' ? obs.officer_notes : '-'}
+                              </td>
+                              <td className="px-3 py-2 text-right">
+                                <Button size="sm" variant="outline" onClick={() => setSelectedRecord(obs)}>
+                                  <Eye className="h-3.5 w-3.5 mr-1" />
+                                  Open Record
+                                </Button>
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               )}
             </CardContent>
@@ -707,6 +727,78 @@ export default function ObservationRecords() {
         </div>
         </AsyncStateWrapper>
       )}
+
+      <Dialog open={!!selectedRecord} onOpenChange={(open) => !open && setSelectedRecord(null)}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Car className="h-4 w-4" />
+              Full Record {selectedRecord?.plate_number ? `- ${selectedRecord.plate_number}` : ''}
+            </DialogTitle>
+          </DialogHeader>
+
+          {selectedRecord && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-3">
+                <div className="rounded-md border overflow-hidden bg-muted h-56">
+                  {getObservationPhotoUrl(selectedRecord) ? (
+                    <img
+                      src={getObservationPhotoUrl(selectedRecord)!}
+                      alt={`Observation ${selectedRecord.id}`}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-muted-foreground">
+                      <span className="inline-flex items-center gap-2">
+                        <ImageIcon className="h-4 w-4" />
+                        No photo available
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="text-xs text-muted-foreground">
+                  Observation ID: {selectedRecord.id}
+                </div>
+              </div>
+
+              <div className="space-y-2 text-sm">
+                <div className="flex items-center gap-2">
+                  <Badge variant={selectedRecord.is_compliant ? 'default' : 'destructive'}>
+                    {selectedRecord.is_compliant ? 'Compliant' : 'Breach'}
+                  </Badge>
+                  {selectedRecord.breach_type && !selectedRecord.is_compliant && (
+                    <span className="text-red-600 inline-flex items-center gap-1">
+                      <AlertTriangle className="h-3.5 w-3.5" />
+                      {toTitleCase(selectedRecord.breach_type)}
+                    </span>
+                  )}
+                </div>
+
+                <p><span className="text-muted-foreground">Recorded:</span> {formatDateTime(selectedRecord.recorded_at)}</p>
+                <p><span className="text-muted-foreground">Zone:</span> {selectedRecord.zone?.name || 'Unknown zone'}</p>
+                {selectedRecord.breach_reason && (
+                  <p><span className="text-muted-foreground">Breach reason:</span> {selectedRecord.breach_reason}</p>
+                )}
+                {selectedRecord.nights_stayed_this_month != null && (
+                  <p><span className="text-muted-foreground">Nights this month:</span> {selectedRecord.nights_stayed_this_month}</p>
+                )}
+                {(selectedRecord.gps_latitude != null && selectedRecord.gps_longitude != null) && (
+                  <p>
+                    <span className="text-muted-foreground">GPS:</span>{' '}
+                    {Number(selectedRecord.gps_latitude).toFixed(5)}, {Number(selectedRecord.gps_longitude).toFixed(5)}
+                  </p>
+                )}
+
+                <div className="rounded-md border p-2 min-h-20">
+                  <p className="text-muted-foreground text-xs mb-1">Officer notes</p>
+                  <p className="text-sm">{selectedRecord.officer_notes && selectedRecord.officer_notes !== '-' ? selectedRecord.officer_notes : 'No notes'}</p>
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   )
 }

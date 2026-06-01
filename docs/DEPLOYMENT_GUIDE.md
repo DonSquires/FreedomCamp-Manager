@@ -480,6 +480,11 @@ Expected results:
 - Observation List: <1500ms
 - Dashboard Stats: <2000ms
 
+Observation-heavy screens now use server-side paging and search so they do not
+attempt to render the full observations table in the browser. When validating
+production, verify the observation records page loads a single page of rows,
+supports plate search, and opens the full-record dialog for detailed review.
+
 ### 4. PWA Testing
 
 - [ ] Install app on desktop

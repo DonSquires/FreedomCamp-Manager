@@ -59,9 +59,10 @@ test('probe landing blockers for exact credentials', async ({ browser }) => {
   const sqEmail = 'squires.don@live.com'
   const sqPassword = process.env.PLAYWRIGHT_BOB_PASSWORD || process.env.BOB_LOGIN_PASSWORD || ''
   const fsEmail = 'don.squires@firstsecurity.co.nz'
-  const fsPassword = 'Run2thesun??'
+  const fsPassword = process.env.PLAYWRIGHT_MASTER_PASSWORD || process.env.TEST_LOGIN_MASTER_PASSWORD || ''
 
   if (!sqPassword) throw new Error('Missing password for squires.don@live.com (PLAYWRIGHT_BOB_PASSWORD/BOB_LOGIN_PASSWORD)')
+  if (!fsPassword) throw new Error('Missing password for don.squires@firstsecurity.co.nz (PLAYWRIGHT_MASTER_PASSWORD/TEST_LOGIN_MASTER_PASSWORD)')
 
   const ctx1 = await browser.newContext()
   const page1 = await ctx1.newPage()
