@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ReactElement } from 'react'
 import { AlertTriangle, Heart, FileText, Bell } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -46,7 +46,7 @@ const severityBadge: Record<Alert['severity'], string> = {
   low: 'bg-gray-100 text-gray-700',
 }
 
-const typeIcon: Record<Alert['type'], JSX.Element> = {
+const typeIcon: Record<Alert['type'], ReactElement> = {
   breach: <AlertTriangle className="h-4 w-4 text-red-500 flex-shrink-0" />,
   welfare: <Heart className="h-4 w-4 text-pink-500 flex-shrink-0" />,
   incident: <FileText className="h-4 w-4 text-blue-500 flex-shrink-0" />,

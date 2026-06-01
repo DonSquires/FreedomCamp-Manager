@@ -1,3 +1,4 @@
+import type { ReactElement } from 'react'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -34,7 +35,7 @@ const STATUS_ORDER: QueueItem['status'][] = ['syncing', 'pending', 'failed', 'sy
 
 const STATUS_CONFIG: Record<
   QueueItem['status'],
-  { label: string; bg: string; icon: JSX.Element; badge: string }
+  { label: string; bg: string; icon: ReactElement; badge: string }
 > = {
   syncing: {
     label: 'Syncing',

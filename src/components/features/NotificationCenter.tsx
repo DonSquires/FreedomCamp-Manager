@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, type ReactElement } from 'react'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -34,7 +34,7 @@ interface NotificationCenterProps {
   onClearAll?: () => void
 }
 
-const TYPE_ICON: Record<Notification['type'], JSX.Element> = {
+const TYPE_ICON: Record<Notification['type'], ReactElement> = {
   info: <Info className="h-4 w-4 text-blue-500 shrink-0" />,
   success: <CheckCircle className="h-4 w-4 text-green-500 shrink-0" />,
   warning: <AlertTriangle className="h-4 w-4 text-orange-500 shrink-0" />,
