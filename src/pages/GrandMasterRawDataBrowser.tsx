@@ -34,10 +34,17 @@ const TABLE_NAME_REGEX = /^[a-z][a-z0-9_]*$/
 
 function inferKeyColumn(row?: RawRecord | null): string {
   if (!row) return 'id'
-  // Heuristic only: we don't query DB metadata for PKs here, so this picks
-  // common identifier columns and still allows manual override via UI.
+  // Prefer the first candidate whose value is non-null/non-undefined so that
+  // tables like `observations` (where `id` is nullable but `observation_id` is
+  // the stable non-null PK) resolve to the correct key automatically.
   const candidates = ['id', 'observation_id', 'vehicle_id', 'organization_id', 'user_id']
-  return candidates.find((c) => Object.prototype.hasOwnProperty.call(row, c)) ?? 'id'
+  return (
+    candidates.find(
+      (c) => Object.prototype.hasOwnProperty.call(row, c) && row[c] !== null && row[c] !== undefined,
+    ) ??
+    candidates.find((c) => Object.prototype.hasOwnProperty.call(row, c)) ??
+    'id'
+  )
 }
 
 export default function GrandMasterRawDataBrowser() {

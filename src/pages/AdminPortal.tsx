@@ -19,6 +19,7 @@ import { ListCardRow } from '@/components/features/ListCardRow'
 import { ComplianceTrendChart, type TrendDataPoint } from '@/components/features/ComplianceTrendChart'
 import { SystemHealthIndicator } from '@/components/features/SystemHealthIndicator'
 import { nzDateToUTCStart, nzDateToUTCEnd, parseNZDate } from '@/lib/timezone'
+import { resolveAdminPortalOrganizationId } from '@/lib/adminPortalScope'
 import {
   useAdminActivePatrolCount,
   useAdminPrimaryDashboard,
@@ -220,8 +221,7 @@ export default function AdminPortal() {
     completedAt: triageCompletedAt,
   } = useBobBrain()
 
-  const effectiveOrganizationId =
-    (user?.role === 'master' || user?.role === 'grand_master') ? organizationId || null : user?.organization_id || null
+  const effectiveOrganizationId = resolveAdminPortalOrganizationId(user, organizationId)
 
   const normalizeFilterDate = (value: string | null): string | null => {
     if (!value) return null
@@ -273,12 +273,13 @@ export default function AdminPortal() {
     }
   }, [queryClient, effectiveOrganizationId, zoneId, dateFrom, dateTo])
 
+  // No `enabled` gate here: the hook applies org filter conditionally when organizationId
+  // is present, so master/grand_master without a selected org correctly see cross-org data.
   const { data: recentHistoricalObservations = [] } = useAdminRecentHistoricalObservations({
     organizationId: effectiveOrganizationId,
     zoneId,
     startDate,
     endDate,
-    enabled: !!effectiveOrganizationId,
   })
 
   // Welfare alerts — Welfare First inspired: surface officer safety issues immediately
