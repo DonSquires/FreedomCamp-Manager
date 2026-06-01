@@ -4192,28 +4192,45 @@ export default function BobAssistantStudio() {
       }
     }
 
-    const normalizedRequestedClientName = requestedClientName.toLowerCase()
+    const sanitizedRequestedClientName = requestedClientName.trim()
+    const normalizedRequestedClientName = sanitizedRequestedClientName.toLowerCase()
+    const escapedRequestedClientNamePattern = sanitizedRequestedClientName.replace(/[%_]/g, (match) => `\\${match}`)
     if (!matchedClientOrgId && normalizedRequestedClientName) {
-      const { data: globalClientCandidates, error: globalClientCandidatesError } = await (supabase as any)
+      type CandidateOrganization = { id: string; name: string | null; organization_type: string | null }
+      const { data: exactNameCandidate, error: exactNameCandidatesError } = await (supabase as any)
         .from('organizations')
         .select('id, name, organization_type')
-        .ilike('name', `%${requestedClientName}%`)
+        .eq('name', sanitizedRequestedClientName)
         .eq('is_active', true)
-        .limit(10)
+        .maybeSingle()
 
-      if (globalClientCandidatesError) throw globalClientCandidatesError
+      if (exactNameCandidatesError) throw exactNameCandidatesError
 
-      const matchingClientOrgs = ((globalClientCandidates ?? []) as any[])
-        .filter((org) => String(org.id || '') !== providerOrgId)
+      let globalClientCandidates = exactNameCandidate ? [exactNameCandidate as CandidateOrganization] : []
+      if (globalClientCandidates.length === 0) {
+        const { data: fuzzyNameCandidates, error: fuzzyNameCandidatesError } = await (supabase as any)
+          .from('organizations')
+          .select('id, name, organization_type')
+          .ilike('name', `%${escapedRequestedClientNamePattern}%`)
+          .eq('is_active', true)
+          .limit(10)
+
+        if (fuzzyNameCandidatesError) throw fuzzyNameCandidatesError
+        globalClientCandidates = (fuzzyNameCandidates ?? []) as CandidateOrganization[]
+      }
+
+      const matchingClientOrgs = globalClientCandidates
+        .map((org) => ({ ...org, normalizedName: String(org.name || '').trim().toLowerCase() }))
+        .filter((org) => org.id !== providerOrgId)
 
       const exactClientMatch = matchingClientOrgs.find((org) =>
-        String(org.name || '').trim().toLowerCase() === normalizedRequestedClientName
+        org.normalizedName === normalizedRequestedClientName
         && org.organization_type === 'client')
       const fuzzyClientMatch = matchingClientOrgs.find((org) =>
-        String(org.name || '').trim().toLowerCase().includes(normalizedRequestedClientName)
+        org.normalizedName.includes(normalizedRequestedClientName)
         && org.organization_type === 'client')
       const exactAnyMatch = matchingClientOrgs.find((org) =>
-        String(org.name || '').trim().toLowerCase() === normalizedRequestedClientName)
+        org.normalizedName === normalizedRequestedClientName)
 
       matchedClientOrgId = exactClientMatch?.id ?? fuzzyClientMatch?.id ?? exactAnyMatch?.id ?? null
     }
@@ -4229,11 +4246,14 @@ export default function BobAssistantStudio() {
       if (providerOrgError) throw providerOrgError
 
       const providerName = String(providerOrg?.name || '').trim().toLowerCase()
-      if (!providerName || providerName !== normalizedRequestedClientName) {
+      const providerMatchesRequestedClient = providerName === normalizedRequestedClientName
+      // Avoid writing a duplicate client row when the requested client name is
+      // effectively the provider organization.
+      if (!providerMatchesRequestedClient) {
         const { data: createdClientOrg, error: createdClientOrgError } = await (supabase as any)
           .from('organizations')
           .insert({
-            name: requestedClientName,
+            name: sanitizedRequestedClientName,
             organization_type: 'client',
             organization_level: 3,
             parent_organization_id: providerOrgId,
