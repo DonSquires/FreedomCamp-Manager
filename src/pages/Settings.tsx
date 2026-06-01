@@ -24,6 +24,7 @@ import {
 import { toast } from 'sonner'
 import { useSessionPreferencesStore } from '@/stores/sessionPreferencesStore'
 import { useThemePreferencesStore } from '@/stores/themePreferencesStore'
+import { useDeviceStore } from '@/stores/deviceStore'
 import { useBobIdentitySettings, type EmergencyCancelVerificationMode } from '@/hooks/useBobIdentitySettings'
 import { useBobAssistantStore } from '@/stores/bobAssistantStore'
 import { edgeFunctions } from '@/lib/edgeFunctions'
@@ -55,6 +56,13 @@ export default function Settings() {
     setInactivityMinutes,
   } = useSessionPreferencesStore()
   const { themeMode, setThemeMode } = useThemePreferencesStore()
+  const {
+    assignedNoticePrinter,
+    requireAssignedPrinterForNotices,
+    setAssignedNoticePrinter,
+    clearAssignedNoticePrinter,
+    setRequireAssignedPrinterForNotices,
+  } = useDeviceStore()
 
   const [notifPrefs, setNotifPrefs] = useState<NotificationPreferences>({
     breach_alerts: true,
@@ -117,6 +125,10 @@ export default function Settings() {
   } = useBobAssistantStore()
 
   const [saved, setSaved] = useState(false)
+  const [printerName, setPrinterName] = useState(assignedNoticePrinter?.name ?? '')
+  const [printerId, setPrinterId] = useState(assignedNoticePrinter?.id ?? '')
+  const [printerType, setPrinterType] = useState<'portable' | 'fixed'>(assignedNoticePrinter?.printerType ?? 'portable')
+  const [requirePrinterForNotices, setRequirePrinterForNotices] = useState(requireAssignedPrinterForNotices)
   const [bobStatusLoading, setBobStatusLoading] = useState(false)
   const [bobStatus, setBobStatus] = useState<null | {
     healthy: boolean
@@ -193,11 +205,37 @@ export default function Settings() {
     }
   }, [user?.role])
 
+  useEffect(() => {
+    setPrinterName(assignedNoticePrinter?.name ?? '')
+    setPrinterId(assignedNoticePrinter?.id ?? '')
+    setPrinterType(assignedNoticePrinter?.printerType ?? 'portable')
+    setRequirePrinterForNotices(requireAssignedPrinterForNotices)
+  }, [assignedNoticePrinter, requireAssignedPrinterForNotices])
+
   const handleSave = async () => {
     // Persist to user_preferences if the table exists, or just show success
     setAutoLogoffEnabled(appPrefs.auto_logoff_enabled)
     setInactivityMinutes(autoLogoffMinutes)
     setThemeMode(appPrefs.theme_mode)
+
+    const normalizedPrinterName = printerName.trim()
+    const normalizedPrinterId = printerId.trim()
+    if (requirePrinterForNotices && !normalizedPrinterName) {
+      toast.error('Assign a portable or fixed printer before enabling printer-required notice printing.')
+      return
+    }
+
+    setRequireAssignedPrinterForNotices(requirePrinterForNotices)
+    if (normalizedPrinterName) {
+      setAssignedNoticePrinter({
+        id: normalizedPrinterId || normalizedPrinterName.toLowerCase().replace(/[\s/]+/g, '-'),
+        name: normalizedPrinterName,
+        printerType,
+      })
+    } else {
+      clearAssignedNoticePrinter()
+    }
+
     setSaved(true)
     toast.success('Settings saved')
     setTimeout(() => setSaved(false), 2000)
@@ -400,6 +438,44 @@ export default function Settings() {
                   checked={appPrefs.driving_mode}
                   onCheckedChange={v => setAppPrefs(p => ({ ...p, driving_mode: v }))}
                 />
+                <div className="py-3 border-b">
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <Label className="font-medium text-sm">Assigned Notice Printer</Label>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Link the officer login to a portable or fixed printer for on-site notice/ticket printing.
+                      </p>
+                    </div>
+                    <Switch
+                      checked={requirePrinterForNotices}
+                      onCheckedChange={setRequirePrinterForNotices}
+                    />
+                  </div>
+                  <div className="grid sm:grid-cols-3 gap-2 mt-3">
+                    <Input
+                      placeholder="Printer name"
+                      value={printerName}
+                      onChange={(e) => setPrinterName(e.target.value)}
+                    />
+                    <Input
+                      placeholder="Printer ID (optional)"
+                      value={printerId}
+                      onChange={(e) => setPrinterId(e.target.value)}
+                    />
+                    <Select
+                      value={printerType}
+                      onValueChange={(value) => setPrinterType(value as 'portable' | 'fixed')}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Printer type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="portable">Portable printer</SelectItem>
+                        <SelectItem value="fixed">Fixed printer</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
                 <p className="text-xs text-muted-foreground py-3">
                   Privacy, security, and session controls are now managed in the Privacy tab.
                 </p>

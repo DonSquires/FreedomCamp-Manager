@@ -68,6 +68,12 @@ export interface HeartRateMonitorState {
   lastUpdate: string | null
 }
 
+export interface NoticePrinterAssignment {
+  id: string
+  name: string
+  printerType: 'portable' | 'fixed'
+}
+
 interface DeviceState {
   // Bluetooth Panic Button
   blePanicDevice: BlePanicDevice | null
@@ -84,6 +90,10 @@ interface DeviceState {
   
   // Heart Rate Monitor
   heartRateMonitor: HeartRateMonitorState
+
+  // Notice printing
+  assignedNoticePrinter: NoticePrinterAssignment | null
+  requireAssignedPrinterForNotices: boolean
   
   // General
   error: string | null
@@ -102,6 +112,9 @@ interface DeviceState {
   updateExternalCamera: (id: string, updates: Partial<ExternalCamera>) => void
   removeExternalCamera: (id: string) => void
   setHeartRateMonitor: (state: Partial<HeartRateMonitorState>) => void
+  setAssignedNoticePrinter: (printer: NoticePrinterAssignment) => void
+  clearAssignedNoticePrinter: () => void
+  setRequireAssignedPrinterForNotices: (required: boolean) => void
   setError: (error: string | null) => void
   setPermissions: (permissions: Partial<DeviceState['permissionsGranted']>) => void
   reset: () => void
@@ -136,6 +149,9 @@ const initialState = {
     currentBpm: null,
     lastUpdate: null,
   },
+
+  assignedNoticePrinter: null,
+  requireAssignedPrinterForNotices: false,
   
   error: null,
   
@@ -184,6 +200,10 @@ export const useDeviceStore = create<DeviceState>()(
       setHeartRateMonitor: (state) => set((prev) => ({
         heartRateMonitor: { ...prev.heartRateMonitor, ...state },
       })),
+
+      setAssignedNoticePrinter: (printer) => set({ assignedNoticePrinter: printer }),
+      clearAssignedNoticePrinter: () => set({ assignedNoticePrinter: null }),
+      setRequireAssignedPrinterForNotices: (required) => set({ requireAssignedPrinterForNotices: required }),
       
       setError: (error) => set({ error }),
       
@@ -196,7 +216,7 @@ export const useDeviceStore = create<DeviceState>()(
     {
       name: 'device-state',
       storage: createJSONStorage(() => localStorage),
-      version: 1,
+      version: 2,
       // Only persist user preferences, not runtime state
       partialize: (state) => ({
         blePanicEnabled: state.blePanicEnabled,
@@ -209,6 +229,8 @@ export const useDeviceStore = create<DeviceState>()(
           sensitivity: state.shakeDetection.sensitivity,
           requiredShakes: state.shakeDetection.requiredShakes,
         },
+        assignedNoticePrinter: state.assignedNoticePrinter,
+        requireAssignedPrinterForNotices: state.requireAssignedPrinterForNotices,
       }),
     }
   )
