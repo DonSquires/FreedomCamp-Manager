@@ -72,6 +72,7 @@ import {
   PRIMARY_MAP_TILE_ATTRIBUTION,
   PRIMARY_MAP_TILE_URL,
 } from '@/lib/inhouseMapping'
+import { LiveNavigationOverlay } from '@/components/features/LiveNavigationOverlay'
 import 'leaflet/dist/leaflet.css'
 
 // ─── NZ default centre (Nelson) ──────────────────────────────────────────────
@@ -196,6 +197,7 @@ export default function OperationsMap() {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [historyMode, setHistoryMode] = useState(false)
   const [emergencyPulse, setEmergencyPulse] = useState(false)
+  const [dismissedNavigationKey, setDismissedNavigationKey] = useState<string | null>(null)
 
   const startDate = dateFrom ? nzDateToUTCStart(dateFrom) : null
   const endDate   = dateTo   ? nzDateToUTCEnd(dateTo)   : null
@@ -469,6 +471,44 @@ export default function OperationsMap() {
     enabled: visibleLayers.alarms,
     staleTime: 30_000,
   })
+
+  const navigationDestination = useMemo(() => {
+    if (activeEmergencyAlert?.gps_latitude && activeEmergencyAlert?.gps_longitude) {
+      return {
+        key: `welfare:${activeEmergencyAlert.id}`,
+        destination: {
+          lat: Number(activeEmergencyAlert.gps_latitude),
+          lng: Number(activeEmergencyAlert.gps_longitude),
+          label: `Emergency welfare alert · ${activeEmergencyAlert.officer_name ?? 'Officer'}`,
+        },
+      }
+    }
+
+    const liveAlarm = alarmJobs.find((alarm: any) => alarm.gps_lat && alarm.gps_lng)
+    if (liveAlarm) {
+      return {
+        key: `alarm:${liveAlarm.id}`,
+        destination: {
+          lat: Number(liveAlarm.gps_lat),
+          lng: Number(liveAlarm.gps_lng),
+          label: `Alarm response · ${liveAlarm.job_number ?? 'Active alarm'}`,
+        },
+      }
+    }
+
+    return null
+  }, [activeEmergencyAlert, alarmJobs])
+
+  useEffect(() => {
+    if (!navigationDestination) {
+      setDismissedNavigationKey(null)
+      return
+    }
+
+    if (dismissedNavigationKey && dismissedNavigationKey !== navigationDestination.key) {
+      setDismissedNavigationKey(null)
+    }
+  }, [dismissedNavigationKey, navigationDestination])
 
   // Incidents
   const { data: incidents = [] } = useQuery({
@@ -961,6 +1001,12 @@ export default function OperationsMap() {
                 Emergency channel broadcast active: {activeEmergencyAlert.officer_name || 'Officer'} GPS {' '}
                 ({Number(activeEmergencyAlert.gps_latitude).toFixed(5)}, {Number(activeEmergencyAlert.gps_longitude).toFixed(5)})
               </div>
+            )}
+            {navigationDestination && dismissedNavigationKey !== navigationDestination.key && (
+              <LiveNavigationOverlay
+                destination={navigationDestination.destination}
+                onDismiss={() => setDismissedNavigationKey(navigationDestination.key)}
+              />
             )}
           </div>
         </div>

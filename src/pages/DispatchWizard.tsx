@@ -12,6 +12,7 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { insertDispatchJobWithAlarmTypeFallback } from '@/lib/dispatchJobs'
+import { haversineKm, estimateEtaMinutes, formatEta, formatDistance } from '@/lib/geo'
 import { useAuthStore } from '@/stores/authStore'
 import { useClientOrgIds } from '@/hooks/useClientOrgIds'
 import { AppLayout } from '@/components/features/AppLayout'
@@ -75,6 +76,19 @@ const ALARM_JOB_TYPES = ['alarm_response', 'first_line_one_guard', 'first_line_t
 
 const STEPS = ['Select Site', 'Job Type', 'Assign Officer', 'Confirm & Dispatch']
 
+// ── Specialty types for field compliance jobs ──────────────────────────────
+
+const SPECIALTY_JOB_TYPES: { value: string; label: string; description: string }[] = [
+  { value: 'freedom_camping',  label: 'Freedom Camping',  description: 'Inspect and enforce freedom camping rules' },
+  { value: 'parking_warden',   label: 'Parking Warden',   description: 'Issue infringement notices, enforce parking zones' },
+  { value: 'excessive_smoke',  label: 'Excessive Smoke',  description: 'Assess and action excessive smoke complaint' },
+  { value: 'noise_control',    label: 'Noise Control',    description: 'Investigate noise complaint, issue notices' },
+  { value: 'biosecurity',      label: 'Biosecurity',      description: 'Biosecurity inspection and threat response' },
+  { value: 'general',          label: 'General Field',    description: 'General field compliance task' },
+]
+
+const FIELD_COMPLIANCE_JOB_TYPES = ['welfare_check', 'noise_complaint', 'freedom_camping', 'parking', 'general']
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 interface WizardState {
@@ -91,6 +105,8 @@ interface WizardState {
   description: string
   caller_name: string
   caller_phone: string
+  specialty_type: string
+  job_mode: 'patrol_embed' | 'dispatch_oneoff'
   // Step 3
   assigned_to: string
   officer_name: string
@@ -112,11 +128,30 @@ interface SiteKeySet {
   }> | null
 }
 
+interface WizardOfficer {
+  id: string
+  first_name: string
+  last_name: string
+  phone: string | null
+  role: string
+  is_on_shift: boolean
+  call_sign: string | null
+  active_patrol_count: number
+  rostered_route: {
+    route_name?: string | null
+    jurisdiction_label?: string | null
+    allow_cross_jurisdiction?: boolean | null
+  } | null
+  last_gps_latitude: number | null
+  last_gps_longitude: number | null
+}
+
 function emptyState(): WizardState {
   return {
     client_site_id: '', client_site_name: '', client_site_code: '', client_site_address: '',
     job_type: '', alarm_type: '', priority: 'normal', title: '', description: '',
     caller_name: '', caller_phone: '',
+    specialty_type: '', job_mode: 'dispatch_oneoff',
     assigned_to: '', officer_name: '', call_sign: '',
   }
 }
@@ -163,7 +198,7 @@ export default function DispatchWizard() {
     queryFn: async () => {
       let query = (supabase as any)
         .from('client_sites')
-        .select('id, name, address, city, contact_phone')
+        .select('id, name, address, city, contact_phone, gps_lat, gps_lng')
         .eq('is_active', true)
         .order('name')
 
@@ -176,7 +211,7 @@ export default function DispatchWizard() {
     enabled: !!orgId && !clientOrgIdsLoading,
   })
 
-  const { data: officers = [] } = useQuery({
+  const { data: officers = [] } = useQuery<WizardOfficer[]>({
     queryKey: ['wizard-officers', orgId],
     queryFn: async () => {
       // Officers currently on shift
@@ -187,10 +222,30 @@ export default function DispatchWizard() {
         .is('ended_at', null)
       const onShiftIds = (shiftData ?? []).map((s: any) => s.officer_id)
 
+      // Today's roster assignments (for rostered route + jurisdiction context)
+      const todayIso = new Date().toISOString().split('T')[0]
+      const { data: rosterData } = await (supabase as any)
+        .from('roster_assignments')
+        .select(`
+          officer_id,
+          patrol_route:patrol_routes!patrol_route_id(
+            id, route_name, jurisdiction_label, allow_cross_jurisdiction,
+            jurisdiction_organization_ids
+          )
+        `)
+        .eq('organization_id', orgId ?? '')
+        .eq('specific_date', todayIso)
+        .in('assignment_status', ['scheduled', 'confirmed'])
+      const rosterByOfficer: Record<string, any> = {}
+      for (const r of rosterData ?? []) {
+        if (r.officer_id) rosterByOfficer[r.officer_id] = r.patrol_route
+      }
+
       const { data, error } = await (supabase as any)
         .from('user_profiles')
         .select(`
           id, first_name, last_name, phone, role,
+          last_gps_latitude, last_gps_longitude,
           current_patrol:patrols!assigned_to(id, status, patrol_route:patrol_routes!patrol_route_id(route_name))
         `)
         .eq('organization_id', orgId ?? '')
@@ -202,10 +257,40 @@ export default function DispatchWizard() {
         is_on_shift: onShiftIds.includes(o.id),
         call_sign: o.current_patrol?.[0]?.patrol_route?.route_name ?? null,
         active_patrol_count: (o.current_patrol ?? []).filter((p: any) => p.status === 'in_progress').length,
+        rostered_route: rosterByOfficer[o.id] ?? null,
       }))
     },
     enabled: !!orgId,
   })
+
+  const selectedSite = useMemo(() => {
+    return clientSites.find((site: any) => site.id === state.client_site_id) ?? null
+  }, [clientSites, state.client_site_id])
+
+  const nearestOfficerSuggestion = useMemo(() => {
+    if (!selectedSite?.gps_lat || !selectedSite?.gps_lng) return null
+
+    const ranked = officers
+      .filter((officer) => (
+        officer.is_on_shift
+        && officer.last_gps_latitude !== null
+        && officer.last_gps_latitude !== undefined
+        && officer.last_gps_longitude !== null
+        && officer.last_gps_longitude !== undefined
+      ))
+      .map((officer) => {
+        const distanceKm = haversineKm(
+          officer.last_gps_latitude as number,
+          officer.last_gps_longitude as number,
+          selectedSite.gps_lat,
+          selectedSite.gps_lng,
+        )
+        return { officer, distanceKm }
+      })
+      .sort((a, b) => a.distanceKm - b.distanceKm || a.officer.active_patrol_count - b.officer.active_patrol_count)
+
+    return ranked[0] ?? null
+  }, [officers, selectedSite])
 
   const { data: siteKeySets = [] } = useQuery({
     queryKey: ['wizard-site-keysets', orgId, state.client_site_id],
@@ -275,6 +360,8 @@ export default function DispatchWizard() {
           status:           state.assigned_to ? 'dispatched' : 'pending',
           dispatched_at:    state.assigned_to ? new Date().toISOString() : null,
           dispatched_by:    state.assigned_to ? user?.id : null,
+          specialty_type:   state.specialty_type || null,
+          job_mode:         state.specialty_type ? state.job_mode : 'dispatch_oneoff',
           response_sla_minutes: 60,
         }, 'id, job_number')
       if (error) throw error
@@ -405,6 +492,47 @@ export default function DispatchWizard() {
                   </div>
                 )}
 
+                {FIELD_COMPLIANCE_JOB_TYPES.includes(state.job_type) && (
+                  <div className="space-y-2">
+                    <Label>Specialty Type <span className="text-muted-foreground text-xs">(optional — for field compliance dispatch)</span></Label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {SPECIALTY_JOB_TYPES.map(s => (
+                        <button
+                          key={s.value}
+                          type="button"
+                          onClick={() => setState(st => ({
+                            ...st,
+                            specialty_type: st.specialty_type === s.value ? '' : s.value,
+                          }))}
+                          className={`text-left p-2.5 rounded-md border text-sm transition-all ${
+                            state.specialty_type === s.value
+                              ? 'border-blue-600 bg-blue-600/10 text-blue-300'
+                              : 'border-border hover:border-blue-400'
+                          }`}
+                        >
+                          <div className="font-medium">{s.label}</div>
+                          <div className="text-xs text-muted-foreground mt-0.5">{s.description}</div>
+                        </button>
+                      ))}
+                    </div>
+                    {state.specialty_type && (
+                      <div className="space-y-1.5">
+                        <Label>Job Mode</Label>
+                        <Select
+                          value={state.job_mode}
+                          onValueChange={v => setState(s => ({ ...s, job_mode: v as 'patrol_embed' | 'dispatch_oneoff' }))}
+                        >
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="dispatch_oneoff">One-off Dispatch Task</SelectItem>
+                            <SelectItem value="patrol_embed">Side-Patrol (embed in patrol)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
                     <Label>Priority</Label>
@@ -453,6 +581,33 @@ export default function DispatchWizard() {
             {step === 2 && (
               <div className="space-y-3">
                 <p className="text-sm text-muted-foreground">Select an available officer. You can dispatch without assigning — the job will sit as Pending.</p>
+                {nearestOfficerSuggestion && (
+                  <div className="rounded-md border border-blue-300 bg-blue-50 dark:bg-blue-950/20 px-3 py-2 text-xs text-blue-800 dark:text-blue-200">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-semibold">Nearest officer suggestion:</span>
+                      <span className="font-medium">{nearestOfficerSuggestion.officer.first_name} {nearestOfficerSuggestion.officer.last_name}</span>
+                      <span>{formatDistance(nearestOfficerSuggestion.distanceKm)}</span>
+                      <span>· {formatEta(estimateEtaMinutes(nearestOfficerSuggestion.distanceKm))}</span>
+                      {nearestOfficerSuggestion.officer.active_patrol_count > 0 && (
+                        <span>· {nearestOfficerSuggestion.officer.active_patrol_count} active</span>
+                      )}
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-6 text-[11px] ml-auto"
+                        onClick={() => setState((s) => ({
+                          ...s,
+                          assigned_to: nearestOfficerSuggestion.officer.id,
+                          officer_name: `${nearestOfficerSuggestion.officer.first_name} ${nearestOfficerSuggestion.officer.last_name}`,
+                          call_sign: nearestOfficerSuggestion.officer.call_sign ?? '',
+                        }))}
+                      >
+                        Use nearest
+                      </Button>
+                    </div>
+                  </div>
+                )}
                 <div className="space-y-2 max-h-80 overflow-y-auto">
                   <button
                     onClick={() => setState(s => ({ ...s, assigned_to: '', officer_name: '', call_sign: '' }))}
@@ -505,6 +660,23 @@ export default function DispatchWizard() {
                             </span>
                           )}
                         />
+                      )}
+                      {o.rostered_route && (
+                        <div className="flex flex-wrap gap-1 mt-1.5">
+                          <Badge variant="outline" className="text-[10px] border-indigo-500 text-indigo-400">
+                            🗺 {o.rostered_route.route_name}
+                          </Badge>
+                          {o.rostered_route.jurisdiction_label && (
+                            <Badge variant="outline" className="text-[10px] border-blue-500 text-blue-400">
+                              📍 {o.rostered_route.jurisdiction_label}
+                            </Badge>
+                          )}
+                          {o.rostered_route.allow_cross_jurisdiction && (
+                            <Badge variant="outline" className="text-[10px] border-amber-500 text-amber-400">
+                              🔗 Cross-jurisdiction
+                            </Badge>
+                          )}
+                        </div>
                       )}
                     </button>
                   ))}

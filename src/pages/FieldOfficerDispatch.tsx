@@ -1,15 +1,26 @@
+import { useNavigate } from 'react-router-dom'
 import { AppLayout } from '@/components/features/AppLayout'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { useOperationalCases } from '@/hooks/useOperationalCases'
-import { Clock, MapPin, Radio } from 'lucide-react'
+import { Clock, ExternalLink, MapPin, Radio } from 'lucide-react'
 import { formatDateTime } from '@/lib/utils'
+import { SPECIALTY_TYPE_META, getSpecialtyPortalPath, SpecialtyType } from '@/lib/officerPortalRouting'
 
 export default function FieldOfficerDispatch() {
+  const navigate = useNavigate()
   const { data: cases = [], isLoading, isError } = useOperationalCases({
     caseType: 'patrol_dispatch',
     limit: 50,
   })
+
+  function openSpecialtyPortal(caseId: string, specialtyType: string) {
+    const path = getSpecialtyPortalPath(specialtyType as SpecialtyType)
+    if (path) {
+      navigate(`${path}&dispatch=${caseId}`)
+    }
+  }
 
   return (
     <AppLayout title="Patrol Dispatch" description="Field officer dispatch queue and updates">
@@ -42,23 +53,50 @@ export default function FieldOfficerDispatch() {
           </Card>
         )}
 
-        {cases.map((c) => (
-          <Card key={c.id} data-testid="case-card" className="border-l-4 border-l-blue-400">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base">{c.title || c.case_type || 'Dispatch Case'}</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-1 text-sm text-muted-foreground">
-              <div className="flex items-center gap-2">
-                <Clock className="h-4 w-4" />
-                <span>{formatDateTime(c.created_at)}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <MapPin className="h-4 w-4" />
-                <span>{c.status || 'pending'}</span>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+        {cases.map((c) => {
+          const specialtyType = (c as any).specialty_type as SpecialtyType | null
+          const specialtyMeta = specialtyType ? SPECIALTY_TYPE_META[specialtyType] : null
+
+          return (
+            <Card key={c.id} data-testid="case-card" className="border-l-4 border-l-blue-400">
+              <CardHeader className="pb-2">
+                <div className="flex items-start justify-between gap-2">
+                  <CardTitle className="text-base">{c.title || c.case_type || 'Dispatch Case'}</CardTitle>
+                  {specialtyMeta && (
+                    <Badge
+                      className="shrink-0 text-xs"
+                      style={{ backgroundColor: specialtyMeta.color + '33', color: specialtyMeta.color, borderColor: specialtyMeta.color }}
+                      variant="outline"
+                    >
+                      {specialtyMeta.label}
+                    </Badge>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-2 text-sm text-muted-foreground">
+                <div className="flex items-center gap-2">
+                  <Clock className="h-4 w-4" />
+                  <span>{formatDateTime(c.created_at)}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <MapPin className="h-4 w-4" />
+                  <span>{c.status || 'pending'}</span>
+                </div>
+                {specialtyMeta && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="mt-1 gap-1.5 text-xs"
+                    onClick={() => openSpecialtyPortal(c.id, specialtyType!)}
+                  >
+                    <ExternalLink className="h-3 w-3" />
+                    Open {specialtyMeta.label} Portal
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
+          )
+        })}
       </div>
     </AppLayout>
   )

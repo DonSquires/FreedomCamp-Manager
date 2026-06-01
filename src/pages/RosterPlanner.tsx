@@ -171,6 +171,14 @@ interface PatrolRoute {
   randomization_enabled: boolean | null
   jitter_window_minutes: number | null
   mandatory_first_stop: boolean | null
+  /** Human-readable jurisdiction label (e.g. "Auckland City East") */
+  jurisdiction_label: string | null
+  /** When true, this route can cover jobs from other orgs' jurisdictions */
+  allow_cross_jurisdiction: boolean | null
+  /** Name of the service-provider branch this route is based from */
+  branch_name?: string | null
+  /** IDs of organisations this route can serve cross-jurisdictionally */
+  jurisdiction_organization_ids: string[] | null
 }
 
 interface OfficerAvailability {
@@ -770,7 +778,15 @@ function ShiftDialog({
                     <SelectItem value="__none__">— None —</SelectItem>
                     {patrolRoutes.map((route) => (
                       <SelectItem key={route.id} value={route.id}>
-                        {route.route_name}
+                        <span className="flex flex-col">
+                          <span>{route.route_name}</span>
+                          {(route.jurisdiction_label || route.branch_name) && (
+                            <span className="text-xs text-muted-foreground">
+                              {[route.branch_name, route.jurisdiction_label].filter(Boolean).join(' · ')}
+                              {route.allow_cross_jurisdiction && ' · 🔗 Cross-jurisdiction'}
+                            </span>
+                          )}
+                        </span>
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -824,6 +840,21 @@ function ShiftDialog({
                       )}
                       {selectedRoute.mandatory_first_stop && (
                         <Badge variant="outline" className="text-[10px]">First stop locked</Badge>
+                      )}
+                      {selectedRoute.jurisdiction_label && (
+                        <Badge variant="outline" className="text-[10px] border-blue-500 text-blue-400">
+                          📍 {selectedRoute.jurisdiction_label}
+                        </Badge>
+                      )}
+                      {selectedRoute.branch_name && (
+                        <Badge variant="outline" className="text-[10px] border-purple-500 text-purple-400">
+                          🏢 {selectedRoute.branch_name}
+                        </Badge>
+                      )}
+                      {selectedRoute.allow_cross_jurisdiction && (
+                        <Badge variant="outline" className="text-[10px] border-amber-500 text-amber-400">
+                          🔗 Cross-jurisdiction enabled
+                        </Badge>
                       )}
                     </div>
                   )
@@ -1286,13 +1317,16 @@ export default function RosterPlanner() {
       const q = applyClientOrgScope(
         (supabase as any)
           .from('patrol_routes')
-          .select('id, route_name, default_shift, randomization_enabled, jitter_window_minutes, mandatory_first_stop')
+          .select('id, route_name, default_shift, randomization_enabled, jitter_window_minutes, mandatory_first_stop, jurisdiction_label, allow_cross_jurisdiction, jurisdiction_organization_ids, service_provider_branch:client_sites!service_provider_branch_id(name)')
       )
       const { data, error } = await q
         .eq('is_active', true)
         .order('route_name')
       if (error) throw error
-      return (data || []) as PatrolRoute[]
+      return ((data || []) as any[]).map((r: any) => ({
+        ...r,
+        branch_name: r.service_provider_branch?.name ?? null,
+      })) as PatrolRoute[]
     },
     enabled: clientScopedQueriesEnabled,
   })

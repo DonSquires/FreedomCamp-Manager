@@ -114,6 +114,19 @@ interface OfficerStatus {
   distance_km: number | null   // populated when dispatching a job with GPS coords
 }
 
+interface RecognitionAlertSummary {
+  faceMatches: Array<{
+    id: string
+    created_at: string
+    person_record_id: string | null
+  }>
+  vehicleMatches: Array<{
+    id: string
+    created_at: string
+    plate_number: string | null
+  }>
+}
+
 // ── Haversine distance helper imported from @/lib/geo
 
 
@@ -528,6 +541,41 @@ export default function DispatchConsole() {
     enabled: !!orgId,
   })
 
+  const { data: recognitionAlerts = { faceMatches: [], vehicleMatches: [] } } = useQuery<RecognitionAlertSummary>({
+    queryKey: ['dispatch-recognition-alerts', orgId, tick],
+    queryFn: async () => {
+      if (!orgId) return { faceMatches: [], vehicleMatches: [] }
+
+      const cutoffIso = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+
+      const [{ data: faceRows }, { data: vehicleRows }] = await Promise.all([
+        (supabase as any)
+          .from('face_records')
+          .select('id, created_at, person_record_id')
+          .eq('organization_id', orgId)
+          .not('person_record_id', 'is', null)
+          .gte('created_at', cutoffIso)
+          .order('created_at', { ascending: false })
+          .limit(5),
+        (supabase as any)
+          .from('plate_scans')
+          .select('id, created_at, plate_number')
+          .eq('organization_id', orgId)
+          .eq('flagged_vehicle_detected', true)
+          .gte('created_at', cutoffIso)
+          .order('created_at', { ascending: false })
+          .limit(5),
+      ])
+
+      return {
+        faceMatches: (faceRows ?? []) as RecognitionAlertSummary['faceMatches'],
+        vehicleMatches: (vehicleRows ?? []) as RecognitionAlertSummary['vehicleMatches'],
+      }
+    },
+    enabled: !!orgId,
+    refetchInterval: 30_000,
+  })
+
   // ── Client sites for create form ────────────────────────────────────────────
   const { data: clientSites = [] } = useDispatchClientSitesLookup({
     orgId,
@@ -747,6 +795,28 @@ export default function DispatchConsole() {
             </Card>
           ))}
         </div>
+
+        {(recognitionAlerts.faceMatches.length > 0 || recognitionAlerts.vehicleMatches.length > 0) && (
+          <div className="rounded-md border border-red-300 bg-red-50/70 dark:bg-red-950/20 px-3 py-2 text-xs text-red-800 dark:text-red-200 flex flex-wrap items-center gap-3">
+            <span className="font-semibold inline-flex items-center gap-1">
+              <AlertTriangle className="h-3.5 w-3.5" />
+              Recognition Alerts
+            </span>
+            {recognitionAlerts.faceMatches.length > 0 && (
+              <span>
+                Face: <strong>{recognitionAlerts.faceMatches.length}</strong> POI match{recognitionAlerts.faceMatches.length !== 1 ? 'es' : ''} in last 24h
+              </span>
+            )}
+            {recognitionAlerts.vehicleMatches.length > 0 && (
+              <span>
+                Vehicle: <strong>{recognitionAlerts.vehicleMatches.length}</strong> flagged plate hit{recognitionAlerts.vehicleMatches.length !== 1 ? 's' : ''} in last 24h
+              </span>
+            )}
+            <Button size="sm" variant="outline" className="h-6 text-[11px] ml-auto" onClick={() => navigate('/face-recognition')}>
+              Review
+            </Button>
+          </div>
+        )}
 
         {/* Status filter */}
         <div className={denseMode ? 'flex gap-1.5 flex-wrap' : 'flex gap-2 flex-wrap'}>

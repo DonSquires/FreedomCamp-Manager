@@ -27,7 +27,6 @@ export function getOfficerPortalPath(shift: RosteredShift): string | null {
   const portal = SERVICE_TYPE_PORTAL[shift.service_type]
   return portal.buildPath ? portal.buildPath(shift) : portal.path
 }
-
 type RoleLike = string | null | undefined
 
 const FIELD_OPERATION_ROLES = new Set([
@@ -83,3 +82,54 @@ export const canShowSpecialtyQuickLink = (role: RoleLike, hasRosteredShift: bool
   // Specialty quick access is only shown when the officer is currently unrostered;
   // rostered users should follow shift-specific portals from their assignment flow.
   canAccessSpecialtyFunctions(role) && !hasRosteredShift
+
+// Maps specialty_type values (stored on patrols + dispatch_jobs) to
+// officer portal routes used by dispatch and patrol UI cards.
+export type SpecialtyType =
+  | 'freedom_camping'
+  | 'parking_warden'
+  | 'excessive_smoke'
+  | 'noise_control'
+  | 'biosecurity'
+  | 'general'
+
+export const SPECIALTY_TYPE_META: Record<
+  SpecialtyType,
+  { label: string; portalPath: string; color: string }
+> = {
+  freedom_camping: {
+    label: 'Freedom Camping',
+    portalPath: '/field-officer?service=freedom_camping',
+    color: 'bg-green-100 text-green-800 border-green-200',
+  },
+  parking_warden: {
+    label: 'Parking',
+    portalPath: '/parking-officer',
+    color: 'bg-blue-100 text-blue-800 border-blue-200',
+  },
+  excessive_smoke: {
+    label: 'Excessive Smoke',
+    portalPath: '/smoke-officer',
+    color: 'bg-orange-100 text-orange-800 border-orange-200',
+  },
+  noise_control: {
+    label: 'Noise Control',
+    portalPath: '/noise-officer',
+    color: 'bg-purple-100 text-purple-800 border-purple-200',
+  },
+  biosecurity: {
+    label: 'Biosecurity',
+    portalPath: '/biosecurity-officer',
+    color: 'bg-teal-100 text-teal-800 border-teal-200',
+  },
+  general: {
+    label: 'General',
+    portalPath: '/field-officer?service=patrol',
+    color: 'bg-gray-100 text-gray-700 border-gray-200',
+  },
+}
+
+export function getSpecialtyPortalPath(specialtyType: string | null | undefined): string | null {
+  if (!specialtyType) return null
+  return SPECIALTY_TYPE_META[specialtyType as SpecialtyType]?.portalPath ?? null
+}

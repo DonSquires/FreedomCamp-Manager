@@ -650,3 +650,164 @@ export async function monitorGeofenceAndPatrol(
     console.error('Geofence monitoring error:', error)
   }
 }
+
+// ── Patrol Location Event helpers ────────────────────────────────────────────
+// These functions record onsite/offsite transitions in patrol_location_events
+// for audit trail and KPI calculation.
+
+export interface PatrolLocationEventParams {
+  patrolId: string
+  organizationId: string
+  officerId: string
+  eventType: 'onsite' | 'offsite' | 'override_onsite' | 'override_offsite'
+  gpsLat?: number | null
+  gpsLng?: number | null
+  gpsAccuracyM?: number | null
+  isManualOverride?: boolean
+  overrideReason?: string | null
+}
+
+/**
+ * Insert a patrol_location_event row (onsite/offsite/override).
+ * Call this whenever the officer crosses a geofence boundary or manually
+ * confirms their location.
+ */
+export async function recordPatrolLocationEvent(
+  params: PatrolLocationEventParams,
+): Promise<void> {
+  try {
+    const { error } = await (supabase as any).from('patrol_location_events').insert({
+      patrol_id: params.patrolId,
+      organization_id: params.organizationId,
+      officer_id: params.officerId,
+      event_type: params.eventType,
+      gps_lat: params.gpsLat ?? null,
+      gps_lng: params.gpsLng ?? null,
+      gps_accuracy_m: params.gpsAccuracyM ?? null,
+      is_manual_override: params.isManualOverride ?? false,
+      override_reason: params.overrideReason ?? null,
+    })
+    if (error) {
+      console.warn('patrol_location_events insert failed:', error)
+    }
+  } catch (err) {
+    console.warn('patrol_location_events exception:', err)
+  }
+}
+
+/**
+ * Determine whether a patrol zone has any geofence configured.
+ * Returns false if neither geometry nor radius_meters is set.
+ */
+export function zoneHasGeofence(zone: GeofenceZone | null | undefined): boolean {
+  if (!zone) return false
+  if (zone.radius_meters && zone.radius_meters > 0) return true
+  if (zone.geometry) {
+    const geo = zone.geometry as any
+    if (geo?.type && (geo.coordinates?.length > 0 || geo.features?.length > 0)) return true
+  }
+  // A zone with only a centre point still supports geofencing via the default 100 m radius.
+  if (zone.location_lat && zone.location_lng) return true
+  return false
+}
+
+/**
+ * Enhanced geofence monitor that also:
+ * - Records onsite/offsite events in patrol_location_events
+ * - Calls onOffsiteDetected when officer leaves the patrol zone
+ * - Passes hasGeofence=false to caller when zone has no geofence configured
+ */
+export interface EnhancedMonitorOptions extends MonitorOptions {
+  organizationId?: string | null
+  /** Active patrol id — used to associate location events */
+  patrolId?: string | null
+  /** Called when officer moves outside the patrol zone */
+  onOffsiteDetected?: (patrolId: string) => void
+  /** Called when officer re-enters the patrol zone */
+  onOnsiteDetected?: (patrolId: string) => void
+  /** Called to indicate whether the active zone has a geofence configured */
+  onGeofenceAvailability?: (hasGeofence: boolean) => void
+  /** Track previous inside/outside state per patrolId to avoid duplicate events */
+  insideStateRef?: { current: Record<string, boolean> }
+}
+
+export async function monitorGeofenceAndPatrolEnhanced(
+  userId: string,
+  organizationScope: string | string[],
+  currentZoneId: string | null,
+  onZoneChange: (zoneId: string | null, zoneName: string | null, organizationId?: string | null) => void,
+  options?: EnhancedMonitorOptions,
+): Promise<void> {
+  await monitorGeofenceAndPatrol(userId, organizationScope, currentZoneId, onZoneChange, options)
+
+  // Enhanced: also detect offsite transitions and record location events
+  if (!options?.patrolId || !options?.organizationId) return
+
+  try {
+    const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+      navigator.geolocation.getCurrentPosition(resolve, reject, {
+        enableHighAccuracy: true,
+        timeout: 10000,
+      })
+    })
+
+    const userLat = position.coords.latitude
+    const userLng = position.coords.longitude
+    const userAccuracy = position.coords.accuracy || 0
+
+    const activePatrols = await getOfficerActivePatrols(userId, organizationScope)
+    const patrolInGeofence = findPatrolInGeofence(activePatrols, userLat, userLng)
+    const targetPatrol = activePatrols.find((p) => p.patrol_id === options.patrolId)
+
+    if (!targetPatrol) return
+
+    const patrolHasGeofence = zoneHasGeofence({
+      id: targetPatrol.patrol_id,
+      name: targetPatrol.zone_name || '',
+      organization_id: '',
+      location_lat: targetPatrol.zone_center_lat ?? 0,
+      location_lng: targetPatrol.zone_center_lng ?? 0,
+      radius_meters: targetPatrol.geofence_radius ?? undefined,
+    })
+    options.onGeofenceAvailability?.(patrolHasGeofence)
+
+    const isCurrentlyInside = patrolInGeofence?.patrol_id === options.patrolId
+    const stateRef = options.insideStateRef
+    const prevInside = stateRef ? stateRef.current[options.patrolId] : undefined
+
+    if (stateRef) {
+      stateRef.current[options.patrolId] = isCurrentlyInside
+    }
+
+    // Only emit events when state changes to avoid duplicates
+    if (prevInside === undefined) return
+
+    if (!prevInside && isCurrentlyInside) {
+      // Transitioned onsite
+      options.onOnsiteDetected?.(options.patrolId)
+      await recordPatrolLocationEvent({
+        patrolId: options.patrolId,
+        organizationId: options.organizationId,
+        officerId: userId,
+        eventType: 'onsite',
+        gpsLat: userLat,
+        gpsLng: userLng,
+        gpsAccuracyM: userAccuracy,
+      })
+    } else if (prevInside && !isCurrentlyInside) {
+      // Transitioned offsite
+      options.onOffsiteDetected?.(options.patrolId)
+      await recordPatrolLocationEvent({
+        patrolId: options.patrolId,
+        organizationId: options.organizationId,
+        officerId: userId,
+        eventType: 'offsite',
+        gpsLat: userLat,
+        gpsLng: userLng,
+        gpsAccuracyM: userAccuracy,
+      })
+    }
+  } catch {
+    // GPS failure is handled silently — already reported by the base monitor
+  }
+}

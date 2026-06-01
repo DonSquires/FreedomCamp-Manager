@@ -4,6 +4,7 @@ import { useAuthStore } from '@/stores/authStore'
 import { toast } from 'sonner'
 import { useOperationalOrganization } from '@/hooks/useOperationalOrganization'
 import { trackPatrolComplete } from '@/lib/croMetrics'
+import { usePOIVOIFlag } from '@/hooks/usePOIVOIFlag'
 
 interface Patrol {
   id: string
@@ -157,13 +158,19 @@ export function useStartPatrol() {
 export function useCompletePatrol() {
   const queryClient = useQueryClient()
   const { user } = useAuthStore()
+  const { flagPOI, flagVOI } = usePOIVOIFlag()
 
   return useMutation({
-    mutationFn: async ({ patrolId, vehiclesChecked, breachesFound }: {
+    mutationFn: async (input: {
       patrolId: string
       vehiclesChecked: number
       breachesFound: number
+      poiFullName?: string | null
+      voiPlateNumber?: string | null
+      flagReason?: string | null
+      flagNotes?: string | null
     }) => {
+      const { patrolId, vehiclesChecked, breachesFound } = input
       let query = supabase
         .from('patrols')
         .update({ 
@@ -193,6 +200,32 @@ export function useCompletePatrol() {
         vehiclesChecked: variables.vehiclesChecked,
         breachesFound: variables.breachesFound,
       })
+
+      if (variables.poiFullName?.trim()) {
+        flagPOI.mutate({
+          full_name: variables.poiFullName.trim(),
+          reason: variables.flagReason ?? 'Flagged during patrol completion',
+          notes: variables.flagNotes ?? null,
+          patrol_id: variables.patrolId,
+        }, {
+          onError: (error: any) => {
+            toast.error(error?.message || 'Patrol completed, but POI flagging failed')
+          },
+        })
+      }
+
+      if (variables.voiPlateNumber?.trim()) {
+        flagVOI.mutate({
+          plate_number: variables.voiPlateNumber.trim().toUpperCase(),
+          reason: variables.flagReason ?? 'Flagged during patrol completion',
+          notes: variables.flagNotes ?? null,
+          patrol_id: variables.patrolId,
+        }, {
+          onError: (error: any) => {
+            toast.error(error?.message || 'Patrol completed, but VOI flagging failed')
+          },
+        })
+      }
     },
     onError: (error: any) => {
       toast.error(error.message || 'Failed to complete patrol')
@@ -354,6 +387,16 @@ interface PatrolKPIs {
   on_time_starts: number
   late_starts: number
   punctuality_rate: number
+  /** SLA breach count — patrols where actual_start > scheduled_start + sla threshold */
+  sla_breach_count: number
+  /** 0–100 percentage of patrols that met the SLA */
+  sla_compliance_rate: number
+  /** Average km efficiency ratio (route_distance_km / actual_distance_km) across patrols with both values */
+  avg_km_efficiency: number | null
+  /** Total route planned km across patrols */
+  total_route_km: number
+  /** Total actual km driven across patrols */
+  total_actual_km: number
   officers: {
     officer_id: string
     officer_name: string
@@ -379,6 +422,8 @@ interface PatrolKPIBaseRow {
   actual_end_time: string | null
   assigned_to: string | null
   zone_id: string | null
+  route_distance_km: number | null
+  actual_distance_km: number | null
   officer: {
     first_name: string | null
     last_name: string | null
@@ -406,6 +451,7 @@ function buildPatrolKPIFallback(
   rows: PatrolKPIBaseRow[],
   from: string | undefined,
   to: string | undefined,
+  slaThresholdMinutes = 15,
 ): PatrolKPIs {
   const totalPatrols = rows.length
   const completed = rows.filter((row) => row.status === 'completed').length
@@ -427,6 +473,28 @@ function buildPatrolKPIFallback(
     if (!row.scheduled_start_time || !row.actual_start_time) return false
     return new Date(row.actual_start_time).getTime() > new Date(row.scheduled_start_time).getTime()
   }).length
+
+  // SLA: breached when actual_start is > scheduled_start + threshold minutes
+  const slaEligible = rows.filter((row) => row.scheduled_start_time && row.actual_start_time)
+  const slaBreaches = slaEligible.filter((row) => {
+    const late = diffMinutes(row.scheduled_start_time, row.actual_start_time) ?? 0
+    return late > slaThresholdMinutes
+  }).length
+  const slaComplianceRate = slaEligible.length > 0
+    ? roundTo(((slaEligible.length - slaBreaches) / slaEligible.length) * 100, 1)
+    : 0
+
+  // Km efficiency
+  const kmRows = rows.filter(
+    (row) => typeof row.route_distance_km === 'number' && typeof row.actual_distance_km === 'number'
+      && row.route_distance_km > 0 && row.actual_distance_km > 0,
+  )
+  const totalRouteKm = rows.reduce((sum, row) => sum + (row.route_distance_km ?? 0), 0)
+  const totalActualKm = rows.reduce((sum, row) => sum + (row.actual_distance_km ?? 0), 0)
+  // Weighted average: total planned km / total actual km gives each km equal weight
+  const avgKmEfficiency = kmRows.length > 0 && totalActualKm > 0
+    ? roundTo(totalRouteKm / totalActualKm, 2)
+    : null
 
   const officerMap = new Map<string, PatrolKPIs['officers'][number]>()
   for (const row of rows) {
@@ -486,6 +554,11 @@ function buildPatrolKPIFallback(
     on_time_starts: onTimeStarts,
     late_starts: lateStarts,
     punctuality_rate: onTimeStarts + lateStarts > 0 ? roundTo((onTimeStarts / (onTimeStarts + lateStarts)) * 100, 1) : 0,
+    sla_breach_count: slaBreaches,
+    sla_compliance_rate: slaComplianceRate,
+    avg_km_efficiency: avgKmEfficiency,
+    total_route_km: roundTo(totalRouteKm, 1),
+    total_actual_km: roundTo(totalActualKm, 1),
     officers,
   }
 }
@@ -516,6 +589,8 @@ export function usePatrolKPIs(options?: {
           actual_end_time,
           assigned_to,
           zone_id,
+          route_distance_km,
+          actual_distance_km,
           officer:user_profiles!patrols_assigned_to_fkey(first_name, last_name)
         `)
         .eq('organization_id', user.organization_id)
