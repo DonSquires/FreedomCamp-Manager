@@ -15,8 +15,10 @@ const DialogClose = DialogPrimitive.Close
 function hasDialogTitle(children: React.ReactNode): boolean {
   let found = false
 
+  type ElementWithChildren = { children?: React.ReactNode }
+
   React.Children.forEach(children, (child) => {
-    if (found || !React.isValidElement(child)) return
+    if (found || !React.isValidElement<ElementWithChildren>(child)) return
 
     const childType = child.type as any
     const displayName = String(childType?.displayName || "")
