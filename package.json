@@ -382,7 +382,7 @@
     "tailwindcss-animate": "^1.0.7",
     "tesseract.js": "^7.0.0",
     "vaul": "^0.9.3",
-    "write-excel-file": "^2.3.10",
+    "write-excel-file": "^4.0.7",
     "ws": "^8.18.3",
     "xlsx": "^0.18.5",
     "zod": "^3.23.8",
