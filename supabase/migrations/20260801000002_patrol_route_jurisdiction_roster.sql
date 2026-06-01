@@ -26,7 +26,7 @@ COMMENT ON COLUMN public.patrol_routes.jurisdiction_label IS
    Shown to officers and dispatch operators.';
 
 COMMENT ON COLUMN public.patrol_routes.allow_cross_jurisdiction IS
-  'When true, this route can accept dispatch jobs from any organisation listed in
+  'When true, this route can accept dispatch jobs from any organization listed in
    jurisdiction_organization_ids. Enables mutual-aid / job-sharing workflows.';
 
 CREATE INDEX IF NOT EXISTS idx_patrol_routes_branch

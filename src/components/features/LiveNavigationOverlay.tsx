@@ -26,7 +26,7 @@ export interface LiveNavDestination {
 interface Props {
   destination: LiveNavDestination | null
   /** SLA deadline ISO string — when set, shows a countdown badge */
-  slaDealine?: string | null
+  slaDeadline?: string | null
   /** Called when officer dismisses the overlay */
   onDismiss?: () => void
 }
@@ -88,7 +88,7 @@ function slaCountdown(deadline: string): { text: string; urgent: boolean } {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export function LiveNavigationOverlay({ destination, slaDealine, onDismiss }: Props) {
+export function LiveNavigationOverlay({ destination, slaDeadline, onDismiss }: Props) {
   const [position, setPosition] = useState<{ lat: number; lng: number } | null>(null)
   const watchId = useRef<number | null>(null)
 
@@ -118,7 +118,7 @@ export function LiveNavigationOverlay({ destination, slaDealine, onDismiss }: Pr
     : null
   const etaMinutes = distKm !== null ? (distKm / AVG_SPEED_KMH) * 60 : null
 
-  const sla = slaDealine ? slaCountdown(slaDealine) : null
+  const sla = slaDeadline ? slaCountdown(slaDeadline) : null
 
   return (
     <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[1000] w-[calc(100%-2rem)] max-w-sm">

@@ -458,11 +458,9 @@ function buildPatrolKPIFallback(
   )
   const totalRouteKm = rows.reduce((sum, row) => sum + (row.route_distance_km ?? 0), 0)
   const totalActualKm = rows.reduce((sum, row) => sum + (row.actual_distance_km ?? 0), 0)
-  const avgKmEfficiency = kmRows.length > 0
-    ? roundTo(
-        kmRows.reduce((sum, row) => sum + (row.route_distance_km! / row.actual_distance_km!), 0) / kmRows.length,
-        2,
-      )
+  // Weighted average: total planned km / total actual km gives each km equal weight
+  const avgKmEfficiency = kmRows.length > 0 && totalActualKm > 0
+    ? roundTo(totalRouteKm / totalActualKm, 2)
     : null
 
   const officerMap = new Map<string, PatrolKPIs['officers'][number]>()

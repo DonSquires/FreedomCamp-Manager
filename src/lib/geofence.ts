@@ -706,6 +706,8 @@ export function zoneHasGeofence(zone: GeofenceZone | null | undefined): boolean 
     const geo = zone.geometry as any
     if (geo?.type && (geo.coordinates?.length > 0 || geo.features?.length > 0)) return true
   }
+  // A zone with only a centre point still supports geofencing via the default 100 m radius.
+  if (zone.location_lat && zone.location_lng) return true
   return false
 }
 
@@ -759,10 +761,14 @@ export async function monitorGeofenceAndPatrolEnhanced(
 
     if (!targetPatrol) return
 
-    const patrolHasGeofence = !!(
-      targetPatrol.geofence_radius ||
-      (targetPatrol.zone_center_lat && targetPatrol.zone_center_lng)
-    )
+    const patrolHasGeofence = zoneHasGeofence({
+      id: targetPatrol.patrol_id,
+      name: targetPatrol.zone_name || '',
+      organization_id: '',
+      location_lat: targetPatrol.zone_center_lat ?? 0,
+      location_lng: targetPatrol.zone_center_lng ?? 0,
+      radius_meters: targetPatrol.geofence_radius ?? undefined,
+    })
     options.onGeofenceAvailability?.(patrolHasGeofence)
 
     const isCurrentlyInside = patrolInGeofence?.patrol_id === options.patrolId
