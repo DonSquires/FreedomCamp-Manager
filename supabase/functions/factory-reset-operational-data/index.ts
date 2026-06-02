@@ -1,7 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3'
 import { getCorsHeaders } from '../_shared/withCors.ts'
 
-const OWNER_EMAIL = (Deno.env.get('GRANDMASTER_OWNER_EMAIL') || 'squires.don@live.com').trim().toLowerCase()
+const OWNER_EMAIL = (Deno.env.get('GRANDMASTER_OWNER_EMAIL') || '').trim().toLowerCase()
 
 interface ResetRequest {
   confirmation?: string
@@ -14,6 +14,13 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
+    if (!OWNER_EMAIL) {
+      return new Response(JSON.stringify({ error: 'GRANDMASTER_OWNER_EMAIL is not configured' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
     const authHeader = req.headers.get('Authorization') ?? req.headers.get('authorization')
     if (!authHeader) {
       return new Response(JSON.stringify({ error: 'Missing Authorization header' }), {

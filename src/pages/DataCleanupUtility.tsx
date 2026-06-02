@@ -42,7 +42,7 @@ interface TaskProgress {
 
 export default function DataCleanupUtility() {
   const { user } = useAuthStore()
-  const isMasterUser = user?.role === 'master' || user?.role === 'grand_master'
+  const isMasterOrGrandMaster = user?.role === 'master' || user?.role === 'grand_master'
   const isGrandMasterUser = user?.role === 'grand_master'
   const { organizationId } = useGlobalFiltersStore()
   const queryClient = useQueryClient()
@@ -344,7 +344,7 @@ export default function DataCleanupUtility() {
 
   const visibleCleanupTasks = cleanupTasks.filter((task) => {
     if (task.requiresGrandMaster && !isGrandMasterUser) return false
-    if (task.requiresMaster && !isMasterUser) return false
+    if (task.requiresMaster && !isMasterOrGrandMaster) return false
     return true
   })
 
