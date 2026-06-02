@@ -182,7 +182,7 @@ function validateForwardedCredentials(forwardedEnv, specs = []) {
   return missing;
 }
 
-function validateBugReportContext({ supabaseUrl = '', serviceRole = '', reporterUser = '' } = {}) {
+function getMissingBugReportContext({ supabaseUrl = '', serviceRole = '', reporterUser = '' } = {}) {
   const missing = [];
   if (!String(supabaseUrl || '').trim()) missing.push('VITE_SUPABASE_URL (or SUPABASE_URL)');
   if (!String(serviceRole || '').trim()) missing.push('SUPABASE_SERVICE_ROLE_KEY');
@@ -495,7 +495,7 @@ async function run() {
     process.exit(1);
   }
 
-  const missingBugReportContext = validateBugReportContext({
+  const missingBugReportContext = getMissingBugReportContext({
     supabaseUrl: SUPABASE_URL,
     serviceRole: SERVICE_ROLE,
     reporterUser: REPORTER_USER,
