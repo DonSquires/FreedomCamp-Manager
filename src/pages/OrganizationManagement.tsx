@@ -17,6 +17,7 @@ import { AppLayout } from '@/components/features/AppLayout'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
 import { PaperworkSearchAnimation } from '@/components/features/PaperworkSearchAnimation'
 import { getOrgTypeLabel, getOvernightVerificationModeLabel } from '@/lib/utils'
+import { normalizeEmailAddress, resolveOrganizationParentId, trimToNull } from '@/lib/entityCreationDefaults'
 
 interface Organization {
   id: string
@@ -326,25 +327,23 @@ export default function OrganizationManagement() {
   // Create organization mutation
   const createOrgMutation = useMutation({
     mutationFn: async () => {
-      if (!createName.trim()) throw new Error('Organisation name is required')
+      const normalizedName = trimToNull(createName)
+      if (!normalizedName) throw new Error('Organisation name is required')
 
       // Derive level from type
       const levelMap: Record<string, number> = { owner: 1, service_provider: 2, client: 3, contractor: 4 }
       const level = levelMap[createOrgType] || 3
-      const parentOrgId =
-        createOrgType === 'owner'
-          ? null
-          : (createParentOrgId || user?.organization_id || null)
+      const parentOrgId = resolveOrganizationParentId(createOrgType, createParentOrgId)
 
       await postgrestInsertOrganization({
-        name: createName.trim(),
+        name: normalizedName,
         organization_type: createOrgType,
         organization_level: level,
         parent_organization_id: parentOrgId,
         enforcement_workflow: createWorkflow,
         overnight_verification_mode: createOvernightVerificationMode,
-        contact_email: createEmail || null,
-        contact_phone: createPhone || null,
+        contact_email: normalizeEmailAddress(createEmail) || null,
+        contact_phone: trimToNull(createPhone),
         is_active: true,
       })
     },

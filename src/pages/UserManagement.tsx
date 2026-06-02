@@ -51,6 +51,13 @@ import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
 import { PTTChannelAccessControl } from '@/components/features/PTTChannelAccessControl'
 import { uploadFile } from '@/lib/fileUpload'
 import { PORTAL_AREA_LABELS, type PortalAreaCode } from '@/hooks/usePermissions'
+import {
+  normalizeStringArray,
+  resolveAuthorizedWorkLocations,
+  resolveEmployerOrganizationId,
+  resolveUserNames,
+  trimToNull,
+} from '@/lib/entityCreationDefaults'
 
 interface Organization {
   id: string
@@ -397,20 +404,33 @@ export default function UserManagement({ embedded = false }: UserManagementProps
       if (password.length < 8) {
         throw new Error('Password must be at least 8 characters')
       }
+      const selectedOrganizationId = trimToNull(organizationId)
+      const normalizedExtraOrganizationIds = normalizeStringArray(extraOrganizationIds)
+      const employerOrganizationId = resolveEmployerOrganizationId(selectedOrganizationId, employerOrgId)
+      const resolvedNames = resolveUserNames({
+        email,
+        first_name: firstName,
+        last_name: lastName,
+        role,
+      })
       const payload = {
         email: email.trim(),
         password,
         role,
-        first_name: firstName,
-        last_name: lastName,
-        phone,
-        job_title: jobTitle || null,
+        first_name: resolvedNames.first_name ?? '',
+        last_name: resolvedNames.last_name ?? '',
+        phone: trimToNull(phone),
+        job_title: trimToNull(jobTitle),
         requires_driver_license: requiresDriverLicense,
-        organization_id: organizationId || user?.organization_id || null,
-        extra_organization_ids: extraOrganizationIds,
-        employer_organization_id: employerOrgId || organizationId || user?.organization_id || null,
+        organization_id: selectedOrganizationId,
+        extra_organization_ids: normalizedExtraOrganizationIds,
+        employer_organization_id: employerOrganizationId,
         portal_access: portalAccess,
-        authorized_work_locations: derivedAuthorizedWorkLocations,
+        authorized_work_locations: resolveAuthorizedWorkLocations(
+          selectedOrganizationId,
+          normalizedExtraOrganizationIds,
+          derivedAuthorizedWorkLocations,
+        ),
         ptt_channel_access: createPttScopes,
       }
 
@@ -438,19 +458,32 @@ export default function UserManagement({ embedded = false }: UserManagementProps
       if (!emailRegex.test(email.trim())) {
         throw new Error('Enter a valid email address (for example user@example.com)')
       }
+      const selectedOrganizationId = trimToNull(organizationId)
+      const normalizedExtraOrganizationIds = normalizeStringArray(extraOrganizationIds)
+      const employerOrganizationId = resolveEmployerOrganizationId(selectedOrganizationId, employerOrgId)
+      const resolvedNames = resolveUserNames({
+        email,
+        first_name: firstName,
+        last_name: lastName,
+        role,
+      })
       const payload = {
         email: email.trim(),
         role,
-        first_name: firstName,
-        last_name: lastName,
-        phone,
-        job_title: jobTitle || null,
+        first_name: resolvedNames.first_name ?? '',
+        last_name: resolvedNames.last_name ?? '',
+        phone: trimToNull(phone),
+        job_title: trimToNull(jobTitle),
         requires_driver_license: requiresDriverLicense,
-        organization_id: organizationId || user?.organization_id || null,
-        extra_organization_ids: extraOrganizationIds,
-        employer_organization_id: employerOrgId || organizationId || user?.organization_id || null,
+        organization_id: selectedOrganizationId,
+        extra_organization_ids: normalizedExtraOrganizationIds,
+        employer_organization_id: employerOrganizationId,
         portal_access: portalAccess,
-        authorized_work_locations: derivedAuthorizedWorkLocations,
+        authorized_work_locations: resolveAuthorizedWorkLocations(
+          selectedOrganizationId,
+          normalizedExtraOrganizationIds,
+          derivedAuthorizedWorkLocations,
+        ),
         ptt_channel_access: createPttScopes,
       }
 

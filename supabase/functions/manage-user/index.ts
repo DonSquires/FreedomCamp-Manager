@@ -1,5 +1,13 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3'
 import { getCorsHeaders } from '../_shared/withCors.ts'
+import {
+  normalizeEmailAddress,
+  normalizeStringArray,
+  resolveAuthorizedWorkLocations,
+  resolveEmployerOrganizationId,
+  resolveUserNames,
+  trimToNull,
+} from '../../../src/lib/entityCreationDefaults.ts'
 
 interface ManageUserRequest {
   action: 'create' | 'invite' | 'update' | 'update_access' | 'set_password' | 'deactivate' | 'disconnect_ptt' | 'set_ptt_channel_access'
@@ -187,10 +195,31 @@ Deno.serve(async (req) => {
     }
 
     if (body.action === 'create') {
-      const email = String(body.payload?.email ?? '').trim().toLowerCase()
-      const password = String(body.payload?.password ?? '')
-      const role = String(body.payload?.role ?? '')
-      const organizationId = String(body.organizationId ?? body.payload?.organization_id ?? '')
+      const payload = body.payload ?? {}
+      const email = normalizeEmailAddress(payload.email)
+      const password = String(payload.password ?? '')
+      const role = trimToNull(payload.role) ?? ''
+      const organizationId = trimToNull(body.organizationId ?? payload.organization_id) ?? ''
+      const normalizedExtraOrganizationIds = normalizeUuidList(normalizeStringArray(payload.extra_organization_ids))
+      const resolvedEmployerOrganizationId = resolveEmployerOrganizationId(
+        organizationId || null,
+        trimToNull(payload.employer_organization_id),
+      )
+      const normalizedAuthorizedWorkLocations = normalizeUuidList(
+        resolveAuthorizedWorkLocations(
+          organizationId || null,
+          normalizedExtraOrganizationIds,
+          normalizeStringArray(payload.authorized_work_locations),
+        ),
+      )
+      const normalizedPortalAccess = normalizePortalAccess(normalizeStringArray(payload.portal_access))
+      const normalizedPttChannelAccess = normalizeScopeList(normalizeStringArray(payload.ptt_channel_access))
+      const normalizedNames = resolveUserNames({
+        email,
+        first_name: payload.first_name,
+        last_name: payload.last_name,
+        role,
+      })
 
       if (!email || !password || !role || !organizationId) {
         return new Response(JSON.stringify({ error: 'email, password, role, and organizationId are required' }), {
@@ -210,6 +239,14 @@ Deno.serve(async (req) => {
         email,
         password,
         email_confirm: true,
+        user_metadata: {
+          first_name: normalizedNames.first_name ?? undefined,
+          last_name: normalizedNames.last_name ?? undefined,
+          full_name: [normalizedNames.first_name, normalizedNames.last_name].filter(Boolean).join(' ') || undefined,
+          organization_id: organizationId,
+          employer_organization_id: resolvedEmployerOrganizationId ?? undefined,
+          role,
+        },
       })
       if (authCreateError || !authCreate.user) {
         throw new Error(authCreateError?.message ?? 'Failed to create auth user')
@@ -222,8 +259,19 @@ Deno.serve(async (req) => {
           email,
           role,
           organization_id: organizationId,
-          employer_organization_id: organizationId,
+          first_name: normalizedNames.first_name,
+          last_name: normalizedNames.last_name,
+          phone: trimToNull(payload.phone),
+          job_title: trimToNull(payload.job_title),
+          requires_driver_license: payload.requires_driver_license === true,
+          employer_organization_id: resolvedEmployerOrganizationId,
+          portal_access: normalizedPortalAccess,
+          authorized_work_locations: normalizedAuthorizedWorkLocations,
+          extra_organization_ids: normalizedExtraOrganizationIds,
+          ptt_channel_access: normalizedPttChannelAccess,
+          permissions: payload.permissions ?? [],
           is_active: true,
+          updated_at: new Date().toISOString(),
         })
         .select('id,email,role,organization_id,employer_organization_id,is_active')
         .single()
@@ -242,17 +290,35 @@ Deno.serve(async (req) => {
       const email = String(body.payload?.email ?? '').trim().toLowerCase()
       const role = String(body.payload?.role ?? '')
       const organizationId = String(body.organizationId ?? body.payload?.organization_id ?? '')
-      const firstName = String(body.payload?.first_name ?? '').trim()
-      const lastName = String(body.payload?.last_name ?? '').trim()
+      const payload = body.payload ?? {}
+      const normalizedEmail = normalizeEmailAddress(payload.email)
+      const normalizedOrganizationId = trimToNull(body.organizationId ?? payload.organization_id) ?? ''
+      const normalizedRole = trimToNull(payload.role) ?? ''
+      const firstName = trimToNull(payload.first_name) ?? ''
+      const lastName = trimToNull(payload.last_name) ?? ''
+      const normalizedExtraOrganizationIds = normalizeUuidList(normalizeStringArray(payload.extra_organization_ids))
+      const normalizedAuthorizedWorkLocations = normalizeUuidList(
+        resolveAuthorizedWorkLocations(
+          normalizedOrganizationId || null,
+          normalizedExtraOrganizationIds,
+          normalizeStringArray(payload.authorized_work_locations),
+        ),
+      )
+      const normalizedPortalAccess = normalizePortalAccess(normalizeStringArray(payload.portal_access))
+      const normalizedPttChannelAccess = normalizeScopeList(normalizeStringArray(payload.ptt_channel_access))
+      const normalizedEmployerOrganizationId = resolveEmployerOrganizationId(
+        normalizedOrganizationId || null,
+        trimToNull(payload.employer_organization_id),
+      )
 
-      if (!email || !role || !organizationId || !firstName || !lastName) {
+      if (!normalizedEmail || !normalizedRole || !normalizedOrganizationId || !firstName || !lastName) {
         return new Response(JSON.stringify({ error: 'email, first_name, last_name, role, and organization_id are required' }), {
           status: 400,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         })
       }
 
-      if (!['grand_master', 'systems_administrator'].includes(caller.role) && caller.organization_id !== organizationId) {
+      if (!['grand_master', 'systems_administrator'].includes(caller.role) && caller.organization_id !== normalizedOrganizationId) {
         return new Response(JSON.stringify({ error: 'Cannot invite users to another organization' }), {
           status: 403,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -264,7 +330,7 @@ Deno.serve(async (req) => {
 
       const { data: linkData, error: linkError } = await adminClient.auth.admin.generateLink({
         type: 'invite',
-        email,
+        email: normalizedEmail,
         options: { redirectTo },
       })
       if (linkError) throw new Error(linkError.message)
@@ -275,27 +341,23 @@ Deno.serve(async (req) => {
         throw new Error('Failed to generate invite link')
       }
 
-      const payload = body.payload ?? {}
       const { data: profile, error: profileError } = await adminClient
         .from('user_profiles')
         .upsert({
           id: invitedUserId,
-          email,
-          role,
+          email: normalizedEmail,
+          role: normalizedRole,
           first_name: firstName || null,
           last_name: lastName || null,
-          phone: typeof payload.phone === 'string' ? payload.phone : null,
-          job_title: typeof payload.job_title === 'string' ? payload.job_title : null,
+          phone: trimToNull(payload.phone),
+          job_title: trimToNull(payload.job_title),
           requires_driver_license: payload.requires_driver_license === true,
-          organization_id: organizationId,
-          employer_organization_id:
-            typeof payload.employer_organization_id === 'string' && payload.employer_organization_id.trim()
-              ? payload.employer_organization_id
-              : organizationId,
-          portal_access: normalizePortalAccess(payload.portal_access),
-          authorized_work_locations: normalizeUuidList(payload.authorized_work_locations),
-          extra_organization_ids: normalizeUuidList(payload.extra_organization_ids),
-          ptt_channel_access: normalizeScopeList(payload.ptt_channel_access),
+          organization_id: normalizedOrganizationId,
+          employer_organization_id: normalizedEmployerOrganizationId,
+          portal_access: normalizedPortalAccess,
+          authorized_work_locations: normalizedAuthorizedWorkLocations,
+          extra_organization_ids: normalizedExtraOrganizationIds,
+          ptt_channel_access: normalizedPttChannelAccess,
           is_active: true,
           updated_at: new Date().toISOString(),
         })
@@ -313,10 +375,10 @@ Deno.serve(async (req) => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          email,
+          email: normalizedEmail,
           first_name: firstName || undefined,
           invite_url: inviteUrl,
-          organization_id: organizationId,
+          organization_id: normalizedOrganizationId,
         }),
       })
 

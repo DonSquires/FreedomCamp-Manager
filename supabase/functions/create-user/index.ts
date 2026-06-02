@@ -1,5 +1,13 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3';
 import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/withCors.ts';
+import {
+  normalizeEmailAddress,
+  normalizeStringArray,
+  resolveAuthorizedWorkLocations,
+  resolveEmployerOrganizationId,
+  resolveUserNames,
+  trimToNull,
+} from '../../../src/lib/entityCreationDefaults.ts';
 
 function safeErrorDetails(error: any) {
   if (!error) return null;
@@ -107,16 +115,19 @@ Deno.serve(async (req) => {
       );
     }
 
-    const normalizedEmail = String(email).trim().toLowerCase();
-    const isFieldStyleRole = role === 'officer' || role === 'nzscv_monitor';
-    const userFirstName = first_name || (isFieldStyleRole ? normalizedEmail.split('@')[0] : '');
-    const userLastName = last_name || (isFieldStyleRole ? 'Officer' : '');
-    const normalizedOrganizationId = typeof organization_id === 'string' && organization_id.trim().length > 0
-      ? organization_id.trim()
-      : null;
-    const normalizedEmployerOrganizationId = typeof employer_organization_id === 'string' && employer_organization_id.trim().length > 0
-      ? employer_organization_id.trim()
-      : normalizedOrganizationId;
+    const normalizedEmail = normalizeEmailAddress(email);
+    const normalizedOrganizationId = trimToNull(organization_id);
+    const normalizedExtraOrganizationIds = normalizeStringArray(extra_organization_ids);
+    const normalizedEmployerOrganizationId = resolveEmployerOrganizationId(
+      normalizedOrganizationId,
+      trimToNull(employer_organization_id),
+    );
+    const resolvedNames = resolveUserNames({
+      email: normalizedEmail,
+      first_name,
+      last_name,
+      role,
+    });
 
     if (!normalizedEmployerOrganizationId) {
       return new Response(
@@ -125,10 +136,13 @@ Deno.serve(async (req) => {
       );
     }
 
-    const normalizedExtraOrganizationIds = Array.isArray(extra_organization_ids)
-      ? extra_organization_ids.filter((id: unknown) => typeof id === 'string' && id && id !== organization_id)
-      : [];
-    const normalizedAuthorizedWorkLocations = dedupe(asStringArray(authorized_work_locations));
+    const normalizedAuthorizedWorkLocations = dedupe(
+      resolveAuthorizedWorkLocations(
+        normalizedOrganizationId,
+        normalizedExtraOrganizationIds,
+        asStringArray(authorized_work_locations),
+      ),
+    );
     const normalizedPortalAccess = dedupe(asStringArray(portal_access));
     const normalizedPttChannelAccess = dedupe(asStringArray(ptt_channel_access));
 
@@ -139,6 +153,14 @@ Deno.serve(async (req) => {
       email: normalizedEmail,
       password: String(password),
       email_confirm: true,
+      user_metadata: {
+        first_name: resolvedNames.first_name ?? undefined,
+        last_name: resolvedNames.last_name ?? undefined,
+        full_name: [resolvedNames.first_name, resolvedNames.last_name].filter(Boolean).join(' ') || undefined,
+        organization_id: normalizedOrganizationId ?? undefined,
+        employer_organization_id: normalizedEmployerOrganizationId ?? undefined,
+        role: trimToNull(role) ?? undefined,
+      },
     });
 
     if (createError) {
@@ -163,8 +185,8 @@ Deno.serve(async (req) => {
       .upsert({
         id: authData.user.id,
         email: normalizedEmail,
-        first_name: userFirstName,
-        last_name: userLastName,
+        first_name: resolvedNames.first_name,
+        last_name: resolvedNames.last_name,
         role,
         organization_id: normalizedOrganizationId,
         extra_organization_ids: normalizedExtraOrganizationIds,
@@ -172,8 +194,8 @@ Deno.serve(async (req) => {
         authorized_work_locations: normalizedAuthorizedWorkLocations,
         portal_access: normalizedPortalAccess,
         ptt_channel_access: normalizedPttChannelAccess,
-        phone: phone || null,
-        job_title: job_title || null,
+        phone: trimToNull(phone),
+        job_title: trimToNull(job_title),
         requires_driver_license: Boolean(requires_driver_license),
         permissions: permissions || [],
         is_active: true,
