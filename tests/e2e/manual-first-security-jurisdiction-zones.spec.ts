@@ -59,6 +59,19 @@ async function gotoZones(page: Page): Promise<void> {
   await page.waitForLoadState('networkidle').catch(() => undefined)
 }
 
+async function setOrganizationScope(page: Page, branchName: string): Promise<void> {
+  const orgFilter = page
+    .locator('button[role="combobox"]')
+    .filter({ hasText: /all organisations|all organizations|first security|security guard/i })
+    .first()
+
+  if (!(await orgFilter.isVisible({ timeout: 2500 }).catch(() => false))) return
+
+  await orgFilter.click()
+  await page.getByRole('option', { name: new RegExp(`^\\s*${escapeRegex(branchName)}\\s*$`, 'i') }).first().click({ force: true })
+  await page.waitForLoadState('networkidle').catch(() => undefined)
+}
+
 async function zoneExistsBySearch(page: Page, zoneName: string): Promise<boolean> {
   const search = page.locator('input[placeholder*="Search zones by name" i]').first()
   if (await search.isVisible({ timeout: 3000 }).catch(() => false)) {
@@ -88,8 +101,11 @@ async function createJurisdictionZone(page: Page, seed: BranchSeed): Promise<voi
   await page.locator('#createName').fill(jurisdictionName(seed.branchName))
   await page.locator('#createDescription').fill(jurisdictionDescription(seed))
 
-  await page.locator('#createOrganization').click()
-  await page.getByRole('option', { name: new RegExp(`^\\s*${escapeRegex(seed.branchName)}\\s*$`, 'i') }).first().click({ force: true })
+  const createOrganization = page.locator('#createOrganization')
+  if (await createOrganization.isVisible({ timeout: 2000 }).catch(() => false)) {
+    await createOrganization.click()
+    await page.getByRole('option', { name: new RegExp(`^\\s*${escapeRegex(seed.branchName)}\\s*$`, 'i') }).first().click({ force: true })
+  }
 
   await page.locator('#createZoneType').click()
   await page.getByRole('option', { name: /general \(jurisdiction area\)/i }).first().click({ force: true })
@@ -110,6 +126,7 @@ test.describe('Manual UI data entry: First Security jurisdiction zones', () => {
 
     for (const seed of BRANCH_SEEDS) {
       await gotoZones(page)
+      await setOrganizationScope(page, seed.branchName)
 
       const zoneName = jurisdictionName(seed.branchName)
       if (await zoneExistsBySearch(page, zoneName)) {
