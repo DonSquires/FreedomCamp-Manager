@@ -167,3 +167,4 @@ export function PatrolCard({ patrol, onViewDetails, onEndPatrol, onStartPatrol, 
     </Card>
   )
 }
+
