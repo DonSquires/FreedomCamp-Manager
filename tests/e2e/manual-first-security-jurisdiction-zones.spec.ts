@@ -125,7 +125,44 @@ async function createJurisdictionZone(page: Page, seed: BranchSeed): Promise<'cr
   await expect(submitButton).toBeVisible({ timeout: 5000 })
   await expect(submitButton).toBeEnabled({ timeout: 5000 })
 
+  const createRequest = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'POST' &&
+      response.url().includes('/rest/v1/zones'),
+    { timeout: 15000 }
+  ).catch(() => null)
+
   await submitButton.click({ force: true })
+
+  const createResponse = await createRequest
+  let createResponseStatus: number | null = null
+  let createResponseBody = ''
+  if (createResponse) {
+    const status = createResponse.status()
+    const bodyText = await createResponse.text().catch(() => '')
+    createResponseStatus = status
+    createResponseBody = bodyText
+
+    if (status >= 200 && status < 300) {
+      if (!(await dialog.isHidden({ timeout: 2000 }).catch(() => false))) {
+        const cancel = dialog.getByRole('button', { name: /cancel/i }).first()
+        if (await cancel.isVisible({ timeout: 1000 }).catch(() => false)) {
+          await cancel.click()
+          await dialog.isHidden({ timeout: 10000 }).catch(() => undefined)
+        }
+      }
+      return 'created'
+    }
+
+    if (status === 409 || /already exists|idx_zones_unique_org_name_active/i.test(bodyText)) {
+      const cancel = dialog.getByRole('button', { name: /cancel/i }).first()
+      if (await cancel.isVisible({ timeout: 1000 }).catch(() => false)) {
+        await cancel.click()
+        await expect(dialog).toBeHidden({ timeout: 10000 })
+      }
+      return 'duplicate'
+    }
+  }
 
   const successToast = page.getByText(/zone created successfully/i).first()
   const duplicateMessage = page
@@ -159,10 +196,14 @@ async function createJurisdictionZone(page: Page, seed: BranchSeed): Promise<'cr
     .textContent()
     .catch(() => null)
 
+  const apiError = createResponse
+    ? `API status=${createResponseStatus} body=${createResponseBody.slice(0, 300)}`
+    : 'No POST /rest/v1/zones response captured.'
+
   throw new Error(
     `Create Zone dialog did not close after submit. ` +
     `${anyError ? `UI error: ${anyError.trim()}` : 'No duplicate/error toast detected.'} ` +
-    `Submit disabled=${submitDisabled}.`
+    `Submit disabled=${submitDisabled}. ${apiError}`
   )
 }
 
