@@ -100,12 +100,20 @@ async function openCreateZoneDialog(page: Page): Promise<void> {
 async function createJurisdictionZone(page: Page, seed: BranchSeed): Promise<'created' | 'duplicate'> {
   await openCreateZoneDialog(page)
   const dialog = page.getByRole('dialog').filter({ hasText: /add zone|create a new enforcement or jurisdiction zone/i }).first()
+  const nameField = dialog.locator('#createName')
+  const descriptionField = dialog.locator('#createDescription')
 
-  await dialog.locator('#createName').fill(jurisdictionName(seed.branchName))
-  await dialog.locator('#createDescription').fill(jurisdictionDescription(seed))
+  await nameField.click()
+  await nameField.fill('')
+  await nameField.type(jurisdictionName(seed.branchName), { delay: 18 })
+
+  await descriptionField.click()
+  await descriptionField.fill('')
+  await descriptionField.type(jurisdictionDescription(seed), { delay: 8 })
 
   const createOrganization = dialog.locator('#createOrganization')
-  if (await createOrganization.isVisible({ timeout: 2000 }).catch(() => false)) {
+  if (await createOrganization.isVisible({ timeout: 5000 }).catch(() => false)) {
+    await createOrganization.scrollIntoViewIfNeeded()
     await createOrganization.click()
     await page.getByRole('option', { name: new RegExp(`^\\s*${escapeRegex(seed.branchName)}\\s*$`, 'i') }).first().click({ force: true })
   }
@@ -113,15 +121,28 @@ async function createJurisdictionZone(page: Page, seed: BranchSeed): Promise<'cr
   await dialog.locator('#createZoneType').click()
   await page.getByRole('option', { name: /general \(jurisdiction area\)/i }).first().click({ force: true })
 
-  await dialog.getByRole('button', { name: /create zone/i }).first().click({ force: true })
-  const nameField = dialog.locator('#createName')
-  const closed = await dialog.isHidden({ timeout: 10000 }).catch(() => false)
-  if (closed) return 'created'
+  const submitButton = dialog.getByRole('button', { name: /create zone/i }).first()
+  await expect(submitButton).toBeVisible({ timeout: 5000 })
+  await expect(submitButton).toBeEnabled({ timeout: 5000 })
 
+  await submitButton.click({ force: true })
+
+  const successToast = page.getByText(/zone created successfully/i).first()
   const duplicateMessage = page
     .getByText(/already exists in this organisation|already exists/i)
     .first()
-  if (await duplicateMessage.isVisible({ timeout: 2000 }).catch(() => false)) {
+
+  const settled = await Promise.race([
+    dialog.isHidden({ timeout: 15000 }).then((hidden) => (hidden ? 'closed' : 'none')).catch(() => 'none'),
+    successToast.isVisible({ timeout: 15000 }).then((visible) => (visible ? 'success' : 'none')).catch(() => 'none'),
+    duplicateMessage.isVisible({ timeout: 15000 }).then((visible) => (visible ? 'duplicate' : 'none')).catch(() => 'none'),
+  ])
+
+  if (settled === 'closed' || settled === 'success') {
+    return 'created'
+  }
+
+  if (settled === 'duplicate') {
     const cancel = dialog.getByRole('button', { name: /cancel/i }).first()
     if (await cancel.isVisible({ timeout: 1000 }).catch(() => false)) {
       await cancel.click()
@@ -130,13 +151,19 @@ async function createJurisdictionZone(page: Page, seed: BranchSeed): Promise<'cr
     return 'duplicate'
   }
 
+  const submitDisabled = await submitButton.isDisabled().catch(() => false)
+
   const anyError = await page
     .locator('[role="alert"], [data-variant="destructive"], .toast-error')
     .first()
     .textContent()
     .catch(() => null)
 
-  throw new Error(`Create Zone dialog did not close after submit. ${anyError ? `UI error: ${anyError.trim()}` : 'No duplicate/error toast detected.'}`)
+  throw new Error(
+    `Create Zone dialog did not close after submit. ` +
+    `${anyError ? `UI error: ${anyError.trim()}` : 'No duplicate/error toast detected.'} ` +
+    `Submit disabled=${submitDisabled}.`
+  )
 }
 
 test.describe('Manual UI data entry: First Security jurisdiction zones', () => {
