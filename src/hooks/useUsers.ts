@@ -110,10 +110,10 @@ export function useUpdateUser() {
       userId: string
       updates: Partial<UserProfile> 
     }) => {
-      const { error } = await supabase.from('user_profiles')
-        .update(updates)
-        .eq('id', userId)
-
+      const { error } = await edgeFunctions.updateUserProfile({
+        user_id: userId,
+        payload: updates as Record<string, unknown>,
+      })
       if (error) throw error
     },
     onSuccess: (_, variables) => {

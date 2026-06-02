@@ -79,6 +79,22 @@ Used by `scripts/runpod-bob-hook-server.mjs`.
 - `BOB_AUTOMATION_WEBHOOK_HOST` (default `127.0.0.1`; local-only by default)
 - `BOB_AUTOMATION_WEBHOOK_PORT` (default `8787`)
 
+## Bob RunPod Self-Test Controls
+
+Used by `scripts/trigger-bob-self-test.mjs`.
+
+- `BOB_SELF_TEST_PREFLIGHT` (default `true`)
+- `BOB_SELF_TEST_REQUIRE_REPO_TOKEN` (default `true`)
+- `BOB_SELF_TEST_REQUIRE_BUG_REPORT_CONTEXT` (default `true`)
+- `BOB_SELF_TEST_AUTH_MODE` (`repo-token` default, or `embed-url`)
+- `BOB_SELF_TEST_LAST_RUN_FILE` (default `data/bob-last-runpod-self-test.json`)
+
+Required bug reporter context (for non-dry runs when `BOB_SELF_TEST_REQUIRE_BUG_REPORT_CONTEXT=true`):
+
+- `VITE_SUPABASE_URL` (or `SUPABASE_URL`)
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `SYNTHETIC_MONITOR_USER_ID`
+
 ## Ollama Variables
 
 Used by `onspace-ai-chat` and `inference-service`.

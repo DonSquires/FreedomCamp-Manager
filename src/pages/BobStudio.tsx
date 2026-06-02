@@ -21,7 +21,7 @@ import React, { useEffect, useState, useRef, useCallback } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Loader2, MessageCircle, Zap, Mic, MicOff, BarChart3, AlertCircle, Volume2, Languages } from 'lucide-react'
+import { Loader2, MessageCircle, Zap, Mic, MicOff, BarChart3, AlertCircle, Volume2, Languages, Activity, CheckCircle2, XCircle, WifiOff } from 'lucide-react'
 import { useBobStore, type BobTask } from '@/stores/bobStore'
 import { useBobConversation } from '@/hooks/useBobConversation'
 import { useOperationalOrganization } from '@/hooks/useOperationalOrganization'
@@ -918,16 +918,147 @@ function BobTestingTab({ messages, onScoreMessage }: BobTestingTabProps) {
 }
 
 /**
- * Performance metrics & diagnostics
+ * Performance metrics, system status, and diagnostics.
+ * System status panel per INSTRUCTION_MANUAL.md §8.5: shows operating mode, provider,
+ * auth status, egress status, and upstream health.
  */
 interface BobDiagnosticsTabProps {
   learningPatterns: any[]
   approvalGates: any[]
 }
 
+type BobHealthStatus = {
+  status: 'online' | 'offline' | 'degraded'
+  operatingMode?: string
+  provider?: string
+  externalEgressAllowed?: boolean
+  supabaseJwtEnabled?: boolean
+  upstreamUrl?: string
+  error?: string
+}
+
+/** Inline status indicator — extracted at module level to avoid re-creation on each render */
+function BobStatusIcon({ ok }: { ok: boolean | undefined }) {
+  if (ok === undefined) return <Activity className="h-3 w-3 text-muted-foreground" />
+  return ok
+    ? <CheckCircle2 className="h-3 w-3 text-green-400" />
+    : <XCircle className="h-3 w-3 text-red-400" />
+}
+
 function BobDiagnosticsTab({ learningPatterns, approvalGates }: BobDiagnosticsTabProps) {
+  const [health, setHealth] = useState<BobHealthStatus | null>(null)
+  const [loadingHealth, setLoadingHealth] = useState(false)
+
+  const fetchHealth = async () => {
+    setLoadingHealth(true)
+    try {
+      const { data, error } = await edgeFunctions.bobGateway({ action: 'health' })
+      if (error) {
+        const errMsg = error !== null && typeof error === 'object' && 'message' in (error as object)
+          ? String((error as { message: unknown }).message)
+          : String(error)
+        setHealth({ status: 'offline', error: errMsg })
+      } else {
+        setHealth({
+          status: data?.status ?? 'offline',
+          operatingMode: data?.config?.OPERATING_MODE,
+          provider: data?.config?.CHAT_PROVIDER,
+          externalEgressAllowed: data?.config?.EXTERNAL_EGRESS_ALLOWED,
+          supabaseJwtEnabled: data?.config?.SUPABASE_JWT_RUNTIME_ENABLED,
+          upstreamUrl: data?.config?.INFERENCE_SERVICE_URL,
+        })
+      }
+    } catch (err) {
+      setHealth({ status: 'offline', error: String(err) })
+    } finally {
+      setLoadingHealth(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchHealth()
+  }, [])
+
   return (
     <div className="grid gap-4 md:grid-cols-2">
+      {/* Bob System Status Panel — INSTRUCTION_MANUAL.md §8.5 */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Activity className="h-4 w-4" /> Bob System Status
+          </CardTitle>
+          <CardDescription>Operating mode, provider, auth, egress, and upstream health</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {loadingHealth ? (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" /> Checking status…
+            </div>
+          ) : health ? (
+            <div className="space-y-2 text-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Overall</span>
+                <span className={health.status === 'online' ? 'text-green-400' : health.status === 'degraded' ? 'text-yellow-400' : 'text-red-400'}>
+                  {health.status}
+                </span>
+              </div>
+              {health.operatingMode && (
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Operating mode</span>
+                  <span className="font-mono text-xs">{health.operatingMode}</span>
+                </div>
+              )}
+              {health.provider && (
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Provider</span>
+                  <span className="font-mono text-xs">{health.provider}</span>
+                </div>
+              )}
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">External egress</span>
+                <span className="flex items-center gap-1">
+                  <BobStatusIcon ok={health.externalEgressAllowed} />
+                  {health.externalEgressAllowed ? 'allowed' : 'blocked'}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Supabase JWT</span>
+                <span className="flex items-center gap-1">
+                  <BobStatusIcon ok={health.supabaseJwtEnabled} />
+                  {health.supabaseJwtEnabled ? 'enabled' : 'disabled'}
+                </span>
+              </div>
+              {health.upstreamUrl && (
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Upstream</span>
+                  <span
+                    className="font-mono text-xs truncate max-w-[180px]"
+                    title={health.upstreamUrl}
+                    aria-label={`Upstream URL: ${health.upstreamUrl}`}
+                  >
+                    {health.upstreamUrl}
+                  </span>
+                </div>
+              )}
+              {health.error && (
+                <div className="flex items-start gap-1 text-red-400 text-xs">
+                  <WifiOff className="h-3 w-3 mt-0.5 shrink-0" />
+                  {health.error}
+                </div>
+              )}
+              <button
+                onClick={fetchHealth}
+                className="mt-2 text-xs text-muted-foreground underline hover:text-foreground transition-colors"
+              >
+                Refresh
+              </button>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">Unable to fetch status</p>
+          )}
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader>
           <CardTitle>Learned Patterns</CardTitle>

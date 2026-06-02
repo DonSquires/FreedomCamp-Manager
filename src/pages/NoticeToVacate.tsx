@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { edgeFunctions } from '@/lib/edgeFunctions'
 import { useAuthStore } from '@/stores/authStore'
+import { useDeviceStore } from '@/stores/deviceStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
 import { AppLayout } from '@/components/features/AppLayout'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
@@ -35,6 +36,7 @@ import {
 import { toast } from 'sonner'
 import { formatDateTime } from '@/lib/utils'
 import { computeSafetyDossierRisk, isDigitalSignatureValid } from '@/lib/enforcementPhase4'
+import { canTransitionNoticeStatus, validateNoticeIssuancePayload } from '@/lib/noticeWorkflow'
 
 interface NoticeToVacateRecord {
   id: string
@@ -97,6 +99,7 @@ const DELIVERY_OPTIONS = [
 
 export default function NoticeToVacate() {
   const { user } = useAuthStore()
+  const { assignedNoticePrinter, requireAssignedPrinterForNotices } = useDeviceStore()
   const { organizationId, zoneId, dateFrom, dateTo } = useGlobalFiltersStore()
   const queryClient = useQueryClient()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -149,6 +152,11 @@ export default function NoticeToVacate() {
       return
     }
 
+    if (mode === 'print' && requireAssignedPrinterForNotices && !assignedNoticePrinter) {
+      toast.error('Assign a portable or fixed printer in Settings before printing notices.')
+      return
+    }
+
     const previewWindow = window.open('', '_blank')
     if (!previewWindow) {
       toast.error('Chrome blocked the print window. Allow popups for this site and try again.')
@@ -162,6 +170,9 @@ export default function NoticeToVacate() {
     const finishOpen = () => {
       previewWindow.focus()
       if (mode === 'print') {
+        if (assignedNoticePrinter) {
+          toast.info(`Sending print job to assigned ${assignedNoticePrinter.printerType} printer: ${assignedNoticePrinter.name}`)
+        }
         window.setTimeout(() => {
           previewWindow.focus()
           previewWindow.print()
@@ -356,6 +367,26 @@ export default function NoticeToVacate() {
       toast.error('Session issue detected. Please sign in again.')
       return
     }
+    const issuanceValidation = validateNoticeIssuancePayload({
+      noticeClass: 'notice_to_vacate',
+      legalBasis: 'Freedom Camping Act 2011 - Notice to Vacate',
+      issuerId: user.id,
+      issuerRole: user.role || '',
+      policyReference: 'fca.notice_to_vacate.default',
+      evidenceRefs: [form.breachAlertId, form.zoneId].filter((value): value is string => Boolean(value)),
+      serviceProof: {
+        method: form.deliveryMethod as 'printed_onsite' | 'handed_in_person' | 'email' | 'officer_delivery',
+        servedAt: new Date().toISOString(),
+        servedBy: user.id,
+        recipientEmail: form.deliverToEmail || null,
+      },
+    })
+    if (!issuanceValidation.ok) {
+      const message = issuanceValidation.errors[0] || 'Missing required issuance metadata'
+      setIssueFeedback({ type: 'error', message })
+      toast.error(message)
+      return
+    }
 
     setIssueFeedback({ type: 'loading', message: 'Generating notice, please wait…' })
     setIssuing(true)
@@ -397,7 +428,9 @@ export default function NoticeToVacate() {
 
   // Update status mutation
   const updateStatus = useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: string }) => {
+    mutationFn: async ({ id, status, currentStatus }: { id: string; status: string; currentStatus: string }) => {
+      const transition = canTransitionNoticeStatus('notice_to_vacate', currentStatus, status, user?.role)
+      if (!transition.ok) throw new Error(transition.reason || 'Invalid notice status transition')
       const { error } = await (supabase.from('notices_to_vacate') as any)
         .update({ status })
         .eq('id', id)
@@ -600,7 +633,7 @@ export default function NoticeToVacate() {
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => updateStatus.mutate({ id: notice.id, status: 'complied' })}
+                            onClick={() => updateStatus.mutate({ id: notice.id, status: 'complied', currentStatus: notice.status })}
                           >
                             <CheckCircle className="h-3.5 w-3.5 mr-1" />
                             Complied
@@ -608,7 +641,7 @@ export default function NoticeToVacate() {
                           <Button
                             size="sm"
                             variant="destructive"
-                            onClick={() => updateStatus.mutate({ id: notice.id, status: 'escalated' })}
+                            onClick={() => updateStatus.mutate({ id: notice.id, status: 'escalated', currentStatus: notice.status })}
                           >
                             <AlertTriangle className="h-3.5 w-3.5 mr-1" />
                             Escalate

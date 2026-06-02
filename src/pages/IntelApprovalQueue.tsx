@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AlertTriangle, CheckCircle2, Globe2, ShieldAlert, XCircle } from 'lucide-react'
 import { AppLayout } from '@/components/features/AppLayout'
+import { BobGovernanceStatusStrip } from '@/components/features/BobGovernanceStatusStrip'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -247,25 +248,13 @@ export default function IntelApprovalQueue() {
     >
       <GlobalFilterRibbon />
 
-      <div className="mb-4 flex items-center gap-2 text-sm">
+      {/* Governance status strip — per INSTRUCTION_MANUAL.md §1a Governance Status Strip Pattern */}
+      <BobGovernanceStatusStrip activeState={totalPending > 0 ? 'awaiting' : null} />
+
+      <div className="mb-4 flex items-center gap-2 text-sm mt-4">
         <ShieldAlert className="h-4 w-4 text-primary" />
         <span className="text-muted-foreground">Pending decisions:</span>
         <Badge>{totalPending}</Badge>
-      </div>
-
-      <div className="mb-4 flex flex-wrap gap-2">
-        <Badge variant="outline" className="gap-1">
-          <AlertTriangle className="h-3 w-3" /> Proposal submitted
-        </Badge>
-        <Badge variant={totalPending > 0 ? 'default' : 'secondary'} className="gap-1">
-          <ShieldAlert className="h-3 w-3" /> Awaiting approver
-        </Badge>
-        <Badge variant="outline" className="gap-1">
-          <CheckCircle2 className="h-3 w-3" /> Approved
-        </Badge>
-        <Badge variant="destructive" className="gap-1">
-          <XCircle className="h-3 w-3" /> Blocked
-        </Badge>
       </div>
 
       <Tabs defaultValue="bulletins" className="space-y-4">

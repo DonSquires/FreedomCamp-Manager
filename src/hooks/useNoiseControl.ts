@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
+import { validateNoticeIssuancePayload } from '@/lib/noticeWorkflow'
 
 // ─── Shared types ─────────────────────────────────────────────────────────────
 
@@ -236,6 +237,22 @@ export function useCreateNoiseNotice(
   return useMutation({
     mutationFn: async (newNotice: NewNoticeForm) => {
       if (!orgId || !userId) throw new Error('Not authenticated')
+      const issuanceValidation = validateNoticeIssuancePayload({
+        noticeClass: 'noise',
+        legalBasis: newNotice.rma_section || 'Resource Management Act 1991',
+        issuerId: userId,
+        issuerRole: 'officer',
+        policyReference: 'noise.notice.default',
+        evidenceRefs: [newNotice.noise_job_id].filter((value): value is string => Boolean(value)),
+        serviceProof: {
+          method: 'hand',
+          servedAt: new Date().toISOString(),
+          servedBy: userId,
+          recipientName: newNotice.recipient_name,
+          recipientAddress: newNotice.recipient_address,
+        },
+      })
+      if (!issuanceValidation.ok) throw new Error(issuanceValidation.errors[0] || 'Missing notice issuance data')
       const { data: counterRow } = await supabase
         .from('noise_notice_counters')
         .select('last_number')

@@ -1,10 +1,17 @@
 import type { RosterServiceType, RosteredShift } from '@/hooks/useRosteredShift'
+import {
+  SPECIALTY_REGISTRY,
+  appendQueryParams,
+  getSpecialtyRegistryEntry,
+  getSpecialtyRegistryEntryFromServiceType,
+  resolveCanonicalSpecialty,
+} from '@/lib/specialtyRegistry'
 
 export const SERVICE_TYPE_PORTAL: Record<
   RosterServiceType,
   { path: string; label: string; buildPath?: (shift: RosteredShift) => string }
 > = {
-  freedom_camping: { path: '/field-officer?service=freedom_camping', label: 'Freedom Camping Patrol' },
+  freedom_camping: { path: SPECIALTY_REGISTRY.freedom_camping.portalPath, label: 'Freedom Camping Patrol' },
   guarding: {
     path: '/site-guard',
     label: 'Site Guarding',
@@ -13,13 +20,13 @@ export const SERVICE_TYPE_PORTAL: Record<
         ? `/site-guard?site=${shift.client_site_id}${shift.id ? `&roster=${shift.id}` : ''}`
         : '/field-officer?service=guarding',
   },
-  parking: { path: '/parking-officer', label: 'Parking Enforcement' },
-  noise: { path: '/noise-officer', label: 'Noise Control' },
+  parking: { path: SPECIALTY_REGISTRY.parking.portalPath, label: 'Parking Enforcement' },
+  noise: { path: SPECIALTY_REGISTRY.noise.portalPath, label: 'Noise Control' },
   patrol: { path: '/field-officer?service=patrol', label: 'General Patrol' },
   alarm_response: { path: '/field-officer?service=alarm_response', label: 'Alarm Response' },
   ems: { path: '/ems', label: 'EMS' },
-  biosecurity_inspection: { path: '/biosecurity-officer', label: 'Biosecurity Inspection' },
-  smoke_complaint_ooh: { path: '/smoke-officer', label: 'Smoke Complaint (OOH)' },
+  biosecurity_inspection: { path: SPECIALTY_REGISTRY.biosecurity.portalPath, label: 'Biosecurity Inspection' },
+  smoke_complaint_ooh: { path: SPECIALTY_REGISTRY.smoke.portalPath, label: 'Smoke Complaint (OOH)' },
 }
 
 export function getOfficerPortalPath(shift: RosteredShift): string | null {
@@ -40,19 +47,7 @@ const FIELD_OPERATION_ROLES = new Set([
 const ANALYTICS_LANDING_ROLES = new Set(['analyst', 'intel_supervisor'])
 const ADMIN_LANDING_ROLES = new Set(['master', 'admin', 'admin_officer', 'manager', 'supervisor', 'regional_manager', 'grand_master'])
 
-const SPECIALTY_ACCESS_ROLES = new Set([
-  'master',
-  'admin',
-  'systems_administrator',
-  'admin_officer',
-  'manager',
-  'supervisor',
-  'regional_manager',
-  'officer',
-  'analyst',
-  'intel_supervisor',
-  'grand_master',
-])
+const SPECIALTY_ACCESS_ROLES = new Set(['officer', 'admin_officer', 'admin', 'master'])
 
 export const resolvePortalRole = (role: RoleLike): string | null => {
   if (!role || typeof role !== 'string') return null
@@ -98,38 +93,66 @@ export const SPECIALTY_TYPE_META: Record<
   { label: string; portalPath: string; color: string }
 > = {
   freedom_camping: {
-    label: 'Freedom Camping',
-    portalPath: '/field-officer?service=freedom_camping',
-    color: 'bg-green-100 text-green-800 border-green-200',
+    label: SPECIALTY_REGISTRY.freedom_camping.label,
+    portalPath: SPECIALTY_REGISTRY.freedom_camping.portalPath,
+    color: SPECIALTY_REGISTRY.freedom_camping.badgeClassName,
   },
   parking_warden: {
-    label: 'Parking',
-    portalPath: '/parking-officer',
-    color: 'bg-blue-100 text-blue-800 border-blue-200',
+    label: SPECIALTY_REGISTRY.parking.label,
+    portalPath: SPECIALTY_REGISTRY.parking.portalPath,
+    color: SPECIALTY_REGISTRY.parking.badgeClassName,
   },
   excessive_smoke: {
-    label: 'Excessive Smoke',
-    portalPath: '/smoke-officer',
-    color: 'bg-orange-100 text-orange-800 border-orange-200',
+    label: SPECIALTY_REGISTRY.smoke.label,
+    portalPath: SPECIALTY_REGISTRY.smoke.portalPath,
+    color: SPECIALTY_REGISTRY.smoke.badgeClassName,
   },
   noise_control: {
-    label: 'Noise Control',
-    portalPath: '/noise-officer',
-    color: 'bg-purple-100 text-purple-800 border-purple-200',
+    label: SPECIALTY_REGISTRY.noise.label,
+    portalPath: SPECIALTY_REGISTRY.noise.portalPath,
+    color: SPECIALTY_REGISTRY.noise.badgeClassName,
   },
   biosecurity: {
-    label: 'Biosecurity',
-    portalPath: '/biosecurity-officer',
-    color: 'bg-teal-100 text-teal-800 border-teal-200',
+    label: SPECIALTY_REGISTRY.biosecurity.label,
+    portalPath: SPECIALTY_REGISTRY.biosecurity.portalPath,
+    color: SPECIALTY_REGISTRY.biosecurity.badgeClassName,
   },
   general: {
-    label: 'General',
-    portalPath: '/field-officer?service=patrol',
-    color: 'bg-gray-100 text-gray-700 border-gray-200',
+    label: SPECIALTY_REGISTRY.general.label,
+    portalPath: SPECIALTY_REGISTRY.general.portalPath,
+    color: SPECIALTY_REGISTRY.general.badgeClassName,
   },
 }
 
 export function getSpecialtyPortalPath(specialtyType: string | null | undefined): string | null {
   if (!specialtyType) return null
+  const canonical = resolveCanonicalSpecialty(specialtyType)
+  if (canonical) return SPECIALTY_REGISTRY[canonical].portalPath
   return SPECIALTY_TYPE_META[specialtyType as SpecialtyType]?.portalPath ?? null
+}
+
+export function getSpecialtyMeta(specialtyType: string | null | undefined): { label: string; portalPath: string; color: string } | null {
+  if (!specialtyType) return null
+  const canonical = resolveCanonicalSpecialty(specialtyType)
+  if (canonical) {
+    const entry = SPECIALTY_REGISTRY[canonical]
+    return { label: entry.label, portalPath: entry.portalPath, color: entry.badgeClassName }
+  }
+  return SPECIALTY_TYPE_META[specialtyType as SpecialtyType] ?? null
+}
+
+export function getSpecialtyPortalPathFromServiceType(serviceType: RosterServiceType | null | undefined): string | null {
+  const entry = getSpecialtyRegistryEntryFromServiceType(serviceType)
+  return entry?.portalPath ?? null
+}
+
+export function buildSpecialtyPortalLink(
+  input: { specialtyType?: string | null; serviceType?: RosterServiceType | null },
+  context: Record<string, string | number | boolean | null | undefined>,
+): string | null {
+  const entry = input.specialtyType
+    ? getSpecialtyRegistryEntry(input.specialtyType)
+    : getSpecialtyRegistryEntryFromServiceType(input.serviceType)
+  if (!entry) return null
+  return appendQueryParams(entry.portalPath, context)
 }

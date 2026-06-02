@@ -11,6 +11,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { edgeFunctions } from '@/lib/edgeFunctions'
 import { useAuthStore } from '@/stores/authStore'
+import { useDeviceStore } from '@/stores/deviceStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
 import { AppLayout } from '@/components/features/AppLayout'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
@@ -38,6 +39,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDateTime } from '@/lib/utils'
+import { canTransitionNoticeStatus, validateNoticeIssuancePayload } from '@/lib/noticeWorkflow'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -90,6 +92,7 @@ const BREACH_TYPE_LABELS: Record<string, string> = {
 
 export default function InfringementNotices() {
   const { user } = useAuthStore()
+  const { assignedNoticePrinter, requireAssignedPrinterForNotices } = useDeviceStore()
   const [searchParams, setSearchParams] = useSearchParams()
   const { organizationId, zoneId, dateFrom, dateTo } = useGlobalFiltersStore()
   const queryClient = useQueryClient()
@@ -310,7 +313,9 @@ export default function InfringementNotices() {
 
   // ── Status update mutation ────────────────────────────────────────────────
   const updateStatus = useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: string }) => {
+    mutationFn: async ({ id, status, currentStatus }: { id: string; status: string; currentStatus: string }) => {
+      const transition = canTransitionNoticeStatus('infringement', currentStatus, status, user?.role)
+      if (!transition.ok) throw new Error(transition.reason || 'Invalid notice status transition')
       const { error } = await (supabase.from('infringement_notices') as any)
         .update({ status, updated_at: new Date().toISOString() })
         .eq('id', id)
@@ -341,6 +346,27 @@ export default function InfringementNotices() {
     }
     if (form.service_method === 'post' && !form.recipient_address?.trim()) {
       toast.error('Recipient postal address is required when serving by post')
+      return
+    }
+
+    const issuanceValidation = validateNoticeIssuancePayload({
+      noticeClass: 'infringement',
+      legalBasis: form.legal_basis,
+      issuerId: user?.id || '',
+      issuerRole: user?.role || '',
+      policyReference: 'fca.infringement.default',
+      evidenceRefs: [form.observation_id, form.breach_alert_id].filter((value): value is string => Boolean(value)),
+      serviceProof: {
+        method: form.service_method,
+        servedAt: new Date().toISOString(),
+        servedBy: user?.id || '',
+        recipientName: form.recipient_name || null,
+        recipientAddress: form.recipient_address || null,
+        recipientEmail: form.recipient_email || null,
+      },
+    })
+    if (!issuanceValidation.ok) {
+      toast.error(issuanceValidation.errors[0] || 'Missing required issuance metadata')
       return
     }
     setIssueErrorDetail(null)
@@ -457,6 +483,11 @@ export default function InfringementNotices() {
       return
     }
 
+    if (mode === 'print' && requireAssignedPrinterForNotices && !assignedNoticePrinter) {
+      toast.error('Assign a portable or fixed printer in Settings before printing notices.')
+      return
+    }
+
     const previewWindow = window.open('', '_blank')
     if (!previewWindow) {
       toast.error('Chrome blocked the print window. Allow popups for this site and try again.')
@@ -470,6 +501,9 @@ export default function InfringementNotices() {
     const finishOpen = () => {
       previewWindow.focus()
       if (mode === 'print') {
+        if (assignedNoticePrinter) {
+          toast.info(`Sending print job to assigned ${assignedNoticePrinter.printerType} printer: ${assignedNoticePrinter.name}`)
+        }
         window.setTimeout(() => {
           previewWindow.focus()
           previewWindow.print()
@@ -682,21 +716,21 @@ export default function InfringementNotices() {
                           <Button
                             size="sm" variant="outline"
                             className="h-7 text-xs gap-1 border-green-400 text-green-700"
-                            onClick={() => updateStatus.mutate({ id: notice.id, status: 'paid' })}
+                            onClick={() => updateStatus.mutate({ id: notice.id, status: 'paid', currentStatus: notice.status })}
                           >
                             <DollarSign className="h-3 w-3" /> Paid
                           </Button>
                           <Button
                             size="sm" variant="outline"
                             className="h-7 text-xs gap-1 border-orange-400 text-orange-700"
-                            onClick={() => updateStatus.mutate({ id: notice.id, status: 'reminder_sent' })}
+                            onClick={() => updateStatus.mutate({ id: notice.id, status: 'reminder_sent', currentStatus: notice.status })}
                           >
                             <AlertTriangle className="h-3 w-3" /> Reminder
                           </Button>
                           <Button
                             size="sm" variant="outline"
                             className="h-7 text-xs gap-1 border-red-400 text-red-700"
-                            onClick={() => updateStatus.mutate({ id: notice.id, status: 'court_referred' })}
+                            onClick={() => updateStatus.mutate({ id: notice.id, status: 'court_referred', currentStatus: notice.status })}
                           >
                             <Scale className="h-3 w-3" /> Court
                           </Button>
@@ -707,14 +741,14 @@ export default function InfringementNotices() {
                           <Button
                             size="sm" variant="outline"
                             className="h-7 text-xs gap-1 border-green-400 text-green-700"
-                            onClick={() => updateStatus.mutate({ id: notice.id, status: 'paid' })}
+                            onClick={() => updateStatus.mutate({ id: notice.id, status: 'paid', currentStatus: notice.status })}
                           >
                             <DollarSign className="h-3 w-3" /> Paid
                           </Button>
                           <Button
                             size="sm" variant="outline"
                             className="h-7 text-xs gap-1 border-red-400 text-red-700"
-                            onClick={() => updateStatus.mutate({ id: notice.id, status: 'court_referred' })}
+                            onClick={() => updateStatus.mutate({ id: notice.id, status: 'court_referred', currentStatus: notice.status })}
                           >
                             <Scale className="h-3 w-3" /> Court
                           </Button>
@@ -725,7 +759,7 @@ export default function InfringementNotices() {
                         <Button
                           size="sm" variant="outline"
                           className="h-7 text-xs gap-1"
-                          onClick={() => updateStatus.mutate({ id: notice.id, status: 'withdrawn' })}
+                          onClick={() => updateStatus.mutate({ id: notice.id, status: 'withdrawn', currentStatus: notice.status })}
                         >
                           <XCircle className="h-3 w-3" /> Void
                         </Button>
