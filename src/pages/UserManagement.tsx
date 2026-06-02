@@ -51,6 +51,13 @@ import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
 import { PTTChannelAccessControl } from '@/components/features/PTTChannelAccessControl'
 import { uploadFile } from '@/lib/fileUpload'
 import { PORTAL_AREA_LABELS, type PortalAreaCode } from '@/hooks/usePermissions'
+import {
+  normalizeStringArray,
+  resolveAuthorizedWorkLocations,
+  resolveEmployerOrganizationId,
+  resolveUserNames,
+  trimToNull,
+} from '@/lib/entityCreationDefaults'
 
 interface Organization {
   id: string
@@ -178,6 +185,8 @@ export default function UserManagement({ embedded = false }: UserManagementProps
       new Promise<T>((_, reject) => setTimeout(() => reject(new Error(timeoutMessage)), timeoutMs)),
     ])
   }
+  const normalizeErrorMessage = (error: unknown): string =>
+    error instanceof Error ? error.message : String(error ?? 'Request failed')
 
   // Check user role
   const isAdmin = user?.role === 'admin' || user?.role === 'systems_administrator' || user?.role === 'admin_officer' || user?.role === 'master' || user?.role === 'grand_master'
@@ -193,7 +202,7 @@ export default function UserManagement({ embedded = false }: UserManagementProps
         // Legacy records may have null is_active; treat them as active for admin assignment flows.
         .or('is_active.eq.true,is_active.is.null')
         .order('name', { ascending: true })
-      if (error) throw error
+      if (error) throw new Error(normalizeErrorMessage(error))
       return data as Organization[]
     },
     enabled: isAdmin,
@@ -204,7 +213,7 @@ export default function UserManagement({ embedded = false }: UserManagementProps
     queryKey: ['user-org-ids'],
     queryFn: async () => {
       const { data, error } = await (supabase as any).rpc('get_user_organization_ids')
-      if (error) throw error
+      if (error) throw new Error(normalizeErrorMessage(error))
       return data as string[]
     },
     // Masters can access all organizations directly, so this scoped org-id RPC is only needed for non-master admins.
@@ -243,7 +252,7 @@ export default function UserManagement({ embedded = false }: UserManagementProps
         .eq('id', normalizedDirectUserToAdd)
         .limit(1)
 
-      if (error) throw error
+      if (error) throw new Error(normalizeErrorMessage(error))
 
       const row = Array.isArray(data) ? data[0] : null
       return (row || null) as DirectUserPreview | null
@@ -263,7 +272,7 @@ export default function UserManagement({ embedded = false }: UserManagementProps
         .eq('id', user.id)
         .single()
 
-      if (error) throw error
+      if (error) throw new Error(normalizeErrorMessage(error))
 
       const organization = data?.organization
       if (!organization?.id || !organization?.name) return null
@@ -397,20 +406,33 @@ export default function UserManagement({ embedded = false }: UserManagementProps
       if (password.length < 8) {
         throw new Error('Password must be at least 8 characters')
       }
+      const selectedOrganizationId = trimToNull(organizationId)
+      const normalizedExtraOrganizationIds = normalizeStringArray(extraOrganizationIds)
+      const employerOrganizationId = resolveEmployerOrganizationId(selectedOrganizationId, employerOrgId)
+      const resolvedNames = resolveUserNames({
+        email,
+        first_name: firstName,
+        last_name: lastName,
+        role,
+      })
       const payload = {
         email: email.trim(),
         password,
         role,
-        first_name: firstName,
-        last_name: lastName,
-        phone,
-        job_title: jobTitle || null,
+        first_name: resolvedNames.first_name ?? '',
+        last_name: resolvedNames.last_name ?? '',
+        phone: trimToNull(phone),
+        job_title: trimToNull(jobTitle),
         requires_driver_license: requiresDriverLicense,
-        organization_id: organizationId || user?.organization_id || null,
-        extra_organization_ids: extraOrganizationIds,
-        employer_organization_id: employerOrgId || organizationId || user?.organization_id || null,
+        organization_id: selectedOrganizationId,
+        extra_organization_ids: normalizedExtraOrganizationIds,
+        employer_organization_id: employerOrganizationId,
         portal_access: portalAccess,
-        authorized_work_locations: derivedAuthorizedWorkLocations,
+        authorized_work_locations: resolveAuthorizedWorkLocations(
+          selectedOrganizationId,
+          normalizedExtraOrganizationIds,
+          derivedAuthorizedWorkLocations,
+        ),
         ptt_channel_access: createPttScopes,
       }
 
@@ -419,7 +441,7 @@ export default function UserManagement({ embedded = false }: UserManagementProps
         60000,
         'Request timed out after 60 seconds.',
       )
-      if (error) throw new Error(error)
+      if (error) throw new Error(normalizeErrorMessage(error))
       return data
     },
     onSuccess: () => {
@@ -438,19 +460,32 @@ export default function UserManagement({ embedded = false }: UserManagementProps
       if (!emailRegex.test(email.trim())) {
         throw new Error('Enter a valid email address (for example user@example.com)')
       }
+      const selectedOrganizationId = trimToNull(organizationId)
+      const normalizedExtraOrganizationIds = normalizeStringArray(extraOrganizationIds)
+      const employerOrganizationId = resolveEmployerOrganizationId(selectedOrganizationId, employerOrgId)
+      const resolvedNames = resolveUserNames({
+        email,
+        first_name: firstName,
+        last_name: lastName,
+        role,
+      })
       const payload = {
         email: email.trim(),
         role,
-        first_name: firstName,
-        last_name: lastName,
-        phone,
-        job_title: jobTitle || null,
+        first_name: resolvedNames.first_name ?? '',
+        last_name: resolvedNames.last_name ?? '',
+        phone: trimToNull(phone),
+        job_title: trimToNull(jobTitle),
         requires_driver_license: requiresDriverLicense,
-        organization_id: organizationId || user?.organization_id || null,
-        extra_organization_ids: extraOrganizationIds,
-        employer_organization_id: employerOrgId || organizationId || user?.organization_id || null,
+        organization_id: selectedOrganizationId,
+        extra_organization_ids: normalizedExtraOrganizationIds,
+        employer_organization_id: employerOrganizationId,
         portal_access: portalAccess,
-        authorized_work_locations: derivedAuthorizedWorkLocations,
+        authorized_work_locations: resolveAuthorizedWorkLocations(
+          selectedOrganizationId,
+          normalizedExtraOrganizationIds,
+          derivedAuthorizedWorkLocations,
+        ),
         ptt_channel_access: createPttScopes,
       }
 
@@ -459,7 +494,7 @@ export default function UserManagement({ embedded = false }: UserManagementProps
         60000,
         'Request timed out after 60 seconds.',
       )
-      if (error) throw new Error(error)
+      if (error) throw new Error(normalizeErrorMessage(error))
       return data
     },
     onSuccess: () => {
@@ -481,7 +516,7 @@ export default function UserManagement({ embedded = false }: UserManagementProps
         45000,
         'Request timed out after 45 seconds.',
       )
-      if (error) throw new Error(error)
+      if (error) throw new Error(normalizeErrorMessage(error))
       return data
     },
     onSuccess: () => {
@@ -501,12 +536,16 @@ export default function UserManagement({ embedded = false }: UserManagementProps
   const updateUserMutation = useMutation({
     mutationFn: async (updates: Partial<UserProfile>) => {
       if (!selectedUser) throw new Error('No user selected')
-      
-      const { error } = await (supabase.from('user_profiles') as any)
-        .update(updates)
-        .eq('id', selectedUser.id)
-
-      if (error) throw error
+      const { data, error } = await withTimeout(
+        edgeFunctions.updateUserProfile({
+          user_id: selectedUser.id,
+          payload: updates as Record<string, unknown>,
+        }),
+        45000,
+        'Request timed out after 45 seconds.',
+      )
+      if (error) throw new Error(normalizeErrorMessage(error))
+      return data
     },
     onSuccess: () => {
       toast.success('User updated successfully')
@@ -517,6 +556,30 @@ export default function UserManagement({ embedded = false }: UserManagementProps
     },
     onError: (error: any) => {
       toast.error(error.message || 'Failed to update user')
+    },
+  })
+
+  const updateUserRoleMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedUser) throw new Error('No user selected')
+      const { error } = await withTimeout(
+        edgeFunctions.updateUserProfile({
+          user_id: selectedUser.id,
+          payload: { role },
+        }),
+        45000,
+        'Request timed out after 45 seconds.',
+      )
+      if (error) throw new Error(normalizeErrorMessage(error))
+    },
+    onSuccess: () => {
+      toast.success('Role updated successfully')
+      queryClient.invalidateQueries({ queryKey: ['users'] })
+      setShowRoleDialog(false)
+      setSelectedUser(null)
+    },
+    onError: (error: any) => {
+      toast.error(error.message || 'Failed to update role')
     },
   })
 
@@ -535,7 +598,7 @@ export default function UserManagement({ embedded = false }: UserManagementProps
         'Request timed out after 45 seconds.',
       )
 
-      if (error) throw new Error(error)
+      if (error) throw new Error(normalizeErrorMessage(error))
 
       return {
         nextIsActive,
@@ -564,7 +627,7 @@ export default function UserManagement({ embedded = false }: UserManagementProps
         'Request timed out after 45 seconds.',
       )
 
-      if (error) throw new Error(error)
+      if (error) throw error
 
       return {
         pttRevoke: (data as any)?.pttRevoke,
@@ -595,7 +658,7 @@ export default function UserManagement({ embedded = false }: UserManagementProps
         'Request timed out after 45 seconds.',
       )
 
-      if (error) throw new Error(error)
+      if (error) throw new Error(normalizeErrorMessage(error))
       return (data as any)?.data?.ptt_channel_access ?? (data as any)?.ptt_channel_access ?? null
     },
     onSuccess: (updatedScopesRaw) => {
@@ -816,28 +879,6 @@ export default function UserManagement({ embedded = false }: UserManagementProps
     },
     onError: (error: any) => {
       toast.error(error.message || 'Failed to verify credentials')
-    },
-  })
-
-  // Update role mutation
-  const updateRoleMutation = useMutation({
-    mutationFn: async () => {
-      if (!selectedUser) throw new Error('No user selected')
-      
-      const { error } = await (supabase.from('user_profiles') as any)
-        .update({ role })
-        .eq('id', selectedUser.id)
-
-      if (error) throw error
-    },
-    onSuccess: () => {
-      toast.success('Role updated successfully')
-      queryClient.invalidateQueries({ queryKey: ['users'] })
-      setShowRoleDialog(false)
-      setSelectedUser(null)
-    },
-    onError: (error: any) => {
-      toast.error(error.message || 'Failed to update role')
     },
   })
 
@@ -1831,10 +1872,10 @@ export default function UserManagement({ embedded = false }: UserManagementProps
               Cancel
             </Button>
             <Button 
-              onClick={() => updateRoleMutation.mutate()}
-              disabled={updateRoleMutation.isPending || !selectedUser}
+              onClick={() => updateUserRoleMutation.mutate()}
+              disabled={updateUserRoleMutation.isPending || !selectedUser}
             >
-              {updateRoleMutation.isPending ? 'Updating...' : 'Update Role'}
+              {updateUserRoleMutation.isPending ? 'Updating...' : 'Update Role'}
             </Button>
           </DialogFooter>
         </DialogContent>
