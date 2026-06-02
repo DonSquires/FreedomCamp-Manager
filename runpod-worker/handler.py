@@ -1930,25 +1930,36 @@ def handler(job):
                             raise
 
                 pkg_json = os.path.join(repo_dir, "package.json")
-                node_mod = os.path.join(repo_dir, "node_modules")
-                if os.path.exists(pkg_json) and not os.path.isdir(node_mod):
+                if os.path.exists(pkg_json):
                     print("[worker] Installing repo Node deps...")
                     has_pkg_lock = os.path.exists(os.path.join(repo_dir, "package-lock.json"))
-                    if has_pkg_lock:
-                        subprocess.run(
-                            ["npm", "ci", "--legacy-peer-deps", "--silent"],
-                            cwd=repo_dir,
-                            check=False,
-                            capture_output=True,
-                            timeout=420,
+                    install_cmd = (
+                        ["npm", "ci", "--legacy-peer-deps", "--silent"]
+                        if has_pkg_lock
+                        else ["npm", "install", "--legacy-peer-deps", "--silent"]
+                    )
+                    install_proc = subprocess.run(
+                        install_cmd,
+                        cwd=repo_dir,
+                        check=False,
+                        capture_output=True,
+                        timeout=900,
+                        text=True,
+                    )
+                    if install_proc.returncode != 0:
+                        install_err = (install_proc.stderr or "").strip()[-1200:]
+                        install_out = (install_proc.stdout or "").strip()[-1200:]
+                        raise RuntimeError(
+                            "Repo dependency install failed; worker cannot start Playwright webServer. "
+                            f"command={' '.join(install_cmd)} "
+                            f"stderr={install_err or '<empty>'} stdout={install_out or '<empty>'}"
                         )
-                    else:
-                        subprocess.run(
-                            ["npm", "install", "--legacy-peer-deps", "--silent"],
-                            cwd=repo_dir,
-                            check=False,
-                            capture_output=True,
-                            timeout=420,
+
+                    vite_cli = os.path.join(repo_dir, "node_modules", "vite", "bin", "vite.js")
+                    if not os.path.exists(vite_cli):
+                        raise RuntimeError(
+                            "Repo dependency install completed but Vite CLI is missing at "
+                            f"{vite_cli}; webServer startup will fail."
                         )
 
                 # Write .env for tests. Include fixed runtime keys plus prefixed
