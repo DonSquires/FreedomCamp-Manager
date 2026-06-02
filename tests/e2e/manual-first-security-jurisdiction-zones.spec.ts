@@ -137,10 +137,23 @@ async function createJurisdictionZone(page: Page, seed: BranchSeed): Promise<'cr
   ).catch(() => null)
 
   submitButton = dialog.getByRole('button', { name: /create zone/i }).first()
-  // Scroll the button into view – the dialog is max-h-[90vh] overflow-y-auto
-  // so the footer button may be below the visible clip rect when using force:true
-  await submitButton.scrollIntoViewIfNeeded()
-  await submitButton.click()
+  // Brief pause for Radix Select portal cleanup before clicking submit
+  await page.waitForTimeout(400)
+
+  submitButton = dialog.getByRole('button', { name: /create zone/i }).first()
+  // Use evaluate-based click to bypass Radix overflow/clipping intercept issues
+  const submitClicked = await page.evaluate(() => {
+    const btns = [...document.querySelectorAll('[role="dialog"] button')]
+    const btn = btns.find(b => /^create zone$/i.test((b.textContent || '').trim())) as HTMLButtonElement | undefined
+    if (!btn || btn.disabled) return false
+    btn.scrollIntoView({ block: 'nearest', behavior: 'instant' })
+    btn.focus()
+    btn.click()
+    return true
+  })
+  if (!submitClicked) {
+    throw new Error('Could not find enabled Create Zone submit button in dialog')
+  }
 
   const createResponse = await createRequest
   let createResponseStatus: number | null = null
