@@ -179,9 +179,8 @@ async function createJurisdictionZone(
     }
   })
 
-    // btn.click() via evaluate() fires inside a Radix portal (outside #root) so
-    // React's delegated listener on #root never sees it.  Instead: scroll button
-    // into view, get screen coords, then use mouse.click at those coordinates.
+    // Prefer a normal Playwright element click now that the app uses a real form.
+    // Only fall back to coordinate clicking if the element click itself fails.
     const btnRect = await page.evaluate(() => {
       const btns = [...document.querySelectorAll('[role="dialog"] button')]
       const btn = btns.find(b => /^create zone$/i.test((b.textContent || '').trim())) as HTMLButtonElement | undefined
@@ -192,7 +191,11 @@ async function createJurisdictionZone(
     })
     if (!btnRect) throw new Error('Could not find Create Zone submit button in dialog DOM')
     if (btnRect.disabled) throw new Error(`Create Zone button is disabled (text="${btnRect.text}")`)
-    await page.mouse.click(btnRect.x, btnRect.y)
+    try {
+      await submitButton.click({ timeout: 5000 })
+    } catch {
+      await page.mouse.click(btnRect.x, btnRect.y)
+    }
 
   const createResponse = await createRequest
   let createResponseStatus: number | null = null
