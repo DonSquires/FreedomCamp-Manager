@@ -1389,6 +1389,37 @@ export const edgeFunctions = {
   },
 
   /**
+   * Update core user profile fields through consolidated user management function.
+   */
+  updateUserProfile: async (params: {
+    user_id: string
+    payload: {
+      email?: string
+      role?: string
+      first_name?: string | null
+      last_name?: string | null
+      full_name?: string | null
+      phone?: string | null
+      job_title?: string | null
+      organization_id?: string | null
+      employer_organization_id?: string | null
+      requires_driver_license?: boolean
+      portal_access?: string[]
+      authorized_work_locations?: string[]
+      extra_organization_ids?: string[]
+      ptt_channel_access?: string[]
+      permissions?: unknown
+      is_active?: boolean
+    }
+  }) => {
+    return callEdgeFunction('manage-user', {
+      action: 'update',
+      userId: params.user_id,
+      payload: params.payload,
+    }, { useDirectFetch: true })
+  },
+
+  /**
    * Update user portal and branch/org access assignments via backend validation.
    */
   updateUserAccess: async (params: {

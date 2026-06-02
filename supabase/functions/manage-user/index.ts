@@ -401,7 +401,25 @@ Deno.serve(async (req) => {
 
     const { data: targetProfile } = await adminClient
       .from('user_profiles')
-      .select('id,organization_id')
+      .select(`
+        id,
+        organization_id,
+        first_name,
+        last_name,
+        full_name,
+        email,
+        role,
+        phone,
+        job_title,
+        requires_driver_license,
+        employer_organization_id,
+        portal_access,
+        authorized_work_locations,
+        extra_organization_ids,
+        ptt_channel_access,
+        permissions,
+        is_active
+      `)
       .eq('id', body.userId)
       .single()
 
@@ -577,22 +595,142 @@ Deno.serve(async (req) => {
       })
     }
 
+    const payload = body.payload ?? {}
+    const requestedOrganizationId = trimToNull(payload.organization_id)
+    const effectiveOrganizationId = requestedOrganizationId ?? targetProfile.organization_id
+
+    if (
+      requestedOrganizationId &&
+      requestedOrganizationId !== targetProfile.organization_id &&
+      !['grand_master', 'systems_administrator'].includes(caller.role) &&
+      caller.organization_id !== requestedOrganizationId
+    ) {
+      return new Response(JSON.stringify({ error: 'Cannot move users to another organization' }), {
+        status: 403,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    const normalizedExtraOrganizationIds =
+      payload.extra_organization_ids !== undefined
+        ? normalizeUuidList(normalizeStringArray(payload.extra_organization_ids))
+        : normalizeUuidList(normalizeStringArray(targetProfile.extra_organization_ids))
+    const normalizedPortalAccess =
+      payload.portal_access !== undefined
+        ? normalizePortalAccess(normalizeStringArray(payload.portal_access))
+        : normalizePortalAccess(normalizeStringArray(targetProfile.portal_access))
+    const normalizedPttChannelAccess =
+      payload.ptt_channel_access !== undefined
+        ? normalizeScopeList(normalizeStringArray(payload.ptt_channel_access))
+        : normalizeScopeList(normalizeStringArray(targetProfile.ptt_channel_access))
+    const normalizedAuthorizedWorkLocations =
+      payload.authorized_work_locations !== undefined
+        ? normalizeUuidList(
+          resolveAuthorizedWorkLocations(
+            effectiveOrganizationId || null,
+            normalizedExtraOrganizationIds,
+            normalizeStringArray(payload.authorized_work_locations),
+          ),
+        )
+        : normalizeUuidList(
+          resolveAuthorizedWorkLocations(
+            effectiveOrganizationId || null,
+            normalizedExtraOrganizationIds,
+            normalizeStringArray(targetProfile.authorized_work_locations),
+          ),
+        )
+    const resolvedEmployerOrganizationId = resolveEmployerOrganizationId(
+      effectiveOrganizationId || null,
+      trimToNull(
+        payload.employer_organization_id !== undefined
+          ? payload.employer_organization_id
+          : targetProfile.employer_organization_id,
+      ),
+    )
+
     const updates: Record<string, unknown> = {
       updated_at: new Date().toISOString(),
     }
-    if (body.payload?.full_name !== undefined) updates.full_name = body.payload.full_name
-    if (body.payload?.role !== undefined) updates.role = body.payload.role
-    if (body.payload?.email !== undefined) updates.email = body.payload.email
-    if (body.payload?.is_active !== undefined) updates.is_active = body.payload.is_active
+
+    if (payload.role !== undefined) updates.role = trimToNull(payload.role)
+    if (payload.email !== undefined) updates.email = normalizeEmailAddress(payload.email)
+    if (payload.organization_id !== undefined) updates.organization_id = effectiveOrganizationId
+    if (payload.phone !== undefined) updates.phone = trimToNull(payload.phone)
+    if (payload.job_title !== undefined) updates.job_title = trimToNull(payload.job_title)
+    if (payload.requires_driver_license !== undefined) updates.requires_driver_license = payload.requires_driver_license === true
+    if (payload.portal_access !== undefined) updates.portal_access = normalizedPortalAccess
+    if (payload.authorized_work_locations !== undefined) updates.authorized_work_locations = normalizedAuthorizedWorkLocations
+    if (payload.extra_organization_ids !== undefined) updates.extra_organization_ids = normalizedExtraOrganizationIds
+    if (payload.ptt_channel_access !== undefined) updates.ptt_channel_access = normalizedPttChannelAccess
+    if (payload.permissions !== undefined) updates.permissions = payload.permissions
+    if (payload.is_active !== undefined) updates.is_active = payload.is_active
+    if (
+      payload.organization_id !== undefined ||
+      payload.employer_organization_id !== undefined ||
+      payload.extra_organization_ids !== undefined ||
+      payload.authorized_work_locations !== undefined
+    ) {
+      updates.employer_organization_id = resolvedEmployerOrganizationId
+      updates.extra_organization_ids = normalizedExtraOrganizationIds
+      updates.authorized_work_locations = normalizedAuthorizedWorkLocations
+    }
+
+    if (payload.first_name !== undefined) updates.first_name = trimToNull(payload.first_name)
+    if (payload.last_name !== undefined) updates.last_name = trimToNull(payload.last_name)
+    if (payload.full_name !== undefined) {
+      updates.full_name = trimToNull(payload.full_name)
+    } else if (payload.first_name !== undefined || payload.last_name !== undefined) {
+      const nextFirstName = updates.first_name !== undefined ? updates.first_name : targetProfile.first_name
+      const nextLastName = updates.last_name !== undefined ? updates.last_name : targetProfile.last_name
+      const computedFullName = [nextFirstName, nextLastName].filter((value) => typeof value === 'string' && value.trim().length > 0).join(' ').trim()
+      updates.full_name = computedFullName || null
+    }
 
     const { data: updated, error: updateError } = await adminClient
       .from('user_profiles')
       .update(updates)
       .eq('id', body.userId)
-      .select('id,email,role,organization_id,is_active,updated_at')
+      .select('id,email,role,organization_id,is_active,updated_at,first_name,last_name,employer_organization_id,authorized_work_locations,extra_organization_ids')
       .single()
 
     if (updateError) throw new Error(updateError.message)
+
+    if (
+      payload.email !== undefined ||
+      payload.role !== undefined ||
+      payload.organization_id !== undefined ||
+      payload.first_name !== undefined ||
+      payload.last_name !== undefined
+    ) {
+      const metadataFirstName =
+        payload.first_name !== undefined
+          ? trimToNull(payload.first_name)
+          : trimToNull(updated.first_name ?? targetProfile.first_name)
+      const metadataLastName =
+        payload.last_name !== undefined
+          ? trimToNull(payload.last_name)
+          : trimToNull(updated.last_name ?? targetProfile.last_name)
+
+      const authUpdates: Record<string, unknown> = {
+        user_metadata: {
+          first_name: metadataFirstName ?? undefined,
+          last_name: metadataLastName ?? undefined,
+          full_name: [metadataFirstName, metadataLastName].filter(Boolean).join(' ') || undefined,
+          organization_id: updated.organization_id ?? targetProfile.organization_id ?? undefined,
+          employer_organization_id: updated.employer_organization_id ?? resolvedEmployerOrganizationId ?? undefined,
+          role: updated.role ?? targetProfile.role ?? undefined,
+        },
+      }
+
+      if (payload.email !== undefined && updated.email) {
+        authUpdates.email = updated.email
+      }
+
+      const { error: authUpdateError } = await adminClient.auth.admin.updateUserById(body.userId, authUpdates)
+      if (authUpdateError) {
+        throw new Error(`Profile updated but auth metadata sync failed: ${authUpdateError.message}`)
+      }
+    }
 
     const shouldRevokePtt = body.payload?.is_active === false
     const pttRevoke = shouldRevokePtt

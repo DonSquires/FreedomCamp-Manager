@@ -534,12 +534,16 @@ export default function UserManagement({ embedded = false }: UserManagementProps
   const updateUserMutation = useMutation({
     mutationFn: async (updates: Partial<UserProfile>) => {
       if (!selectedUser) throw new Error('No user selected')
-      
-      const { error } = await (supabase.from('user_profiles') as any)
-        .update(updates)
-        .eq('id', selectedUser.id)
-
-      if (error) throw error
+      const { data, error } = await withTimeout(
+        edgeFunctions.updateUserProfile({
+          user_id: selectedUser.id,
+          payload: updates as Record<string, unknown>,
+        }),
+        45000,
+        'Request timed out after 45 seconds.',
+      )
+      if (error) throw new Error(error)
+      return data
     },
     onSuccess: () => {
       toast.success('User updated successfully')
@@ -550,6 +554,30 @@ export default function UserManagement({ embedded = false }: UserManagementProps
     },
     onError: (error: any) => {
       toast.error(error.message || 'Failed to update user')
+    },
+  })
+
+  const updateUserRoleMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedUser) throw new Error('No user selected')
+      const { error } = await withTimeout(
+        edgeFunctions.updateUserProfile({
+          user_id: selectedUser.id,
+          payload: { role },
+        }),
+        45000,
+        'Request timed out after 45 seconds.',
+      )
+      if (error) throw new Error(error)
+    },
+    onSuccess: () => {
+      toast.success('Role updated successfully')
+      queryClient.invalidateQueries({ queryKey: ['users'] })
+      setShowRoleDialog(false)
+      setSelectedUser(null)
+    },
+    onError: (error: any) => {
+      toast.error(error.message || 'Failed to update role')
     },
   })
 
@@ -597,7 +625,7 @@ export default function UserManagement({ embedded = false }: UserManagementProps
         'Request timed out after 45 seconds.',
       )
 
-      if (error) throw new Error(error)
+      if (error) throw error
 
       return {
         pttRevoke: (data as any)?.pttRevoke,
@@ -849,28 +877,6 @@ export default function UserManagement({ embedded = false }: UserManagementProps
     },
     onError: (error: any) => {
       toast.error(error.message || 'Failed to verify credentials')
-    },
-  })
-
-  // Update role mutation
-  const updateRoleMutation = useMutation({
-    mutationFn: async () => {
-      if (!selectedUser) throw new Error('No user selected')
-      
-      const { error } = await (supabase.from('user_profiles') as any)
-        .update({ role })
-        .eq('id', selectedUser.id)
-
-      if (error) throw error
-    },
-    onSuccess: () => {
-      toast.success('Role updated successfully')
-      queryClient.invalidateQueries({ queryKey: ['users'] })
-      setShowRoleDialog(false)
-      setSelectedUser(null)
-    },
-    onError: (error: any) => {
-      toast.error(error.message || 'Failed to update role')
     },
   })
 
@@ -1864,10 +1870,10 @@ export default function UserManagement({ embedded = false }: UserManagementProps
               Cancel
             </Button>
             <Button 
-              onClick={() => updateRoleMutation.mutate()}
-              disabled={updateRoleMutation.isPending || !selectedUser}
+              onClick={() => updateUserRoleMutation.mutate()}
+              disabled={updateUserRoleMutation.isPending || !selectedUser}
             >
-              {updateRoleMutation.isPending ? 'Updating...' : 'Update Role'}
+              {updateUserRoleMutation.isPending ? 'Updating...' : 'Update Role'}
             </Button>
           </DialogFooter>
         </DialogContent>
