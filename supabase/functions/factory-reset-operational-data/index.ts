@@ -1,7 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3'
 import { getCorsHeaders } from '../_shared/withCors.ts'
 
-const OWNER_EMAIL = 'squires.don@live.com'
+const OWNER_EMAIL = (Deno.env.get('GRANDMASTER_OWNER_EMAIL') || 'squires.don@live.com').trim().toLowerCase()
 
 interface ResetRequest {
   confirmation?: string

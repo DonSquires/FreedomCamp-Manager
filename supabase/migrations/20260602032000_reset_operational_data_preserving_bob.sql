@@ -9,7 +9,6 @@ security definer
 set search_path = public, pg_catalog
 as $$
 declare
-  owner_email constant text := 'squires.don@live.com';
   required_confirmation constant text := 'RESET NON-BOB OPERATIONAL DATA';
   v_actor_role text;
   v_deleted_profiles integer := 0;
@@ -26,15 +25,30 @@ begin
   into v_actor_role
   from public.user_profiles up
   where up.id = p_actor_id
-    and lower(up.email) = lower(owner_email)
     and lower(up.email) = lower(coalesce(trim(p_actor_email), ''))
   limit 1;
 
   if v_actor_role is distinct from 'grand_master' then
-    raise exception 'Only the Bob owner grand_master account can run this reset';
+    raise exception 'Only a verified grand_master account can run this reset';
   end if;
 
   create temp table preserve_org_ids (
+    id uuid primary key
+  ) on commit drop;
+
+  create temp table delete_org_ids (
+    id uuid primary key
+  ) on commit drop;
+
+  create temp table delete_zone_ids (
+    id uuid primary key
+  ) on commit drop;
+
+  create temp table delete_observation_ids_text (
+    id text primary key
+  ) on commit drop;
+
+  create temp table delete_observation_ids_uuid (
     id uuid primary key
   ) on commit drop;
 
@@ -89,11 +103,35 @@ begin
     );
   end loop;
 
+  insert into delete_org_ids (id)
+  select o.id
+  from public.organizations o
+  where o.id not in (select id from preserve_org_ids)
+  on conflict do nothing;
+
+  insert into delete_zone_ids (id)
+  select z.id
+  from public.zones z
+  where z.organization_id in (select id from delete_org_ids)
+  on conflict do nothing;
+
+  insert into delete_observation_ids_text (id)
+  select o.observation_id
+  from public.observations o
+  where o.organization_id in (select id from delete_org_ids)
+  on conflict do nothing;
+
+  insert into delete_observation_ids_uuid (id)
+  select o.id
+  from public.observations o
+  where o.organization_id in (select id from delete_org_ids)
+    and o.id is not null
+  on conflict do nothing;
+
   insert into deleted_user_accounts (id, email)
   select up.id, up.email
   from public.user_profiles up
   where up.id <> p_actor_id
-    and lower(up.email) <> lower(owner_email)
   on conflict (id) do nothing;
 
   for r in
@@ -104,20 +142,42 @@ begin
       and c.table_name not like 'bob\_%' escape '\'
       and c.table_name not in ('organizations', 'user_profiles')
   loop
-    execute format('delete from public.%I where %I is not null', r.table_name, r.column_name);
+    execute format(
+      'delete from public.%I where %I in (select id from delete_org_ids)',
+      r.table_name,
+      r.column_name
+    );
     get diagnostics v_row_count = row_count;
     v_deleted_rows := v_deleted_rows + v_row_count;
   end loop;
 
   for r in
-    select c.table_name, c.column_name
+    select c.table_name, c.column_name, c.udt_name
     from information_schema.columns c
     where c.table_schema = 'public'
       and c.column_name in ('zone_id', 'observation_id')
       and c.table_name not like 'bob\_%' escape '\'
       and c.table_name not in ('organizations', 'user_profiles')
   loop
-    execute format('delete from public.%I where %I is not null', r.table_name, r.column_name);
+    if r.column_name = 'zone_id' then
+      execute format(
+        'delete from public.%I where %I in (select id from delete_zone_ids)',
+        r.table_name,
+        r.column_name
+      );
+    elsif r.udt_name = 'uuid' then
+      execute format(
+        'delete from public.%I where %I in (select id from delete_observation_ids_uuid)',
+        r.table_name,
+        r.column_name
+      );
+    else
+      execute format(
+        'delete from public.%I where %I in (select id from delete_observation_ids_text)',
+        r.table_name,
+        r.column_name
+      );
+    end if;
     get diagnostics v_row_count = row_count;
     v_deleted_rows := v_deleted_rows + v_row_count;
   end loop;
@@ -147,7 +207,11 @@ begin
       and c.table_name not like 'bob\_%' escape '\'
       and c.table_name not in ('organizations', 'user_profiles')
   loop
-    execute format('delete from public.%I where %I is not null', r.table_name, r.column_name);
+    execute format(
+      'delete from public.%I where %I in (select id from deleted_user_accounts)',
+      r.table_name,
+      r.column_name
+    );
     get diagnostics v_row_count = row_count;
     v_deleted_rows := v_deleted_rows + v_row_count;
   end loop;

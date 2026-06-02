@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
+import { Input } from '@/components/ui/input'
 import { supabase } from '@/lib/supabase'
 import { edgeFunctions } from '@/lib/edgeFunctions'
 import { useAuthStore } from '@/stores/authStore'
@@ -48,6 +49,7 @@ export default function DataCleanupUtility() {
   const [runningTask, setRunningTask] = useState<string | null>(null)
   const [taskResults, setTaskResults] = useState<Record<string, { deleted: number; message: string }>>({})
   const [taskProgress, setTaskProgress] = useState<Record<string, TaskProgress>>({})
+  const [factoryResetConfirmation, setFactoryResetConfirmation] = useState('')
 
   // Fetch cleanup candidates
   const { data: cleanupStats, isLoading } = useQuery({
@@ -116,16 +118,11 @@ export default function DataCleanupUtility() {
       severity: 'high',
       requiresGrandMaster: true,
       action: async () => {
-        const confirmation = window.prompt(
-          'This will permanently wipe non-Bob operational data and users. Type RESET NON-BOB OPERATIONAL DATA to continue:',
-          '',
-        )
-
-        if (confirmation !== 'RESET NON-BOB OPERATIONAL DATA') {
-          throw new Error('Factory reset cancelled')
+        if (factoryResetConfirmation !== 'RESET NON-BOB OPERATIONAL DATA') {
+          throw new Error('Enter the confirmation phrase before running the reset')
         }
 
-        const { data, error } = await edgeFunctions.factoryResetOperationalData({ confirmation })
+        const { data, error } = await edgeFunctions.factoryResetOperationalData({ confirmation: factoryResetConfirmation })
         if (error) throw new Error(error)
 
         const deletedProfiles = Number(data?.summary?.deleted_profiles || 0)
@@ -133,10 +130,11 @@ export default function DataCleanupUtility() {
         const deletedRows = Number(data?.summary?.deleted_rows || 0)
         const deletedAuthUsers = Number(data?.auth_users_deleted || 0)
         const authDeleteFailures = Array.isArray(data?.auth_delete_failures) ? data.auth_delete_failures.length : 0
+        const deletedTotal = deletedRows + deletedProfiles + deletedOrganizations + deletedAuthUsers
 
         return {
-          deleted: deletedRows + deletedProfiles + deletedOrganizations + deletedAuthUsers,
-          message: `Reset complete — ${deletedOrganizations} orgs, ${deletedProfiles} profiles, ${deletedAuthUsers} auth users, ${deletedRows} related rows cleared${authDeleteFailures ? ` (${authDeleteFailures} auth deletions need manual follow-up)` : ''}`,
+          deleted: deletedTotal,
+          message: `Reset complete — ${deletedOrganizations} orgs, ${deletedProfiles} profiles, ${deletedAuthUsers} auth users, ${deletedRows} related rows cleared${authDeleteFailures ? `; ${authDeleteFailures} auth deletions need manual follow-up` : ''}`,
         }
       },
     },
@@ -355,6 +353,9 @@ export default function DataCleanupUtility() {
     try {
       const result = await task.action()
       setTaskResults(prev => ({ ...prev, [task.id]: result }))
+      if (task.id === 'factory-reset-operational-data') {
+        setFactoryResetConfirmation('')
+      }
       toast.success(result.message)
       queryClient.invalidateQueries({ queryKey: ['cleanup-stats'] })
     } catch (error: any) {
@@ -503,23 +504,56 @@ export default function DataCleanupUtility() {
                 </CardHeader>
                 <CardContent>
                   <div className="flex items-center gap-4">
-                    <Button
-                      onClick={() => runCleanupTask(task)}
-                      disabled={isRunning || !!runningTask}
-                      variant={task.severity === 'high' ? 'destructive' : 'default'}
-                    >
-                      {isRunning ? (
-                        <>
-                          <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                          Running...
-                        </>
-                      ) : (
-                        <>
-                          <Trash2 className="h-4 w-4 mr-2" />
-                          Run Cleanup
-                        </>
-                      )}
-                    </Button>
+                    {task.id === 'factory-reset-operational-data' ? (
+                      <div className="flex w-full flex-col gap-3">
+                        <div className="text-sm text-muted-foreground">
+                          Type <span className="font-mono font-semibold">RESET NON-BOB OPERATIONAL DATA</span> to enable this reset.
+                        </div>
+                        <div className="flex flex-col gap-3 md:flex-row">
+                          <Input
+                            value={factoryResetConfirmation}
+                            onChange={(event) => setFactoryResetConfirmation(event.target.value)}
+                            placeholder="RESET NON-BOB OPERATIONAL DATA"
+                            disabled={isRunning || !!runningTask}
+                          />
+                          <Button
+                            onClick={() => runCleanupTask(task)}
+                            disabled={isRunning || !!runningTask || factoryResetConfirmation !== 'RESET NON-BOB OPERATIONAL DATA'}
+                            variant="destructive"
+                          >
+                            {isRunning ? (
+                              <>
+                                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                                Running...
+                              </>
+                            ) : (
+                              <>
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                Run Cleanup
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <Button
+                        onClick={() => runCleanupTask(task)}
+                        disabled={isRunning || !!runningTask}
+                        variant={task.severity === 'high' ? 'destructive' : 'default'}
+                      >
+                        {isRunning ? (
+                          <>
+                            <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                            Running...
+                          </>
+                        ) : (
+                          <>
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Run Cleanup
+                          </>
+                        )}
+                      </Button>
+                    )}
 
                     {result && (
                       <div className="flex items-center gap-2 text-sm">
