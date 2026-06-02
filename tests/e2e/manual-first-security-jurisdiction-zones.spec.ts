@@ -141,19 +141,20 @@ async function createJurisdictionZone(page: Page, seed: BranchSeed): Promise<'cr
   await page.waitForTimeout(400)
 
   submitButton = dialog.getByRole('button', { name: /create zone/i }).first()
-  // Use evaluate-based click to bypass Radix overflow/clipping intercept issues
-  const submitClicked = await page.evaluate(() => {
-    const btns = [...document.querySelectorAll('[role="dialog"] button')]
-    const btn = btns.find(b => /^create zone$/i.test((b.textContent || '').trim())) as HTMLButtonElement | undefined
-    if (!btn || btn.disabled) return false
-    btn.scrollIntoView({ block: 'nearest', behavior: 'instant' })
-    btn.focus()
-    btn.click()
-    return true
-  })
-  if (!submitClicked) {
-    throw new Error('Could not find enabled Create Zone submit button in dialog')
-  }
+    // btn.click() via evaluate() fires inside a Radix portal (outside #root) so
+    // React's delegated listener on #root never sees it.  Instead: scroll button
+    // into view, get screen coords, then use mouse.click at those coordinates.
+    const btnRect = await page.evaluate(() => {
+      const btns = [...document.querySelectorAll('[role="dialog"] button')]
+      const btn = btns.find(b => /^create zone$/i.test((b.textContent || '').trim())) as HTMLButtonElement | undefined
+      if (!btn) return null
+      btn.scrollIntoView({ block: 'nearest', behavior: 'instant' })
+      const r = btn.getBoundingClientRect()
+      return { x: r.left + r.width / 2, y: r.top + r.height / 2, disabled: btn.disabled, text: btn.textContent }
+    })
+    if (!btnRect) throw new Error('Could not find Create Zone submit button in dialog DOM')
+    if (btnRect.disabled) throw new Error(`Create Zone button is disabled (text="${btnRect.text}")`)
+    await page.mouse.click(btnRect.x, btnRect.y)
 
   const createResponse = await createRequest
   let createResponseStatus: number | null = null
