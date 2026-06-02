@@ -92,37 +92,40 @@ async function openCreateZoneDialog(page: Page): Promise<void> {
   const addButton = page.getByRole('button', { name: /add zone/i }).first()
   await expect(addButton).toBeVisible({ timeout: 15000 })
   await addButton.click()
-  await expect(page.locator('#createName')).toBeVisible({ timeout: 10000 })
+  const dialog = page.getByRole('dialog').filter({ hasText: /add zone|create a new enforcement or jurisdiction zone/i }).first()
+  await expect(dialog).toBeVisible({ timeout: 10000 })
+  await expect(dialog.locator('#createName')).toBeVisible({ timeout: 10000 })
 }
 
 async function createJurisdictionZone(page: Page, seed: BranchSeed): Promise<'created' | 'duplicate'> {
   await openCreateZoneDialog(page)
+  const dialog = page.getByRole('dialog').filter({ hasText: /add zone|create a new enforcement or jurisdiction zone/i }).first()
 
-  await page.locator('#createName').fill(jurisdictionName(seed.branchName))
-  await page.locator('#createDescription').fill(jurisdictionDescription(seed))
+  await dialog.locator('#createName').fill(jurisdictionName(seed.branchName))
+  await dialog.locator('#createDescription').fill(jurisdictionDescription(seed))
 
-  const createOrganization = page.locator('#createOrganization')
+  const createOrganization = dialog.locator('#createOrganization')
   if (await createOrganization.isVisible({ timeout: 2000 }).catch(() => false)) {
     await createOrganization.click()
     await page.getByRole('option', { name: new RegExp(`^\\s*${escapeRegex(seed.branchName)}\\s*$`, 'i') }).first().click({ force: true })
   }
 
-  await page.locator('#createZoneType').click()
+  await dialog.locator('#createZoneType').click()
   await page.getByRole('option', { name: /general \(jurisdiction area\)/i }).first().click({ force: true })
 
-  await page.getByRole('button', { name: /create zone/i }).last().click()
-  const nameField = page.locator('#createName')
-  const closed = await nameField.isHidden({ timeout: 10000 }).catch(() => false)
+  await dialog.getByRole('button', { name: /create zone/i }).first().click({ force: true })
+  const nameField = dialog.locator('#createName')
+  const closed = await dialog.isHidden({ timeout: 10000 }).catch(() => false)
   if (closed) return 'created'
 
   const duplicateMessage = page
     .getByText(/already exists in this organisation|already exists/i)
     .first()
   if (await duplicateMessage.isVisible({ timeout: 2000 }).catch(() => false)) {
-    const cancel = page.getByRole('button', { name: /cancel/i }).last()
+    const cancel = dialog.getByRole('button', { name: /cancel/i }).first()
     if (await cancel.isVisible({ timeout: 1000 }).catch(() => false)) {
       await cancel.click()
-      await expect(nameField).toBeHidden({ timeout: 10000 })
+      await expect(dialog).toBeHidden({ timeout: 10000 })
     }
     return 'duplicate'
   }
