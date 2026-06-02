@@ -272,7 +272,7 @@ export default function UserManagement({ embedded = false }: UserManagementProps
         .eq('id', user.id)
         .single()
 
-      if (error) throw error
+      if (error) throw new Error(normalizeErrorMessage(error))
 
       const organization = data?.organization
       if (!organization?.id || !organization?.name) return null
