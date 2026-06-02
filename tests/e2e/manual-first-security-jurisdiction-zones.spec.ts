@@ -122,10 +122,9 @@ async function createJurisdictionZone(page: Page, seed: BranchSeed): Promise<'cr
   await page.getByRole('option', { name: /general \(jurisdiction area\)/i }).first().click({ force: true })
   await page.keyboard.press('Escape').catch(() => undefined)
 
-  const submitButton = dialog.getByRole('button', { name: /create zone/i }).first()
+  let submitButton = dialog.getByRole('button', { name: /create zone/i }).first()
   await expect(submitButton).toBeVisible({ timeout: 5000 })
   await expect(submitButton).toBeEnabled({ timeout: 5000 })
-  await submitButton.scrollIntoViewIfNeeded()
 
   const createRequest = page.waitForResponse(
     (response) =>
@@ -134,6 +133,7 @@ async function createJurisdictionZone(page: Page, seed: BranchSeed): Promise<'cr
     { timeout: 15000 }
   ).catch(() => null)
 
+  submitButton = dialog.getByRole('button', { name: /create zone/i }).first()
   await submitButton.click({ force: true })
 
   const createResponse = await createRequest
