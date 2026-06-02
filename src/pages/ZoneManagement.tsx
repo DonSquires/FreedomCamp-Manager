@@ -1224,11 +1224,18 @@ export default function ZoneManagement() {
 
       {/* Create Zone Dialog */}
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+        <DialogContent className="max-h-[90vh] sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Add Zone</DialogTitle>
             <DialogDescription>Create a new enforcement or jurisdiction zone</DialogDescription>
           </DialogHeader>
+          <form
+            className="max-h-[calc(90vh-5rem)] overflow-y-auto pr-1"
+            onSubmit={(e) => {
+              e.preventDefault()
+              createZoneMutation.mutate()
+            }}
+          >
           <div className="space-y-4">
             <div>
               <Label htmlFor="createName">Zone Name *</Label>
@@ -1473,17 +1480,18 @@ export default function ZoneManagement() {
               </div>
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => { setShowCreateDialog(false); resetCreateForm() }}>
+          <DialogFooter className="sticky bottom-0 mt-4 border-t bg-background pt-4">
+            <Button type="button" variant="outline" onClick={() => { setShowCreateDialog(false); resetCreateForm() }}>
               Cancel
             </Button>
             <Button
-              onClick={() => createZoneMutation.mutate()}
+              type="submit"
               disabled={createZoneMutation.isPending || !createName.trim() || ((user?.role === 'master' || user?.role === 'grand_master') && !createOrganizationId)}
             >
               {createZoneMutation.isPending ? 'Creating...' : 'Create Zone'}
             </Button>
           </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
     </AppLayout>
