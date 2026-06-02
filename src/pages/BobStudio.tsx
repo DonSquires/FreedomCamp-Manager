@@ -952,11 +952,12 @@ function BobDiagnosticsTab({ learningPatterns, approvalGates }: BobDiagnosticsTa
   const fetchHealth = async () => {
     setLoadingHealth(true)
     try {
-      const { data, error } = await supabase.functions.invoke('onspace-ai-chat', {
-        body: { action: 'health' },
-      })
+      const { data, error } = await edgeFunctions.bobGateway({ action: 'health' })
       if (error) {
-        setHealth({ status: 'offline', error: String(error.message ?? error) })
+        const errMsg = error !== null && typeof error === 'object' && 'message' in (error as object)
+          ? String((error as { message: unknown }).message)
+          : String(error)
+        setHealth({ status: 'offline', error: errMsg })
       } else {
         setHealth({
           status: data?.status ?? 'offline',
