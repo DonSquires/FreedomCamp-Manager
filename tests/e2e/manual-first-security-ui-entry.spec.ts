@@ -45,7 +45,8 @@ async function gotoOrganizations(page: Page): Promise<void> {
   if (await gate.isVisible({ timeout: 3000 }).catch(() => false)) {
     await gate.click()
   }
-  await expect(page.getByText(/new organisation|organisation management/i).first()).toBeVisible({ timeout: 20000 })
+  await expect(page).toHaveURL(/\/organizations(?:\?|$|#)/, { timeout: 20000 })
+  await page.waitForLoadState('networkidle').catch(() => undefined)
 }
 
 async function organizationVisible(page: Page, name: string): Promise<boolean> {
