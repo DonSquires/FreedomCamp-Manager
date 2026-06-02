@@ -64,8 +64,7 @@ export default function FieldOfficerDispatch() {
                   <CardTitle className="text-base">{c.title || c.case_type || 'Dispatch Case'}</CardTitle>
                   {specialtyMeta && (
                     <Badge
-                      className="shrink-0 text-xs"
-                      style={{ backgroundColor: specialtyMeta.color + '33', color: specialtyMeta.color, borderColor: specialtyMeta.color }}
+                      className={`shrink-0 text-xs ${specialtyMeta.color}`}
                       variant="outline"
                     >
                       {specialtyMeta.label}

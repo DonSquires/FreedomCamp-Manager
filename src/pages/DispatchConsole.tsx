@@ -548,7 +548,7 @@ export default function DispatchConsole() {
 
       const cutoffIso = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
 
-      const [{ data: faceRows }, { data: vehicleRows }] = await Promise.all([
+      const [faceResult, vehicleResult] = await Promise.all([
         (supabase as any)
           .from('face_records')
           .select('id, created_at, person_record_id')
@@ -567,9 +567,12 @@ export default function DispatchConsole() {
           .limit(5),
       ])
 
+      if (faceResult.error) throw faceResult.error
+      if (vehicleResult.error) throw vehicleResult.error
+
       return {
-        faceMatches: (faceRows ?? []) as RecognitionAlertSummary['faceMatches'],
-        vehicleMatches: (vehicleRows ?? []) as RecognitionAlertSummary['vehicleMatches'],
+        faceMatches: (faceResult.data ?? []) as RecognitionAlertSummary['faceMatches'],
+        vehicleMatches: (vehicleResult.data ?? []) as RecognitionAlertSummary['vehicleMatches'],
       }
     },
     enabled: !!orgId,
