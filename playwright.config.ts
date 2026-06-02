@@ -108,9 +108,14 @@ const reuseExistingPlaywrightServer =
   process.env.PLAYWRIGHT_REUSE_EXISTING_SERVER === '1' ? true : !process.env.CI
 const nodeBinary = process.execPath
 const viteCli = './node_modules/vite/bin/vite.js'
+const npmBinary = process.env.BOB_NPM_BIN || process.env.NPM_BIN || 'npm'
 const playwrightVideoMode = process.env.PLAYWRIGHT_DISABLE_VIDEO === '1' ? 'off' : 'retain-on-failure'
 
 function buildWebServerCommand(baseURL: string): string {
+  const envBootstrap = 'set -a; [ -f .env ] && . ./.env; [ -f .env.local ] && . ./.env.local; [ -f .env.playwright.local ] && . ./.env.playwright.local; set +a;'
+  const ensureDeps = `if [ "${'$'}{PLAYWRIGHT_AUTO_INSTALL_DEPS:-0}" = "1" ] && [ ! -f ./node_modules/vite/bin/vite.js ]; then echo "[playwright-config] Installing dependencies for webServer startup..."; ${npmBinary} ci --include=dev --no-audit --no-fund; fi;`
+  const viteRun = `if [ -f ./node_modules/vite/bin/vite.js ]; then ${nodeBinary} ${viteCli}; elif command -v npx >/dev/null 2>&1; then npx --yes vite; else echo "[playwright-config] Missing local vite and npx runtime."; exit 1; fi`
+
   try {
     const parsed = new URL(baseURL)
     const isLocalHost = parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1'
@@ -118,12 +123,12 @@ function buildWebServerCommand(baseURL: string): string {
     const viteCommand = `${nodeBinary} ${viteCli}`
 
     if (!isLocalHost || parsed.protocol !== 'http:') {
-      return `sh -c 'set -a; [ -f .env ] && . ./.env; [ -f .env.local ] && . ./.env.local; [ -f .env.playwright.local ] && . ./.env.playwright.local; set +a; ${viteCommand} --host 127.0.0.1'`
+      return `sh -c '${envBootstrap} ${ensureDeps} ${viteRun} --host 127.0.0.1'`
     }
 
-    return `sh -c 'set -a; [ -f .env ] && . ./.env; [ -f .env.local ] && . ./.env.local; [ -f .env.playwright.local ] && . ./.env.playwright.local; set +a; ${viteCommand} --host 127.0.0.1 --port ${port} --strictPort'`
+    return `sh -c '${envBootstrap} ${ensureDeps} ${viteRun} --host 127.0.0.1 --port ${port} --strictPort'`
   } catch {
-    return `sh -c 'set -a; [ -f .env ] && . ./.env; [ -f .env.local ] && . ./.env.local; [ -f .env.playwright.local ] && . ./.env.playwright.local; set +a; ${viteCommand} --host 127.0.0.1 --port 5173 --strictPort'`
+    return `sh -c '${envBootstrap} ${ensureDeps} ${viteRun} --host 127.0.0.1 --port 5173 --strictPort'`
   }
 }
 
