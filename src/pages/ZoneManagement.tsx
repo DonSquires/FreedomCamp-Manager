@@ -412,6 +412,11 @@ export default function ZoneManagement() {
     setShowCreateGeofenceEditor(false)
   }
 
+  const submitCreateZone = () => {
+    if (createZoneMutation.isPending) return
+    createZoneMutation.mutate()
+  }
+
   const openEditDialog = (zone: any) => {
     setSelectedZone(zone)
     setEditName(zone.name)
@@ -1233,7 +1238,7 @@ export default function ZoneManagement() {
             className="max-h-[calc(90vh-5rem)] overflow-y-auto pr-1"
             onSubmit={(e) => {
               e.preventDefault()
-              createZoneMutation.mutate()
+              submitCreateZone()
             }}
           >
           <div className="space-y-4">
@@ -1485,7 +1490,8 @@ export default function ZoneManagement() {
               Cancel
             </Button>
             <Button
-              type="submit"
+              type="button"
+              onClick={submitCreateZone}
               disabled={createZoneMutation.isPending || !createName.trim() || ((user?.role === 'master' || user?.role === 'grand_master') && !createOrganizationId)}
             >
               {createZoneMutation.isPending ? 'Creating...' : 'Create Zone'}
