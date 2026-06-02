@@ -126,6 +126,8 @@ async function createJurisdictionZone(page: Page, seed: BranchSeed): Promise<'cr
   await expect(submitButton).toBeVisible({ timeout: 5000 })
   await expect(submitButton).toBeEnabled({ timeout: 5000 })
 
+  const zoneName = jurisdictionName(seed.branchName)
+
   const createRequest = page.waitForResponse(
     (response) =>
       response.request().method() === 'POST' &&
@@ -153,6 +155,16 @@ async function createJurisdictionZone(page: Page, seed: BranchSeed): Promise<'cr
           await dialog.isHidden({ timeout: 10000 }).catch(() => undefined)
         }
       }
+
+      await gotoZones(page)
+      await setOrganizationScope(page, seed.branchName)
+      await resetSearch(page)
+      const persisted = await zoneExistsBySearch(page, zoneName)
+      await resetSearch(page)
+      if (!persisted) {
+        throw new Error(`Zone API returned ${status} but zone did not appear under organisation ${seed.branchName}`)
+      }
+
       return 'created'
     }
 
@@ -178,7 +190,13 @@ async function createJurisdictionZone(page: Page, seed: BranchSeed): Promise<'cr
   ])
 
   if (settled === 'closed' || settled === 'success') {
-    return 'created'
+    await gotoZones(page)
+    await setOrganizationScope(page, seed.branchName)
+    await resetSearch(page)
+    const persisted = await zoneExistsBySearch(page, zoneName)
+    await resetSearch(page)
+    if (persisted) return 'created'
+    throw new Error('Create Zone UI closed without detectable POST/DB persistence for the selected organisation')
   }
 
   if (settled === 'duplicate') {
