@@ -213,7 +213,7 @@ export default function UserManagement({ embedded = false }: UserManagementProps
     queryKey: ['user-org-ids'],
     queryFn: async () => {
       const { data, error } = await (supabase as any).rpc('get_user_organization_ids')
-      if (error) throw error
+      if (error) throw new Error(normalizeErrorMessage(error))
       return data as string[]
     },
     // Masters can access all organizations directly, so this scoped org-id RPC is only needed for non-master admins.
