@@ -8,6 +8,11 @@ type BranchSeed = {
   longitude: number
 }
 
+type BrowserDiagnostics = {
+  pageErrors: string[]
+  consoleErrors: string[]
+}
+
 // Source: https://www.firstsecurity.co.nz/api/v2/GetOfficeByLocation?rootPageID=30373
 const BRANCH_SEEDS: BranchSeed[] = [
   { branchName: 'Ashburton - First Security', address: '179 Alford Forest Road, Allenton, Ashburton 7700', latitude: -43.88787, longitude: 171.73498 },
@@ -97,7 +102,11 @@ async function openCreateZoneDialog(page: Page): Promise<void> {
   await expect(dialog.locator('#createName')).toBeVisible({ timeout: 10000 })
 }
 
-async function createJurisdictionZone(page: Page, seed: BranchSeed): Promise<'created' | 'duplicate'> {
+async function createJurisdictionZone(
+  page: Page,
+  seed: BranchSeed,
+  diagnostics: BrowserDiagnostics,
+): Promise<'created' | 'duplicate'> {
   await openCreateZoneDialog(page)
   const dialog = page.getByRole('dialog').filter({ hasText: /add zone|create a new enforcement or jurisdiction zone/i }).first()
   const nameField = dialog.locator('#createName')
@@ -141,6 +150,34 @@ async function createJurisdictionZone(page: Page, seed: BranchSeed): Promise<'cr
   await page.waitForTimeout(400)
 
   submitButton = dialog.getByRole('button', { name: /create zone/i }).first()
+  let trialClickError: string | null = null
+  try {
+    await submitButton.click({ trial: true, timeout: 3000 })
+  } catch (error) {
+    trialClickError = error instanceof Error ? error.message : String(error)
+  }
+
+  const hitTarget = await page.evaluate(() => {
+    const btns = [...document.querySelectorAll('[role="dialog"] button')]
+    const btn = btns.find(b => /^create zone$/i.test((b.textContent || '').trim())) as HTMLButtonElement | undefined
+    if (!btn) return null
+    btn.scrollIntoView({ block: 'nearest', behavior: 'instant' })
+    const r = btn.getBoundingClientRect()
+    const x = r.left + r.width / 2
+    const y = r.top + r.height / 2
+    const el = document.elementFromPoint(x, y) as HTMLElement | null
+    return {
+      buttonText: btn.textContent?.trim() || null,
+      buttonDisabled: btn.disabled,
+      x,
+      y,
+      hitTag: el?.tagName || null,
+      hitRole: el?.getAttribute('role') || null,
+      hitClass: el?.className || null,
+      hitText: el?.textContent?.trim().slice(0, 120) || null,
+    }
+  })
+
     // btn.click() via evaluate() fires inside a Radix portal (outside #root) so
     // React's delegated listener on #root never sees it.  Instead: scroll button
     // into view, get screen coords, then use mouse.click at those coordinates.
@@ -238,10 +275,18 @@ async function createJurisdictionZone(page: Page, seed: BranchSeed): Promise<'cr
     ? `API status=${createResponseStatus} body=${createResponseBody.slice(0, 300)}`
     : 'No POST /rest/v1/zones response captured.'
 
+  const browserErrorSummary = [
+    ...diagnostics.pageErrors.map((msg) => `pageerror=${msg}`),
+    ...diagnostics.consoleErrors.map((msg) => `console=${msg}`),
+  ].slice(-6).join(' | ')
+
   throw new Error(
     `Create Zone dialog did not close after submit. ` +
     `${anyError ? `UI error: ${anyError.trim()}` : 'No duplicate/error toast detected.'} ` +
-    `Submit disabled=${submitDisabled}. ${apiError}`
+    `Submit disabled=${submitDisabled}. ${apiError} ` +
+    `${trialClickError ? `TrialClick=${trialClickError}. ` : ''}` +
+    `${hitTarget ? `HitTarget=${JSON.stringify(hitTarget)}. ` : ''}` +
+    `${browserErrorSummary ? `BrowserErrors=${browserErrorSummary}` : ''}`
   )
 }
 
@@ -251,6 +296,21 @@ test.describe('Manual UI data entry: First Security jurisdiction zones', () => {
 
     const created: string[] = []
     const skipped: string[] = []
+    const diagnostics: BrowserDiagnostics = {
+      pageErrors: [],
+      consoleErrors: [],
+    }
+
+    page.on('pageerror', (error) => {
+      diagnostics.pageErrors.push(error.message)
+      if (diagnostics.pageErrors.length > 10) diagnostics.pageErrors.shift()
+    })
+
+    page.on('console', (message) => {
+      if (message.type() !== 'error') return
+      diagnostics.consoleErrors.push(message.text())
+      if (diagnostics.consoleErrors.length > 10) diagnostics.consoleErrors.shift()
+    })
 
     await loginAs(page, 'master')
     await gotoZones(page)
@@ -267,7 +327,7 @@ test.describe('Manual UI data entry: First Security jurisdiction zones', () => {
       }
 
       await resetSearch(page)
-      const result = await createJurisdictionZone(page, seed)
+      const result = await createJurisdictionZone(page, seed, diagnostics)
       if (result === 'duplicate') {
         skipped.push(zoneName)
       } else {
