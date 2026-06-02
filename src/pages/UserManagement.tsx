@@ -185,6 +185,8 @@ export default function UserManagement({ embedded = false }: UserManagementProps
       new Promise<T>((_, reject) => setTimeout(() => reject(new Error(timeoutMessage)), timeoutMs)),
     ])
   }
+  const normalizeErrorMessage = (error: unknown): string =>
+    error instanceof Error ? error.message : String(error ?? 'Request failed')
 
   // Check user role
   const isAdmin = user?.role === 'admin' || user?.role === 'systems_administrator' || user?.role === 'admin_officer' || user?.role === 'master' || user?.role === 'grand_master'
@@ -200,7 +202,7 @@ export default function UserManagement({ embedded = false }: UserManagementProps
         // Legacy records may have null is_active; treat them as active for admin assignment flows.
         .or('is_active.eq.true,is_active.is.null')
         .order('name', { ascending: true })
-      if (error) throw error
+      if (error) throw new Error(normalizeErrorMessage(error))
       return data as Organization[]
     },
     enabled: isAdmin,
@@ -439,7 +441,7 @@ export default function UserManagement({ embedded = false }: UserManagementProps
         60000,
         'Request timed out after 60 seconds.',
       )
-      if (error) throw new Error(error)
+      if (error) throw new Error(normalizeErrorMessage(error))
       return data
     },
     onSuccess: () => {
@@ -492,7 +494,7 @@ export default function UserManagement({ embedded = false }: UserManagementProps
         60000,
         'Request timed out after 60 seconds.',
       )
-      if (error) throw new Error(error)
+      if (error) throw new Error(normalizeErrorMessage(error))
       return data
     },
     onSuccess: () => {
@@ -514,7 +516,7 @@ export default function UserManagement({ embedded = false }: UserManagementProps
         45000,
         'Request timed out after 45 seconds.',
       )
-      if (error) throw new Error(error)
+      if (error) throw new Error(normalizeErrorMessage(error))
       return data
     },
     onSuccess: () => {
@@ -542,7 +544,7 @@ export default function UserManagement({ embedded = false }: UserManagementProps
         45000,
         'Request timed out after 45 seconds.',
       )
-      if (error) throw new Error(error)
+      if (error) throw new Error(normalizeErrorMessage(error))
       return data
     },
     onSuccess: () => {
@@ -568,7 +570,7 @@ export default function UserManagement({ embedded = false }: UserManagementProps
         45000,
         'Request timed out after 45 seconds.',
       )
-      if (error) throw new Error(error)
+      if (error) throw new Error(normalizeErrorMessage(error))
     },
     onSuccess: () => {
       toast.success('Role updated successfully')
@@ -596,7 +598,7 @@ export default function UserManagement({ embedded = false }: UserManagementProps
         'Request timed out after 45 seconds.',
       )
 
-      if (error) throw new Error(error)
+      if (error) throw new Error(normalizeErrorMessage(error))
 
       return {
         nextIsActive,
@@ -656,7 +658,7 @@ export default function UserManagement({ embedded = false }: UserManagementProps
         'Request timed out after 45 seconds.',
       )
 
-      if (error) throw new Error(error)
+      if (error) throw new Error(normalizeErrorMessage(error))
       return (data as any)?.data?.ptt_channel_access ?? (data as any)?.ptt_channel_access ?? null
     },
     onSuccess: (updatedScopesRaw) => {

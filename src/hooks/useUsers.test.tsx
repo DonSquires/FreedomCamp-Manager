@@ -70,4 +70,20 @@ describe('useUpdateUser', () => {
     })
     expect(toastSuccessMock).toHaveBeenCalledWith('User updated successfully')
   })
+
+  it('surfaces edge-function update failures', async () => {
+    updateUserProfileMock.mockResolvedValue({ data: null, error: 'Denied' })
+    const { result } = renderHook(() => useUpdateUser(), { wrapper: createWrapper() })
+
+    await act(async () => {
+      await expect(
+        result.current.mutateAsync({
+          userId: 'user-1',
+          updates: { first_name: 'Jane' },
+        }),
+      ).rejects.toThrow('Denied')
+    })
+
+    expect(toastErrorMock).toHaveBeenCalledWith('Failed to update user')
+  })
 })
