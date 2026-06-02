@@ -2028,6 +2028,10 @@ export default function App() {
           <Route path="/bob" element={<ProtectedRoute><Navigate to="/bob-assistant" replace /></ProtectedRoute>} />
           <Route path="/bob-studio" element={<ProtectedRoute><Navigate to="/bob-assistant" replace /></ProtectedRoute>} />
           <Route path="/bob/assistant-studio" element={<ProtectedRoute><Navigate to="/bob-assistant" replace /></ProtectedRoute>} />
+          {/* /bob-intake is the canonical path documented in INSTRUCTION_MANUAL.md §3.1; /bob-intake-queue is the runtime path */}
+          <Route path="/bob-intake" element={<ProtectedRoute><Navigate to="/bob-intake-queue" replace /></ProtectedRoute>} />
+          {/* /intel-approval is the canonical path documented in INSTRUCTION_MANUAL.md §3.1; /intel-approvals is the runtime path */}
+          <Route path="/intel-approval" element={<ProtectedRoute><Navigate to="/intel-approvals" replace /></ProtectedRoute>} />
 
           <Route
             path="/bob-intake-queue"

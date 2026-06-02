@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { AppLayout } from '@/components/features/AppLayout'
+import { BobGovernanceStatusStrip, type GateState } from '@/components/features/BobGovernanceStatusStrip'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -5187,6 +5188,17 @@ export default function BobAssistantStudio() {
   return (
     <AppLayout title="Bob Assistant Studio" description="Personality, voice, mapping, and drawing controls for Bob.">
       <GlobalFilterRibbon />
+
+      {/* Governance status strip — INSTRUCTION_MANUAL.md §1a: must appear on governance-capable pages */}
+      <BobGovernanceStatusStrip
+        activeState={
+          bobActionApproval.isOpen && bobActionApproval.isLoading ? 'awaiting' as GateState
+          : bobActionApproval.isOpen ? 'submitted' as GateState
+          : pendingApprovalsCount > 0 ? 'awaiting' as GateState
+          : null
+        }
+        emergencyActive={dangerAutoAssistArmed && emergencyCountdownSeconds !== null}
+      />
 
       <BobActionApprovalDialog
         open={bobActionApproval.isOpen}
