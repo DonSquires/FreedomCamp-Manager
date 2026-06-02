@@ -11,6 +11,7 @@ type BranchSeed = {
 type BrowserDiagnostics = {
   pageErrors: string[]
   consoleErrors: string[]
+  zoneRequests: string[]
 }
 
 // Source: https://www.firstsecurity.co.nz/api/v2/GetOfficeByLocation?rootPageID=30373
@@ -264,6 +265,7 @@ async function createJurisdictionZone(
   }
 
   const submitDisabled = await submitButton.isDisabled().catch(() => false)
+  const submitTextAfterClick = await submitButton.textContent().catch(() => null)
 
   const anyError = await page
     .locator('[role="alert"], [data-variant="destructive"], .toast-error')
@@ -279,14 +281,16 @@ async function createJurisdictionZone(
     ...diagnostics.pageErrors.map((msg) => `pageerror=${msg}`),
     ...diagnostics.consoleErrors.map((msg) => `console=${msg}`),
   ].slice(-6).join(' | ')
+  const zoneRequestSummary = diagnostics.zoneRequests.slice(-8).join(' | ')
 
   throw new Error(
     `Create Zone dialog did not close after submit. ` +
     `${anyError ? `UI error: ${anyError.trim()}` : 'No duplicate/error toast detected.'} ` +
-    `Submit disabled=${submitDisabled}. ${apiError} ` +
+    `Submit disabled=${submitDisabled}. SubmitText=${submitTextAfterClick}. ${apiError} ` +
     `${trialClickError ? `TrialClick=${trialClickError}. ` : ''}` +
     `${hitTarget ? `HitTarget=${JSON.stringify(hitTarget)}. ` : ''}` +
-    `${browserErrorSummary ? `BrowserErrors=${browserErrorSummary}` : ''}`
+    `${browserErrorSummary ? `BrowserErrors=${browserErrorSummary}. ` : ''}` +
+    `${zoneRequestSummary ? `ZoneRequests=${zoneRequestSummary}` : ''}`
   )
 }
 
@@ -299,6 +303,7 @@ test.describe('Manual UI data entry: First Security jurisdiction zones', () => {
     const diagnostics: BrowserDiagnostics = {
       pageErrors: [],
       consoleErrors: [],
+      zoneRequests: [],
     }
 
     page.on('pageerror', (error) => {
@@ -310,6 +315,19 @@ test.describe('Manual UI data entry: First Security jurisdiction zones', () => {
       if (message.type() !== 'error') return
       diagnostics.consoleErrors.push(message.text())
       if (diagnostics.consoleErrors.length > 10) diagnostics.consoleErrors.shift()
+    })
+
+    page.on('response', (response) => {
+      if (!response.url().includes('/rest/v1/zones')) return
+      const request = response.request()
+      diagnostics.zoneRequests.push(`${request.method()} ${response.status()} ${response.url()}`)
+      if (diagnostics.zoneRequests.length > 20) diagnostics.zoneRequests.shift()
+    })
+
+    page.on('requestfailed', (request) => {
+      if (!request.url().includes('/rest/v1/zones')) return
+      diagnostics.zoneRequests.push(`FAILED ${request.method()} ${request.url()} ${request.failure()?.errorText || 'unknown'}`)
+      if (diagnostics.zoneRequests.length > 20) diagnostics.zoneRequests.shift()
     })
 
     await loginAs(page, 'master')
