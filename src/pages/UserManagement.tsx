@@ -252,7 +252,7 @@ export default function UserManagement({ embedded = false }: UserManagementProps
         .eq('id', normalizedDirectUserToAdd)
         .limit(1)
 
-      if (error) throw error
+      if (error) throw new Error(normalizeErrorMessage(error))
 
       const row = Array.isArray(data) ? data[0] : null
       return (row || null) as DirectUserPreview | null
