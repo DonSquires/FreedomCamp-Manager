@@ -12,9 +12,9 @@ export type BobOrbState = 'idle' | 'listening' | 'thinking' | 'speaking' | 'degr
  */
 const BOB_KEYFRAMES = `
 @keyframes bobThinkPulse {
-  0%   { box-shadow: 0 0 0 2px rgba(211,47,47,0.2); }
-  50%  { box-shadow: 0 0 0 6px rgba(211,47,47,0.5); }
-  100% { box-shadow: 0 0 0 2px rgba(211,47,47,0.2); }
+  0%   { box-shadow: 0 0 0 0 rgba(211,47,47,0.0); }
+  50%  { box-shadow: 0 0 0 4px rgba(211,47,47,0.4); }
+  100% { box-shadow: 0 0 0 0 rgba(211,47,47,0.0); }
 }
 @keyframes bobListenPulse {
   0%   { box-shadow: 0 0 0 2px rgba(34,197,94,0.2); }
@@ -22,7 +22,7 @@ const BOB_KEYFRAMES = `
   100% { box-shadow: 0 0 0 2px rgba(34,197,94,0.2); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .bob-orb-thinking  { animation: none !important; box-shadow: 0 0 0 3px rgba(211,47,47,0.6) !important; }
+  .bob-orb-thinking  { animation: none !important; box-shadow: 0 0 0 4px rgba(211,47,47,0.4) !important; }
   .bob-orb-listening { animation: none !important; box-shadow: 0 0 0 3px rgba(34,197,94,0.6) !important; }
 }
 `
@@ -73,13 +73,12 @@ export function BobOrb({ state = 'idle', size = 'md', className }: BobOrbProps) 
     },
     // Thinking: slow red pulsing ring per spec (1.5 s cycle)
     thinking: {
-      border: '2px solid rgba(211,47,47,0.6)',
+      border: '2px solid rgba(211,47,47,0.4)',
       animation: 'bobThinkPulse 1.5s ease-in-out infinite',
     },
     // Speaking: solid brand-primary border, no pulse
     speaking: {
       border: '2px solid var(--color-brand-primary, #D32F2F)',
-      boxShadow: '0 0 0 2px var(--color-brand-primary, #D32F2F)',
     },
     // Degraded: muted grey
     degraded: {

@@ -6273,7 +6273,7 @@ export default function BobAssistantStudio() {
                                 // Bob:  rounded except bottom-left corner
                                 isUser
                                   ? 'rounded-2xl rounded-br-sm bg-[#2563EB] text-white dark:bg-[#3B82F6]'
-                                  : 'rounded-2xl rounded-bl-sm bg-white dark:bg-[#374151] text-[#111827] dark:text-[#F9FAFB] border border-[#E5E7EB] dark:border-[#4B5563]',
+                                  : 'rounded-2xl rounded-bl-sm bg-[var(--color-bg-surface,#1E1E1E)] text-[var(--color-text-primary,#FFFFFF)] border border-[color:rgba(158,158,158,0.35)] border-t-[3px] border-t-[var(--color-brand-primary,#D32F2F)]',
                               ].join(' ')}
                             >
                               {/* Message body with Markdown */}
