@@ -95,7 +95,7 @@ async function openCreateZoneDialog(page: Page): Promise<void> {
   await expect(page.locator('#createName')).toBeVisible({ timeout: 10000 })
 }
 
-async function createJurisdictionZone(page: Page, seed: BranchSeed): Promise<void> {
+async function createJurisdictionZone(page: Page, seed: BranchSeed): Promise<'created' | 'duplicate'> {
   await openCreateZoneDialog(page)
 
   await page.locator('#createName').fill(jurisdictionName(seed.branchName))
@@ -111,7 +111,29 @@ async function createJurisdictionZone(page: Page, seed: BranchSeed): Promise<voi
   await page.getByRole('option', { name: /general \(jurisdiction area\)/i }).first().click({ force: true })
 
   await page.getByRole('button', { name: /create zone/i }).last().click()
-  await expect(page.locator('#createName')).toBeHidden({ timeout: 20000 })
+  const nameField = page.locator('#createName')
+  const closed = await nameField.isHidden({ timeout: 10000 }).catch(() => false)
+  if (closed) return 'created'
+
+  const duplicateMessage = page
+    .getByText(/already exists in this organisation|already exists/i)
+    .first()
+  if (await duplicateMessage.isVisible({ timeout: 2000 }).catch(() => false)) {
+    const cancel = page.getByRole('button', { name: /cancel/i }).last()
+    if (await cancel.isVisible({ timeout: 1000 }).catch(() => false)) {
+      await cancel.click()
+      await expect(nameField).toBeHidden({ timeout: 10000 })
+    }
+    return 'duplicate'
+  }
+
+  const anyError = await page
+    .locator('[role="alert"], [data-variant="destructive"], .toast-error')
+    .first()
+    .textContent()
+    .catch(() => null)
+
+  throw new Error(`Create Zone dialog did not close after submit. ${anyError ? `UI error: ${anyError.trim()}` : 'No duplicate/error toast detected.'}`)
 }
 
 test.describe('Manual UI data entry: First Security jurisdiction zones', () => {
@@ -136,8 +158,12 @@ test.describe('Manual UI data entry: First Security jurisdiction zones', () => {
       }
 
       await resetSearch(page)
-      await createJurisdictionZone(page, seed)
-      created.push(zoneName)
+      const result = await createJurisdictionZone(page, seed)
+      if (result === 'duplicate') {
+        skipped.push(zoneName)
+      } else {
+        created.push(zoneName)
+      }
     }
 
     console.log(`[manual-jurisdiction-entry] created=${created.length} skipped=${skipped.length}`)
