@@ -833,6 +833,12 @@ export const edgeFunctions = {
     return callEdgeFunction('cleanup-and-recalculate', params)
   },
 
+  factoryResetOperationalData: async (params: {
+    confirmation: string
+  }) => {
+    return callEdgeFunction('factory-reset-operational-data', params)
+  },
+
   /**
    * Match observations with ParkPow sessions and sync photos into storage.
    */

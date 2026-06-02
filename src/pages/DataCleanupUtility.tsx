@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
+import { Input } from '@/components/ui/input'
 import { supabase } from '@/lib/supabase'
 import { edgeFunctions } from '@/lib/edgeFunctions'
 import { useAuthStore } from '@/stores/authStore'
@@ -28,6 +29,7 @@ interface CleanupTask {
   icon: any
   severity: 'low' | 'medium' | 'high'
   requiresMaster?: boolean
+  requiresGrandMaster?: boolean
   action: () => Promise<{ deleted: number; message: string }>
 }
 
@@ -38,14 +40,18 @@ interface TaskProgress {
   percent: number
 }
 
+const FACTORY_RESET_CONFIRMATION = 'RESET NON-BOB OPERATIONAL DATA'
+
 export default function DataCleanupUtility() {
   const { user } = useAuthStore()
-  const isMasterUser = user?.role === 'master'
+  const hasMasterAccess = user?.role === 'master' || user?.role === 'grand_master'
+  const isGrandMasterUser = user?.role === 'grand_master'
   const { organizationId } = useGlobalFiltersStore()
   const queryClient = useQueryClient()
   const [runningTask, setRunningTask] = useState<string | null>(null)
   const [taskResults, setTaskResults] = useState<Record<string, { deleted: number; message: string }>>({})
   const [taskProgress, setTaskProgress] = useState<Record<string, TaskProgress>>({})
+  const [factoryResetConfirmation, setFactoryResetConfirmation] = useState('')
 
   // Fetch cleanup candidates
   const { data: cleanupStats, isLoading } = useQuery({
@@ -106,6 +112,36 @@ export default function DataCleanupUtility() {
 
   // Cleanup tasks
   const cleanupTasks: CleanupTask[] = [
+    {
+      id: 'factory-reset-operational-data',
+      title: 'Factory Reset Operational Data',
+      description: 'Delete non-Bob organizations, zones, observations, metadata, and users while preserving Bob owner data',
+      icon: Trash2,
+      severity: 'high',
+      requiresGrandMaster: true,
+      action: async () => {
+        const confirmation = factoryResetConfirmation.trim()
+        if (confirmation !== FACTORY_RESET_CONFIRMATION) {
+          throw new Error('Enter the confirmation phrase before running the reset')
+        }
+
+        const { data, error } = await edgeFunctions.factoryResetOperationalData({ confirmation })
+        if (error) throw new Error(error)
+
+        const deletedProfiles = Number(data?.summary?.deleted_profiles || 0)
+        const deletedOrganizations = Number(data?.summary?.deleted_organizations || 0)
+        const deletedRows = Number(data?.summary?.deleted_rows || 0)
+        const deletedAuthUsers = Number(data?.auth_users_deleted || 0)
+        const authDeleteFailures = Array.isArray(data?.auth_delete_failures) ? data.auth_delete_failures : []
+        const deletedTotal = deletedRows + deletedProfiles + deletedOrganizations + deletedAuthUsers
+        setFactoryResetConfirmation('')
+
+        return {
+          deleted: deletedTotal,
+          message: `Reset complete — ${deletedOrganizations} orgs, ${deletedProfiles} profiles, ${deletedAuthUsers} auth users, ${deletedRows} related rows cleared${authDeleteFailures.length ? `; auth follow-up needed for ${authDeleteFailures.map((failure) => String(failure?.email || failure?.id || 'unknown')).join(', ')}` : ''}`,
+        }
+      },
+    },
     {
       id: 'duplicate-observations',
       title: 'Remove Duplicate Observations',
@@ -310,7 +346,11 @@ export default function DataCleanupUtility() {
     },
   ]
 
-  const visibleCleanupTasks = cleanupTasks.filter((task) => !task.requiresMaster || isMasterUser)
+  const visibleCleanupTasks = cleanupTasks.filter((task) => {
+    if (task.requiresGrandMaster && !isGrandMasterUser) return false
+    if (task.requiresMaster && !hasMasterAccess) return false
+    return true
+  })
 
   const runCleanupTask = async (task: CleanupTask) => {
     setRunningTask(task.id)
@@ -465,23 +505,56 @@ export default function DataCleanupUtility() {
                 </CardHeader>
                 <CardContent>
                   <div className="flex items-center gap-4">
-                    <Button
-                      onClick={() => runCleanupTask(task)}
-                      disabled={isRunning || !!runningTask}
-                      variant={task.severity === 'high' ? 'destructive' : 'default'}
-                    >
-                      {isRunning ? (
-                        <>
-                          <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                          Running...
-                        </>
-                      ) : (
-                        <>
-                          <Trash2 className="h-4 w-4 mr-2" />
-                          Run Cleanup
-                        </>
-                      )}
-                    </Button>
+                    {task.id === 'factory-reset-operational-data' ? (
+                      <div className="flex w-full flex-col gap-3">
+                        <div className="text-sm text-muted-foreground">
+                          Type <span className="font-mono font-semibold">{FACTORY_RESET_CONFIRMATION}</span> to enable this reset.
+                        </div>
+                        <div className="flex flex-col gap-3 md:flex-row">
+                          <Input
+                            value={factoryResetConfirmation}
+                            onChange={(event) => setFactoryResetConfirmation(event.target.value)}
+                            placeholder={FACTORY_RESET_CONFIRMATION}
+                            disabled={isRunning || !!runningTask}
+                          />
+                          <Button
+                            onClick={() => runCleanupTask(task)}
+                            disabled={isRunning || !!runningTask || factoryResetConfirmation.trim() !== FACTORY_RESET_CONFIRMATION}
+                            variant="destructive"
+                          >
+                            {isRunning ? (
+                              <>
+                                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                                Running...
+                              </>
+                            ) : (
+                              <>
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                Run Cleanup
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <Button
+                        onClick={() => runCleanupTask(task)}
+                        disabled={isRunning || !!runningTask}
+                        variant={task.severity === 'high' ? 'destructive' : 'default'}
+                      >
+                        {isRunning ? (
+                          <>
+                            <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                            Running...
+                          </>
+                        ) : (
+                          <>
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Run Cleanup
+                          </>
+                        )}
+                      </Button>
+                    )}
 
                     {result && (
                       <div className="flex items-center gap-2 text-sm">
