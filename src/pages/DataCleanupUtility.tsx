@@ -44,7 +44,7 @@ const FACTORY_RESET_CONFIRMATION = 'RESET NON-BOB OPERATIONAL DATA'
 
 export default function DataCleanupUtility() {
   const { user } = useAuthStore()
-  const isMasterOrGrandMaster = user?.role === 'master' || user?.role === 'grand_master'
+  const hasElevatedAccess = user?.role === 'master' || user?.role === 'grand_master'
   const isGrandMasterUser = user?.role === 'grand_master'
   const { organizationId } = useGlobalFiltersStore()
   const queryClient = useQueryClient()
@@ -348,7 +348,7 @@ export default function DataCleanupUtility() {
 
   const visibleCleanupTasks = cleanupTasks.filter((task) => {
     if (task.requiresGrandMaster && !isGrandMasterUser) return false
-    if (task.requiresMaster && !isMasterOrGrandMaster) return false
+    if (task.requiresMaster && !hasElevatedAccess) return false
     return true
   })
 

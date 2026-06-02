@@ -73,7 +73,7 @@ begin
     union all
 
     select case
-      when pg_input_is_valid(value, 'uuid'::regtype)
+      when value ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
         then value::uuid
       else null
     end as org_id
@@ -142,7 +142,7 @@ begin
       select 1
       from unnest(coalesce(up.extra_organization_ids, array[]::text[])) as value
       join preserve_org_ids p
-        on pg_input_is_valid(value, 'uuid'::regtype)
+        on value ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
        and p.id = value::uuid
     )
   on conflict (id) do nothing;

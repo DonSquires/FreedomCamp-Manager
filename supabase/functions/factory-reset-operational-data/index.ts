@@ -67,8 +67,9 @@ Deno.serve(async (req: Request) => {
       })
     }
 
-    const affectedAuthUsers = Array.isArray((data as Record<string, unknown> | null)?.affected_auth_users)
-      ? ((data as Record<string, unknown>).affected_auth_users as Array<Record<string, unknown>>)
+    const summary = (data ?? {}) as Record<string, unknown>
+    const affectedAuthUsers = Array.isArray(summary.affected_auth_users)
+      ? (summary.affected_auth_users as Array<Record<string, unknown>>)
       : []
 
     const deletedAuthUsers: string[] = []
@@ -94,7 +95,7 @@ Deno.serve(async (req: Request) => {
 
     return new Response(JSON.stringify({
       ok: true,
-      summary: data,
+      summary,
       auth_users_deleted: deletedAuthUsers.length,
       auth_delete_failures: authDeleteFailures,
     }), {
