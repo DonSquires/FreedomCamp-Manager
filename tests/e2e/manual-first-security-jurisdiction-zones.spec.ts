@@ -137,7 +137,10 @@ async function createJurisdictionZone(page: Page, seed: BranchSeed): Promise<'cr
   ).catch(() => null)
 
   submitButton = dialog.getByRole('button', { name: /create zone/i }).first()
-  await submitButton.click({ force: true })
+  // Scroll the button into view – the dialog is max-h-[90vh] overflow-y-auto
+  // so the footer button may be below the visible clip rect when using force:true
+  await submitButton.scrollIntoViewIfNeeded()
+  await submitButton.click()
 
   const createResponse = await createRequest
   let createResponseStatus: number | null = null
