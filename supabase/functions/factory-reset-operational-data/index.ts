@@ -3,6 +3,10 @@ import { getCorsHeaders } from '../_shared/withCors.ts'
 
 const OWNER_EMAIL = (Deno.env.get('GRANDMASTER_OWNER_EMAIL') || '').trim().toLowerCase()
 
+if (!OWNER_EMAIL) {
+  throw new Error('GRANDMASTER_OWNER_EMAIL is not configured')
+}
+
 interface ResetRequest {
   confirmation?: string
 }
@@ -14,13 +18,6 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    if (!OWNER_EMAIL) {
-      return new Response(JSON.stringify({ error: 'GRANDMASTER_OWNER_EMAIL is not configured' }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
-    }
-
     const authHeader = req.headers.get('Authorization') ?? req.headers.get('authorization')
     if (!authHeader) {
       return new Response(JSON.stringify({ error: 'Missing Authorization header' }), {

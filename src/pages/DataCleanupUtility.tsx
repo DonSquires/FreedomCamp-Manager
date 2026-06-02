@@ -40,6 +40,8 @@ interface TaskProgress {
   percent: number
 }
 
+const FACTORY_RESET_CONFIRMATION = 'RESET NON-BOB OPERATIONAL DATA'
+
 export default function DataCleanupUtility() {
   const { user } = useAuthStore()
   const isMasterOrGrandMaster = user?.role === 'master' || user?.role === 'grand_master'
@@ -118,11 +120,12 @@ export default function DataCleanupUtility() {
       severity: 'high',
       requiresGrandMaster: true,
       action: async () => {
-        if (factoryResetConfirmation !== 'RESET NON-BOB OPERATIONAL DATA') {
+        const confirmation = factoryResetConfirmation.trim()
+        if (confirmation !== FACTORY_RESET_CONFIRMATION) {
           throw new Error('Enter the confirmation phrase before running the reset')
         }
 
-        const { data, error } = await edgeFunctions.factoryResetOperationalData({ confirmation: factoryResetConfirmation })
+        const { data, error } = await edgeFunctions.factoryResetOperationalData({ confirmation })
         if (error) throw new Error(error)
 
         const deletedProfiles = Number(data?.summary?.deleted_profiles || 0)
@@ -131,6 +134,7 @@ export default function DataCleanupUtility() {
         const deletedAuthUsers = Number(data?.auth_users_deleted || 0)
         const authDeleteFailures = Array.isArray(data?.auth_delete_failures) ? data.auth_delete_failures.length : 0
         const deletedTotal = deletedRows + deletedProfiles + deletedOrganizations + deletedAuthUsers
+        setFactoryResetConfirmation('')
 
         return {
           deleted: deletedTotal,
@@ -353,9 +357,6 @@ export default function DataCleanupUtility() {
     try {
       const result = await task.action()
       setTaskResults(prev => ({ ...prev, [task.id]: result }))
-      if (task.id === 'factory-reset-operational-data') {
-        setFactoryResetConfirmation('')
-      }
       toast.success(result.message)
       queryClient.invalidateQueries({ queryKey: ['cleanup-stats'] })
     } catch (error: any) {
@@ -507,18 +508,18 @@ export default function DataCleanupUtility() {
                     {task.id === 'factory-reset-operational-data' ? (
                       <div className="flex w-full flex-col gap-3">
                         <div className="text-sm text-muted-foreground">
-                          Type <span className="font-mono font-semibold">RESET NON-BOB OPERATIONAL DATA</span> to enable this reset.
+                          Type <span className="font-mono font-semibold">{FACTORY_RESET_CONFIRMATION}</span> to enable this reset.
                         </div>
                         <div className="flex flex-col gap-3 md:flex-row">
                           <Input
                             value={factoryResetConfirmation}
                             onChange={(event) => setFactoryResetConfirmation(event.target.value)}
-                            placeholder="RESET NON-BOB OPERATIONAL DATA"
+                            placeholder={FACTORY_RESET_CONFIRMATION}
                             disabled={isRunning || !!runningTask}
                           />
                           <Button
                             onClick={() => runCleanupTask(task)}
-                            disabled={isRunning || !!runningTask || factoryResetConfirmation !== 'RESET NON-BOB OPERATIONAL DATA'}
+                            disabled={isRunning || !!runningTask || factoryResetConfirmation.trim() !== FACTORY_RESET_CONFIRMATION}
                             variant="destructive"
                           >
                             {isRunning ? (

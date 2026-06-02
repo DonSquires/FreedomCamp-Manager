@@ -73,7 +73,7 @@ begin
     union all
 
     select case
-      when value ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+      when pg_input_is_valid(value, 'uuid'::regtype)
         then value::uuid
       else null
     end as org_id
@@ -132,6 +132,19 @@ begin
   select up.id, up.email
   from public.user_profiles up
   where up.id <> p_actor_id
+    and not exists (
+      select 1
+      from preserve_org_ids p
+      where p.id = up.organization_id
+         or p.id = up.employer_organization_id
+    )
+    and not exists (
+      select 1
+      from unnest(coalesce(up.extra_organization_ids, array[]::text[])) as value
+      join preserve_org_ids p
+        on pg_input_is_valid(value, 'uuid'::regtype)
+       and p.id = value::uuid
+    )
   on conflict (id) do nothing;
 
   for r in
