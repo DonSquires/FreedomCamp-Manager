@@ -4,7 +4,7 @@ import { getCorsHeaders } from '../_shared/withCors.ts'
 const OWNER_EMAIL = (Deno.env.get('GRANDMASTER_OWNER_EMAIL') || '').trim().toLowerCase()
 
 if (!OWNER_EMAIL) {
-  throw new Error('GRANDMASTER_OWNER_EMAIL is not configured')
+  throw new Error('GRANDMASTER_OWNER_EMAIL environment variable must be configured before deploying this function')
 }
 
 interface ResetRequest {

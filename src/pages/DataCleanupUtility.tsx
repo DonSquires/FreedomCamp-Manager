@@ -44,7 +44,7 @@ const FACTORY_RESET_CONFIRMATION = 'RESET NON-BOB OPERATIONAL DATA'
 
 export default function DataCleanupUtility() {
   const { user } = useAuthStore()
-  const hasElevatedAccess = user?.role === 'master' || user?.role === 'grand_master'
+  const hasMasterAccess = user?.role === 'master' || user?.role === 'grand_master'
   const isGrandMasterUser = user?.role === 'grand_master'
   const { organizationId } = useGlobalFiltersStore()
   const queryClient = useQueryClient()
@@ -132,13 +132,13 @@ export default function DataCleanupUtility() {
         const deletedOrganizations = Number(data?.summary?.deleted_organizations || 0)
         const deletedRows = Number(data?.summary?.deleted_rows || 0)
         const deletedAuthUsers = Number(data?.auth_users_deleted || 0)
-        const authDeleteFailures = Array.isArray(data?.auth_delete_failures) ? data.auth_delete_failures.length : 0
+        const authDeleteFailures = Array.isArray(data?.auth_delete_failures) ? data.auth_delete_failures : []
         const deletedTotal = deletedRows + deletedProfiles + deletedOrganizations + deletedAuthUsers
         setFactoryResetConfirmation('')
 
         return {
           deleted: deletedTotal,
-          message: `Reset complete — ${deletedOrganizations} orgs, ${deletedProfiles} profiles, ${deletedAuthUsers} auth users, ${deletedRows} related rows cleared${authDeleteFailures ? `; ${authDeleteFailures} auth deletions need manual follow-up` : ''}`,
+          message: `Reset complete — ${deletedOrganizations} orgs, ${deletedProfiles} profiles, ${deletedAuthUsers} auth users, ${deletedRows} related rows cleared${authDeleteFailures.length ? `; auth follow-up needed for ${authDeleteFailures.map((failure) => String(failure?.email || failure?.id || 'unknown')).join(', ')}` : ''}`,
         }
       },
     },
@@ -348,7 +348,7 @@ export default function DataCleanupUtility() {
 
   const visibleCleanupTasks = cleanupTasks.filter((task) => {
     if (task.requiresGrandMaster && !isGrandMasterUser) return false
-    if (task.requiresMaster && !hasElevatedAccess) return false
+    if (task.requiresMaster && !hasMasterAccess) return false
     return true
   })
 
