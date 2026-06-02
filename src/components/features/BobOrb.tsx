@@ -1,14 +1,29 @@
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { cn } from '@/lib/utils'
 
 export type BobOrbState = 'idle' | 'listening' | 'thinking' | 'speaking' | 'degraded'
 
-const THINKING_KEYFRAMES = `
+/**
+ * Keyframes for Bob visual states per Iron Eagle design spec (INSTRUCTION_MANUAL.md §1a):
+ *
+ *  - thinking : slow red pulsing ring at 1.5 s; box-shadow: 0 0 0 4px rgba(211,47,47,0.4)
+ *               Respects prefers-reduced-motion (falls back to static red outline)
+ *  - listening: green pulsing ring (active voice capture)
+ */
+const BOB_KEYFRAMES = `
 @keyframes bobThinkPulse {
-  0%   { transform: scale(1);    opacity: 1; }
-  40%  { transform: scale(1.18); opacity: 0.7; }
-  60%  { transform: scale(0.9);  opacity: 0.9; }
-  100% { transform: scale(1);    opacity: 1; }
+  0%   { box-shadow: 0 0 0 0 rgba(211,47,47,0.0); }
+  50%  { box-shadow: 0 0 0 4px rgba(211,47,47,0.4); }
+  100% { box-shadow: 0 0 0 0 rgba(211,47,47,0.0); }
+}
+@keyframes bobListenPulse {
+  0%   { box-shadow: 0 0 0 2px rgba(34,197,94,0.2); }
+  50%  { box-shadow: 0 0 0 6px rgba(34,197,94,0.5); }
+  100% { box-shadow: 0 0 0 2px rgba(34,197,94,0.2); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bob-orb-thinking  { animation: none !important; box-shadow: 0 0 0 4px rgba(211,47,47,0.4) !important; }
+  .bob-orb-listening { animation: none !important; box-shadow: 0 0 0 3px rgba(34,197,94,0.6) !important; }
 }
 `
 
@@ -18,68 +33,76 @@ interface BobOrbProps {
   className?: string
 }
 
-const RING_GRADIENTS: Record<BobOrbState, string> = {
-  idle: 'conic-gradient(from 0deg, #2dd4bf, #a855f7, #ec4899, #2dd4bf)',
-  listening: 'conic-gradient(from 0deg, #4ade80, #14b8a6, #10b981, #4ade80)',
-  thinking: 'conic-gradient(from 0deg, #fbbf24, #f97316, #facc15, #fbbf24)',
-  speaking: 'conic-gradient(from 0deg, #60a5fa, #6366f1, #a855f7, #60a5fa)',
-  degraded: 'conic-gradient(from 0deg, #9ca3af, #6b7280, #9ca3af, #6b7280)',
-}
-
-/** CSS animation name → animation string */
-const RING_ANIMATION: Record<BobOrbState, string> = {
-  idle: 'spin 5s linear infinite',
-  listening: 'spin 1s linear infinite',
-  thinking: 'bobThinkPulse 0.85s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-  speaking: 'spin 1.5s linear infinite',
-  degraded: 'none',
-}
-
 const SIZE_OUTER: Record<'sm' | 'md' | 'lg', number> = { sm: 32, md: 40, lg: 56 }
-const SIZE_INNER: Record<'sm' | 'md' | 'lg', number> = { sm: 22, md: 28, lg: 40 }
+const SIZE_INNER: Record<'sm' | 'md' | 'lg', number> = { sm: 28, md: 36, lg: 50 }
 
 /**
- * BobOrb — animated conic-gradient ring that reflects Bob's current state.
+ * BobOrb — button-style indicator reflecting Bob's current state.
  *
- * States:
- *  - idle      : slow teal→purple→pink spin
- *  - listening : fast green spin
- *  - thinking  : amber pulse
- *  - speaking  : medium blue→indigo spin
- *  - degraded  : static grey
+ * Visual states per INSTRUCTION_MANUAL.md §1a "Bob AI Interaction":
+ *  - idle      : outlined, --color-accent-silver border, white icon/label
+ *  - listening : green pulsing ring (active voice capture)
+ *  - thinking  : slow red pulsing ring (box-shadow rgba(211,47,47,0.4), 1.5 s cycle)
+ *  - speaking  : solid --color-brand-primary border (not pulsing)
+ *  - degraded  : muted grey outline
  */
 export function BobOrb({ state = 'idle', size = 'md', className }: BobOrbProps) {
   const outerPx = SIZE_OUTER[size]
   const innerPx = SIZE_INNER[size]
 
-  // Inject thinking keyframes once
+  // Inject keyframes once
   useEffect(() => {
     const id = 'bob-orb-keyframes'
     if (!document.getElementById(id)) {
       const style = document.createElement('style')
       style.id = id
-      style.textContent = THINKING_KEYFRAMES
+      style.textContent = BOB_KEYFRAMES
       document.head.appendChild(style)
     }
   }, [])
 
+  const stateStyles: Record<BobOrbState, React.CSSProperties> = {
+    // Idle: silver outline, no animation
+    idle: {
+      border: '2px solid var(--color-accent-silver, #9e9e9e)',
+    },
+    // Listening: green pulsing ring
+    listening: {
+      border: '2px solid rgba(34,197,94,0.8)',
+      animation: 'bobListenPulse 1s ease-in-out infinite',
+    },
+    // Thinking: slow red pulsing ring per spec (1.5 s cycle)
+    thinking: {
+      border: '2px solid rgba(211,47,47,0.4)',
+      animation: 'bobThinkPulse 1.5s ease-in-out infinite',
+    },
+    // Speaking: solid brand-primary border, no pulse
+    speaking: {
+      border: '2px solid var(--color-brand-primary, #D32F2F)',
+    },
+    // Degraded: muted grey
+    degraded: {
+      border: '2px solid rgba(107,114,128,0.5)',
+    },
+  }
+
+  const stateClass: Record<BobOrbState, string> = {
+    idle: '',
+    listening: 'bob-orb-listening',
+    thinking: 'bob-orb-thinking',
+    speaking: '',
+    degraded: '',
+  }
+
   return (
     <div
-      className={cn('relative flex items-center justify-center rounded-full flex-shrink-0', className)}
-      style={{ width: outerPx, height: outerPx }}
+      className={cn('relative flex items-center justify-center rounded-full flex-shrink-0', stateClass[state], className)}
+      style={{ width: outerPx, height: outerPx, ...stateStyles[state] }}
       aria-label={`Bob assistant — ${state}`}
     >
-      {/* Conic gradient spinning ring */}
+      {/* Inner fill with label */}
       <div
-        className="absolute inset-0 rounded-full"
-        style={{
-          background: RING_GRADIENTS[state],
-          animation: RING_ANIMATION[state],
-        }}
-      />
-      {/* Inner fill (matches page background so only the ring edge shows) */}
-      <div
-        className="relative z-10 rounded-full bg-background flex items-center justify-center font-bold text-foreground select-none"
+        className="rounded-full bg-background flex items-center justify-center font-bold text-foreground select-none"
         style={{ width: innerPx, height: innerPx, fontSize: Math.max(10, innerPx * 0.32) }}
       >
         B

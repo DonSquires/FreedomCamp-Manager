@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { AppLayout } from '@/components/features/AppLayout'
+import { BobGovernanceStatusStrip, type GateState } from '@/components/features/BobGovernanceStatusStrip'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -5188,6 +5189,17 @@ export default function BobAssistantStudio() {
     <AppLayout title="Bob Assistant Studio" description="Personality, voice, mapping, and drawing controls for Bob.">
       <GlobalFilterRibbon />
 
+      {/* Governance status strip — INSTRUCTION_MANUAL.md §1a: must appear on governance-capable pages */}
+      <BobGovernanceStatusStrip
+        activeState={
+          bobActionApproval.isOpen && bobActionApproval.isLoading ? 'awaiting' as GateState
+          : bobActionApproval.isOpen ? 'submitted' as GateState
+          : pendingApprovalsCount > 0 ? 'awaiting' as GateState
+          : null
+        }
+        emergencyActive={dangerAutoAssistArmed && emergencyCountdownSeconds !== null}
+      />
+
       <BobActionApprovalDialog
         open={bobActionApproval.isOpen}
         recommendation={bobActionApproval.recommendation}
@@ -6261,7 +6273,7 @@ export default function BobAssistantStudio() {
                                 // Bob:  rounded except bottom-left corner
                                 isUser
                                   ? 'rounded-2xl rounded-br-sm bg-[#2563EB] text-white dark:bg-[#3B82F6]'
-                                  : 'rounded-2xl rounded-bl-sm bg-white dark:bg-[#374151] text-[#111827] dark:text-[#F9FAFB] border border-[#E5E7EB] dark:border-[#4B5563]',
+                                  : 'rounded-2xl rounded-bl-sm bg-[var(--color-bg-surface,#1E1E1E)] text-[var(--color-text-primary,#FFFFFF)] border border-[color:rgba(158,158,158,0.35)] border-t-[3px] border-t-[var(--color-brand-primary,#D32F2F)]',
                               ].join(' ')}
                             >
                               {/* Message body with Markdown */}

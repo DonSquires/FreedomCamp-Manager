@@ -3456,6 +3456,8 @@ The `proxy-server/` is deployed to Railway. The Railway project's **Root Directo
 | Edge Function CORS error | Missing OPTIONS handler or corsHeaders | Check function follows `_shared/cors.ts` pattern |
 | `get_user_organization_ids()` returns empty | User profile has no `organization_id` set | Update user profile in User Management |
 | Bob `health` check fails in serverless mode | `health` is pod-only; not available in serverless | Use `ping` action via `/runsync` to verify Bob connectivity |
+| Bob RunPod self-test fails with `Process from config.webServer was not able to start` | Worker clone dependencies are missing or failed to install, so Playwright cannot launch Vite webServer | Check worker install logs first, then verify cloned repo has either `node_modules/vite/bin/vite.js` or `node_modules/.bin/vite`; rerun after dependency bootstrap succeeds |
+| Bob self-test failures do not auto-file bug reports | Bug reporter context missing (`VITE_SUPABASE_URL`/`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SYNTHETIC_MONITOR_USER_ID`) | Set required reporter env keys or explicitly bypass with `BOB_SELF_TEST_REQUIRE_BUG_REPORT_CONTEXT=false` for non-reporting runs |
 
 ---
 

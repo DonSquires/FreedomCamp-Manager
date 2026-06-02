@@ -23,8 +23,9 @@
  *   BOB_SELF_TEST_PREFLIGHT    true = validate repo/token access before queueing (default: true)
  *   BOB_SELF_TEST_REQUIRE_REPO_TOKEN true = require worker git token for private repos (default: true)
  *   BOB_SELF_TEST_AUTH_MODE    repo-token | embed-url (default: repo-token)
+ *   BOB_SELF_TEST_REQUIRE_BUG_REPORT_CONTEXT true = require bug report env completeness before run (default: true)
  *   BOB_SELF_TEST_LAST_RUN_FILE path to persist last run summary (default: data/bob-last-runpod-self-test.json)
- *   SYNTHETIC_MONITOR_USER_ID  reporter UUID for bug_reports (optional)
+ *   SYNTHETIC_MONITOR_USER_ID  reporter UUID for bug_reports (required when BOB_SELF_TEST_REQUIRE_BUG_REPORT_CONTEXT=true)
  *
  * Usage:
  *   node scripts/trigger-bob-self-test.mjs
@@ -178,6 +179,14 @@ function validateForwardedCredentials(forwardedEnv, specs = []) {
     }
   }
 
+  return missing;
+}
+
+function getMissingBugReportContext({ supabaseUrl = '', serviceRole = '', reporterUser = '' } = {}) {
+  const missing = [];
+  if (!String(supabaseUrl || '').trim()) missing.push('VITE_SUPABASE_URL (or SUPABASE_URL)');
+  if (!String(serviceRole || '').trim()) missing.push('SUPABASE_SERVICE_ROLE_KEY');
+  if (!String(reporterUser || '').trim()) missing.push('SYNTHETIC_MONITOR_USER_ID');
   return missing;
 }
 
@@ -425,6 +434,7 @@ async function run() {
   const REPO_TOKEN  = (process.env.BOB_WORKER_GITHUB_TOKEN || process.env.GITHUB_TOKEN || process.env.GH_API || '').trim().replace(/\s+/g, '');
   const PREFLIGHT = envBool('BOB_SELF_TEST_PREFLIGHT', true);
   const REQUIRE_REPO_TOKEN = envBool('BOB_SELF_TEST_REQUIRE_REPO_TOKEN', true);
+  const REQUIRE_BUG_REPORT_CONTEXT = envBool('BOB_SELF_TEST_REQUIRE_BUG_REPORT_CONTEXT', true);
   const AUTH_MODE = String(process.env.BOB_SELF_TEST_AUTH_MODE || '').trim().toLowerCase() || 'repo-token';
   const EMBED_REPO_TOKEN_IN_URL = envBool('BOB_SELF_TEST_EMBED_REPO_TOKEN_IN_URL', false);
   const isGithubActionsToken = REPO_TOKEN.startsWith('ghs_');
@@ -482,6 +492,20 @@ async function run() {
       console.error(`  - ${key}`);
     }
     console.error('[bob-self-test] Populate these keys in .env or .env.playwright.local before triggering RunPod.');
+    process.exit(1);
+  }
+
+  const missingBugReportContext = getMissingBugReportContext({
+    supabaseUrl: SUPABASE_URL,
+    serviceRole: SERVICE_ROLE,
+    reporterUser: REPORTER_USER,
+  });
+  if (!DRY_RUN && REQUIRE_BUG_REPORT_CONTEXT && missingBugReportContext.length > 0) {
+    console.error('[bob-self-test] Missing bug report context required for non-dry run:');
+    for (const key of missingBugReportContext) {
+      console.error(`  - ${key}`);
+    }
+    console.error('[bob-self-test] Set these keys or run with BOB_SELF_TEST_REQUIRE_BUG_REPORT_CONTEXT=false to bypass.');
     process.exit(1);
   }
 
