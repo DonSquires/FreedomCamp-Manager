@@ -28,6 +28,7 @@ interface CleanupTask {
   icon: any
   severity: 'low' | 'medium' | 'high'
   requiresMaster?: boolean
+  requiresGrandMaster?: boolean
   action: () => Promise<{ deleted: number; message: string }>
 }
 
@@ -40,7 +41,8 @@ interface TaskProgress {
 
 export default function DataCleanupUtility() {
   const { user } = useAuthStore()
-  const isMasterUser = user?.role === 'master'
+  const isMasterUser = user?.role === 'master' || user?.role === 'grand_master'
+  const isGrandMasterUser = user?.role === 'grand_master'
   const { organizationId } = useGlobalFiltersStore()
   const queryClient = useQueryClient()
   const [runningTask, setRunningTask] = useState<string | null>(null)
@@ -106,6 +108,38 @@ export default function DataCleanupUtility() {
 
   // Cleanup tasks
   const cleanupTasks: CleanupTask[] = [
+    {
+      id: 'factory-reset-operational-data',
+      title: 'Factory Reset Operational Data',
+      description: 'Delete non-Bob organizations, zones, observations, metadata, and users while preserving Bob owner data',
+      icon: Trash2,
+      severity: 'high',
+      requiresGrandMaster: true,
+      action: async () => {
+        const confirmation = window.prompt(
+          'This will permanently wipe non-Bob operational data and users. Type RESET NON-BOB OPERATIONAL DATA to continue:',
+          '',
+        )
+
+        if (confirmation !== 'RESET NON-BOB OPERATIONAL DATA') {
+          throw new Error('Factory reset cancelled')
+        }
+
+        const { data, error } = await edgeFunctions.factoryResetOperationalData({ confirmation })
+        if (error) throw new Error(error)
+
+        const deletedProfiles = Number(data?.summary?.deleted_profiles || 0)
+        const deletedOrganizations = Number(data?.summary?.deleted_organizations || 0)
+        const deletedRows = Number(data?.summary?.deleted_rows || 0)
+        const deletedAuthUsers = Number(data?.auth_users_deleted || 0)
+        const authDeleteFailures = Array.isArray(data?.auth_delete_failures) ? data.auth_delete_failures.length : 0
+
+        return {
+          deleted: deletedRows + deletedProfiles + deletedOrganizations + deletedAuthUsers,
+          message: `Reset complete — ${deletedOrganizations} orgs, ${deletedProfiles} profiles, ${deletedAuthUsers} auth users, ${deletedRows} related rows cleared${authDeleteFailures ? ` (${authDeleteFailures} auth deletions need manual follow-up)` : ''}`,
+        }
+      },
+    },
     {
       id: 'duplicate-observations',
       title: 'Remove Duplicate Observations',
@@ -310,7 +344,11 @@ export default function DataCleanupUtility() {
     },
   ]
 
-  const visibleCleanupTasks = cleanupTasks.filter((task) => !task.requiresMaster || isMasterUser)
+  const visibleCleanupTasks = cleanupTasks.filter((task) => {
+    if (task.requiresGrandMaster && !isGrandMasterUser) return false
+    if (task.requiresMaster && !isMasterUser) return false
+    return true
+  })
 
   const runCleanupTask = async (task: CleanupTask) => {
     setRunningTask(task.id)
