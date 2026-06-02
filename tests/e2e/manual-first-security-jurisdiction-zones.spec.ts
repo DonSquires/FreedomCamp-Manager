@@ -120,7 +120,8 @@ async function createJurisdictionZone(page: Page, seed: BranchSeed): Promise<'cr
 
   await dialog.locator('#createZoneType').click()
   await page.getByRole('option', { name: /general \(jurisdiction area\)/i }).first().click({ force: true })
-  await page.keyboard.press('Escape').catch(() => undefined)
+  // Do NOT press Escape here — Radix Select closes automatically on option click
+  // and a bare Escape would propagate to the Dialog and dismiss it before submit.
 
   let submitButton = dialog.getByRole('button', { name: /create zone/i }).first()
   await expect(submitButton).toBeVisible({ timeout: 5000 })
