@@ -227,6 +227,74 @@ async function postgrestFetchOrganizations(timeoutMs = 15000): Promise<Organizat
   }
 }
 
+async function postgrestUpdateOrganization(organizationId: string, payload: Record<string, unknown>, timeoutMs = 15000): Promise<void> {
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined
+  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    throw new Error('Supabase environment variables are missing')
+  }
+
+  let accessToken = readSupabaseAccessTokenFromStorage()
+
+  if (!accessToken) {
+    const {
+      data: { session },
+    } = await withTimeout(
+      supabase.auth.getSession(),
+      Math.min(2000, timeoutMs),
+      'Session lookup'
+    )
+
+    accessToken = session?.access_token ?? null
+  }
+
+  if (!accessToken) {
+    throw new Error('Session expired. Please sign in again')
+  }
+
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
+
+  try {
+    const query = new URLSearchParams({
+      id: `eq.${organizationId}`,
+    })
+    const response = await fetch(`${supabaseUrl}/rest/v1/organizations?${query.toString()}`, {
+      method: 'PATCH',
+      headers: {
+        apikey: supabaseAnonKey,
+        Authorization: 'Bearer ' + accessToken,
+        'Content-Type': 'application/json',
+        Prefer: 'return=minimal',
+      },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    })
+
+    if (response.ok) return
+
+    const raw = await response.text().catch(() => '')
+    let message = 'Failed to update organisation'
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw)
+        message = parsed?.message || parsed?.error_description || parsed?.hint || raw
+      } catch {
+        message = raw
+      }
+    }
+    throw new Error(message)
+  } catch (error: any) {
+    if (error?.name === 'AbortError') {
+      throw new Error(`Organisation update timed out after ${Math.round(timeoutMs / 1000)}s`)
+    }
+    throw error
+  } finally {
+    clearTimeout(timeoutId)
+  }
+}
+
 export default function OrganizationManagement() {
   const { user } = useAuthStore()
   const queryClient = useQueryClient()
@@ -305,12 +373,8 @@ export default function OrganizationManagement() {
   const updateOrgMutation = useMutation({
     mutationFn: async (updates: Partial<Organization>) => {
       if (!selectedOrg) throw new Error('No organisation selected')
-      
-      const { error } = await (supabase.from('organizations') as any)
-        .update(updates)
-        .eq('id', selectedOrg.id)
 
-      if (error) throw error
+      await postgrestUpdateOrganization(selectedOrg.id, updates as Record<string, unknown>)
     },
     onSuccess: () => {
       toast.success('Organisation updated successfully')
