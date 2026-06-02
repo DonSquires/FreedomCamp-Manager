@@ -178,6 +178,32 @@ async function createJurisdictionZone(
       hitText: el?.textContent?.trim().slice(0, 120) || null,
     }
   })
+  const formState = await page.evaluate(() => {
+    const dialog = document.querySelector('[role="dialog"]')
+    const form = dialog?.querySelector('form') as HTMLFormElement | null
+    if (!form) return { hasForm: false }
+
+    const invalidControls = [...form.querySelectorAll('input, select, textarea, button')]
+      .filter((el) => !(el as HTMLInputElement).checkValidity?.() )
+      .map((el) => {
+        const input = el as HTMLInputElement
+        return {
+          tag: el.tagName,
+          id: input.id || null,
+          name: input.name || null,
+          type: input.type || null,
+          value: 'value' in input ? input.value : null,
+          validationMessage: input.validationMessage || null,
+          required: !!input.required,
+        }
+      })
+
+    return {
+      hasForm: true,
+      valid: form.checkValidity(),
+      invalidControls,
+    }
+  })
 
     // Prefer a normal Playwright element click now that the app uses a real form.
     // Only fall back to coordinate clicking if the element click itself fails.
@@ -292,6 +318,7 @@ async function createJurisdictionZone(
     `Submit disabled=${submitDisabled}. SubmitText=${submitTextAfterClick}. ${apiError} ` +
     `${trialClickError ? `TrialClick=${trialClickError}. ` : ''}` +
     `${hitTarget ? `HitTarget=${JSON.stringify(hitTarget)}. ` : ''}` +
+    `${formState ? `FormState=${JSON.stringify(formState)}. ` : ''}` +
     `${browserErrorSummary ? `BrowserErrors=${browserErrorSummary}. ` : ''}` +
     `${zoneRequestSummary ? `ZoneRequests=${zoneRequestSummary}` : ''}`
   )
