@@ -71,6 +71,28 @@ interface Organization {
   name: string
 }
 
+function parseIntOrFallback(value: string, fallback: number, min = 0): number {
+  const parsed = Number.parseInt(value, 10)
+  if (!Number.isFinite(parsed) || parsed < min) return fallback
+  return parsed
+}
+
+function parseOptionalInt(value: string, min = 0): number | null {
+  const trimmed = value.trim()
+  if (!trimmed) return null
+  const parsed = Number.parseInt(trimmed, 10)
+  if (!Number.isFinite(parsed) || parsed < min) return null
+  return parsed
+}
+
+function parseOptionalFloat(value: string, min = 0): number | null {
+  const trimmed = value.trim()
+  if (!trimmed) return null
+  const parsed = Number.parseFloat(trimmed)
+  if (!Number.isFinite(parsed) || parsed < min) return null
+  return parsed
+}
+
 export default function ZoneManagement() {
   const { user } = useAuthStore()
   const { organizationId } = useGlobalFiltersStore()
@@ -854,8 +876,9 @@ export default function ZoneManagement() {
                 <Input
                   id="editNights"
                   type="number"
+                  min={1}
                   value={editNightsPerMonth}
-                  onChange={(e) => setEditNightsPerMonth(parseInt(e.target.value))}
+                  onChange={(e) => setEditNightsPerMonth(parseIntOrFallback(e.target.value, editNightsPerMonth, 1))}
                 />
               </div>
               
@@ -864,8 +887,9 @@ export default function ZoneManagement() {
                 <Input
                   id="editConsecutive"
                   type="number"
+                  min={1}
                   value={editMaxConsecutive}
-                  onChange={(e) => setEditMaxConsecutive(parseInt(e.target.value))}
+                  onChange={(e) => setEditMaxConsecutive(parseIntOrFallback(e.target.value, editMaxConsecutive, 1))}
                 />
               </div>
             </div>
@@ -1211,8 +1235,8 @@ export default function ZoneManagement() {
                   has_dump_station: editHasDumpStation,
                   has_shower:       editHasShower,
                   has_rubbish:      editHasRubbish,
-                  max_vehicles:     editMaxVehicles ? parseInt(editMaxVehicles) : null,
-                  fee_nzd:          editFeeNzd ? parseFloat(editFeeNzd) : null,
+                  max_vehicles:     parseOptionalInt(editMaxVehicles, 0),
+                  fee_nzd:          parseOptionalFloat(editFeeNzd, 0),
                 }
                 
                 // Master/grand_master can change organization, zone type, and parent
@@ -1356,8 +1380,9 @@ export default function ZoneManagement() {
                 <Input
                   id="createNights"
                   type="number"
+                  min={1}
                   value={createNightsPerMonth}
-                  onChange={(e) => setCreateNightsPerMonth(parseInt(e.target.value))}
+                  onChange={(e) => setCreateNightsPerMonth(parseIntOrFallback(e.target.value, createNightsPerMonth, 1))}
                 />
               </div>
               <div>
@@ -1365,8 +1390,9 @@ export default function ZoneManagement() {
                 <Input
                   id="createConsecutive"
                   type="number"
+                  min={1}
                   value={createMaxConsecutive}
-                  onChange={(e) => setCreateMaxConsecutive(parseInt(e.target.value))}
+                  onChange={(e) => setCreateMaxConsecutive(parseIntOrFallback(e.target.value, createMaxConsecutive, 1))}
                 />
               </div>
             </div>
