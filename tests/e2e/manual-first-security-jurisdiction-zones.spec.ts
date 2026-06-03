@@ -1,6 +1,8 @@
 import { test, expect, type Page } from '@playwright/test'
 import { loginAs } from './auth'
 
+const ENABLE_MANUAL_SEED = process.env.PLAYWRIGHT_ENABLE_MANUAL_SEED === '1'
+
 type BranchSeed = {
   branchName: string
   address: string
@@ -40,7 +42,7 @@ const BRANCH_SEEDS: BranchSeed[] = [
   { branchName: 'Taupo - First Security', address: '20/15 Totara Street, Tauhara, Taupo 3330', latitude: -38.67993, longitude: 176.08301 },
   { branchName: 'Tauranga - First Security', address: '56 Tenth Avenue, Tauranga 3110, New Zealand', latitude: -37.69502, longitude: 176.15344 },
   { branchName: 'Timaru - First Security', address: '14 Edward Street, Timaru, New Zealand', latitude: -44.39153, longitude: 171.24542 },
-  { branchName: 'Tokoroa - First Security', address: '65 Marguerita Street, Fenton Park, Rotorua 3010, New Zealand', latitude: -38.15949, longitude: 176.24836 },
+  { branchName: 'Tokoroa - First Security', address: '41 Swanston Street, Tokoroa 3420, New Zealand', latitude: -38.22542, longitude: 175.86987 },
   { branchName: 'Wellington - First Security', address: '28 Downer Street, Hutt Central, Lower Hutt 5010', latitude: -41.21131, longitude: 174.90865 },
   { branchName: 'Whangamata - First Security', address: '1st/429 Port Road, Whangamata 3620', latitude: -37.20185, longitude: 175.86913 },
   { branchName: 'Whanganui - First Security', address: '136 St Hill Street, Whanganui 4500, New Zealand', latitude: -39.93069, longitude: 175.05005 },
@@ -325,6 +327,8 @@ async function createJurisdictionZone(
 }
 
 test.describe('Manual UI data entry: First Security jurisdiction zones', () => {
+  test.skip(!ENABLE_MANUAL_SEED, 'Manual data seeding is disabled by default. Set PLAYWRIGHT_ENABLE_MANUAL_SEED=1 to run.')
+
   test('create one jurisdiction zone for each First Security branch', async ({ page }) => {
     test.setTimeout(15 * 60 * 1000)
 

@@ -2,6 +2,7 @@ import { test, expect, type Page } from '@playwright/test'
 import { loginAs } from './auth'
 
 const SERVICE_PROVIDER_NAME = 'security guard services ltd'
+const ENABLE_MANUAL_SEED = process.env.PLAYWRIGHT_ENABLE_MANUAL_SEED === '1'
 
 const FIRST_SECURITY_BRANCHES = [
   'Ashburton - First Security',
@@ -86,6 +87,8 @@ async function createOrganization(page: Page, name: string, parentName: string |
 }
 
 test.describe('Manual UI data entry: First Security branches', () => {
+  test.skip(!ENABLE_MANUAL_SEED, 'Manual data seeding is disabled by default. Set PLAYWRIGHT_ENABLE_MANUAL_SEED=1 to run.')
+
   test('create requested provider and First Security branches via Organizations UI', async ({ page }) => {
     test.setTimeout(10 * 60 * 1000)
 

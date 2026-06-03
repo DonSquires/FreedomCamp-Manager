@@ -153,7 +153,7 @@ export default function ZoneManagement() {
       if (error) throw error
       return data as Organization[]
     },
-    enabled: user?.role === 'master',
+    enabled: user?.role === 'master' || user?.role === 'grand_master',
   })
 
   // Fetch zones with counts
