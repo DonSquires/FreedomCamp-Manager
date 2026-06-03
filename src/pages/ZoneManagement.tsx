@@ -471,6 +471,11 @@ export default function ZoneManagement() {
   // Calculate stats
   const zones = zoneData?.zones ?? null
   const duplicateZoneCount = zoneData?.duplicateCount ?? 0
+  const isOrgScopedRole = user?.role === 'master' || user?.role === 'grand_master'
+  const createOrgFallbackId = organizationId || operationalOrganizationId || user?.organization_id || ''
+  const canCreateZoneForOrg = isOrgScopedRole
+    ? Boolean(createOrganizationId || createOrgFallbackId)
+    : true
   const stats = zones ? {
     total: zones.length,
     active: zones.filter(z => z.is_active).length,
@@ -769,7 +774,7 @@ export default function ZoneManagement() {
             </div>
 
             {/* ✅ Organization Selector (Masters Only) */}
-            {user?.role === 'master' && (
+            {(user?.role === 'master' || user?.role === 'grand_master') && (
               <div>
                 <Label htmlFor="editOrganization">Organisation</Label>
                 <Select
@@ -802,7 +807,7 @@ export default function ZoneManagement() {
             )}
 
             {/* ✅ Zone Type (Masters Only) */}
-            {user?.role === 'master' && (
+            {(user?.role === 'master' || user?.role === 'grand_master') && (
               <div>
                 <Label htmlFor="editZoneType">Zone Type</Label>
                 <Select
@@ -1210,8 +1215,8 @@ export default function ZoneManagement() {
                   fee_nzd:          editFeeNzd ? parseFloat(editFeeNzd) : null,
                 }
                 
-                // Masters can change organization, zone type, and parent
-                if (user?.role === 'master') {
+                // Master/grand_master can change organization, zone type, and parent
+                if (user?.role === 'master' || user?.role === 'grand_master') {
                   if (editOrganizationId) updates.organization_id = editOrganizationId
                   updates.zone_type = editZoneType
                   updates.parent_zone_id = editZoneType === 'general' ? null : editParentZoneId
@@ -1492,7 +1497,7 @@ export default function ZoneManagement() {
             <Button
               type="button"
               onClick={submitCreateZone}
-              disabled={createZoneMutation.isPending || !createName.trim() || ((user?.role === 'master' || user?.role === 'grand_master') && !createOrganizationId)}
+              disabled={createZoneMutation.isPending || !createName.trim() || !canCreateZoneForOrg}
             >
               {createZoneMutation.isPending ? 'Creating...' : 'Create Zone'}
             </Button>
