@@ -61,13 +61,97 @@ function jurisdictionDescription(seed: BranchSeed): string {
   return `Branch jurisdiction seeded from firstsecurity.co.nz office source. Address: ${seed.address}. Coordinates: ${seed.latitude}, ${seed.longitude}.`
 }
 
+async function loginForManualSeed(page: Page): Promise<void> {
+  const email =
+    process.env.PLAYWRIGHT_MASTER_EMAIL ||
+    process.env.E2E_MASTER_EMAIL ||
+    process.env.PLAYWRIGHT_TEST_EMAIL ||
+    ''
+  const password =
+    process.env.PLAYWRIGHT_MASTER_PASSWORD ||
+    process.env.E2E_MASTER_PASSWORD ||
+    process.env.PLAYWRIGHT_TEST_PASSWORD ||
+    ''
+
+  if (!email || !password) {
+    await loginAs(page, 'master')
+    return
+  }
+
+  await page.goto('/login', { waitUntil: 'domcontentloaded' })
+  const emailInput = page.getByRole('textbox', { name: /email/i }).first()
+  const passwordInput = page.getByRole('textbox', { name: /password/i }).first()
+  await expect(emailInput).toBeVisible({ timeout: 15000 })
+  await emailInput.fill(email)
+  await passwordInput.fill(password)
+  await page.getByRole('button', { name: /^sign in$/i }).first().click()
+
+  await page.waitForURL((url) => !url.pathname.startsWith('/login'), { timeout: 30000 })
+  await page.evaluate(() => {
+    window.sessionStorage.setItem('adminOfficerPortalChoice', 'selected')
+  }).catch(() => undefined)
+
+  const workspaceHeading = page.getByText(/choose a workspace to continue your shift/i).first()
+  if (await workspaceHeading.isVisible({ timeout: 3000 }).catch(() => false)) {
+    const adminOpenButton = page.getByRole('button', { name: /open admin portal/i }).first()
+    await expect(adminOpenButton).toBeVisible({ timeout: 5000 })
+    await adminOpenButton.click({ force: true })
+    await expect(workspaceHeading).toBeHidden({ timeout: 20000 }).catch(() => undefined)
+  }
+
+  await page.waitForLoadState('networkidle').catch(() => undefined)
+}
+
+async function unlockSessionIfPrompted(page: Page): Promise<void> {
+  const lockoutHeading = page.getByRole('heading', { name: /session lockout/i }).first()
+  const lockoutVisible = await lockoutHeading.isVisible({ timeout: 1500 }).catch(() => false)
+  if (!lockoutVisible) return
+
+  const unlockPassword =
+    process.env.PLAYWRIGHT_MASTER_PASSWORD ||
+    process.env.E2E_MASTER_PASSWORD ||
+    process.env.PLAYWRIGHT_TEST_PASSWORD ||
+    'Test123!'
+
+  const passwordInput = page.locator('input[placeholder*="unlock" i]').first()
+  await expect(passwordInput).toBeVisible({ timeout: 5000 })
+  await passwordInput.fill(unlockPassword)
+
+  const unlockButton = page.getByRole('button', { name: /log back in/i }).first()
+  await expect(unlockButton).toBeEnabled({ timeout: 5000 })
+  await unlockButton.click()
+  await expect(lockoutHeading).toBeHidden({ timeout: 15000 })
+}
+
 async function gotoZones(page: Page): Promise<void> {
   await page.goto('/zones', { waitUntil: 'domcontentloaded' })
-  await expect(page).toHaveURL(/\/zones(?:\?|$|#)/, { timeout: 20000 })
+  await unlockSessionIfPrompted(page)
+
+  const inZones = await page
+    .waitForURL(/\/zones(?:\?|$|#)/, { timeout: 8000 })
+    .then(() => true)
+    .catch(() => false)
+
+  if (!inZones) {
+    const zonesNav = page.getByRole('button', { name: /^zones$/i }).first()
+    const zonesLink = page.getByRole('link', { name: /^zones$/i }).first()
+
+    if (await zonesNav.isVisible({ timeout: 1500 }).catch(() => false)) {
+      await zonesNav.click({ force: true })
+    } else if (await zonesLink.isVisible({ timeout: 1500 }).catch(() => false)) {
+      await zonesLink.click({ force: true })
+    }
+
+    await unlockSessionIfPrompted(page)
+    await expect(page).toHaveURL(/\/zones(?:\?|$|#)/, { timeout: 20000 })
+  }
+
   await page.waitForLoadState('networkidle').catch(() => undefined)
 }
 
 async function setOrganizationScope(page: Page, branchName: string): Promise<void> {
+  await unlockSessionIfPrompted(page)
+
   const orgFilter = page
     .locator('button[role="combobox"]')
     .filter({ hasText: /all organisations|all organizations|first security|security guard/i })
@@ -97,6 +181,8 @@ async function resetSearch(page: Page): Promise<void> {
 }
 
 async function openCreateZoneDialog(page: Page): Promise<void> {
+  await unlockSessionIfPrompted(page)
+
   const addButton = page.getByRole('button', { name: /add zone/i }).first()
   await expect(addButton).toBeVisible({ timeout: 15000 })
   await addButton.click()
@@ -127,7 +213,27 @@ async function createJurisdictionZone(
   if (await createOrganization.isVisible({ timeout: 5000 }).catch(() => false)) {
     await createOrganization.scrollIntoViewIfNeeded()
     await createOrganization.click()
-    await page.getByRole('option', { name: new RegExp(`^\\s*${escapeRegex(seed.branchName)}\\s*$`, 'i') }).first().click({ force: true })
+
+    const preferredOption = page.getByRole('option', { name: new RegExp(`^\\s*${escapeRegex(seed.branchName)}\\s*$`, 'i') }).first()
+    const preferredVisible = await preferredOption.isVisible({ timeout: 2500 }).catch(() => false)
+    if (preferredVisible) {
+      await preferredOption.click({ force: true })
+    } else {
+      const optionTexts = await page
+        .getByRole('option')
+        .allTextContents()
+        .then((items) => items.map((item) => item.trim()).filter(Boolean))
+        .catch(() => [])
+
+      if (optionTexts.length > 0) {
+        diagnostics.zoneRequests.push(`[create-org-options] ${optionTexts.slice(0, 8).join(' | ')}`)
+        if (diagnostics.zoneRequests.length > 20) diagnostics.zoneRequests.shift()
+      }
+
+      const firstOption = page.getByRole('option').first()
+      await expect(firstOption).toBeVisible({ timeout: 5000 })
+      await firstOption.click({ force: true })
+    }
   }
 
   await dialog.locator('#createZoneType').click()
@@ -364,7 +470,7 @@ test.describe('Manual UI data entry: First Security jurisdiction zones', () => {
       if (diagnostics.zoneRequests.length > 20) diagnostics.zoneRequests.shift()
     })
 
-    await loginAs(page, 'master')
+    await loginForManualSeed(page)
     await gotoZones(page)
 
     for (const seed of BRANCH_SEEDS) {

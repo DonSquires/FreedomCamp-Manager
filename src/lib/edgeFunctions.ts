@@ -477,10 +477,16 @@ async function getErrorMessage(error: any): Promise<string> {
 async function callEdgeFunction<T = any>(
   functionName: string,
   body?: any,
-  options: { showToast?: boolean; useDirectFetch?: boolean; extraHeaders?: Record<string, string> } = { showToast: true }
+  options: {
+    showToast?: boolean
+    useDirectFetch?: boolean
+    extraHeaders?: Record<string, string>
+    lockOnMissingSession?: boolean
+  } = { showToast: true }
 ): Promise<{ data: T | null; error: string | null }> {
   const { lock, unlock } = useSessionLockStore.getState()
   const invokeTimeoutMs = EDGE_FUNCTION_TIMEOUT_MS
+  const lockOnMissingSession = options.lockOnMissingSession ?? true
 
   const invokeWithTimeout = async (
     fn: string,
@@ -507,7 +513,7 @@ async function callEdgeFunction<T = any>(
     if (!accessToken) {
       const errorMessage = 'No active session found. Please sign in again and retry.'
       const { isLocked } = useSessionLockStore.getState()
-      if (!isLocked) {
+      if (lockOnMissingSession && !isLocked) {
         lock('Session Lockout', 'Your session is no longer active. Log back in to unlock this workspace.')
       }
       if (options.showToast && !isLocked && shouldEmitSessionToast()) {
@@ -977,7 +983,9 @@ export const edgeFunctions = {
   checkServicesHealth: async () => {
     // Health polling runs passively in layout-level UI; suppress toasts to avoid
     // repeated timeout popups when a service is temporarily slow/offline.
-    return callEdgeFunction('check-services-health', undefined, { showToast: false })
+    // Do not hard-lock user sessions from passive status polling when token
+    // hydration is briefly delayed.
+    return callEdgeFunction('check-services-health', undefined, { showToast: false, lockOnMissingSession: false })
   },
 
   /**
