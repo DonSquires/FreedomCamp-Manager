@@ -93,6 +93,11 @@ function parseOptionalFloat(value: string, min = 0): number | null {
   return parsed
 }
 
+function normalizeIntOrFallback(value: number, fallback: number, min = 0): number {
+  if (!Number.isFinite(value) || value < min) return fallback
+  return Math.trunc(value)
+}
+
 export default function ZoneManagement() {
   const { user } = useAuthStore()
   const { organizationId } = useGlobalFiltersStore()
@@ -349,6 +354,9 @@ export default function ZoneManagement() {
         throw new Error(`A zone named "${createName.trim()}" already exists in this organisation`)
       }
 
+      const safeNightsPerMonth = normalizeIntOrFallback(createNightsPerMonth, 28, 1)
+      const safeMaxConsecutive = normalizeIntOrFallback(createMaxConsecutive, 3, 1)
+
       const { error } = await (supabase.from('zones') as any)
         .insert({
           name: createName.trim(),
@@ -356,8 +364,8 @@ export default function ZoneManagement() {
           organization_id: orgId,
           zone_type: createZoneType,
           parent_zone_id: createZoneType === 'general' ? null : createParentZoneId,
-          nights_per_month: createNightsPerMonth,
-          max_consecutive_nights: createMaxConsecutive,
+          nights_per_month: safeNightsPerMonth,
+          max_consecutive_nights: safeMaxConsecutive,
           day_visit_only: createDayVisitOnly,
           self_contained_required: createSelfContained,
           land_managing_agency: createLandManagingAgency || null,
@@ -1217,11 +1225,14 @@ export default function ZoneManagement() {
             </Button>
             <Button 
               onClick={() => {
+                const safeEditNightsPerMonth = normalizeIntOrFallback(editNightsPerMonth, 28, 1)
+                const safeEditMaxConsecutive = normalizeIntOrFallback(editMaxConsecutive, 3, 1)
+
                 const updates: Partial<Zone> = {
                   name: editName,
                   description: editDescription || null,
-                  nights_per_month: editNightsPerMonth,
-                  max_consecutive_nights: editMaxConsecutive,
+                  nights_per_month: safeEditNightsPerMonth,
+                  max_consecutive_nights: safeEditMaxConsecutive,
                   day_visit_only: editDayVisitOnly,
                   self_contained_required: editSelfContained,
                   land_managing_agency: editLandManagingAgency || null,
