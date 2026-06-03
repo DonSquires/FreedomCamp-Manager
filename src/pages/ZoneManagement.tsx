@@ -135,6 +135,8 @@ export default function ZoneManagement() {
   const [createSeasonalOpenMonth, setCreateSeasonalOpenMonth] = useState<number | null>(null)
   const [createSeasonalCloseMonth, setCreateSeasonalCloseMonth] = useState<number | null>(null)
   const [createZoneFeatures, setCreateZoneFeatures] = useState<string[]>([])
+  const [createGeometry, setCreateGeometry] = useState<any>(null)
+  const [showCreateGeofenceEditor, setShowCreateGeofenceEditor] = useState(false)
 
   // Fetch all organizations (for Masters only)
   const { data: organizations } = useQuery({
@@ -151,7 +153,7 @@ export default function ZoneManagement() {
       if (error) throw error
       return data as Organization[]
     },
-    enabled: user?.role === 'master',
+    enabled: user?.role === 'master' || user?.role === 'grand_master',
   })
 
   // Fetch zones with counts
@@ -307,7 +309,8 @@ export default function ZoneManagement() {
   const createZoneMutation = useMutation({
     mutationFn: async () => {
       if (!createName.trim()) throw new Error('Zone name is required')
-      const orgId = (user?.role === 'master' || user?.role === 'grand_master') ? createOrganizationId
+      const orgId = (user?.role === 'master' || user?.role === 'grand_master')
+        ? (createOrganizationId || organizationId || operationalOrganizationId || user?.organization_id)
         : organizationId || operationalOrganizationId || user?.organization_id
       if (!orgId) throw new Error('Organisation is required')
 
@@ -340,6 +343,7 @@ export default function ZoneManagement() {
           seasonal_open_month: createSeasonalOpenMonth,
           seasonal_close_month: createSeasonalCloseMonth,
           zone_features: createZoneFeatures,
+          geometry: createGeometry,
           is_active: true,
         })
 
@@ -404,6 +408,13 @@ export default function ZoneManagement() {
     setCreateSeasonalOpenMonth(null)
     setCreateSeasonalCloseMonth(null)
     setCreateZoneFeatures([])
+    setCreateGeometry(null)
+    setShowCreateGeofenceEditor(false)
+  }
+
+  const submitCreateZone = () => {
+    if (createZoneMutation.isPending) return
+    createZoneMutation.mutate()
   }
 
   const openEditDialog = (zone: any) => {
@@ -460,6 +471,11 @@ export default function ZoneManagement() {
   // Calculate stats
   const zones = zoneData?.zones ?? null
   const duplicateZoneCount = zoneData?.duplicateCount ?? 0
+  const isOrgScopedRole = user?.role === 'master' || user?.role === 'grand_master'
+  const createOrgFallbackId = organizationId || operationalOrganizationId || user?.organization_id || ''
+  const canCreateZoneForOrg = isOrgScopedRole
+    ? Boolean(createOrganizationId || createOrgFallbackId)
+    : true
   const stats = zones ? {
     total: zones.length,
     active: zones.filter(z => z.is_active).length,
@@ -473,7 +489,14 @@ export default function ZoneManagement() {
       <GlobalFilterRibbon showDateFilter={false} />
 
       <div className="flex justify-end mb-6">
-        <Button onClick={() => setShowCreateDialog(true)}>
+        <Button
+          onClick={() => {
+            if (user?.role === 'master' || user?.role === 'grand_master') {
+              setCreateOrganizationId(organizationId || operationalOrganizationId || user?.organization_id || '')
+            }
+            setShowCreateDialog(true)
+          }}
+        >
           <Plus className="h-4 w-4 mr-2" />
           Add Zone
         </Button>
@@ -751,7 +774,7 @@ export default function ZoneManagement() {
             </div>
 
             {/* ✅ Organization Selector (Masters Only) */}
-            {user?.role === 'master' && (
+            {(user?.role === 'master' || user?.role === 'grand_master') && (
               <div>
                 <Label htmlFor="editOrganization">Organisation</Label>
                 <Select
@@ -784,7 +807,7 @@ export default function ZoneManagement() {
             )}
 
             {/* ✅ Zone Type (Masters Only) */}
-            {user?.role === 'master' && (
+            {(user?.role === 'master' || user?.role === 'grand_master') && (
               <div>
                 <Label htmlFor="editZoneType">Zone Type</Label>
                 <Select
@@ -1192,8 +1215,8 @@ export default function ZoneManagement() {
                   fee_nzd:          editFeeNzd ? parseFloat(editFeeNzd) : null,
                 }
                 
-                // Masters can change organization, zone type, and parent
-                if (user?.role === 'master') {
+                // Master/grand_master can change organization, zone type, and parent
+                if (user?.role === 'master' || user?.role === 'grand_master') {
                   if (editOrganizationId) updates.organization_id = editOrganizationId
                   updates.zone_type = editZoneType
                   updates.parent_zone_id = editZoneType === 'general' ? null : editParentZoneId
@@ -1211,11 +1234,18 @@ export default function ZoneManagement() {
 
       {/* Create Zone Dialog */}
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+        <DialogContent className="max-h-[90vh] sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Add Zone</DialogTitle>
             <DialogDescription>Create a new enforcement or jurisdiction zone</DialogDescription>
           </DialogHeader>
+          <form
+            className="max-h-[calc(90vh-5rem)] overflow-y-auto pr-1"
+            onSubmit={(e) => {
+              e.preventDefault()
+              submitCreateZone()
+            }}
+          >
           <div className="space-y-4">
             <div>
               <Label htmlFor="createName">Zone Name *</Label>
@@ -1236,7 +1266,7 @@ export default function ZoneManagement() {
               />
             </div>
 
-            {user?.role === 'master' && (
+            {(user?.role === 'master' || user?.role === 'grand_master') && (
               <div>
                 <Label htmlFor="createOrganization">Organisation *</Label>
                 <Select value={createOrganizationId} onValueChange={setCreateOrganizationId}>
@@ -1249,8 +1279,45 @@ export default function ZoneManagement() {
                     ))}
                   </SelectContent>
                 </Select>
+                {createOrganizationId && (
+                  <p className="mt-2 text-xs text-green-700 dark:text-green-300">
+                    Linked Organisation: {organizations?.find((org) => org.id === createOrganizationId)?.name || createOrganizationId}
+                  </p>
+                )}
               </div>
             )}
+
+            {(user?.role !== 'master' && user?.role !== 'grand_master') && (
+              <div className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-700 dark:border-green-900 dark:bg-green-950/30 dark:text-green-300">
+                Linked Organisation: current operational organisation
+              </div>
+            )}
+
+            <div className="rounded-lg border p-3">
+              <div className="mb-2 flex items-center justify-between">
+                <Label className="text-sm">Boundary Map / Polygon</Label>
+                <Badge variant="outline" className={createGeometry ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}>
+                  {createGeometry ? 'Boundary Ready' : 'No Boundary Set'}
+                </Badge>
+              </div>
+              <p className="mb-3 text-xs text-muted-foreground">
+                Optional during create, but recommended so officers can immediately enforce this zone with accurate map boundaries.
+              </p>
+              {!showCreateGeofenceEditor ? (
+                <Button type="button" variant="outline" onClick={() => setShowCreateGeofenceEditor(true)}>
+                  {createGeometry ? 'Edit Boundary Map' : 'Draw Boundary on Map'}
+                </Button>
+              ) : (
+                <ZoneGeofenceEditor
+                  initialGeometry={createGeometry}
+                  onSave={async (geometry) => {
+                    setCreateGeometry(geometry)
+                    setShowCreateGeofenceEditor(false)
+                  }}
+                  onCancel={() => setShowCreateGeofenceEditor(false)}
+                />
+              )}
+            </div>
 
             <div>
               <Label htmlFor="createZoneType">Zone Type</Label>
@@ -1423,17 +1490,19 @@ export default function ZoneManagement() {
               </div>
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => { setShowCreateDialog(false); resetCreateForm() }}>
+          <DialogFooter className="sticky bottom-0 mt-4 border-t bg-background pt-4">
+            <Button type="button" variant="outline" onClick={() => { setShowCreateDialog(false); resetCreateForm() }}>
               Cancel
             </Button>
             <Button
-              onClick={() => createZoneMutation.mutate()}
-              disabled={createZoneMutation.isPending || !createName.trim() || (user?.role === 'master' && !createOrganizationId)}
+              type="button"
+              onClick={submitCreateZone}
+              disabled={createZoneMutation.isPending || !createName.trim() || !canCreateZoneForOrg}
             >
               {createZoneMutation.isPending ? 'Creating...' : 'Create Zone'}
             </Button>
           </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
     </AppLayout>

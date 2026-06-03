@@ -75,6 +75,7 @@ node_modules/
 .runtime/
 __pycache__/
 data/bob-last-runpod-self-test.json
+data/bob-last-runpod-spec-mode.json
 data/bob-response-scores.jsonl
 data/bob-failure-summary.json
 data/route-validation-*.json

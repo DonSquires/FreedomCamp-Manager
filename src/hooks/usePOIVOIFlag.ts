@@ -73,8 +73,8 @@ export function usePOIVOIFlag() {
       if (error) throw error
       return data as { id: string }
     },
-    onSuccess: () => {
-      toast.success('Person of Interest flagged and linked to patrol')
+    onSuccess: (_data, params) => {
+      toast.success(buildPOISuccessMessage(params))
       queryClient.invalidateQueries({ queryKey: ['persons-of-interest'] })
     },
     onError: (err: any) => toast.error(err.message ?? 'Failed to flag POI'),
@@ -104,8 +104,8 @@ export function usePOIVOIFlag() {
       if (error) throw error
       return data as { id: string }
     },
-    onSuccess: () => {
-      toast.success('Vehicle of Interest flagged and linked to patrol')
+    onSuccess: (_data, params) => {
+      toast.success(buildVOISuccessMessage(params))
       queryClient.invalidateQueries({ queryKey: ['flagged-vehicles'] })
     },
     onError: (err: any) => toast.error(err.message ?? 'Failed to flag VOI'),
@@ -128,4 +128,16 @@ function buildPatrolNotes(
 
   const linkNote = `[Flagged from field — ${links.join(', ')}]`
   return baseNotes ? `${baseNotes}\n${linkNote}` : linkNote
+}
+
+function buildPOISuccessMessage(params: FlagPOIParams): string {
+  if (params.patrol_id) return 'Person of Interest flagged and linked to patrol'
+  if (params.dispatch_job_id) return 'Person of Interest flagged and linked to dispatch'
+  return 'Person of Interest flagged successfully'
+}
+
+function buildVOISuccessMessage(params: FlagVOIParams): string {
+  if (params.patrol_id) return 'Vehicle of Interest flagged and linked to patrol'
+  if (params.dispatch_job_id) return 'Vehicle of Interest flagged and linked to dispatch'
+  return 'Vehicle of Interest flagged successfully'
 }

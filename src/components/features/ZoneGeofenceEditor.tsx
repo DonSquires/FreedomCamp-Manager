@@ -284,6 +284,7 @@ export function ZoneGeofenceEditor({
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <Button
+              type="button"
               variant={geometryType === 'circle' ? 'default' : 'outline'}
               onClick={() => setGeometryType('circle')}
               className="h-auto py-4"
@@ -298,6 +299,7 @@ export function ZoneGeofenceEditor({
             </Button>
 
             <Button
+              type="button"
               variant={geometryType === 'polygon' ? 'default' : 'outline'}
               onClick={() => setGeometryType('polygon')}
               className="h-auto py-4"
@@ -442,6 +444,7 @@ export function ZoneGeofenceEditor({
             </div>
 
             <Button
+              type="button"
               variant="outline"
               onClick={getCurrentLocation}
               disabled={useCurrentLocation}
@@ -498,6 +501,7 @@ export function ZoneGeofenceEditor({
                     </div>
 
                     <Button
+                      type="button"
                       variant="ghost"
                       size="sm"
                       onClick={() => removePolygonPoint(index)}
@@ -509,7 +513,7 @@ export function ZoneGeofenceEditor({
               </div>
             )}
 
-            <Button variant="outline" onClick={addPolygonPoint} className="w-full">
+            <Button type="button" variant="outline" onClick={addPolygonPoint} className="w-full">
               Add Point From Center
             </Button>
 
@@ -526,7 +530,7 @@ export function ZoneGeofenceEditor({
       {/* Action Buttons */}
       <div className="flex gap-3">
         {onCancel && (
-          <Button variant="outline" onClick={onCancel} className="flex-1">
+          <Button type="button" variant="outline" onClick={onCancel} className="flex-1">
             Cancel
           </Button>
         )}

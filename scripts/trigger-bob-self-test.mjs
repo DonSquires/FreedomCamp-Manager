@@ -268,7 +268,7 @@ const POLL_MS      = Number(process.env.BOB_SELF_TEST_POLL_MS || 5000);
 const DRY_RUN      = getBoolArg('dryRun') || process.env.BOB_SELF_TEST_DRY_RUN === 'true';
 const REQUIRE_BUG_REPORT_CONTEXT = envBool('BOB_SELF_TEST_REQUIRE_BUG_REPORT_CONTEXT', !DRY_RUN);
 const RUNPOD_SPEC_MODE = String(getArg('runpodSpecMode', process.env.BOB_SELF_TEST_RUNPOD_SPEC_MODE || 'auto')).trim().toLowerCase();
-const RUNPOD_MODE_FILE = getArg('runpodModeFile', process.env.BOB_SELF_TEST_RUNPOD_MODE_FILE || 'data/bob-last-runpod-spec-mode.json');
+const RUNPOD_MODE_FILE = getArg('runpodModeFile', process.env.BOB_SELF_TEST_RUNPOD_MODE_FILE || '.runtime/bob-last-runpod-spec-mode.json');
 const QUICK_SPECS_ARG = getArg('quickSpecs', '');
 const RERUN_FAILED_ONLY = getBoolArg('rerunFailedOnly') || envBool('BOB_SELF_TEST_RERUN_FAILED_ONLY', false);
 const LAST_RUN_FILE = getArg('lastRunFile', process.env.BOB_SELF_TEST_LAST_RUN_FILE || 'data/bob-last-runpod-self-test.json');
@@ -853,6 +853,23 @@ async function run() {
     process.exit(1);
   }
 
+  if (finalAttempt.submit_ok === false) {
+    console.error('[bob-self-test] RunPod submission failed for all attempt modes.');
+    console.error(JSON.stringify(finalAttempt.submit_data || finalAttempt.error || '', null, 2));
+    writeLastRunSummary(LAST_RUN_FILE, {
+      status: 'submit_failed',
+      scope: SCOPE,
+      attempts,
+      selected_specs: selectedSpecs,
+      worker_specs: workerSpecs,
+      failed_specs: selectedSpecs,
+      created_at: new Date().toISOString(),
+      error: finalAttempt.error || null,
+      submit_status: finalAttempt.submit_status ?? null,
+      submit_data: finalAttempt.submit_data || null,
+    });
+    process.exit(1);
+  }
   if (finalAttempt.timeout) {
     console.error(`[bob-self-test] Timed out waiting for job ${finalAttempt.jobId || '?'} (${finalAttempt.timeout}, lastStatus=${finalAttempt.lastStatus || 'unknown'})`);
     writeLastRunSummary(LAST_RUN_FILE, {
