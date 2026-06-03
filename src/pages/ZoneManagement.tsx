@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
@@ -165,6 +165,9 @@ export default function ZoneManagement() {
   const [createGeometry, setCreateGeometry] = useState<any>(null)
   const [showCreateGeofenceEditor, setShowCreateGeofenceEditor] = useState(false)
 
+  const isOrgScopedRole = user?.role === 'master' || user?.role === 'grand_master'
+  const createOrgFallbackId = organizationId || operationalOrganizationId || user?.organization_id || ''
+
   // Fetch all organizations (for Masters only)
   const { data: organizations } = useQuery({
     queryKey: ['organizations'],
@@ -268,6 +271,18 @@ export default function ZoneManagement() {
     },
   })
 
+  const resolveCreateTargetOrganizationId = () => {
+    const validCreateOrgId = createOrganizationId && organizations?.some((org) => org.id === createOrganizationId)
+      ? createOrganizationId
+      : ''
+
+    if (isOrgScopedRole) {
+      return validCreateOrgId || createOrgFallbackId || ''
+    }
+
+    return organizationId || operationalOrganizationId || user?.organization_id || ''
+  }
+
   // Update zone mutation
   const updateZoneMutation = useMutation({
     mutationFn: async (updates: Partial<Zone>) => {
@@ -336,9 +351,7 @@ export default function ZoneManagement() {
   const createZoneMutation = useMutation({
     mutationFn: async () => {
       if (!createName.trim()) throw new Error('Zone name is required')
-      const orgId = (user?.role === 'master' || user?.role === 'grand_master')
-        ? (createOrganizationId || organizationId || operationalOrganizationId || user?.organization_id)
-        : organizationId || operationalOrganizationId || user?.organization_id
+      const orgId = resolveCreateTargetOrganizationId()
       if (!orgId) throw new Error('Organisation is required')
 
       // Check for existing zone with same name in this org
@@ -501,11 +514,28 @@ export default function ZoneManagement() {
   // Calculate stats
   const zones = zoneData?.zones ?? null
   const duplicateZoneCount = zoneData?.duplicateCount ?? 0
-  const isOrgScopedRole = user?.role === 'master' || user?.role === 'grand_master'
-  const createOrgFallbackId = organizationId || operationalOrganizationId || user?.organization_id || ''
-  const canCreateZoneForOrg = isOrgScopedRole
-    ? Boolean(createOrganizationId || createOrgFallbackId)
-    : true
+  const createOrganizationIsValid = !createOrganizationId || Boolean(organizations?.some((org) => org.id === createOrganizationId))
+  const resolvedCreateOrganizationId = createOrganizationIsValid ? createOrganizationId : ''
+  const resolvedCreateOrganizationName = organizations?.find((org) => org.id === resolvedCreateOrganizationId)?.name
+  const resolvedCreateTargetOrganizationId = resolveCreateTargetOrganizationId()
+  const canCreateZoneForOrg = Boolean(resolvedCreateTargetOrganizationId)
+
+  useEffect(() => {
+    if (!showCreateDialog || !isOrgScopedRole) return
+
+    // Keep the select value aligned to available options to avoid stale/invalid IDs.
+    const hasCurrent = createOrganizationId
+      ? Boolean(organizations?.some((org) => org.id === createOrganizationId))
+      : false
+    if (createOrganizationId && !hasCurrent) {
+      setCreateOrganizationId('')
+      return
+    }
+
+    if (!createOrganizationId && createOrgFallbackId && organizations?.some((org) => org.id === createOrgFallbackId)) {
+      setCreateOrganizationId(createOrgFallbackId)
+    }
+  }, [showCreateDialog, isOrgScopedRole, createOrganizationId, createOrgFallbackId, organizations])
   const stats = zones ? {
     total: zones.length,
     active: zones.filter(z => z.is_active).length,
@@ -1304,7 +1334,7 @@ export default function ZoneManagement() {
             {(user?.role === 'master' || user?.role === 'grand_master') && (
               <div>
                 <Label htmlFor="createOrganization">Organisation *</Label>
-                <Select value={createOrganizationId} onValueChange={setCreateOrganizationId}>
+                <Select value={resolvedCreateOrganizationId} onValueChange={setCreateOrganizationId}>
                   <SelectTrigger id="createOrganization">
                     <SelectValue placeholder="Select organisation" />
                   </SelectTrigger>
@@ -1314,9 +1344,9 @@ export default function ZoneManagement() {
                     ))}
                   </SelectContent>
                 </Select>
-                {createOrganizationId && (
+                {resolvedCreateOrganizationId && (
                   <p className="mt-2 text-xs text-green-700 dark:text-green-300">
-                    Linked Organisation: {organizations?.find((org) => org.id === createOrganizationId)?.name || createOrganizationId}
+                    Linked Organisation: {resolvedCreateOrganizationName || 'Select organisation'}
                   </p>
                 )}
               </div>
@@ -1325,6 +1355,12 @@ export default function ZoneManagement() {
             {(user?.role !== 'master' && user?.role !== 'grand_master') && (
               <div className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-700 dark:border-green-900 dark:bg-green-950/30 dark:text-green-300">
                 Linked Organisation: current operational organisation
+              </div>
+            )}
+
+            {!canCreateZoneForOrg && (
+              <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300">
+                No active organisation scope is available. Select an organisation in the global filter or re-authenticate before creating a zone.
               </div>
             )}
 
@@ -1532,8 +1568,7 @@ export default function ZoneManagement() {
               Cancel
             </Button>
             <Button
-              type="button"
-              onClick={submitCreateZone}
+              type="submit"
               disabled={createZoneMutation.isPending || !createName.trim() || !canCreateZoneForOrg}
             >
               {createZoneMutation.isPending ? 'Creating...' : 'Create Zone'}
