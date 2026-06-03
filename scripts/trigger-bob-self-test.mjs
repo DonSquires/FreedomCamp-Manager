@@ -870,7 +870,6 @@ async function run() {
     });
     process.exit(1);
   }
-
   if (finalAttempt.timeout) {
     console.error(`[bob-self-test] Timed out waiting for job ${finalAttempt.jobId || '?'} (${finalAttempt.timeout}, lastStatus=${finalAttempt.lastStatus || 'unknown'})`);
     writeLastRunSummary(LAST_RUN_FILE, {
