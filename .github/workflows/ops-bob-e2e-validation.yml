@@ -76,7 +76,11 @@ jobs:
         if: ${{ github.event.inputs.run_map_primary_render != 'false' }}
         env:
           PLAYWRIGHT_ENABLE_MANUAL_SEED: '1'
-        run: npx playwright test tests/e2e/map-primary-render.spec.ts --project=chromium --workers=1 --reporter=line
+        run: |
+          npx playwright test \
+            tests/e2e/map-primary-render.spec.ts \
+            tests/e2e/map-pages-visual-verification.spec.ts \
+            --project=chromium --workers=1 --reporter=line
 
       - name: Upload Playwright report
         if: always()

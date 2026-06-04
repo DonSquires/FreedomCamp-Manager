@@ -85,6 +85,65 @@ The mapping gateway Docker image now also serves internal map tile proxy routes:
 
 Each route proxies to the corresponding internal tile template configured in the mapping-gateway service env.
 
+## Mapping tile operations runbook (production)
+
+Use this runbook for day-2 operations, incident triage, and rollout validation for internal map tiles.
+
+### Production endpoints
+
+- Health: `https://mapping-gateway-production.up.railway.app/health`
+- Street tile probe: `https://mapping-gateway-production.up.railway.app/maps/tiles/street/6/39/25.png`
+- Fallback tile probe: `https://mapping-gateway-production.up.railway.app/maps/tiles/fallback/6/39/25.png`
+- Satellite tile probe: `https://mapping-gateway-production.up.railway.app/maps/tiles/satellite/6/39/25.jpg`
+
+### Required on-call checks
+
+1. Confirm service health:
+  - `GET /health` must return HTTP 200.
+2. Confirm tile route health:
+  - Street/fallback/satellite probe URLs must return HTTP 200.
+3. Confirm content type:
+  - Route response should be image content (`image/*` or `image/svg+xml`).
+4. Confirm UI wiring:
+  - Frontend env values must target mapping-gateway tile routes.
+
+### Expected health payload signals
+
+- `providers.streetTilesConfigured`
+- `providers.fallbackTilesConfigured`
+- `providers.satelliteTilesConfigured`
+
+If these are false, mapping still works with generated internal SVG tiles, but upstream tile proxy mode is not configured.
+
+### Failure handling matrix
+
+1. Symptom: `GET /health` fails
+  - Action: Trigger `serviceInstanceDeployV2` for mapping-gateway in Railway GraphQL.
+  - Action: Validate latest deployment status until `SUCCESS`.
+2. Symptom: `GET /health` returns 200 but tile routes are 404
+  - Action: Verify deploy picked up latest commit.
+  - Action: Redeploy mapping-gateway from current `main` commit.
+3. Symptom: tile routes return 5xx
+  - Action: Check upstream tile env templates for invalid URLs.
+  - Action: Clear bad env values to fall back to generated internal SVG tiles.
+4. Symptom: map UI shows no basemap
+  - Action: Verify `VITE_INHOUSE_MAP_TILE_URL` / fallback / satellite env values.
+  - Action: Re-run `scripts/audit-map-capabilities.mjs` with production tile URLs.
+
+### Recommended post-deploy validation
+
+```bash
+curl -sS https://mapping-gateway-production.up.railway.app/health | jq
+curl -sS -o /dev/null -w '%{http_code}\n' https://mapping-gateway-production.up.railway.app/maps/tiles/street/6/39/25.png
+curl -sS -o /dev/null -w '%{http_code}\n' https://mapping-gateway-production.up.railway.app/maps/tiles/fallback/6/39/25.png
+curl -sS -o /dev/null -w '%{http_code}\n' https://mapping-gateway-production.up.railway.app/maps/tiles/satellite/6/39/25.jpg
+
+VITE_INHOUSE_MAP_TILE_URL='https://mapping-gateway-production.up.railway.app/maps/tiles/street/{z}/{x}/{y}.png' \
+VITE_INHOUSE_MAP_FALLBACK_TILE_URL='https://mapping-gateway-production.up.railway.app/maps/tiles/fallback/{z}/{x}/{y}.png' \
+VITE_INHOUSE_MAP_SATELLITE_TILE_URL='https://mapping-gateway-production.up.railway.app/maps/tiles/satellite/{z}/{x}/{y}.jpg' \
+/vscode/bin/linux-alpine/6a44c352bd24569c417e530095901b649960f9f8/node scripts/audit-map-capabilities.mjs
+```
+
 ## Railway deploy sequence
 
 1. Create new Railway service from repo path `model-gateway`.
