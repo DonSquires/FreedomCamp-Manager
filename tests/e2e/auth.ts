@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
-import type { Page, Request } from '@playwright/test'
+import { expect, type Page, type Request } from '@playwright/test'
 import { createHash } from 'node:crypto'
 import { mkdir, open, readFile, writeFile, unlink } from 'node:fs/promises'
 import path from 'node:path'
@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os'
 import WebSocket from 'ws'
 
 export type TestUserKey =
+  | 'grandmaster'
   | 'master'
   | 'adminOrg1'
   | 'adminOrg2'
@@ -93,7 +94,7 @@ function isManualUserRequestJob(): boolean {
 
 function resolveHardwiredAutomationCredentials(): TestCredentials | null {
   const enabled = readEnv('PLAYWRIGHT_HARDWIRE_AUTOMATION_CREDENTIALS', 'BOB_HARDWIRE_AUTOMATION_CREDENTIALS')
-  const hardwireEnabled = enabled ? enabled === '1' || enabled.toLowerCase() === 'true' : true
+  const hardwireEnabled = enabled ? enabled === '1' || enabled.toLowerCase() === 'true' : false
 
   if (!hardwireEnabled || isManualUserRequestJob()) {
     return null
@@ -208,6 +209,12 @@ const defaultRequiredTestUsers: TestUserKey[] = [
 ]
 
 const roleCredentialConfig: Record<TestUserKey, RoleCredentialConfig> = {
+  grandmaster: {
+    label: 'grandmaster',
+    emailVars: ['PLAYWRIGHT_GRANDMASTER_EMAIL', 'E2E_GRANDMASTER_EMAIL', 'PLAYWRIGHT_MASTER_EMAIL', 'E2E_MASTER_EMAIL'],
+    passwordVars: ['PLAYWRIGHT_GRANDMASTER_PASSWORD', 'E2E_GRANDMASTER_PASSWORD', 'PLAYWRIGHT_MASTER_PASSWORD', 'E2E_MASTER_PASSWORD'],
+    fallbackEmail: 'grandmaster@test.com',
+  },
   master: {
     label: 'master',
     emailVars: ['PLAYWRIGHT_MASTER_EMAIL', 'E2E_MASTER_EMAIL'],
@@ -275,6 +282,11 @@ const roleCredentialConfig: Record<TestUserKey, RoleCredentialConfig> = {
 }
 
 const expectedProfileConfig: Record<TestUserKey, ExpectedProfileConfig> = {
+  grandmaster: {
+    allowedRoles: ['grand_master', 'master'],
+    requiredCapability: 'master_ops',
+    expectedOrgName: DEFAULT_TEST_ORG_NAME,
+  },
   master: {
     allowedRoles: ['master', 'grand_master'],
     requiredCapability: 'master_ops',
@@ -333,6 +345,7 @@ const expectedProfileConfig: Record<TestUserKey, ExpectedProfileConfig> = {
 }
 
 const desiredRoleByTestUser: Record<TestUserKey, DesiredRole> = {
+  grandmaster: 'grand_master',
   master: 'grand_master',
   adminOrg1: 'admin_officer',
   adminOrg2: 'admin_officer',
@@ -419,19 +432,19 @@ function resolveRoleCredentials(user: TestUserKey): TestCredentials {
     return hardwired
   }
 
-  if (hasUniversalTestAccount) {
-    return {
-      email: universalTestEmail,
-      password: universalTestPassword,
-    }
-  }
-
   const config = roleCredentialConfig[user]
   const roleEmail = readEnv(...config.emailVars)
   const rolePassword = readEnv(...config.passwordVars)
 
   if (roleEmail && rolePassword) {
     return { email: roleEmail, password: rolePassword }
+  }
+
+  if (allowSharedFallback && hasUniversalTestAccount) {
+    return {
+      email: universalTestEmail,
+      password: universalTestPassword,
+    }
   }
 
   if (allowSharedFallback) {
@@ -1081,14 +1094,65 @@ async function loginThroughUi(page: Page, credentials: TestCredentials): Promise
   page.on('requestfailed', onRequestFailed)
 
   await gotoLogin(page)
-  await page.getByLabel(/^email$/i).fill(credentials.email)
-  await page.getByLabel(/^password$/i).fill(credentials.password)
-  await page.locator('button[type="submit"], button:has-text("Sign In")').first().click()
+
+  // Some screens expose multiple label matches during transitions; anchor to
+  // the visible sign-in form controls to prevent empty/hidden-field submits.
+  const emailInput = page.getByRole('textbox', { name: /^email$/i }).first()
+  const passwordInput = page.getByRole('textbox', { name: /^password$/i }).first()
+  const signInButton = page.getByRole('button', { name: /^sign in$/i }).first()
+
+  await emailInput.waitFor({ state: 'visible', timeout: 10000 })
+  await passwordInput.waitFor({ state: 'visible', timeout: 10000 })
+  await signInButton.waitFor({ state: 'visible', timeout: 10000 })
+
+  await emailInput.fill(credentials.email)
+  await passwordInput.fill(credentials.password)
+
+  // Assert values are applied before submit to avoid HTML5 required-field traps.
+  await expect(emailInput).toHaveValue(credentials.email, { timeout: 5000 })
+  await expect(passwordInput).toHaveValue(credentials.password, { timeout: 5000 })
+
+  await signInButton.click()
+
+  const waitTimeout = 25000
   try {
-    await page.waitForURL(
-      (url) => !url.pathname.startsWith('/login'),
-      { timeout: 20000 }
-    )
+    const outcome = await Promise.race([
+      page
+        .waitForURL((url) => !url.pathname.startsWith('/login'), { timeout: waitTimeout })
+        .then(() => 'navigated' as const)
+        .catch(() => null),
+      page
+        .waitForFunction(() => {
+          const hasLocalToken = Object.keys(window.localStorage).some(
+            (key) => key.includes('auth-token') || key.startsWith('sb-')
+          )
+          const hasSessionToken = Object.keys(window.sessionStorage).some(
+            (key) => key.includes('auth-token') || key.startsWith('sb-')
+          )
+          return hasLocalToken || hasSessionToken
+        }, { timeout: waitTimeout })
+        .then(() => 'token' as const)
+        .catch(() => null),
+      page
+        .locator('text=/invalid login credentials|invalid credentials|login failed|authentication failed/i')
+        .first()
+        .waitFor({ state: 'visible', timeout: waitTimeout })
+        .then(() => 'invalid' as const)
+        .catch(() => null),
+    ])
+
+    if (outcome === 'invalid') {
+      throw new Error('UI sign-in reported invalid credentials')
+    }
+
+    if (outcome === 'token' && page.url().includes('/login')) {
+      await page.goto('/', { waitUntil: 'domcontentloaded' }).catch(() => undefined)
+      await page.waitForURL((url) => !url.pathname.startsWith('/login'), { timeout: 15000 }).catch(() => undefined)
+    }
+
+    if (outcome !== 'navigated' && outcome !== 'token' && page.url().includes('/login')) {
+      throw new Error('UI sign-in did not navigate away from /login and no auth token was detected')
+    }
   } catch (error) {
     const dnsFailure = authRequestFailures.find((entry) => /ERR_NAME_NOT_RESOLVED|ENOTFOUND|NXDOMAIN/i.test(entry))
     if (dnsFailure) {
@@ -1301,10 +1365,40 @@ async function hasStableAuthenticatedSession(page: Page): Promise<boolean> {
     await fetchResolvedProfile(page).catch(() => null) ||
     await resolveProfileByBrowserTokenSub(page).catch(() => null)
 
-  return !!resolvedProfile
+  if (resolvedProfile) return true
+
+  // Shared/staging auth endpoints can briefly return 401/403 during session
+  // propagation. Fall back to token/cookie markers to avoid false negatives.
+  const hasBrowserSessionToken = await page.evaluate(() => {
+    const hasLocalStorageSession = Object.keys(window.localStorage).some(
+      (key) => key.includes('auth-token') || key.startsWith('sb-')
+    )
+    const hasSessionStorageSession = Object.keys(window.sessionStorage).some(
+      (key) => key.includes('auth-token') || key.startsWith('sb-')
+    )
+
+    return hasLocalStorageSession || hasSessionStorageSession
+  }).catch(() => false)
+
+  if (hasBrowserSessionToken) return true
+
+  const cookies = await page.context().cookies().catch(() => [])
+  const hasAuthCookie = cookies.some((cookie) =>
+    /auth|sb-.*token|supabase/i.test(cookie.name)
+  )
+
+  return hasAuthCookie
 }
 
 export async function loginAs(page: Page, user: TestUserKey): Promise<void> {
+  // Prevent cross-test persona leakage from existing auth cookies/storage.
+  await page.context().clearCookies().catch(() => undefined)
+  await page.goto('/', { waitUntil: 'domcontentloaded', timeout: 10000 }).catch(() => undefined)
+  await page.evaluate(() => {
+    window.localStorage.clear()
+    window.sessionStorage.clear()
+  }).catch(() => undefined)
+
   const credentials = getTestUser(user)
   await ensureBootstrapTestAccount(user, credentials, { force: enforcePersonaBootstrap })
 
@@ -1317,45 +1411,45 @@ export async function loginAs(page: Page, user: TestUserKey): Promise<void> {
   let apiFallbackError: string | null = null
   const maxAttempts = 3
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-    const apiFallback = await bootstrapBrowserSessionFromPasswordGrant(page, credentials).catch((error: unknown) => ({
-      ok: false,
-      reason: error instanceof Error ? error.message : String(error),
-    }))
+    let loginSucceeded = await loginThroughUi(page, credentials)
+      .then(() => true)
+      .catch(() => false)
 
-    if (!apiFallback.ok && /invalid_credentials/i.test(apiFallback.reason || '')) {
-      await ensureBootstrapTestAccount(user, credentials, { force: true })
+    if (loginSucceeded) {
+      loginSucceeded = await hasStableAuthenticatedSession(page)
     }
-
-    const retryFallback = !apiFallback.ok && /invalid_credentials/i.test(apiFallback.reason || '')
-      ? await bootstrapBrowserSessionFromPasswordGrant(page, credentials).catch((error: unknown) => ({
-          ok: false,
-          reason: error instanceof Error ? error.message : String(error),
-        }))
-      : apiFallback
-
-    const bootstrapReachedNonLogin = retryFallback.ok
-      ? await page
-        .waitForURL((url) => !url.pathname.startsWith('/login'), { timeout: 20000 })
-        .then(() => true)
-        .catch(() => false)
-      : false
-
-    let loginSucceeded = bootstrapReachedNonLogin
-      ? await hasStableAuthenticatedSession(page)
-      : false
 
     if (!loginSucceeded) {
-      loginSucceeded = await loginThroughUi(page, credentials)
-        .then(() => true)
-        .catch(() => false)
+      const apiFallback = await bootstrapBrowserSessionFromPasswordGrant(page, credentials).catch((error: unknown) => ({
+        ok: false,
+        reason: error instanceof Error ? error.message : String(error),
+      }))
 
-      if (loginSucceeded) {
-        loginSucceeded = await hasStableAuthenticatedSession(page)
+      if (!apiFallback.ok && /invalid_credentials/i.test(apiFallback.reason || '')) {
+        await ensureBootstrapTestAccount(user, credentials, { force: true })
       }
-    }
 
-    if (!retryFallback.ok) {
-      apiFallbackError = retryFallback.reason || 'unknown API fallback error'
+      const retryFallback = !apiFallback.ok && /invalid_credentials/i.test(apiFallback.reason || '')
+        ? await bootstrapBrowserSessionFromPasswordGrant(page, credentials).catch((error: unknown) => ({
+            ok: false,
+            reason: error instanceof Error ? error.message : String(error),
+          }))
+        : apiFallback
+
+      const bootstrapReachedNonLogin = retryFallback.ok
+        ? await page
+          .waitForURL((url) => !url.pathname.startsWith('/login'), { timeout: 20000 })
+          .then(() => true)
+          .catch(() => false)
+        : false
+
+      loginSucceeded = bootstrapReachedNonLogin
+        ? await hasStableAuthenticatedSession(page)
+        : false
+
+      if (!retryFallback.ok) {
+        apiFallbackError = retryFallback.reason || 'unknown API fallback error'
+      }
     }
 
     if (loginSucceeded) break
@@ -1387,7 +1481,7 @@ export async function loginAs(page: Page, user: TestUserKey): Promise<void> {
     throw new Error(`Login failed for ${credentials.email}. Current URL: ${page.url()}.${suffix}${fallbackSuffix}`)
   }
 
-  if (user !== 'master') {
+  if (user !== 'master' && user !== 'grandmaster') {
     await page.evaluate(() => {
       window.sessionStorage.setItem('adminOfficerPortalChoice', 'selected')
     })

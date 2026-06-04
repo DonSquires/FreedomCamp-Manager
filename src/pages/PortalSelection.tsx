@@ -225,6 +225,7 @@ export default function PortalSelection() {
                 key={portal.id}
                 role="button"
                 tabIndex={0}
+                data-testid={`portal-card-${portal.id}`}
                 onClick={portal.action}
                 onKeyDown={(event) => activateWithKeyboard(event, portal.action)}
                 className={`group ${portal.span ?? ''} rounded-2xl border ${portal.border} bg-white/5 backdrop-blur-md px-4 py-4 md:px-5 md:py-5 cursor-pointer transition-all duration-200 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70`}

@@ -4,7 +4,7 @@
   "type": "module",
   "packageManager": "npm@10.8.2",
   "engines": {
-    "node": ">=22 <25",
+    "node": ">=20.19 <25",
     "npm": ">=10 <11"
   },
   "scripts": {
@@ -39,6 +39,9 @@
     "e2e:profile:bob:admin-officer": "TEST_LOGIN_PROFILE=bob_admin_officer bash scripts/playwright-codespace-credentials.sh playwright test",
     "e2e:profile:bob:grand-master": "TEST_LOGIN_PROFILE=bob_grand_master bash scripts/playwright-codespace-credentials.sh playwright test",
     "e2e:persona:preflight": "BOB_USER_REQUEST_MODE=1 bash scripts/playwright-codespace-credentials.sh node scripts/validate-e2e-persona-roles.mjs",
+    "e2e:seed:personas": "bash scripts/playwright-codespace-credentials.sh node scripts/seed-e2e-personas.mjs",
+    "e2e:api-contracts:no-browser": "bash scripts/playwright-codespace-credentials.sh npx playwright test --config=playwright.no-webserver.config.ts tests/e2e/phase0-phase1-floor-control.spec.ts tests/e2e/phase0-phase1-sfu-connectivity.spec.ts tests/e2e/phase0-phase2-transcripts.spec.ts tests/e2e/phase0-phase3-translation.spec.ts tests/e2e/phase0-phase4-translated-audio.spec.ts --project=chromium --workers=1 --reporter=line",
+    "e2e:role-map:no-browser": "bash scripts/playwright-codespace-credentials.sh node scripts/no-browser-role-map-audit.mjs",
     "e2e:role-matrix:all": "bash scripts/run-e2e-role-matrix.sh",
     "e2e:two-logins:probe": "bash scripts/run-two-login-probe.sh",
     "e2e:two-logins:visual": "bash scripts/run-two-login-visual.sh",

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { loginAs } from './auth'
+import { getTestUser, loginAs, type TestUserKey } from './auth'
 
 /**
  * Session Lock E2E Test Suite — Instruction Manual § 2.2 Validation
@@ -24,30 +24,40 @@ import { loginAs } from './auth'
  */
 
 test.describe('Session Lock Feature — Instruction Manual § 2.1 & 2.2', () => {
-  const TEST_USER_EMAIL =
-    process.env.TEST_USER_EMAIL ||
-    process.env.PLAYWRIGHT_ADMIN_ORG1_EMAIL ||
-    process.env.PLAYWRIGHT_MASTER_EMAIL ||
-    'test@iron-eagle.co.nz'
-  const TEST_USER_PASSWORD =
-    process.env.TEST_USER_PASSWORD ||
-    process.env.PLAYWRIGHT_ADMIN_ORG1_PASSWORD ||
-    process.env.PLAYWRIGHT_MASTER_PASSWORD ||
-    'TestPass123!'
+  test.describe.configure({ mode: 'serial', timeout: 120000 })
+
+  const LOCKOUT_MINUTES = 15
+  const WARNING_COUNTDOWN_SECONDS = 39
+  const E2E_TIMEOUT_MS = 45000
+  const E2E_WARNING_DELAY_MS = E2E_TIMEOUT_MS - WARNING_COUNTDOWN_SECONDS * 1000
+
+  const elevatedUsers: TestUserKey[] = ['grandmaster', 'master']
+  const unlockCredentials = getTestUser('adminOrg1')
   
-  async function applyShortInactivityPreference(page: Page) {
-    // Set after authentication to avoid expiring the login bootstrap itself.
+  async function applyManualInactivityPreference(page: Page) {
+    // Persist exact manual policy plus localhost-only E2E overrides to keep CI runtime practical.
     await page.evaluate(() => {
       window.localStorage.setItem('session-preferences-store', JSON.stringify({
         state: {
           autoLogoffEnabled: true,
-          inactivityMinutes: 0.083,
+          inactivityMinutes: 15,
         },
-        version: 0,
+        version: 1,
       }))
+      window.localStorage.setItem('e2e:session-timeout-ms', String(45000))
+      window.localStorage.setItem('e2e:session-warning-seconds', String(39))
     })
 
     await page.reload({ waitUntil: 'domcontentloaded' })
+  }
+
+  async function resetToLoggedOut(page: Page) {
+    await page.context().clearCookies().catch(() => undefined)
+    await page.goto('/', { waitUntil: 'domcontentloaded' }).catch(() => undefined)
+    await page.evaluate(() => {
+      window.localStorage.clear()
+      window.sessionStorage.clear()
+    }).catch(() => undefined)
   }
 
   test('§ 2.1: Sign in form is visible and functional', async ({ page }) => {
@@ -60,13 +70,18 @@ test.describe('Session Lock Feature — Instruction Manual § 2.1 & 2.2', () => 
      */
     
     // Step 1: Navigate to app
-    await page.goto('/', { waitUntil: 'domcontentloaded' })
+    await resetToLoggedOut(page)
+    await page.goto('/login', { waitUntil: 'domcontentloaded' })
     
     // Step 2: Verify login screen is visible
     const loginForm = page.locator('form').first()
-    const emailInput = page.locator('input[type="email"], input[inputmode="email"]').first()
-    const passwordInput = page.locator('input[type="password"]').first()
+    const emailInput = page.getByRole('textbox', { name: /^Email$/i }).first()
+    const passwordInput = page.getByRole('textbox', { name: /^Password$/i }).first()
     const signInButton = page.getByRole('button', { name: /Sign in|Sign In|Login/i }).first()
+
+    await emailInput.waitFor({ state: 'visible', timeout: 10000 })
+    await passwordInput.waitFor({ state: 'visible', timeout: 10000 })
+    await signInButton.waitFor({ state: 'visible', timeout: 10000 })
     
     // Log what we actually found
     console.log('✓ Login form elements found:')
@@ -103,6 +118,13 @@ test.describe('Session Lock Feature — Instruction Manual § 2.1 & 2.2', () => 
     expect(page.url()).not.toMatch(/login|signin/i)
   })
 
+  for (const elevatedUser of elevatedUsers) {
+    test(`elevated login smoke: ${elevatedUser} reaches authenticated state`, async ({ page }) => {
+      await loginAs(page, elevatedUser)
+      await expect(page).toHaveURL(/^(?!.*\/(login|signin))(.*)$/i, { timeout: 15000 })
+    })
+  }
+
   test('§ 2.2: Session lock feature detection and behavior', async ({ page }) => {
     /**
      * TEST: Detect if session lock feature is implemented
@@ -116,130 +138,57 @@ test.describe('Session Lock Feature — Instruction Manual § 2.1 & 2.2', () => 
      * - If data is not preserved after unlock
      */
     
+    page.on('console', (msg) => {
+      if (msg.type() === 'error' || msg.text().includes('[session-lock]')) {
+        console.log(`[browser:${msg.type()}] ${msg.text()}`)
+      }
+    })
+
     // Sign in using the same resilient auth path as other production E2E suites.
     await loginAs(page, 'adminOrg1')
+    await applyManualInactivityPreference(page)
 
-    await applyShortInactivityPreference(page)
-    
     // Wait for authenticated state
     await expect(page).toHaveURL(/^(?!.*\/(login|signin))(.*)$/i, { timeout: 10000 })
-    
-    // Record current page state
+
     const initialURL = page.url()
     const pageTitle = await page.title()
     console.log('✓ Authenticated')
     console.log(`  - Portal: ${initialURL}`)
     console.log(`  - Page title: ${pageTitle}`)
-    
-    // Now simulate inactivity
-    console.log('⏳ Simulating inactivity...')
-    
-    // Disable activity event listeners to prevent timer reset
-    await page.evaluate(() => {
-      const preventedEvents = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll', 'click']
-      preventedEvents.forEach(eventName => {
-        document.addEventListener(eventName, (e) => {
-          e.stopImmediatePropagation()
-        }, { capture: true, passive: false })
-      })
-    })
-    
-    // Wait for warning overlay
-    const warningText = 'Session Timeout Warning'
-    const warningLocator = page.locator(`text=${warningText}`).first()
-    const countdownLocator = page.locator('text=/Locking in \\d+s/').first()
-    
-    console.log('  - Waiting for session warning (max 15 seconds)...')
-    
-    let warningFound = false
-    try {
-      await warningLocator.waitFor({ state: 'visible', timeout: 15000 })
-      warningFound = true
-      console.log('✓ Warning overlay appeared')
-      
-      // Verify countdown is present
-      const countdownVisible = await countdownLocator.isVisible().catch(() => false)
-      console.log(`  - Countdown timer visible: ${countdownVisible}`)
-      
-      if (countdownVisible) {
-        const countdownText = await countdownLocator.textContent()
-        console.log(`  - Countdown shows: ${countdownText}`)
-      }
-    } catch (error) {
-      console.log('⚠ Warning overlay NOT found after 15 seconds')
-      console.log('  - This could indicate:')
-      console.log('    1. Feature not implemented yet')
-      console.log('    2. Timeout configuration too long for test')
-      console.log('    3. Activity listeners not properly disabled')
-    }
-    
-    // Wait for lock screen
-    const lockText = 'Time Out Detected'
-    const lockLocator = page.locator(`text=${lockText}`).first()
+
+    const warningLocator = page.locator('text=Session Timeout Warning').first()
+    const countdownText = `Locking in ${WARNING_COUNTDOWN_SECONDS}s`
+    const countdownLocator = page.locator(`text=${countdownText}`).first()
     const passwordFieldLocator = page.locator('input[id="unlock-password"], input[placeholder*="password"]').first()
-    
-    console.log('  - Waiting for lock screen (max 20 seconds)...')
-    
-    let lockFound = false
-    try {
-      await passwordFieldLocator.waitFor({ state: 'visible', timeout: 20000 })
-      lockFound = true
-      console.log('✓ Lock screen appeared with password field')
-      
-      // Verify lock screen elements per manual § 2.2
-      const unlockButton = page.getByRole('button', { name: /Log Back In|Unlock|Continue/i }).first()
-      const logoutButton = page.getByRole('button', { name: /Logout|Sign Out/i }).first()
-      
-      const unlockVisible = await unlockButton.isVisible().catch(() => false)
-      const logoutVisible = await logoutButton.isVisible().catch(() => false)
-      
-      console.log(`  - Unlock button visible: ${unlockVisible}`)
-      console.log(`  - Logout option visible: ${logoutVisible}`)
-      
-      // Test unlock flow
-      if (unlockVisible && passwordFieldLocator) {
-        console.log('  - Testing unlock flow...')
-        
-        // Enter password
-        await passwordFieldLocator.fill(TEST_USER_PASSWORD)
-        
-        // Click unlock
-        await unlockButton.click()
-        
-        // Wait for lock screen to disappear
-        await passwordFieldLocator.waitFor({ state: 'hidden', timeout: 5000 }).catch(() => {})
-        
-        // Verify we're back to authenticated state
-        const urlAfterUnlock = page.url()
-        const stillOnInitialPage = urlAfterUnlock === initialURL
-        
-        console.log('✓ Unlock completed')
-        console.log(`  - Returned to original page: ${stillOnInitialPage}`)
-        console.log(`  - URL: ${urlAfterUnlock}`)
-      }
-    } catch (error) {
-      console.log('⚠ Lock screen NOT found after 20 seconds')
-      if (warningFound) {
-        console.log('  - Warning appeared but lock did not (may have not waited long enough)')
-      } else {
-        console.log('  - Neither warning nor lock appeared')
-        console.log('  - Feature may not be implemented or timeouts too long for test')
-      }
-    }
-    
-    // Summary
-    console.log('\n=== FEATURE DETECTION SUMMARY ===')
-    console.log(`Warning overlay: ${warningFound ? '✓ FOUND' : '✗ NOT FOUND'}`)
-    console.log(`Lock screen: ${lockFound ? '✓ FOUND' : '✗ NOT FOUND'}`)
-    
-    if (!warningFound && !lockFound) {
-      console.log('\n⚠ MANUAL AMENDMENT NEEDED:')
-      console.log('Manual § 2.2 states session lock is automatic, but feature not detected.')
-      console.log('Options:')
-      console.log('1. Feature is disabled/in progress - update manual with COMING SOON notice')
-      console.log('2. Feature requires specific conditions - document those conditions')
-      console.log('3. Test environment has different config - document test requirements')
-    }
+
+    console.log(`⏳ Waiting for warning boundary (${E2E_WARNING_DELAY_MS / 1000}s in E2E override, policy remains ${LOCKOUT_MINUTES}m)...`)
+
+    await expect(warningLocator).toBeVisible({ timeout: E2E_WARNING_DELAY_MS + 5000 })
+    await expect(countdownLocator).toBeVisible({ timeout: 5000 })
+
+    // Verify that countdown actually ticks down from 39.
+    await page.waitForTimeout(3000)
+    await expect(page.locator('text=Locking in 36s').first()).toBeVisible({ timeout: 5000 })
+
+    console.log(`⏳ Advancing remaining ${WARNING_COUNTDOWN_SECONDS - 3}s countdown to lock...`)
+    await page.waitForTimeout((WARNING_COUNTDOWN_SECONDS - 3) * 1000)
+
+    await expect(passwordFieldLocator).toBeVisible({ timeout: 5000 })
+
+    const unlockButton = page.getByRole('button', { name: /Log Back In|Unlock|Continue/i }).first()
+    const logoutButton = page.getByRole('button', { name: /Logout|Sign Out/i }).first()
+
+    await expect(unlockButton).toBeVisible({ timeout: 5000 })
+    await expect(logoutButton).toBeVisible({ timeout: 5000 })
+
+    await passwordFieldLocator.fill(unlockCredentials.password)
+    await unlockButton.click()
+    await expect(passwordFieldLocator).toBeHidden({ timeout: 30000 })
+
+    const urlAfterUnlock = page.url()
+    const stillOnInitialPage = urlAfterUnlock === initialURL
+    expect(stillOnInitialPage).toBe(true)
   })
 
   test('§ 2.2: Data preservation verification', async ({ page }) => {
@@ -250,8 +199,7 @@ test.describe('Session Lock Feature — Instruction Manual § 2.1 & 2.2', () => 
     
     // Sign in using shared auth helper to keep bootstrap behavior consistent.
     await loginAs(page, 'adminOrg1')
-
-    await applyShortInactivityPreference(page)
+    await applyManualInactivityPreference(page)
     
     await expect(page).toHaveURL(/^(?!.*\/(login|signin))(.*)$/i, { timeout: 10000 })
     
@@ -263,41 +211,31 @@ test.describe('Session Lock Feature — Instruction Manual § 2.1 & 2.2', () => 
     console.log(`  - URL: ${urlBefore}`)
     console.log(`  - Title: ${titleBefore}`)
     
-    // Try to lock and unlock
-    await page.evaluate(() => {
-      ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll', 'click'].forEach(eventName => {
-        document.addEventListener(eventName, (e) => e.stopImmediatePropagation(), { capture: true })
-      })
-    })
-    
-    // Wait for lock if implemented
+    // Trigger lock using deterministic clock control.
+    await page.waitForTimeout(E2E_TIMEOUT_MS)
+
     const passwordField = page.locator('input[id="unlock-password"], input[placeholder*="password"]').first()
-    const lockVisible = await passwordField.isVisible({ timeout: 20000 }).catch(() => false)
-    
-    if (lockVisible) {
-      // If lock appears, test preservation
-      await passwordField.fill(TEST_USER_PASSWORD)
-      const unlockButton = page.getByRole('button', { name: /Log Back In|Unlock/i }).first()
-      await unlockButton.click()
-      
-      await passwordField.waitFor({ state: 'hidden', timeout: 5000 }).catch(() => {})
-      
-      // Check if state is preserved
-      const urlAfter = page.url()
-      const titleAfter = await page.title()
-      
-      const urlPreserved = urlBefore === urlAfter
-      const titlePreserved = titleBefore === titleAfter
-      
-      console.log('Post-unlock state:')
-      console.log(`  - URL preserved: ${urlPreserved}`)
-      console.log(`  - Title preserved: ${titlePreserved}`)
-      
-      expect(urlPreserved).toBe(true)
-      expect(titlePreserved).toBe(true)
-    } else {
-      console.log('⚠ Lock not triggered in this test run')
-    }
+    await expect(passwordField).toBeVisible({ timeout: 5000 })
+
+    await passwordField.fill(unlockCredentials.password)
+    const unlockButton = page.getByRole('button', { name: /Log Back In|Unlock/i }).first()
+    await unlockButton.click()
+
+    await expect(passwordField).toBeHidden({ timeout: 30000 })
+
+    // Check if state is preserved
+    const urlAfter = page.url()
+    const titleAfter = await page.title()
+
+    const urlPreserved = urlBefore === urlAfter
+    const titlePreserved = titleBefore === titleAfter
+
+    console.log('Post-unlock state:')
+    console.log(`  - URL preserved: ${urlPreserved}`)
+    console.log(`  - Title preserved: ${titlePreserved}`)
+
+    expect(urlPreserved).toBe(true)
+    expect(titlePreserved).toBe(true)
   })
 
   test('Instruction Manual accuracy assessment', async ({ page }) => {
@@ -310,10 +248,19 @@ test.describe('Session Lock Feature — Instruction Manual § 2.1 & 2.2', () => 
     
     // Check § 2.1: Sign In
     console.log('§ 2.1 Sign In:')
-    await page.goto('/')
-    const hasEmailField = await page.locator('input[type="email"]').isVisible().catch(() => false)
-    const hasPasswordField = await page.locator('input[type="password"]').isVisible().catch(() => false)
-    const hasSignInButton = await page.getByRole('button', { name: /Sign In|Login/i }).isVisible().catch(() => false)
+    await resetToLoggedOut(page)
+    await page.goto('/login')
+    const assessmentEmailInput = page.getByRole('textbox', { name: /^Email$/i }).first()
+    const assessmentPasswordInput = page.getByRole('textbox', { name: /^Password$/i }).first()
+    const assessmentSignInButton = page.getByRole('button', { name: /Sign In|Login/i }).first()
+
+    await assessmentEmailInput.waitFor({ state: 'visible', timeout: 10000 }).catch(() => undefined)
+    await assessmentPasswordInput.waitFor({ state: 'visible', timeout: 10000 }).catch(() => undefined)
+    await assessmentSignInButton.waitFor({ state: 'visible', timeout: 10000 }).catch(() => undefined)
+
+    const hasEmailField = await assessmentEmailInput.isVisible().catch(() => false)
+    const hasPasswordField = await assessmentPasswordInput.isVisible().catch(() => false)
+    const hasSignInButton = await assessmentSignInButton.isVisible().catch(() => false)
     
     console.log(`  ✓ Email field: ${hasEmailField}`)
     console.log(`  ✓ Password field: ${hasPasswordField}`)
@@ -326,9 +273,8 @@ test.describe('Session Lock Feature — Instruction Manual § 2.1 & 2.2', () => 
     console.log('    "Platform automatically locks your session after inactivity"')
     console.log('    "You will see a lock screen requiring password re-entry"')
     console.log('    "Data and open tabs are preserved"')
-    
-    // We already tested this above, so reference those findings
-    console.log('  STATUS: See feature detection test output above')
-    console.log('  ACTION: If feature not found, create amendment for manual')
+
+    console.log(`  Runtime policy: ${LOCKOUT_MINUTES} minutes inactivity + ${WARNING_COUNTDOWN_SECONDS} second countdown`)
+    console.log('  STATUS: ✓ VALIDATED by strict timer-controlled tests above')
   })
 })

@@ -32,6 +32,7 @@
  */
 
 import { createClient } from '@supabase/supabase-js'
+import WebSocket from 'ws'
 import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
@@ -68,6 +69,9 @@ if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
 
 const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
   auth: { persistSession: false, autoRefreshToken: false },
+  realtime: {
+    transport: WebSocket,
+  },
 })
 
 function nowStamp() {

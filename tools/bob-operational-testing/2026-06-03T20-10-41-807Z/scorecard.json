@@ -1,0 +1,122 @@
+{
+  "runId": "2026-06-03T20-10-41-807Z",
+  "startedAt": "2026-06-03T20:10:41.819Z",
+  "endedAt": "2026-06-03T20:17:54.120Z",
+  "config": {
+    "hours": 24,
+    "artifacts": [
+      "spec.md",
+      "plan.md"
+    ],
+    "functionalCmd": "npm run -s test:bob:governance",
+    "ragasCmd": ". .venv-ragas/bin/activate && python scripts/run_ragas_eval.py",
+    "trulensCmd": ". .venv-trulens/bin/activate && python scripts/run_trulens_eval.py",
+    "maxLowScoreCount": 0,
+    "maxRepeatedHallucinations": 0,
+    "maxChannelBiasGap": 4,
+    "minChannelSamples": 2,
+    "maxFallbackRate": 0.5,
+    "failOnRedTeamRevision": true,
+    "redTeamRetries": 2
+  },
+  "stages": {
+    "rag": {
+      "status": "pass",
+      "detail": "lowScoreCount=0, repeatedHallucinations=0",
+      "summarizeFailures": {
+        "exitCode": 0,
+        "lowScoreCount": 0,
+        "repeatedHallucinations": 0,
+        "rawSummary": {
+          "generatedAt": "2026-06-03T20:10:41.930Z",
+          "windowHours": 24,
+          "totalEntries": 1,
+          "lowScoreCount": 0,
+          "topFailureReasons": [],
+          "topHallucinationPatterns": [],
+          "repeatedHallucinations": [],
+          "topFlaggedArtifacts": [],
+          "recommendations": [
+            "No repeated failure mode crossed the automatic threshold in this window."
+          ]
+        }
+      },
+      "external": [
+        {
+          "tool": "ragas",
+          "command": ". .venv-ragas/bin/activate && python scripts/run_ragas_eval.py",
+          "exitCode": 0,
+          "status": "pass"
+        },
+        {
+          "tool": "trulens",
+          "command": ". .venv-trulens/bin/activate && python scripts/run_trulens_eval.py",
+          "exitCode": 0,
+          "status": "pass"
+        }
+      ]
+    },
+    "redTeam": {
+      "status": "pass",
+      "detail": "all artifact reviews passed",
+      "artifacts": [
+        {
+          "artifact": "spec.md",
+          "status": "pass",
+          "exitCode": 0,
+          "decision": "approve",
+          "reviewArtifact": "/workspaces/FreedomCamp-Manager/data/dr-bob-reviews/spec.md.2026-06-03T20-13-29-021Z.json"
+        },
+        {
+          "artifact": "plan.md",
+          "status": "pass",
+          "exitCode": 0,
+          "decision": "approve",
+          "reviewArtifact": "/workspaces/FreedomCamp-Manager/data/dr-bob-reviews/plan.md.2026-06-03T20-17-52-823Z.json"
+        }
+      ]
+    },
+    "functionalBias": {
+      "status": "pass",
+      "detail": "functional command and bias checks passed",
+      "functional": {
+        "command": "npm run -s test:bob:governance",
+        "exitCode": 0,
+        "status": "pass"
+      },
+      "bias": {
+        "status": "pass",
+        "entriesCount": 3,
+        "comparableChannels": [
+          "runpod-runsync"
+        ],
+        "channelBiasGap": 0,
+        "fallbackRate": 0,
+        "channelStats": [
+          {
+            "channel": "bob-chat",
+            "count": 1,
+            "totalScore": 10,
+            "avgScore": 10,
+            "lowScoreCount": 0,
+            "lowScoreRate": 0
+          },
+          {
+            "channel": "runpod-runsync",
+            "count": 2,
+            "totalScore": 20,
+            "avgScore": 10,
+            "lowScoreCount": 0,
+            "lowScoreRate": 0
+          }
+        ]
+      }
+    }
+  },
+  "finalDecision": "pass",
+  "notes": [],
+  "artifacts": {
+    "scorecardPath": "/workspaces/FreedomCamp-Manager/tools/bob-operational-testing/2026-06-03T20-10-41-807Z/scorecard.json",
+    "reportPath": "/workspaces/FreedomCamp-Manager/tools/bob-operational-testing/2026-06-03T20-10-41-807Z/scorecard.md"
+  }
+}

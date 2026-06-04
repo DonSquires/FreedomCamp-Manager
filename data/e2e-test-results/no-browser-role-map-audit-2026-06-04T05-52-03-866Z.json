@@ -1,0 +1,220 @@
+{
+  "checkedAt": "2026-06-04T05:52:03.855Z",
+  "supabaseBaseUrl": "https://kxwjcupuxnnbnzcgmkoi.supabase.co",
+  "personaResults": [
+    {
+      "slot": "master",
+      "email": "chris.harris@firstsecurity.co.nz",
+      "status": "ok",
+      "profileRole": "grand_master",
+      "rolePass": true,
+      "profileStatus": 200,
+      "zonesStatus": 200,
+      "zonesCount": 1,
+      "radioSessionGrantStatus": 501
+    },
+    {
+      "slot": "admin_org1",
+      "email": "e2e.admin_org1.1780522386297@example.test",
+      "status": "ok",
+      "profileRole": "admin_officer",
+      "rolePass": true,
+      "profileStatus": 200,
+      "zonesStatus": 200,
+      "zonesCount": 1,
+      "radioSessionGrantStatus": 501
+    },
+    {
+      "slot": "admin_org2",
+      "email": "e2e.admin_org2.1780522386297@example.test",
+      "status": "ok",
+      "profileRole": "admin_officer",
+      "rolePass": true,
+      "profileStatus": 200,
+      "zonesStatus": 200,
+      "zonesCount": 1,
+      "radioSessionGrantStatus": 501
+    },
+    {
+      "slot": "officer_org1",
+      "email": "e2e.officer_org1.1780522386297@example.test",
+      "status": "ok",
+      "profileRole": "officer",
+      "rolePass": true,
+      "profileStatus": 200,
+      "zonesStatus": 200,
+      "zonesCount": 1,
+      "radioSessionGrantStatus": 501
+    },
+    {
+      "slot": "client_viewer",
+      "email": "e2e.client_viewer.1780522386297@example.test",
+      "status": "ok",
+      "profileRole": "client_viewer",
+      "rolePass": true,
+      "profileStatus": 200,
+      "zonesStatus": 200,
+      "zonesCount": 1,
+      "radioSessionGrantStatus": 501
+    },
+    {
+      "slot": "client_staff",
+      "email": "e2e.client_staff.1780522386297@example.test",
+      "status": "ok",
+      "profileRole": "admin_officer",
+      "rolePass": false,
+      "profileStatus": 200,
+      "zonesStatus": 200,
+      "zonesCount": 1,
+      "radioSessionGrantStatus": 501
+    },
+    {
+      "slot": "bob_admin_officer",
+      "email": "e2e.bob_admin_officer.1780522386297@example.test",
+      "status": "ok",
+      "profileRole": "admin_officer",
+      "rolePass": true,
+      "profileStatus": 200,
+      "zonesStatus": 200,
+      "zonesCount": 1,
+      "radioSessionGrantStatus": 501
+    },
+    {
+      "slot": "bob_grand_master",
+      "email": "e2e.bob_grand_master.1780522386297@example.test",
+      "status": "ok",
+      "profileRole": "grand_master",
+      "rolePass": true,
+      "profileStatus": 200,
+      "zonesStatus": 200,
+      "zonesCount": 1,
+      "radioSessionGrantStatus": 501
+    }
+  ],
+  "mapRouteCoverage": {
+    "totalMapGeoZoneRoutes": 15,
+    "routes": [
+      {
+        "path": "/public/zone-map",
+        "roles": []
+      },
+      {
+        "path": "/zones",
+        "roles": [
+          "admin",
+          "admin_officer",
+          "master"
+        ]
+      },
+      {
+        "path": "/zone-amenities",
+        "roles": [
+          "admin",
+          "admin_officer",
+          "master"
+        ]
+      },
+      {
+        "path": "/incident-heatmap",
+        "roles": [
+          "admin",
+          "admin_officer",
+          "master"
+        ]
+      },
+      {
+        "path": "/job-map",
+        "roles": [
+          "admin",
+          "admin_officer",
+          "master",
+          "officer"
+        ]
+      },
+      {
+        "path": "/operations-map",
+        "roles": [
+          "admin",
+          "admin_officer",
+          "master"
+        ]
+      },
+      {
+        "path": "/zone-legal-config",
+        "roles": [
+          "admin",
+          "master"
+        ]
+      },
+      {
+        "path": "/zone-signage-evidence",
+        "roles": [
+          "admin",
+          "admin_officer",
+          "master"
+        ]
+      },
+      {
+        "path": "/zone-geofence-snapshots",
+        "roles": [
+          "admin",
+          "admin_officer",
+          "master"
+        ]
+      },
+      {
+        "path": "/observation-zone-audit-log",
+        "roles": [
+          "admin",
+          "admin_officer",
+          "master"
+        ]
+      },
+      {
+        "path": "/zone-dispatch-rules-log",
+        "roles": [
+          "admin",
+          "master"
+        ]
+      },
+      {
+        "path": "/zone-compliance-matrix-log",
+        "roles": [
+          "admin",
+          "admin_officer",
+          "master"
+        ]
+      },
+      {
+        "path": "/zone-legal-config-log",
+        "roles": [
+          "admin",
+          "master"
+        ]
+      },
+      {
+        "path": "/zone-signage-evidence-log",
+        "roles": [
+          "admin",
+          "admin_officer",
+          "master"
+        ]
+      },
+      {
+        "path": "/parking-zones-log",
+        "roles": [
+          "admin",
+          "master"
+        ]
+      }
+    ]
+  },
+  "summary": {
+    "personaSlots": 8,
+    "authOk": 8,
+    "rolePass": 7,
+    "missingCredentials": 0,
+    "authFailed": 0,
+    "totalMapGeoZoneRoutes": 15
+  }
+}

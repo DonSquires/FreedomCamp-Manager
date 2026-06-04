@@ -1,0 +1,59 @@
+{
+  "generatedAt": "2026-06-04T06:53:45.835Z",
+  "environment": {
+    "os": "linux",
+    "node": "v24.15.0",
+    "cwd": "/workspaces/FreedomCamp-Manager"
+  },
+  "mapCapabilities": {
+    "streetMapLayer": {
+      "pass": true,
+      "details": "Primary + fallback tile plumbing exists and map pages render TileLayer components."
+    },
+    "trafficOverlay": {
+      "pass": true,
+      "details": "Traffic overlay layer is implemented with HERE-based URL and toggle support."
+    },
+    "geofenceEditor": {
+      "pass": true,
+      "details": "Geofence editor map supports draw/edit and tile fallback on tile errors."
+    },
+    "patrolNavigation": {
+      "pass": true,
+      "details": "Patrol navigation has turn-by-turn output and in-house provider/fallback routing."
+    },
+    "satelliteView": {
+      "pass": true,
+      "details": "Satellite layer support is implemented with internal-gated configuration."
+    },
+    "satelliteInternalOnlyPolicy": {
+      "pass": true,
+      "details": "Satellite configuration is internal-only (no hardcoded external imagery fallback)."
+    },
+    "satelliteInternalConfigured": {
+      "pass": false,
+      "details": "Internal satellite tile endpoint is not configured; satellite option remains unavailable in UI."
+    }
+  },
+  "tileProbe": {
+    "template": "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+    "probeUrl": "https://a.tile.openstreetmap.org/6/39/25.png",
+    "result": {
+      "attempted": true,
+      "pass": true,
+      "status": 200,
+      "contentType": "image/png",
+      "reason": "ok"
+    }
+  },
+  "summary": {
+    "overallPass": true,
+    "satelliteImplemented": true,
+    "satelliteInternalOnlyPolicy": true,
+    "satelliteConfigured": false,
+    "notes": [
+      "overallPass covers street map visibility plumbing, tile endpoint response, geofence editor, and patrol navigation capability.",
+      "satellite checks report implementation, internal-only policy, and whether an internal satellite endpoint is configured."
+    ]
+  }
+}

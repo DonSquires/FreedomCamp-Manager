@@ -1,0 +1,41 @@
+{
+  "checkedAt": "2026-06-03T20:30:25.555Z",
+  "results": [
+    {
+      "role": "master",
+      "email": "squires.don@live.com",
+      "finalUrl": "http://127.0.0.1:4173/platform",
+      "hasMain": true,
+      "h1": "Field Compliance Manager",
+      "status": "ok",
+      "screenshot": "data/e2e-test-results/manual-role-smoke/master.png"
+    },
+    {
+      "role": "admin_org1",
+      "email": "squires.don@gmail.com",
+      "finalUrl": "http://127.0.0.1:4173/admin",
+      "hasMain": true,
+      "h1": "Admin Hub",
+      "status": "ok",
+      "screenshot": "data/e2e-test-results/manual-role-smoke/admin_org1.png"
+    },
+    {
+      "role": "officer_org1",
+      "email": "littlemissno5@gmail.com",
+      "finalUrl": "http://127.0.0.1:4173/officer-home",
+      "hasMain": true,
+      "h1": "Hi, E2E",
+      "status": "ok",
+      "screenshot": "data/e2e-test-results/manual-role-smoke/officer_org1.png"
+    },
+    {
+      "role": "client_viewer",
+      "email": "ryno.botha@ncc.govt.nz",
+      "finalUrl": "http://127.0.0.1:4173/client-portal",
+      "hasMain": true,
+      "h1": "Field Compliance Manager",
+      "status": "ok",
+      "screenshot": "data/e2e-test-results/manual-role-smoke/client_viewer.png"
+    }
+  ]
+}
