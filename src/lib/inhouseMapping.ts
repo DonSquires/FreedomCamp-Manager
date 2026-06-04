@@ -1,18 +1,38 @@
-const OSM_TILE_URL = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
-const OSM_TILE_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+const configuredFallbackTileUrl = String(import.meta.env.VITE_INHOUSE_MAP_FALLBACK_TILE_URL || '').trim()
+const configuredFallbackAttribution = String(import.meta.env.VITE_INHOUSE_MAP_FALLBACK_TILE_ATTRIBUTION || '').trim()
+
+export const FALLBACK_MAP_TILE_URL = configuredFallbackTileUrl || ''
+export const FALLBACK_MAP_TILE_ATTRIBUTION =
+  configuredFallbackAttribution ||
+  (configuredFallbackTileUrl
+    ? '&copy; OnSpace AI in-house fallback mapping'
+    : '')
 
 const configuredTileUrl = String(import.meta.env.VITE_INHOUSE_MAP_TILE_URL || '').trim()
 const configuredTileAttribution = String(import.meta.env.VITE_INHOUSE_MAP_TILE_ATTRIBUTION || '').trim()
+const configuredSatelliteTileUrl = String(import.meta.env.VITE_INHOUSE_MAP_SATELLITE_TILE_URL || '').trim()
+const configuredSatelliteAttribution = String(import.meta.env.VITE_INHOUSE_MAP_SATELLITE_TILE_ATTRIBUTION || '').trim()
 
 const configuredCoordsTemplate = String(import.meta.env.VITE_INHOUSE_MAP_COORDS_URL || '').trim()
 const configuredAddressTemplate = String(import.meta.env.VITE_INHOUSE_MAP_ADDRESS_URL || '').trim()
 
-export const PRIMARY_MAP_TILE_URL = configuredTileUrl || OSM_TILE_URL
+export const HAS_INTERNAL_STREET_MAP_TILE =
+  configuredTileUrl.length > 0 || configuredFallbackTileUrl.length > 0
+export const HAS_INTERNAL_SATELLITE_MAP_TILE = configuredSatelliteTileUrl.length > 0
+
+export const PRIMARY_MAP_TILE_URL = configuredTileUrl || FALLBACK_MAP_TILE_URL
 export const PRIMARY_MAP_TILE_ATTRIBUTION =
   configuredTileAttribution ||
-  (configuredTileUrl
+  (configuredTileUrl || configuredFallbackTileUrl
     ? '&copy; OnSpace AI in-house mapping'
-    : OSM_TILE_ATTRIBUTION)
+    : FALLBACK_MAP_TILE_ATTRIBUTION)
+
+export const SATELLITE_MAP_TILE_URL = configuredSatelliteTileUrl || ''
+export const SATELLITE_MAP_TILE_ATTRIBUTION =
+  configuredSatelliteAttribution ||
+  (configuredSatelliteTileUrl
+    ? '&copy; OnSpace AI in-house satellite mapping'
+    : '')
 
 function applyTemplate(
   template: string,

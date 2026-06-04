@@ -69,8 +69,11 @@ import {
 } from 'lucide-react'
 import { formatDateTime } from '@/lib/utils'
 import {
+  HAS_INTERNAL_SATELLITE_MAP_TILE,
   PRIMARY_MAP_TILE_ATTRIBUTION,
   PRIMARY_MAP_TILE_URL,
+  SATELLITE_MAP_TILE_ATTRIBUTION,
+  SATELLITE_MAP_TILE_URL,
 } from '@/lib/inhouseMapping'
 import { LiveNavigationOverlay } from '@/components/features/LiveNavigationOverlay'
 import 'leaflet/dist/leaflet.css'
@@ -196,6 +199,7 @@ export default function OperationsMap() {
   const [tick, setTick] = useState(0)
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [historyMode, setHistoryMode] = useState(false)
+  const [baseMapStyle, setBaseMapStyle] = useState<'street' | 'satellite'>('street')
   const [emergencyPulse, setEmergencyPulse] = useState(false)
   const [dismissedNavigationKey, setDismissedNavigationKey] = useState<string | null>(null)
 
@@ -589,6 +593,15 @@ export default function OperationsMap() {
     poi:         poiPersons.length,
   }
 
+  useEffect(() => {
+    if (!HAS_INTERNAL_SATELLITE_MAP_TILE && baseMapStyle === 'satellite') {
+      setBaseMapStyle('street')
+    }
+  }, [baseMapStyle])
+
+  const baseMapTileUrl = baseMapStyle === 'satellite' ? SATELLITE_MAP_TILE_URL : PRIMARY_MAP_TILE_URL
+  const baseMapTileAttribution = baseMapStyle === 'satellite' ? SATELLITE_MAP_TILE_ATTRIBUTION : PRIMARY_MAP_TILE_ATTRIBUTION
+
   return (
     <AppLayout title="Operations Map" description="Live layered situational awareness">
       <div className="flex flex-col" style={{ height: 'calc(100vh - 120px)' }}>
@@ -602,6 +615,18 @@ export default function OperationsMap() {
             </span>
           </div>
           <div className="flex items-center gap-2 ml-auto flex-wrap">
+            <div className="flex items-center gap-1.5">
+              <Label className="text-xs">Basemap</Label>
+              <Select value={baseMapStyle} onValueChange={(value: 'street' | 'satellite') => setBaseMapStyle(value)}>
+                <SelectTrigger className="h-7 w-[130px] text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="street">Street</SelectItem>
+                  {HAS_INTERNAL_SATELLITE_MAP_TILE && <SelectItem value="satellite">Satellite</SelectItem>}
+                </SelectContent>
+              </Select>
+            </div>
             {/* History mode toggle */}
             <div className="flex items-center gap-1.5">
               <Label className="text-xs">History</Label>
@@ -717,8 +742,8 @@ export default function OperationsMap() {
               zoomControl={true}
             >
               <TileLayer
-                url={PRIMARY_MAP_TILE_URL}
-                attribution={PRIMARY_MAP_TILE_ATTRIBUTION}
+                url={baseMapTileUrl}
+                attribution={baseMapTileAttribution}
               />
 
               {/* B-34: Traffic overlay TileLayer (HERE Maps when API key present) */}

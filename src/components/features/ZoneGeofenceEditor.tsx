@@ -21,7 +21,15 @@ import {
   ZoomOut
 } from 'lucide-react'
 import { toast } from 'sonner'
-import { PRIMARY_MAP_TILE_ATTRIBUTION, PRIMARY_MAP_TILE_URL } from '@/lib/inhouseMapping'
+import {
+  FALLBACK_MAP_TILE_ATTRIBUTION,
+  FALLBACK_MAP_TILE_URL,
+  HAS_INTERNAL_SATELLITE_MAP_TILE,
+  PRIMARY_MAP_TILE_ATTRIBUTION,
+  PRIMARY_MAP_TILE_URL,
+  SATELLITE_MAP_TILE_ATTRIBUTION,
+  SATELLITE_MAP_TILE_URL,
+} from '@/lib/inhouseMapping'
 
 interface Coordinate {
   lat: number
@@ -159,6 +167,41 @@ export function ZoneGeofenceEditor({
   const [focusKey, setFocusKey] = useState(0)
   const [isSaving, setIsSaving] = useState(false)
   const [useCurrentLocation, setUseCurrentLocation] = useState(false)
+  const [baseMapStyle, setBaseMapStyle] = useState<'street' | 'satellite'>('street')
+  const [tileUrl, setTileUrl] = useState(PRIMARY_MAP_TILE_URL)
+  const [tileAttribution, setTileAttribution] = useState(PRIMARY_MAP_TILE_ATTRIBUTION)
+  const [fallbackApplied, setFallbackApplied] = useState(false)
+
+  useEffect(() => {
+    if (!HAS_INTERNAL_SATELLITE_MAP_TILE && baseMapStyle === 'satellite') {
+      setBaseMapStyle('street')
+      return
+    }
+
+    if (baseMapStyle === 'satellite') {
+      setTileUrl(SATELLITE_MAP_TILE_URL)
+      setTileAttribution(SATELLITE_MAP_TILE_ATTRIBUTION)
+      setFallbackApplied(false)
+      return
+    }
+
+    setTileUrl(PRIMARY_MAP_TILE_URL)
+    setTileAttribution(PRIMARY_MAP_TILE_ATTRIBUTION)
+    setFallbackApplied(false)
+  }, [baseMapStyle])
+
+  const applyFallbackTileLayer = () => {
+    if (!FALLBACK_MAP_TILE_URL) {
+      toast.error('Map tiles are unavailable. Configure VITE_INHOUSE_MAP_TILE_URL or VITE_INHOUSE_MAP_FALLBACK_TILE_URL.')
+      return
+    }
+
+    if (fallbackApplied || tileUrl === FALLBACK_MAP_TILE_URL) return
+    setTileUrl(FALLBACK_MAP_TILE_URL)
+    setTileAttribution(FALLBACK_MAP_TILE_ATTRIBUTION)
+    setFallbackApplied(true)
+    toast.warning('Primary map tiles are unavailable. Switched to configured internal fallback tiles.')
+  }
 
   // Get current GPS location
   const getCurrentLocation = () => {
@@ -340,8 +383,11 @@ export function ZoneGeofenceEditor({
                 focusKey={focusKey}
               />
               <TileLayer
-                attribution={PRIMARY_MAP_TILE_ATTRIBUTION}
-                url={PRIMARY_MAP_TILE_URL}
+                attribution={tileAttribution}
+                url={tileUrl}
+                eventHandlers={{
+                  tileerror: applyFallbackTileLayer,
+                }}
               />
               <MapClickHandler onClick={handleMapClick} />
 
@@ -372,6 +418,26 @@ export function ZoneGeofenceEditor({
           </div>
 
           <div className="flex gap-2">
+            <div className="flex rounded-md border overflow-hidden">
+              <Button
+                type="button"
+                variant={baseMapStyle === 'street' ? 'default' : 'ghost'}
+                onClick={() => setBaseMapStyle('street')}
+                className="rounded-none h-9 px-3"
+              >
+                Street
+              </Button>
+              <Button
+                type="button"
+                variant={baseMapStyle === 'satellite' ? 'default' : 'ghost'}
+                onClick={() => setBaseMapStyle('satellite')}
+                className="rounded-none h-9 px-3"
+                disabled={!HAS_INTERNAL_SATELLITE_MAP_TILE}
+                title={!HAS_INTERNAL_SATELLITE_MAP_TILE ? 'Configure VITE_INHOUSE_MAP_SATELLITE_TILE_URL to enable satellite view' : undefined}
+              >
+                Satellite
+              </Button>
+            </div>
             <MapFocusToolbar onFocus={() => setFocusKey((k) => k + 1)} className="flex-1" />
             {geometryType === 'polygon' && (
               <Button

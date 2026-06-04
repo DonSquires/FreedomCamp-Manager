@@ -24,6 +24,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
   MapPin,
   Navigation,
@@ -45,8 +46,11 @@ import {
 import { toast } from 'sonner'
 import { formatDateTime } from '@/lib/utils'
 import {
+  HAS_INTERNAL_SATELLITE_MAP_TILE,
   PRIMARY_MAP_TILE_ATTRIBUTION,
   PRIMARY_MAP_TILE_URL,
+  SATELLITE_MAP_TILE_ATTRIBUTION,
+  SATELLITE_MAP_TILE_URL,
   buildPreferredMapUrlForCoordinates,
 } from '@/lib/inhouseMapping'
 import 'leaflet/dist/leaflet.css'
@@ -202,6 +206,7 @@ export default function JobMap() {
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null)
   const [focusKey, setFocusKey] = useState(0)
   const [showFilters, setShowFilters] = useState(false)
+  const [baseMapStyle, setBaseMapStyle] = useState<'street' | 'satellite'>('street')
   const [typeFilters, setTypeFilters] = useState<string[]>([])
   const [statusFilters, setStatusFilters] = useState<string[]>(['pending', 'dispatched', 'acknowledged', 'en_route', 'on_scene'])
   const [showMyJobsOnly, setShowMyJobsOnly] = useState(false)
@@ -258,6 +263,15 @@ export default function JobMap() {
     filteredJobs.filter(j => j.gps_lat != null && j.gps_lng != null),
     [filteredJobs]
   )
+
+  useEffect(() => {
+    if (!HAS_INTERNAL_SATELLITE_MAP_TILE && baseMapStyle === 'satellite') {
+      setBaseMapStyle('street')
+    }
+  }, [baseMapStyle])
+
+  const baseMapTileUrl = baseMapStyle === 'satellite' ? SATELLITE_MAP_TILE_URL : PRIMARY_MAP_TILE_URL
+  const baseMapTileAttribution = baseMapStyle === 'satellite' ? SATELLITE_MAP_TILE_ATTRIBUTION : PRIMARY_MAP_TILE_ATTRIBUTION
   
   // ── Update Job Status ───────────────────────────────────────────────────────
   
@@ -334,6 +348,18 @@ export default function JobMap() {
           </div>
           
           <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 rounded-md border px-2 py-1">
+              <Label className="text-xs" htmlFor="job-map-basemap">Basemap</Label>
+              <Select value={baseMapStyle} onValueChange={(value: 'street' | 'satellite') => setBaseMapStyle(value)}>
+                <SelectTrigger id="job-map-basemap" className="h-7 w-[126px] text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="street">Street</SelectItem>
+                  {HAS_INTERNAL_SATELLITE_MAP_TILE && <SelectItem value="satellite">Satellite</SelectItem>}
+                </SelectContent>
+              </Select>
+            </div>
             <Button variant="outline" size="sm" onClick={() => setShowFilters(!showFilters)}>
               <Filter className="h-4 w-4 mr-1.5" />
               Filters
@@ -469,8 +495,8 @@ export default function JobMap() {
                 >
                   <JurisdictionMapViewport />
                   <TileLayer
-                    attribution={PRIMARY_MAP_TILE_ATTRIBUTION}
-                    url={PRIMARY_MAP_TILE_URL}
+                    attribution={baseMapTileAttribution}
+                    url={baseMapTileUrl}
                   />
                   <MapViewportController jobs={jobsWithGPS} selectedJob={selectedJobId} />
                   
