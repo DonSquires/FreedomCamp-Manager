@@ -457,6 +457,10 @@ export default function OrganizationManagement() {
     setShowSettingsDialog(true)
   }
 
+  const openOrgScopedZoneCreate = (orgId: string) => {
+    navigate(`/zones?organization_id=${orgId}&create=1`)
+  }
+
   if (!isMaster) {
     return (
       <AppLayout title="Organisation Management" description="Manage organisational hierarchy and settings" showBackButton>
@@ -611,6 +615,7 @@ export default function OrganizationManagement() {
             return (
               <Card
                 key={org.id}
+                data-testid={`organization-card-${org.id}`}
                 className={
                   org.organization_type === 'contractor'
                     ? 'ml-8 border-l-4 border-l-amber-400'
@@ -740,10 +745,11 @@ export default function OrganizationManagement() {
                         size="sm"
                         variant="outline"
                         className="gap-1.5"
-                        onClick={() => navigate(`/zones?organization_id=${org.id}`)}
+                        data-testid={`set-zone-${org.id}`}
+                        onClick={() => openOrgScopedZoneCreate(org.id)}
                       >
                         <MapPin className="h-3.5 w-3.5" />
-                        Zones
+                        Set Zone
                         <Badge variant="secondary" className="ml-1 text-xs px-1.5 py-0">
                           {stats.zones}
                         </Badge>
@@ -931,6 +937,27 @@ export default function OrganizationManagement() {
               />
             </div>
           </div>
+
+          {selectedOrg && (
+            <div className="rounded-lg border border-blue-200 bg-blue-50 dark:bg-blue-950/20 dark:border-blue-900 p-3">
+              <p className="text-xs text-blue-800 dark:text-blue-200 mb-2">
+                Create and link zones directly to this organisation.
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full"
+                onClick={() => {
+                  setShowSettingsDialog(false)
+                  openOrgScopedZoneCreate(selectedOrg.id)
+                }}
+              >
+                <MapPin className="h-4 w-4 mr-2" />
+                Create Zone For This Organisation
+              </Button>
+            </div>
+          )}
+
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowSettingsDialog(false)}>
               Cancel

@@ -245,7 +245,8 @@ fi
 
 # Hardwire automation credentials for non-user-request jobs.
 if [[ "$is_user_request_job" -eq 0 ]]; then
-  hardwire_enabled="${PLAYWRIGHT_HARDWIRE_AUTOMATION_CREDENTIALS:-${BOB_HARDWIRE_AUTOMATION_CREDENTIALS:-1}}"
+  # Default to disabled so role-specific personas are preserved unless explicitly enabled.
+  hardwire_enabled="${PLAYWRIGHT_HARDWIRE_AUTOMATION_CREDENTIALS:-${BOB_HARDWIRE_AUTOMATION_CREDENTIALS:-0}}"
   hardwire_enabled="${hardwire_enabled,,}"
 
   if [[ "$hardwire_enabled" == "1" || "$hardwire_enabled" == "true" ]]; then

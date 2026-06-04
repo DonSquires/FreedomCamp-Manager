@@ -23,7 +23,7 @@ Source of truth for routes: route manifest file src/navigation/routeManifest.ts 
    - Primary: /crm
    - Role gate: admin, admin_officer, master, grand_master
    - Related: /crm/client/:orgId, /crm/contractor/:orgId, /client-sites, /access-control, /client-master-list
-   - Related route gates: /crm/client/:orgId and /crm/contractor/:orgId inherit /crm gate; /client-sites = admin, admin_officer, master; /access-control = admin, admin_officer, master, grand_master; /client-master-list = admin, admin_officer, master
+   - Related route gates: /crm/client/:orgId and /crm/contractor/:orgId inherit /crm gate; /client-sites = admin, admin_officer, master; /access-control = admin, admin_officer, master, grand_master, systems_administrator; /client-master-list = admin, admin_officer, master
 
 2. Compliance and enforcement
    - Primary: /compliance
@@ -121,7 +121,7 @@ Source of truth for routes: route manifest file src/navigation/routeManifest.ts 
    - Primary: /access-control
    - Role gate: admin, admin_officer, master, grand_master
    - Related: /users, /organizations, /site-permissions, /admin/service-provider-access
-   - Related route gates: /users = admin, admin_officer, master; /organizations = master, grand_master; /site-permissions = admin, master, grand_master; /admin/service-provider-access = admin, master
+   - Related route gates: /users = admin, admin_officer, master, systems_administrator; /organizations = master, grand_master; /site-permissions = admin, master, grand_master; /admin/service-provider-access = admin, master
 
 3. Comms and PTT
    - Primary: /radio

@@ -2,6 +2,7 @@
 
 import process from 'node:process'
 import { createClient } from '@supabase/supabase-js'
+import WebSocket from 'ws'
 
 const roleExpectations = {
   master: {
@@ -26,7 +27,7 @@ const roleExpectations = {
   },
   client_staff: {
     emailVar: 'PLAYWRIGHT_CLIENT_STAFF_EMAIL',
-    allowedRoles: ['client_officer', 'client_admin'],
+    allowedRoles: ['client_officer', 'client_admin', 'admin_officer'],
   },
   bob_admin_officer: {
     emailVar: 'PLAYWRIGHT_BOB_ADMIN_OFFICER_EMAIL',
@@ -94,6 +95,9 @@ async function main() {
 
   const supabase = createClient(supabaseUrl, serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false },
+    realtime: {
+      transport: WebSocket,
+    },
   })
 
   const selectedSlots = args.slot ? [args.slot] : Object.keys(roleExpectations)

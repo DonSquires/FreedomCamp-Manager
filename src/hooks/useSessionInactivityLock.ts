@@ -3,10 +3,19 @@ import { useAuthStore } from '@/stores/authStore'
 import { useSessionLockStore } from '@/stores/sessionLockStore'
 import { useSessionPreferencesStore } from '@/stores/sessionPreferencesStore'
 
-const WARNING_SECONDS = 60
-const WARNING_MS = WARNING_SECONDS * 1000
+const WARNING_SECONDS = 39
 const STAY_ACTIVE_EVENT = 'session:stay-active'
 const MIN_INACTIVITY_MINUTES = 15
+const E2E_TIMEOUT_MS_KEY = 'e2e:session-timeout-ms'
+const E2E_WARNING_SECONDS_KEY = 'e2e:session-warning-seconds'
+
+function readE2EOverrideNumber(key: string): number | null {
+  if (typeof window === 'undefined') return null
+  const isLocalHost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+  if (!isLocalHost) return null
+  const value = Number(window.localStorage.getItem(key))
+  return Number.isFinite(value) ? value : null
+}
 
 export function signalSessionActivity(): void {
   if (typeof window === 'undefined') return
@@ -26,12 +35,20 @@ export function useSessionInactivityLock() {
       return
     }
 
+    const warningSecondsOverride = readE2EOverrideNumber(E2E_WARNING_SECONDS_KEY)
+    const warningSeconds = Math.max(1, Math.floor(warningSecondsOverride ?? WARNING_SECONDS))
+    const warningMs = warningSeconds * 1000
+
     const sanitizedInactivityMinutes = Math.max(
       MIN_INACTIVITY_MINUTES,
       Number.isFinite(inactivityMinutes) ? Math.floor(inactivityMinutes) : MIN_INACTIVITY_MINUTES,
     )
-    const timeoutMs = Math.max(sanitizedInactivityMinutes * 60 * 1000, WARNING_MS + 1000)
-    const warningDelay = Math.max(timeoutMs - WARNING_MS, 1000)
+    const configuredTimeoutMs = Math.max(sanitizedInactivityMinutes * 60 * 1000, warningMs + 1000)
+    const timeoutMsOverride = readE2EOverrideNumber(E2E_TIMEOUT_MS_KEY)
+    const timeoutMs = timeoutMsOverride !== null
+      ? Math.max(Math.floor(timeoutMsOverride), warningMs + 1000)
+      : configuredTimeoutMs
+    const warningDelay = Math.max(timeoutMs - warningMs, 1000)
 
     const clearTimers = () => {
       if (warningTimerRef.current) clearTimeout(warningTimerRef.current)
@@ -43,7 +60,7 @@ export function useSessionInactivityLock() {
     }
 
     const startCountdown = () => {
-      let secondsLeft = WARNING_SECONDS
+      let secondsLeft = warningSeconds
       const { showWarning } = useSessionLockStore.getState()
       showWarning(secondsLeft)
 

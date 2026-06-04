@@ -21,6 +21,7 @@ import { ZoneGeofenceEditor } from '@/components/features/ZoneGeofenceEditor'
 import { ZoneGeofenceIndicator } from '@/components/features/ZoneGeofenceIndicator'
 import { Checkbox } from '@/components/ui/checkbox'
 import { ZONE_FEATURES } from '@/lib/zoneFeatures'
+import { useSearchParams } from 'react-router-dom'
 
 interface Zone {
   id: string
@@ -71,6 +72,19 @@ interface Organization {
   name: string
 }
 
+interface ZoneLegalConfigPatch {
+  managing_authority: string | null
+  enforcement_authority: string | null
+  legal_description: string | null
+  org_website: string | null
+  payment_online_url: string | null
+  payment_bank_account: string | null
+  payment_instructions: string | null
+  objections_email: string | null
+  objections_postal_address: string | null
+  dispute_portal_url: string | null
+}
+
 function parseIntOrFallback(value: string, fallback: number, min = 0): number {
   const parsed = Number.parseInt(value, 10)
   if (!Number.isFinite(parsed) || parsed < min) return fallback
@@ -98,7 +112,26 @@ function normalizeIntOrFallback(value: number, fallback: number, min = 0): numbe
   return Math.trunc(value)
 }
 
+async function withPromiseTimeout(promise: any, timeoutMs: number, operationName: string): Promise<any> {
+  return new Promise((resolve, reject) => {
+    const timeoutId = setTimeout(() => {
+      reject(new Error(`${operationName} timed out after ${Math.round(timeoutMs / 1000)}s`))
+    }, timeoutMs)
+
+    promise
+      .then((value) => {
+        clearTimeout(timeoutId)
+        resolve(value)
+      })
+      .catch((error) => {
+        clearTimeout(timeoutId)
+        reject(error)
+      })
+  })
+}
+
 export default function ZoneManagement() {
+  const [searchParams] = useSearchParams()
   const { user } = useAuthStore()
   const { organizationId } = useGlobalFiltersStore()
   const { operationalOrganizationId } = useOperationalOrganization()
@@ -167,6 +200,9 @@ export default function ZoneManagement() {
 
   const isOrgScopedRole = user?.role === 'master' || user?.role === 'grand_master'
   const createOrgFallbackId = organizationId || operationalOrganizationId || user?.organization_id || ''
+  const createFromQuery = searchParams.get('create') === '1'
+  const routeScopedOrganizationId = searchParams.get('organization_id') || ''
+  const isCreateOrgLockedByRoute = createFromQuery && Boolean(routeScopedOrganizationId)
 
   // Fetch all organizations (for Masters only)
   const { data: organizations } = useQuery({
@@ -302,8 +338,11 @@ export default function ZoneManagement() {
 
       if (error) throw error
 
-      // Persist legal + payment fields to zone_legal_config (authoritative legal profile)
+      const freedomCampingEnabled = (updates.zone_features ?? selectedZone.zone_features ?? []).includes('freedom_camping')
+
+      // Persist legal + payment fields to zone_legal_config only for freedom camping zones.
       if (
+        freedomCampingEnabled && (
         land_manager !== undefined ||
         enforcement_authority !== undefined ||
         bylaw_clause !== undefined ||
@@ -314,25 +353,77 @@ export default function ZoneManagement() {
         editObjectionsEmail ||
         editObjectionsPostalAddress ||
         editDisputePortalUrl
-      ) {
+      )) {
         const orgId = selectedZone.organization_id
-        const { error: legalError } = await (supabase.from('zone_legal_config') as any)
-          .upsert({
-            zone_id: selectedZone.id,
-            organization_id: orgId,
-            managing_authority: editLandManager || null,
-            enforcement_authority: editEnforcementAuthority || null,
-            legal_description: editBylawClause || null,
-            org_website: editBylawUrl || null,
-            payment_online_url: editPaymentOnlineUrl || null,
-            payment_bank_account: editPaymentBankAccount || null,
-            payment_instructions: editPaymentInstructions || null,
-            objections_email: editObjectionsEmail || null,
-            objections_postal_address: editObjectionsPostalAddress || null,
-            dispute_portal_url: editDisputePortalUrl || null,
-          }, { onConflict: 'zone_id' })
 
-        if (legalError) throw legalError
+        const legalPatch: ZoneLegalConfigPatch = {
+          managing_authority: editLandManager || null,
+          enforcement_authority: editEnforcementAuthority || null,
+          legal_description: editBylawClause || null,
+          org_website: editBylawUrl || null,
+          payment_online_url: editPaymentOnlineUrl || null,
+          payment_bank_account: editPaymentBankAccount || null,
+          payment_instructions: editPaymentInstructions || null,
+          objections_email: editObjectionsEmail || null,
+          objections_postal_address: editObjectionsPostalAddress || null,
+          dispute_portal_url: editDisputePortalUrl || null,
+        }
+
+        // Update first so existing rows keep their complete legal profile.
+        const { data: updatedLegalRow, error: updateLegalError } = await supabase
+          .from('zone_legal_config')
+          .update(legalPatch)
+          .eq('zone_id', selectedZone.id)
+          .select('id')
+          .maybeSingle()
+
+        if (updateLegalError) throw updateLegalError
+
+        if (!updatedLegalRow) {
+          const { data: orgRow, error: orgError } = await supabase
+            .from('organizations')
+            .select('name, address, contact_phone, contact_email')
+            .eq('id', orgId)
+            .maybeSingle()
+
+          if (orgError) throw orgError
+
+          const orgName = (orgRow?.name || selectedZone.organization?.name || 'Organization').trim()
+          const orgAddress = (orgRow?.address || '').trim()
+
+          const { error: insertLegalError } = await supabase
+            .from('zone_legal_config')
+            .insert({
+              zone_id: selectedZone.id,
+              organization_id: orgId,
+              org_office_name: `${orgName} Office`,
+              org_street_address: orgAddress || 'Address not configured',
+              org_city: 'Unknown',
+              org_postcode: '0000',
+              org_country: 'New Zealand',
+              org_phone: orgRow?.contact_phone || null,
+              org_email: orgRow?.contact_email || null,
+              org_website: legalPatch.org_website,
+              legal_description: legalPatch.legal_description || 'Legal description pending',
+              land_act: selectedZone.bylaw_reference || 'Freedom Camping Act 2011',
+              land_owner: legalPatch.managing_authority || selectedZone.land_manager || orgName,
+              managing_authority: legalPatch.managing_authority,
+              max_stay_nights: selectedZone.max_consecutive_nights ?? 3,
+              max_consecutive_nights: selectedZone.max_consecutive_nights ?? 3,
+              self_contained_required: selectedZone.self_contained_required,
+              breach_template: 'You are in breach of local freedom camping requirements for this zone.',
+              enforcement_type: 'warning',
+              enforcement_authority: legalPatch.enforcement_authority,
+              payment_online_url: legalPatch.payment_online_url,
+              payment_bank_account: legalPatch.payment_bank_account,
+              payment_instructions: legalPatch.payment_instructions,
+              objections_email: legalPatch.objections_email,
+              objections_postal_address: legalPatch.objections_postal_address,
+              dispute_portal_url: legalPatch.dispute_portal_url,
+            })
+
+          if (insertLegalError) throw insertLegalError
+        }
       }
     },
     onSuccess: () => {
@@ -355,13 +446,18 @@ export default function ZoneManagement() {
       if (!orgId) throw new Error('Organisation is required')
 
       // Check for existing zone with same name in this org
-      const { data: existing } = await supabase
-        .from('zones')
-        .select('id, name')
-        .eq('organization_id', orgId)
-        .eq('is_active', true)
-        .ilike('name', createName.trim())
-        .limit(1)
+      const { data: existing } = await withPromiseTimeout(
+        Promise.resolve(supabase
+          .from('zones')
+          .select('id, name')
+          .eq('organization_id', orgId)
+          .eq('is_active', true)
+          .ilike('name', createName.trim())
+          .limit(1),
+        ),
+        15000,
+        'Zone duplicate check'
+      )
 
       if (existing && existing.length > 0) {
         throw new Error(`A zone named "${createName.trim()}" already exists in this organisation`)
@@ -369,26 +465,58 @@ export default function ZoneManagement() {
 
       const safeNightsPerMonth = normalizeIntOrFallback(createNightsPerMonth, 28, 1)
       const safeMaxConsecutive = normalizeIntOrFallback(createMaxConsecutive, 3, 1)
+      const createFreedomCampingEnabled = createZoneFeatures.includes('freedom_camping')
 
-      const { error } = await (supabase.from('zones') as any)
-        .insert({
-          name: createName.trim(),
-          description: createDescription || null,
-          organization_id: orgId,
-          zone_type: createZoneType,
-          parent_zone_id: createZoneType === 'general' ? null : createParentZoneId,
-          nights_per_month: safeNightsPerMonth,
-          max_consecutive_nights: safeMaxConsecutive,
-          day_visit_only: createDayVisitOnly,
-          self_contained_required: createSelfContained,
-          land_managing_agency: createLandManagingAgency || null,
-          bylaw_reference: createBylawReference || null,
-          seasonal_open_month: createSeasonalOpenMonth,
-          seasonal_close_month: createSeasonalCloseMonth,
-          zone_features: createZoneFeatures,
-          geometry: createGeometry,
-          is_active: true,
-        })
+      const insertPayload = {
+        name: createName.trim(),
+        description: createDescription || null,
+        organization_id: orgId,
+        zone_type: createZoneType,
+        parent_zone_id: createZoneType === 'general' ? null : createParentZoneId,
+        nights_per_month: safeNightsPerMonth,
+        max_consecutive_nights: safeMaxConsecutive,
+        day_visit_only: createDayVisitOnly,
+        self_contained_required: createSelfContained,
+        land_managing_agency: createFreedomCampingEnabled ? createLandManagingAgency || null : null,
+        bylaw_reference: createFreedomCampingEnabled ? createBylawReference || null : null,
+        seasonal_open_month: createFreedomCampingEnabled ? createSeasonalOpenMonth : null,
+        seasonal_close_month: createFreedomCampingEnabled ? createSeasonalCloseMonth : null,
+        zone_features: createZoneFeatures,
+        geometry: createGeometry,
+        is_active: true,
+      }
+
+      let error: any = null
+      try {
+        const insertResult: any = await withPromiseTimeout(
+          Promise.resolve((supabase.from('zones') as any).insert(insertPayload)),
+          30000,
+          'Zone creation'
+        )
+        error = insertResult?.error ?? null
+      } catch (insertFailure: any) {
+        const maybeTimeout = String(insertFailure?.message || '').toLowerCase().includes('timed out')
+        if (!maybeTimeout) throw insertFailure
+
+        const { data: createdAfterTimeout } = await withPromiseTimeout(
+          Promise.resolve(supabase
+            .from('zones')
+            .select('id')
+            .eq('organization_id', orgId)
+            .eq('is_active', true)
+            .ilike('name', createName.trim())
+            .limit(1),
+          ),
+          10000,
+          'Zone post-timeout verification'
+        )
+
+        if (createdAfterTimeout && createdAfterTimeout.length > 0) {
+          return
+        }
+
+        throw insertFailure
+      }
 
       if (error) {
         if (error.message?.includes('idx_zones_unique_org_name_active')) {
@@ -536,6 +664,18 @@ export default function ZoneManagement() {
       setCreateOrganizationId(createOrgFallbackId)
     }
   }, [showCreateDialog, isOrgScopedRole, createOrganizationId, createOrgFallbackId, organizations])
+
+  useEffect(() => {
+    if (!createFromQuery) return
+
+    if (!showCreateDialog) {
+      setShowCreateDialog(true)
+    }
+
+    if (routeScopedOrganizationId && createOrganizationId !== routeScopedOrganizationId) {
+      setCreateOrganizationId(routeScopedOrganizationId)
+    }
+  }, [createFromQuery, showCreateDialog, routeScopedOrganizationId, createOrganizationId])
   const stats = zones ? {
     total: zones.length,
     active: zones.filter(z => z.is_active).length,
@@ -992,77 +1132,82 @@ export default function ZoneManagement() {
                 />
               </div>
 
-              {/* New legal / operational fields */}
-              <div>
-                <Label htmlFor="editLandManagingAgency">Land Managing Agency</Label>
-                <Select
-                  value={editLandManagingAgency || ''}
-                  onValueChange={(v) => setEditLandManagingAgency(v === 'none' ? '' : v)}
-                >
-                  <SelectTrigger id="editLandManagingAgency">
-                    <SelectValue placeholder="Select agency…" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">— Not specified —</SelectItem>
-                    <SelectItem value="council">Council</SelectItem>
-                    <SelectItem value="doc">DOC – Dept of Conservation</SelectItem>
-                    <SelectItem value="linz">LINZ – Land Information NZ</SelectItem>
-                    <SelectItem value="nzta">NZTA – NZ Transport Agency</SelectItem>
-                    <SelectItem value="crown">Crown (other)</SelectItem>
-                    <SelectItem value="private">Private land</SelectItem>
-                    <SelectItem value="other">Other</SelectItem>
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Determines which legislation applies (FCA 2011 for council/DOC, Crown Pastoral Land Act for LINZ, etc.)
-                </p>
-              </div>
-              <div>
-                <Label htmlFor="editBylawReference">Bylaw / Regulation Reference</Label>
-                <Input
-                  id="editBylawReference"
-                  value={editBylawReference}
-                  onChange={(e) => setEditBylawReference(e.target.value)}
-                  placeholder="e.g. Freedom Camping Bylaw 2024 cl 7.2 or FCA 2011 s20(1)(a)"
-                />
-                <p className="text-xs text-muted-foreground mt-1">Pre-fills the legal basis on infringement notices issued in this zone.</p>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Label htmlFor="editSeasonalOpenMonth">Seasonal Open (month)</Label>
-                  <Select
-                    value={editSeasonalOpenMonth != null ? String(editSeasonalOpenMonth) : 'year-round'}
-                    onValueChange={(v) => setEditSeasonalOpenMonth(v === 'year-round' ? null : Number(v))}
-                  >
-                    <SelectTrigger id="editSeasonalOpenMonth">
-                      <SelectValue placeholder="Year-round" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="year-round">Year-round</SelectItem>
-                      {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map((m, i) => (
-                        <SelectItem key={i+1} value={String(i+1)}>{m}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label htmlFor="editSeasonalCloseMonth">Seasonal Close (month, inclusive)</Label>
-                  <Select
-                    value={editSeasonalCloseMonth != null ? String(editSeasonalCloseMonth) : 'year-round'}
-                    onValueChange={(v) => setEditSeasonalCloseMonth(v === 'year-round' ? null : Number(v))}
-                  >
-                    <SelectTrigger id="editSeasonalCloseMonth">
-                      <SelectValue placeholder="Year-round" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="year-round">Year-round</SelectItem>
-                      {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map((m, i) => (
-                        <SelectItem key={i+1} value={String(i+1)}>{m}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
+              {editZoneFeatures.includes('freedom_camping') && (
+                <>
+                  {/* New legal / operational fields */}
+                  <div>
+                    <Label htmlFor="editLandManagingAgency">Land Managing Agency</Label>
+                    <Select
+                      value={editLandManagingAgency || ''}
+                      onValueChange={(v) => setEditLandManagingAgency(v === 'none' ? '' : v)}
+                    >
+                      <SelectTrigger id="editLandManagingAgency">
+                        <SelectValue placeholder="Select agency…" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">— Not specified —</SelectItem>
+                        <SelectItem value="council">Council</SelectItem>
+                        <SelectItem value="doc">DOC – Dept of Conservation</SelectItem>
+                        <SelectItem value="linz">LINZ – Land Information NZ</SelectItem>
+                        <SelectItem value="nzta">NZTA – NZ Transport Agency</SelectItem>
+                        <SelectItem value="crown">Crown (other)</SelectItem>
+                        <SelectItem value="private">Private land</SelectItem>
+                        <SelectItem value="other">Other</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Determines which legislation applies (FCA 2011 for council/DOC, Crown Pastoral Land Act for LINZ, etc.)
+                    </p>
+                  </div>
+                  <div>
+                    <Label htmlFor="editBylawReference">Bylaw / Regulation Reference</Label>
+                    <Input
+                      id="editBylawReference"
+                      value={editBylawReference}
+                      onChange={(e) => setEditBylawReference(e.target.value)}
+                      placeholder="e.g. Freedom Camping Bylaw 2024 cl 7.2 or FCA 2011 s20(1)(a)"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">Pre-fills the legal basis on infringement notices issued in this zone.</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label htmlFor="editSeasonalOpenMonth">Seasonal Open (month)</Label>
+                      <Select
+                        value={editSeasonalOpenMonth != null ? String(editSeasonalOpenMonth) : 'year-round'}
+                        onValueChange={(v) => setEditSeasonalOpenMonth(v === 'year-round' ? null : Number(v))}
+                      >
+                        <SelectTrigger id="editSeasonalOpenMonth">
+                          <SelectValue placeholder="Year-round" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="year-round">Year-round</SelectItem>
+                          {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map((m, i) => (
+                            <SelectItem key={i+1} value={String(i+1)}>{m}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label htmlFor="editSeasonalCloseMonth">Seasonal Close (month, inclusive)</Label>
+                      <Select
+                        value={editSeasonalCloseMonth != null ? String(editSeasonalCloseMonth) : 'year-round'}
+                        onValueChange={(v) => setEditSeasonalCloseMonth(v === 'year-round' ? null : Number(v))}
+                      >
+                        <SelectTrigger id="editSeasonalCloseMonth">
+                          <SelectValue placeholder="Year-round" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="year-round">Year-round</SelectItem>
+                          {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map((m, i) => (
+                            <SelectItem key={i+1} value={String(i+1)}>{m}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </>
+              )}
+
             </div>
 
             {/* Facilities & Amenities (B-18) */}
@@ -1334,8 +1479,8 @@ export default function ZoneManagement() {
             {(user?.role === 'master' || user?.role === 'grand_master') && (
               <div>
                 <Label htmlFor="createOrganization">Organisation *</Label>
-                <Select value={resolvedCreateOrganizationId} onValueChange={setCreateOrganizationId}>
-                  <SelectTrigger id="createOrganization">
+                <Select value={resolvedCreateOrganizationId} onValueChange={setCreateOrganizationId} disabled={isCreateOrgLockedByRoute}>
+                  <SelectTrigger id="createOrganization" disabled={isCreateOrgLockedByRoute}>
                     <SelectValue placeholder="Select organisation" />
                   </SelectTrigger>
                   <SelectContent>
@@ -1347,6 +1492,11 @@ export default function ZoneManagement() {
                 {resolvedCreateOrganizationId && (
                   <p className="mt-2 text-xs text-green-700 dark:text-green-300">
                     Linked Organisation: {resolvedCreateOrganizationName || 'Select organisation'}
+                  </p>
+                )}
+                {isCreateOrgLockedByRoute && (
+                  <p className="mt-1 text-xs text-blue-700 dark:text-blue-300">
+                    Organisation is locked from Organisation Management context.
                   </p>
                 )}
               </div>
@@ -1455,78 +1605,82 @@ export default function ZoneManagement() {
               </div>
             </div>
 
-            {/* Legal & Seasonal */}
-            <div className="border-t pt-4 space-y-3">
-              <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Legal &amp; Seasonal</h4>
-              <div>
-                <Label htmlFor="createLandManagingAgency">Land Managing Agency</Label>
-                <Select
-                  value={createLandManagingAgency || ''}
-                  onValueChange={(v) => setCreateLandManagingAgency(v === 'none' ? '' : v)}
-                >
-                  <SelectTrigger id="createLandManagingAgency">
-                    <SelectValue placeholder="Select agency…" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">— Not specified —</SelectItem>
-                    <SelectItem value="council">Council</SelectItem>
-                    <SelectItem value="doc">DOC – Dept of Conservation</SelectItem>
-                    <SelectItem value="linz">LINZ – Land Information NZ</SelectItem>
-                    <SelectItem value="nzta">NZTA – NZ Transport Agency</SelectItem>
-                    <SelectItem value="crown">Crown (other)</SelectItem>
-                    <SelectItem value="private">Private land</SelectItem>
-                    <SelectItem value="other">Other</SelectItem>
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground mt-1">Determines which legislation applies (FCA 2011 for council/DOC, etc.)</p>
-              </div>
-              <div>
-                <Label htmlFor="createBylawReference">Bylaw / Regulation Reference</Label>
-                <Input
-                  id="createBylawReference"
-                  value={createBylawReference}
-                  onChange={(e) => setCreateBylawReference(e.target.value)}
-                  placeholder="e.g. Freedom Camping Bylaw 2024 cl 7.2 or FCA 2011 s20(1)(a)"
-                />
-                <p className="text-xs text-muted-foreground mt-1">Pre-fills the legal basis on infringement notices issued in this zone.</p>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Label htmlFor="createSeasonalOpenMonth">Seasonal Open (month)</Label>
-                  <Select
-                    value={createSeasonalOpenMonth != null ? String(createSeasonalOpenMonth) : 'year-round'}
-                    onValueChange={(v) => setCreateSeasonalOpenMonth(v === 'year-round' ? null : Number(v))}
-                  >
-                    <SelectTrigger id="createSeasonalOpenMonth">
-                      <SelectValue placeholder="Year-round" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="year-round">Year-round</SelectItem>
-                      {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map((m, i) => (
-                        <SelectItem key={i+1} value={String(i+1)}>{m}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+            {createZoneFeatures.includes('freedom_camping') && (
+              <>
+                {/* Legal & Seasonal */}
+                <div className="border-t pt-4 space-y-3">
+                  <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Legal &amp; Seasonal</h4>
+                  <div>
+                    <Label htmlFor="createLandManagingAgency">Land Managing Agency</Label>
+                    <Select
+                      value={createLandManagingAgency || ''}
+                      onValueChange={(v) => setCreateLandManagingAgency(v === 'none' ? '' : v)}
+                    >
+                      <SelectTrigger id="createLandManagingAgency">
+                        <SelectValue placeholder="Select agency…" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">— Not specified —</SelectItem>
+                        <SelectItem value="council">Council</SelectItem>
+                        <SelectItem value="doc">DOC – Dept of Conservation</SelectItem>
+                        <SelectItem value="linz">LINZ – Land Information NZ</SelectItem>
+                        <SelectItem value="nzta">NZTA – NZ Transport Agency</SelectItem>
+                        <SelectItem value="crown">Crown (other)</SelectItem>
+                        <SelectItem value="private">Private land</SelectItem>
+                        <SelectItem value="other">Other</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground mt-1">Determines which legislation applies (FCA 2011 for council/DOC, etc.)</p>
+                  </div>
+                  <div>
+                    <Label htmlFor="createBylawReference">Bylaw / Regulation Reference</Label>
+                    <Input
+                      id="createBylawReference"
+                      value={createBylawReference}
+                      onChange={(e) => setCreateBylawReference(e.target.value)}
+                      placeholder="e.g. Freedom Camping Bylaw 2024 cl 7.2 or FCA 2011 s20(1)(a)"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">Pre-fills the legal basis on infringement notices issued in this zone.</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label htmlFor="createSeasonalOpenMonth">Seasonal Open (month)</Label>
+                      <Select
+                        value={createSeasonalOpenMonth != null ? String(createSeasonalOpenMonth) : 'year-round'}
+                        onValueChange={(v) => setCreateSeasonalOpenMonth(v === 'year-round' ? null : Number(v))}
+                      >
+                        <SelectTrigger id="createSeasonalOpenMonth">
+                          <SelectValue placeholder="Year-round" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="year-round">Year-round</SelectItem>
+                          {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map((m, i) => (
+                            <SelectItem key={i+1} value={String(i+1)}>{m}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label htmlFor="createSeasonalCloseMonth">Seasonal Close (month, inclusive)</Label>
+                      <Select
+                        value={createSeasonalCloseMonth != null ? String(createSeasonalCloseMonth) : 'year-round'}
+                        onValueChange={(v) => setCreateSeasonalCloseMonth(v === 'year-round' ? null : Number(v))}
+                      >
+                        <SelectTrigger id="createSeasonalCloseMonth">
+                          <SelectValue placeholder="Year-round" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="year-round">Year-round</SelectItem>
+                          {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map((m, i) => (
+                            <SelectItem key={i+1} value={String(i+1)}>{m}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <Label htmlFor="createSeasonalCloseMonth">Seasonal Close (month, inclusive)</Label>
-                  <Select
-                    value={createSeasonalCloseMonth != null ? String(createSeasonalCloseMonth) : 'year-round'}
-                    onValueChange={(v) => setCreateSeasonalCloseMonth(v === 'year-round' ? null : Number(v))}
-                  >
-                    <SelectTrigger id="createSeasonalCloseMonth">
-                      <SelectValue placeholder="Year-round" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="year-round">Year-round</SelectItem>
-                      {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map((m, i) => (
-                        <SelectItem key={i+1} value={String(i+1)}>{m}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </div>
+              </>
+            )}
 
             {/* Officer Portal Access */}
             <div className="border-t pt-4 space-y-3">
@@ -1563,6 +1717,7 @@ export default function ZoneManagement() {
               </div>
             </div>
           </div>
+
           <DialogFooter className="sticky bottom-0 mt-4 border-t bg-background pt-4">
             <Button type="button" variant="outline" onClick={() => { setShowCreateDialog(false); resetCreateForm() }}>
               Cancel

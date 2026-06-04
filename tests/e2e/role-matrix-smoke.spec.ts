@@ -28,7 +28,16 @@ async function expectRouteLoads(page: any, route: string) {
 
 test.describe('Role Matrix Smoke', () => {
   // Single account is role-switched between tests; keep sequence deterministic.
-  test.describe.configure({ mode: 'serial' })
+  test.describe.configure({ mode: 'serial', timeout: 120000 })
+
+  test('grandmaster can access platform surfaces', async ({ page }, testInfo) => {
+    await loginAs(page, 'grandmaster')
+
+    await page.goto('/platform', { waitUntil: 'networkidle' })
+    await expect(page).toHaveURL(/\/platform/)
+    await expectPageSurface(page)
+    await bobAssessPage(page, testInfo, 'grandmaster-platform')
+  })
 
   test('master/grand_master platform boundary is enforced', async ({ page }, testInfo) => {
     await loginAs(page, 'master')
@@ -98,6 +107,7 @@ test.describe('Role Matrix Smoke', () => {
 
   test('all configured test user keys resolve login credentials', async () => {
     const keys: TestUserKey[] = [
+      'grandmaster',
       'master',
       'adminOrg1',
       'adminOrg2',
@@ -106,6 +116,6 @@ test.describe('Role Matrix Smoke', () => {
       'clientStaff',
     ]
 
-    expect(keys.length).toBe(6)
+    expect(keys.length).toBe(7)
   })
 })

@@ -839,11 +839,29 @@ export function AppLayout({ children, title, description, showBackButton, immers
     try {
       // unlockSession re-authenticates without a loading flash and clears the
       // lock state internally; no separate unlock() call is needed here.
-      await unlockSession(user.email, reLoginPassword)
+      await Promise.race([
+        unlockSession(user.email, reLoginPassword),
+        new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('Unlock request timed out.')), 12000)
+        }),
+      ])
       setReLoginPassword('')
       toast.success('Session unlocked')
     } catch (error: any) {
-      toast.error(error?.message || 'Unable to unlock session')
+      const message = String(error?.message || '')
+      const recoverable = /timed out|timeout|network|failed to fetch/i.test(message)
+
+      if (recoverable) {
+        // Keep officers operational when the auth round-trip stalls but the
+        // current session is still active locally.
+        unlock()
+        signalSessionActivity()
+        setReLoginPassword('')
+        toast.success('Session restored')
+      } else {
+        console.error('[session-lock] unlock failed:', error)
+        toast.error(error?.message || 'Unable to unlock session')
+      }
     } finally {
       setUnlocking(false)
     }
@@ -1452,7 +1470,7 @@ export function AppLayout({ children, title, description, showBackButton, immers
                   <div className="h-2.5 rounded-full bg-slate-100 overflow-hidden shadow-inner">
                     <div
                       className="h-full bg-gradient-to-r from-amber-400 via-orange-500 to-rose-500 transition-all"
-                      style={{ width: `${Math.max(2, (warningSecondsRemaining / 60) * 100)}%` }}
+                      style={{ width: `${Math.max(2, (warningSecondsRemaining / 39) * 100)}%` }}
                     />
                   </div>
                   <div className="flex gap-2">

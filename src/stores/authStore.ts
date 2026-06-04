@@ -95,6 +95,19 @@ async function withTimeout<T>(promise: Promise<T>, ms: number, label: string): P
   }
 }
 
+function isRecoverableUnlockError(error: unknown): boolean {
+  const message = String((error as any)?.message || '').toLowerCase()
+  if (!message) return false
+  return (
+    message.includes('timed out') ||
+    message.includes('timeout') ||
+    message.includes('network') ||
+    message.includes('failed to fetch') ||
+    message.includes('rate limit') ||
+    message.includes('too many requests')
+  )
+}
+
 interface AuthUser {
   id: string
   email: string
@@ -191,7 +204,7 @@ interface AuthState {
 
 export const useAuthStore = create<AuthState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       user: null,
       isAuthenticated: false,
       hasSession: false,
@@ -333,19 +346,62 @@ export const useAuthStore = create<AuthState>()(
       // global loading state, preventing the app from briefly unmounting and
       // causing a visual loop.
       unlockSession: async (email: string, password: string) => {
-        const { data, error } = await withTimeout(
-          supabase.auth.signInWithPassword({ email, password }),
-          20000,
-          'unlock signInWithPassword'
-        )
-        if (error) throw error
+        let freshSession = null as Awaited<ReturnType<typeof getFreshSessionAfterLogin>> | null
 
-        const freshSession = data.session ?? await getFreshSessionAfterLogin()
+        try {
+          const { data, error } = await withTimeout(
+            supabase.auth.signInWithPassword({ email, password }),
+            20000,
+            'unlock signInWithPassword'
+          )
+
+          if (error) throw error
+          freshSession = data.session ?? await getFreshSessionAfterLogin()
+        } catch (error: any) {
+          const normalizedEmail = (email || '').trim().toLowerCase()
+          const activeUser = get().user
+          const { data: fallbackSessionData } = await supabase.auth.getSession().catch(() => ({ data: { session: null } as any }))
+          const fallbackSession = fallbackSessionData?.session ?? null
+          const fallbackSessionEmail = (fallbackSession?.user?.email || '').toLowerCase()
+
+          if (
+            isRecoverableUnlockError(error) &&
+            activeUser &&
+            fallbackSession &&
+            activeUser.id === fallbackSession.user.id &&
+            fallbackSessionEmail === normalizedEmail
+          ) {
+            set({ user: activeUser, isAuthenticated: true, loading: false })
+            set({ hasSession: true })
+            useSessionLockStore.getState().unlock()
+            sanitizeGlobalFiltersForUser(activeUser)
+            return
+          }
+
+          throw error
+        }
 
         const { profile, error: profileError } = await fetchProfileWithRetry(freshSession.user.id, 3)
 
-        if (profileError) {
-          throw profileError
+        if (profileError || !profile) {
+          const activeUser = get().user
+
+          // During unlock we already hold a valid user profile in memory from
+          // the locked session. If re-auth succeeds but profile refresh is
+          // briefly unavailable, keep the user in place and clear the lock.
+          if (activeUser && activeUser.id === freshSession.user.id) {
+            set({ user: activeUser, isAuthenticated: true, loading: false })
+            set({ hasSession: true })
+            useSessionLockStore.getState().unlock()
+            sanitizeGlobalFiltersForUser(activeUser)
+            return
+          }
+
+          if (profileError) {
+            throw profileError
+          }
+
+          throw new Error('Profile unavailable after unlock authentication')
         }
 
         const p = profile as any

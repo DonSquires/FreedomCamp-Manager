@@ -87,15 +87,18 @@ async function loginForManualSeed(page: Page): Promise<void> {
   await page.getByRole('button', { name: /^sign in$/i }).first().click()
 
   await page.waitForURL((url) => !url.pathname.startsWith('/login'), { timeout: 30000 })
-  await page.evaluate(() => {
-    window.sessionStorage.setItem('adminOfficerPortalChoice', 'selected')
-  }).catch(() => undefined)
 
   const workspaceHeading = page.getByText(/choose a workspace to continue your shift/i).first()
   if (await workspaceHeading.isVisible({ timeout: 3000 }).catch(() => false)) {
-    const adminOpenButton = page.getByRole('button', { name: /open admin portal/i }).first()
-    await expect(adminOpenButton).toBeVisible({ timeout: 5000 })
-    await adminOpenButton.click({ force: true })
+    const adminPortalCard = page.getByTestId('portal-card-admin').first()
+    const adminOpenButton = page.getByRole('button', { name: /open admin portal|admin portal/i }).first()
+
+    if (await adminPortalCard.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await adminPortalCard.click({ force: true })
+    } else {
+      await expect(adminOpenButton).toBeVisible({ timeout: 5000 })
+      await adminOpenButton.click({ force: true })
+    }
     await expect(workspaceHeading).toBeHidden({ timeout: 20000 }).catch(() => undefined)
   }
 
@@ -164,6 +167,32 @@ async function setOrganizationScope(page: Page, branchName: string): Promise<voi
   await page.waitForLoadState('networkidle').catch(() => undefined)
 }
 
+async function gotoOrgScopedZoneCreate(page: Page, branchName: string): Promise<void> {
+  await unlockSessionIfPrompted(page)
+  await page.goto('/organizations', { waitUntil: 'domcontentloaded' })
+  await unlockSessionIfPrompted(page)
+
+  const orgSearch = page
+    .locator('input[placeholder*="Search organizations" i], input[placeholder*="Search organisations" i]')
+    .first()
+  if (await orgSearch.isVisible({ timeout: 3000 }).catch(() => false)) {
+    await orgSearch.fill(branchName)
+  }
+
+  const orgCard = page
+    .locator('[data-testid^="organization-card-"]')
+    .filter({ hasText: new RegExp(escapeRegex(branchName), 'i') })
+    .first()
+  await expect(orgCard).toBeVisible({ timeout: 15000 })
+
+  const setZoneButton = orgCard.getByRole('button', { name: /set zone|zones/i }).first()
+  await expect(setZoneButton).toBeVisible({ timeout: 10000 })
+  await setZoneButton.click({ force: true })
+
+  await expect(page).toHaveURL(/\/zones(?:\?|$|#)/, { timeout: 20000 })
+  await page.waitForLoadState('networkidle').catch(() => undefined)
+}
+
 async function zoneExistsBySearch(page: Page, zoneName: string): Promise<boolean> {
   const search = page.locator('input[placeholder*="Search zones by name" i]').first()
   if (await search.isVisible({ timeout: 3000 }).catch(() => false)) {
@@ -180,12 +209,11 @@ async function resetSearch(page: Page): Promise<void> {
   }
 }
 
-async function openCreateZoneDialog(page: Page): Promise<void> {
+async function openCreateZoneDialog(page: Page, branchName: string): Promise<void> {
   await unlockSessionIfPrompted(page)
 
-  const addButton = page.getByRole('button', { name: /add zone/i }).first()
-  await expect(addButton).toBeVisible({ timeout: 15000 })
-  await addButton.click()
+  await gotoOrgScopedZoneCreate(page, branchName)
+
   const dialog = page.getByRole('dialog').filter({ hasText: /add zone|create a new enforcement or jurisdiction zone/i }).first()
   await expect(dialog).toBeVisible({ timeout: 10000 })
   await expect(dialog.locator('#createName')).toBeVisible({ timeout: 10000 })
@@ -196,7 +224,7 @@ async function createJurisdictionZone(
   seed: BranchSeed,
   diagnostics: BrowserDiagnostics,
 ): Promise<'created' | 'duplicate'> {
-  await openCreateZoneDialog(page)
+  await openCreateZoneDialog(page, seed.branchName)
   const dialog = page.getByRole('dialog').filter({ hasText: /add zone|create a new enforcement or jurisdiction zone/i }).first()
   const nameField = dialog.locator('#createName')
   const descriptionField = dialog.locator('#createDescription')

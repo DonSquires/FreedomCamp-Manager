@@ -19,7 +19,7 @@ const DEFAULT_MESSAGE = 'For security, this workspace has been locked. Log back 
 export const useSessionLockStore = create<SessionLockState>((set) => ({
   isLocked: false,
   isWarningVisible: false,
-  warningSecondsRemaining: 60,
+  warningSecondsRemaining: 39,
   title: DEFAULT_TITLE,
   message: DEFAULT_MESSAGE,
   lock: (title = DEFAULT_TITLE, message = DEFAULT_MESSAGE) => {
@@ -29,7 +29,7 @@ export const useSessionLockStore = create<SessionLockState>((set) => ({
     set({
       isLocked: false,
       isWarningVisible: false,
-      warningSecondsRemaining: 60,
+      warningSecondsRemaining: 39,
       title: DEFAULT_TITLE,
       message: DEFAULT_MESSAGE,
     })
@@ -41,6 +41,6 @@ export const useSessionLockStore = create<SessionLockState>((set) => ({
     set({ warningSecondsRemaining: Math.max(0, secondsRemaining) })
   },
   clearWarning: () => {
-    set({ isWarningVisible: false, warningSecondsRemaining: 60 })
+    set({ isWarningVisible: false, warningSecondsRemaining: 39 })
   },
 }))
