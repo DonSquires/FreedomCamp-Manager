@@ -4,6 +4,9 @@ Date: 2026-05-20 (npm/Actions cleanup pass)
 Owner: GitHub Copilot
 Status: **ALL GATES GREEN** — npm standardized; Vercel/mobile deployment updated; GH Actions deduplication in place
 
+Mapping operations runbook:
+- Production tile endpoint operations and failure handling live in `docs/RAILWAY_MODEL_MAPPING_GATEWAYS.md` under `Mapping tile operations runbook (production)`.
+
 ---
 
 ## Runtime Governance + Mapping Verification Update (2026-05-24)
