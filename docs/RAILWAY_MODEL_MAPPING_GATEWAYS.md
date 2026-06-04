@@ -55,6 +55,12 @@ No required vars for baseline deterministic routing.
 - `OSRM_BACKEND_URL` (reserved for direct matrix/route backend integration)
 - `VALHALLA_BACKEND_URL` (reserved for direct backend integration)
 - `MAPPING_GATEWAY_TIMEOUT_MS`
+- `MAPPING_GATEWAY_STREET_TILE_URL`
+- `MAPPING_GATEWAY_STREET_TILE_ATTRIBUTION`
+- `MAPPING_GATEWAY_FALLBACK_TILE_URL`
+- `MAPPING_GATEWAY_FALLBACK_TILE_ATTRIBUTION`
+- `MAPPING_GATEWAY_SATELLITE_TILE_URL`
+- `MAPPING_GATEWAY_SATELLITE_TILE_ATTRIBUTION`
 
 ### Backend wiring
 
@@ -68,6 +74,16 @@ Runtime behavior for patrol-route intent:
 1. Route plan generated from `mapping-gateway` (self-hosted primary)
 2. If unavailable, deterministic inbuilt nearest-neighbor route still returns
 3. Google enrichment is optional support and reflected in telemetry/sources
+
+### Tile proxy behavior
+
+The mapping gateway Docker image now also serves internal map tile proxy routes:
+
+- `GET /maps/tiles/street/{z}/{x}/{y}.png`
+- `GET /maps/tiles/fallback/{z}/{x}/{y}.png`
+- `GET /maps/tiles/satellite/{z}/{x}/{y}.jpg`
+
+Each route proxies to the corresponding internal tile template configured in the mapping-gateway service env.
 
 ## Railway deploy sequence
 
