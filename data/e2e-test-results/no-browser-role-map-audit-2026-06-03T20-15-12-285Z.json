@@ -1,0 +1,176 @@
+{
+  "checkedAt": "2026-06-03T20:15:12.273Z",
+  "supabaseBaseUrl": "https://kxwjcupuxnnbnzcgmkoi.supabase.co",
+  "personaResults": [
+    {
+      "slot": "master",
+      "email": "squires.don@live.com",
+      "status": "ok",
+      "profileRole": "grand_master",
+      "rolePass": true,
+      "profileStatus": 200,
+      "zonesStatus": 200,
+      "zonesCount": 1,
+      "radioSessionGrantStatus": 501
+    },
+    {
+      "slot": "admin_org1",
+      "email": "squires.don@gmail.com",
+      "status": "ok",
+      "profileRole": "admin",
+      "rolePass": true,
+      "profileStatus": 200,
+      "zonesStatus": 200,
+      "zonesCount": 1,
+      "radioSessionGrantStatus": 501
+    },
+    {
+      "slot": "officer_org1",
+      "email": "littlemissno5@gmail.com",
+      "status": "ok",
+      "profileRole": "officer",
+      "rolePass": true,
+      "profileStatus": 200,
+      "zonesStatus": 200,
+      "zonesCount": 1,
+      "radioSessionGrantStatus": 501
+    },
+    {
+      "slot": "client_viewer",
+      "email": "ryno.botha@ncc.govt.nz",
+      "status": "ok",
+      "profileRole": "client_viewer",
+      "rolePass": true,
+      "profileStatus": 200,
+      "zonesStatus": 200,
+      "zonesCount": 1,
+      "radioSessionGrantStatus": 501
+    }
+  ],
+  "mapRouteCoverage": {
+    "totalMapGeoZoneRoutes": 15,
+    "routes": [
+      {
+        "path": "/public/zone-map",
+        "roles": []
+      },
+      {
+        "path": "/zones",
+        "roles": [
+          "admin",
+          "admin_officer",
+          "master"
+        ]
+      },
+      {
+        "path": "/zone-amenities",
+        "roles": [
+          "admin",
+          "admin_officer",
+          "master"
+        ]
+      },
+      {
+        "path": "/incident-heatmap",
+        "roles": [
+          "admin",
+          "admin_officer",
+          "master"
+        ]
+      },
+      {
+        "path": "/job-map",
+        "roles": [
+          "admin",
+          "admin_officer",
+          "master",
+          "officer"
+        ]
+      },
+      {
+        "path": "/operations-map",
+        "roles": [
+          "admin",
+          "admin_officer",
+          "master"
+        ]
+      },
+      {
+        "path": "/zone-legal-config",
+        "roles": [
+          "admin",
+          "master"
+        ]
+      },
+      {
+        "path": "/zone-signage-evidence",
+        "roles": [
+          "admin",
+          "admin_officer",
+          "master"
+        ]
+      },
+      {
+        "path": "/zone-geofence-snapshots",
+        "roles": [
+          "admin",
+          "admin_officer",
+          "master"
+        ]
+      },
+      {
+        "path": "/observation-zone-audit-log",
+        "roles": [
+          "admin",
+          "admin_officer",
+          "master"
+        ]
+      },
+      {
+        "path": "/zone-dispatch-rules-log",
+        "roles": [
+          "admin",
+          "master"
+        ]
+      },
+      {
+        "path": "/zone-compliance-matrix-log",
+        "roles": [
+          "admin",
+          "admin_officer",
+          "master"
+        ]
+      },
+      {
+        "path": "/zone-legal-config-log",
+        "roles": [
+          "admin",
+          "master"
+        ]
+      },
+      {
+        "path": "/zone-signage-evidence-log",
+        "roles": [
+          "admin",
+          "admin_officer",
+          "master"
+        ]
+      },
+      {
+        "path": "/parking-zones-log",
+        "roles": [
+          "admin",
+          "master"
+        ]
+      }
+    ]
+  },
+  "summary": {
+    "personaSlots": 4,
+    "authOk": 4,
+    "rolePass": 4,
+    "missingCredentials": 0,
+    "authFailed": 0,
+    "totalMapGeoZoneRoutes": 15
+  }
+}

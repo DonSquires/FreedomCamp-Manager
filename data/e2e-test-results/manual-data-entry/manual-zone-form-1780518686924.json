@@ -1,0 +1,18 @@
+{
+  "checkedAt": "2026-06-03T20:31:21.249Z",
+  "steps": [
+    {
+      "step": "open-zones",
+      "url": "http://127.0.0.1:4173/zones"
+    },
+    {
+      "step": "typed-zone-form",
+      "typedName": "Manual UI Entry 1780518686036",
+      "typedDescriptionLength": 59,
+      "saveVisible": true
+    },
+    {
+      "step": "cancelled-without-save"
+    }
+  ]
+}

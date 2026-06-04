@@ -1,0 +1,67 @@
+{
+  "generatedAt": "2026-06-04T06:55:25.435Z",
+  "environment": {
+    "os": "linux",
+    "node": "v24.15.0",
+    "cwd": "/workspaces/FreedomCamp-Manager"
+  },
+  "mapCapabilities": {
+    "streetMapLayer": {
+      "pass": true,
+      "details": "Primary + fallback tile plumbing exists without hardcoded external street tile defaults."
+    },
+    "trafficOverlay": {
+      "pass": true,
+      "details": "Traffic overlay layer is implemented with HERE-based URL and toggle support."
+    },
+    "geofenceEditor": {
+      "pass": true,
+      "details": "Geofence editor map supports draw/edit and tile fallback on tile errors."
+    },
+    "patrolNavigation": {
+      "pass": true,
+      "details": "Patrol navigation has turn-by-turn output and in-house provider/fallback routing."
+    },
+    "satelliteView": {
+      "pass": true,
+      "details": "Satellite layer support is implemented with internal-gated configuration."
+    },
+    "streetInternalOnlyPolicy": {
+      "pass": true,
+      "details": "Street mapping configuration is internal-only (no hardcoded external fallback)."
+    },
+    "streetInternalConfigured": {
+      "pass": false,
+      "details": "No internal street tile endpoint is configured; maps will not load basemap tiles."
+    },
+    "satelliteInternalOnlyPolicy": {
+      "pass": true,
+      "details": "Satellite configuration is internal-only (no hardcoded external imagery fallback)."
+    },
+    "satelliteInternalConfigured": {
+      "pass": false,
+      "details": "Internal satellite tile endpoint is not configured; satellite option remains unavailable in UI."
+    }
+  },
+  "tileProbe": {
+    "template": "",
+    "probeUrl": "",
+    "result": {
+      "attempted": false,
+      "pass": false,
+      "reason": "no-url"
+    }
+  },
+  "summary": {
+    "overallPass": false,
+    "satelliteImplemented": true,
+    "streetInternalOnlyPolicy": true,
+    "streetConfigured": false,
+    "satelliteInternalOnlyPolicy": true,
+    "satelliteConfigured": false,
+    "notes": [
+      "overallPass covers street map visibility plumbing, tile endpoint response, geofence editor, and patrol navigation capability.",
+      "street and satellite checks report internal-only policy and whether internal tile endpoints are configured."
+    ]
+  }
+}
