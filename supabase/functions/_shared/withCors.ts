@@ -26,8 +26,10 @@ const ALLOWED_ORIGINS_EXACT = new Set<string>([
   'https://fcmanager.co.nz',                   // Production domain
   'https://www.fcmanager.co.nz',               // Production domain (www)
   'http://localhost:5173',                      // Local dev
+  'http://localhost:4173',                      // Local dev (Playwright/static preview)
   'http://localhost:3000',                      // Local dev (alternate port)
   'http://127.0.0.1:5173',                      // Local dev (IP host)
+  'http://127.0.0.1:4173',                      // Local dev (Playwright/static preview)
   'http://127.0.0.1:3000',                      // Local dev (IP host alt)
 ]);
 

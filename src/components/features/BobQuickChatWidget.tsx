@@ -33,6 +33,87 @@ const GREETING: ChatMessage = {
   content: 'Hi, I am Bob. Ask a quick operational question and I will help right here.',
 }
 
+const ACCESS_TOKEN_REFRESH_BUFFER_MS = 60_000
+const QUICK_CHAT_TIMEOUT_MS = 90_000
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, timeoutMessage: string): Promise<T> {
+  return await Promise.race([
+    promise,
+    new Promise<T>((_, reject) => window.setTimeout(() => reject(new Error(timeoutMessage)), timeoutMs)),
+  ])
+}
+
+function readSupabaseAccessTokenFromStorage(): string | null {
+  if (typeof window === 'undefined') return null
+
+  const storages: Storage[] = [window.sessionStorage, window.localStorage]
+
+  for (const storage of storages) {
+    for (let index = 0; index < storage.length; index += 1) {
+      const key = storage.key(index)
+      if (!key || !key.startsWith('sb-') || !key.includes('-auth-token')) continue
+
+      const raw = storage.getItem(key)
+      if (!raw) continue
+
+      try {
+        const parsed = JSON.parse(raw)
+        if (typeof parsed?.access_token === 'string' && parsed.access_token.length > 20) {
+          return parsed.access_token
+        }
+      } catch {
+        // ignore malformed storage entries
+      }
+    }
+  }
+
+  return null
+}
+
+async function getQuickChatAccessToken(): Promise<string | null> {
+  const stored = readSupabaseAccessTokenFromStorage()
+  if (stored) return stored
+
+  try {
+    const { data, error } = await withTimeout(
+      supabase.auth.refreshSession(),
+      6000,
+      'Auth refresh timed out',
+    )
+    if (!error && data.session?.access_token) {
+      return data.session.access_token
+    }
+  } catch {
+    // Fall back to current session lookup when refresh stalls.
+  }
+
+  try {
+    const {
+      data: { session },
+    } = await withTimeout(
+      supabase.auth.getSession(),
+      4000,
+      'Session lookup timed out',
+    )
+
+    if (!session?.access_token) return null
+
+    const expiresAt = (session.expires_at ?? 0) * 1000
+    if (Date.now() + ACCESS_TOKEN_REFRESH_BUFFER_MS >= expiresAt) {
+      const { data: refreshed } = await withTimeout(
+        supabase.auth.refreshSession(),
+        6000,
+        'Auth refresh timed out',
+      )
+      return refreshed.session?.access_token ?? session.access_token
+    }
+
+    return session.access_token
+  } catch {
+    return readSupabaseAccessTokenFromStorage()
+  }
+}
+
 async function streamBobResponse(
   payload: Record<string, unknown>,
   onToken: (text: string) => void,
@@ -58,14 +139,14 @@ async function streamBobResponse(
     throw new Error('Missing Supabase configuration for Bob quick chat')
   }
 
-  const { data: sessionData } = await supabase.auth.getSession()
-  const accessToken = sessionData?.session?.access_token
+  const accessToken = await getQuickChatAccessToken()
   if (!accessToken) {
     throw new Error('No active session found. Please sign in again.')
   }
 
   const controller = new AbortController()
-  const timeoutId = window.setTimeout(() => controller.abort(), 25000)
+  const timeoutMs = QUICK_CHAT_TIMEOUT_MS
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs)
 
   let response: Response
   try {
@@ -82,11 +163,25 @@ async function streamBobResponse(
       }),
       signal: controller.signal,
     })
-  } finally {
+  } catch (error) {
     window.clearTimeout(timeoutId)
+    throw error
   }
 
-  const raw = await response.text()
+  const readTimeoutId = window.setTimeout(() => controller.abort(), timeoutMs)
+  let raw = ''
+  try {
+    raw = await response.text()
+  } catch (error) {
+    const timedOut = error instanceof DOMException && error.name === 'AbortError'
+    if (timedOut) {
+      throw new Error('Request timed out while reading Bob response')
+    }
+    throw error
+  } finally {
+    window.clearTimeout(timeoutId)
+    window.clearTimeout(readTimeoutId)
+  }
   let parsed: any = null
   try {
     parsed = raw ? JSON.parse(raw) : null
