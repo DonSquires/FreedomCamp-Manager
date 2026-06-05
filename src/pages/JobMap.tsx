@@ -477,16 +477,13 @@ export default function JobMap() {
             </CardDescription>
           </CardHeader>
           <CardContent className="p-0">
-            {isLoading ? (
-              <div className="h-[500px] flex items-center justify-center text-muted-foreground">
-                Loading jobs...
-              </div>
-            ) : jobsWithGPS.length === 0 ? (
-              <div className="h-[500px] flex items-center justify-center text-muted-foreground">
-                No jobs with GPS coordinates to display
-              </div>
-            ) : (
-              <div style={{ height: '500px' }}>
+            <div className="relative" style={{ height: '500px' }}>
+              {isLoading && (
+                <div className="pointer-events-none absolute inset-0 z-[1000] flex items-center justify-center bg-background/60">
+                  <div className="text-sm text-muted-foreground">Loading jobs...</div>
+                </div>
+              )}
+              <div className="relative" style={{ height: '500px' }}>
                 <MapContainer
                   key={focusKey}
                   center={defaultCenter}
@@ -498,8 +495,11 @@ export default function JobMap() {
                     attribution={baseMapTileAttribution}
                     url={baseMapTileUrl}
                   />
-                  <MapViewportController jobs={jobsWithGPS} selectedJob={selectedJobId} />
+                  {jobsWithGPS.length > 0 && (
+                    <MapViewportController jobs={jobsWithGPS} selectedJob={selectedJobId} />
+                  )}
                   
+                  {!isLoading && (
                   <MarkerClusterGroup
                     chunkedLoading
                     maxClusterRadius={40}
@@ -646,9 +646,18 @@ export default function JobMap() {
                       )
                     })}
                   </MarkerClusterGroup>
+                  )}
                 </MapContainer>
+
+                {jobsWithGPS.length === 0 && !isLoading && (
+                  <div className="pointer-events-none absolute inset-x-0 top-3 flex justify-center">
+                    <div className="rounded-md border bg-background/90 px-3 py-1 text-xs text-muted-foreground shadow-sm">
+                      No jobs with GPS coordinates to display yet
+                    </div>
+                  </div>
+                )}
               </div>
-            )}
+            </div>
           </CardContent>
         </Card>
         

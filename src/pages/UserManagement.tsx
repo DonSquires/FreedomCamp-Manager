@@ -124,6 +124,12 @@ function isGenericOrganizationLabel(name: string | null | undefined): boolean {
   return /^org\s+[a-f0-9]{8}$/i.test(normalized)
 }
 
+function fallbackOrganizationLabel(id: string | null | undefined): string {
+  const normalizedId = (id || '').trim()
+  if (!normalizedId) return 'Unknown Organisation'
+  return `Org ${normalizedId.slice(0, 8)}`
+}
+
 export default function UserManagement({ embedded = false }: UserManagementProps) {
   const { user } = useAuthStore()
   const navigate = useNavigate()
@@ -193,7 +199,7 @@ export default function UserManagement({ embedded = false }: UserManagementProps
   const isMaster = user?.role === 'master' || user?.role === 'grand_master'
 
   // Fetch all active organizations for dropdowns
-  const { data: organizations } = useQuery({
+  const { data: organizations, isLoading: isOrganizationsLoading } = useQuery({
     queryKey: ['organizations'],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -275,11 +281,11 @@ export default function UserManagement({ embedded = false }: UserManagementProps
       if (error) throw new Error(normalizeErrorMessage(error))
 
       const organization = data?.organization
-      if (!organization?.id || !organization?.name) return null
+      if (!organization?.id) return null
 
       return {
         id: organization.id,
-        name: organization.name,
+        name: organization.name || fallbackOrganizationLabel(organization.id),
         parent_organization_id: organization.parent_organization_id ?? null,
       } as Organization
     },
@@ -352,7 +358,7 @@ export default function UserManagement({ embedded = false }: UserManagementProps
     const fromUsers = (users || [])
       .map((u) => ({
         id: u.organization_id,
-        name: u.organization?.name,
+        name: u.organization?.name || fallbackOrganizationLabel(u.organization_id),
       }))
       .filter((org): org is { id: string; name: string } => Boolean(org.id && org.name))
 
@@ -1081,10 +1087,12 @@ export default function UserManagement({ embedded = false }: UserManagementProps
           <Radio className="h-4 w-4 mr-2" />
           Bulk Assign Callsigns
         </Button>
-        <Button onClick={() => {
-          resetForm()
-          setShowCreateDialog(true)
-        }}>
+        <Button
+          onClick={() => {
+            resetForm()
+            setShowCreateDialog(true)
+          }}
+        >
           <UserPlus className="h-4 w-4 mr-2" />
           Create User
         </Button>
@@ -1545,9 +1553,13 @@ export default function UserManagement({ embedded = false }: UserManagementProps
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">No Organisation</SelectItem>
-                      {assignableOrgs.map((org) => (
-                        <SelectItem key={org.id} value={org.id}>{formatOrganizationDisplayName(org.name)}</SelectItem>
-                      ))}
+                      {isOrganizationsLoading && assignableOrgs.length === 0 ? (
+                        <SelectItem value="loading" disabled>Loading organisations...</SelectItem>
+                      ) : (
+                        assignableOrgs.map((org) => (
+                          <SelectItem key={org.id} value={org.id}>{formatOrganizationDisplayName(org.name)}</SelectItem>
+                        ))
+                      )}
                     </SelectContent>
                   </Select>
                 </div>
