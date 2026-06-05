@@ -535,6 +535,7 @@ export function AppLayout({ children, title, description, showBackButton, immers
   })
   const [reLoginPassword, setReLoginPassword] = useState('')
   const [unlocking, setUnlocking] = useState(false)
+  const [lockoutActionError, setLockoutActionError] = useState<string | null>(null)
   const [isOffline, setIsOffline] = useState(!navigator.onLine)
   const activeFetchCount = useIsFetching()
 
@@ -791,9 +792,12 @@ export function AppLayout({ children, title, description, showBackButton, immers
         : Sun
 
   const handleLogout = async () => {
-    await logout()
-    queryClient.clear()
-    navigate('/login')
+    try {
+      await logout()
+    } finally {
+      queryClient.clear()
+      navigate('/login', { replace: true })
+    }
   }
 
   const handleBack = () => {
@@ -826,12 +830,18 @@ export function AppLayout({ children, title, description, showBackButton, immers
   }
 
   const handleUnlockSession = async () => {
+    setLockoutActionError(null)
+
     if (!user?.email) {
-      toast.error('Session cannot be restored. Please log in again.')
+      const message = 'Session cannot be restored. Please log in again.'
+      setLockoutActionError(message)
+      toast.error(message)
       return
     }
     if (!reLoginPassword.trim()) {
-      toast.error('Enter your password to unlock the session.')
+      const message = 'Enter your password to unlock the session.'
+      setLockoutActionError(message)
+      toast.error(message)
       return
     }
 
@@ -845,7 +855,10 @@ export function AppLayout({ children, title, description, showBackButton, immers
           setTimeout(() => reject(new Error('Unlock request timed out.')), 12000)
         }),
       ])
+      unlock()
+      signalSessionActivity()
       setReLoginPassword('')
+      setLockoutActionError(null)
       toast.success('Session unlocked')
     } catch (error: any) {
       const message = String(error?.message || '')
@@ -857,10 +870,13 @@ export function AppLayout({ children, title, description, showBackButton, immers
         unlock()
         signalSessionActivity()
         setReLoginPassword('')
+        setLockoutActionError(null)
         toast.success('Session restored')
       } else {
         console.error('[session-lock] unlock failed:', error)
-        toast.error(error?.message || 'Unable to unlock session')
+        const failureMessage = error?.message || 'Unable to unlock session'
+        setLockoutActionError(failureMessage)
+        toast.error(failureMessage)
       }
     } finally {
       setUnlocking(false)
@@ -868,8 +884,19 @@ export function AppLayout({ children, title, description, showBackButton, immers
   }
 
   const handleLogoutCompletely = async () => {
-    await handleLogout()
-    unlock()
+    setLockoutActionError(null)
+    try {
+      await handleLogout()
+    } catch (error: any) {
+      console.error('[session-lock] logout failed:', error)
+      const fallbackMessage = error?.message || 'Logout failed. Redirecting to login.'
+      setLockoutActionError(fallbackMessage)
+      toast.error(fallbackMessage)
+      navigate('/login', { replace: true })
+    } finally {
+      unlock()
+      signalSessionActivity()
+    }
   }
 
   const handleStaySignedIn = () => {
@@ -1520,6 +1547,7 @@ export function AppLayout({ children, title, description, showBackButton, immers
                     className="space-y-2"
                     onSubmit={(e) => {
                       e.preventDefault()
+                      if (unlocking) return
                       handleUnlockSession()
                     }}
                   >
@@ -1534,21 +1562,34 @@ export function AppLayout({ children, title, description, showBackButton, immers
                       onChange={(e) => setReLoginPassword(e.target.value)}
                       placeholder="Enter password to unlock"
                       disabled={unlocking}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault()
-                          handleUnlockSession()
-                        }
-                      }}
                     />
                   </form>
 
+                  {lockoutActionError && (
+                    <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                      {lockoutActionError}
+                    </div>
+                  )}
+
                   <div className="flex flex-col sm:flex-row gap-2 pt-2">
-                    <Button className="flex-1" onClick={handleUnlockSession} disabled={unlocking}>
+                    <Button
+                      type="button"
+                      className="flex-1"
+                      onClick={handleUnlockSession}
+                      disabled={unlocking}
+                      data-testid="session-lock-log-back-in"
+                    >
                       <Unlock className="h-4 w-4 mr-2" />
                       {unlocking ? 'Unlocking...' : 'Log Back In'}
                     </Button>
-                    <Button variant="outline" className="flex-1" onClick={handleLogoutCompletely} disabled={unlocking}>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="flex-1"
+                      onClick={handleLogoutCompletely}
+                      disabled={unlocking}
+                      data-testid="session-lock-logout-completely"
+                    >
                       <LogOut className="h-4 w-4 mr-2" />
                       Logout Completely
                     </Button>

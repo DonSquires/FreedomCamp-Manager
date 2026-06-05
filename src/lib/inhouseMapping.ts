@@ -1,10 +1,17 @@
+const configuredGatewayBase = String(import.meta.env.VITE_INHOUSE_MAP_GATEWAY_BASE_URL || '').trim().replace(/\/+$/, '')
+const defaultGatewayBase = configuredGatewayBase || 'https://mapping-gateway-production.up.railway.app'
+
+const defaultStreetTileUrl = `${defaultGatewayBase}/maps/tiles/street/{z}/{x}/{y}.png`
+const defaultFallbackTileUrl = `${defaultGatewayBase}/maps/tiles/fallback/{z}/{x}/{y}.png`
+const defaultSatelliteTileUrl = `${defaultGatewayBase}/maps/tiles/satellite/{z}/{x}/{y}.jpg`
+
 const configuredFallbackTileUrl = String(import.meta.env.VITE_INHOUSE_MAP_FALLBACK_TILE_URL || '').trim()
 const configuredFallbackAttribution = String(import.meta.env.VITE_INHOUSE_MAP_FALLBACK_TILE_ATTRIBUTION || '').trim()
 
-export const FALLBACK_MAP_TILE_URL = configuredFallbackTileUrl || ''
+export const FALLBACK_MAP_TILE_URL = configuredFallbackTileUrl || defaultFallbackTileUrl
 export const FALLBACK_MAP_TILE_ATTRIBUTION =
   configuredFallbackAttribution ||
-  (configuredFallbackTileUrl
+  (configuredFallbackTileUrl || defaultFallbackTileUrl
     ? '&copy; OnSpace AI in-house fallback mapping'
     : '')
 
@@ -17,20 +24,20 @@ const configuredCoordsTemplate = String(import.meta.env.VITE_INHOUSE_MAP_COORDS_
 const configuredAddressTemplate = String(import.meta.env.VITE_INHOUSE_MAP_ADDRESS_URL || '').trim()
 
 export const HAS_INTERNAL_STREET_MAP_TILE =
-  configuredTileUrl.length > 0 || configuredFallbackTileUrl.length > 0
-export const HAS_INTERNAL_SATELLITE_MAP_TILE = configuredSatelliteTileUrl.length > 0
+  configuredTileUrl.length > 0 || configuredFallbackTileUrl.length > 0 || defaultStreetTileUrl.length > 0
+export const HAS_INTERNAL_SATELLITE_MAP_TILE = configuredSatelliteTileUrl.length > 0 || defaultSatelliteTileUrl.length > 0
 
-export const PRIMARY_MAP_TILE_URL = configuredTileUrl || FALLBACK_MAP_TILE_URL
+export const PRIMARY_MAP_TILE_URL = configuredTileUrl || defaultStreetTileUrl || FALLBACK_MAP_TILE_URL
 export const PRIMARY_MAP_TILE_ATTRIBUTION =
   configuredTileAttribution ||
-  (configuredTileUrl || configuredFallbackTileUrl
+  (configuredTileUrl || configuredFallbackTileUrl || defaultStreetTileUrl
     ? '&copy; OnSpace AI in-house mapping'
     : FALLBACK_MAP_TILE_ATTRIBUTION)
 
-export const SATELLITE_MAP_TILE_URL = configuredSatelliteTileUrl || ''
+export const SATELLITE_MAP_TILE_URL = configuredSatelliteTileUrl || defaultSatelliteTileUrl
 export const SATELLITE_MAP_TILE_ATTRIBUTION =
   configuredSatelliteAttribution ||
-  (configuredSatelliteTileUrl
+  (configuredSatelliteTileUrl || defaultSatelliteTileUrl
     ? '&copy; OnSpace AI in-house satellite mapping'
     : '')
 

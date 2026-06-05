@@ -76,6 +76,7 @@ jobs:
         if: ${{ github.event.inputs.run_map_primary_render != 'false' }}
         env:
           PLAYWRIGHT_ENABLE_MANUAL_SEED: '1'
+          TEST_LOGIN_PROFILE: master
         run: |
           npx playwright test \
             tests/e2e/map-primary-render.spec.ts \
